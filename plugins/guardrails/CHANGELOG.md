@@ -5,6 +5,41 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.32.0]
 
+### Added
+
+- **`secret-pattern-detection` and `hardcoded-path-check` now inspect content written
+  through the GitHub MCP write tools.** Both guards matched `Write|Edit|NotebookEdit`
+  only, so a session could be cleared by them and still push the same secret to a
+  repository through `mcp__github__push_files` or
+  `mcp__github__create_or_update_file` — a route with no local file to fix afterwards
+  and no `pre-commit` content-invariants layer on it. `push_files` is scanned per
+  entry of its `files` array, not just the first.
+
+  `mcp__github__delete_file` is deliberately not covered. Its schema carries `owner`,
+  `repo`, `path`, `message` and `branch`, and no content: there is nothing for a
+  content guard to scan, and a delete cannot introduce a secret or a hardcoded path.
+  Naming it would claim coverage that consists of skipping every call.
+
+  Registered as a NEW `hooks.json` row rather than by widening the
+  `Write|Edit|MultiEdit|NotebookEdit` matcher, so the always-on write path pays
+  nothing for tools it will never see. Three local-only gates are not applied on the
+  new lane — the project-scope guard, the git-working-tree requirement, and `git
+  check-ignore` — because each is a statement about a local file and an MCP write has
+  none; applying the scope guard in particular would have skipped every MCP write,
+  which is a silent hole rather than a scope. The path allowlist is reused unchanged.
+  `hardcoded-path-check` still resolves its scan root, which is what catches this
+  machine's own checkout path appearing verbatim in pushed content.
+
+### Fixed
+
+- **`run-guards.sh` primes `.tool_input.path`, which a guard asking for it would
+  otherwise have paid two `jq` spawns per Write/Edit for.** The dispatcher's cached
+  `hook::jq_fields` is all-or-nothing per call: one filter it cannot serve sends the
+  whole call to an uncached `jq`. Adding the MCP lane's field to the two content
+  guards without adding it here cost 50 ms to 60 ms on every authored write — measured,
+  then fixed, before it shipped. The primed program is now nine filters instead of
+  eight: 51 ms before, 52 ms after, median of three 30-run batches per tree.
+
 ### Changed
 
 - **`block-hook-bypass` now ships two scratch roots exempt instead of none.** The
@@ -38,8 +73,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   roots rather than being the only source of them. The kill switch remains the
   whole-guard lever; the shipped roots are not removable through the option. A consumer
   who has moved `memory_dir` off `.work/` names the new location there.
-
-### Added
 
 - **`block-hook-bypass` resolves a relative redirect target against the tool call's own
   `cwd`.** The axis previously refused every relative target outright, on the grounds

@@ -112,9 +112,16 @@ eval "$(declare -f hook::jq_fields | sed '1s/^hook::jq_fields/hook::jq_fields_un
 RUN_GUARDS_PRIMED=0
 RUN_GUARDS_FILTERS=()
 RUN_GUARDS_VALUES=()
+# Every field ANY registered guard asks for must be primed here. The cached
+# hook::jq_fields below is all-or-nothing per call: one filter it cannot serve
+# sends the whole call to an uncached jq spawn, so a guard that adds a field
+# without adding it here costs a process on EVERY payload, not just the ones the
+# field belongs to. `.tool_input.path` (the GitHub MCP write lane's file path,
+# #3712) was measured doing exactly that — two extra spawns per Write/Edit,
+# 50 ms to 60 ms on the reference host — before it was added.
 PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'
-  '.tool_input.file_path' '.tool_input.notebook_path'
+  '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source'
 )
 if ((RUN_GUARDS_STDIN_RC == 0)) && hook::jq_fields_uncached "$RUN_GUARDS_INPUT" "${PRIME_FILTERS[@]}" &&

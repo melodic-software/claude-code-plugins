@@ -72,7 +72,8 @@ hook::require_jq "PreToolUse" "guardrails-hardcoded-path-check" "$INPUT"
 # once per session.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
-  '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' || exit 0
+  '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
+  '.tool_input.path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
 # text across the byte, so a clean scan would not reflect the bytes carried.
@@ -85,10 +86,165 @@ fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
 
+# 0 when <slash-normalized path> legitimately contains path patterns. A function
+# rather than the inline case it replaced because the MCP lane asks the same
+# question of a repo-relative path: one list, two callers.
+hpc_path_allowlisted() {
+  case "$1" in
+  # Hook / hook-manager scripts contain path-detection patterns as regex strings.
+  *.claude/hooks/* | *.lefthook/*) return 0 ;;
+  # Claude Code session/workflow state (under ~/.claude/projects/) lives OUTSIDE
+  # any repo working tree and is never committed; absolute paths there are expected
+  # machine-local glue. The gitignore check cannot catch it — the path is outside
+  # $CLAUDE_PROJECT_DIR, so `git check-ignore` errors rather than matching.
+  *.claude/projects/*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# Set SCAN_ROOT for hpp::scan_text's repo-path branch, from <project root>.
+#
+# That branch matches the project root as a literal substring and is never
+# OS-suppressed. It is a valid machine-specific marker ONLY when the root sits
+# inside a genuine git checkout whose TOPLEVEL is not the user's home (nor an
+# ancestor of it): a project dir can be a subdirectory of its checkout, and when
+# home is itself a checkout (chezmoi-managed dotfiles) a project dir like
+# $HOME/Desktop would clear a root-only home test and wrongly re-enable the
+# branch, hard-denying every path under it. Empty is the lib's documented seam to
+# skip the branch. Native Windows exposes home as %USERPROFILE%, not $HOME, so
+# fall back to it; a missing home leaves the branch active (fail toward
+# detection, never a false negative).
+hpc_resolve_scan_root() {
+  local root="$1" toplevel tl_norm home_norm
+  SCAN_ROOT=""
+  [[ -n "$root" ]] || return 0
+  toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  [[ -n "$toplevel" ]] || return 0
+  tl_norm="$(hook::normalize_path "$toplevel")"
+  tl_norm="${tl_norm%/}"
+  home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
+  home_norm="${home_norm%/}"
+  if [[ -n "$home_norm" && ("$tl_norm" == "$home_norm" || "$home_norm" == "$tl_norm"/*) ]]; then
+    SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
+  else
+    SCAN_ROOT="$root"
+  fi
+}
+
+# Scan every file a GitHub MCP write carries, and block the whole tool call if
+# any of them holds a machine-specific path. Exits 2 on a violation; returns for
+# a clean call.
+#
+# WHAT THIS LANE DELIBERATELY DOES NOT REUSE, and why. All three are statements
+# about a LOCAL file, and an MCP write has none — it names `owner/repo` and a
+# repo-relative path, and the bytes go straight to GitHub:
+#
+#   The project-scope guard, which exists because a local Write can target
+#   another checkout on this machine. Applied here it would skip every MCP write
+#   (a relative path is never under the project root) — a silent hole, not a
+#   scope.
+#
+#   The git-working-tree requirement on CLAUDE_PROJECT_DIR. The destination's
+#   tree is on GitHub; this session's own tree says nothing about it.
+#
+#   `git check-ignore`. It answers whether THIS checkout ignores a path. The
+#   destination repo's ignore rules are not readable from here, and a path that
+#   happens to be gitignored locally can be tracked there.
+#
+# SCAN_ROOT is still resolved, and it is the most valuable half of this lane:
+# when the session's own checkout path appears verbatim in content being pushed
+# to a repository, that is precisely the leak this guard exists to stop, and it
+# is unrecoverable once pushed. It resolves to empty when there is no usable
+# project root, which only turns that one branch off.
+hpc_mcp_lane() {
+  local count=1 i path content violations="" first_offender="" scan_out
+  local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
+
+  hpc_resolve_scan_root "${CLAUDE_PROJECT_DIR:-}"
+
+  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
+    count="${HOOK_JQ_FIELDS[0]}"
+    [[ "$count" =~ ^[0-9]+$ ]] || return 0
+  fi
+
+  for ((i = 0; i < count; i++)); do
+    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+      # One jq process per file, on a lane that fires only on a GitHub MCP write
+      # — never on the Write/Edit path this guard runs on for authored content.
+      hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
+      path="${HOOK_JQ_FIELDS[0]}"
+      content="${HOOK_JQ_FIELDS[1]}"
+    else
+      path="$single_path"
+      content="$single_content"
+    fi
+
+    if ((HOOK_JQ_FIELDS_NUL)); then
+      echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
+      echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
+      echo "Fix: reissue the tool call without the embedded NUL." >&2
+      exit 2
+    fi
+
+    [[ -n "$path" && -n "$content" ]] || continue
+    hpc_path_allowlisted "${path//\\//}" && continue
+
+    scan_out=$(
+      hpp::scan_text "$content" "$SCAN_ROOT" "$path"
+      printf x
+    )
+    scan_out=${scan_out%x}
+    [[ -n "$scan_out" ]] || continue
+    [[ -n "$first_offender" ]] || first_offender="$path"
+    violations+="$path:"$'\n'"$scan_out"
+  done
+
+  [[ -n "$violations" ]] || return 0
+
+  {
+    printf 'Hardcoded machine-specific path(s) in content bound for GitHub:\n\n'
+    printf '%s' "$violations"
+    # shellcheck disable=SC2016
+    printf 'Use portable alternatives: ~/,  $HOME, $(pwd), $TMPDIR, '
+    printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
+    printf 'This write goes straight to a repository — there is no local file to\n'
+    printf 'fix afterwards, and no pre-commit hook on this path.\n'
+  } >&2
+
+  if [[ -n "$start" ]] && hook::telemetry_enabled; then
+    local labels_json data
+    # Block headers only (e.g. "Linux user path detected"), never the matched
+    # lines — those carry the actual machine-specific path. Process substitution,
+    # not `<<<`: $violations embeds matched lines verbatim and a here-string of
+    # 65536-65663 bytes deadlocks (see lib/path-detection/hardcoded-path-patterns.sh).
+    labels_json=$(grep -E 'detected:$' < <(printf '%s' "$violations") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+    data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
+      '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+      data='{"tool":"","file":"","violations":[]}'
+    hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "blocked" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  fi
+  exit 2
+}
+
 case "$TOOL" in
-Write | Edit | NotebookEdit) ;;
+Write | Edit | NotebookEdit) IS_MCP=0 ;;
+# The GitHub MCP write lane (#3712). A Write|Edit matcher does not see a write
+# issued through an MCP tool, so a machine-specific path this session authored
+# could reach a repository by a route this guard never inspected.
+#
+# mcp__github__delete_file is deliberately absent: its schema carries owner,
+# repo, path, message and branch, and NO content. There is nothing for a content
+# guard to scan, and a delete cannot introduce a hardcoded path. Naming it here
+# would claim coverage that consists of skipping every call.
+mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
+
+if ((IS_MCP)); then
+  hpc_mcp_lane
+  exit 0
+fi
 
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$FILE" ]] || exit 0
@@ -124,18 +280,7 @@ case "$_scope_file" in
 *) exit 0 ;;            # outside the project — not this hook's concern
 esac
 
-# Skip files that legitimately contain path patterns (regex strings). These
-# cannot rely on the gitignore check below because they are tracked.
-case "$NORM_FILE" in
-# Hook / hook-manager scripts contain path-detection patterns as regex strings.
-*.claude/hooks/* | *.lefthook/*) exit 0 ;;
-# Claude Code session/workflow state (under ~/.claude/projects/) lives OUTSIDE
-# any repo working tree and is never committed; absolute paths there are expected
-# machine-local glue. The gitignore check below cannot catch it — the path is
-# outside $CLAUDE_PROJECT_DIR, so `git check-ignore` errors rather than matching.
-*.claude/projects/*) exit 0 ;;
-*) ;;
-esac
+hpc_path_allowlisted "$NORM_FILE" && exit 0
 
 # Skip gitignored files — designated for machine-specific state (settings.local.json,
 # CLAUDE.local.md, .venv/, node_modules/, etc.). git check-ignore does not require
@@ -178,21 +323,7 @@ PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 # the repo-relative path. Native Windows exposes home as %USERPROFILE%, not $HOME,
 # so fall back to it; a missing home leaves the branch active (fail toward
 # detection, never a false negative).
-SCAN_ROOT=""
-if [[ -n "$PROJECT_ROOT" ]]; then
-  _toplevel="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)"
-  if [[ -n "$_toplevel" ]]; then
-    _tl_norm="$(hook::normalize_path "$_toplevel")"
-    _tl_norm="${_tl_norm%/}"
-    _home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
-    _home_norm="${_home_norm%/}"
-    if [[ -n "$_home_norm" && ("$_tl_norm" == "$_home_norm" || "$_home_norm" == "$_tl_norm"/*) ]]; then
-      SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
-    else
-      SCAN_ROOT="$PROJECT_ROOT"
-    fi
-  fi
-fi
+hpc_resolve_scan_root "$PROJECT_ROOT"
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,

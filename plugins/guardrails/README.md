@@ -39,8 +39,8 @@ emit. The [hook budget accounting](#hook-budget-accounting) carries the measurem
 
 | Guard | Event / matcher | Behavior | What it catches |
 |-------|-----------------|----------|-----------------|
-| **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
-| **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths: Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
+| **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit **and** `mcp__github__push_files` \| `mcp__github__create_or_update_file` | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. Since **0.32.0** also in content bound for a GitHub repository through an MCP write, where there is no local file to fix afterwards and no pre-commit hook on the path. |
+| **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit **and** `mcp__github__push_files` \| `mcp__github__create_or_update_file` | **Blocks** (exit 2) | Hardcoded machine-specific paths: Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. Since **0.32.0** also on the GitHub MCP write lane, which catches the session's own checkout path leaking into pushed content. |
 | **block-no-verify** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and hook-manager disable env vars, a configurable prefix set defaulting to `lefthook`, `husky`, `pre_commit`, `simple_git_hooks` (e.g. `LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`), tunable via `block_no_verify_hook_manager_prefixes`, including inside compound `cd … && …` commands. |
 | **block-dangerous-git** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and the unsafe `--force-with-lease` spellings, in the two kinds git itself treats differently. **No expected value** (bare `--force-with-lease` or `=<refname>`) leases against the remote-tracking ref, which git documents as "trivially defeated" by a background fetch, blocked unless `--force-if-includes` is present, which git documents as the mitigation for exactly this form. **A movable `=<refname>:<expect>`**, such as `origin/main`, `HEAD`, a tag, an *abbreviated* object id, or hex of the wrong width for this repository's hash format, all of which git resolves at push time, and gitrevisions resolves a short hex word as a ref before trying it as an object-id prefix, is blocked unconditionally, because git declares `--force-if-includes` a no-op alongside an explicit `:<expect>`. A lease passes only when `<expect>` is immutable: a **literal** object id of the pushed repository's own hash width (detection never evaluates substitutions, so resolve it with `git rev-parse` as a separate step and pass the result) (40 hex under SHA-1, 64 under SHA-256, read from `git rev-parse --show-object-format` with the command's own `-C`/`--git-dir`/`--work-tree`/`--namespace` replayed onto it; undeterminable fails closed) or the empty string asserting the ref must not exist. The other width is a ref name there, not an object id. git ignores a ref whose name is full-width hex for its own format, but resolves one of the other width like any name. git scopes a pin to its own ref, so a bare fallback alongside a pinned entry still governs every other ref being updated; where the same ref carries several lease entries, git consults the first, and so does this guard. A trailing `--no-force-with-lease` cancels every previous lease, and a push dry-run disarms the check. Also blocked: `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)`; path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates: `cat > file`, `echo … > file`, inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`), and a same-command staged write whose effective redirect target is reused as an `mv`/`cp` source toward a non-scratch destination. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
@@ -184,7 +184,34 @@ out of scope until such a signal exists.
   a blocking safety control.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
-  accepted residual, same class as the unmonitored Bash forms above.
+  accepted residual, same class as the unmonitored Bash forms above. The two
+  CONTENT guards are the exception since **0.32.0** — see the next note.
+- **The content guards cover the GitHub MCP write lane; the scope is exactly two
+  tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
+  `mcp__github__push_files` (every entry of its `files` array, not just the
+  first) and `mcp__github__create_or_update_file`. This closes a real hole: a
+  `Write|Edit` matcher does not see an MCP write, so a session could be cleared
+  by these guards and still push the same secret to a repository by another
+  route, where there is no local file to fix afterwards and no `pre-commit`
+  layer on the path.
+
+  **`mcp__github__delete_file` is deliberately NOT covered.** Its schema carries
+  `owner`, `repo`, `path`, `message` and `branch`, and no content. There is
+  nothing for a content guard to scan, and a delete cannot introduce a secret or
+  a hardcoded path. Listing it would claim coverage that consists of skipping
+  every call.
+
+  Three local-only gates are deliberately not applied on this lane, because an
+  MCP write names `owner/repo` and a repo-relative path and has no local file:
+  the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
+  so applying it would skip every MCP write — a silent hole, not a scope), the
+  git-working-tree requirement, and `git check-ignore` (which answers what THIS
+  checkout ignores, not the destination repo). The path ALLOWLIST is the same
+  list, asked of the repo-relative path: an `.env.example` or a test fixture
+  tree is the same false positive whichever route writes it.
+  `hardcoded-path-check` still resolves its scan root, which is the most
+  valuable half of the lane — it catches this machine's own checkout path
+  appearing verbatim in content being pushed.
 - **`block-hook-bypass` ships two scratch roots exempt, and takes more by
   configuration.** Since **0.32.0** the guard exempts the host temp trees, which
   the harness's own per-session scratchpad sits under, and the memory tier
@@ -327,6 +354,36 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.32.0, the GitHub MCP write lane.** 2026-09-04, Linux CI host. The lane is a NEW
+`hooks.json` row rather than a widening of the `Write|Edit|MultiEdit|NotebookEdit`
+matcher, which is the whole point of its shape: an MCP matcher on the existing row
+would have put the new tools' cost on every authored write. As a separate row it
+fires only on `mcp__github__push_files` and `mcp__github__create_or_update_file`, so
+the always-on write path pays nothing for it.
+
+*Method.* Wall time of 20 to 30 dispatcher runs per payload, divided by the run
+count, on an otherwise idle host, `HOOK_TELEMETRY_SINK` unset. Absolute
+milliseconds rather than spawn-equivalents: this is a same-host before/after on one
+machine, and a spawn-equivalent only survives a host change for a spawn-dominated
+hook.
+
+| Per tool call | ms |
+|---|---|
+| `mcp__github__create_or_update_file` (1 file) | 47 |
+| `mcp__github__push_files` (2 files) | 72 |
+
+The per-file cost is one `jq` process, on a lane that fires only when a GitHub MCP
+write is issued. The single-file tool spends none: its path and content are already
+in the dispatcher's primed field set.
+
+*The always-on `Write` path is unchanged, and that took a fix.* Both guards now ask
+for `.tool_input.path`, and the dispatcher's cached `hook::jq_fields` is
+all-or-nothing per call — one filter it cannot serve sends the whole call to an
+uncached `jq`. Measured, that cost two extra spawns on EVERY Write/Edit: 50 ms to
+60 ms. Adding the field to `run-guards.sh`'s `PRIME_FILTERS` returns it to the
+dispatcher's single primed `jq`, now nine filters instead of eight: 51 ms before,
+52 ms after, as the median of three 30-run batches per tree.
 
 **0.31.1, the guard hot path.** 2026-09-02, Windows 11 + Git Bash. The dispatcher
 in 0.31.0 cut the number of hook processes; this cut what each guard spends inside
