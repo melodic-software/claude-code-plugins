@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.13]
+
+### Changed
+
+- **`audit-skill-visibility` routes the one-shot unused-versus-context-cost question to
+  `/skill-doctor` as well as `/doctor`.** Claude Code 2.1.261 added `/skill-doctor` ("show which
+  loaded skills go unused and what they cost in context, so you can prune them"), which is the
+  unused-components check this skill's native-surfaces row already deferred to `/doctor` for.
+  That row's recheck trigger fired; the description's Not-for clause, the body, and the Scope
+  boundary table now name both surfaces behind a presence gate, per the native-references
+  convention, and the existing store row records the fired trigger with the 2.1.261 CHANGELOG
+  evidence and re-verifies its date. This container runs 2.1.258 and cannot extract the new
+  surface, and a dedicated `skill-doctor` row needs an upstream commit pin the session could not
+  obtain in scope, so that row is deferred and named in the evidence. Verdict unchanged:
+  `complementary`.
+
 ## [0.41.12]
 
 ### Changed
