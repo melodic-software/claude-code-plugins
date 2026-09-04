@@ -106,7 +106,6 @@ FORCE_DEFAULT=0
 INCLUDE_DEPS=0
 INCLUDE_SECRETS=0
 REPO_INPUTS=()
-SKIP_INPUTS=()
 
 fail_usage() {
   echo "git-tree-reset-batch.sh: $1" >&2
@@ -145,12 +144,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
-    SKIP_INPUTS+=("$2")
+    BATCH_SKIP_INPUTS+=("$2")
     shift
     ;;
   --skip-from)
     [[ $# -ge 2 ]] || fail_usage "--skip-from requires a file"
-    batch_read_lines_into SKIP_INPUTS "$2" || fail_usage "file not found: $2"
+    batch_read_lines_into BATCH_SKIP_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   -h | --help)
@@ -198,8 +197,7 @@ for input in ${REPO_INPUTS[@]+"${REPO_INPUTS[@]}"}; do
 done
 
 # Per-skip match tracking so a skip that protects nothing is surfaced loudly.
-SKIP_HITS=()
-for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do SKIP_HITS+=(0); done
+batch_reset_skip_hits
 
 repo_dirty_reason() {
   # Echo a dirty reason (uncommitted/untracked or unpushed) or nothing if clean.
@@ -256,15 +254,8 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   key="${REPO_KEYS[$i]}"
 
   # 1. Skip list (separator-agnostic).
-  matched=""
-  for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do
-    if clean_skip_matches "$key" "${SKIP_INPUTS[$s]}"; then
-      matched="${SKIP_INPUTS[$s]}"
-      SKIP_HITS[s]=1
-    fi
-  done
-  if [[ -n "$matched" ]]; then
-    batch_emit "$top" skipped "skip-list ($matched)"
+  if batch_skip_match "$key"; then
+    batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
     COUNT_SKIPPED=$((COUNT_SKIPPED + 1))
     continue
   fi
@@ -369,11 +360,7 @@ done
 
 # Surface skip entries that matched nothing — the silent-skip-failure that caused
 # the original data loss now becomes a visible warning.
-for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do
-  if [[ "${SKIP_HITS[$s]}" -eq 0 ]]; then
-    printf 'UnmatchedSkip: %s\n' "${SKIP_INPUTS[$s]}"
-  fi
-done
+batch_report_unmatched_skips
 
 printf 'Summary: repos=%s reset=%s skipped=%s blocked=%s failed=%s\n' \
   "${#REPO_TOPS[@]}" "$COUNT_RESET" "$COUNT_SKIPPED" "$COUNT_BLOCKED" "$COUNT_FAILED"

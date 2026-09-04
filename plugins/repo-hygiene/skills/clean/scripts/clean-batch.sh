@@ -98,7 +98,6 @@ TIER=""
 DRY_RUN=1
 BATCH_PLAN_ARG=""
 REPO_INPUTS=()
-SKIP_INPUTS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -132,12 +131,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
-    SKIP_INPUTS+=("$2")
+    BATCH_SKIP_INPUTS+=("$2")
     shift
     ;;
   --skip-from)
     [[ $# -ge 2 ]] || fail_usage "--skip-from requires a file"
-    batch_read_lines_into SKIP_INPUTS "$2" || fail_usage "file not found: $2"
+    batch_read_lines_into BATCH_SKIP_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   -h | --help)
@@ -400,8 +399,7 @@ mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directo
 : >"$PLAN" 2>/dev/null || fail_usage "cannot write batch plan: $PLAN"
 
 # Per-skip match tracking so a skip that protects nothing is surfaced loudly.
-SKIP_HITS=()
-for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do SKIP_HITS+=(0); done
+batch_reset_skip_hits
 
 REPOS=${#BATCH_TOPS[@]}
 PLANNED=0
@@ -429,15 +427,8 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   key="${BATCH_KEYS[$i]}"
 
   # 1. Skip list (separator-agnostic).
-  matched=""
-  for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do
-    if clean_skip_matches "$key" "${SKIP_INPUTS[$s]}"; then
-      matched="${SKIP_INPUTS[$s]}"
-      SKIP_HITS[s]=1
-    fi
-  done
-  if [[ -n "$matched" ]]; then
-    batch_emit "$top" skipped "skip-list ($matched)"
+  if batch_skip_match "$key"; then
+    batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
     SKIPPED=$((SKIPPED + 1))
     continue
   fi
@@ -510,11 +501,7 @@ done
 
 # Surface skip entries that matched nothing — a typo can never silently fail to
 # protect a repo.
-for ((s = 0; s < ${#SKIP_INPUTS[@]}; s++)); do
-  if [[ "${SKIP_HITS[$s]}" -eq 0 ]]; then
-    printf 'UnmatchedSkip: %s\n' "${SKIP_INPUTS[$s]}"
-  fi
-done
+batch_report_unmatched_skips
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then
