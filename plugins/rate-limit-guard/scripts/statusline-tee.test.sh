@@ -637,6 +637,12 @@ done
 
 SPOOL_REL=".claude/rate-limit-guard/spool"
 
+# Records currently in a spool directory. An absent directory counts 0, which is
+# the same answer as an empty one and the answer every caller below wants.
+count_spool_records() {
+  find "$1" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r'
+}
+
 # --- Case 22: a fresh stamp → the second render spools but does NOT drain ----
 HOME_EL="$WORK/home-elect"
 mkdir -p "$HOME_EL"
@@ -724,7 +730,7 @@ for bad in '../../pwned' 'a\"b' "$LONG_ID" '.hidden' 'has space'; do
     HOME="$HOME_HOSTILE" bash "$TEE" cat >/dev/null
   HOSTILE_N=$((HOSTILE_N + 1))
 done
-HOSTILE_JSON="$(find "$HOME_HOSTILE/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' \r')"
+HOSTILE_JSON="$(count_spool_records "$HOME_HOSTILE/$SPOOL_REL")"
 if [[ "$HOSTILE_JSON" == "1" && -f "$HOME_HOSTILE/$SPOOL_REL/misc.json" ]]; then
   ok "shard: $HOSTILE_N hostile session_ids all collapse to the single misc shard"
 else
@@ -759,14 +765,14 @@ if [[ -f "$DIS_MARKER" && ! -e "$HOME_DIS/$TEE_REL" ]]; then
 else
   fail "disabled: marker=$([[ -f $DIS_MARKER ]] && echo yes || echo no) snapshot=$([[ -e $HOME_DIS/$TEE_REL ]] && echo yes || echo no)"
 fi
-DIS_SPOOLED="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+DIS_SPOOLED="$(count_spool_records "$HOME_DIS/$SPOOL_REL")"
 if [[ "$DIS_SPOOLED" == "0" ]]; then
   ok "disabled: the drain drops what was already spooled"
 else
   fail "disabled: $DIS_SPOOLED spool record(s) retained while disabled"
 fi
 printf '%s' "$GATE_INPUT" | HOME="$HOME_DIS" bash "$TEE" cat >/dev/null
-DIS_SPOOLED2="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+DIS_SPOOLED2="$(count_spool_records "$HOME_DIS/$SPOOL_REL")"
 if [[ "$DIS_SPOOLED2" == "0" ]]; then
   ok "disabled: a fresh marker stops the render spooling at all"
 else
@@ -1033,7 +1039,7 @@ if [[ ! -e "$WORK/pwned-recheck" ]]; then
 else
   fail "hostile knob: RLG_TEE_DISABLED_RECHECK executed its value"
 fi
-HK3_SPOOLED="$(find "$HK3_DIR/spool" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+HK3_SPOOLED="$(count_spool_records "$HK3_DIR/spool")"
 if [[ "$HK3_SPOOLED" == "0" && ! -e "$HOME_HK3/$TEE_REL" ]]; then
   ok "hostile knob: RLG_TEE_DISABLED_RECHECK falls back to the default interval (fresh marker still stops the render)"
 else

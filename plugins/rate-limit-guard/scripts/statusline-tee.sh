@@ -253,7 +253,7 @@ acquire_tee_lock() {
 # Returning 1 rather than falling back to `date` is deliberate. The only callers
 # are the no-change skip and its stamp, both of which are pure optimizations; on
 # a shell that cannot answer for free the right answer is to skip the skip and
-# write, which is exactly what this file did before.
+# write.
 _RLG_NOW=""
 _rlg_set_now() {
   _RLG_NOW=""
@@ -685,8 +685,9 @@ _rlg_tee_enabled() {
     return 0
   fi
   # User scope. _rlg_probe already read this file inside the one jq pass, so the
-  # normal path spends no process here. The unprobed fallback keeps a DIRECT
-  # call to this function (no main, hence no probe) behaving exactly as it did.
+  # normal path spends no process here. The unprobed fallback is what lets a
+  # DIRECT call to this function (no main, hence no probe) read the user scope
+  # for itself.
   if ((_RLG_USER_PROBED)); then
     if [[ -n "$_RLG_USER_VERDICT" ]]; then
       [[ "$_RLG_USER_VERDICT" == "false" ]] && return 1
@@ -912,12 +913,13 @@ _rlg_drain() {
   # ever swept, and far past any live session's refresh interval.
   #
   # On its own cadence, not every drain. `find` is a process, the drain runs
-  # twice a minute by default, and it was spending that process 29 times out of
-  # 30 to enforce a floor of fifteen minutes. Nothing this reclaims can become
-  # urgent inside the sweep window: a record it leaves for one more cycle is a
-  # dead session's, which no reader consumes and which the drain's own selection
-  # already loses to any live record. Same stamp idiom as .last-drain, and an
-  # absent stamp reads as 0 so a cold machine sweeps on its first drain.
+  # twice a minute by default, and draining every time would spend that process
+  # 29 times out of 30 to enforce a floor of fifteen minutes. Nothing this
+  # reclaims can become urgent inside the sweep window: a record it leaves for
+  # one more cycle is a dead session's, which no reader consumes and which the
+  # drain's own selection already loses to any live record. Same stamp idiom as
+  # .last-drain, and an absent stamp reads as 0 so a cold machine sweeps on its
+  # first drain.
   local sweep_stamp="$spool/.last-sweep" last_sweep=0
   if [[ -f "$sweep_stamp" ]]; then
     IFS= read -r last_sweep <"$sweep_stamp" || last_sweep=0
@@ -1008,7 +1010,8 @@ _rlg_drain() {
 _rlg_spool_dispatch() {
   [[ -n "${HOME:-}" ]] || return 0
   [[ -n "$INPUT" ]] || return 0
-  local dir="$HOME/.claude/rate-limit-guard" spool="$HOME/.claude/rate-limit-guard/spool"
+  local dir="$HOME/.claude/rate-limit-guard"
+  local spool="$dir/spool"
 
   # Cold start only, exactly as tee_snapshot guards its own directory. The
   # owner-only mode is asserted on the PARENT at creation; spool/ inherits its
@@ -1114,7 +1117,7 @@ main() {
 }
 
 # Sourcing guard (the idiom already used by this repo's updater scripts): `main`
-# runs only on a direct invocation, so a direct run is byte-for-byte what it was,
+# runs only on a direct invocation, so a direct run is unaffected by the guard,
 # while the test suite can SOURCE this file to stub _rlg_managed_settings_files —
 # whose paths are fixed and root-owned by design, therefore unwritable from a
 # test — and then drive the real end-to-end path through `main`.
