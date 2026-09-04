@@ -639,7 +639,7 @@ printf '%s' "$(sized_write_json 0)" |
   CLAUDE_PROJECT_DIR="$TEST_TMPDIR" timeout 30 bash "$HOOK" >/dev/null 2>&1 || RC=$?
 assert_exit "boundary: empty content → exit 0" 0 "$RC"
 
-# ==================== GitHub MCP write lane (#3712) ==========================
+# ==================== GitHub MCP write lane (#3719) ==========================
 # A Write|Edit matcher does not see a write issued through an MCP tool, so this
 # guard could be cleared on a session that pushed the same machine-specific path
 # to GitHub by another route. One case per PAYLOAD SHAPE, because the two tools

@@ -5,7 +5,7 @@
 
 ## Decision
 
-Decided during the PreToolUse guard audit (#3712), when a fleet-wide "split the hooks out of every
+Decided during the PreToolUse guard audit (#3719), when a fleet-wide "split the hooks out of every
 plugin that has them" was described as existing policy and turned out to be unwritten. Before any
 such split is proposed, the plugin is placed in one of three classes, and only one of them is a
 candidate:

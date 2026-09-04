@@ -211,7 +211,7 @@ mcp_lane() {
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) IS_MCP=0 ;;
-# --- The GitHub MCP write lane (#3712) --------------------------------------
+# --- The GitHub MCP write lane (#3719) --------------------------------------
 # A Write|Edit matcher does not see a write issued through an MCP tool, so a
 # secret this session authored could reach a repository by a route this guard
 # never inspected. These two tools carry file CONTENT and are inspected below.

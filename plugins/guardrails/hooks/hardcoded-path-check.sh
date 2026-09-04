@@ -229,7 +229,7 @@ hpc_mcp_lane() {
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) IS_MCP=0 ;;
-# The GitHub MCP write lane (#3712). A Write|Edit matcher does not see a write
+# The GitHub MCP write lane (#3719). A Write|Edit matcher does not see a write
 # issued through an MCP tool, so a machine-specific path this session authored
 # could reach a repository by a route this guard never inspected.
 #

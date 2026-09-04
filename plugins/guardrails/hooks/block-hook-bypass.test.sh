@@ -18,7 +18,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
 # CLAUDE_PROJECT_DIR is cleared ahead of the caller's own env words, which is a
-# PIN and not a preference: since #3712 the guard carries two shipped scratch-root
+# PIN and not a preference: since #3719 the guard carries two shipped scratch-root
 # defaults, both gated on a known project root, so a project dir merely inherited
 # from the surrounding shell would decide assertions written years before those
 # defaults existed. Clearing it puts every case below in the no-project state it
@@ -1337,7 +1337,7 @@ run "dd of= write (accepted floor — allowed)" "dd of=f.txt <<< x" 0
 SCRATCH_ENV=CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
 
 # The OPTION's own default is still empty: configuring no root adds no root.
-# Since #3712 a temp target can also be exempted by a shipped default, which is
+# Since #3719 a temp target can also be exempted by a shipped default, which is
 # gated on a known project root, so CLAUDE_PROJECT_DIR is cleared explicitly here
 # rather than inherited — these two assertions are about the option, and pinning
 # the gate keeps them measuring it from any environment.
@@ -1476,7 +1476,7 @@ run "scratch: > inside double-quoted content keeps it (allowed)" \
 run "scratch: > inside single-quoted content keeps it (allowed)" \
   "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
-# --- Shipped scratch-root defaults (#3712) -----------------------------------
+# --- Shipped scratch-root defaults (#3719) -----------------------------------
 # The option above is opt-in and shipped empty, which left two write targets
 # blocked that no Write|Edit gate would ever have processed: the harness's own
 # per-session scratchpad under the host temp tree, and the memory tier

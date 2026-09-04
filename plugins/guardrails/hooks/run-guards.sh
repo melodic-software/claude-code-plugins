@@ -117,7 +117,7 @@ RUN_GUARDS_VALUES=()
 # sends the whole call to an uncached jq spawn, so a guard that adds a field
 # without adding it here costs a process on EVERY payload, not just the ones the
 # field belongs to. `.tool_input.path` (the GitHub MCP write lane's file path,
-# #3712) was measured doing exactly that — two extra spawns per Write/Edit,
+# #3719) was measured doing exactly that — two extra spawns per Write/Edit,
 # 50 ms to 60 ms on the reference host — before it was added.
 PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'

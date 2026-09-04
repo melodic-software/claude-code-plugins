@@ -28,7 +28,7 @@
 # The supported deliberate bypasses are the kill switch
 # (block_hook_bypass_enabled set to false) and the scratch-root exemption
 # (block_hook_bypass_scratch_roots). The option's own list is still empty by
-# default; since #3712 it composes with two roots the guard ships exempt — the
+# default; since #3719 it composes with two roots the guard ships exempt — the
 # host temp trees, which the harness scratchpad sits under, and the memory tier
 # `<memory_dir>/` (default `.work/`) — both gated on a project root outside the
 # temp tree. See the block above scratch_target_exempt for why exempting them
@@ -802,7 +802,7 @@ devnull_target_exempt() {
 # well-defined target to exempt there; its `$null` discard is unchanged.
 _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 
-# --- Shipped defaults, in ADDITION to the configured list (#3712) ------------
+# --- Shipped defaults, in ADDITION to the configured list (#3719) ------------
 #
 # The paragraph above shipped this axis empty, and the emptiness is what the
 # ablation measured: five blocks in one day across four sessions, zero true
@@ -991,7 +991,7 @@ scratch_target_exempt() {
   ((TARGET_OPAQUE)) && return 1
   ((TARGET_QUOTED)) && return 1
   [[ "$target" == *\\* ]] && return 1
-  # Place the target absolutely before normalizing. Until #3712 this axis refused
+  # Place the target absolutely before normalizing. Until #3719 this axis refused
   # every relative target outright; it now resolves one against the payload cwd
   # when — and only when — that cwd is the directory the redirect demonstrably
   # runs in. _scratch_abs_target owns that judgement and still refuses everything

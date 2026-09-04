@@ -66,7 +66,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 exit 0'
 
-# The pre-#3712 shape, verbatim: library first, switch second.
+# The pre-#3719 shape, verbatim: library first, switch second.
 REVERSED='#!/usr/bin/env bash
 set -uo pipefail
 

@@ -5,7 +5,7 @@
 #                                       kill switch sits below a `source` line
 #
 # Why: every guard ships a `<name>_enabled` userConfig boolean, and an operator
-# who turns one off is entitled to stop paying for it. Until #3712 all of them
+# who turns one off is entitled to stop paying for it. Until #3719 all of them
 # read that switch through `hook::check_enabled`, a function that only exists
 # once `lib/hook-utils.sh` has been sourced — so a DISABLED guard parsed the
 # whole 2,684-line library before discovering it had nothing to do. Measured on
