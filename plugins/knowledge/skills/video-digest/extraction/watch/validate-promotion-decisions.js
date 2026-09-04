@@ -17,11 +17,11 @@ import { validatePromotionDecisionsForSlice } from "../lib/watch-vision-validati
 export function runValidatePromotionDecisions(sliceDir) {
   const result = validatePromotionDecisionsForSlice(sliceDir);
   if (result.valid) {
-    writeStdout("promotion-decisions: valid\n");
+    writeStdout("promotion-decisions: valid");
     return 0;
   }
   for (const error of result.errors) {
-    writeStderr(`promotion-decisions: ${error}\n`);
+    writeStderr(`promotion-decisions: ${error}`);
   }
   return 1;
 }
@@ -29,7 +29,7 @@ export function runValidatePromotionDecisions(sliceDir) {
 if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
-    writeStderr("Usage: node watch/validate-promotion-decisions.js <slice-dir>\n");
+    writeStderr("Usage: node watch/validate-promotion-decisions.js <slice-dir>");
     process.exit(2);
   }
   process.exitCode = runValidatePromotionDecisions(sliceDir);

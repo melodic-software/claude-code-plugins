@@ -192,7 +192,7 @@ function renderNewsSection(sectionKey, sectionSlides, providerLogoSvg) {
 
   const tierBlock = (tier, heading) => {
     const bullets = byTier[tier];
-    if (!bullets || bullets.length === 0) return "";
+    if (bullets.length === 0) return "";
     return `
     <div class="tier tier-${tier}">
       <h3 class="tier-heading">${heading}</h3>

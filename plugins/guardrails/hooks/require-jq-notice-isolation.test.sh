@@ -90,7 +90,6 @@ DATA_DIR="$TEST_TMPDIR/plugin-data"
 mkdir -p "$DATA_DIR"
 SESSION_INPUT='{"session_id":"cross-hook-test-session"}'
 
-fired_count=0
 (
   export CLAUDE_PLUGIN_DATA="$DATA_DIR"
   for key in "${!seen_keys[@]}"; do

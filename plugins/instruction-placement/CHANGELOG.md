@@ -3,6 +3,49 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.22]
+
+### Changed
+
+- **`glob-tools.sh` drops a temp-file lifecycle per pattern.** The match count
+  wrote grep output to a `mktemp`, sorted it and removed it; it now pipes
+  directly into the same `LC_ALL=C sort -u`. The old temp file was never in the
+  trap, so it leaked on an abort. Deduplication scope is unchanged, which was the
+  risk: the temp file was created inside the per-pattern block, so it was never
+  global. Confirmed across 88 micro-cases and 52 fixture runs under four locales.
+- **`lib/discover.sh` drops an unreachable awk guard** and the state variable
+  that fed it. Instrumented in the original rule set, it fired zero times across
+  20 input shapes including CRLF, CR-only, a missing closer and a byte-order
+  mark, with identical output over all 1,389 tracked markdown files.
+- **`detect.sh` merges two `trap ... EXIT` registrations** where the second
+  silently replaced the first, combines two `BEGIN` blocks, and collects section
+  markers directly instead of building a comma string and splitting it back to
+  sort. That round trip would have shredded any marker containing a comma; the
+  vocabulary happens never to contain one. Output byte-identical over the whole
+  repository, 25,689 lines.
+- **`render-index.sh` sorts its row array once** instead of up to three times per
+  render, and four smaller cleanups. The generated index is byte-identical across
+  80 render comparisons, and this repository's own index still reports IN-SYNC.
+- **`index-drift.sh`** replaces a two-branch `case` whose default was a bare
+  no-op with an `if`, keeping the rationale. Traced: identical external-command
+  counts, one builtin removed, 11 ms per run before and after.
+
+## [0.11.21]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.11.20]
 
 ### Changed

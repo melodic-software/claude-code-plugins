@@ -3,6 +3,45 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.43]
+
+### Changed
+
+- **`worktree-add-claim-gate.sh` drops a write-only `notes` array.** It was
+  declared once and appended to twice, and nothing read it: the hook's only
+  agent-visible output is built from the `claimed_any` and `foreign_any` flags
+  alone and names no target. `claim_err` and its `cat` fork were dead in
+  consequence, so a claimed target now costs one process fewer. A file-exists
+  guard is also rewritten into the `||` form the four guards above it use. A
+  20-case accept-and-refuse corpus over pre-edit and post-edit mirrors produced
+  four transcripts hashing identically at 443 lines, covering the accept and
+  no-op set, the claim path, both foreign-claim branches, the kill switch, the
+  helper-missing branch, and a `mktemp` failure. Four mutants of the edited gate
+  confirm the corpus discriminates rather than passing vacuously.
+- **Hook test suites lose four kinds of duplication.** `mk_payload` replaces
+  four spellings of one `jq -n` payload; a `dir` parameter that `run()` bound
+  and never read is dropped at all 26 call sites; `wt_stanza` replaces a
+  `worktree list --porcelain | awk -v RS=` pipeline written out 11 times; and
+  `native_path` replaces a duplicated `cygpath -m` block, whose Windows branch
+  was executed through a stub to confirm it still behaves. Every call site was
+  verified argument-identical by recording invocations in both mirrors.
+
+## [0.55.42]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.55.41]
 
 ### Changed

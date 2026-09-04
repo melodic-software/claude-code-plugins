@@ -139,7 +139,10 @@ unwatched. This mirrors the standards-repo "adopt by copy" seam.
 ## Consuming (sink side)
 
 A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (relative, committed in `settings.json`) to an
-executable that reads one envelope on stdin and maps the common fields into its own store. The sink:
+executable that reads one envelope on stdin and maps the common fields into its own store. The
+envelope arrives as one JSON document; since the shared library's 2026-09-02 builtin emitter it is a
+single compact line (`jq -c` shape, no trailing CR), where earlier producers wrote jq's
+pretty-printed form. A sink must parse the document as JSON, never by line or byte layout. The sink:
 
 - consumes only the common envelope unless it specifically handles a given `hook`'s `data`;
 - ignores unknown keys and treats an unrecognized `status` as a catch-all (see Forward compatibility);

@@ -13,7 +13,10 @@ fi
 PYTHON_VERSION_PROBE="import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"
 
 pass() { printf 'PASS: %s\n' "$1"; }
-fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
 
 assert_eq() {
   local label="$1" expected="$2" actual="$3"
@@ -35,20 +38,17 @@ assert_contains() {
 
 # --- the engine is NOT read by this launcher, and the floor still comes from it ---
 #
-# #3502, superseding #2853. #2853 made the launcher's `sed` read of the engine a
-# single read that stopped at the `MIN_PYTHON` line, and the previous revision of
-# this file held that reader to a one-read/stops-at-the-match contract. That
-# reader no longer exists: recovering the floor now happens INSIDE the candidate
-# interpreter, on the cold path only, so the launcher spends one process spawn
-# per candidate where it used to spend a `sed` plus a whole extra Python.
+# The launcher recovers the floor INSIDE the candidate interpreter, on the cold
+# path only, so it spends one process spawn per candidate and never reads the
+# engine file itself (#3502).
 #
-# The contract that replaces it has two halves, because deleting a cost must not
-# quietly delete the property that cost was buying:
+# The contract has two halves, because deleting a cost must not quietly delete
+# the property that cost was buying:
 #
-#   1. no launch reads the engine through `sed` at all — the recorded-argv shim
+#   1. no launch reads the engine through `sed` at all: the recorded-argv shim
 #      below observes zero invocations naming the engine;
 #   2. `hygiene.MIN_PYTHON` is still the single origin of the floor (#1028) and
-#      is still ENFORCED — proven behaviorally against fixture engines, by
+#      is still ENFORCED, proven behaviorally against fixture engines by
 #      observing whether the launcher runs its target at all.
 #
 # Half 2 is what a "delete the reader" regression cannot fake. A launcher that
@@ -331,7 +331,6 @@ else
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 fi
 
-
 # --- hooks.json wires this launcher in portable shell form ---
 #
 # These assert the PORTABILITY PROPERTY, not a literal spelling. The previous
@@ -382,18 +381,10 @@ done
 FAKE_BIN="$(mktemp -d)"
 # Replaces (does not chain onto) the earlier EXIT trap, so it cleans up both.
 trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR"' EXIT
-printf '#!/usr/bin/env bash\nexit 127\n' >"$FAKE_BIN/nopy"
-chmod +x "$FAKE_BIN/nopy"
-cat >"$FAKE_BIN/python3" <<'EOF'
-#!/usr/bin/env bash
-exit 127
-EOF
-chmod +x "$FAKE_BIN/python3"
-cat >"$FAKE_BIN/python" <<'EOF'
-#!/usr/bin/env bash
-exit 127
-EOF
-chmod +x "$FAKE_BIN/python"
+for stub in python3 python; do
+  printf '#!/usr/bin/env bash\nexit 127\n' >"$FAKE_BIN/$stub"
+  chmod +x "$FAKE_BIN/$stub"
+done
 
 MONITOR_OUT="$(
   PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" \

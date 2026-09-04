@@ -148,15 +148,15 @@ if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   const dryRun = process.argv.includes("--dry-run");
   if (!sliceDir) {
-    writeStderr("Usage: node harvesting/fetch-deck-attachments.js <slice-dir> [--dry-run]\n");
+    writeStderr("Usage: node harvesting/fetch-deck-attachments.js <slice-dir> [--dry-run]");
     process.exit(2);
   }
   fetchDeckAttachments(sliceDir, { dryRun })
     .then((result) => {
-      writeStdout(`${JSON.stringify(result, null, 2)}\n`);
+      writeStdout(JSON.stringify(result, null, 2));
     })
     .catch((error) => {
-      writeStderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      writeStderr(error instanceof Error ? error.message : String(error));
       process.exit(1);
     });
 }

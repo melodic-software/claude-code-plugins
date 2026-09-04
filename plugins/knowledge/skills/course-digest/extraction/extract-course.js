@@ -4,7 +4,7 @@
  * Delegates all platform-specific work to the adapter pattern:
  *   adapters/{platform}.js  — transcript, HLS, resources, metadata, auth
  *   lib/browser.js          — shared Playwright infrastructure
- *   lib/config.js            — platformConfig validation, adapter resolution
+ *   lib/config.js           — platformConfig validation, adapter resolution
  *   @melodic/video-digestion/shared/result — Result type, structured logging
  *
  * Frame extraction (ffmpeg) stays here — it's provider-agnostic.
@@ -18,6 +18,7 @@
  *   --metadata-only    Only extract course metadata from the landing page, then exit
  *   --skip-transcripts Skip transcript extraction (useful when re-running for frames only)
  *   --no-headless      Show the browser window (default: headless)
+ *   --show-browser     Force a visible browser window even when --headless is set
  */
 
 import { spawnSync } from "node:child_process";

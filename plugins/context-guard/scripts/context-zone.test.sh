@@ -262,8 +262,8 @@ for sid in s0 s75x snull nosuchsession storn; do
     fail "stdout not exactly one word for '$sid': '$OUT'"
   fi
   case "$OUT" in
-    smart | acceptable | dumb | unknown) ok "vocabulary word for '$sid'" ;;
-    *) fail "out-of-vocabulary output for '$sid': '$OUT'" ;;
+  smart | acceptable | dumb | unknown) ok "vocabulary word for '$sid'" ;;
+  *) fail "out-of-vocabulary output for '$sid': '$OUT'" ;;
   esac
 done
 
@@ -290,8 +290,7 @@ if [[ "$GOT" == "unknown" && $RC -eq 0 ]]; then ok "jq absent → unknown (fail-
 #
 # Budget with no zones.json (the zero-config common case): exactly 1 jq, and
 # nothing else. A zones.json override adds exactly one more jq, asserted
-# separately, because that file is read in ONE pass rather than the two the
-# percentage and token shapes used to take.
+# separately, because that file is read in ONE pass rather than one per shape.
 TRACE_H="$WORK/h-trace"
 write_snapshot_tok "$TRACE_H" strace 40 90000 5000 200000
 TRACE_LOG="$WORK/zone-xtrace.log"

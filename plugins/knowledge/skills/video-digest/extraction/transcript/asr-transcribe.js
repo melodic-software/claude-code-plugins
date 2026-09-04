@@ -1,11 +1,11 @@
 /**
- * Optional local ASR rung (T5 posture (ii)): faster-whisper `large-v3` via
- * batched inference (`batch_size=8`), invoked through the machine's Python.
+ * Optional local ASR rung (T5): faster-whisper `large-v3` via batched
+ * inference (`batch_size=8`), invoked through the machine's Python.
  *
- * Delivery contract (user-approved FALLBACK decision): the toolchain is a
- * DOCUMENTED OPTIONAL PREREQUISITE detected at runtime — never auto-installed,
- * by this module or anything it spawns. Absent toolchain = capability absent;
- * the strategy seam then degrades explicitly (`transcriptDegradation`).
+ * Delivery contract: the toolchain is a DOCUMENTED OPTIONAL PREREQUISITE
+ * detected at runtime — never auto-installed, by this module or anything it
+ * spawns. Absent toolchain = capability absent; the strategy seam then
+ * degrades explicitly (`transcriptDegradation`).
  */
 
 import path from "node:path";
@@ -110,7 +110,7 @@ export async function detectAsrCapability({ spawn = spawnAsync } = {}) {
  * @param {string} options.mediaPath
  * @param {string} options.python - interpreter command (from detection)
  * @param {string|null} [options.initialPrompt] - vocabulary-biasing prompt
- *   (lexicon feed; see the T5-ASR-LEXICON probe outcome in the PLAN)
+ *   (fed from the repair lexicon)
  * @param {SpawnFn} [options.spawn]
  * @returns {Promise<AsrTranscription>}
  */

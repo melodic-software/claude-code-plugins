@@ -49,14 +49,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# guardrails-test-helpers.sh has no equality primitive (it is built around
-# assert_exit / assert_contains / assert_absent). A local wrapper over ok/bad
-# rather than a change to the shared, cross-plugin-duplicated helper file for
-# one suite's convenience.
-assert_eq() {
-  if [[ "$3" == "$2" ]]; then ok "$1"; else bad "$1: expected '$2', got '$3'"; fi
-}
-
 # ============================================================================
 # Part 1 — membership, derived not hand-listed
 # ============================================================================
@@ -318,4 +310,87 @@ if ((JQ_HIDING_WORKS)); then
     0 "$ks_rc"
 fi
 
+# ============================================================================
+# Part 4: guardrails-test-helpers.sh's own exit contract
+# ============================================================================
+#
+# Every suite in this directory ends on `report`, and run-plugin-tests.sh grades a
+# suite by its EXIT CODE alone, so `report`'s return is the whole pass/fail signal
+# for all 17 of them. Nothing self-tested it. The repo-wide harness pins its
+# equivalent at scripts/lib/test-harness.test.sh, but guardrails-test-helpers.sh is
+# a separate, deliberately duplicated file (docs/conventions/shell-test-helpers/)
+# that no suite and no CI script covers. Measured, with `report` forced to
+# `return 0` and one failure seeded into every suite: 0 of the 17 went red, each
+# printing its own `FAIL:` line and then exiting 0. This case takes that to 1.
+#
+# BOTH DIRECTIONS, because either alone leaves the helper permanently green under
+# exactly the sabotage that matters: a non-zero-only case passes a `report` that
+# always fails, and a zero-only case passes one that always succeeds.
+#
+# THE PRINTED TALLY is asserted beside each exit code. A `report` returning the
+# right status without counting satisfies the codes alone, and the tally is also
+# the only thing here proving ok/bad increment at all.
+#
+# THE VERDICT CANNOT GO THROUGH `report`. It is both the function under test and
+# the function that sets this suite's exit status, so a `bad` recorded below would
+# print and then be discarded by the very thing it reports on: under either
+# sabotage the suite exits 0 with FAIL lines on screen. HELPER_SELF_FAIL is a tally
+# the helper cannot reach and the trailing exit honours it, which is the discipline
+# scripts/lib/test-harness.test.sh applies to its own library and the only thing
+# that makes these three assertions capable of failing.
+HELPER_SELF_FAIL=0
+
+# helper_report_child <passes> <failures>: seed a FRESH child with that many
+# ok/bad calls and run `report` in it. Prints the child's stdout+stderr and RETURNS
+# its exit status, so the call shape is `out=$(helper_report_child ...)` then
+# `rc=$?`; never `local out=$(...)`, where `local`'s own status wins.
+#
+# `env -u` makes the isolation structural rather than merely true today: PASS and
+# FAIL are plain shell variables, so a child already starts from the helper's
+# `:=0` defaults, but an exported pair would seed the child and turn the FAIL==0
+# direction into a false red.
+helper_report_child() {
+  # shellcheck disable=SC2016  # the child resolves its own $1/$2/$3, so the body stays literal
+  env -u PASS -u FAIL bash -c 'set -uo pipefail
+source "$1/guardrails-test-helpers.sh"
+i=0
+while ((i++ < $2)); do ok "seeded pass"; done
+i=0
+while ((i++ < $3)); do bad "seeded failure"; done
+report' _ "$HOOK_DIR" "$1" "$2" 2>&1
+}
+
+# assert_helper_report <label> <expected-exit> <actual-exit> <expected-tally> <output>
+# ok/bad exactly as this file's other assertions, plus the independent bump.
+assert_helper_report() {
+  if [[ "$3" == "$2" && "$5" == *"$4"* ]]; then
+    ok "$1 (exit $3, $4)"
+  else
+    bad "$1: expected exit $2 with '$4', got exit $3 and output: $5"
+    HELPER_SELF_FAIL=$((HELPER_SELF_FAIL + 1))
+  fi
+}
+
+echo
+echo "--- guardrails-test-helpers.sh: report's exit contract ---"
+
+helper_out=$(helper_report_child 0 1)
+helper_rc=$?
+assert_helper_report "report exits non-zero when FAIL>0" \
+  1 "$helper_rc" "PASS=0 FAIL=1" "$helper_out"
+
+helper_out=$(helper_report_child 1 0)
+helper_rc=$?
+assert_helper_report "report exits 0 when FAIL==0" \
+  0 "$helper_rc" "PASS=1 FAIL=0" "$helper_out"
+
+helper_out=$(helper_report_child 2 1)
+helper_rc=$?
+assert_helper_report "report exits non-zero for one failure among passes" \
+  1 "$helper_rc" "PASS=2 FAIL=1" "$helper_out"
+
 report
+report_rc=$?
+# Part 4's subject is `report` itself, so its return alone cannot be the verdict.
+((HELPER_SELF_FAIL == 0)) || exit 1
+exit "$report_rc"

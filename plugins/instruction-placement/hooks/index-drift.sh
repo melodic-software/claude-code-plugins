@@ -75,17 +75,13 @@ done
 [[ -n "$target" ]] || exit 0
 
 verdict="$("$renderer" check --file "$target" --root "$repo_root" 2>/dev/null || true)"
-case "$verdict" in
-DRIFTED*)
+# Any other verdict is IN-SYNC, or NO-BLOCK (this repository has not adopted an
+# index). Neither is a drift, and a repository that never opted in should not be
+# nagged.
+if [[ "$verdict" == DRIFTED* ]]; then
   hook::emit_system_message \
     "instruction-placement: ${file_path##*/} changed and the generated rules index in ${target##*/} is now stale. Regenerate it (render-index.sh write --file ${target##*/}) — an un-indexed rule is unreachable from subagents." \
     2>/dev/null || true
-  ;;
-*)
-  # IN-SYNC, or NO-BLOCK (this repository has not adopted an index). Neither is
-  # a drift, and a repository that never opted in should not be nagged.
-  :
-  ;;
-esac
+fi
 
 exit 0

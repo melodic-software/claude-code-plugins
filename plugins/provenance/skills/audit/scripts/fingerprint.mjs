@@ -147,14 +147,14 @@ function stripInlineQuotes(block) {
     // opening bracket. Anything else before it makes it an apostrophe.
     //
     // This tests the position rather than just "is the previous character a
-    // word char", which is what it used to do. That older test caught don't and
-    // teams' but not a possessive following markup — `Location`'s, (FILE.md)'s,
-    // forms this repository's own prose is full of — so those opened a phantom
-    // quotation. It stayed survivable only while the closing scan stopped at
-    // the next contraction; once pairing learned to skip those, the phantom ran
-    // to the next stray mark and blanked whole paragraphs of original prose,
-    // measured at 16,031 characters in one tracked file. Over-stripping hides
-    // real copies, which is the worse direction for a detector.
+    // word char". The narrower test catches don't and teams' but not a
+    // possessive following markup — `Location`'s, (FILE.md)'s, forms this
+    // repository's own prose is full of — so those open a phantom quotation.
+    // With the closing scan below skipping word-internal apostrophes, such a
+    // phantom runs to the next stray mark and blanks whole paragraphs of
+    // original prose, measured at 16,031 characters in one tracked file.
+    // Over-stripping hides real copies, which is the worse direction for a
+    // detector.
     if (char === "'" || char === "‘") {
       const prev = block[i - 1];
       if (prev !== undefined && !/[\s([{<]/.test(prev)) {
@@ -200,39 +200,46 @@ export function tokenize(text) {
   return tokens;
 }
 
+/** The k-word shingle starting at `start` in a token list. */
+function shingleAt(tokens, start, k) {
+  return tokens
+    .slice(start, start + k)
+    .map((t) => t.word)
+    .join(" ");
+}
+
 /** Build the set of k-word shingles over a token list. */
 export function shingles(tokens, k = DEFAULTS.k) {
   const set = new Set();
-  for (let i = 0; i + k <= tokens.length; i += 1) {
-    set.add(
-      tokens
-        .slice(i, i + k)
-        .map((t) => t.word)
-        .join(" "),
-    );
-  }
+  for (let i = 0; i + k <= tokens.length; i += 1) set.add(shingleAt(tokens, i, k));
   return set;
+}
+
+/** How many of A's shingles B also holds. */
+function sharedCount(a, b) {
+  let shared = 0;
+  for (const shingle of a) {
+    if (b.has(shingle)) shared += 1;
+  }
+  return shared;
 }
 
 /** Fraction of A's shingles present in B. Empty A is 0, never NaN. */
 export function containment(a, b) {
   if (a.size === 0) return 0;
-  let hits = 0;
-  for (const shingle of a) {
-    if (b.has(shingle)) hits += 1;
-  }
-  return round(hits / a.size);
+  return round(sharedCount(a, b) / a.size);
 }
 
-/** Symmetric overlap. Reported for context; the separation rule does not use it. */
+/**
+ * Symmetric overlap. Reported for context; the separation rule does not use it.
+ *
+ * The shared count never exceeds either size, so a zero union means both sets
+ * are empty, and the guard against dividing by it is also the empty-input case.
+ */
 export function jaccard(a, b) {
-  if (a.size === 0 && b.size === 0) return 0;
-  let intersection = 0;
-  for (const shingle of a) {
-    if (b.has(shingle)) intersection += 1;
-  }
-  const union = a.size + b.size - intersection;
-  return union === 0 ? 0 : round(intersection / union);
+  const shared = sharedCount(a, b);
+  const union = a.size + b.size - shared;
+  return union === 0 ? 0 : round(shared / union);
 }
 
 /**
@@ -257,11 +264,7 @@ export function matchedSpans(localTokens, sourceSet, k = DEFAULTS.k) {
   };
 
   for (let i = 0; i + k <= localTokens.length; i += 1) {
-    const shingle = localTokens
-      .slice(i, i + k)
-      .map((t) => t.word)
-      .join(" ");
-    if (sourceSet.has(shingle)) {
+    if (sourceSet.has(shingleAt(localTokens, i, k))) {
       if (runStart === -1) runStart = i;
       runEnd = i;
     } else {

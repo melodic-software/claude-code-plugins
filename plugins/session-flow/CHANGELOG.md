@@ -1,5 +1,40 @@
 # Changelog — session-flow plugin
 
+## [0.34.23]
+
+### Fixed
+
+- **`check-usage-limit-reset.py` now passes the repo's pinned ruff.** The
+  `zoneinfo` import raised `E402` on `main`; it carries a `noqa` marker. The
+  marker's note deliberately does not claim the import must follow the tzdata
+  bootstrap, because it need not: CPython resolves `tzdata` lazily inside
+  `ZoneInfo(key)` construction, and the bootstrap has already extended
+  `sys.path` by then. Hoisting the import and dropping the marker is the better
+  end state and is left as a follow-up.
+
+### Changed
+
+- **Retro and observer tidyings from the repo-wide sweep.**
+  `parse_transcript.py` drops three wildcard `case _:` arms whose bodies were
+  `continue` or `pass`; each was the last case of a match that is itself the last
+  statement of its loop, so falling through is the same edge. Verified over a
+  36-invocation differential corpus comparing stdout bytes, exit codes and
+  recursive JSON key order, plus a 2,000-seed fuzz, with zero divergences.
+  Test-side duplication is folded into one spawn helper and one patch context
+  manager, and an env-dict build adopts the spread idiom used elsewhere in the
+  same file. Suites unchanged at 13, 37 and 73 checks.
+
+## [0.34.22]
+
+### Changed
+
+- **The running-retro observer growth case sets its own idle confirmation.** The
+  case inherited the production 30-second idle confirmation from the test
+  harness, so it could only ever end at the lifetime deadline rather than when
+  the tail actually went idle. It now sets a one-second confirmation and a
+  ten-second deadline, which is what the case was always asserting. Test-side
+  only; the observer's own defaults are unchanged.
+
 ## [0.34.21]
 
 ### Changed

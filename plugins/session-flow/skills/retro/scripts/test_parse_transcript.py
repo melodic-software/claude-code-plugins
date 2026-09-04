@@ -15,13 +15,17 @@ SCRIPT = Path(__file__).parent / "parse_transcript.py"
 SESSION_ID = "test-session"
 
 
-def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[str]:
+def _run_multi(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), session_id, base_path],
+        [sys.executable, str(SCRIPT), *args],
         capture_output=True,
         text=True,
         timeout=10,
     )
+
+
+def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[str]:
+    return _run_multi([session_id, base_path])
 
 
 def _run_with_event(tmp_path: Path, event: dict) -> dict:
@@ -34,12 +38,7 @@ def _run_with_event(tmp_path: Path, event: dict) -> dict:
 
 def test_missing_args():
     """No arguments produces error status with exit code 2."""
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT)],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    result = _run_multi([])
     output = json.loads(result.stdout)
     assert output["status"] == "error"
     assert result.returncode == 2
@@ -415,7 +414,7 @@ def test_output_contract_has_required_keys(tmp_path):
 
 
 # -----------------------------------------------------------------------------
-# Multi-session tests (Phase C — retro-pre-commit-chain)
+# Multi-session tests
 # -----------------------------------------------------------------------------
 
 
@@ -439,15 +438,6 @@ def _write_assistant_event(
         },
     }
     (tmp_path / f"{session_id}.jsonl").write_text(json.dumps(event) + "\n")
-
-
-def _run_multi(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
 
 
 def test_multi_session_all_present(tmp_path):

@@ -46,14 +46,11 @@ export function registerBoardTools(
     },
     { destructiveHint: false, openWorldHint: true },
     async ({ name, description, sharing_access }) => {
-      const boardChanges: Record<string, unknown> = {
+      const { body: board } = await lowLevel.createBoard({
         name,
         description: description ?? "",
-      };
-      if (sharing_access) {
-        boardChanges["policy"] = buildSharingPolicy(sharing_access);
-      }
-      const { body: board } = await lowLevel.createBoard(boardChanges);
+        ...(sharing_access ? { policy: buildSharingPolicy(sharing_access) } : {}),
+      });
       return jsonResponse({
         id: board.id,
         name: board.name,
@@ -115,13 +112,11 @@ export function registerBoardTools(
     },
     { idempotentHint: true, destructiveHint: false, openWorldHint: true },
     async ({ board_id, name, description, sharing_access }) => {
-      const boardChanges: Record<string, unknown> = {};
-      if (name !== undefined) boardChanges["name"] = name;
-      if (description !== undefined) boardChanges["description"] = description;
-      if (sharing_access) {
-        boardChanges["policy"] = buildSharingPolicy(sharing_access);
-      }
-      const { body: board } = await lowLevel.updateBoard(board_id, boardChanges);
+      const { body: board } = await lowLevel.updateBoard(board_id, {
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(sharing_access ? { policy: buildSharingPolicy(sharing_access) } : {}),
+      });
       return jsonResponse({
         id: board.id,
         name: board.name,

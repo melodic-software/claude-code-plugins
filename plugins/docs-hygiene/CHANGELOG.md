@@ -1,5 +1,59 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.34]
+
+### Fixed
+
+- **Two suites cleaned up none of the fixture directories they created.** Both
+  registered fixtures in a bash array, but the constructor runs inside a
+  command substitution, so the append happened in a subshell and never reached
+  the trap. Measured with an isolated `TMPDIR`, `audit-encapsulation` leaked 27
+  directories per run and `audit-progressive-disclosure` 6; both now leak zero,
+  including on a forced-red run and on an interrupt. The ledger is now a file,
+  and its records are NUL-delimited: with newline-delimited records a newline
+  inside `TMPDIR` splits one path across two records and the trap removes the
+  truncated prefix, a directory outside the fixture set.
+- **The caveman suite left a stub directory behind in the plugin tree.** It now
+  builds under `mktemp -d`, so a run leaves the working tree unchanged.
+
+### Changed
+
+- **`audit-encapsulation/detect.sh` extracts `resolves_into_self()`** from two
+  branches that spelled the same relative-cite resolution twice; the bodies
+  differ by no code token once the one prefix is substituted. The absolute-cite
+  tests were deliberately left inline, because the `.claude/skills` branch
+  matches as a plain substring and the `plugins/*/skills` branch is
+  root-anchored, and that difference is load-bearing. Two file-non-empty guards
+  whose files are re-created immediately above each loop, and a dead alias, are
+  dropped.
+- **`audit-noise` extracts `no_targets()` and `count_negations()`,** the latter
+  replacing a pipeline written out eight times, and simplifies
+  `resolve_existing_path`. The `emit-findings.sh` change is comment-only: an
+  escaping note now sits above the function it describes, verified by numbering
+  and hashing the non-comment lines so no awk source line moved.
+- **`compress/audit-scan.sh` drops a default that could never apply,** since
+  `wc -l` prints a count on every path including a failed grep.
+
+  Both detector revisions were run over the same pristine tree of 3,523 files
+  to remove the self-scan confound; output is byte-identical across ten
+  invocations. The extracted predicate was compared against both original
+  bodies over 284 cases with zero mismatches, and the seven rewritten emission
+  blocks were reproduced by executing the originals and comparing with `cmp`.
+
+### Known issues
+
+- **`from the feature branch` in `noise-shapes.sh` has no trailing word
+  boundary,** where every sibling alternative terminates on a digit class, so it
+  also fires on "feature branching", "feature branches" and "feature
+  branchless". Left unfixed while the detector is in use as a measurement
+  instrument.
+- **Five `for (k in declined_*)` loops iterate awk associative arrays** over a
+  parsed contract surface, and POSIX leaves that order unspecified. Only one awk
+  implementation is present on the machine that measured this, so no order flip
+  could be exhibited; recorded as latent rather than observed.
+- **One awk program uses `\x27` a few lines after a comment** stating that `\x`
+  escapes are not portable across awks.
+
 ## [0.21.33]
 
 ### Fixed

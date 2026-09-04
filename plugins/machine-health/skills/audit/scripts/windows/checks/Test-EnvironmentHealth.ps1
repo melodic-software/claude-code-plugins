@@ -382,11 +382,9 @@ try {
         }
         if ($uniqueNorms.Count -lt 2) { continue }
         $winner = $hits[0]
-        $others = [System.Collections.Generic.List[pscustomobject]]::new()
         $otherScopes = [System.Collections.Generic.List[string]]::new()
         $otherPaths = [System.Collections.Generic.List[string]]::new()
         for ($i = 1; $i -lt $hits.Count; $i++) {
-            $others.Add($hits[$i])
             $otherScopes.Add($hits[$i].scope)
             $otherPaths.Add($hits[$i].path)
         }

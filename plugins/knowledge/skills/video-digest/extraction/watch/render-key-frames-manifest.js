@@ -57,5 +57,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/render-key-frames-manifest.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${renderKeyFramesManifest(sliceDir)}\n`);
+  writeStdout(renderKeyFramesManifest(sliceDir));
 }

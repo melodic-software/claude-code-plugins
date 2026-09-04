@@ -154,7 +154,8 @@ classify_tier() {
 declare -a FILES=()
 SKIPPED=0
 SKIP_ROWS="$(mktemp)"
-trap 'rm -f "$SKIP_ROWS"' EXIT
+ROWS="$(mktemp)"
+trap 'rm -f "$SKIP_ROWS" "$ROWS"' EXIT
 
 if ((${#EXPLICIT[@]} > 0)); then
   for f in "${EXPLICIT[@]}"; do
@@ -219,8 +220,6 @@ fi
 # the line accounting for fences and frontmatter is done once and cannot drift
 # between the three record types.
 # ---------------------------------------------------------------------------
-ROWS="$(mktemp)"
-trap 'rm -f "$SKIP_ROWS" "$ROWS"' EXIT
 RULE_COUNT=0
 
 emit_file_facts() {
@@ -231,15 +230,15 @@ emit_file_facts() {
   # backslash; mawk passes both through). Every fact this emits is keyed by the
   # path, so a mangled one silently misattributes findings.
   IP_FILE_PATH="$file" awk '
-    BEGIN { path = ENVIRON["IP_FILE_PATH"] }
     function flush_section(endline,   markerlist) {
       if (sec_start == 0) return
       printf "SECTION\t%s\t%d\t%d\t%d\t%s\n", path, sec_start, endline, sec_level, sec_head
-      markerlist = ""
-      for (m in seen_marker) markerlist = markerlist (markerlist == "" ? "" : ",") m
       if (norm_hits > 0) {
-        n = split(markerlist, arr, ",")
-        # deterministic marker order
+        # Deterministic marker order: `for (k in a)` order is unspecified, so
+        # the names are collected and sorted before they are joined.
+        delete arr
+        n = 0
+        for (m in seen_marker) { n++; arr[n] = m }
         for (i = 1; i <= n; i++)
           for (j = i + 1; j <= n; j++)
             if (arr[j] < arr[i]) { t = arr[i]; arr[i] = arr[j]; arr[j] = t }
@@ -253,6 +252,7 @@ emit_file_facts() {
       norm_hits = 0
     }
     BEGIN {
+      path = ENVIRON["IP_FILE_PATH"]
       sec_start = 0; sec_level = 0; sec_head = ""; norm_hits = 0; fm = 0; fence = 0
       # Config directories and dotfiles that look like extensions but name a
       # location. Measured: `.claude` alone accounted for 840 false hints.

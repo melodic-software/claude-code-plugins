@@ -1,0 +1,73 @@
+# Suites scripts/run-plugin-tests.sh runs ONE AT A TIME, before the parallel
+# group and never concurrently with any other suite.
+#
+# Membership criterion: the suite asserts a wall-clock ceiling (a `timeout`
+# whose expiry is read as a failure, an elapsed-seconds bound, a latency
+# budget) or drives a concurrency probe of its own (it spawns a burst of hooks
+# and counts what got through). Both fail spuriously when other suites compete
+# for the same cores, and a spurious red on a required check is worse than the
+# seconds parallelism would have saved on these few. A suite that is merely
+# slow does NOT belong here; parallelism is exactly what it wants.
+#
+# One repo-relative suite path per line; `#` comments and blank lines are
+# ignored. An entry that matches no discovered suite fails the runner (exit 2):
+# an allowlist must not outlive what it excuses. Keep the reason beside each
+# entry, the way every other data file in scripts/ does.
+#
+# PROVISIONAL (github-iac ci-perf Phase 2.2): this first list is the union of
+# the suites whose source reads a clock and compares it, plus the guardrails
+# suites scripts/affected-tests.sh names. It is finalised against real
+# pull-request runs on the 4-vCPU ubuntu-24.04 runner: a suite that passes
+# under --jobs 4 across the verification window leaves the list, and a suite
+# that flakes there joins it.
+
+# Alias-traversal cases assert a hard wall-clock ceiling through `timeout`
+# (run_bounded reads 124 as the failure it is).
+plugins/guardrails/hooks/block-dangerous-git.test.sh
+
+# The divergent-spelling walk runs under a hang guard sized against a loaded
+# host; contention widens exactly the margin it depends on.
+plugins/guardrails/hooks/block-noncanonical-commit.test.sh
+
+# Asserts a 1000-line hunk scans inside the hook's 30 s timeout.
+plugins/guardrails/hooks/skill-reference-verify.test.sh
+
+# Case 13 fires 24 concurrent hooks against the grace budget and counts what
+# landed inside it; other suites on the same cores skew that count.
+plugins/context-guard/hooks/zone-gate.test.sh
+
+# A/B timing harness; its verdicts are elapsed-time comparisons.
+plugins/performance/scripts/ab.test.sh
+
+# The statusline bench measures render latency.
+plugins/rate-limit-guard/bench/bench.test.sh
+
+# Cancellation-window cases kill a parked rename shim on a short fuse.
+plugins/rate-limit-guard/scripts/statusline-tee.test.sh
+plugins/context-guard/scripts/statusline-tee.test.sh
+
+# Always-on hooks assert the marketplace latency budget (.claude/rules/hook-budget.md).
+plugins/desktop-notification/hooks/desktop-notification.test.sh
+plugins/instruction-placement/hooks/index-drift.test.sh
+plugins/markdown-format/hooks/markdown-format.test.sh
+plugins/source-control/hooks/pr-body-linkage-gate.test.sh
+plugins/typos-format/hooks/typos-format.test.sh
+
+# The listing-budget reporter times its own whole-marketplace pass.
+plugins/skill-quality/scripts/check-listing-budget.test.sh
+
+# Deadline-based cases: a suite that fails when a bounded operation overruns is
+# measuring the box once other suites are competing for it.
+# 2,000 ms spawnSync deadline on the ReDoS-shaped title case (measure.test.sh:471-478).
+plugins/context-budget/skills/audit/scripts/measure.test.sh
+# Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
+plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
+
+# The two entries below are NOT wall-clock cases. Both fail under --jobs 4 on a
+# hosted runner (run 33787030286), pass serially in the same job on main, and
+# pass locally; no hypothesis so far explains either. They are listed to fail
+# toward running the suite rather than toward a red lane nobody can diagnose,
+# and the debt is tracked so the listing does not become permanent by default.
+# Root cause tracked in #3694; both come off this list when it is found.
+plugins/discovery/agents/tool-honesty.test.sh
+plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh

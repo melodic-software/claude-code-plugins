@@ -3,6 +3,114 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.5]
+
+### Fixed
+
+- **`lib/git-hooks/pre-commit-content-invariants.test.sh` carried two real-shape
+  secret tokens as contiguous literals.** A GitHub-PAT-shaped token at line 74 and
+  an OpenAI-shaped one at line 98 sat in the file's own bytes, so
+  `secrets::scan_text` returned rc=1 on the suite that tests the scanner, naming
+  both by line. The file's path matches none of `secret_allowlisted`'s eight arms
+  (twenty globs) or `path_allowlisted`'s seven (sixteen), so the pre-commit hook
+  would refuse a commit staging its own test file, and the `secret-pattern-detection`
+  guard blocked Write to it. Scanning every tracked file against all twelve
+  patterns in `SECRET_PATTERNS` found these two hits and no others in the
+  repository. Both fixtures now assemble at runtime, matching the discipline
+  `hooks/secret-pattern-detection.test.sh` documents and uses. The assembled values
+  are byte-identical to the former literals (40 and 23 bytes, compared with `cmp`,
+  not by eye), so every gate invocation in the suite receives the same staged
+  content and the suite's output is byte-identical on both sides.
+
+  On the blast radius, stated precisely: the hook is not installed in this
+  checkout (`.git/hooks` holds only samples and `core.hooksPath` is unset), so it
+  blocked nothing here. It would have bitten anyone who ran `/guardrails:setup
+  apply` and then edited this plugin.
+
+  On why CI never caught it: the `gitleaks` lane does run un-gated on every diff.
+  Running it locally with this repo's own `.gitleaks.toml` over the pre-fix bytes
+  reports no leaks, while the same config on a high-entropy PAT reports one. The
+  scanner works; its default `github-pat` rule carries an entropy floor that
+  thirty-six identical characters falls under. This repository's own
+  `secrets::scan_text` has no entropy floor, which is why only it fired.
+
+### Added
+
+- **The shared `report` helper now has a self-test,** closing the gap the
+  previous release recorded under Known issues. It asserts the printed tally
+  beside the exit code, runs each child under a stripped environment, and carries
+  its own failure counter with an explicit exit rather than reporting through the
+  function under test. Seven independent mutants of the helper are killed here
+  and none was caught before: returning zero, an inverted comparison, a correct
+  status with a zeroed tally, printing nothing, always returning one, counters
+  that stop incrementing, and a tally with the two counts swapped.
+
+  Each part of that shape was measured rather than assumed. Under a helper forced
+  to return zero only two of the three assertions go red, because the
+  zero-failures direction legitimately still passes, so a one-directional test
+  would have been decorative. The independent counter is what makes the rest
+  work: a version reporting through the ordinary assertion helper prints failure
+  lines and still exits zero under exactly the sabotage it exists to catch.
+  Stripping the counters from the child environment is not load-bearing today,
+  but without it, running the suite with those names already set turns all three
+  assertions into false reds pointing at a healthy helper.
+
+### Removed
+
+- **A local equality-assertion shadow** whose comment claimed the shared helper
+  had no equality primitive. It has had one since the release that stopped a UNC
+  path reaching telemetry, and eight sibling suites already call it, so the
+  comment would have invited a ninth copy. All twelve migrated assertions were
+  mutation-killed individually; every failing path is byte-identical, and the
+  only difference is the passing line now carrying the measured value.
+
+## [0.31.3]
+
+### Changed
+
+- **`block-noncanonical-commit.test.sh` calls the shared `report` helper** in
+  place of a three-line inline copy. It was the only one of the plugin's 17 hook
+  suites not using the helper it already sources. The terminal check changes
+  form, so the two spellings were compared by execution across 14 inputs
+  including unset, empty, non-numeric, leading-zero and both integer extremes:
+  identical exit codes in every case. The suite's ability to fail was proven
+  under two mutation classes, one injecting a failing assertion and one
+  weakening the gate itself; both turn it red.
+- **`require-jq-notice-isolation.test.sh` drops a dead pre-initialisation** that
+  a `grep -c` capture unconditionally overwrites eleven lines later, with no
+  read in between and no path on which the capture is skipped.
+
+  No gate script was modified. All 52 tracked files in the plugin were hashed
+  against the previous release: exactly the two suites above differ. A 48-case
+  accept-and-refuse corpus across three hook lanes diffs to zero between the two
+  revisions, and two deliberate gate weakenings confirm that corpus
+  discriminates rather than passing vacuously.
+
+### Known issues
+
+- **Nothing self-tests the shared `report` helper.** With the inline copy gone,
+  a broken helper combined with a weakened gate would leave none of the 17
+  suites red, where one previously stayed red on its own terminal check. That
+  protection was incidental rather than designed and was already absent for the
+  other 16 suites; single-fault regressions are still caught. A self-test of the
+  helper is the mitigation, mirroring the one the repo-wide harness already has.
+
+## [0.31.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.31.1]
 
 ### Changed

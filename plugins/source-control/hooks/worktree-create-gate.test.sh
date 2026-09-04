@@ -18,11 +18,17 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-if command -v cygpath >/dev/null 2>&1; then
-  TEST_TMPDIR_NATIVE="$(cygpath -m "$TEST_TMPDIR")"
-else
-  TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
-fi
+# native_path <path> -> the mixed-mode spelling on Windows Git Bash, the path
+# itself everywhere else.
+native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+TEST_TMPDIR_NATIVE="$(native_path "$TEST_TMPDIR")"
 
 mkrepo() {
   local repo
@@ -77,11 +83,7 @@ assert_not_contains "nothing landed in the in-repo default" \
 
 REPO2="$(mkrepo)"
 DATA_DIR="$(mktemp -d "$TEST_TMPDIR/dataXXXXXX")"
-if command -v cygpath >/dev/null 2>&1; then
-  DATA_DIR_NATIVE="$(cygpath -m "$DATA_DIR")"
-else
-  DATA_DIR_NATIVE="$DATA_DIR"
-fi
+DATA_DIR_NATIVE="$(native_path "$DATA_DIR")"
 
 OUT="$(payload "feat/gate-fallback" "$REPO2" |
   CLAUDE_PLUGIN_DATA="$DATA_DIR_NATIVE" bash "$HOOK" 2>/dev/null)"

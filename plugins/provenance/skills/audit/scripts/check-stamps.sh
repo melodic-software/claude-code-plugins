@@ -341,21 +341,20 @@ function reset(name) {
 # are evaluated and the LEFTMOST wins, with RSTART and RLENGTH left describing
 # that match — never the one this function passed over.
 #
-# Returning on whichever branch was tested first under-reported. The digit test
-# came first, so a digit-adjacent "may" out in the slack returned its own RSTART,
-# the caller rejected it against wlen, and a capital "May" sitting INSIDE the
-# window was never consulted: appending a stray "7 may" to "Verified this May"
-# removed that line from the candidates. A second, weaker date signal deleting a
-# stamp is the one direction this detector must not move in. Testing the capital
-# first only mirrors the bug, a capital in the slack then hiding an in-window
-# digit, so neither order is a fix. Leftmost changes nothing wherever the digit
-# match already came first, which is every line in the corpus, measured by
-# comparing parsed and declined counts over 1,352 files at --as-of 2026-08-28
-# before and after.
+# Returning on whichever branch is tested first under-reports. Test the digit
+# first and a digit-adjacent "may" out in the slack returns its own RSTART, the
+# caller rejects it against wlen, and a capital "May" sitting INSIDE the window is
+# never consulted: appending a stray "7 may" to "Verified this May" then removes
+# that line from the candidates. A second, weaker date signal deleting a stamp is
+# the one direction this detector must not move in. Testing the capital first only
+# mirrors that, a capital in the slack then hiding an in-window digit, so neither
+# order is enough. Leftmost changes nothing wherever the digit match already comes
+# first, which is every line in the corpus, measured by comparing parsed and
+# declined counts over 1,352 files at --as-of 2026-08-28, before and after.
 #
-# Both scripts carried the same defect, so the cross-script agreement the suites
-# assert was blind to it: the two agreed, on the wrong count. Both suites now pin
-# the count itself as well as the agreement.
+# Both scripts carry this rule, so the cross-script agreement the suites assert is
+# blind to a defect they share: the two agree, on the wrong count. Both suites
+# therefore pin the count itself as well as the agreement.
 #
 # A false return leaves RSTART = 0 and RLENGTH = -1, the values awk itself sets
 # after a failed match, so a caller cannot read a stale offset off a window this
@@ -369,9 +368,9 @@ function may_form(w, worig,   ds, dl, cs, cl) {
   cs = 0; cl = 0
   if (match(worig, /May([^a-z]|$)/)) { cs = RSTART; cl = RLENGTH }
   # w and worig are the same span cut at the same offsets, so the two offsets are
-  # directly comparable. A tie keeps the digit match, which is the branch that
-  # used to win outright: it cuts the window after the digit rather than before
-  # it, and "May 2026" ties on every line that carries one.
+  # directly comparable. A tie keeps the digit match: it cuts the window after
+  # the digit rather than before it, and "May 2026" ties on every line that
+  # carries one.
   if (ds > 0 && (cs == 0 || ds <= cs)) { RSTART = ds; RLENGTH = dl; return 1 }
   if (cs > 0) { RSTART = cs; RLENGTH = cl; return 1 }
   RSTART = 0; RLENGTH = -1

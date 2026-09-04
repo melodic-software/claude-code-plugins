@@ -557,9 +557,7 @@ for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
     EXPANDED+=("$t")
   fi
 done
-TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
-
-mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | sort -u)
+mapfile -t TARGETS < <(printf '%s\n' ${EXPANDED[@]+"${EXPANDED[@]}"} | sort -u)
 if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
   end="${#TARGETS[@]}"
   [[ "$LIMIT" -gt 0 ]] && end=$((OFFSET + LIMIT))

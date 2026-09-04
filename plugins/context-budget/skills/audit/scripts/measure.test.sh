@@ -281,16 +281,16 @@ for (const [name, tokens] of Object.entries(table)) lines.push(`| ${name} | ${to
 process.stdout.write(lines.join('\n') + '\n');
 EOF
 case "$(uname -s)" in
-  MINGW* | MSYS* | CYGWIN* | Windows_NT*)
-    FAKE="$FAKEDIR/fake-claude.cmd"
-    printf '@node "%%~dp0fake-claude.js" %%*\r\n' >"$FAKE"
-    ;;
-  *)
-    FAKE="$FAKEDIR/fake-claude"
-    printf '#!/usr/bin/env node\n' >"$FAKE"
-    cat "$FAKEDIR/fake-claude.js" >>"$FAKE"
-    chmod +x "$FAKE"
-    ;;
+MINGW* | MSYS* | CYGWIN* | Windows_NT*)
+  FAKE="$FAKEDIR/fake-claude.cmd"
+  printf '@node "%%~dp0fake-claude.js" %%*\r\n' >"$FAKE"
+  ;;
+*)
+  FAKE="$FAKEDIR/fake-claude"
+  printf '#!/usr/bin/env node\n' >"$FAKE"
+  cat "$FAKEDIR/fake-claude.js" >>"$FAKE"
+  chmod +x "$FAKE"
+  ;;
 esac
 
 # The bug (#3197): the combined deny empties the deferred bucket out of the

@@ -1699,6 +1699,7 @@ def _reset_decision_state(main_result: int | None = None) -> None:
         # made it stale.
         _MAIN_RESULT = main_result
 
+
 # The `timeout` both guard registrations declare (`hooks/hooks.json` and
 # `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
 # payload does not carry the hook's own timeout, so the guard cannot read it at
@@ -2219,13 +2220,6 @@ def main() -> int:
         # ordering and not the flush: `_reset_decision_state` clears the token
         # under `_EMIT_LOCK`, and a callback that acquires the lock afterwards
         # sees its own token no longer current and stands down at exit 0.
-        #
-        # Two earlier revisions of this comment each claimed a different
-        # mechanism closed this race — first the cancel-before-reset ordering,
-        # then the flush. Neither did. `cancel()` cannot stop a dispatched
-        # callback, and a flush only makes an already-printed decision durable;
-        # it does nothing about a callback that is about to override it with a
-        # deny. The token is what actually closes it.
         #
         # The flush stays, for the narrower thing it does do: `os._exit` skips
         # the interpreter's shutdown flush, so a decision still buffered when a

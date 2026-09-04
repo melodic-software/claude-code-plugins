@@ -390,19 +390,34 @@ hook::require_jq_blocking() {
 # collapse with `/c/repo` and the membership guard would admit a sibling
 # outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
 # emitted path is always the caller's original.
-hook::normalize_path() {
-  local p="${1//\\//}"
+#
+# Two spellings of every path helper below: `hook::<name>` prints the answer
+# (the public, subshell-friendly form every caller already uses) and
+# `hook::<name>_to <var> <path>` stores it in the caller's variable instead.
+# The `_to` form is what the hot path uses: a `$(...)` capture is a fork, and
+# on Windows Git Bash a fork costs milliseconds, so the file_path guard that
+# ran a dozen of them per hook now runs none it does not need. The `_to`
+# helpers keep their locals under a `__hu_` prefix so the caller's variable
+# name cannot collide with them.
+hook::normalize_path_to() {
+  local __hu_p="${2//\\//}"
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32)
-    if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
-      local rest="${p:2}"
-      printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
-      return
+    if [[ "$__hu_p" =~ ^/([a-zA-Z])/ || "$__hu_p" =~ ^([a-zA-Z]):/ ]]; then
+      local __hu_rest="${__hu_p:2}"
+      printf -v "$1" '%s' "${BASH_REMATCH[1]^}:${__hu_rest,,}"
+      return 0
     fi
     ;;
   *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
   esac
-  printf '%s' "$p"
+  printf -v "$1" '%s' "$__hu_p"
+}
+
+hook::normalize_path() {
+  local __hu_n
+  hook::normalize_path_to __hu_n "$1"
+  printf '%s' "$__hu_n"
 }
 
 # Expand Windows 8.3 short-name components (KYLESE~1 → KyleSexton) on
@@ -424,25 +439,31 @@ hook::normalize_path() {
 # class: cygpath ships with Git Bash (the documented Windows bash), so its
 # absence or failure keeps the resolver's answer unchanged — degrading to the
 # pre-expansion comparison, same doctrine as the resolver fallback below.
-hook::expand_8dot3() {
-  local p="$1"
+hook::expand_8dot3_to() {
+  local __hu_p="$2"
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) ;;
   *)
-    printf '%s' "$p"
-    return
+    printf -v "$1" '%s' "$__hu_p"
+    return 0
     ;;
   esac
-  if [[ "$p" == *~* ]] && command -v cygpath >/dev/null 2>&1; then
-    local plain long
-    if plain=$(cygpath -m -- "$p" 2>/dev/null) &&
-      long=$(cygpath -l -m -- "$p" 2>/dev/null) &&
-      [[ -n "$long" && "$long" != "$plain" ]]; then
-      printf '%s' "$long"
-      return
+  if [[ "$__hu_p" == *~* ]] && command -v cygpath >/dev/null 2>&1; then
+    local __hu_plain __hu_long
+    if __hu_plain=$(cygpath -m -- "$__hu_p" 2>/dev/null) &&
+      __hu_long=$(cygpath -l -m -- "$__hu_p" 2>/dev/null) &&
+      [[ -n "$__hu_long" && "$__hu_long" != "$__hu_plain" ]]; then
+      printf -v "$1" '%s' "$__hu_long"
+      return 0
     fi
   fi
-  printf '%s' "$p"
+  printf -v "$1" '%s' "$__hu_p"
+}
+
+hook::expand_8dot3() {
+  local __hu_e
+  hook::expand_8dot3_to __hu_e "$1"
+  printf '%s' "$__hu_e"
 }
 
 # Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
@@ -462,18 +483,146 @@ hook::expand_8dot3() {
 # expansion applies only on the resolver's success path: consumers that fail
 # closed on an unresolved signature must not see a form-converted path instead.
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
-hook::physical_path() {
-  local resolved
+hook::physical_path_to() {
+  local __hu_r
   HOOK_PHYSICAL_PATH_UNRESOLVED=0
-  if resolved=$(realpath -- "$1" 2>/dev/null) || resolved=$(readlink -f -- "$1" 2>/dev/null); then
-    if [[ -n "$resolved" ]]; then
-      hook::expand_8dot3 "$resolved"
+  if __hu_r=$(realpath -- "$2" 2>/dev/null) || __hu_r=$(readlink -f -- "$2" 2>/dev/null); then
+    if [[ -n "$__hu_r" ]]; then
+      hook::expand_8dot3_to "$1" "$__hu_r"
       return 0
     fi
   fi
   HOOK_PHYSICAL_PATH_UNRESOLVED=1
-  printf '%s' "$1"
+  printf -v "$1" '%s' "$2"
   return 1
+}
+
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
+hook::physical_path() {
+  local __hu_v __hu_rc=0
+  hook::physical_path_to __hu_v "$1" || __hu_rc=$?
+  printf '%s' "$__hu_v"
+  return "$__hu_rc"
+}
+
+# --- Per-process physical-path cache --------------------------------------
+# The membership guard resolves the same few directories on every call: the
+# project root and this host's temp roots. Their physical form does not change
+# within one hook process, so each spelling is resolved once and remembered in
+# three parallel indexed arrays (keys, values, resolver status). Plain arrays,
+# not an associative array, so the cache runs on Bash 3.2. Only directories are
+# meant to live here for a process lifetime; hook::read_file_path forgets the
+# edited file's entry as soon as it has read it, so a later call in the same
+# process sees the file as it is then.
+_HOOK_PHYS_KEYS=()
+_HOOK_PHYS_VALS=()
+_HOOK_PHYS_RCS=()
+_HOOK_PHYS_I=-1
+
+# hook::_phys_cache_index <path>: sets _HOOK_PHYS_I to the slot holding <path>,
+# returns 1 when it is not cached. A forgotten slot has an empty key, which no
+# real path can match.
+hook::_phys_cache_index() {
+  local __hu_i
+  [[ -n "$1" ]] || return 1
+  for ((__hu_i = 0; __hu_i < ${#_HOOK_PHYS_KEYS[@]}; __hu_i++)); do
+    if [[ "${_HOOK_PHYS_KEYS[__hu_i]}" == "$1" ]]; then
+      _HOOK_PHYS_I=$__hu_i
+      return 0
+    fi
+  done
+  return 1
+}
+
+hook::_phys_cache_forget() {
+  hook::_phys_cache_index "$1" && _HOOK_PHYS_KEYS[_HOOK_PHYS_I]=""
+  return 0
+}
+
+# hook::_physical_cached_to <var> <path>: hook::physical_path_to through the
+# cache. Same value, same return status, same HOOK_PHYSICAL_PATH_UNRESOLVED as
+# the uncached call; a miss resolves the one path and stores it.
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
+hook::_physical_cached_to() {
+  if hook::_phys_cache_index "$2"; then
+    printf -v "$1" '%s' "${_HOOK_PHYS_VALS[_HOOK_PHYS_I]}"
+    HOOK_PHYSICAL_PATH_UNRESOLVED=${_HOOK_PHYS_RCS[_HOOK_PHYS_I]}
+    return "${_HOOK_PHYS_RCS[_HOOK_PHYS_I]}"
+  fi
+  local __hu_v __hu_rc=0
+  hook::physical_path_to __hu_v "$2" || __hu_rc=$?
+  if [[ -n "$2" ]]; then
+    _HOOK_PHYS_KEYS+=("$2")
+    _HOOK_PHYS_VALS+=("$__hu_v")
+    _HOOK_PHYS_RCS+=("$__hu_rc")
+  fi
+  printf -v "$1" '%s' "$__hu_v"
+  return "$__hu_rc"
+}
+
+# hook::_physical_prime <path>...: resolve every uncached path with ONE
+# realpath process and store the answers. realpath resolves each argument on
+# its own and prints one line per argument in argument order, so the batch
+# answer for a path is the same string the per-path call returns; the 8.3
+# expansion is applied per answer exactly as hook::physical_path_to does. Any
+# doubt (a path carrying a newline, a non-zero exit, a line count that does not
+# match) stores nothing and leaves the per-path resolver to answer lazily, so
+# the batch can only ever save work, never change an answer. readlink -f hosts
+# (no realpath) skip the batch for the same reason.
+hook::_physical_prime() {
+  local -a __hu_todo=()
+  local __hu_p __hu_out __hu_i __hu_seen="" __hu_v
+  for __hu_p in "$@"; do
+    [[ -n "$__hu_p" ]] || continue
+    [[ "$__hu_p" == *$'\n'* ]] && return 0
+    case "$__hu_seen" in
+    *"|$__hu_p|"*) continue ;;
+    *) ;; # first sighting
+    esac
+    __hu_seen="$__hu_seen|$__hu_p|"
+    hook::_phys_cache_index "$__hu_p" && continue
+    __hu_todo+=("$__hu_p")
+  done
+  ((${#__hu_todo[@]} > 1)) || return 0
+  command -v realpath >/dev/null 2>&1 || return 0
+  # portability-ok: realpath with several operands is GNU and BSD alike; a host whose realpath rejects it fails the exit-status check and falls back per path
+  __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
+  local -a __hu_lines=()
+  local __hu_glob=0
+  [[ $- == *f* ]] || __hu_glob=1
+  set -f
+  local IFS=$'\n'
+  # shellcheck disable=SC2206 # splitting realpath's one-line-per-operand output is the intent
+  __hu_lines=($__hu_out)
+  ((__hu_glob)) && set +f
+  ((${#__hu_lines[@]} == ${#__hu_todo[@]})) || return 0
+  for ((__hu_i = 0; __hu_i < ${#__hu_todo[@]}; __hu_i++)); do
+    [[ -n "${__hu_lines[__hu_i]}" ]] || return 0
+    hook::expand_8dot3_to __hu_v "${__hu_lines[__hu_i]}"
+    _HOOK_PHYS_KEYS+=("${__hu_todo[__hu_i]}")
+    _HOOK_PHYS_VALS+=("$__hu_v")
+    _HOOK_PHYS_RCS+=(0)
+  done
+  return 0
+}
+
+# The temp-root candidates hook::under_temp_root compares against: the
+# environment's own answer (TMPDIR/TMP/TEMP) plus the POSIX defaults, never a
+# hardcoded platform assumption. Existing directories only, each spelling
+# once, in _HOOK_TEMP_CANDS.
+_HOOK_TEMP_CANDS=()
+hook::_temp_root_candidates() {
+  local __hu_cand __hu_seen=""
+  _HOOK_TEMP_CANDS=()
+  for __hu_cand in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
+    [[ -n "$__hu_cand" && -d "$__hu_cand" ]] || continue
+    case "$__hu_seen" in
+    *"|$__hu_cand|"*) continue ;;
+    *) ;; # first sighting of this candidate
+    esac
+    __hu_seen="$__hu_seen|$__hu_cand|"
+    _HOOK_TEMP_CANDS+=("$__hu_cand")
+  done
 }
 
 # True when <normalized-path> sits inside one of this host's temp trees.
@@ -483,21 +632,40 @@ hook::physical_path() {
 # of the identical directory, and `realpath` resolves the Windows form to a
 # drive path while leaving `/tmp` as `/tmp`. Neither form alone matches a
 # `file_path` that could arrive in either, so every candidate is compared and a
-# match on any one is a match. Duplicates are resolved once.
+# match on any one is a match. Duplicates are resolved once, and each
+# candidate's physical form is remembered for the process (see the cache
+# above), so a second call costs no resolver process.
 #
-# Candidates are the environment's own answer (TMPDIR/TMP/TEMP) plus the POSIX
-# defaults, never a hardcoded platform assumption.
+# Raw-spelling shortcut: when the caller vouches that <normalized-path> is a
+# PHYSICAL path (_HOOK_UTR_TARGET_PHYSICAL=1, set only by hook::read_file_path
+# after the resolver succeeded), a candidate whose raw normalized spelling is
+# already a prefix of the target is a match without resolving it. A physical
+# path contains no symlink component, so a candidate that spells one of its
+# prefixes names a chain of real directories whose physical form is that same
+# prefix; the resolver would answer the same. A candidate that does not match
+# raw is still resolved, so a symlinked temp root (macOS /tmp) is found the
+# way it always was. Without the vouch the shortcut is off and every candidate
+# is resolved, exactly as before. Note that hook::read_file_path primes every
+# candidate into the cache with one batched realpath before calling here, so
+# on that path the shortcut skips a lookup, not a process; the batch is what
+# saves the processes. A direct caller without the batch saves the resolver.
 #   hook::under_temp_root "$norm_path" && ...
+_HOOK_UTR_TARGET_PHYSICAL=0
 hook::under_temp_root() {
-  local target="$1" cand norm seen=""
-  for cand in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
-    [[ -n "$cand" && -d "$cand" ]] || continue
-    case "$seen" in
-    *"|$cand|"*) continue ;;
-    *) ;; # first sighting of this candidate — resolve it below
-    esac
-    seen="$seen|$cand|"
-    norm=$(hook::normalize_path "$(hook::physical_path "$cand")")
+  local target="$1" cand norm phys
+  hook::_temp_root_candidates
+  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+    if ((_HOOK_UTR_TARGET_PHYSICAL)); then
+      hook::normalize_path_to norm "$cand"
+      if [[ "$norm" != / ]]; then
+        norm="${norm%/}"
+        if [[ -n "$norm" && ("$target" == "$norm" || "$target" == "$norm"/*) ]]; then
+          return 0
+        fi
+      fi
+    fi
+    hook::_physical_cached_to phys "$cand" || :
+    hook::normalize_path_to norm "$phys"
     # The filesystem root as a temp candidate contains every absolute path;
     # trimming its only slash would empty the candidate and discard it.
     [[ "$norm" == / ]] && return 0
@@ -523,21 +691,436 @@ hook::in_git_working_tree() {
   ) >/dev/null 2>&1
 }
 
+# --- Builtin JSON helpers ----------------------------------------------------
+# hook::read_file_path and hook::emit_telemetry used to spend a jq process each
+# on every hook run. On Windows Git Bash one spawn costs tens of milliseconds,
+# so the helpers here handle the well-formed shapes those two functions see in
+# practice with shell builtins and hand anything they cannot PROVE to the
+# unchanged jq path. The contract is "the bytes jq would produce, or fall
+# back", never "close enough".
+#
+# What the builtin paths rely on: the text is valid JSON. Every hook payload
+# reaching hook::read_file_path has passed hook::buffer_stdin's jq validation,
+# and every telemetry data object is built with jq. The helpers still verify
+# the structure they walk (terminated strings, well-formed tokens, properly
+# nested brackets, one root, no raw control bytes inside strings), but they
+# are not a full JSON parser and do not claim to reject every malformed text.
+#
+# Why no scanning: on this repo's Windows hosts bash regex matching and the
+# `%%`/`##` pattern operators cost about a microsecond per character, so a
+# 60 KB Write payload would cost more than the jq process they replace. The
+# only string operations used on the whole payload are literal-substring
+# replacement, `[[ == *x* ]]` containment, IFS word splitting and offset
+# slicing, all of which run at C speed.
+
+# hook::_json_split <text>
+# Split <text> at every unescaped double quote into the global array
+# _HOOK_JSON_PARTS: even indices hold the structural text between strings, odd
+# indices hold string bodies. Before splitting, every `\\` and `\"` pair is
+# replaced by `@@` (same length), so a quote that survives is a real string
+# delimiter and a body's ORIGINAL bytes are ${text:offset:length}. Returns 1
+# when the text is too large, its quotes do not pair up, or it holds more
+# strings than the callers' loops are meant to walk.
+_HOOK_JSON_PARTS=()
+hook::_json_split() {
+  local __hu_s="$1" __hu_t __hu_q __hu_n
+  ((${#__hu_s} <= 65536)) || return 1
+  __hu_t=${__hu_s//"\\\\"/@@}
+  __hu_t=${__hu_t//"\\\""/@@}
+  __hu_q=${__hu_t//\"/}
+  __hu_n=$((${#__hu_t} - ${#__hu_q}))
+  ((__hu_n % 2 == 0)) || return 1
+  ((__hu_n <= 2000)) || return 1
+  local __hu_glob=0
+  [[ $- == *f* ]] || __hu_glob=1
+  set -f
+  local IFS='"'
+  # shellcheck disable=SC2206 # splitting on IFS='"' is the whole point
+  _HOOK_JSON_PARTS=($__hu_t)
+  ((__hu_glob)) && set +f
+  ((${#_HOOK_JSON_PARTS[@]} % 2 == 1)) || return 1
+  return 0
+}
+
+# hook::_json_skeleton <text>
+# Split <text> (hook::_json_split), record each string body's byte offset in
+# _HOOK_JSON_OFF, and build _HOOK_JSON_SK: the structural text with every
+# string replaced by a numbered placeholder `"#<index>"` and all JSON
+# whitespace removed. The skeleton is small (no string bodies), so regex and
+# per-token work on it is cheap. Returns 1 unless the text is exactly one JSON
+# value by the JSON grammar (well-formed tokens, whitespace only between them,
+# objects as key:value lists, arrays as value lists, brackets nested and
+# closed once) whose strings carry only escapes jq accepts and no raw control
+# byte, which jq rejects.
+_HOOK_JSON_SK=""
+_HOOK_JSON_OFF=()
+hook::_json_skeleton() {
+  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
+  hook::_json_split "$__hu_s" || return 1
+  __hu_n=${#_HOOK_JSON_PARTS[@]}
+  _HOOK_JSON_OFF=()
+  for ((__hu_i = 0; __hu_i < __hu_n; __hu_i++)); do
+    __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
+    if ((__hu_i % 2 == 0)); then
+      __hu_sk+=$__hu_part
+    else
+      _HOOK_JSON_OFF[__hu_i]=$__hu_off
+      [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
+      # Every escape must be one jq accepts, or jq rejects the whole text. In
+      # the neutralized part `\\` and `\"` are already `@@`, so a surviving
+      # backslash starts one of the other escapes: `\/ \b \f \n \r \t` or
+      # `\uXXXX`. Delete every well-formed one (literal glob substitution, C
+      # speed); a backslash that survives is an invalid escape.
+      if [[ "$__hu_part" == *\\* ]]; then
+        __hu_esc=${__hu_part//'\u'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/}
+        # Six literal two-byte replacements: a quoted backslash before a
+        # bracket expression does not survive bash's pattern quoting.
+        for __hu_c in / b f n r t; do
+          __hu_esc=${__hu_esc//"\\$__hu_c"/}
+        done
+        [[ "$__hu_esc" == *\\* ]] && return 1
+      fi
+      __hu_sk+="\"#$__hu_i\""
+    fi
+    __hu_off=$((__hu_off + ${#__hu_part} + 1))
+  done
+  # Tokenize the skeleton and run it through the JSON grammar. Each token is
+  # consumed by one anchored regex on the (small) remainder; whitespace is
+  # allowed only between tokens, so `tr ue` is two bad tokens, not `true`. # spellchecker:disable-line
+  local __hu_re=$'^[ \t\n\r]*(\\{|\\}|\\[|\\]|,|:|"#[0-9]+"|-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][-+]?[0-9]+)?|true|false|null)'
+  local __hu_ws=$'^[ \t\n\r]*$'
+  __hu_rest=$__hu_sk
+  while [[ -n "$__hu_rest" ]] && ! [[ "$__hu_rest" =~ $__hu_ws ]]; do
+    [[ "$__hu_rest" =~ $__hu_re ]] || return 1
+    __hu_tok=${BASH_REMATCH[1]}
+    __hu_rest=${__hu_rest:${#BASH_REMATCH[0]}}
+    __hu_top=${__hu_stack:${#__hu_stack}-1:1}
+    case "$__hu_expect" in
+    value | value_or_end)
+      case "$__hu_tok" in
+      '{')
+        __hu_stack+='{'
+        __hu_expect=key_or_end
+        continue
+        ;;
+      '[')
+        __hu_stack+='['
+        __hu_expect=value_or_end
+        continue
+        ;;
+      ']')
+        [[ "$__hu_expect" == value_or_end ]] || return 1
+        ;;
+      '}' | ',' | ':') return 1 ;;
+      *)
+        # A scalar. Inside a container the next token is , or the close;
+        # at the top level nothing may follow.
+        if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
+        continue
+        ;;
+      esac
+      ;;
+    key_or_end | key)
+      case "$__hu_tok" in
+      \"#*)
+        __hu_expect='colon'
+        continue
+        ;;
+      '}') [[ "$__hu_expect" == key_or_end ]] || return 1 ;;
+      *) return 1 ;;
+      esac
+      ;;
+    colon)
+      [[ "$__hu_tok" == ':' ]] || return 1
+      __hu_expect=value
+      continue
+      ;;
+    comma_or_end)
+      case "$__hu_tok" in
+      ',')
+        if [[ "$__hu_top" == '{' ]]; then __hu_expect=key; else __hu_expect=value; fi
+        continue
+        ;;
+      '}') [[ "$__hu_top" == '{' ]] || return 1 ;;
+      ']') [[ "$__hu_top" == '[' ]] || return 1 ;;
+      *) return 1 ;;
+      esac
+      ;;
+    *) return 1 ;; # `end`: a token after the root value closed
+    esac
+    # Reaching here means a container just closed.
+    [[ -n "$__hu_stack" ]] || return 1
+    __hu_stack=${__hu_stack:0:${#__hu_stack}-1}
+    if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
+  done
+  [[ "$__hu_expect" == end ]] || return 1
+  _HOOK_JSON_SK=${__hu_sk//[$' \t\n\r']/}
+  return 0
+}
+
+# hook::json_unescape_to <var> <raw>
+# Decode a JSON string body (the bytes between the quotes) into <var>. Handles
+# \" \\ \/ \b \f \n \r \t and \uXXXX for U+0001 to U+007F. Returns 1 on any
+# other escape (a \u outside that range, U+0000 which bash cannot hold, or an
+# invalid escape), leaving the caller to fall back to jq.
+hook::json_unescape_to() {
+  local __hu_raw="$2" __hu_out="" __hu_pre __hu_c __hu_hex __hu_oct __hu_ch
+  while [[ "$__hu_raw" == *\\* ]]; do
+    __hu_pre=${__hu_raw%%\\*}
+    __hu_out+=$__hu_pre
+    __hu_raw=${__hu_raw:${#__hu_pre}+1}
+    __hu_c=${__hu_raw:0:1}
+    __hu_raw=${__hu_raw:1}
+    case "$__hu_c" in
+    '"') __hu_out+='"' ;;
+    "\\") __hu_out+="\\" ;;
+    '/') __hu_out+='/' ;;
+    b) __hu_out+=$'\b' ;; # portability-ok: bash ANSI-C backspace byte, not a GNU grep word boundary
+    f) __hu_out+=$'\f' ;;
+    n) __hu_out+=$'\n' ;;
+    r) __hu_out+=$'\r' ;;
+    t) __hu_out+=$'\t' ;;
+    u)
+      __hu_hex=${__hu_raw:0:4}
+      [[ "$__hu_hex" =~ ^00[0-7][0-9a-fA-F]$ ]] || return 1
+      [[ "$__hu_hex" == 0000 ]] && return 1
+      __hu_raw=${__hu_raw:4}
+      printf -v __hu_oct '%03o' "$((16#$__hu_hex))"
+      printf -v __hu_ch '%b' "\\0$__hu_oct"
+      __hu_out+=$__hu_ch
+      ;;
+    *) return 1 ;;
+    esac
+  done
+  __hu_out+=$__hu_raw
+  printf -v "$1" '%s' "$__hu_out"
+}
+
+# hook::_fast_file_path_to <var> <payload>
+# The builtin answer to `jq -r '(.tool_input.file_path // empty) |
+# gsub("\r";"")'` followed by the `$(...)` capture. Returns
+#   0  proven: <var> holds exactly what jq would have printed
+#   1  proven absent: jq would have printed nothing (the guard skips)
+#   2  not proven: run jq
+# Proof, on top of hook::_json_skeleton's structural checks: the root is an
+# object; exactly one string in the whole payload decodes to `tool_input` and
+# exactly one to `file_path` (so neither a duplicate key nor a same-named key
+# in another object can change jq's answer); `tool_input` is a key of the root
+# (depth 1, key position) whose value is a flat object (no nested object or
+# array, else jq); and inside it `file_path` is a key with a plain string
+# value. A payload where `file_path` names a value or sits in another object
+# has no `.tool_input.file_path`, which jq reports as nothing. Key strings are
+# compared AFTER decoding their escapes, so a key spelled with \u escapes is
+# still recognized; a body longer than any escaped spelling of either name is
+# skipped without decoding.
+hook::_fast_file_path_to() {
+  local __hu_s="$2" __hu_i __hu_n __hu_part __hu_body __hu_ti=-1 __hu_fp=-1 __hu_m __hu_raw __hu_pre __hu_re __hu_file
+  hook::_json_skeleton "$__hu_s" || return 2
+  [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
+  __hu_n=${#_HOOK_JSON_PARTS[@]}
+  for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
+    __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
+    ((${#__hu_part} <= 60)) || continue
+    __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    if [[ "$__hu_body" == *\\* ]]; then
+      hook::json_unescape_to __hu_body "$__hu_body" || continue
+    fi
+    case "$__hu_body" in
+    tool_input)
+      ((__hu_ti < 0)) || return 2
+      __hu_ti=$__hu_i
+      ;;
+    file_path)
+      ((__hu_fp < 0)) || return 2
+      __hu_fp=$__hu_i
+      ;;
+    *) ;;
+    esac
+  done
+  ((__hu_fp >= 0)) || return 1
+  ((__hu_ti >= 0)) || return 1
+  __hu_re="(^|[{,])\"#$__hu_ti\":\\{([^][{}]*)\\}"
+  if [[ "$_HOOK_JSON_SK" =~ $__hu_re ]]; then
+    __hu_body=${BASH_REMATCH[2]}
+    __hu_pre=${_HOOK_JSON_SK%%\"#"$__hu_ti"\"*}
+    # Depth of the key: opening brackets minus closing ones before it must be
+    # exactly one, i.e. a direct member of the root object.
+    local __hu_o1=${__hu_pre//\{/} __hu_o2=${__hu_pre//\[/} __hu_c1=${__hu_pre//\}/} __hu_c2=${__hu_pre//\]/}
+    local __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
+    ((__hu_depth == 1)) || return 2
+  else
+    return 2
+  fi
+  __hu_re="(^|,)\"#$__hu_fp\":\"#([0-9]+)\"(,|$)"
+  if [[ "$__hu_body" =~ $__hu_re ]]; then
+    __hu_m=${BASH_REMATCH[2]}
+  elif [[ "$__hu_body" == *\"#$__hu_fp\"* ]]; then
+    return 2
+  else
+    return 1
+  fi
+  __hu_raw=${__hu_s:${_HOOK_JSON_OFF[__hu_m]}:${#_HOOK_JSON_PARTS[__hu_m]}}
+  if [[ "$__hu_raw" == *\\* ]]; then
+    hook::json_unescape_to __hu_file "$__hu_raw" || return 2
+  else
+    __hu_file=$__hu_raw
+  fi
+  __hu_file=${__hu_file//$'\r'/}
+  while [[ "$__hu_file" == *$'\n' ]]; do
+    __hu_file=${__hu_file%$'\n'}
+  done
+  printf -v "$1" '%s' "$__hu_file"
+  return 0
+}
+
+# hook::dirname_to <var> <path>: dirname with builtins for the resolver's
+# answer. Strips the last segment; a bare name lives in `.`, a root-level file
+# in `/`. The path comes from realpath, so the trailing-slash and doubled-slash
+# spellings dirname also collapses never occur here.
+hook::dirname_to() {
+  local __hu_d="${2%/*}"
+  [[ "$__hu_d" == "$2" ]] && __hu_d=.
+  [[ -n "$__hu_d" ]] || __hu_d=/
+  printf -v "$1" '%s' "$__hu_d"
+}
+
+# Print the arguments joined by NUL bytes, no trailing NUL: the byte stream
+# hook::read_file_path read from stdin, rebuilt for the jq fallback.
+hook::_print_nul_joined() {
+  local __hu_first=1 __hu_c
+  for __hu_c in "$@"; do
+    ((__hu_first)) || printf '\0'
+    __hu_first=0
+    printf '%s' "$__hu_c"
+  done
+}
+
+# hook::json_compact_to <var> <object-json>
+# The bytes `jq -c .` prints for <object-json>, when that can be proven with
+# builtins: JSON whitespace between tokens removed, everything else verbatim.
+# jq's own output, compact or pretty, satisfies the proof, which is what every
+# telemetry data builder in this marketplace produces (jq -c, jq -n, or a
+# compact literal). Returns 1 when the text is not a single object, or a
+# string carries something jq would re-encode (a \u or \/ escape, an escape
+# outside the JSON set, a raw control byte), or the structure fails
+# hook::_json_skeleton; the caller then runs jq.
+hook::json_compact_to() {
+  local __hu_s="$2" __hu_out="" __hu_i __hu_part __hu_n
+  hook::_json_skeleton "$__hu_s" || return 1
+  [[ "$_HOOK_JSON_SK" == \{*\} ]] || return 1
+  # Numbers: only short integer literals are passed through. A fraction, an
+  # exponent or an integer beyond 15 digits is rendered differently by
+  # different jq releases (1.6 canonicalizes, 1.7+ preserves the literal), so
+  # the bytes cannot be proven; jq decides. In the skeleton every string is a
+  # `"#N"` placeholder and letters occur only in true/false/null, so a digit
+  # followed by `.`, `e` or `E` can only be part of a number.
+  local __hu_num='[0-9][.eE]|[0-9]{16}'
+  [[ "$_HOOK_JSON_SK" =~ $__hu_num ]] && return 1
+  __hu_n=${#_HOOK_JSON_PARTS[@]}
+  for ((__hu_i = 0; __hu_i < __hu_n; __hu_i++)); do
+    __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
+    if ((__hu_i % 2 == 0)); then
+      __hu_out+=${__hu_part//[$' \t\n\r']/}
+    else
+      if [[ "$__hu_part" == *\\* ]]; then
+        [[ "$__hu_part" == *'\u'* || "$__hu_part" == *'\/'* ]] && return 1
+        [[ "$__hu_part" == *\\[!bfnrt]* ]] && return 1
+      fi
+      __hu_out+="\"${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}\""
+    fi
+  done
+  printf -v "$1" '%s' "$__hu_out"
+}
+
+# hook::json_escape_jq_to <var> <string> / hook::json_escape_jq <string>
+# Escape <string> exactly as jq serializes a string value (without the
+# quotes): backslash and double quote, the five short forms \b \f \n \r \t,
+# every other byte from 0x01 to 0x1f and 0x7f as lowercase \u00xx, and
+# everything else, including non-ASCII, verbatim. This is the escaper the
+# telemetry envelope needs for byte parity with the jq envelope it replaced;
+# hook::json_escape above is a different tool (it DROPS the residual control
+# bytes, which is right for a notice and wrong for parity) and is unchanged.
+hook::json_escape_jq_to() {
+  local __hu_s="$2" __hu_i __hu_c __hu_oct __hu_hex
+  __hu_s="${__hu_s//\\/\\\\}"
+  __hu_s="${__hu_s//\"/\\\"}"
+  if [[ "$__hu_s" == *[[:cntrl:]]* ]]; then
+    __hu_s="${__hu_s//$'\n'/\\n}"
+    __hu_s="${__hu_s//$'\r'/\\r}"
+    __hu_s="${__hu_s//$'\t'/\\t}"
+    __hu_s="${__hu_s//$'\b'/\\b}" # portability-ok: bash ANSI-C backspace byte and the JSON \b escape, not a GNU grep word boundary
+    __hu_s="${__hu_s//$'\f'/\\f}"
+    for __hu_i in 1 2 3 4 5 6 7 11 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 127; do
+      printf -v __hu_oct '%03o' "$__hu_i"
+      printf -v __hu_c '%b' "\\0$__hu_oct"
+      [[ "$__hu_s" == *"$__hu_c"* ]] || continue
+      printf -v __hu_hex '%04x' "$__hu_i"
+      __hu_s="${__hu_s//"$__hu_c"/\\u$__hu_hex}"
+    done
+  fi
+  printf -v "$1" '%s' "$__hu_s"
+}
+
+hook::json_escape_jq() {
+  local __hu_e
+  hook::json_escape_jq_to __hu_e "$1"
+  printf '%s' "$__hu_e"
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
 # CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
 # comparison are canonicalized (symlinks resolved) first, so neither an
 # escaping symlink nor a project root reached via a symlinked path (e.g.
 # macOS /tmp) skews the verdict. Outputs the path on success. Returns 1 to skip.
 #   FILE=$(hook::read_file_path) || exit 0
+#
+# jq-free on the common shape. The payload is read into the shell and
+# hook::_fast_file_path_to takes `.tool_input.file_path` with builtins when it
+# can PROVE the answer jq would give (see that helper for what "prove" means);
+# every other payload goes to the unchanged jq filter. The path comparison then
+# resolves the file, the project root and the temp roots with one realpath
+# process instead of one each (hook::_physical_prime), and remembers the
+# directories for the process. Same verdict, same emitted path, fewer
+# processes: on Windows Git Bash each spawn costs tens of milliseconds and this
+# guard runs on every Write and Edit.
 hook::read_file_path() {
-  local file
-  file=$(jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+  local -a chunks=()
+  local chunk file="" mode=2
+  # Builtin read to NUL or EOF. A NUL splits the payload into several chunks;
+  # the fast path only takes a single-chunk (NUL-free) payload, and the jq
+  # fallback is fed the chunks NUL-joined, so it sees the bytes jq used to
+  # read straight from stdin.
+  while :; do
+    chunk=""
+    if IFS= read -r -d '' chunk; then
+      chunks+=("$chunk")
+      continue
+    fi
+    chunks+=("$chunk")
+    break
+  done
+  if ((${#chunks[@]} == 1)); then
+    mode=0
+    hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
+  fi
+  case "$mode" in
+  0) ;; # proven: `file` holds jq's answer
+  1) return 1 ;; # proven absent
+  *)
+    file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+    ;;
+  esac
   [[ -n "$file" ]] || return 1
   [[ -f "$file" ]] || return 1
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local norm_file norm_project
-    norm_file=$(hook::normalize_path "$(hook::physical_path "$file")")
-    norm_project=$(hook::normalize_path "$(hook::physical_path "${CLAUDE_PROJECT_DIR}")")
+    local norm_file norm_project phys_file phys_project file_resolved=0 project_resolved=0
+    hook::_temp_root_candidates
+    hook::_physical_prime "$file" "${CLAUDE_PROJECT_DIR}" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+    hook::_physical_cached_to phys_file "$file" && file_resolved=1
+    hook::_phys_cache_forget "$file"
+    hook::_physical_cached_to phys_project "${CLAUDE_PROJECT_DIR}" && project_resolved=1
+    hook::normalize_path_to norm_file "$phys_file"
+    hook::normalize_path_to norm_project "$phys_project"
     norm_project="${norm_project%/}"
     # Anchor on a path-segment boundary: accept the project root itself or a
     # child under it, but not a sibling whose name merely shares the prefix
@@ -558,19 +1141,28 @@ hook::read_file_path() {
     # built by `mktemp -d`, which is how this repo's own hook suites run), so
     # the branch must not fire. Only a temp-tree file reached from a project
     # root OUTSIDE the temp tree is scratch.
-    if hook::under_temp_root "$norm_file" && ! hook::under_temp_root "$norm_project"; then
-      return 1
+    local file_in_temp=0
+    _HOOK_UTR_TARGET_PHYSICAL=$file_resolved
+    hook::under_temp_root "$norm_file" && file_in_temp=1
+    _HOOK_UTR_TARGET_PHYSICAL=0
+    if ((file_in_temp)); then
+      local project_in_temp=0
+      _HOOK_UTR_TARGET_PHYSICAL=$project_resolved
+      hook::under_temp_root "$norm_project" && project_in_temp=1
+      _HOOK_UTR_TARGET_PHYSICAL=0
+      ((project_in_temp)) || return 1
     fi
   elif command -v git >/dev/null 2>&1; then
     # When CLAUDE_PROJECT_DIR is unset, scope to git-working-tree membership so
     # scratch files outside any repository are not mutated by formatter hooks
     # (#1091 / #972).
-    local file_physical
-    file_physical=$(hook::physical_path "$file")
+    local file_physical file_dir
+    hook::physical_path_to file_physical "$file" || :
     if [[ -L "$file" && "$file_physical" == "$file" ]]; then
       return 1
     fi
-    if ! hook::in_git_working_tree "$(dirname "$file_physical")"; then
+    hook::dirname_to file_dir "$file_physical"
+    if ! hook::in_git_working_tree "$file_dir"; then
       return 1
     fi
   else
@@ -1228,7 +1820,19 @@ hook::telemetry_enabled() {
 # Fire-and-forget: sink is dispatched in the background; the hook never waits
 # on it and its failure never affects the hook's own exit code or stdout.
 # Opt-in guard: HOOK_TELEMETRY_SINK unset or empty → return 0 immediately.
-# Fail-open: jq absent → return 0 immediately.
+#
+# The envelope is assembled with shell builtins (hook::json_escape_jq_to for
+# the string fields, hook::json_compact_to for the caller's data object) as
+# ONE compact line, `jq -c` style: the same document, field order and
+# escapes the jq filter below produces, with the data object compacted
+# exactly as jq compacts its own output. That path needs no jq, no temp file
+# and no subprocess. When the data object cannot be proven jq-idempotent (see
+# hook::json_compact_to), the jq path runs, now with -c so both paths write
+# the same bytes, and there jq's absence is still fail-open: return 0, no
+# envelope. Before this the envelope was jq's default pretty-printed form
+# (several lines, and CRLF line endings with a Windows jq); the sink contract
+# was always "one JSON document on stdin", and a compact line is also valid
+# JSONL for a sink that appends raw envelopes.
 #
 # Usage:
 #   hook::emit_telemetry <hook_id> <hook_event> <status> <start_epoch> <data_json> [repo_root]
@@ -1251,7 +1855,6 @@ hook::telemetry_enabled() {
 # NEVER writes to fd1 (the hook's stdout / additionalContext channel).
 hook::emit_telemetry() {
   [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
-  command -v jq >/dev/null 2>&1 || return 0
 
   local hook_id="$1"
   local hook_event="$2"
@@ -1272,35 +1875,59 @@ hook::emit_telemetry() {
   local e_s="${now%[.,]*}" e_f="${now#*[.,]}"
   local duration_ms=$(((e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000))
 
-  # True UTC timestamp (TZ= prefix overrides LC_ALL / local TZ; the Z is not a lie).
-  local timestamp
-  timestamp=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' -1)
+  # True UTC timestamp (TZ= prefix overrides LC_ALL / local TZ; the Z is not a
+  # lie). The %()T printf format is Bash 4.2+, and printf -v keeps it in the
+  # shell (a `$(...)` capture is a fork); an older bash, or a printf that
+  # binds nothing, falls back to date -u.
+  local timestamp=""
+  TZ=UTC printf -v timestamp '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || timestamp=""
+  [[ -n "$timestamp" ]] || timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || timestamp=""
 
-  # Build the envelope. The `data` object is written to a temp file, not passed
-  # as --argjson, so payloads larger than the Windows 32767-character command-line
-  # cap are not dropped before jq runs (#1595). /dev/stdin is not used: jq's
-  # --slurpfile there is not portable on Windows. Redirect jq stderr to
-  # /dev/null; output goes to a local variable — never to fd1.
-  local envelope data_file
-  data_file=$(mktemp) || return 0
-  printf '%s' "$data_json" >"$data_file" || {
+  # Trailing whitespace after the object (a newline a caller left on the
+  # value) does not change what jq parses, so it does not block the builtin
+  # path either.
+  local envelope="" data="" data_trim="$data_json"
+  while [[ "$data_trim" == *[$' \t\r\n'] ]]; do
+    data_trim="${data_trim%?}"
+  done
+  if [[ "$data_trim" == \{*\} ]] && hook::json_compact_to data "$data_trim"; then
+    # Builtin envelope: the same document the jq filter below produces, field
+    # for field, with jq's string escaping and jq's compact data.
+    local e_timestamp e_hook e_event e_status
+    hook::json_escape_jq_to e_timestamp "$timestamp"
+    hook::json_escape_jq_to e_hook "$hook_id"
+    hook::json_escape_jq_to e_event "$hook_event"
+    hook::json_escape_jq_to e_status "$status"
+    envelope='{"schema_version":"1.0","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"',"data":'"$data"'}'
+  else
+    # jq path, for a data object the builtin compactor cannot prove. Fail-open:
+    # jq absent → return 0. The `data` object is written to a temp file, not
+    # passed as --argjson, so payloads larger than the Windows 32767-character
+    # command-line cap are not dropped before jq runs (#1595). /dev/stdin is
+    # not used: jq's --slurpfile there is not portable on Windows. Redirect jq
+    # stderr to /dev/null; output goes to a local variable — never to fd1.
+    command -v jq >/dev/null 2>&1 || return 0
+    local data_file
+    data_file=$(mktemp) || return 0
+    printf '%s' "$data_json" >"$data_file" || {
+      rm -f "$data_file"
+      return 0
+    }
+    envelope=$(jq -nc \
+      --arg schema_version "1.0" \
+      --arg timestamp "$timestamp" \
+      --arg hook "$hook_id" \
+      --arg hook_event "$hook_event" \
+      --arg status "$status" \
+      --argjson duration_ms "$duration_ms" \
+      --slurpfile data "$data_file" \
+      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+      2>/dev/null) || {
+      rm -f "$data_file"
+      return 0
+    }
     rm -f "$data_file"
-    return 0
-  }
-  envelope=$(jq -n \
-    --arg schema_version "1.0" \
-    --arg timestamp "$timestamp" \
-    --arg hook "$hook_id" \
-    --arg hook_event "$hook_event" \
-    --arg status "$status" \
-    --argjson duration_ms "$duration_ms" \
-    --slurpfile data "$data_file" \
-    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
-    2>/dev/null) || {
-    rm -f "$data_file"
-    return 0
-  }
-  rm -f "$data_file"
+  fi
 
   # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
   # consuming repo root (portable, tracked wiring); absolute is used as-is. A

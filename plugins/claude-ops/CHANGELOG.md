@@ -3,6 +3,94 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.12]
+
+### Changed
+
+- **`restart-consumer.sh` gains four within-file helpers.** One predicate was
+  spelled two different ways in `require_gh` and `resolve_target_repo`, which
+  must never disagree about whether a run touches the forge; the two spellings
+  were checked against each other over a 47-row truth table and agree on every
+  row, and across the whole reachable domain all three forms agree. A
+  lock-directory removal duplicated in two places becomes one helper, verified
+  over 14 filesystem states plus four unprivileged permission cases. Two readers
+  that differed only in filename become one, compared against both originals
+  over 50 inputs including missing, empty, CRLF, leading-zero, huge, directory
+  and unreadable cases. A three-line report header duplicated between the
+  lock-skipped tick and a full run becomes one call.
+- **`telemetry-upsert.sh` replaces five copy-pasted argument guards** with one
+  helper. It is deliberately argc-based rather than emptiness-based, so an empty
+  marker still fails on the marker regex rather than reporting a missing value;
+  a mutant that switches to an emptiness check diverges exactly there.
+- **`machine-behavior.sh` renames a top-level loop variable** whose old name
+  implied a `local` it could not have, and `lane-launcher.sh` rewrites one
+  comment into the present tense, which is the accurate tense: the pre-move lane
+  layout is not history but a live path the config resolver still reads under a
+  deprecation warning.
+
+  A 73-case differential over both revisions, comparing stdout, stderr, exit
+  code, the lock file tree, the ledger and the launcher argv log, found zero
+  divergences; seven mutants confirm it discriminates. Suites are unchanged at
+  213, 26, 24, 153 and 91.
+
+## [0.41.11]
+
+### Changed
+
+- **`overlap.py` uses `Path.cwd()` and drops the import it needed only for
+  that.** These are the same expression rather than merely equivalent ones:
+  CPython 3.11's pathlib defines `cwd` as `cls(os.getcwd())`, and the file pins
+  a 3.11 minimum. An AST scan covering every import form, aliases, `del`,
+  `Global`/`Nonlocal` and every string constant found exactly two references to
+  the dropped name, and the file contains no dynamic-import or reflection
+  surface that could reach it. A 496-pair differential across four repository
+  shapes, seven working directories including two symlinked ones, and every
+  subcommand and flag, comparing exit code, both streams and a hash of the
+  resulting file tree, found zero divergences; eleven mutants confirm the corpus
+  discriminates, with the control that re-injects the original expression
+  correctly surviving.
+- **`test_install_state.py` uses one import form for one module.** The
+  module-level import was already present ten lines above the call site, and the
+  same-plugin sibling suite already spells it this way. The changed line was
+  shown to execute by a line-level trace naming the three tests that reach it.
+
+## [0.41.10]
+
+### Changed
+
+- **`hook-failure-audit.sh` reads its three class flags from one `jq` process
+  instead of three.** `HAS_LAUNCH`, `HAS_AMBIGUOUS` and `HAS_COMPLETED` came from
+  three separate invocations over the same document; they now arrive as one
+  TSV line through a single `read`. A `jq` spawn costs roughly 140 ms of `fork()`
+  emulation on Windows Git Bash and this is an always-on Stop hook, so the two
+  saved spawns are on a hot path. Measured with `strace`: three clone/execve
+  pairs before, one after. Verified equivalent over 23 payloads including zeros,
+  missing keys, nulls, very large and non-integer values, string-typed counts,
+  strings containing tab, newline, CR and backslash, and four malformed-document
+  shapes; all agree, including every error path.
+- **Three audit hooks trade history narration for present-tense rationale.**
+  `tool-failure-audit.sh`, `permission-denied-audit.sh` and
+  `instructions-loaded-audit.sh` each described how their current single-`jq`
+  read differs from a two-`jq` shape that no longer exists. The rewrite also
+  corrects a factual error: the old text claimed an unparsable payload yields
+  rc 1, where the helper actually returns rc 2.
+
+## [0.41.9]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.41.8]
 
 ### Changed

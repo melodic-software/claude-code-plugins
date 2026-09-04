@@ -150,7 +150,7 @@ function makeVisionSliceDir(options = {}) {
     ),
   );
 
-  return { dir, framesDir, sourceFile, destName };
+  return { dir };
 }
 
 describe("runValidateTriageJson", () => {

@@ -3,6 +3,49 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.31]
+
+### Changed
+
+- **The banned-process paragraph in the hook suite becomes present tense,**
+  stating why each named process must not appear rather than narrating the
+  refactor that removed it.
+- **One command substitution is reformatted to the repo formatter's canonical
+  multi-line form.** This was not intended: editing the file fired this repo's
+  own PostToolUse formatter, which reformatted it, and it cannot be reverted
+  without a git restore that would also discard the comment fix. It is inert,
+  which matters because the substitution wraps an `eval`: the whole file
+  minifies to byte-identical output, and a 25-probe differential over empty,
+  comment-only, blank-line and line-continuation bodies, a body writing to
+  stdout, one returning non-zero, one calling exit, and one unsetting a variable
+  under `set -u` found zero divergences in captured value, exit status, or the
+  outer variables afterwards. The file moves from shfmt-non-conforming to
+  conforming; the suite passes 51 assertions identically either way.
+
+## [0.6.30]
+
+### Changed
+
+- **README carries the hook budget accounting row.** The measured 41.0 to 21.5 spawn-equivalents
+  of 0.6.28 and the residual now sit under Requirements, per the hook-budget convention's rule 1.
+  Documentation only.
+
+## [0.6.29]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.6.28]
 
 ### Changed

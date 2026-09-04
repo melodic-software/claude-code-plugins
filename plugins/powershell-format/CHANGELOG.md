@@ -3,6 +3,49 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.34]
+
+### Changed
+
+- **`powershell-format.test.sh`: the two prerequisite-skip gates share one
+  helper.** The `pwsh`-missing and PSScriptAnalyzer-missing gates carried
+  byte-identical four-line report-and-exit tails; both now call
+  `report_and_exit`. Behaviour is unchanged at both call sites on both verdict
+  branches, including the failure branch, which was driven deliberately by
+  injecting a failure because a mutant returning the wrong exit code is
+  invisible in the zero-failure case this machine produces naturally. Three
+  mutations of the helper are each detected and the EXIT trap still fires
+  through it. The final report at the bottom keeps its inline form on purpose:
+  ending the script with a call to a function that itself exits costs ShellCheck
+  the control-flow edge into the EXIT trap, and it then reports `cleanup` as
+  never invoked (SC2329) — a permanently weakened dead-code check traded for
+  nothing, since that tail is three lines and was never a copy of the four-line
+  one.
+
+  Recorded, not fixed: this suite reports `PASS=15 FAIL=0` while skipping 56 of
+  its 71 assertions when PSScriptAnalyzer is absent, so a green run says nothing
+  about the formatter, analyser or trust gate. It shares a root cause with the
+  same shape in `go-format`: `scripts/check-silent-skips.sh` excludes
+  `plugins/*/hooks/*.test.sh` from its hook scan as fixtures, and its
+  skip-scored-as-pass scan covers only `scripts/*.test.sh`, so this file class
+  falls through both.
+
+## [0.7.33]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.7.32]
 
 ### Changed

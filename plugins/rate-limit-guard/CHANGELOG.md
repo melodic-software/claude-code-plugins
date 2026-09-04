@@ -3,6 +3,55 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30]
+
+### Changed
+
+- **`_rlg_spool_dispatch` derives its spool path instead of repeating it.** The
+  two paths were declared in one `local` statement that spelled the parent
+  directory out twice; `dir` is now declared first and `spool` derived from it.
+  The single-statement form was safe only because it repeated the literal: bash
+  does not expand a same-statement `local` assignment, so deriving `spool` from
+  `$dir` in that same statement would have left it empty and, under this file's
+  `set -u`, killed the statusline with an unbound-variable error on every render.
+  Verified by building that failing variant and running it. Hot-path cost is
+  unchanged, measured with `strace`: identical execve, clone and openat counts
+  across three modes, cold and primed, with the full syscall multiset matching.
+  Emitted bytes byte-identical across 27 artifact comparisons.
+- **Test and comment tidyings.** `statusline-tee.test.sh` collapses four copies
+  of a find-and-count pipeline into one helper, mutation-tested at all four call
+  sites including a plausible off-by-one. Five comments in `statusline-tee.sh`
+  and `bench.test.sh` drop history narration for the present-tense mechanism,
+  each rewritten claim executed rather than assumed, with every measurement kept.
+
+## [0.7.29]
+
+### Changed
+
+- **The statusline-tee cancellation cases park their `mv` shim for two seconds
+  instead of ten.** Bash defers the TERM trap until the foreground `mv`
+  returns, so the shim's own sleep was the floor for both cancellation cases
+  and the suite spent most of its wall time waiting on a delay that proved
+  nothing. Two seconds exercises the same cancellation window behind the same
+  readiness marker. Test-side only; no hook, script or shipped behaviour
+  changes.
+
+## [0.7.28]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.7.27]
 
 ### Changed

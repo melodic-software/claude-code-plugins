@@ -31,10 +31,13 @@ interface OverlapPair {
 export function detectOverlaps(items: OverlapItem[], threshold: number): OverlapPair[] {
   const overlaps: OverlapPair[] = [];
   for (let i = 0; i < items.length; i++) {
+    const a = items[i];
+    if (a === undefined) {
+      continue;
+    }
     for (let j = i + 1; j < items.length; j++) {
-      const a = items[i];
       const b = items[j];
-      if (a === undefined || b === undefined) {
+      if (b === undefined) {
         continue;
       }
       const dx = Math.abs(a.x - b.x);

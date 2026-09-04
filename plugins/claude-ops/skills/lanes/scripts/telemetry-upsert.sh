@@ -145,6 +145,17 @@ done
 MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
 MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
 
+# Guard for a space-form option that consumes the next token. Called as
+# `require_value "$@"` from the parse loop, so $1 is the flag and $# counts the
+# tokens still to come: fewer than two means the flag arrived last, with nothing
+# to consume. Without it `shift 2` on a lone trailing flag consumes nothing and
+# the parse loop spins forever.
+require_value() {
+  (($# >= 2)) && return 0
+  err "$1 requires a value"
+  exit 3
+}
+
 ISSUE=""
 MARKER=""
 BODY_FILE=""
@@ -154,10 +165,7 @@ DRY_RUN=0
 while (($#)); do
   case "$1" in
   --issue)
-    [[ $# -ge 2 ]] || {
-      err "--issue requires a value"
-      exit 3
-    }
+    require_value "$@"
     ISSUE="$2"
     shift 2
     ;;
@@ -166,10 +174,7 @@ while (($#)); do
     shift
     ;;
   --marker)
-    [[ $# -ge 2 ]] || {
-      err "--marker requires a value"
-      exit 3
-    }
+    require_value "$@"
     MARKER="$2"
     shift 2
     ;;
@@ -178,10 +183,7 @@ while (($#)); do
     shift
     ;;
   --body-file)
-    [[ $# -ge 2 ]] || {
-      err "--body-file requires a value"
-      exit 3
-    }
+    require_value "$@"
     BODY_FILE="$2"
     shift 2
     ;;
@@ -190,10 +192,7 @@ while (($#)); do
     shift
     ;;
   --body-dir)
-    [[ $# -ge 2 ]] || {
-      err "--body-dir requires a value"
-      exit 3
-    }
+    require_value "$@"
     BODY_DIR="$2"
     shift 2
     ;;
@@ -202,10 +201,7 @@ while (($#)); do
     shift
     ;;
   --repo)
-    [[ $# -ge 2 ]] || {
-      err "--repo requires a value"
-      exit 3
-    }
+    require_value "$@"
     REPO="$2"
     shift 2
     ;;

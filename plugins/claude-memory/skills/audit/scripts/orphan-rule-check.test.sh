@@ -109,7 +109,7 @@ printf 'memory_dir: .scratch\n' >"$OVR/.claude/topic-docs.yaml"
 # rule A referenced ONLY from the overridden memory tier (.scratch/) => still ORPHAN
 printf '# Rule A\n\nbody\n' >"$OVR/.claude/rules/a.md"
 printf 'see a.md\n' >"$OVR/.scratch/refA.md"
-# rule B referenced ONLY from .work/ => NOT orphan (.work no longer excluded)
+# rule B referenced ONLY from .work/ => NOT orphan (.work is not the resolved tier here)
 printf '# Rule B\n\nbody\n' >"$OVR/.claude/rules/b.md"
 printf 'see b.md\n' >"$OVR/.work/refB.md"
 (cd "$OVR" && git add -A && git commit -q -m "override fixture")

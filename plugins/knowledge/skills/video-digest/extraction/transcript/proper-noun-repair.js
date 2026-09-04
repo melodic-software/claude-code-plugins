@@ -1,6 +1,6 @@
 /**
- * Proper-noun repair over platform-ASR captions (T5 posture (v), the
- * `captions+repair` strategy).
+ * Proper-noun repair over platform-ASR captions (T5, the `captions+repair`
+ * strategy).
  *
  * Platform ASR corrupts exactly the proper nouns downstream research and
  * synthesis depend on ("Clawed code" for "Claude Code"); the post's own text

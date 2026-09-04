@@ -5,8 +5,8 @@ import { resolveEnvWithLegacy } from "./env-compat.js";
  * `.work/<epic>/…` artifacts in the CONSUMING project.
  *
  * Under plugin cache isolation the pipeline scripts live in a per-version cache
- * dir, so a climb from the script location no longer reaches the consumer's
- * repo. The base is resolved from the environment instead, honoring the
+ * dir, so a climb from the script location cannot reach the consumer's repo.
+ * The base is resolved from the environment instead, honoring the
  * knowledge plugin's `library_dir` seam:
  *
  * 1. `VIDEO_DIGEST_WORK_ROOT` — explicit override the invoking skill wires in from

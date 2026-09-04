@@ -52,8 +52,8 @@ expect_eq "median: odd count picks the middle" "$(printf '5\n1\n3\n' | median)" 
 expect_eq "median: even count picks the upper middle" "$(printf '1\n2\n3\n4\n' | median)" "3"
 expect_eq "median: empty input yields 0" "$(printf '' | median)" "0"
 
-# --- lib: pace_sleep_arg (regression: 0 spent must pad a FULL second; the old
-# --- inline "0.%03d" printed 1000 ms as "0.1000" = 0.1 s) --------------------
+# --- lib: pace_sleep_arg (regression: 0 spent must pad a FULL second; a bare
+# --- "0.%03d" prints 1000 ms as "0.1000" = 0.1 s) ----------------------------
 expect_eq "pace_sleep_arg: 0 ms spent pads a full second" "$(pace_sleep_arg 0)" "1.000"
 expect_eq "pace_sleep_arg: 999 ms spent pads 1 ms" "$(pace_sleep_arg 999)" "0.001"
 expect_eq "pace_sleep_arg: 600 ms spent pads 400 ms" "$(pace_sleep_arg 600)" "0.400"

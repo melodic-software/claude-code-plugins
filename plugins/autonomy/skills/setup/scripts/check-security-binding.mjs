@@ -1173,9 +1173,11 @@ function isNonExternalEgressHost(host) {
     const hextets = expandIpv6(h);
     // An invalid literal is not a valid probe target — reject outright.
     if (hextets === null) return true;
+    // The IPv4 address the last two hextets carry, for the forms that embed one.
+    const embeddedV4 = () => Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16);
     if (hextets.slice(0, 5).every((hextet) => hextet === "0000") && hextets[5] === "ffff") {
       // v4-mapped: classify the embedded IPv4.
-      return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
+      return isDeniedV4(embeddedV4());
     }
     if (hextets.slice(0, 6).every((hextet) => hextet === "0000")) {
       // ::/96 — unspecified (::), loopback (::1), and the whole deprecated
@@ -1190,7 +1192,7 @@ function isNonExternalEgressHost(host) {
     // flags it globally reachable, but RFC 6052 forbids embedding non-global
     // IPv4, so classify the embedded address like the v4-mapped branch above.
     if (hextets[0] === "0064" && hextets[1] === "ff9b" && hextets.slice(2, 6).every((hextet) => hextet === "0000")) {
-      return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
+      return isDeniedV4(embeddedV4());
     }
     const first = Number.parseInt(hextets[0], 16);
     const second = Number.parseInt(hextets[1], 16);
@@ -1385,7 +1387,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // one), and every entry is validated INDEPENDENTLY below — classifying the
   // unsplit string would reject a genuine multi-target capture as one
   // invalid DNS name. Empty entries (leading/trailing/double commas) reject.
-  const egressHosts = rawEgressHost.split(",").map((host) => host.trim());
+  const egressHosts = splitRecordedList(rawEgressHost);
   for (const host of egressHosts) {
     if (host.length === 0 || /\s/.test(host)) {
       return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — every comma-separated host entry must be non-empty with no whitespace`;
@@ -1477,7 +1479,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // (readable) path leaks. Every path entry must be recognizably a
   // host-credential location (case-insensitive, path-separator-agnostic,
   // matched per component).
-  const credentialPaths = transcript.assertions.credentials_absent.path.split(",").map((entry) => entry.trim());
+  const credentialPaths = splitRecordedList(transcript.assertions.credentials_absent.path);
   const rawCredentialCodes = transcript.assertions.credentials_absent.exit_code;
   const credentialCodes = splitRecordedList(rawCredentialCodes);
   if (credentialCodes.length !== credentialPaths.length) {
@@ -1965,8 +1967,8 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
           `merge_policy.${workClass}: "auto" with verification_blocking.${layer}.${workClass} "advisory" — an automatic transition requires unanimous agreement among every checker the class declares, and an advisory layer records a checker's dissent without withholding the transition; set verification_blocking.${layer}.${workClass} to "blocking" (ratifying its promotion_state cell where the cell is promotable) or bind merge_policy.${workClass} to "human"`,
         );
       }
-      const aiReview = binding.verification_blocking["ai-review"];
-      if (!isPlainObject(aiReview) || aiReview[workClass] !== "not-required") continue;
+      const aiReviewLayer = binding.verification_blocking["ai-review"];
+      if (!isPlainObject(aiReviewLayer) || aiReviewLayer[workClass] !== "not-required") continue;
       const topology = isPlainObject(binding.verification_topology)
         ? binding.verification_topology[workClass]
         : null;

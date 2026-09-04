@@ -41,6 +41,20 @@ assert_not_contains() {
   esac
 }
 
+# write_block <out> <file> <tier> <shape> <line> <excerpt> [marker] writes one
+# detect.sh block, the writer's only input shape. A 7th argument adds the
+# `Finding marker:` field, which the writer prefers over its own whole-line
+# scan; omitting it exercises the fallback.
+write_block() {
+  {
+    printf 'File: %s\n' "$2"
+    printf 'Finding tier: %s\nFinding shape: %s\nFinding line: %s\n' "$3" "$4" "$5"
+    printf 'Finding excerpt: %s\n' "$6"
+    [[ -n "${7:-}" ]] && printf 'Finding marker: %s\n' "$7"
+    printf -- '---\n'
+  } >"$1"
+}
+
 # --- Fixture repo ---------------------------------------------------------------------
 
 REPO="$TEST_TMPDIR/repo"
@@ -82,11 +96,7 @@ printf 'this is not detector output\n' >"$NOTSCAN"
 assert_exit "input with no detect blocks exits 3" 3 "$?"
 
 BLOCKS="$TEST_TMPDIR/blocks.txt"
-{
-  printf 'File: %s\n' "$TARGET"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 7\n'
-  printf 'Finding excerpt: Do not use markdown in your response.\n---\n'
-} >"$BLOCKS"
+write_block "$BLOCKS" "$TARGET" 2 negation 7 'Do not use markdown in your response.'
 (cd "$REPO" && bash "$EMIT" --from "$BLOCKS" --out "$TEST_TMPDIR/z.md" --branch '') >/dev/null 2>&1
 assert_exit "empty --branch value exits 2" 2 "$?"
 
@@ -119,11 +129,7 @@ assert_contains "and its decline is counted, never silent" "$body" \
 # --- Body-scope fence is recomputed, not trusted from the caller -----------------------
 
 FORGED="$TEST_TMPDIR/forged.txt"
-{
-  printf 'File: %s\n' "$TARGET"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 2\n'
-  printf 'Finding excerpt: forged frontmatter row\n---\n'
-} >"$FORGED"
+write_block "$FORGED" "$TARGET" 2 negation 2 'forged frontmatter row'
 OUT2="$TEST_TMPDIR/out/forged.md"
 (cd "$REPO" && bash "$EMIT" --from "$FORGED" --out "$OUT2") >/dev/null
 forged_body="$(cat "$OUT2")"
@@ -133,11 +139,7 @@ assert_contains "and counted as a frontmatter decline" "$forged_body" "reason=fr
 # --- Only the crosswalk-carrying shape is emitted --------------------------------------
 
 OTHER="$TEST_TMPDIR/other.txt"
-{
-  printf 'File: %s\n' "$TARGET"
-  printf 'Finding tier: 1\nFinding shape: citation\nFinding line: 7\n'
-  printf 'Finding excerpt: a citation row\n---\n'
-} >"$OTHER"
+write_block "$OTHER" "$TARGET" 1 citation 7 'a citation row'
 OUT3="$TEST_TMPDIR/out/other.md"
 (cd "$REPO" && bash "$EMIT" --from "$OTHER" --out "$OUT3") >/dev/null
 other_body="$(cat "$OUT3")"
@@ -156,11 +158,7 @@ cat >"$OUTSIDE" <<'EOF'
 Do not use markdown in your response.
 EOF
 OOR="$TEST_TMPDIR/oor.txt"
-{
-  printf 'File: %s\n' "$OUTSIDE"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 3\n'
-  printf 'Finding excerpt: Do not use markdown in your response.\n---\n'
-} >"$OOR"
+write_block "$OOR" "$OUTSIDE" 2 negation 3 'Do not use markdown in your response.'
 OUT4="$TEST_TMPDIR/out/oor.md"
 (cd "$REPO" && bash "$EMIT" --from "$OOR" --out "$OUT4") >/dev/null
 oor_body="$(cat "$OUT4")"
@@ -181,11 +179,7 @@ fi
 # resolving outside it. A `..` segment must decline rather than emit a row whose
 # Location traverses out of the working tree.
 TRAVERSE="$TEST_TMPDIR/traverse.txt"
-{
-  printf 'File: %s\n' "$REPO/../outside.md"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 3\n'
-  printf 'Finding excerpt: Do not use markdown.\n---\n'
-} >"$TRAVERSE"
+write_block "$TRAVERSE" "$REPO/../outside.md" 2 negation 3 'Do not use markdown.'
 OUT6="$TEST_TMPDIR/out/traverse.md"
 (cd "$REPO" && bash "$EMIT" --from "$TRAVERSE" --out "$OUT6") >/dev/null
 trav_body="$(cat "$OUT6")"
@@ -209,12 +203,8 @@ assert_contains "an ordinary branch stays an unquoted plain scalar" "$(cat "$OUT
 # --- The fired marker is carried from the scanner ---------------------------------------
 
 MARKER_IN="$TEST_TMPDIR/marker.txt"
-{
-  printf 'File: %s\n' "$TARGET"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 7\n'
-  printf 'Finding excerpt: Never commit a secret. Do not use markdown.\n'
-  printf 'Finding marker: do not\n---\n'
-} >"$MARKER_IN"
+write_block "$MARKER_IN" "$TARGET" 2 negation 7 \
+  'Never commit a secret. Do not use markdown.' 'do not'
 OUT7="$TEST_TMPDIR/out/marker.md"
 (cd "$REPO" && bash "$EMIT" --from "$MARKER_IN" --out "$OUT7") >/dev/null
 assert_contains "the scanner-supplied marker wins over a whole-line scan" "$(cat "$OUT7")" 'prohibition="do not"'
@@ -232,11 +222,7 @@ cat >"$ESCTGT" <<'EOF'
 Do not use the `a \| b` form in a cell.
 EOF
 ESCIN="$TEST_TMPDIR/esc.txt"
-{
-  printf 'File: %s\n' "$ESCTGT"
-  printf 'Finding tier: 2\nFinding shape: negation\nFinding line: 3\n'
-  printf 'Finding excerpt: Do not use the a \\| b form in a cell.\n---\n'
-} >"$ESCIN"
+write_block "$ESCIN" "$ESCTGT" 2 negation 3 'Do not use the a \| b form in a cell.'
 OUT8="$TEST_TMPDIR/out/esc.md"
 (cd "$REPO" && bash "$EMIT" --from "$ESCIN" --out "$OUT8") >/dev/null
 esc_row="$(grep -E '^\| 1 ' "$OUT8")"

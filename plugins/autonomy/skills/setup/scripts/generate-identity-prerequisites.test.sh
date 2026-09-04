@@ -161,8 +161,8 @@ fi
 expected_cases="$(node -e 'const m=require(process.argv[1]); console.log(m.cases.join("\n"))' "$MANIFEST")"
 for case_name in $expected_cases; do
   case "$case_name" in
-    generate_and_check_clean|drift_fixture|leaf_emission_parity|posture_divergence) ;;
-    *) fail "manifest names unknown case: $case_name" ;;
+  generate_and_check_clean | drift_fixture | leaf_emission_parity | posture_divergence) ;;
+  *) fail "manifest names unknown case: $case_name" ;;
   esac
 done
 ok "manifest_cases: $(echo "$expected_cases" | wc -l | tr -d ' ') named cases exercised"

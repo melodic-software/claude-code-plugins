@@ -62,9 +62,9 @@ const INTERACTIVE_ONLY_SCHEMA = 'context-budget.interactive-only/1';
 // row's prose fields. A row may override with `binaryTokens`.
 const ENV_TOKEN_RE = /\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g;
 
-// Linear camelCase scan — no nested quantifiers. The previous
-// /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g shape is ReDoS-vulnerable
-// on a long same-case run that then fails \b (e.g. "a" + "A"*n + "_").
+// Linear camelCase scan — no nested quantifiers. The regex spelling of this,
+// /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g, is ReDoS-vulnerable on a long
+// same-case run that then fails \b (e.g. "a" + "A"*n + "_").
 function extractCamelKeys(text) {
   const out = [];
   const s = String(text);
@@ -121,6 +121,9 @@ function sha12(text) {
 // Argument parsing (flat flags; every subcommand shares one parser)
 // ---------------------------------------------------------------------------
 
+// Flags that take no value; everything else consumes the next argv element.
+const FLAG_ONLY = ['help', 'verify-additivity', 'list'];
+
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i++) {
@@ -130,8 +133,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = a.slice(2);
-    const flagOnly = ['help', 'verify-additivity', 'list'];
-    if (flagOnly.includes(key)) {
+    if (FLAG_ONLY.includes(key)) {
       args[key] = true;
       continue;
     }
@@ -518,7 +520,6 @@ async function takeSnapshot(args) {
       'For exact measurement install the Agent SDK (npm install @anthropic-ai/claude-agent-sdk in a directory '
       + 'passed as --sdk-dir). For the fallback, verify `claude -p "/context"` prints the category table at your version.');
   }
-  return null; // unreachable — degrade() exits
 }
 
 // ---------------------------------------------------------------------------

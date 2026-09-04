@@ -79,7 +79,7 @@ OUT=$(bash "$SCRIPT" 2>/dev/null) || rc=$?
 assert_exit "missing mode exits 2" 2 "$rc"
 assert_eq "missing mode prints nothing on stdout" "" "$OUT"
 
-# --- Case 3: --md-count with N md files (MEMORY.md included, as the old inline `ls *.md` counted it) ---
+# --- Case 3: --md-count with N md files (the count is every *.md, MEMORY.md included) ---
 H3="$TEST_TMPDIR/h3"
 M3=$(mem_dir_for "$H3")
 printf '# Index\n' >"$M3/MEMORY.md"

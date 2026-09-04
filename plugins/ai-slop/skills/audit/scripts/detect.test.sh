@@ -1018,9 +1018,9 @@ already_delims="$(printf '%s' "$already_row" | sed 's/\\|//g' | awk -F'|' '{prin
 assert_contains "emit: so the row still parses as exactly 7 cells" "delims=$already_delims" "delims=8"
 
 # Repo-root spelling mismatch: git's toplevel and the caller's pwd can name
-# the same directory differently (Git Bash). This producer fails OPEN — a
-# mismatch used to leave Location absolute. A symlink makes pwd and
-# --show-toplevel disagree on Linux too.
+# the same directory differently (Git Bash). This producer fails OPEN, so an
+# unmatched spelling leaves Location absolute and says nothing. A symlink makes
+# pwd and --show-toplevel disagree on Linux too.
 SPELL_REAL="$TEST_TMPDIR/spell-real"
 SPELL_LINK="$TEST_TMPDIR/spell-link"
 mkdir -p "$SPELL_REAL"
@@ -1206,8 +1206,9 @@ else
     "the tabled set" "$(diff <(echo "$EXPECTED_ROSTER") <(echo "$ROSTER") | tr '\n' ' ')"
 fi
 
-# Synthetic detector output naming every slug: a fixture that fired all 14
-# organically would be a slop corpus this plugin then has to exempt from itself.
+# Synthetic detector output naming every slug: a fixture that fired the whole
+# roster organically would be a slop corpus this plugin then has to exempt from
+# itself.
 TIERSRC="$TEST_TMPDIR/tier-src.txt"
 : >"$TIERSRC"
 for slug in $EXPECTED_IMPORTANT $EXPECTED_SUGGESTION; do

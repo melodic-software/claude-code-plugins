@@ -43,7 +43,7 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 
 count="$(gh pr list --state open --search 'head:chore/tidy-' --json number --jq 'length' 2>/dev/null | tr -d '\r')"
-if [[ -z "$count" || ! "$count" =~ ^[0-9]+$ ]]; then
+if [[ ! "$count" =~ ^[0-9]+$ ]]; then
   emit_unknown "gh pr list failed"
   exit 1
 fi

@@ -114,7 +114,7 @@ export function loadCourseDir(args, { logger } = {}) {
 }
 
 /** @type {import('node:util').ParseArgsOptionsConfig} */
-export const baseCliOptions = {
+const baseCliOptions = {
   "course-dir": { type: "string" },
   verbose: { type: "boolean", short: "v", default: false },
   quiet: { type: "boolean", short: "q", default: false },

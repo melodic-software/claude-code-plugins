@@ -3,6 +3,28 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.15]
+
+### Fixed
+
+- **Two audit suites now drop an ambient `CLAUDE_CONFIG_DIR`.**
+  `memory-index-refs-check.test.sh` and `enumerate-all-projects.test.sh` isolated
+  `$HOME` but not the variable the memory-dir resolver prefers over it, so a value
+  inherited from the caller's environment pointed them at the host's real config
+  root instead of their fixture. With a decoy root exported they fail 7 of 15 and
+  8 of 19 respectively, and can also be made to pass while every assertion is
+  answered by the host rather than the fixture. Both now use `env -u`, matching
+  the fix applied to the sibling `scope-report` suite in 0.11.13.
+
+### Changed
+
+- **Audit and stateless script tidyings from the repo-wide sweep.**
+  `discover-instruction-surfaces.sh` drops a dead emptiness guard on a value that
+  cannot be empty; `resolve-memory-dir.sh` runs `git rev-parse` once instead of
+  twice in its `cygpath` fallback pair, matching the two-step the hub-slug path
+  below it already uses; four history-narration comments become present-tense
+  rationale. 181 checks across six suites, identical before and after.
+
 ## [0.11.14]
 
 ### Fixed

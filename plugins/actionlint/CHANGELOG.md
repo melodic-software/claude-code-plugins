@@ -3,6 +3,37 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.31]
+
+### Changed
+
+- **`actionlint-check.test.sh` collapses three identical fake-bin builder loops
+  into one `wrap_real_tools` helper.** Byte-identity was checked at all three
+  call sites, file contents and modes alike, including the site that passes an
+  extra tool. Mutation-tested: dropping a wrapped tool or wrapping into the
+  wrong directory both turn the suite red. One mutation stayed green and is
+  recorded rather than hidden, because nothing asserts on the extra-tool
+  argument; that gap predates the extraction and is covered here by direct byte
+  comparison instead. A comment on the actionlint-absent case is also corrected:
+  the membership guard it described as removed still exists, so the note now
+  says why this hook parses the file path itself.
+
+## [0.8.30]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.8.29]
 
 ### Changed

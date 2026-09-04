@@ -14,7 +14,6 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -656,7 +655,7 @@ class TestCsvNoteAccuracy(unittest.TestCase):
         if csv_path is not None:
             argv += ["--csv", str(csv_path)]
         buffer = io.StringIO()
-        with redirect_stdout(buffer):
+        with contextlib.redirect_stdout(buffer):
             self.assertEqual(engine.main(argv), 0)
         return json.loads(buffer.getvalue())
 

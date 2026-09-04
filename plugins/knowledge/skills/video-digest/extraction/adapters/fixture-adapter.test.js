@@ -1,6 +1,6 @@
 /**
  * Contract-fixture adapter: a complete minimal source adapter on a reserved
- * example host, used to prove two properties of the conformance surface:
+ * example host, proving two properties of the conformance surface:
  *
  * 1. Capability declarations skew CLOSED — an adapter omitting EVERY optional
  *    capability passes the full shared suite (absence is a declaration, not a
@@ -86,8 +86,8 @@ function fixtureSpec() {
   };
 }
 
-// Item B: the capability-omitting fixture adapter passes the ENTIRE shared
-// suite — optional-capability absence is a declaration, never a failure.
+// The capability-omitting fixture adapter passes the ENTIRE shared suite —
+// optional-capability absence is a declaration, never a failure.
 describeSourceAdapterContract(createSourceAdapter(fixtureSpec()), {
   claimedUrls: [
     { url: `https://${FIXTURE_HOST}/clip/abc_123`, sliceKey: "abc_123" },

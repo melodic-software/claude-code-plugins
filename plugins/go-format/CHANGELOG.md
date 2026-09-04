@@ -3,6 +3,44 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.34]
+
+### Changed
+
+- **Two disclosure-take comments move to present tense,** at the syntax-error
+  and tool-break arms. Comment-only, proven mechanically rather than asserted:
+  two independent comment strippers, one built on shfmt's own bash parser and
+  one quote- and heredoc-aware, both yield byte-identical code from either
+  revision, and each stripper was shown sensitive by seeded code mutations.
+  A 23-case differential comparing both streams, exit code, fixture hashes, the
+  tool's argv and working directory, temporary-directory residue and the
+  telemetry envelope found zero divergences across 161 artifacts, and all ten
+  seeded mutants were caught.
+
+### Known issues
+
+- **The hook suite silently no-ops when `goimports` is absent from PATH,** and
+  `affected-tests.sh --run` reports a suite that printed only a skip line as
+  passing. The gate therefore cannot distinguish 54 assertions passing from none
+  running, so a green selector result is not evidence that this hook was
+  exercised. Naming the binary explicitly runs the full 54.
+
+## [0.3.33]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.3.32]
 
 ### Changed

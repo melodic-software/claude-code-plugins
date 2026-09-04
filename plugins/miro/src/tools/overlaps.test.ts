@@ -18,8 +18,7 @@ describe("detectOverlaps", () => {
       { id: "1", content: "Item A", x: 100, y: 100 },
       { id: "2", content: "Item B", x: 100, y: 100 },
     ];
-    const result = detectOverlaps(items, 195);
-    const pair = soleElement(result);
+    const pair = soleElement(detectOverlaps(items, 195));
     expect(pair.a.id).toBe("1");
     expect(pair.b.id).toBe("2");
     expect(pair.dx).toBe(0);
