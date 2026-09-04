@@ -3,6 +3,34 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.24]
+
+### Fixed
+
+- **Two comments in `emit-slides.js` described a layout the deck does not
+  render.** Both claimed MED and LOW tiers go two-column above seven items. The
+  stylesheet gives `.news-list.compact` `flex-direction: column` with its own
+  note that MED stays single-column for prominence over density, the section
+  builder applies `compact` to every non-high tier with no count test, and the
+  only 7 in the file is the tier-demotion trigger. Two doc comments were
+  corrected alongside: the real split caps are 5 and 14, and
+  `parseBulletParagraph` returns a `date` its signature omitted.
+
+### Changed
+
+- **Lib tidyings from the repo-wide sweep.** `flattenInline` drops three branches
+  its own children fallback already subsumed; `bucketKey` drops an exact-equality
+  return subsumed by the prefix test beneath it; two tier loops use
+  `Object.entries`/`Object.values` instead of key-plus-index lookup; the brand
+  theme schema is built from spreads instead of a mutated object; and `envDir`
+  reads its variable once. Behavior was proven by differential execution rather
+  than by the suite, which covers little of this: `flattenInline` across 37 mdast
+  node types, `bucketKey` across 32,768 brute-forced strings, the schema across
+  35 accept and reject cases including error-message text, and three end-to-end
+  CLI runs producing byte-identical decks. `envDir` deliberately keeps `||`
+  rather than `??`, which would stop a blank-but-set variable falling back to the
+  default; that distinction was tested with the wrong version as a control.
+
 ## [0.7.23]
 
 ### Changed
