@@ -3,6 +3,56 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0]
+
+### Changed
+
+- **`block-hook-bypass` now ships two scratch roots exempt instead of none.** The
+  `block_hook_bypass_scratch_roots` option was opt-in and shipped empty, which left two
+  write targets blocked that no `Write|Edit` gate would ever have processed: the host
+  temp trees, which the harness's own per-session scratchpad sits under, and the memory
+  tier `<memory_dir>/` (default `.work/`, the never-committed topic memory tier). The
+  measured cost of that emptiness was five blocks in one day across four sessions with
+  zero true positives; the fifth refused `printf '*' >> .work/.gitignore`, the exact
+  command this marketplace's own `session-flow` save-point procedure prescribes. Per
+  ADR 0003 clause 4 that is a wrong SCOPE rather than a wrong oracle, so the oracle is
+  untouched and the scope is narrowed.
+
+  Exempting these gives up no protection, which is the only reason a default is
+  defensible here. `hook::read_file_path`, the library entry every `Write|Edit` content
+  guard reads its file through, already declines a temp-tree file when the project root
+  lies outside that tree, so such a target was never reachable by the gates this guard
+  exists to protect. The exemption's width is exactly the width of the protection it is
+  scoped out of.
+
+  Both defaults are gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the
+  temp tree. With no project root neither fires (without it `hook::read_file_path` falls
+  back to git-working-tree membership, under which a temp file inside a fixture checkout
+  IS processed). When the project root is itself temp-rooted — the shape this repo's own
+  hook fixtures take, via `mktemp -d` — a temp file is project content and the temp
+  default stands down. Neither root is spelled as a static `plugin.json` default, because
+  neither has a fixed spelling: the scratchpad path carries a session id and the memory
+  tier hangs off the consuming project. Both resolve at run time.
+
+  The option's own list is still empty by default and now **adds to** the two shipped
+  roots rather than being the only source of them. The kill switch remains the
+  whole-guard lever; the shipped roots are not removable through the option. A consumer
+  who has moved `memory_dir` off `.work/` names the new location there.
+
+### Added
+
+- **`block-hook-bypass` resolves a relative redirect target against the tool call's own
+  `cwd`.** The axis previously refused every relative target outright, on the grounds
+  that the directory a redirect resolves against is not knowable from the payload. It is
+  knowable in the common case: the payload's `.cwd` is where the tool call runs, and it
+  is already in `run-guards.sh`'s `PRIME_FILTERS`, so reading it costs a cache lookup
+  rather than a `jq` process. A relative target is still refused when the command carries
+  a `cd`/`pushd`/`popd` — which moves that directory, and whose target this guard
+  deliberately does not evaluate — or when the payload names no absolute cwd. The
+  refusal set therefore only shrinks, by targets proven placeable. This is what lets
+  `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
+  `cd /etc && echo x > .work/f` still block.
+
 ## [0.31.5]
 
 ### Fixed

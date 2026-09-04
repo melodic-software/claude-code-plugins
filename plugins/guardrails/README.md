@@ -184,21 +184,44 @@ out of scope until such a signal exists.
   a blocking safety control.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
-  accepted residual, same class as the unmonitored Bash forms above. There is
-  also no default scratch exemption: ordinary temp writes block until an
-  operator sets `block_hook_bypass_scratch_roots`.
-- **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
-  it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
-  takes a comma-separated list of absolute directories whose contents are
-  scratch, a session or job temp root, where a throwaway probe file is written
-  that no formatter, secret scanner or path check would ever process. Empty is
-  the default and exempts nothing. When set, the match is made on the
+  accepted residual, same class as the unmonitored Bash forms above.
+- **`block-hook-bypass` ships two scratch roots exempt, and takes more by
+  configuration.** Since **0.32.0** the guard exempts the host temp trees, which
+  the harness's own per-session scratchpad sits under, and the memory tier
+  `<memory_dir>/` (default `.work/`, the never-committed topic memory tier). Both
+  are gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the temp
+  tree: with no project root neither fires, and when the project root is itself
+  temp-rooted a temp file is project content, so the temp default stands down.
+  Neither is spelled as a static default, because neither has a fixed spelling —
+  the scratchpad path carries a session id and the memory tier hangs off the
+  consuming project — so both resolve at run time. Exempting them gives up no
+  protection: `hook::read_file_path`, the entry every `Write|Edit` content guard
+  reads its file through, already declines a temp-tree file from a non-temp
+  project, so those targets were never reachable by the gates this guard exists
+  to protect. A consumer that moves `memory_dir` off the default names the new
+  location in the option below. Before 0.32.0 both blocked, which cost five false
+  positives in one day with no true positive — the fifth refusing the exact
+  command this marketplace's own `session-flow` save-point procedure prescribes.
+- **`block-hook-bypass` takes additional target-scoped exemptions by
+  configuration.** `block_hook_bypass_scratch_roots` takes a comma-separated
+  list of absolute directories whose contents are scratch, a session or job temp
+  root, where a throwaway probe file is written that no formatter, secret scanner
+  or path check would ever process. The list is empty by default and **adds to**
+  the two shipped roots above rather than replacing them; the kill switch remains
+  the whole-guard lever. When set, the match is made on the
   **effective** stdout target (the last redirect wins, as with `/dev/null`) after
   lexical normalization, and containment is decided at a path-component
   boundary: `/tmp/scratchevil/f` is not under `/tmp/scratch`, a `..` escape is
   resolved away before the compare, `echo x > /tmp/scratch/f > real.txt` still
-  blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
-  exempt. A **quoted or escaped** operand is never exempt either, and that one
+  blocks, and an unexpanded (`$VAR`, `~`) or glob target is never exempt. A
+  **relative** target is exempt only when the guard can place it: since
+  **0.32.0** it is resolved against the tool call's own `cwd` from the payload,
+  and refused outright when the command carries a `cd`/`pushd`/`popd` (which
+  moves the directory the redirect resolves against, and whose target this guard
+  does not evaluate) or when the payload names no absolute cwd. That is what lets
+  `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
+  `cd /etc && echo x > .work/f` still block. A **quoted or escaped** operand is
+  never exempt either, and that one
   fails closed rather than being documented: the quote strip drops a kept
   target's quotes, and the segment split would then read a `;`, `|`, `&` or space
   *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"`,
@@ -631,7 +654,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt — the host temp trees (which the harness scratchpad sits under) and the memory tier `<memory_dir>/`, default `.work/` — both of which are gated on CLAUDE_PROJECT_DIR naming a project root outside the temp tree. Set this to name a scratch root of your own, or the memory tier when you have moved it off `.work/`; the kill switch, not this option, is the whole-guard lever. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
 
 ### How to set these

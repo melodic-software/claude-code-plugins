@@ -16,11 +16,20 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+#
+# CLAUDE_PROJECT_DIR is cleared ahead of the caller's own env words, which is a
+# PIN and not a preference: since #3712 the guard carries two shipped scratch-root
+# defaults, both gated on a known project root, so a project dir merely inherited
+# from the surrounding shell would decide assertions written years before those
+# defaults existed. Clearing it puts every case below in the no-project state it
+# was authored against. A caller that means to exercise the defaults passes its
+# own CLAUDE_PROJECT_DIR after this one, which wins — env applies assignments in
+# order.
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
   local rc
-  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
+  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
@@ -1327,12 +1336,15 @@ run "dd of= write (accepted floor — allowed)" "dd of=f.txt <<< x" 0
 # everything below it is the adversarial floor.
 SCRATCH_ENV=CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
 
-# Shipped default is unchanged: with no roots configured, a temp write blocks
-# exactly as it did before this option existed.
+# The OPTION's own default is still empty: configuring no root adds no root.
+# Since #3712 a temp target can also be exempted by a shipped default, which is
+# gated on a known project root, so CLAUDE_PROJECT_DIR is cleared explicitly here
+# rather than inherited — these two assertions are about the option, and pinning
+# the gate keeps them measuring it from any environment.
 run "scratch: temp write blocks with option unset (blocked)" \
-  "echo hello > /tmp/scratch/data.json" 2
+  "echo hello > /tmp/scratch/data.json" 2 CLAUDE_PROJECT_DIR=
 run "scratch: temp write blocks with option empty (blocked)" \
-  "echo hello > /tmp/scratch/data.json" 2 "$SCRATCH_ENV="
+  "echo hello > /tmp/scratch/data.json" 2 "$SCRATCH_ENV=" CLAUDE_PROJECT_DIR=
 
 # Happy path: a write strictly under a configured root is exempt, in both lanes.
 run "scratch: echo under configured root (allowed)" \
@@ -1463,6 +1475,122 @@ run "scratch: > inside double-quoted content keeps it (allowed)" \
   "echo \"a > b\" > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 run "scratch: > inside single-quoted content keeps it (allowed)" \
   "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
+
+# --- Shipped scratch-root defaults (#3712) -----------------------------------
+# The option above is opt-in and shipped empty, which left two write targets
+# blocked that no Write|Edit gate would ever have processed: the harness's own
+# per-session scratchpad under the host temp tree, and the memory tier
+# `<memory_dir>/` (default `.work/`) that session-flow's documented save-point
+# procedure writes to. Five blocks in one day, zero true positives, and the
+# fifth refused the exact command this marketplace's own skill prescribes.
+#
+# The two defaults are resolved at RUN TIME, not spelled as a static string:
+# the scratchpad path carries a session id and the memory tier hangs off the
+# consuming project, so neither has a fixed spelling to configure.
+#
+# `cwd_command_json` is local to this suite on purpose. Every payload built by
+# the shared `command_json` omits `.cwd`, which is what keeps the relative-target
+# assertions above (`scratch: relative target (blocked)`) measuring the
+# fail-closed path they were written for: with no cwd in the payload a relative
+# target still resolves to nothing and still blocks.
+cwd_command_json() {
+  jq -n --arg cmd "$1" --arg cwd "$2" '{tool_name:"Bash",tool_input:{command:$cmd},cwd:$cwd}'
+}
+
+# run_cwd <label> <command> <cwd> <expected-exit> [extra-env NAME=VAL ...]
+# Same CLAUDE_PROJECT_DIR pin as `run`; every case below names its own.
+run_cwd() {
+  local label="$1" command="$2" cwd="$3" expected="$4"
+  shift 4
+  local rc
+  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(cwd_command_json "$command" "$cwd")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
+# A project checkout OUTSIDE the temp tree is the shape both defaults are scoped
+# to. `$TEST_TMPDIR` is itself under the temp tree, so a project root there would
+# be the temp-rooted-project case the gate below deliberately excludes; these use
+# a fixed non-temp spelling instead, which nothing on disk has to back because
+# every comparison in this axis is lexical.
+PROJ=/srv/repo
+PROJ_ENV=CLAUDE_PROJECT_DIR
+
+# THE REPRODUCED FALSE POSITIVE. `printf '*' >> .work/.gitignore` from the
+# project root is the command session-flow's save-point procedure prescribes.
+run_cwd "default: memory tier relative append (allowed)" \
+  "printf '*' >> .work/.gitignore" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+run_cwd "default: memory tier relative write (allowed)" \
+  "echo hello > .work/handoffs/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+run_cwd "default: memory tier absolute write (allowed)" \
+  "echo hello > $PROJ/.work/handoffs/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+run_cwd "default: memory tier from a subdirectory (allowed)" \
+  "echo hello > ../.work/notes.md" "$PROJ/plugins" 0 "$PROJ_ENV=$PROJ"
+# The harness scratchpad and every other temp target, with the project outside
+# the temp tree: no Write|Edit gate processes a temp file from such a project
+# (hook::read_file_path declines it), so nothing here is a bypass.
+run_cwd "default: harness scratchpad write (allowed)" \
+  "echo hello > /tmp/claude-0/-srv-repo/abc/scratchpad/probe.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+run_cwd "default: bare temp write (allowed)" \
+  "cat > /tmp/probe.json" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+
+# --- the adversarial floor for the defaults ---------------------------------
+# Repo content still blocks. A default that let these through would have removed
+# the guard rather than scoped it.
+run_cwd "default: repo file still blocks" \
+  "echo hello > src/main.py" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: project-root dotfile still blocks" \
+  "printf 'x' >> .gitignore" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+# Component-boundary containment, on the relative axis too: a sibling that
+# merely shares the memory tier's name prefix is not the memory tier.
+run_cwd "default: .workspace sibling blocks" \
+  "echo hello > .workspace/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: .work as the target itself blocks" \
+  "echo hello > .work" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: dot-dot escape out of the memory tier blocks" \
+  "echo hello > .work/../src/main.py" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+# A cd the static parser does not evaluate moves the directory a relative
+# redirect resolves against, so a relative target in a command carrying one
+# cannot be proven to land in the memory tier. Fail closed.
+run_cwd "default: cd ahead of a relative memory-tier write blocks" \
+  "cd /etc && echo hello > .work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: pushd ahead of a relative memory-tier write blocks" \
+  "pushd /etc && echo hello > .work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+# An ABSOLUTE memory-tier target is unaffected by a cd — it names the same file
+# from any directory — so the cd fail-close is scoped to relative targets only.
+run_cwd "default: cd ahead of an ABSOLUTE memory-tier write (allowed)" \
+  "cd /etc && echo hello > $PROJ/.work/f" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+# The memory tier of a DIFFERENT project is not this project's memory tier.
+run_cwd "default: .work under another project blocks" \
+  "echo hello > /srv/other/.work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+
+# --- the temp default is gated on the project living outside temp ------------
+# When the project root ITSELF is under the temp tree, a temp file IS project
+# content and Write|Edit gates do process it — the shape this repo's own hook
+# fixtures take (`mktemp -d` checkouts). The exemption must not fire there.
+run_cwd "default: temp write blocks when the project is temp-rooted" \
+  "echo hello > /tmp/fixture/src/main.py" /tmp/fixture 2 "$PROJ_ENV=/tmp/fixture"
+run_cwd "default: temp write blocks when the project IS the temp root" \
+  "echo hello > /tmp/f" /tmp 2 "$PROJ_ENV=/tmp"
+# With no project root the guard cannot establish either default, so both fail
+# closed. This is also what keeps the option-unset assertions above measuring
+# the shipped behaviour they were written for.
+run_cwd "default: temp write blocks with no project root" \
+  "echo hello > /tmp/probe.json" "$PROJ" 2 "$PROJ_ENV="
+run_cwd "default: memory tier blocks with no project root" \
+  "echo hello > .work/f" "$PROJ" 2 "$PROJ_ENV="
+# No cwd in the payload is the same unprovable relative target as before.
+run "default: relative memory-tier write blocks with no payload cwd" \
+  "echo hello > .work/f" 2 "$PROJ_ENV=$PROJ"
+
+# --- the defaults compose with the option, they do not replace it ------------
+run_cwd "default: configured root still exempts alongside the defaults" \
+  "echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
+# The kill switch is still the whole-guard switch.
+run_cwd "default: repo file allowed when the guard is disabled" \
+  "echo hello > src/main.py" "$PROJ" 0 "$PROJ_ENV=$PROJ" \
+  CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=false
+
 # --- Redirect-operand marking (#2226) ---------------------------------------
 # THE REPORTED BYPASS AND ITS FAMILY. A quoted redirect operand is one pathname
 # to bash. Until 0.27.0 the exemptions were decided on its first whitespace- or
