@@ -3,6 +3,57 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Fixed
+
+- **`spawn-census.test.sh` called an assertion helper it never defined, so two
+  assertions did nothing.** `assert_not_contains` appears at two call sites; the
+  suite defines five functions and that is not one of them, and it sources no
+  helper file that could have supplied it. Both calls died as `command not
+  found` on stderr, incremented no counter, and the suite still exited 0 with 28
+  `PASS` lines against 30 call sites. The two dead assertions guarded exactly the
+  false green this plugin exists to refuse: a census line printed for a subject
+  that never ran. Proven by mutation rather than argued: emitting
+  `spawns=0 rc=127 []` before the never-ran refusal left the old suite at **exit
+  0 with zero failures**, and fails the fixed suite twice, naming both the 127
+  and 126 arms.
+- **An assertion label contradicted its own expectation.** It read "an
+  unresolvable denominator still exits 0" while asserting `2`. Exit 2 is a
+  refusal, so the label is now "a comparison arm the clock cannot resolve is
+  refused", which matches both the assertion and `ratio.py`'s own vocabulary.
+- A dead `mkdir` for a fixture directory nothing references, and duplicate
+  section-header numbers in two suites.
+
+### Changed
+
+- **`spawn-census.sh` carries a 100-line reflow from the `bash-format` hook**,
+  which runs `shfmt` without `-ci` while `.editorconfig` sets no
+  `switch_case_indent`, so `case` arms de-indent from four spaces to two. It is
+  hook output, not a hand edit, and it is provably semantics-free: `shfmt -mn`,
+  `bash --pretty-print` and a whitespace-stripped content hash all report
+  identical, and that combination was shown sensitive by six seeded mutations it
+  catches against three controls it correctly ignores. Notably a double space
+  inside a string literal is caught by the two parsers and missed by both a
+  `git diff -w` and the content hash, so no single check would have been enough.
+  The suite's output is byte-identical against both versions.
+
+### Known issues
+
+- **The spawn instrument has four undocumented blind spots.** It counts via
+  PATH-prepended shims, which is sound for indirect spawns: a subshell, a command
+  substitution, a pipeline, `xargs`, a nested script and a backgrounded job are
+  all counted correctly. But a subject invoking an absolute path
+  (`/usr/bin/sed`), resetting `PATH`, running under `env -i`, or forking without
+  exec is counted as **zero**. Three of those emit a tidy `spawns=0 rc=0 []`,
+  which is the confidently-wrong-number shape this script's own header exists to
+  refuse, and nothing in the plugin's docs mentions the limitation.
+- **`pathfix.py` is under-selected by the test mapper.** Four modules import it
+  and none of their suites is selected, because the selector seeds its reverse
+  lookup with the basename including `.py` while an `import pathfix` reference
+  carries no extension. Latent rather than live: mutating `pathfix.py` is still
+  caught by its own co-located suite, which drives its whole public surface.
+
 ## [0.1.0]
 
 ### Added

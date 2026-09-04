@@ -28,6 +28,9 @@ assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; f
 assert_contains() {
   if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
 }
+assert_not_contains() {
+  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
+}
 
 RUN_OUT=""
 RUN_RC=0
@@ -98,7 +101,7 @@ assert_eq "a missing --stdin-file is refused" "2" "$RUN_RC"
 run_census --shim-dir "$SHIM" --label builtins --tool sed --tool cat -- bash -c 'printf ok'
 assert_contains "a builtins-only subject counts zero spawns" "spawns=0" "$RUN_OUT"
 
-# --- 4. the shim directory is required, and a temporary one is refused ---
+# --- 5. the shim directory is required, and a temporary one is refused ---
 run_census --label nodir --tool sed -- bash -c 'printf ok'
 assert_eq "a missing shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the fixed-PATH requirement" "SAME directory" "$RUN_OUT"
@@ -107,7 +110,7 @@ run_census --shim-dir "${TMPDIR:-/tmp}/perf-census-probe" --label tempdir --tool
 assert_eq "a temp-rooted shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
-# --- 5. an unresolvable tool FAILS rather than being skipped ---
+# --- 6. an unresolvable tool FAILS rather than being skipped ---
 # The source harness wrote `|| continue` here. A silently dropped tool
 # undercounts every run and reports a confident wrong number, which
 # harness-integrity.md rule 2 forbids: assert the precondition, never degrade.
@@ -118,7 +121,7 @@ run_census --shim-dir "$SHIM" --label badtool \
 assert_eq "an unresolvable tool is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the undercount" "undercounts" "$RUN_OUT"
 
-# --- 6. a Windows drive-letter subject path is refused ---
+# --- 7. a Windows drive-letter subject path is refused ---
 run_census --shim-dir "$SHIM" --label winpath --tool sed -- bash 'D:/worktrees/repo/hook.sh'
 assert_eq "a drive-letter subject path is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the MSYS trap" "resolves nowhere" "$RUN_OUT"
@@ -127,7 +130,7 @@ run_census --shim-dir "$SHIM" --label winpathok --tool sed --allow-windows-paths
   -- bash -c 'printf %s "D:/native/tool.exe"'
 assert_eq "--allow-windows-paths is the documented escape hatch" "0" "$RUN_RC"
 
-# --- 7. the ledger catches a shim directory that moved between runs ---
+# --- 8. the ledger catches a shim directory that moved between runs ---
 # This is the standalone-invocation half of rule 1. The driver's two-runs-agree
 # proof cannot cover it, because a census is run on its own far more often than
 # through a driver.
@@ -145,7 +148,7 @@ run_census --shim-dir "$SHIM" --label counted --no-ledger --tool sed --tool cat 
   -- bash "$WORK/subject.sh"
 assert_eq "--no-ledger skips the recorded-entry check" "0" "$RUN_RC"
 
-# --- 8. a subject that never ran is refused, not counted as zero ---
+# --- 9. a subject that never ran is refused, not counted as zero ---
 run_census --shim-dir "$SHIM" --label missing --tool sed --no-ledger \
   -- /nonexistent/definitely-not-here.sh
 assert_eq "a subject exiting 127 is refused" "2" "$RUN_RC"
