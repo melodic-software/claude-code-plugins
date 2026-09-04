@@ -3,7 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.4]
+## [0.31.5]
+
+### Fixed
+
+- **`lib/git-hooks/pre-commit-content-invariants.test.sh` carried two real-shape
+  secret tokens as contiguous literals.** A GitHub-PAT-shaped token at line 74 and
+  an OpenAI-shaped one at line 98 sat in the file's own bytes, so
+  `secrets::scan_text` returned rc=1 on the suite that tests the scanner, naming
+  both by line. The file's path matches none of `secret_allowlisted`'s eight arms
+  (twenty globs) or `path_allowlisted`'s seven (sixteen), so the pre-commit hook
+  would refuse a commit staging its own test file, and the `secret-pattern-detection`
+  guard blocked Write to it. Scanning every tracked file against all twelve
+  patterns in `SECRET_PATTERNS` found these two hits and no others in the
+  repository. Both fixtures now assemble at runtime, matching the discipline
+  `hooks/secret-pattern-detection.test.sh` documents and uses. The assembled values
+  are byte-identical to the former literals (40 and 23 bytes, compared with `cmp`,
+  not by eye), so every gate invocation in the suite receives the same staged
+  content and the suite's output is byte-identical on both sides.
+
+  On the blast radius, stated precisely: the hook is not installed in this
+  checkout (`.git/hooks` holds only samples and `core.hooksPath` is unset), so it
+  blocked nothing here. It would have bitten anyone who ran `/guardrails:setup
+  apply` and then edited this plugin.
+
+  On why CI never caught it: the `gitleaks` lane does run un-gated on every diff.
+  Running it locally with this repo's own `.gitleaks.toml` over the pre-fix bytes
+  reports no leaks, while the same config on a high-entropy PAT reports one. The
+  scanner works; its default `github-pat` rule carries an entropy floor that
+  thirty-six identical characters falls under. This repository's own
+  `secrets::scan_text` has no entropy floor, which is why only it fired.
 
 ### Added
 
