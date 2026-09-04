@@ -30,7 +30,7 @@ PR_NUMBER=""
 FAILED_ONLY=0
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -116,7 +116,7 @@ if [[ $api_rc -ne 0 ]]; then
 fi
 
 CHECK_RUNS_JSON=$(printf '%s' "$CHECK_RUNS_RAW" |
-  jq -c '.check_runs[] | {id: .id, name: .name, conclusion: .conclusion, status: .status}')
+  jq -c '.check_runs[] | {id, name, conclusion, status}')
 
 if [[ -z "$CHECK_RUNS_JSON" ]]; then
   # Empty is not an error — PR may have no check-runs yet.

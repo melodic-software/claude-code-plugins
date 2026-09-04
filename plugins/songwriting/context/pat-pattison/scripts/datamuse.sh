@@ -40,8 +40,8 @@ shift || true
 ARG="${*:-}"
 
 # Print the header block (shebang to first non-comment line). Derived rather
-# than a hardcoded sed range, which dropped the Examples lines as the header
-# grew (#3424).
+# than a hardcoded sed range, which drops the trailing lines as the header
+# grows (#3424).
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}" >&2
@@ -65,35 +65,35 @@ word="${ARG// /+}"
 max="$LIMIT"
 
 case "$MODE" in
-  rhyme) query="rel_rhy=$word" ;;
-  near) query="rel_nry=$word" ;;
-  cons) query="rel_cns=$word" ;;
-  syn) query="rel_syn=$word" ;;
-  ant) query="rel_ant=$word" ;;
-  trg) query="rel_trg=$word" ;;
-  jja) query="rel_jja=$word" ;;
-  jjb) query="rel_jjb=$word" ;;
-  means) query="ml=$word" ;;
-  sounds) query="sl=$word" ;;
-  pattern) query="sp=$word" ;;
-  syllables)
-    query="sp=$word"
-    max=5
-    ;;
-  family)
-    # near rhymes + consonance, combined; useful for Pat's family-rhyme search
-    near=$(curl -sS "$api?rel_nry=$word&md=s&max=$LIMIT")
-    cons=$(curl -sS "$api?rel_cns=$word&md=s&max=$LIMIT")
-    echo "$near $cons" \
-      | jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' \
-      | emit_tsv
-    exit 0
-    ;;
-  *)
-    echo "unknown mode: $MODE" >&2
-    usage
-    exit 1
-    ;;
+rhyme) query="rel_rhy=$word" ;;
+near) query="rel_nry=$word" ;;
+cons) query="rel_cns=$word" ;;
+syn) query="rel_syn=$word" ;;
+ant) query="rel_ant=$word" ;;
+trg) query="rel_trg=$word" ;;
+jja) query="rel_jja=$word" ;;
+jjb) query="rel_jjb=$word" ;;
+means) query="ml=$word" ;;
+sounds) query="sl=$word" ;;
+pattern) query="sp=$word" ;;
+syllables)
+  query="sp=$word"
+  max=5
+  ;;
+family)
+  # near rhymes + consonance, combined; useful for Pat's family-rhyme search
+  near=$(curl -sS "$api?rel_nry=$word&md=s&max=$LIMIT")
+  cons=$(curl -sS "$api?rel_cns=$word&md=s&max=$LIMIT")
+  echo "$near $cons" |
+    jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' |
+    emit_tsv
+  exit 0
+  ;;
+*)
+  echo "unknown mode: $MODE" >&2
+  usage
+  exit 1
+  ;;
 esac
 
 curl -sS "$api?$query&md=s&max=$max" | emit_tsv

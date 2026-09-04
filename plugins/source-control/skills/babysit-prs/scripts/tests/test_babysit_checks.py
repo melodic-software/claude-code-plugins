@@ -1,9 +1,9 @@
 """Status-check rollup classification: identity dedupe, categories, rollup.
 
-Ports the check-classification coverage of the monolith suite onto the
-`babysit_checks` module surface: the durable `(type, name, workflow_name)`
-identity, latest-wins dedupe that never merges a StatusContext with a
-same-named CheckRun, category mapping, and the persisted-identity validator.
+Covers the `babysit_checks` module surface: the durable
+`(type, name, workflow_name)` identity, latest-wins dedupe that never merges a
+StatusContext with a same-named CheckRun, category mapping, and the
+persisted-identity validator.
 """
 
 from __future__ import annotations
@@ -52,8 +52,12 @@ class NormalizeCheckTests(unittest.TestCase):
 
     def test_check_run_prefers_conclusion_over_status(self) -> None:
         normalized = checks.normalize_check(
-            {"__typename": "CheckRun", "name": "ci", "status": "COMPLETED",
-             "conclusion": "FAILURE"}
+            {
+                "__typename": "CheckRun",
+                "name": "ci",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+            }
         )
         self.assertEqual(normalized["effective_state"], "FAILURE")
         self.assertEqual(normalized["category"], "failing")
@@ -63,10 +67,17 @@ class DedupeIdentityTests(unittest.TestCase):
     def test_status_context_is_never_merged_with_same_named_check_run(self) -> None:
         result = checks.classify_checks(
             [
-                {"__typename": "CheckRun", "name": "codex-review",
-                 "conclusion": "SUCCESS"},
-                {"__typename": "StatusContext", "context": "codex-review",
-                 "state": "PENDING", "targetUrl": ""},
+                {
+                    "__typename": "CheckRun",
+                    "name": "codex-review",
+                    "conclusion": "SUCCESS",
+                },
+                {
+                    "__typename": "StatusContext",
+                    "context": "codex-review",
+                    "state": "PENDING",
+                    "targetUrl": "",
+                },
             ]
         )
         self.assertEqual(result["total"], 2)
@@ -80,10 +91,18 @@ class DedupeIdentityTests(unittest.TestCase):
     def test_latest_run_per_identity_wins(self) -> None:
         result = checks.classify_checks(
             [
-                _run(name="test", conclusion="FAILURE", workflowName="wf",
-                     completedAt="2026-01-01T00:00:00Z"),
-                _run(name="test", conclusion="SUCCESS", workflowName="wf",
-                     completedAt="2026-01-02T00:00:00Z"),
+                _run(
+                    name="test",
+                    conclusion="FAILURE",
+                    workflowName="wf",
+                    completedAt="2026-01-01T00:00:00Z",
+                ),
+                _run(
+                    name="test",
+                    conclusion="SUCCESS",
+                    workflowName="wf",
+                    completedAt="2026-01-02T00:00:00Z",
+                ),
             ]
         )
         self.assertEqual(result["total"], 1)
@@ -93,10 +112,18 @@ class DedupeIdentityTests(unittest.TestCase):
     def test_workflow_name_disambiguates_same_named_checks(self) -> None:
         result = checks.classify_checks(
             [
-                _run(name="test", conclusion="FAILURE", workflowName="alpha",
-                     completedAt="2026-01-01T00:00:00Z"),
-                _run(name="test", conclusion="SUCCESS", workflowName="beta",
-                     completedAt="2026-01-02T00:00:00Z"),
+                _run(
+                    name="test",
+                    conclusion="FAILURE",
+                    workflowName="alpha",
+                    completedAt="2026-01-01T00:00:00Z",
+                ),
+                _run(
+                    name="test",
+                    conclusion="SUCCESS",
+                    workflowName="beta",
+                    completedAt="2026-01-02T00:00:00Z",
+                ),
             ]
         )
         self.assertEqual(result["total"], 2)
@@ -172,8 +199,12 @@ class NormalizeCreatedAtTests(unittest.TestCase):
 
     def test_status_context_created_at_from_created_at(self) -> None:
         normalized = checks.normalize_check(
-            {"__typename": "StatusContext", "context": "x", "state": "PENDING",
-             "createdAt": OLD_TS}
+            {
+                "__typename": "StatusContext",
+                "context": "x",
+                "state": "PENDING",
+                "createdAt": OLD_TS,
+            }
         )
         self.assertEqual(normalized["created_at"], OLD_TS)
 
@@ -185,24 +216,32 @@ class ClassifyStuckChecksTests(unittest.TestCase):
         )
 
     def test_only_fires_under_unstable(self) -> None:
-        orphan = _norm(__typename="StatusContext", context="x", state="PENDING",
-                       targetUrl="")
+        orphan = _norm(
+            __typename="StatusContext", context="x", state="PENDING", targetUrl=""
+        )
         self.assertEqual(self._stuck([orphan], merge_state="CLEAN"), [])
         self.assertEqual(self._stuck([orphan], merge_state="BLOCKED"), [])
 
     def test_orphaned_status_is_not_age_gated(self) -> None:
-        orphan = _norm(__typename="StatusContext", context="codex-review",
-                       state="PENDING", targetUrl="", createdAt=NOW_TS)
+        orphan = _norm(
+            __typename="StatusContext",
+            context="codex-review",
+            state="PENDING",
+            targetUrl="",
+            createdAt=NOW_TS,
+        )
         stuck = self._stuck([orphan])
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_ORPHANED_STATUS])
         self.assertEqual(stuck[0]["name"], "codex-review")
         self.assertEqual(stuck[0]["type"], "StatusContext")
 
     def test_stuck_queued_is_age_gated(self) -> None:
-        young = _norm(__typename="CheckRun", name="build", status="QUEUED",
-                      startedAt=NOW_TS)
-        old = _norm(__typename="CheckRun", name="build", status="QUEUED",
-                    startedAt=OLD_TS)
+        young = _norm(
+            __typename="CheckRun", name="build", status="QUEUED", startedAt=NOW_TS
+        )
+        old = _norm(
+            __typename="CheckRun", name="build", status="QUEUED", startedAt=OLD_TS
+        )
         self.assertEqual(self._stuck([young]), [])
         stuck = self._stuck([old])
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_QUEUED])
@@ -214,15 +253,24 @@ class ClassifyStuckChecksTests(unittest.TestCase):
         self.assertEqual(self._stuck([no_ts]), [])
 
     def test_never_settling_pending_past_threshold(self) -> None:
-        old = _norm(__typename="StatusContext", context="ext", state="PENDING",
-                    targetUrl="https://ci.example/run", createdAt=OLD_TS)
+        old = _norm(
+            __typename="StatusContext",
+            context="ext",
+            state="PENDING",
+            targetUrl="https://ci.example/run",
+            createdAt=OLD_TS,
+        )
         stuck = self._stuck([old])
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_NEVER_SETTLING])
         self.assertEqual(stuck[0]["target_url"], "https://ci.example/run")
 
     def test_never_settling_in_progress_check_run_past_threshold(self) -> None:
-        old = _norm(__typename="CheckRun", name="integration", status="IN_PROGRESS",
-                    startedAt=OLD_TS)
+        old = _norm(
+            __typename="CheckRun",
+            name="integration",
+            status="IN_PROGRESS",
+            startedAt=OLD_TS,
+        )
         stuck = self._stuck([old])
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_NEVER_SETTLING])
         self.assertGreater(stuck[0]["age_seconds"], THRESHOLD)
@@ -230,17 +278,28 @@ class ClassifyStuckChecksTests(unittest.TestCase):
     def test_orphaned_status_without_inception_has_null_age(self) -> None:
         # An app that posts a pending status with no createdAt still classifies
         # as orphaned (structural, not age-gated), with a null age_seconds.
-        orphan = _norm(__typename="StatusContext", context="ext", state="PENDING",
-                       targetUrl="")
+        orphan = _norm(
+            __typename="StatusContext", context="ext", state="PENDING", targetUrl=""
+        )
         stuck = self._stuck([orphan])
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_ORPHANED_STATUS])
         self.assertIsNone(stuck[0]["age_seconds"])
 
     def test_settled_and_success_checks_are_never_stuck(self) -> None:
-        failed = _norm(__typename="CheckRun", name="build", status="COMPLETED",
-                       conclusion="FAILURE", startedAt=OLD_TS)
-        passed = _norm(__typename="CheckRun", name="build", status="COMPLETED",
-                       conclusion="SUCCESS", startedAt=OLD_TS)
+        failed = _norm(
+            __typename="CheckRun",
+            name="build",
+            status="COMPLETED",
+            conclusion="FAILURE",
+            startedAt=OLD_TS,
+        )
+        passed = _norm(
+            __typename="CheckRun",
+            name="build",
+            status="COMPLETED",
+            conclusion="SUCCESS",
+            startedAt=OLD_TS,
+        )
         self.assertEqual(self._stuck([failed, passed]), [])
 
 

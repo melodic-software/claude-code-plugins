@@ -164,13 +164,9 @@ assert_eq "the same tie decided from the other side → exit 0" "0" "$rc"
 
 # --- a live foreign lease with a MALFORMED handle is still refused ---
 # `lease_comment_id` is consumer-writable in practice: hand-edited markers, or another
-# tool writing the same v1 shape. A non-numeric one used to make the reader's `--argjson`
-# fail, which emptied the accumulator and — because jq over empty input prints nothing
-# and EXITS 0 — returned success-with-no-output. Callers read that as "nothing is
-# claimed" and handed out a second lease over a live one. The `|| exit "$?"` guard at
-# the call site cannot catch it, because the failure never arrives as a non-zero status.
-# Built directly rather than via lin_lease_body, which types the handle as a number —
-# a STRING handle is precisely the shape under test.
+# tool writing the same v1 shape, so a non-numeric handle is reachable input rather than
+# a theoretical one. Built directly rather than via lin_lease_body, which types the
+# handle as a number — a STRING handle is precisely the shape under test.
 MALFORMED_MARKER="$(jq -cn --arg t "$NOW" \
   '{schema_version: "1.0", holder: "someone-else", acquired_at: $t, renewed_at: $t,
     ttl_hours: 24, ttl_minutes: 0, lease_comment_id: "abc"}')"
@@ -245,8 +241,8 @@ assert_eq "…leaving the live winner's assignment untouched" \
   "0" "$(lin_bodies | grep -c '"assigneeId":null')"
 
 # The same race, with the rival sharing OUR login. A display-name compare cannot tell
-# this from our own write, so under the old guard the loser cleared the winner's live
-# assignment. The live-lease test is identity-independent and holds here too.
+# this from our own write, so a name-only guard would have the loser clear the winner's
+# live assignment. The live-lease test is identity-independent and holds here too.
 seed_race "$(jq -cn --argjson mine "$MINE_NODE" \
   --arg theirs "$(lin_lease_body "$((MINE_HANDLE - 1000))" "kyle" "$NOW" 24)" \
   '[$mine, {id: "uuid-comment-aaa", body: $theirs, createdAt: "2026-08-20T11:59:59.500Z"}]')"

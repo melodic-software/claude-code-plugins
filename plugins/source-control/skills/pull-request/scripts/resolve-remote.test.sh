@@ -80,12 +80,12 @@ repo=$(make_repo "dot-remote" origin=/dev/null)
 git -C "$repo" config branch.main.remote .
 run_test "branch.<name>.remote=. falls through to origin" "$repo" "main" "origin" 0
 
-# No origin, exactly one other remote -> sole-remote fallback (finding 1 case b).
+# No origin, exactly one other remote -> sole-remote fallback.
 repo=$(make_repo "vendor-clone" vendor=/dev/null)
 run_test "sole non-origin remote resolves (vendor clone)" "$repo" "main" "vendor" 0
 
 # No origin, 2+ other remotes, no branch.<name>.remote -> fail loudly, not head -1
-# (finding 1 case a: fork + upstream, no origin).
+# (fork + upstream, no origin).
 repo=$(make_repo "fork-upstream-no-origin" fork=/dev/null upstream=/dev/null)
 run_test "multiple non-origin remotes with no origin fails loudly" "$repo" "main" "" 1
 

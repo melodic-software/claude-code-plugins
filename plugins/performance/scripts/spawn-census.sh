@@ -85,56 +85,56 @@ SUBJECT=()
 
 while (($# > 0)); do
   case "$1" in
-    --shim-dir)
-      SHIM_DIR="${2:-}"
-      shift 2
-      ;;
-    --label)
-      LABEL="${2:-}"
-      shift 2
-      ;;
-    --tool)
-      TOOLS+=("${2:-}")
-      shift 2
-      ;;
-    --ledger-key)
-      LEDGER_KEY="${2:-}"
-      shift 2
-      ;;
-    --ledger-reset)
-      LEDGER_RESET=1
-      shift
-      ;;
-    --no-ledger)
-      USE_LEDGER=0
-      shift
-      ;;
-    --stdin)
-      STDIN_TEXT="${2:-}"
-      HAVE_STDIN=1
-      shift 2
-      ;;
-    --stdin-file)
-      STDIN_FILE="${2:-}"
-      HAVE_STDIN=1
-      shift 2
-      ;;
-    --allow-windows-paths)
-      ALLOW_WINDOWS_PATHS=1
-      shift
-      ;;
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    --)
-      shift
-      SUBJECT=("$@")
-      break
-      ;;
-    *)
-      harness_die "unknown argument: $1 (see --help)"
-      ;;
+  --shim-dir)
+    SHIM_DIR="${2:-}"
+    shift 2
+    ;;
+  --label)
+    LABEL="${2:-}"
+    shift 2
+    ;;
+  --tool)
+    TOOLS+=("${2:-}")
+    shift 2
+    ;;
+  --ledger-key)
+    LEDGER_KEY="${2:-}"
+    shift 2
+    ;;
+  --ledger-reset)
+    LEDGER_RESET=1
+    shift
+    ;;
+  --no-ledger)
+    USE_LEDGER=0
+    shift
+    ;;
+  --stdin)
+    STDIN_TEXT="${2:-}"
+    HAVE_STDIN=1
+    shift 2
+    ;;
+  --stdin-file)
+    STDIN_FILE="${2:-}"
+    HAVE_STDIN=1
+    shift 2
+    ;;
+  --allow-windows-paths)
+    ALLOW_WINDOWS_PATHS=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --)
+    shift
+    SUBJECT=("$@")
+    break
+    ;;
+  *)
+    harness_die "unknown argument: $1 (see --help)"
+    ;;
   esac
 done
 

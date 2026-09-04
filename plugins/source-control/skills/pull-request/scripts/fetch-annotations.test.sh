@@ -12,6 +12,8 @@
 #   6. JSONL output schema — every line is valid JSON with required fields
 #   7. check-runs API failure — exits 2
 #   8. per-check-run annotations API failure — exits 2
+#   9. --help output (full banner through the last documented exit code, and
+#      nothing past the header block)
 
 set -uo pipefail
 
@@ -104,15 +106,20 @@ JSON
 # ---- Stub `gh` --------------------------------------------------------------
 #
 # Dispatch table:
-#   pr view 1 --json headRefOid -q .headRefOid  → "abc1234"
-#   pr view 2 --json headRefOid -q .headRefOid  → echo nothing, exit 1 (failure case)
-#   pr view 3 --json headRefOid -q .headRefOid  → "empty5678"
-#   api repos/.../commits/abc1234/check-runs    → fixture with 3 runs
-#   api repos/.../commits/empty5678/check-runs  → fixture with 0 runs
-#   api repos/.../check-runs/100/annotations    → []
-#   api repos/.../check-runs/200/annotations    → 2 annotations
-#   api repos/.../check-runs/300/annotations    → 1 annotation
-#   repo view --json nameWithOwner ...          → example-org/example-repo
+#   pr view 1 --json headRefOid -q .headRefOid   → "abc1234"
+#   pr view 2 --json headRefOid -q .headRefOid   → echo nothing, exit 1 (failure case)
+#   pr view 3 --json headRefOid -q .headRefOid   → "empty5678"
+#   pr view 4 --json headRefOid -q .headRefOid   → "fail9999"
+#   pr view 5 --json headRefOid -q .headRefOid   → "annotfail99"
+#   api repos/.../commits/abc1234/check-runs     → fixture with 3 runs
+#   api repos/.../commits/empty5678/check-runs   → fixture with 0 runs
+#   api repos/.../commits/annotfail99/check-runs → fixture with 1 failure run (id 999)
+#   api repos/.../commits/fail9999/check-runs    → unrouted, falls to the catch-all, exit 1
+#   api repos/.../check-runs/100/annotations     → []
+#   api repos/.../check-runs/200/annotations     → 2 annotations
+#   api repos/.../check-runs/300/annotations     → 1 annotation
+#   api repos/.../check-runs/999/annotations     → simulated 403 rate-limit, exit 1
+#   repo view --json nameWithOwner ...           → example-org/example-repo
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
@@ -241,6 +248,35 @@ if [[ $schema_ok -eq 1 ]]; then
 else
   fail "every JSONL line has required schema fields" "all lines pass jq schema check" "$out"
 fi
+
+# `has()` above is presence-only, so a field the projection stops carrying still
+# passes it: jq -r on a missing key yields the STRING "null", which is present
+# and wrong. check_run_name is emitted and never read back by anything else, so
+# this is the only place its value can be pinned. The fixture's check-run 200 is
+# named "test".
+name_val=$(printf '%s' "$out" | head -1 | jq -r '.check_run_name')
+if [[ "$name_val" == "test" ]]; then
+  pass "check_run_name carries the check run's name, not a stringified null"
+else
+  fail "check_run_name carries the check run's name, not a stringified null" \
+    "test" "$name_val"
+fi
+
+# Case 9: --help emits the whole banner. usage() slices the header comment block
+# out of the script itself, so pinning the LAST banner line is what keeps a later
+# header edit from silently cutting the exit-code list short.
+help_out=$(run_script --help)
+help_ec=$?
+if [[ $help_ec -eq 0 && "$help_out" == *"0  success"* && "$help_out" == *"1  invalid argument"* &&
+  "$help_out" == *"2  gh api call failed"* && "$help_out" == *"5  prerequisite missing (gh, jq)"* ]]; then
+  pass "--help emits the full banner through the last documented exit code"
+else
+  fail "--help emits the full banner through the last documented exit code" \
+    "exit 0 + all four exit codes" "exit $help_ec, out: $help_out"
+fi
+# The other direction: a slice that runs past the header block leaks executable
+# lines into the banner, so the banner must stop before the first one.
+assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
 #

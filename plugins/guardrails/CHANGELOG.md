@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.6]
+
+### Fixed
+
+- **`resolve-convention-pattern.sh --help` dropped its entire exit-status list.**
+  `usage()` sliced the header with a hardcoded `sed -n '2,40p'` while the header
+  runs to line 43, so the banner ended on the words "Exit status:" and never
+  showed `0`, `1` or `2`. The slice now stops at the first non-comment line, so it
+  cannot drift as the header grows. A blank-line terminator would not work here,
+  which is why this needed a different fix from the sibling scripts corrected
+  earlier in the same sweep: this header runs straight into `set -uo pipefail`
+  with no blank line between, so terminating on a blank line would leak
+  executable lines into the banner.
+
+  Found by a verifier while checking an unrelated group, and fixed on the
+  canonical with `scripts/sync-resolve-convention-pattern.sh` propagating it to
+  this plugin's copy; the two remain byte-identical. All four covering suites
+  pass.
+
 ## [0.31.5]
 
 ### Fixed

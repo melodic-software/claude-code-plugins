@@ -8,8 +8,8 @@ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-sub-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
-assert_usage_error "$S"                                    # no parent id
-assert_usage_error "$S" "github:o/r#1" --state bogus       # bad state
-assert_usage_error "$S" "not-an-id"                        # malformed id
-assert_usage_error "$S" "local-markdown:o/r#1"             # foreign provider
+assert_usage_error "$S"                              # no parent id
+assert_usage_error "$S" "github:o/r#1" --state bogus # bad state
+assert_usage_error "$S" "not-an-id"                  # malformed id
+assert_usage_error "$S" "local-markdown:o/r#1"       # foreign provider
 [[ $FAILED -eq 0 ]] || exit 1
