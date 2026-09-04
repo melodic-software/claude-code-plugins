@@ -498,7 +498,7 @@ greps (the only remaining `write a resume file` under `plugins/` is the new asse
 parity, the purged em-dash gate, shellcheck, markdownlint, typos, editorconfig-checker; the diff
 carries no machine path. Delta: 7 files, +42/-4.
 
-### Phase 5: Headless harness and the measured budget [TODO]
+### Phase 5: Headless harness and the measured budget [DONE]
 
 Review: code-design
 
@@ -547,6 +547,44 @@ skill at its own phase boundaries; shape 2 is exercised only through this harnes
 no spend); a live `hop_chain.py --runs N` exits 0 with `N/N` in its summary and zero rows marked
 `FAIL`; `design/design-threads.md` "Resume-read budget" section contains `measured` and no longer
 contains `ESTIMATES`; the four probe boxes in Phase 0 are ticked.
+
+**Result (2026-09-04):** `hop_chain.py` (1747 lines) and `hop_chain.test.sh` (51 lines) landed via
+an Opus worker; the dry-run suite drives the real top-level driver with only the `claude`
+subprocess swapped for a fake runner (18 cases, every negative case seen red first, mutation
+drivers confirm each check can fail), pyright/ruff/shellcheck/typos/editorconfig clean. Four
+divergences from the text above, all recorded in the harness comments: (1) CLI 2.1.260 denies
+every mutating tool under `-p --permission-mode dontAsk` even with the allow list passed as
+`--allowedTools` AND written as project permission rules ("Permission to use Write has been denied
+because Claude Code is running in don't ask mode", three hop-1 transcripts; the identical flags
+passed on 2.1.259 in Phase 0), so the child runs `--permission-mode bypassPermissions` with
+`--tools` pinning the same eight tools; the transcripts' tool census shows only Bash, Edit, Read,
+Write and Skill were used. (2) The Skill-ordering check exempts `Read`/`Glob`/`Grep` and shell
+commands with no write indicator (redirect, copy/move/create verbs, interpreters, PowerShell
+write cmdlets), because a resume hop's first action is reading the predecessor under `handoffs/`;
+the first 12-hop set failed two rows on that false positive (`cat` of the predecessor before the
+Skill call, every other check green) before the refinement. (3) Failed hops keep a copy of their
+transcript under the run's kept directory, so a FAIL row is inspectable without `--keep`. (4) The
+fixture README carries a one-step-per-session protocol (do one step, commit, invoke the skill via
+the Skill tool, never hand-write the file) so hops 2 to 4 still have work; hop 1 alone would let
+hop 2 finish steps 2 to 4 and starve the chain. Also: `--max-turns 40` is too low for the padded
+regime (the first padded attempt ended `error_max_turns` at hop 1 with three `FILL` slots left);
+the padded chain passed at `--max-turns 80`. Evidence (TSVs and kept handoff files under the
+memory slice `probes/phase5-*`): acceptance set `--runs 3` exit 0, `3/3 runs passed (12/12 hops)`,
+zero FAIL rows; padded chain `1/1 (4/4)` with hop 1 at 65k context tokens; two earlier canaries
+4/4. Every hop: exactly one new file, `validate --strict-transcript` exit 0, two rails in the
+JSON `result` and in the final assistant text, between-rails bytes equal to `emit`, session id
+agreement, Skill call before any write. Open question Q1 closed: `@` expansion works on stdin in
+`-p` mode (40 to 51 attachment records per resume hop). Cost: light hops $1.5 to $2.8 (23 to 46
+turns), padded hop 1 $3.7 (45 turns); Phase 5 total about $67 across 41 sessions, including the
+three permission failures, the turn-cap failure, and the 12-hop set the harness false positive
+failed. `design-threads.md` "Resume-read budget" now carries measured values (live hops 1 to 4,
+generated hops 5 and 20 beside a live hop 1); the hop-20 projection of about 12k tokens supersedes
+the 3.0k estimate. The child env allowlist carries five Windows names beyond the list above
+(`PATHEXT`, `HOMEDRIVE`, `HOMEPATH`, `windir`, `USERNAME`). Fresh-context verifier: 11 of 12
+PASS; the one FAIL was a wrongly specified criterion, not a defect: the kept copies are prefixed
+`run<r>-hop<h>-` and their transcripts are cleaned up, so they do not re-validate offline, while
+the originals left in place by a `--keep` chain pass `validate --strict-transcript` (4 of 4
+checked). Sanity Check all green. Delta: 2 new files, design-threads.md, this file.
 
 ### Phase 6: Close-out [TODO]
 

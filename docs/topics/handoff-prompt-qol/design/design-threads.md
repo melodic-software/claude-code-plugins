@@ -111,8 +111,8 @@ Proposed surface: one script, three subcommands — `new` (skeleton with every d
 filled and `<!-- FILL: … -->` slots), `validate` (T5 checks + no FILL slot remains), `emit`
 (prints `## Resume prompt`). Language and dependency policy are a plan decision.
 
-The resume-read budget figures above are agent ESTIMATES; they are measured on generated fixtures
-by the headless harness (T8/Q24) before the shape is committed.
+The resume-read budget figures below are measured by the headless harness (T8/Q24, Phase 5,
+2026-09-04): live shape-2 chains for hops 1 to 4 and a generated 20-hop chain for hops 5 and 20.
 
 ## Consumer impact (all options)
 
@@ -125,5 +125,23 @@ embedding the prompt makes it one; `structure.md` gains the two sections.
 
 ## Resume-read budget (A-lite)
 
-Hop 1 ≈170 lines / ≈2.3k tokens; hop 5 ≈180 / ≈2.5k; hop 20 ≈215 / ≈3.0k, one file. Growth per
-hop: one `chain:` line, one `## Prior sessions` row, plus net-new tagged knowledge.
+Measured 2026-09-04 with `plugins/session-flow/scripts/harness/hop_chain.py` (tokens = chars/4,
+one file per hop). Live chains ran the shape-2 skill headless on `claude-opus-5[1m]`, CLI 2.1.260,
+three light chains plus one chain whose hop 1 read a 30k-token pad first; every hop passed all
+seven harness checks. The generated chain comes from `hop_chain.py --budget`: `save_point.py new`
+twenty times with per-section filler sized to the shape-1 corpus median at hop 1 (154 lines /
+3.2k tokens) and each cumulative section growing two tagged entries per hop.
+
+| hop | measured (live, light, 3 chains) | measured (live, padded, 1 chain) | generated |
+|---|---|---|---|
+| 1 | 139 to 155 lines / 2.6k to 3.1k tokens | 220 lines / 3.4k tokens | 156 lines / 3.2k tokens |
+| 4 | 174 to 190 lines / 3.7k to 5.3k tokens | 308 lines / 5.4k tokens | not reported |
+| 5 | not run live | not run live | 219 lines / 5.0k tokens |
+| 20 | not run live | not run live | 474 lines / 12.2k tokens |
+
+Growth per hop, live: 0.35k to 0.8k tokens (one `chain:` line, one `## Prior sessions` row, plus
+the net-new tagged entries each session wrote). Extrapolating the live growth linearly lands hop
+20 near 12k to 14k tokens, which agrees with the generated chain. The pre-measurement estimate
+(hop 20 near 3.0k) assumed almost no tagged growth and is superseded: a 20-hop chain costs about
+four hop-1 reads, still one file and still bounded, and a chain that long is the exception the
+`## Prior sessions` pointers exist for.
