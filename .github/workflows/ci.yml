@@ -385,10 +385,26 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/exec-bit@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
 
+      # THE ONE REFERENCE IN THIS FILE HELD AT THE OLD SHA, deliberately. Every
+      # other ci-workflows reference here moved to v0.19.0; this one did not.
+      # At the wave tag this action detects five path classes, and on this
+      # repository all five fire on content that is not a machine-specific path
+      # at all: 40 hits across 22 files in ten plugins, every one of them prose
+      # naming the form the surrounding code parses, published CHANGELOG
+      # entries, or a fixture whose assertion subject IS the path. Three of
+      # those categories cannot be reworded — released history is released, and
+      # changing a fixture's literal changes what the test proves — and the
+      # action's only lever is a file-level exclude, so silencing 40 phrases
+      # would take 22 files and ten plugins out of the scan entirely.
+      #
+      # melodic-software/ci-workflows#549 carries the detection-precision
+      # report upstream; claude-code-plugins#3699 tracks repinning this line to
+      # the wave tag once that lands, and Phase 6b's convergence work now has
+      # this reference in its input set alongside the eight in other files.
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -408,25 +424,6 @@ jobs:
           # the parser has to survive. The paths are invented (`alice`, `x`),
           # not any operator's. source-control's same-drive unit tests need
           # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
-          #
-          # The five below are NEW with the v0.19.0 repin, not new content: that
-          # action now detects a Windows user path written with forward slashes,
-          # a class the previously pinned SHA did not catch. Four are comments
-          # illustrating the very path form the surrounding code parses, and one
-          # is a Pester fixture asserting a JSONC reader preserves an escaped
-          # path. Excluding the file silences more than the phrase, so #3699
-          # tracks rewording them to the placeholder form the action documents
-          # as allowed and dropping these lines; it is deferred here only
-          # because changelog parity would charge four plugin version bumps to a
-          # CI performance change that touches nothing else in them.
-          #   ai-slop detect.sh: names git's own answer on Git Bash (#3699).
-          #   claude-ops fleet-state.sh: names the native form installLocation
-          #     is recorded in (#3699).
-          #   machine-health ConvertFrom-Jsonc.Tests.ps1: the escaped path IS
-          #     the assertion's subject (#3699).
-          #   source-control fetch-annotations.test.sh and
-          #     fetch-failed-logs.test.sh: each names the path form its
-          #     production script accepts through env vars (#3699).
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
@@ -436,11 +433,6 @@ jobs:
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
             :(exclude)plugins/source-control/scripts/worktree-create.test.sh
-            :(exclude)plugins/ai-slop/skills/audit/scripts/detect.sh
-            :(exclude)plugins/claude-ops/skills/plugins/scripts/fleet-state.sh
-            :(exclude)plugins/machine-health/skills/audit/tests/windows/lib/ConvertFrom-Jsonc.Tests.ps1
-            :(exclude)plugins/source-control/skills/pull-request/scripts/fetch-annotations.test.sh
-            :(exclude)plugins/source-control/skills/pull-request/scripts/fetch-failed-logs.test.sh
 
       - name: Check index-level EOL drift
         id: eol
