@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.43]
+
+### Changed
+
+- **`worktree-add-claim-gate.sh` drops a write-only `notes` array.** It was
+  declared once and appended to twice, and nothing read it: the hook's only
+  agent-visible output is built from the `claimed_any` and `foreign_any` flags
+  alone and names no target. `claim_err` and its `cat` fork were dead in
+  consequence, so a claimed target now costs one process fewer. A file-exists
+  guard is also rewritten into the `||` form the four guards above it use. A
+  20-case accept-and-refuse corpus over pre-edit and post-edit mirrors produced
+  four transcripts hashing identically at 443 lines, covering the accept and
+  no-op set, the claim path, both foreign-claim branches, the kill switch, the
+  helper-missing branch, and a `mktemp` failure. Four mutants of the edited gate
+  confirm the corpus discriminates rather than passing vacuously.
+- **Hook test suites lose four kinds of duplication.** `mk_payload` replaces
+  four spellings of one `jq -n` payload; a `dir` parameter that `run()` bound
+  and never read is dropped at all 26 call sites; `wt_stanza` replaces a
+  `worktree list --porcelain | awk -v RS=` pipeline written out 11 times; and
+  `native_path` replaces a duplicated `cygpath -m` block, whose Windows branch
+  was executed through a stub to confirm it still behaves. Every call site was
+  verified argument-identical by recording invocations in both mirrors.
+
 ## [0.55.42]
 
 ### Changed
