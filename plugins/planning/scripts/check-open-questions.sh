@@ -240,6 +240,14 @@ if [[ "$brief_named" -eq 1 ]]; then
   fi
 
   missing=""
+  # The match MUST stay a builtin `[[ =~ ]]`, not `printf | grep -qE`. Under this
+  # script's `set -uo pipefail`, grep -q exits 0 the moment it matches, printf is
+  # then killed by SIGPIPE, and pipefail promotes the whole pipeline to 141 —
+  # which `if !` reads as "id absent" and turns a PRESENT id into a spurious
+  # ungradeable error. Measured on this container: a Brief whose deferred section
+  # carries the id on its first line reports absent from ~100 KB and the pipeline
+  # is a hard 141 from ~250 KB; small Briefs pass, so the failure only appears
+  # once a plan grows. The builtin reads the string directly and cannot SIGPIPE.
   for id in $deferred_ids; do
     if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "
