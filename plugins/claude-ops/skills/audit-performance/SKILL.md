@@ -42,9 +42,9 @@ non-secret config files: `settings.json`, `.last-cleanup`, a plugin's `hooks/hoo
 is enforced in `read_json`, which raises rather than reading a file it does not name, so the
 prose and the code cannot drift apart.
 
-The last two entries are new, and they are what makes hook enumeration possible: a hook manifest
-holds an event, a matcher, and a command string, and the installed-plugins manifest holds install
-paths. Neither carries credential material. Nothing else was opened to add them.
+The last two entries are what makes hook enumeration possible: a hook manifest holds an event, a
+matcher, and a command string, and the installed-plugins manifest holds install paths. Neither
+carries credential material.
 
 **This rule is inherited by every subagent this skill dispatches; say so explicitly in any prompt
 you fan out.**

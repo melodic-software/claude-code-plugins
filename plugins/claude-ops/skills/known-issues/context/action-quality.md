@@ -58,9 +58,3 @@ gh search issues "degraded OR degradation OR quality OR nerfed OR slower" --repo
 ## Fragility note
 
 Marginlab and status.claude.com embed data as JavaScript objects, not REST APIs. HTML scraping via WebFetch is the only option. If either source changes page structure, extraction breaks — fall back to manual browser check and note breakage for repair. Add to quarterly drift check.
-
-## Additional sources (not yet integrated)
-
-- [zscole/ai-poc-model-tracker](https://github.com/zscole/ai-poc-20260131-model-tracker) — open-source degradation tracker with statistical testing. Python-based, could be forked for local monitoring
-- Anthropic may publish daily benchmark snapshots (articles reference a "public dashboard" but URL not verified). Check periodically.
-- [StatusGator](https://statusgator.com/services/claude) and [IsDown](https://isdown.app/status/anthropic) — third-party status aggregators

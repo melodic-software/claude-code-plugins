@@ -97,9 +97,9 @@ and hand-editing `installed_plugins.json` is outside this skill's boundary. Do n
 row either — the path may simply be an unmounted volume or an offline share, and a dropped row is
 drift the user never learns about. Report it and move on.
 
-Present every plugin's proposed strategy and exact CLI command(s) before running anything — do not
-batch-apply. Per Brief Decision 6 (V1): confirm **every** pin individually, even when many plugins
-share the same strategy — do not infer consent from one confirm to the next.
+Present every plugin's proposed strategy and exact CLI command(s) before running anything, and do
+not batch-apply. Confirm **every** pin individually, even when many plugins share the same strategy;
+consent to one pin is not consent to the next.
 
 ## Step 3 — Confirm
 

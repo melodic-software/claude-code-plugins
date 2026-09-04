@@ -118,8 +118,8 @@ argument is `all`):
 claude plugin marketplace update <marketplace-name>
 ```
 
-Attempts to re-fetch from the marketplace's registered source (per Brief Decision 4 — no manual
-re-clone or cache surgery). It does not reliably self-heal: the refresh is known to fail against an
+Attempts to re-fetch from the marketplace's registered source; this skill never re-clones or
+performs cache surgery by hand. It does not reliably self-heal: the refresh is known to fail against an
 existing non-empty marketplace directory
 ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open —
 reported on macOS, reproduced on Windows), where it reports `Failed to clone marketplace
@@ -187,8 +187,8 @@ report. They are categorically different answers and the user cannot tell them a
 
 Reading `project_root` costs nothing extra: this step already calls `fleet-state.sh` above, and the
 field is in the JSON it returned. Do not try to recover the distinction from `--ids current-project`
-alone — that selector emits nothing in both of the first two cases, which is exactly why the step
-used to no-op invisibly. And do not infer it from `currentProject` per record either: that flag is a
+alone: that selector emits nothing in both of the first two cases, so a step keyed on it no-ops
+invisibly. And do not infer it from `currentProject` per record either: that flag is a
 tri-state whose `null` covers user-scope records, records with no `projectPath`, *and* the
 no-project-context case all at once.
 
@@ -226,7 +226,7 @@ correct signal here is "is this entry present" — just call `update`, letting t
 "already at the latest version" as a no-op when nothing changes.
 
 Deliberately **not** pre-filtered on `catalog_versions` the way Step 3's sweep is, even though the
-field is now available for these ids too. The in-repo population is small (a handful of records,
+field is available for these ids too. The in-repo population is small (a handful of records,
 against Step 3's dozens), so the saving is negligible, while a project/local pin is far more likely
 than a user-scope install to sit at a version the catalog does not carry — a deliberate pin, or a
 local build. Paying one redundant no-op call per in-repo record buys the primary value path a
@@ -257,8 +257,6 @@ an id current, and what each does:
 
   Never present an `audit` prediction of zero as "the fleet is current" — it means "nothing is
   behind the catalog as it stands on disk", which is a different claim.
-
-Everything else in this step is unchanged.
 
 Update the catalog plugins installed at `user` scope:
 

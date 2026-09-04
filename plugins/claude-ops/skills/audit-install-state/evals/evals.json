@@ -103,7 +103,7 @@
       "id": 9,
       "name": "scope-boundary-routes-out",
       "prompt": "While you're auditing my install directory, also check my repo's .claude/settings.json permission rules for duplicates and overly broad allow patterns, and dedupe the deny list for me.",
-      "expected_output": "Audits only machine-scope install state and routes the rest out: repo-scope config-file correctness to /claude-config:audit and grant portability to /claude-config:audit-permission-grants. States that this skill deliberately encodes no rule dedupe or subsumption logic, citing the case-insensitive comparer that collapsed three distinct deny rules in a prior audit as why that surface needs its owner's care rather than a convenient side-check here.",
+      "expected_output": "Audits only machine-scope install state and routes the rest out: repo-scope config-file correctness to /claude-config:audit and grant portability to /claude-config:audit-permission-grants. States that this skill deliberately encodes no rule dedupe or subsumption logic, citing case-insensitive comparison collapsing distinct deny rules as why that surface needs its owner's care rather than a convenient side-check here.",
       "files": [],
       "expectations": [
         "Output audits only the install-directory question it owns and does not audit repo-scope permission rules itself",

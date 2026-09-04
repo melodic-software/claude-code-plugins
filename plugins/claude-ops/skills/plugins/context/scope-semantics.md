@@ -109,7 +109,8 @@ current directory, and it means that literally. Installing from `<checkout>/nest
 rather than resolving up to the checkout root.
 
 `fleet-state.sh` resolves its project root differently: `CLAUDE_PROJECT_DIR`, else
-`git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (`fleet-state.sh:211-221`), and
+`git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (the `PROJECT_ROOT` resolution in
+`fleet-state.sh`), and
 `fleet-state.test.sh` pins that a session invoked from a nested subdirectory still matches the
 checkout-root record.
 

@@ -137,7 +137,8 @@ Read [context/data-sources.md](context/data-sources.md). Summary:
 
 ### 2–5. Compute, privacy, render, output
 
-Unchanged. [context/data-sources.md](context/data-sources.md), [context/privacy.md](context/privacy.md),
+Compute the sections per [context/data-sources.md](context/data-sources.md), redact per
+[context/privacy.md](context/privacy.md), and render per
 [context/output-format.md](context/output-format.md).
 
 ## Cross-references

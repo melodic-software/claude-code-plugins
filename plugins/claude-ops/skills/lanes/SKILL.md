@@ -1,5 +1,5 @@
 ---
-description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader (#1653). Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
+description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
 argument-hint: "[start|restart|status|stop|consume-restarts] [lane...]. Start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update"
 user-invocable: true
 disable-model-invocation: true
@@ -78,7 +78,7 @@ begins with fresh context.
 ## Run it
 
 If the first token of `$ARGUMENTS` is `consume-restarts`, skip to
-[Consume restart-requests](#consume-restart-requests-1653) instead. It runs a
+[Consume restart-requests](#consume-restart-requests) instead. It runs a
 different script. Otherwise:
 
 ```bash
@@ -114,14 +114,14 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 | `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) |
 | `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId |
 | `stop [lane...]` | Yes | Stop each running target lane (all, or named) via `claude stop <sessionId>` |
-| `consume-restarts [check\|run\|print-schedule]` | `run` only | Read each lane's telemetry `restart_request`; relaunch stopped lanes that asked (#1653) |
+| `consume-restarts [check\|run\|print-schedule]` | `run` only | Read each lane's telemetry `restart_request`; relaunch stopped lanes that asked |
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI, offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
 launch-commit marker; default `$CLAUDE_PLUGIN_DATA`). Exit codes: `0` ok · `3`
 bad argument/config · `4` prerequisite missing or repo/config unresolved.
 
-## Consume restart-requests (#1653)
+## Consume restart-requests
 
 A lane that hits its cycle budget or the `/loop` seven-day expiry writes a
 `restart_request` into its telemetry state block and stops. It cannot relaunch
@@ -175,14 +175,12 @@ at the old path also keeps the old `prompt_dir` default (`.work`), so prompts
 that never moved still resolve. Move both into `.work/lanes/` to clear the
 warning; the fallback is temporary.
 
-**Prompt storage is sanctioned, not durable (composes with #480).** Prompt files
-live in `prompt_dir`, default `.work/lanes`. That is a sanctioned placement, and
-it is still **session-local**: the memory root does not travel between machines,
-so a fresh machine has no prompts until they are authored there. The durable
-cross-machine home remains an open need, tracked at #480 (loop-prompt authoring
-skill). When it lands, repoint `prompt_dir` at that home; the launcher resolves
-the prompt dir in exactly one place (`resolve_prompt_dir` in the script), which
-is the single seam to update.
+**Prompt storage is sanctioned, not durable.** Prompt files live in `prompt_dir`,
+default `.work/lanes`. That is a sanctioned placement, and it is still
+**session-local**: the memory root does not travel between machines, so a fresh
+machine has no prompts until they are authored there or `prompt_dir` points at a
+committed directory. The launcher resolves the prompt dir in exactly one place
+(`resolve_prompt_dir` in the script), so repointing it is a one-line change.
 
 ## Mid-session staleness & restart cadence
 
@@ -191,11 +189,11 @@ plugin the lane runs does **not** reach that lane mid-session. This is not a mis
 feature to build around. It is verified Claude Code behavior (a live session keeps
 its launch-time plugin versions, `/loop` never re-reads a skill's body on later
 cycles, and a loop can't self-trigger `/reload-plugins`). Restart is the honest
-refresh mechanism, the same `restart` that clears context bloat (#496). Detect an
+refresh mechanism, the same `restart` that clears context bloat. Detect an
 unconsumed self-fix with a read-only git probe against the repo's default branch,
 then restart that lane at its next cycle boundary. The probe reads the launch
 commit `lane-launcher.sh` records per lane at `start`/`restart`
-(`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, #792, the data
+(`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`; the data
 directory is plugin-wide, so `<repo-key>`, a digest of the repo's canonical
 path, keeps a conventional `work` lane in two different checkouts from sharing
 one marker). No manual fill-in needed.
@@ -236,12 +234,9 @@ only for a configured lane name.
 
 ## Gotchas
 
-- **No durable prompt home yet.** `.work/lanes` is a sanctioned home, not a durable
-  one: the memory root is session-local, so a fresh machine/session still has no
-  prompts until they are authored there (or `prompt_dir` is pointed at a committed
-  dir). The move into the reserved `lanes/` name settled *where* the files sit, not
-  whether they travel. The durable cross-machine home stays the #480 dependency,
-  not a bug.
+- **No durable prompt home.** `.work/lanes` is a sanctioned home, not a durable one:
+  the memory root is session-local, so a fresh machine or session has no prompts
+  until they are authored there, or `prompt_dir` is pointed at a committed directory.
 - **Name is the identity.** Lanes are matched by session `name` **and** `kind:
   background`: every lane is launched with `--bg`, so an interactive window sharing
   a lane name is never matched or stopped. Two lanes must not share a name; a
@@ -264,7 +259,7 @@ only for a configured lane name.
   so config preflight exits `3` on a name containing `/` or `\`, or equal to `.`
   or `..`. Otherwise two distinct lanes could share one marker.
 
-## Per-cycle deterministic scripts (#538)
+## Per-cycle deterministic scripts
 
 Two lane-cycle mechanics need no reasoning, so they are scripted here and a lane
 prompt references the script instead of re-deriving the work every cycle. Both
@@ -284,33 +279,16 @@ each, the summary below is a pointer, not a copy.
 
 - **`scripts/telemetry-upsert.sh`**. Maintains exactly ONE marker-identified
   telemetry comment on a tracking issue, editing it in place instead of posting a
-  second (the interim home of the #502 telemetry contract). Given `--issue N
-  --marker STR --body-file PATH`, it writes a machine-detectable sentinel `<!--
-  claude-ops:lane-telemetry marker=STR -->` as the comment's first line, finds
-  that sentinel across ALL comments (paginated, a match on any page prevents a
-  duplicate) and PATCHes it; failing that (first migration off a hand-authored
-  comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
-  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:@._-]+` (so it can
-  never close the HTML comment early), and one writer identity owns a given marker
-  — which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
-  rather than aspirational (#1295): a marker naming only a lane type is shared by
-  every concurrent instance of that lane, so they clobber one another's durable
-  state. Both fallback boundaries treat `@` as a marker char, so `lane:x` never
-  adopts `lane:x@laptop-a`'s comment, nor `lane:x@a` adopt `lane:x@a@b`'s.
-  Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
-  piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
-  `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped
-  at 64 KiB, a prompt-driven script must not be coaxed into posting an arbitrary
-  file (a secret, a token store) as a public comment. Before the write it rejects
-  a body that begins with a literal `@` or falls under a 16-byte floor, exiting
-  `3` having called no API at all; after the write it re-reads the comment and
-  exits `6` if what landed lost the sentinel or fails those same assertions. A
-  read-back that could not be performed also exits `6`, reporting the cycle
-  UNCONFIRMED. Except a `404`, which reports the comment NOT RETRIEVABLE
-  (deleted, its issue deleted, or read access lost) and rules the UNCONFIRMED
-  reading out (#952). The `@` rule is positional, so a body whose FIRST line is a
-  GitHub @mention is rejected too: lead with a telemetry key (`lane:`) and put
-  mentions on a later line.
+  second. Given `--issue N --marker STR --body-file PATH`, it writes a
+  machine-detectable sentinel as the comment's first line, finds that sentinel
+  across all comments and PATCHes it, adopting or creating a comment when none
+  carries it. The marker grammar, the `<lane>@<instance>` writer-identity rule,
+  the body-file containment and size limits, the pre-write and read-back checks,
+  and every exit code are in the script's `--help` header. Two rules the caller
+  must follow: pass the body as file contents or on stdin (see "Never pass a body
+  as an `@path` string" below), and lead the body with a telemetry key such as
+  `lane:` rather than a GitHub @mention, because a body whose first line begins
+  with `@` is rejected.
 
 ### Never pass a body as an `@path` string
 
@@ -324,7 +302,7 @@ Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`)
 takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path`, per each
 command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
 
-The failure is invisible from the outside (#943): the comment's timestamp still
+The failure is invisible from the outside: the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
 carries no data. (This skill's sibling reader `morning-brief` is not that check: it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
 the lane vanish from its report rather than look healthy. What a degraded body
@@ -332,7 +310,7 @@ deceives is any consumer that keys on the comment's timestamp instead of reading
 its body.)
 
 `telemetry-upsert.sh` refuses such a body before it writes anything and re-reads
-what landed afterward. An inlined upsert now encodes three checks itself: a
+what landed afterward. An inlined upsert encodes three checks itself: a
 pre-write gate (empty, leading `@`, not sentinel-prefixed, or under a 16-byte
 payload floor measured below the sentinel line → skip the cycle, no API call), a
 check of the write's own exit status (a failed write leaves the previous cycle's
@@ -348,12 +326,9 @@ succeeds while storing the previous body still verifies, and the read-back prove
 
 - [context/refresh.md](context/refresh.md). Read it when a fix has merged to a plugin a
   lane is running on and you must decide whether to restart that lane: the git staleness
-  probe and the restart cadence (#514).
+  probe and the restart cadence.
 - `/claude-ops:plugins`, the authoritative, richer plugin-fleet sync (scope
   divergence, new-catalog installs). This skill's marketplace refresh is the light
   `claude plugin marketplace update` step of a launch, not a substitute.
 - `/claude-ops:morning-brief`. Reads the loop-lane **telemetry** (per-lane
   last-cycle freshness). This skill starts/stops the lanes that emit it.
-- #480 (loop-prompt authoring skill). Forward dependency that will own durable
-  prompt storage. #496 (context economy / restart discipline). Why lanes get
-  restarted. #502 (telemetry), the per-lane telemetry the running lanes feed.
