@@ -7,8 +7,11 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- **A precomputed `FILE_DIR` reused instead of recomputed, and a dead RC capture removed.**
-  Behavior-preserving tidy from the repo-wide simplification sweep.
+- **The hook reuses the precomputed `FILE_DIR` instead of recomputing it.** `RUN_DIR`'s fallback
+  spawned `dirname "$FILE"` on every fire where the repo root was unresolved, which is the same
+  value the hook had already derived. Behavior-preserving tidy from the repo-wide simplification
+  sweep; the `TYPOS_ARG` selection, the relative-path degradation guard and every emitted message
+  are unchanged.
 
 ### Notes for maintainers
 

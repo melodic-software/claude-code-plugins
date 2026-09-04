@@ -3,6 +3,28 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.32]
+
+### Changed
+
+- **`actionlint-check.sh` reaches its telemetry emission from one place.** The
+  findings-present and findings-absent paths each ended in their own
+  `emit_tel "ok" ...` plus `exit 0`; hoisting `FINDINGS_JSON='[]'` above the
+  branch leaves a single emission point at the end of the file, so the two
+  paths can no longer drift in status, payload or exit code. No jq pipeline was
+  added, removed or swapped for a helper, so the spawn count this hook is
+  budgeted on is unchanged.
+- **The `build_data_json` rationale comment is completed to the formatter
+  family's canonical text.** It stopped mid-argument, at the point where the jq
+  fallback drops the tool and path values rather than interpolating them; it
+  now also says why losing them is harmless, since the fallback fires only when
+  `jq -n` fails and `hook::emit_telemetry` discards the envelope anyway when jq
+  is absent. Comment-only.
+
+  The three formatter hooks in this group stayed green at 45, 51 and 46
+  assertions, with hook-exec-form, silent-skips and cross-plugin-drift green
+  alongside.
+
 ## [0.8.31]
 
 ### Changed

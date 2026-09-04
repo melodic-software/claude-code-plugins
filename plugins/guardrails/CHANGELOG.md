@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.6]
+
+### Changed
+
+- **Three block-guard test runners deduped, and three dead stores dropped.** `run_in` in
+  `block-dangerous-git.test.sh` now delegates to the existing `run_split` with the payload and
+  process cwd set to the same directory; `run_win` and `run_posix_host` in
+  `block-windows-drive-tmp.test.sh` delegate to the `_payload` variants that already existed
+  beside them. The suites' full ordered assertion streams are byte-identical across the revision,
+  481 and 216 lines, so no assertion was added, dropped, reordered or relabeled.
+- **What was deliberately NOT touched: the ten always-on BLOCK hooks' decision logic.** Every
+  matcher, allowlist, exit code, block/allow decision and message string is byte-identical,
+  verified per file rather than asserted. The only edits inside hook files are three unread
+  assignments: `VIOLATIONS=""` in `secret-pattern-detection.sh` and `ls_tag=""` in
+  `stale-path-verify.sh`, each overwritten before any read, and `SECRETS_LABELS` in
+  `lib/secret-detection/secret-patterns.sh`, which both callers invoke through a command
+  substitution, so the array was populated in a subshell and discarded on exit. The doc block
+  above `secrets::scan_text` said callers could read that array; it now states that stdout is the
+  only channel, which is what the callers already relied on.
+
 ## [0.31.5]
 
 ### Fixed

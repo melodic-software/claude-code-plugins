@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.12]
+
+### Changed
+
+- **`check-skill.sh` reads the base-ref frontmatter once for checks 3, 8 and 9.** Trigger-keyword
+  preservation, vendor-sync pairing and stale-tracking metadata each ran their own
+  `git cat-file -e` existence probe and their own `git show ... | skill_frontmatter::extract`
+  pipeline over the same blob, three of each. One probe now sets `HAVE_BASE_FM` and one pipeline
+  fills `BASE_FM`, which the three checks read. The probe's answer is kept as its own flag so
+  "no base-ref version, a new skill" stays distinct from a base-ref file whose frontmatter block
+  is empty; collapsing those two into one emptiness test is the mistake this shape avoids. A
+  `summary` field read also moves inside the guard that decides whether the field is present.
+  Verified over 158 cases comparing full stdout, stderr and exit code, with both negative
+  controls firing.
+- Note for maintainers: check 9 (stale-tracking metadata) has no test at all. Its whole branch
+  can be deleted and the suite stays green, so the shared read above is currently pinned only by
+  checks 3 and 8.
+
 ## [0.20.11]
 
 ### Changed

@@ -7,11 +7,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- **A redundant guard collapsed and rationale comments aligned with the sibling formatter hooks.**
-  Behavior-preserving tidy from the repo-wide simplification sweep. A `DIGEST_FILE=""` default
-  removed in the same pass was restored: with the write forced to fail, the status leaving the
-  block goes 0 to 1 and the variable is left unset rather than empty, and the same file already
-  treats a structurally identical defensive default as load-bearing.
+- **A dead `MDLINT=()` default removed from the hook.** All three arms of the linter-resolution
+  chain either assign the array or exit, so the empty initializer was never read. No probe order,
+  notice, remediation string or exit code changed.
+- **What was reverted, and why it is worth recording**: a `DIGEST_FILE=""` default removed in the
+  same pass was put back. With the digest write forced to fail, the status leaving the block goes
+  0 to 1 and the variable is left unset rather than empty, so the default is load-bearing. The
+  same file already treats a structurally identical defensive default that way.
 
 ## [0.11.40]
 

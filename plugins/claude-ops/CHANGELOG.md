@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.13]
+
+### Changed
+
+- **`install_state.py`'s `scan()` aggregates counts with a dict comprehension.**
+  The `setdefault` loop it replaces could never reach its already-present
+  branch: `counts` starts empty and `count_by_entry` returns unique keys, so
+  every iteration took the insert path.
+- **`overlap.py`'s quoted-scalar frontmatter branch strips once and drops a
+  dead conjunct.** `body.rstrip()` was computed three times, and the `!= ""`
+  test guarding it can never matter, since `"".endswith(quote)` is already
+  false. The join and split normalization at the return makes the value
+  byte-identical in every case.
+- **Three suites lose assertion helpers that had no callers.**
+  `claude-observability.test.sh` drops `skip_case`, `assert_exit` and
+  `assert_file_exists`; `prune-otel-store.test.sh` drops `assert_exit` and
+  `assert_file_exists` but keeps `skip_case`, which has eight duckdb-gated
+  callers; `check-all.test.sh` drops `skip_case` and `assert_eq`. The formatter
+  hook also reflowed two one-line `pass()` definitions and one `case` block's
+  labels.
+
+  The Python suites ran 50 and 77 tests and the shell suites 33 and 112 cases,
+  with the duckdb cases skipping locally and covered in CI; the pinned ruff
+  wrapper is clean.
+
+- **One candidate was reverted rather than shipped:** routing
+  `skill-usage-expansion-audit.sh`'s expansion-type extraction through
+  `hook::jq_field`. The verifier proved behavior equivalence across every input
+  class, and then `strace` measured one added fork per execution, because the
+  helper's nested command substitution costs a fork the inline form did not
+  pay. This is an always-on PostToolUse hook, and spawn count is the cost
+  driver the marketplace hook budget is written against, so the dedup's value
+  sits below its price. The reverted commit's own claim of an unchanged spawn
+  count was false. The candidate is recorded as a human decision, dedup against
+  fork cost, rather than quietly retried.
+
 ## [0.41.12]
 
 ### Changed

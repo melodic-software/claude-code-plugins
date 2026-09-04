@@ -9,8 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Dead tallies and a redundant array copy removed from the audit scripts.** Behavior-preserving
-  tidy from the repo-wide simplification sweep; no output or exit code changed.
+- **`packet-seal.sh`: the seal loop's parallel counter removed.** `count` tracked exactly the
+  number of entries the loop wrote, so the reported total now reads `${#files[@]}` directly.
+  Output is identical because every arm of that loop that does not print a manifest line exits
+  non-zero, so reaching the summary means each enumerated entry was written. No output or exit
+  code changed.
 
 ## [0.7.7]
 

@@ -3,6 +3,23 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.32]
+
+### Changed
+
+- **`eol-normalizer.sh`'s `build_data_json` rationale comment is completed to
+  the formatter family's canonical text.** It stopped mid-argument, at the
+  point where the jq fallback drops the tool and path values rather than
+  interpolating them; it now also says why losing them is harmless, since the
+  fallback fires only when `jq -n` fails and `hook::emit_telemetry` discards
+  the envelope anyway when jq is absent. Adapted for this hook's `$1 = action`
+  argument. Comment-only: no code line in this plugin changed.
+
+  The code edits in this group landed on its other two members, a collapsed
+  guard in `go-format.sh` and two dead stores in `markdown-format.sh`. Nothing
+  in this hook met the bar. Suites stayed green at 51, 54 and 171 with
+  baselines byte-identical.
+
 ## [0.6.31]
 
 ### Changed

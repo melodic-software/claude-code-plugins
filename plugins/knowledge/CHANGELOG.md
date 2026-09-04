@@ -4,6 +4,41 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.44]
+
+### Changed
+
+- **Thirteen commits across the course-digest and video-digest extraction trees**, from the
+  repo-wide simplification sweep: duplicated locals folded, dead stores removed, suites deduped,
+  and the hotmart packaged-master URL capture, which the request and response interceptors spelled
+  out identically, consolidated into `captureMasterUrl`. `resolveResourceSelectors` in
+  `teachable.js` and the offline/live branch in `run-source-liveness.js` get the same treatment.
+  Float-sensitive frame and timestamp math was compared with `Object.is` semantics so `-0` and
+  `NaN` divergences could not hide; on-disk manifests were byte-compared rather than reasoned
+  about.
+- **`processLesson`'s fail-loud ordering was RESTORED after a hoist proved not
+  behavior-preserving.** Moving the skip guard above the two path joins looks free, but
+  `lessonDirName` throws on a non-string title and `join` throws on a non-string `module.slug`, so
+  the hoist converted a crash on a corrupt `course.json` into a silently skipped lesson and an
+  exit 0. `course.json` is hand-editable, so a typo reaches that path. 416 of 3,000 adversarial
+  cases diverged. The revert is now recorded as a comment at the site, so the next reader does not
+  re-derive the same false saving.
+- **A key-order coupling introduced by this sweep is documented where it is created.** Deriving
+  `REQUIRED_METHODS` from `REQUIRED_METHOD_ARITY`'s keys closes the gap where a method could be
+  declared in one table and unchecked in the other, but it makes the arity table's key order
+  load-bearing: reordering it reorders `validateAdapter`'s violations array, which any caller
+  asserting on the whole array rather than on membership will see.
+
+### Notes for maintainers
+
+- Coverage here is thinner than the test counts suggest. `hotmart.test.js`'s mock never invokes
+  the `page.on` handler it registers; `acquire-staged.test.js` returns a constant listing so it
+  cannot see a changed relist; two `transcript/` branches survive constant changes; and mutations
+  planted in every region one course-digest commit touched left all 91 tests green.
+- **`acquisition/acquire.test.js` recursively walks the machine's shared `/tmp`** while asserting
+  only that the result is an array. It is boundary-flaky by construction and gets slower the
+  longer a machine lives; pointing it at a `mkdtemp` directory it owns would fix it.
+
 ## [0.13.43]
 
 ### Changed

@@ -3,6 +3,24 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.33]
+
+### Changed
+
+- **`bash-format.sh` composes the notice in place instead of through a second
+  variable and a second emit call.** The notice path built an `AGENT_CTX` copy
+  of `CTX`, appended `NOTICE` to the copy and called `hook::emit_channels` from
+  inside the `if`, with a second call in the `else`. `NOTICE` now appends to
+  `CTX` directly and one call sits below the branch. All four composition
+  shapes, notice or none crossed with context or none, are preserved, which is
+  what the #3406 suite pins.
+- **A dead `probe_err=""` initialization is dropped** from the format branch,
+  the same write-with-no-reader class removed elsewhere in this sweep.
+
+  Spawn count is unchanged. The three formatter hooks in this group stayed
+  green at 45, 51 and 46 assertions, with hook-exec-form, silent-skips and
+  cross-plugin-drift green alongside.
+
 ## [0.7.32]
 
 ### Fixed

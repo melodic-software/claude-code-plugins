@@ -7,8 +7,9 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
 
 ### Changed
 
-- **A precomputed `FILE_DIR` reused instead of recomputed, and a dead RC capture removed.**
-  Behavior-preserving tidy from the repo-wide simplification sweep.
+- **`ruff-format.test.sh`: a dead RC capture removed.** The unused-import case captured `$?` into
+  `RC` after `OUT=$(run_hook ...)` and then asserted only on the file's contents, so the capture
+  was never read. Test-only; the hook is unchanged.
 
 ## [0.6.31]
 

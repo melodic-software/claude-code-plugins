@@ -7,8 +7,13 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
-- **Dead tallies and a redundant array copy removed from the audit scripts.** Behavior-preserving
-  tidy from the repo-wide simplification sweep; no output, exit code or public surface changed.
+- **`cant-fail-scan.sh`: a dead per-rule exempt tally removed, and the file reindented to the
+  repo's shell style.** `x_cf2` was declared and incremented on every exempted
+  `recomputed-expectation` record and never read: only `x_cf1` and `x_cf3` feed the block-rule
+  fired/declined math, and the aggregate `exempted` counter had already counted the record. The
+  arm now records that in a comment rather than keeping a counter nothing consumes. Everything
+  else in the diff is `shfmt` case-body indentation, which the rest of the tree already uses. No
+  output, exit code or public surface changed.
 
 ## [0.7.12]
 

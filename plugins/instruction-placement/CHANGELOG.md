@@ -3,6 +3,26 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.23]
+
+### Changed
+
+- **`index-drift.sh` derives its own directory once.** The always-on hook called
+  `dirname "${BASH_SOURCE[0]}"` twice, once to source `hook-utils.sh` and once to locate the
+  renderer; `hook_dir` is now computed once and reused, removing one subshell from the fire path
+  and none from the early-exit path, which returns before the second use.
+- **Two dead `SUBCOMMAND=""` stores removed**, from `glob-tools.sh` and `render-index.sh`. Neither
+  script ever reads the name again; both dispatch on `"${1:-}"` directly.
+- **The shared-sort claim in `render-index.sh` is corrected in place, because measurement
+  contradicted it.** Sharing one sort between the listed head and the grouped tail removes a
+  `sort` from the grouped-tail path only, which had sorted the same rows twice, and costs a
+  subshell on the common path, where one sort already sufficed. The two-spawn saving the hook
+  sees comes from the marker-count change in `check` and `write`, not from this sort.
+- **`glob-tools.test.sh` names its over-budget row count.** Three budget cases repeated the same
+  awk-and-count pipeline; a comment now records why the cases assert on the count rather than on
+  a named pattern, since which of a rule's globs trips a shared budget is not part of the
+  contract.
+
 ## [0.11.22]
 
 ### Changed
