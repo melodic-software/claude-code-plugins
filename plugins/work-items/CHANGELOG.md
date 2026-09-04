@@ -3,6 +3,56 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.56]
+
+### Fixed
+
+- **`linear/schema-check/validate.mjs` carried 11 stale source pointers.** Eight
+  named lines in `common.sh` and three in `create-item.sh`, and every one landed
+  on a comment, a bare closing brace, or unrelated code: `issueCreate` claimed
+  line 151, which is a `while :; do`, against an actual 216. All 11 are corrected,
+  and the 7 pointers that were already right were confirmed right rather than
+  churned, so the file is 18 for 18. Both edited hunks are two lines for two, so
+  no pointer shifted underneath another.
+- **`linear/reclaim.test.sh`: two probes swallowed their own failure.** They
+  carried `2>/dev/null || echo 0` around a `jq` count whose expected value *is*
+  `0`, so a probe broken outright scored the same as a passing assertion.
+  Demonstrated: with the jq program deliberately broken, the old form reports 39
+  passing and exits 0, while the new form reports two failures and exits 1. The
+  legitimate empty and missing cases still yield `0`, so nothing over-rejects.
+
+### Changed
+
+- **`linear/create-item.sh`: two `jq … <<<'null'` calls became `jq -n`**, the
+  file's own dominant idiom. Re-proved for these programs rather than inherited
+  from the sibling adapter that made the same change: neither reads `.` even
+  indirectly (the only reachable identity is `select`'s pass-through, discarded by
+  the following `| $n`), and output is identical across a 560-pair matrix of
+  arguments and stdin values, including invalid JSON, a closed stdin, a blocking
+  FIFO and a 64 MiB stream. All 297 recorded GraphQL request bodies across the
+  nine verb suites are byte-identical before and after.
+- **`linear/schema-check/fidelity.sh`: a field parsed and discarded is gone** from
+  all five multiline entries, and a mismatch branch now matches the form its
+  sibling loop already used. The dropped field was a hardcoded filename the
+  checker never read.
+- `linear/mock.sh`: a variable renamed to what the comment explaining it said, and
+  the comment deleted.
+- History narration removed or re-tensed in two suites, each decision settled by
+  mutating the guard in question rather than by reading.
+
+### Known issues
+
+- **Four assertions in `linear/claim.test.sh` and both repaired probes share a
+  residual blind spot**: an assertion whose expected value equals what an *empty*
+  probe yields cannot distinguish "nothing was written" from "the right thing was
+  written". The suites as wholes do fail under that mutation, so this is
+  per-assertion rather than a blind suite, but a positive control asserting that
+  some update *was* recorded would close it.
+- **`linear/mock.sh` records the request body and 33 assertions read it**, unlike
+  the gitea and github mocks. What nothing here records is the HTTP method, the
+  header set including the API key, and the curl flag set.
+- Nothing guards the `loc:` pointers above, which is how 11 of 18 went stale.
+
 ## [0.39.55]
 
 ### Changed
