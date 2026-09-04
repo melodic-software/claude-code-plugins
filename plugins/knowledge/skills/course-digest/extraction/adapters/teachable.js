@@ -81,16 +81,18 @@ export async function extractHlsUrl(page, _platformCfg) {
   return timed("extract-hls-url", null, () => getHlsUrl(page));
 }
 
+/** Merge the adapter's attachment selectors with any platformConfig overrides. */
+function resolveResourceSelectors(platformCfg) {
+  return { ...defaults.resourceSelectors, ...platformCfg.resourceSelectors };
+}
+
 /**
  * Detect available resources on the current Teachable lesson page.
  * Reads .lecture-attachment-type-* CSS classes from the DOM.
  */
 export async function detectResources(page, platformCfg) {
   return timed("detect-resources", null, async () => {
-    const selectors = {
-      ...defaults.resourceSelectors,
-      ...platformCfg.resourceSelectors,
-    };
+    const selectors = resolveResourceSelectors(platformCfg);
 
     return page.evaluate(
       ({ sel, attachmentTypeSource }) => {
@@ -209,10 +211,7 @@ async function scrapeTextAttachments(page, textSelector) {
  */
 export async function extractResources(page, platformCfg) {
   return timed("extract-resources", null, async () => {
-    const selectors = {
-      ...defaults.resourceSelectors,
-      ...platformCfg.resourceSelectors,
-    };
+    const selectors = resolveResourceSelectors(platformCfg);
 
     const [codeSnippets, downloads, textData, pdfLinks] = await Promise.all([
       scrapeCodeSnippets(page, selectors.codeDisplay),
@@ -347,6 +346,5 @@ export function buildLessonUrl(course, lesson, platformCfg) {
 }
 
 function extractCourseSlug(url) {
-  const match = url?.match(COURSE_SLUG_PATH);
-  return match?.[1] ?? "";
+  return url?.match(COURSE_SLUG_PATH)?.[1] ?? "";
 }

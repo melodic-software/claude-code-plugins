@@ -88,11 +88,10 @@ export async function extractTranscript(page, _platformCfg) {
       throw new Error("No transcript content available");
     }
 
-    const lines = cleaned.split("\n");
     const segments = [];
     let current = "";
 
-    for (const line of lines) {
+    for (const line of cleaned.split("\n")) {
       const trimmed = line.trim();
       if (TRANSCRIPT_TIMESTAMP_LINE.test(trimmed)) {
         if (current) segments.push(current.trim());
@@ -198,10 +197,10 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
   if (!landingPattern.includes(" -> ")) return courseUrl;
 
   const [from, to] = landingPattern.split(" -> ");
-  let url = courseUrl.replace(from, to);
-  url = url.replace(TRAILING_LESSON_SLUG, "/");
-  url = url.replace(TRAILING_COURSE_ID_SUFFIX, "/");
-  return url;
+  return courseUrl
+    .replace(from, to)
+    .replace(TRAILING_LESSON_SLUG, "/")
+    .replace(TRAILING_COURSE_ID_SUFFIX, "/");
 }
 
 /**
