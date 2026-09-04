@@ -49,12 +49,9 @@ command_json_cwd() {
 # runs this suite under Claude Code, and every fixture row would then be measured
 # against the host repository instead of the fixture.
 run_in() {
-  local dir="$1" label="$2" command="$3" expected="$4"
-  shift 4
-  local rc
-  (cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$dir")" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local dir="$1"
+  shift
+  run_split "$dir" "$dir" "$@"
 }
 
 # run_split <payload-cwd> <process-cwd> <label> <command> <expected-exit> [env ...]

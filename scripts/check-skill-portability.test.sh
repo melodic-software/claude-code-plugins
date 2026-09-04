@@ -996,20 +996,13 @@ rm -f "$f"
 
 # --- the ecosystem literals stay staged, verbatim --------------------------
 # Same discipline as Stage 2: a staged pattern edited into a shape that no
-# longer catches its own defect fails here rather than rotting unnoticed. Every
-# spelling is POSIX-safe — a `\b` anywhere in this class is the inert-pattern
-# trap the token file documents, so these literals also pin that the `\b`
-# spellings did not come back.
-for staged in \
-  '[Dd]otnet' \
-  '(^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)' \
-  '\.csproj' \
-  '(^|[^a-zA-Z0-9_])C#([^a-zA-Z0-9_]|$)' \
-  '[Bb]lazor' \
-  '\.sln([^a-zA-Z0-9_]|$)' \
-  '\.razor' \
-  '\*\*/\*\.cs([^a-zA-Z0-9_]|$)'; do
-  assert_staged 'ecosystem literal' "$staged"
+# longer catches its own defect fails here rather than rotting unnoticed. The
+# patterns are the STAGED_COVERAGE ones above, so the coverage fixtures and
+# these verbatim pins cannot drift apart. Every spelling is POSIX-safe — a `\b`
+# anywhere in this class is the inert-pattern trap the token file documents, so
+# these literals also pin that the `\b` spellings did not come back.
+for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
+  assert_staged 'ecosystem literal' "${STAGED_COVERAGE[i]}"
 done
 
 # Scoped to ACTIVE lines: the token file necessarily QUOTES `\b` in the prose

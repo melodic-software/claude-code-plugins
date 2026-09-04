@@ -354,7 +354,7 @@ else
     detect_out="$(cd "$REPO13" && bash "$DETECT")"
     mapfile -t audited_paths < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
     parity_ok=1
-    while IFS= read -r audited; do
+    for audited in ${audited_paths[@]+"${audited_paths[@]}"}; do
       [[ -z "$audited" ]] && continue
       case "$skill_out" in
       *"$audited"*) ;;
@@ -363,7 +363,7 @@ else
         printf '  detect.sh audited but preview missed: %s\n' "$audited" >&2
         ;;
       esac
-    done < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
+    done
     if [[ "$parity_ok" -eq 1 ]]; then
       pass "SKILL.md preview covers every file detect.sh audits"
     else

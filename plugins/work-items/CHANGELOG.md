@@ -3,6 +3,65 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.62]
+
+### Changed
+
+- **`schema-check/fidelity.sh` merges its three-stage sed extraction into one
+  script.** The `WIT_LINEAR_ISSUE_FIELDS` block was extracted through a range
+  match piped into two more `sed` processes; one script now carries all three
+  commands, dropping two spawns. Exact for every input, not just the real one:
+  `sed` applies a script's commands in order per line and none of these adds or
+  removes a line, so the `1` and `$` addresses still select the same lines.
+  A tighter form that anchored the prefix strip to line 1 was written first and
+  then **withdrawn**, because it diverges from the original if a line inside the
+  block also begins with that prefix. Unreachable in the real file, but
+  refutable, and this file has no covering suite, so the stricter form won.
+- **The local-markdown adapter takes the house shfmt layout.** Layout only, in
+  two files: a trailing backslash continuation becomes a trailing `||`, and a
+  one-line `cleanup()` body becomes multi-line. Worth noting for a future reader
+  that `git diff -w` does NOT come back empty on this change, because the
+  formatter moves tokens across line boundaries and that reads as content;
+  the local-markdown conformance binding, which is the one binding that runs
+  without live credentials, passes 81 cases 0 failed.
+- **The gitea adapter's `create-item` suite folds a duplicated org-label
+  fixture.** Two cases built the same fixture inline; it is declared once now.
+  Test-side only: no adapter source changed, and all six gitea suites still pass.
+- **Three shell surfaces drop a duplicated branch or a redundant subshell.**
+  `evaluate-schedule-precondition.sh` reads its four fields with `jq <<<"$row"`
+  instead of `printf '%s' "$row" | jq`, one process each instead of two.
+  `generate-adapter.sh` hoists the sample-host default into one variable so the
+  two arms select the default rather than duplicating the whole `jq` call.
+  `preflight.sh` hoists a coverage-label default the same way.
+  The comment in `evaluate-schedule-precondition.sh` recording that emitting
+  jq's output directly would pass newlines through, measured over 7 prompt
+  shapes with 2 diverging, is kept: that `printf '%s\n' "$( ... )"` wrapper is
+  load-bearing and was not touched.
+  Nothing here uses a bash 4 construct. That is deliberate: an earlier sweep in
+  this repo replaced `tr '[:lower:]' '[:upper:]'` with `${VAR^^}` in
+  `generate-adapter.sh` and had to be reverted, because the case-folding
+  expansions are fatal on stock macOS bash 3.2 and `check-shell-portability.sh`
+  reasons about GNU-vs-BSD userland rather than bash version, so no gate here
+  catches it. None of the six `.tmpl` generator templates was touched either.
+
+- **`lib/binding.sh` resolves the container-label default the way its own sibling
+  does.** `wit_read_binding` spelled the absent-or-empty fallback as
+  `[[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"`, two lines
+  below the comment that says the resolution is the same one `wit_role_label`
+  performs. `wit_role_label` writes it as `${configured:-$3}`, and this site now
+  writes `${container:-$WIT_DEFAULT_CONTAINER_LABEL}`. Both forms fall back on
+  absent and on configured-empty alike, which is the distinction the comment
+  exists to protect, since jq's `//` would not.
+
+  Checked, not assumed: 918 differential cases over the pre-edit and post-edit
+  bindings, 0 mismatches, and two negative controls that mismatched 45 and 861
+  cases, which is what establishes that both branches of the changed line are
+  actually driven by the corpus rather than one of them being dead.
+- **`lib/verb-test-helpers.sh`: `assert_usage_error` declares its locals once.**
+  It opened `local script="$1"`, then `shift`, then `local name rc`; the three now
+  share one prologue in the shape `assert_help` uses directly above it, with the
+  `shift` after it. 260 differential cases, 0 mismatches, two negative controls.
+
 ## [0.39.61]
 
 ### Fixed

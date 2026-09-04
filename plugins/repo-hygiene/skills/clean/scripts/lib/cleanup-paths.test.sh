@@ -16,7 +16,7 @@ extract_section_bullets() {
   awk -v h="$heading" '
     $0 == h { in_section=1; next }
     in_section && /^### / { exit }
-    in_section && /^## / && $0 != h { exit }
+    in_section && /^## / { exit }
     in_section && /^- `/ {
       line = $0
       sub(/^- `/, "", line)

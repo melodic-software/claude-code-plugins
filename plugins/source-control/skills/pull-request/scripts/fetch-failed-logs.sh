@@ -45,7 +45,7 @@ set -uo pipefail
 
 RUN_ID=""
 JOB_ID=""
-MAX_BYTES_ARG=""
+MAX_BYTES=52428800
 KEEP_ZIP=0
 RAW=0
 ERRORS_ONLY=0
@@ -75,7 +75,7 @@ while (($# > 0)); do
       printf 'fetch-failed-logs: --max-bytes needs a numeric argument\n' >&2
       exit 1
     }
-    MAX_BYTES_ARG="$2"
+    MAX_BYTES="$2"
     shift 2
     ;;
   --keep-zip)
@@ -227,8 +227,6 @@ emit_group_timing() {
     }
   ' "$file"
 }
-
-MAX_BYTES="${MAX_BYTES_ARG:-52428800}"
 
 # --- Repo resolution ---------------------------------------------------------
 

@@ -3,6 +3,22 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3]
+
+### Changed
+
+- **The three `detect-ecosystems` suites stop paying twice for one answer.**
+  `scripts/detect-ecosystems.test.sh` ran the empty fixture through the detector
+  twice, once to capture stdout and once, output discarded, to capture the exit
+  code; a single run now feeds both assertions. In the two skill-level wrapper
+  suites the multi-ecosystem expectation `$(printf '%s\n' App.sln package.json
+  go.mod)` was written out at four assertion sites each; it is computed once into
+  `multi_expected` beside the fixture it describes, which is three command
+  substitutions fewer per suite and one place to edit if the fixture gains a
+  marker file.
+- Test files only. The detector and both skill wrappers are byte-unchanged, as
+  are every assertion label and the order they run in.
+
 ## [0.10.2]
 
 ### Changed

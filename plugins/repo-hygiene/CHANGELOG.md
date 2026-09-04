@@ -3,6 +3,52 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.30]
+
+### Changed
+
+- **The clean skill's token and tier loops are now named helpers.** In
+  `resolve-clean-action.sh`, four sites that lower-cased a token and then resolved it become one
+  `resolve_token`; in `scan.sh`, the two identical candidate loops become `emit_tier`. Nothing
+  that decides which paths are selected, what is deleted, or when a removal becomes real was
+  altered. The tier enumeration deliberately keeps its input as a redirection rather than a pipe,
+  so `emit_path_line`'s byte accumulation still happens in the calling shell; a comment records
+  why, because a pipe there would silently zero the reported total.
+- **`git-tree-reset-batch.sh` reads its child's labels through one `child_label` helper and
+  resolves the child's mode once** outside the per-repo loop instead of re-deriving it with a
+  command substitution per repository. Three call sites previously spelled out the same
+  `printf | sed | head` pipeline.
+- **The two batch orchestrators' shared skip-list handling now lives in `lib/batch-common.sh`.**
+  `clean-batch.sh` and `git-tree-reset-batch.sh` each carried their own copy of the skip-list match
+  loop, the `SKIP_HITS` initialization and the unmatched-skip report loop; these become
+  `batch_skip_match`, `batch_reset_skip_hits` and `batch_report_unmatched_skips`. Both properties
+  the match loop relies on are preserved: the last matching entry is the one reported, and every
+  matching entry is marked hit. Each caller's own rationale comment stays at its call site rather
+  than moving into the helper.
+  The `SKIP_HITS` initialization was moved rather than dropped, because it is not a dead store:
+  replacing its zero-fill with a different value makes every `UnmatchedSkip` line disappear.
+- **`git-tree-reset-batch.sh` deliberately keeps its own repo-resolution loop** instead of adopting
+  `batch_resolve_repos`, and the header comment now records the input that shows why rather than
+  only the conclusion. For a git repository whose directory name contains a literal backslash, the
+  inline loop resolves it and would reset it, while the shared helper folds the name to a
+  non-existent path and reports it invalid. Silently dropping a repository the caller named is the
+  defect class this tier exists to close. The `--repos-from` and `--skip-from` contract text is
+  likewise kept per entry point: it lives in each `usage()` heredoc, so it is program output rather
+  than comment, and the two are not identical.
+- **Two redundant guards collapsed in `git-branch-audit.sh`**, where
+  `[[ -n "${PR_STATE[$b]:-}" && "${PR_STATE[$b]}" == "MERGED" ]]` tests emptiness before an
+  equality that already excludes it. Tier assignment for MERGED and CLOSED branches is unchanged.
+- **Four suite helpers named.** `mk_git_shim` replaces eight hand-rolled
+  mkdir/heredoc/chmod triples across the two tree-reset suites, `make_ignoring_repo` replaces
+  three copies of the pushed-repo-with-gitignore fixture in `remove-path.test.sh`,
+  `expect_single_a` replaces three copies of the same read assertion in `batch-common.test.sh`,
+  and `run_scan` replaces three copies of the exported-git-env invocation in `scan.test.sh`.
+- **Smaller shape cleanups**: `clean-batch.sh`'s `summary_line` reads a here-string instead of
+  spawning `printf` into `sed`, matching the `summary_field` beside it; `git-tree-reset.sh` drops
+  a `:-0` default on a variable initialized above it and normalizes one here-string's spacing;
+  and `cleanup-paths.test.sh` drops an awk clause that re-excluded the heading its own first rule
+  had already consumed with `next`.
+
 ## [0.10.29]
 
 ### Fixed

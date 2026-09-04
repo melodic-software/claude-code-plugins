@@ -40,6 +40,25 @@ assert_not_contains() {
   fi
 }
 
+# Whether a branch survived a run is the mutation evidence most cases assert on.
+assert_branch_kept() {
+  local name=$1 repo=$2 branch=$3
+  if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    pass "$name"
+  else
+    fail "$name"
+  fi
+}
+
+assert_branch_deleted() {
+  local name=$1 repo=$2 branch=$3
+  if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    fail "$name"
+  else
+    pass "$name"
+  fi
+}
+
 # --- Fixture helpers --------------------------------------------------------
 make_repo() {
   local path=$1
@@ -250,11 +269,7 @@ else
   fail "confirmation stop without --yes (rc=$rc)"
   cat "$stop_out" >&2
 fi
-if git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/alpha; then
-  pass "confirmation stop mutated nothing"
-else
-  fail "confirmation stop mutated nothing"
-fi
+assert_branch_kept "confirmation stop mutated nothing" "$REPO_A" feat/alpha
 
 # --- 3) OID drift skip ------------------------------------------------------
 # Advance feat/alpha so tip != plan OID.
@@ -267,17 +282,9 @@ git -C "$REPO_A" checkout -q main
 drift_out="$TMP/drift.txt"
 bash "$SCRIPT" --plan-file "$PLAN" --apply --yes >"$drift_out" 2>&1
 assert_contains "OID drift skipped" "OID drift" "$drift_out"
-if git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/alpha; then
-  pass "drifted branch retained"
-else
-  fail "drifted branch retained"
-fi
+assert_branch_kept "drifted branch retained" "$REPO_A" feat/alpha
 # Non-drifted branch and worktree should still apply.
-if ! git -C "$REPO_B" show-ref --verify --quiet refs/heads/feat/beta; then
-  pass "non-drifted branch deleted"
-else
-  fail "non-drifted branch deleted"
-fi
+assert_branch_deleted "non-drifted branch deleted" "$REPO_B" feat/beta
 if [[ ! -d "$WT_PATH" ]] && ! git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/wt; then
   pass "matching worktree removed and branch deleted"
 else
@@ -345,20 +352,12 @@ EOF
 decline_rc=0
 bash "$SCRIPT" --plan-file "$PLAN2" --apply </dev/null >/dev/null 2>&1 || decline_rc=$?
 [[ "$decline_rc" -eq 3 ]] || fail "plan2 confirmation stop rc=$decline_rc"
-if git -C "$REPO_B" show-ref --verify --quiet refs/heads/feat/gamma; then
-  pass "confirmation-stop retained feat/gamma"
-else
-  fail "confirmation-stop retained feat/gamma"
-fi
+assert_branch_kept "confirmation-stop retained feat/gamma" "$REPO_B" feat/gamma
 
 yes_out="$TMP/yes.txt"
 bash "$SCRIPT" --plan-file "$PLAN2" --apply --yes >"$yes_out" 2>&1
 assert_contains "yes apply deleted gamma" "APPLIED: deleted branch feat/gamma" "$yes_out"
-if ! git -C "$REPO_B" show-ref --verify --quiet refs/heads/feat/gamma; then
-  pass "--yes applied matching branch delete"
-else
-  fail "--yes applied matching branch delete"
-fi
+assert_branch_deleted "--yes applied matching branch delete" "$REPO_B" feat/gamma
 
 # --- 5) Usage / schema ------------------------------------------------------
 rc=0
@@ -449,11 +448,7 @@ else
   fail "rejects action target without audit finding (rc=$rc)"
   cat "$unbound_out" >&2
 fi
-if git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/unbound; then
-  pass "unbound plan mutated nothing"
-else
-  fail "unbound plan mutated nothing"
-fi
+assert_branch_kept "unbound plan mutated nothing" "$REPO_A" feat/unbound
 
 # --- 7) Empty TSV fields for prune-only worktree kinds (P2) -----------------
 # Register a missing worktree path so prune is meaningful, then plan a

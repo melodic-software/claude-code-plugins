@@ -97,8 +97,6 @@ git -C "$REPO" checkout -q "$BRANCH_BASE"
 TARGET="$REPO/notes.md"
 : >"$TARGET"
 
-RC=0
-
 # run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
 # code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
 #

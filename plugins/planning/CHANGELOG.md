@@ -3,6 +3,38 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.2]
+
+### Fixed
+
+- **`check-open-questions.sh` could report a deferred question as ABSENT when it
+  was present.** The lookup was `printf '%s' "$ids" | grep -qE ...` under this
+  script's `set -uo pipefail`. `grep -q` exits the moment it matches, `printf` is
+  then killed by SIGPIPE, and `pipefail` promotes the whole pipeline to 141,
+  which the enclosing `if !` reads as "id absent". A Brief that was actually
+  correct then died ungradeable. It is a race against the 64 KB pipe buffer
+  rather than a size threshold, because `printf` only takes SIGPIPE if it still
+  has data to write when `grep` exits. Measured on this container with the id on
+  the deferred section's first line, 15 runs per size, counting runs where the
+  pipeline returned nonzero: 2/15 at 64 KB, 7/15 at 100 KB, then 15/15 from
+  128 KB. So small Briefs passed, mid-sized ones failed intermittently, and the
+  failure only became reliable once a plan grew past about 128 KB. The
+  intermittent band was the worst of it: a question that is present being
+  reported missing only sometimes reads as a transient and invites a re-run
+  rather than an investigation. No test covered it. The match is now a builtin
+  `[[ =~ ]]`, which reads the string directly and cannot SIGPIPE; a comment at
+  the site states why it must stay a builtin.
+
+### Changed
+
+- **A subprocess per register row dropped, and two duplicated suite blocks
+  named.** The malformed-row check counted fields with `printf | awk -F'|'` per
+  row; it now counts `|` characters with a parameter expansion, which is the
+  same quantity on a single record. `interview-defenses.test.sh` folds its two
+  case-presence blocks into `case_present` and its two fixture-declaration
+  blocks into `declares_both_fixtures`, keeping each assertion's label and
+  order.
+
 ## [0.36.1]
 
 ### Fixed

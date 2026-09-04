@@ -5,6 +5,18 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.21]
+
+### Changed
+
+- **`measure.test.sh` runs its hermetic engine invocations through one `attr`
+  helper.** Five near-identical calls each repeated the `cd "$WORK"` that keeps
+  the engine in cli-parse mode, the `FAKE_MODE` export, the `--binary` and
+  `--out` flags and the stdout redirect, differing only in fake mode, output
+  file and the attribute flags under test. The extraction changes flag order
+  only, and the engine's parser is order-insensitive; all 61 assertions are
+  untouched. The formatter hook also re-indented one `case` block's labels.
+
 ## [0.6.20]
 
 ### Changed

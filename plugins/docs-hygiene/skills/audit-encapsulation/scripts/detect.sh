@@ -322,11 +322,9 @@ while IFS= read -r line; do
           mech_filtered=1
         fi
       fi
-    elif [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ]]; then
-      mech_filtered=1
-    elif [[ "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ]]; then
-      mech_filtered=1
-    elif [[ "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]; then
+    elif [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ||
+      "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ||
+      "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]; then
       mech_filtered=1
     fi
     if [[ "$mech_filtered" -eq 1 ]]; then

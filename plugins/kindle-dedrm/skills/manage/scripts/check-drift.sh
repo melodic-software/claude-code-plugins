@@ -52,6 +52,12 @@ stale() { echo "  [STALE]   $*"; }
 unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
+# HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
+# %{http_code} emits its own "000" and the fallback appends another); "000" alone means
+# curl is not installed. Both land in the callers' catch-all arm, which is why the
+# doubled form has never mattered.
+http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
+
 echo "=== kindle-dedrm: drift report ==="
 echo
 echo "Captured baselines from reference/versions.md (see each row's Captured date)."
@@ -59,7 +65,7 @@ echo
 
 # --- Source 1: Kindle for PC installer URL ---
 echo "Kindle for PC installer:"
-HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KFC_URL}" 2>/dev/null || echo "000")
+HTTP=$(http_status "${PINNED_KFC_URL}")
 case "${HTTP}" in
 200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
 403 | 404)
@@ -91,7 +97,7 @@ echo
 # authoritative signal — a non-200 means the author revoked or rolled it, at
 # which point a subscriber must read the current article and re-pin by hand.
 echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
-KKF_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KKF_URL}" 2>/dev/null || echo "000")
+KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
 case "${KKF_HTTP}" in
 200) ok "${PINNED_KKF_URL} → HTTP 200 (${PINNED_KKF_FILENAME} still served)" ;;
 403 | 404)
@@ -108,7 +114,7 @@ echo
 # just confirms the current slug still resolves. A 404 here means the author
 # moved or unpublished the page again — re-discover via the site sitemap.
 echo "Tutorial article (techy-notes.com — subscriber-gated):"
-ART_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_TUTORIAL_URL}" 2>/dev/null || echo "000")
+ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
 case "${ART_HTTP}" in
 200) note "${PINNED_TUTORIAL_URL} → HTTP 200 (slug resolves; body paywalled, not diffable)" ;;
 000) unreachable "${PINNED_TUTORIAL_URL} → no response" ;;
