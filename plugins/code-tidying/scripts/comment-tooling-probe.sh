@@ -52,6 +52,16 @@ else
   add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgement."
 fi
 
+# Probe `ast-grep`, NEVER `sg`. Both meanings of `sg` are live: shadow-utils
+# ships /usr/bin/sg (a symlink to newgrp) and ast-grep historically installed
+# its own now-deprecated `sg` shim, so on a machine carrying both, PATH order
+# alone decides which one answers, silently and wrongly.
+if have ast-grep; then
+  add_row rules ast-grep present "-"
+else
+  add_row rules ast-grep absent "Declarative comment triage: kind/precedes/inside rules classify attachment without bespoke code. Falls back to walking the parse tree directly."
+fi
+
 if [[ "$JSON" -eq 1 ]]; then
   printf 'layer\ttool\tstatus\tcost\n%b' "$rows" |
     awk -F'\t' 'NR>1 && NF>=4 {

@@ -31,9 +31,9 @@ check "exits 0 in the normal case" "$?" "0"
 
 check "emits a header row" "$(printf '%s\n' "$out" | head -1)" "$(printf 'layer\ttool\tstatus\tcost-if-absent')"
 
-check "emits one row per layer" "$(printf '%s\n' "$out" | tail -n +2 | grep -c .)" "4"
+check "emits one row per layer" "$(printf '%s\n' "$out" | tail -n +2 | grep -c .)" "5"
 
-for layer in count extract attach commented-out; do
+for layer in count extract attach commented-out rules; do
   if printf '%s\n' "$out" | awk -F'\t' -v l="$layer" 'NR>1 && $1==l {f=1} END{exit !f}'; then
     ok "reports the $layer layer"
   else
@@ -60,8 +60,8 @@ check "--json exits 0" "$?" "0"
 if printf '%s' "$json" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-assert isinstance(d,list) and len(d)==4, d
-assert {r['layer'] for r in d} == {'count','extract','attach','commented-out'}, d
+assert isinstance(d,list) and len(d)==5, d
+assert {r['layer'] for r in d} == {'count','extract','attach','commented-out','rules'}, d
 assert all(r['status'] in ('present','absent') for r in d), d
 " 2>/dev/null; then
   ok "--json emits valid JSON with all four layers"
@@ -81,7 +81,7 @@ bare="$(PATH="$EMPTY" PYTHONPATH="$EMPTY" "$BASH_ABS" "$PROBE" 2>/dev/null)"
 bare_rc=$?
 check "exits 0 with no tools resolvable" "$bare_rc" "0"
 check "still emits every layer with no tools resolvable" \
-  "$(printf '%s\n' "$bare" | tail -n +2 | grep -c .)" "4"
+  "$(printf '%s\n' "$bare" | tail -n +2 | grep -c .)" "5"
 if printf '%s\n' "$bare" | awk -F'\t' 'NR>1 && $3!="absent" {bad=1} END{exit bad+0}'; then
   ok "reports every layer absent when nothing resolves"
 else
