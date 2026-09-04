@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.39]
+
+### Changed
+
+- **`zone-gate.sh` reads its kill switch before sourcing the library.** It read
+  `context_guard_hooks_enabled` through `hook::check_enabled`, a function that
+  exists only once `hook-utils.sh` is sourced, so a DISABLED gate parsed the
+  whole 2,684-line library before finding out it had nothing to do. The gate
+  runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
+  gate's ~5.3 ms on the reference host. The predicate is inlined with the same
+  semantics as `hook::is_enabled`, pinned by the new fleet gate
+  `scripts/check-killswitch-hoist.sh`. Behaviour of an ENABLED gate is
+  unchanged; `hooks/hooks.json` is untouched. (#3719)
+
 ## [0.7.38]
 
 ### Changed

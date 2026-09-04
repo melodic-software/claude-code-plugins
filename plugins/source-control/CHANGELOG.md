@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.48]
+
+### Changed
+
+- **The three PreToolUse gates read their kill switch before sourcing the
+  library.** `pr-body-linkage-gate`, `worktree-add-containment-gate` and
+  `pr-linkage-mcp-gate` read `<name>_enabled` through `hook::check_enabled`, a
+  function that exists only once the 2,684-line `hook-utils.sh` is sourced, so a
+  DISABLED gate parsed the whole library before finding out it had nothing to
+  do. Each runs as its own process, so the hoist recovers the full ~3.5 ms of a
+  disabled gate's ~5.3 ms on the reference host. The predicate is inlined with
+  the same semantics as `hook::is_enabled`, and the new fleet gate
+  `scripts/check-killswitch-hoist.sh` pins the two to each other and fails a
+  gate that reverses the order. Behaviour of an ENABLED gate is unchanged.
+  (#3719)
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** One line naming what
+  this plugin's hook set does, on a field the hooks reference documents as
+  optional and every hook set here omitted. (#3719)
+
 ## [0.55.47]
 
 ### Fixed

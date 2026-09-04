@@ -69,6 +69,7 @@ HOOK_UTILS="lib/hook-utils.sh"
 pin_ok=0
 if [[ -f "$HOOK_UTILS" ]]; then
   is_enabled_body="$(awk '/^hook::is_enabled\(\) \{/{f=1} f{print} f&&/^\}/{exit}' "$HOOK_UTILS")"
+  # shellcheck disable=SC2016  # the helper's own source text, matched verbatim; nothing here should expand
   if [[ "$is_enabled_body" == *'CLAUDE_PLUGIN_OPTION_${1}_ENABLED'* &&
     "$is_enabled_body" == *'${!var_name:-true}'* &&
     "$is_enabled_body" == *'== "true"'* ]]; then
@@ -136,6 +137,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       fi
       [[ "$token" == *.sh ]] || continue
       base="${token##*/}"
+      # shellcheck disable=SC2310  # is_launcher is a pure lookup with no set -e-sensitive body; a false return is the intended "not a launcher"
       is_launcher "$base" && continue
       saw_guard=1
       guards+=("$hooks_dir/$base")
@@ -197,6 +199,7 @@ for guard in "${guards[@]}"; do
       echo "VIOLATION: $guard:$legacy_line — calls hook::check_enabled."
       echo "  That helper only exists after the library is sourced, which is the cost"
       echo "  the hoist exists to avoid. Inline the predicate above the source instead:"
+      # shellcheck disable=SC2016  # a template for the reader to paste, meant literally
       echo '    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
     } >&2
     violations=$((violations + 1))
@@ -207,6 +210,7 @@ for guard in "${guards[@]}"; do
     {
       echo "VIOLATION: $guard — no inlined kill switch found."
       echo "  Expected, above the first source line:"
+      # shellcheck disable=SC2016  # a template for the reader to paste, meant literally
       echo '    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
     } >&2
     violations=$((violations + 1))

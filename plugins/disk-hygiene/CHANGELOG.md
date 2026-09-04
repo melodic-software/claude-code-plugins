@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.6]
+
+### Added
+
+- **Both PreToolUse rows carry a `statusMessage`.** The Stop row already had
+  one, so a silent destructive-guard failure was legible while the guard itself
+  ran unnamed: the spinner said nothing for up to 60 s on a Bash call that
+  could be blocked. Now "Checking the disk-hygiene delete against its authorized
+  roots..." on both the Bash and PowerShell rows. (#3719)
+- **`hooks/hooks.json` carries a top-level `description`.** One line naming what
+  this plugin's hook set does, on a field the hooks reference documents as
+  optional and every hook set here omitted. (#3719)
+
 ## [0.21.5]
 
 ### Changed

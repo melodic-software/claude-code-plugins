@@ -450,6 +450,7 @@ mcp_push_json() {
   local i
   for ((i = 0; i < n; i++)); do
     ((i)) && filter+=','
+    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
     filter+='{path:$p'"$i"',content:$c'"$i"'}'
   done
   filter+=']}}'

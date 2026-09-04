@@ -6,6 +6,7 @@
 #
 # The load-bearing case is "reversed order fails". A gate that only ever sees
 # correct input proves nothing, so every rule below is exercised from BOTH sides.
+# shellcheck disable=SC2016  # fixture bodies and hooks.json commands are literal shell text carrying ${CLAUDE_PLUGIN_OPTION_*}/${CLAUDE_PLUGIN_ROOT}; expansion is never wanted
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -291,7 +292,11 @@ fi
 f="$(new_fixture)"
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
-sed -i 's/CLAUDE_PLUGIN_OPTION_${1}_ENABLED/CLAUDE_PLUGIN_OPTION_${1}_ACTIVE/' "$f/lib/hook-utils.sh"
+# Rewritten through a sibling file rather than `sed -i`: the in-place flag is the
+# GNU/BSD divergence the shell-portability gate exists to catch, and this fixture
+# copy is the suite's own to replace.
+sed 's/CLAUDE_PLUGIN_OPTION_${1}_ENABLED/CLAUDE_PLUGIN_OPTION_${1}_ACTIVE/' "$f/lib/hook-utils.sh" >"$f/lib/hook-utils.sh.mutated" &&
+  mv "$f/lib/hook-utils.sh.mutated" "$f/lib/hook-utils.sh"
 out="$(run_check "$f")"
 rc=$?
 if ((rc != 0)) && [[ "$out" == *"no longer reads"* ]]; then

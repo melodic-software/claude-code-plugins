@@ -3,6 +3,15 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.29]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
 ## [0.6.28]
 
 ### Changed
