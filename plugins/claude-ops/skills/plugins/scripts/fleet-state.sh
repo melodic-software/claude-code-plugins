@@ -622,7 +622,7 @@ PASS1_PROGRAM='
                               if $cib then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
                      | .key] | .[0] // "")
               end) as $hit
-           | "TARGET" + ($hit | sub(".*@"; ""))
+           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; ""))
          else empty end)
     end'
 
