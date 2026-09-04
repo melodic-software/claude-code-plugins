@@ -411,11 +411,23 @@ fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------
 
+# The base-ref SKILL.md frontmatter, read ONCE for the three checks that need it
+# (3 trigger preservation, 8 vendor-sync pairing, 9 stale-tracking metadata).
+# Each used to re-run the same `cat-file -e` existence probe and the same
+# `git show | extract` pipeline over the same blob. HAVE_BASE_FM carries the
+# probe's answer, so "no base-ref version (new skill)" stays distinct from a
+# base-ref file whose frontmatter block is empty.
+HAVE_BASE_FM=0
+BASE_FM=""
+if [[ "$HAVE_GIT" == 1 ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  HAVE_BASE_FM=1
+  BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+fi
+
 if [[ "$HAVE_GIT" != 1 ]]; then
   note "not in a git repo — trigger-keyword preservation (check 3) skipped"
-elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
-  BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-  BASE_TRIG="$(fm_listing_triggers "$BASE_FM_3")"
+elif [[ "$HAVE_BASE_FM" == 1 ]]; then
+  BASE_TRIG="$(fm_listing_triggers "$BASE_FM")"
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
@@ -654,7 +666,7 @@ fi
 # baseline to compare — skip rather than abort the whole gate.
 if [[ "$HAVE_GIT" != 1 ]]; then
   [[ -d "$SKILL_DIR/vendor" ]] && note "not in a git repo — vendor byte-identity (check 8) skipped"
-elif [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
   else
@@ -664,8 +676,7 @@ elif [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:
     # release AND bumps this key in the same change. A vendor/ diff with no
     # accompanying version bump means vendor/ was hand-edited, which the
     # byte-identical guarantee forbids.
-    BASE_FM_V8="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-    BASE_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$BASE_FM_V8")")"
+    BASE_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$BASE_FM")")"
     CUR_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$FRONTMATTER")")"
     if [[ -n "$CUR_UPSTREAM_VERSION" && "$CUR_UPSTREAM_VERSION" != "$BASE_UPSTREAM_VERSION" ]]; then
       note "vendor/ changed vs $BASE_REF, paired with an upstream-version bump ($BASE_UPSTREAM_VERSION -> $CUR_UPSTREAM_VERSION) — legitimate sync"
@@ -679,8 +690,7 @@ fi
 
 if [[ "$HAVE_GIT" != 1 ]]; then
   note "not in a git repo — stale-tracking metadata (check 9) skipped"
-elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
-  BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+elif [[ "$HAVE_BASE_FM" == 1 ]]; then
   for key in upstream-version synced upstream-sha; do
     if grep -qE "^[[:space:]]*$key:" <<<"$BASE_FM"; then
       grep -qE "^[[:space:]]*$key:" <<<"$FRONTMATTER" ||
@@ -1384,8 +1394,8 @@ done
 # holds the ones someone was already burned by; the parity test's YAML oracle
 # catches that whole class mechanically instead.
 
-CUR_SUMMARY="$(skill_frontmatter::metadata_field summary --raw <<<"$FRONTMATTER")"
 if skill_frontmatter::has_metadata_field summary <<<"$FRONTMATTER"; then
+  CUR_SUMMARY="$(skill_frontmatter::metadata_field summary --raw <<<"$FRONTMATTER")"
   if SUMMARY_ERR="$(skill_frontmatter::summary_error "$CUR_SUMMARY")"; then
     note "summary passes the shared contract"
   else
