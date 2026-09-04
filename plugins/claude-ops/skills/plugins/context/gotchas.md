@@ -214,8 +214,9 @@ while IFS= read -r id; do
 done < <(…/scripts/fleet-state.sh --ids installed-user)
 ```
 
-For anything `--ids` does not cover: route every `jq` call through the
-`jq() { command jq "$@" | tr -d '\r'; }`-style wrapper `fleet-state.sh` already uses, **and** strip
-`\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value captured from any other source before
-embedding it in a `claude plugin` command or a JSON argument. Don't rediscover this the hard way in
-a second script.
+For anything `--ids` does not cover: capture every `jq` call the way `fleet-state.sh`'s `jq_to`
+helper does, `out=$(command jq …)` followed by `${out//$'\r'/}`, which strips every carriage return
+with a parameter expansion and no `tr` process, **and** strip `\r` the same way from every value
+captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
+A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
+process per call. Don't rediscover this the hard way in a second script.

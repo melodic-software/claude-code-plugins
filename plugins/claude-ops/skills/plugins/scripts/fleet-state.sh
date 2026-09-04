@@ -94,9 +94,9 @@
 #
 # Output (stdout) with --marketplaces: NOT JSON — every marketplace name from
 #   known_marketplaces.json, one per line, nothing else, CR-free by the same
-#   wrapper as --ids. Empty output for an empty object is success (exit 0).
-#   Standalone: combining it with --marketplace, --all, or --ids is a usage
-#   error (exit 2). Exists so `sync`'s `all` mode can iterate
+#   capture discipline as --ids. Empty output for an empty object is success
+#   (exit 0). Standalone: combining it with --marketplace, --all, or --ids is a
+#   usage error (exit 2). Exists so `sync`'s `all` mode can iterate
 #   `--marketplace <name> --ids <selector>` per name without hand-writing its
 #   own `jq -r 'keys[]' | while read`, which is the same Windows-CRLF
 #   corruption the --ids contract exists to prevent.
@@ -105,7 +105,7 @@
 #   see the process's exit status and would otherwise read the error JSON as an
 #   id. This mode exists so a caller never hand-writes `jq -r ... | while read`
 #   — on Windows that reintroduces a CR and corrupts every id but the last. See
-#   the emit_ids comment and context/gotchas.md.
+#   the jq_to comment and context/gotchas.md.
 #
 # Exit codes:
 #   0  ran to completion (individual marketplace failures are reported in the
@@ -115,6 +115,27 @@
 #   2  fatal: jq missing, an internal CC state file is present but does not
 #      match its expected shape (fail loud on schema drift — never guess), a
 #      bad/absent --ids selector, or --ids combined with --all
+#
+# Process budget. Every external command this script runs is a process
+#   creation, and on Windows Git Bash each one costs fork() emulation plus a
+#   CreateProcess (roughly 120 ms on a quiet host, seconds on a contended one).
+#   The report is therefore computed in THREE jq passes and at most two
+#   `realpath` calls, never one process per catalog entry:
+#     1. one jq over installed_plugins.json, known_marketplaces.json and the
+#        three settings scopes: validation, the merged enabledPlugins context,
+#        every marketplace's fields, every recorded projectPath, and (default
+#        mode only) the marketplace this plugin was installed from;
+#     2. one jq per marketplace over its marketplace.json, the entry list
+#        whose manifests the shell then locates with builtins;
+#     3. one jq per marketplace that composes the whole block (or the --ids
+#        projection) from the validated files plus a single stdin payload the
+#        shell assembled with builtins (context, projectPath presence, and
+#        every manifest's raw text).
+#   Manifest containment resolves all paths with one batched `realpath`
+#   (hook::_physical_prime) and reads each manifest with `read -d ''`, so the
+#   per-entry work is pure shell. A `git rev-parse` runs only when
+#   CLAUDE_PROJECT_DIR is unset. The regression guard for this budget lives in
+#   fleet-state.test.sh.
 #
 # Env overrides (testing only; production uses the real paths):
 #   FLEET_STATE_INSTALLED_JSON     — path to installed_plugins.json
@@ -150,19 +171,25 @@ set -uo pipefail
 # process, because the result feeds the `source` below. Deriving the directory
 # with `${BASH_SOURCE[0]%/*}` instead of `dirname` keeps resolution
 # PATH-independent (no attacker-planted `dirname` binary in the loop), and the
-# `builtin cd`/`builtin pwd` prefixes bypass an inherited exported `cd`/`pwd`
-# function. This is defense against the common cd/pwd/dirname channels, not a
-# guarantee against a fully attacker-controlled environment: an exported
-# `BASH_FUNC_builtin%%` shadows `builtin` itself, and `BASH_ENV` runs before
-# this script's first line — both sit at the same environment-trust boundary as
-# the PATH-resolved jq/git/tr used later, out of scope for an in-script fix.
+# `builtin pushd`/`builtin popd` prefixes bypass an inherited exported
+# `cd`/`pwd`/`pushd` function. The directory is read back from $PWD inside the
+# main shell rather than through `$(builtin cd … && builtin pwd)`, which would
+# fork a subshell for each of the two resolutions. This is defense against the
+# common cd/pwd/dirname channels, not a guarantee against a fully
+# attacker-controlled environment: an exported `BASH_FUNC_builtin%%` shadows
+# `builtin` itself, and `BASH_ENV` runs before this script's first line — both
+# sit at the same environment-trust boundary as the PATH-resolved jq/git/realpath
+# used later, out of scope for an in-script fix.
 script_src="${BASH_SOURCE[0]}"
 case "$script_src" in
 */*) script_src_dir="${script_src%/*}" ;;
 *) script_src_dir="." ;;
 esac
-SCRIPT_DIR="$(builtin cd "$script_src_dir" && builtin pwd)"
-PLUGIN_ROOT_DEFAULT="$(builtin cd "$SCRIPT_DIR/../../.." && builtin pwd)"
+PLUGIN_ROOT_DEFAULT=""
+if builtin pushd "$script_src_dir/../../.." >/dev/null 2>&1; then
+  PLUGIN_ROOT_DEFAULT="$PWD"
+  builtin popd >/dev/null 2>&1 || true
+fi
 
 # hook-utils.sh is a fixed sibling shipped with this plugin. Resolve it from
 # this script's own location, never from a caller-supplied env var, so a stray
@@ -188,207 +215,59 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+# --- jq capture ---------------------------------------------------------------
 # Some native-Windows jq builds CRLF-terminate every line, including
 # single-line compact output. `$(...)` strips only the trailing LF, so a
 # stray CR survives at the end of a captured value and corrupts it once
-# re-parsed as JSON via --argjson. Route every call through this wrapper
-# instead of calling jq directly so no call site has to remember this.
-jq() { command jq "$@" | tr -d '\r'; }
-
-# --- Large-JSON routing: temp file instead of argv (#1336) ------------------
-# `jq --argjson name "$value"` embeds $value as a literal command-line
-# argument. Several call sites below carry a full marketplace catalog or the
-# composed per-marketplace report; for a large enough marketplace (confirmed
-# against a 273-plugin catalog) the serialized JSON exceeds this
-# platform/shell's argv-length ceiling and jq fails with "Argument list too
-# long" (confirmed on Windows Git Bash/MSYS jq) — a real OS ARG_MAX ceiling
-# everywhere, just reached sooner here. jq_slurp_tmpfile writes a JSON value
-# to a fresh temp file and prints its path so a call site can pass
-# `--slurpfile name "$(jq_slurp_tmpfile "$value")"` instead of
-# `--argjson name "$value"`; payload then travels through the filesystem,
-# never argv, so its size never determines whether jq can be invoked.
-# --slurpfile always yields a one-element array bound to $name, so a
-# converted jq program reads `$name[0]` instead of `$name`.
-# Process substitution (`<(...)`) was considered instead of a real temp file,
-# but a native-Windows jq binary does not reliably read the /dev/fd-style
-# paths Git Bash's process substitution produces, so a real file backed by
-# `mktemp` is the portable choice. Every call site invokes jq_slurp_tmpfile
-# inside a `$(...)` command substitution (to capture the printed path), which
-# runs the function in a SUBSHELL — an array append inside it would mutate
-# only the subshell's copy and vanish on return (the same pitfall
-# fleet-state.test.sh's own new_case_dir doc comment calls out for CASE_NUM),
-# so temp files are NOT individually tracked in an array. Instead every one
-# of them is created inside a single per-run temp directory, and the EXIT
-# trap removes that whole directory — a subshell-safe cleanup that needs no
-# shared mutable state, on every exit path (normal completion, `exit`, or an
-# unhandled error under `set -u`).
-_FLEET_STATE_TMPDIR="$(mktemp -d)" || {
-  echo "ERROR: could not create a temp directory for large-JSON routing" >&2
-  exit 2
+# re-parsed as JSON, and every id but the last in a line-oriented output
+# arrives as `<name>@<marketplace>\r`. Every jq call goes through this helper,
+# which strips ALL carriage returns in the shell (no `tr` process) and stores
+# the result in the named variable. Callers never pipe jq to anything: the
+# pipeline would fork a second process for the consumer, and a `while read`
+# over a here-string of the captured value costs nothing.
+jq_to() {
+  local __jq_var="$1"
+  shift
+  local __jq_out __jq_rc=0
+  __jq_out=$(command jq "$@") || __jq_rc=$?
+  printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
+  return "$__jq_rc"
 }
-trap 'rm -rf "$_FLEET_STATE_TMPDIR"' EXIT
 
-jq_slurp_tmpfile() {
-  local f
-  f=$(mktemp "$_FLEET_STATE_TMPDIR/payload.XXXXXX") || return 1
-  if [[ -z "$1" ]]; then
-    # An empty value only happens when an earlier `jq` read of a source file
-    # (e.g. user/project/local settings.json) already failed — malformed
-    # JSON captures no stdout. An empty payload must fail loud: `--slurpfile`
-    # tolerates a genuinely EMPTY file as "zero JSON values" instead of
-    # erroring, which would silently degrade the report (a null/empty field
-    # instead of the script failing). Write a deliberately-invalid token so
-    # the consuming jq call's own parser still errors at this call site.
-    printf '%s' 'FLEET_STATE_INVALID_EMPTY_PAYLOAD' >"$f"
-  else
-    printf '%s' "$1" >"$f"
+# --- JSON string literal, built with builtins ----------------------------------
+# The --all envelope and the per-marketplace error blocks are assembled in the
+# shell around jq's own compact output, so the two strings the shell itself
+# has to encode (a marketplace name, a lastUpdated stamp) get the same
+# escaping jq's encoder applies: `\"`, `\\`, the five short control escapes,
+# `\u00XX` for every other C0 byte, everything else (including non-ASCII and
+# DEL) verbatim.
+json_string_to() {
+  local __js_s="$2" __js_i __js_c __js_hex __js_out=""
+  __js_s="${__js_s//\\/\\\\}"
+  __js_s="${__js_s//\"/\\\"}"
+  __js_s="${__js_s//$'\n'/\\n}"
+  __js_s="${__js_s//$'\r'/\\r}"
+  __js_s="${__js_s//$'\t'/\\t}"
+  __js_s="${__js_s//$'\b'/\\b}" # portability-ok: JSON short escape for U+0008 in a parameter expansion, not a regex word boundary
+  __js_s="${__js_s//$'\f'/\\f}"
+  if [[ "$__js_s" == *[$'\x01'-$'\x1f']* ]]; then
+    for ((__js_i = 0; __js_i < ${#__js_s}; __js_i++)); do
+      __js_c="${__js_s:__js_i:1}"
+      if [[ "$__js_c" == [$'\x01'-$'\x1f'] ]]; then
+        printf -v __js_hex '\\u%04x' "'$__js_c"
+        __js_out+="$__js_hex"
+      else
+        __js_out+="$__js_c"
+      fi
+    done
+    __js_s="$__js_out"
   fi
-  printf '%s' "$f"
+  printf -v "$1" '"%s"' "$__js_s"
 }
 
 INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
 USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
-
-# --- Fail-loud shape validation for internal (undocumented) CC state -------
-# These files are CC-internal, not a published contract. A shape drift means
-# our assumptions are stale — better to fail loud here than silently emit an
-# empty or wrong report.
-
-require_json() {
-  local path="$1" label="$2"
-  [[ -f "$path" ]] || {
-    echo "ERROR: $label not found: $path" >&2
-    exit 2
-  }
-  jq empty "$path" 2>/dev/null || {
-    echo "ERROR: $label is not valid JSON: $path" >&2
-    exit 2
-  }
-}
-
-require_json "$INSTALLED_JSON" "installed_plugins.json"
-if [[ "$(jq -r 'has("plugins") and (.plugins | type == "object") and (.plugins | to_entries | all(.value | type == "array"))' "$INSTALLED_JSON")" != "true" ]]; then
-  echo "ERROR: installed_plugins.json does not match the expected {plugins: {<id>: [...]}} shape: $INSTALLED_JSON" >&2
-  exit 2
-fi
-
-require_json "$MARKETPLACES_JSON" "known_marketplaces.json"
-if [[ "$(jq -r 'type == "object"' "$MARKETPLACES_JSON")" != "true" ]]; then
-  echo "ERROR: known_marketplaces.json is not a JSON object: $MARKETPLACES_JSON" >&2
-  exit 2
-fi
-
-# --- Resolve the current project root ---------------------------------------
-# CLAUDE_PROJECT_DIR is authoritative when set — it's the project Claude Code
-# itself is anchored to, which can legitimately differ from cwd's git
-# toplevel (e.g. a Bash call from a subdirectory, or a repo nested inside
-# another). But it is NOT reliably exported to every invocation context
-# (verified empirically: absent in a real headless `-p` session run from
-# inside a project directory) — fall back to the cwd's git toplevel.
-#
-# A third, corroborated source covers the non-Git project: Claude Code does
-# not require a repo, so a headless session anchored in a plain directory has
-# neither the env var nor a git toplevel, yet its `.claude/settings*.json` and
-# install records are real project state that Step 2/Step 5 must not skip. The
-# corroboration is a `.claude` directory at cwd — evidence Claude was anchored
-# HERE, not a bare-$PWD guess that would manufacture project context for any
-# directory. $HOME is excluded even when it carries `.claude`: that directory
-# is USER scope, and reading $HOME/.claude/settings.json as the "project" map
-# would duplicate the user map. A cwd with no `.claude` stays an empty root —
-# the honest answer, and every consumer below already guards for it.
-PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
-if [[ -z "$PROJECT_ROOT" ]]; then
-  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-fi
-if [[ -z "$PROJECT_ROOT" && -d "$PWD/.claude" ]]; then
-  # `pwd -W` (Git Bash) yields the native drive-letter spelling — the form
-  # CC-written projectPath records carry. A raw MSYS mount alias like /tmp
-  # resolves to a different string than the record even after normalization,
-  # so the native spelling is taken where the shell can produce it.
-  cwd_native=$(builtin pwd -W 2>/dev/null) || cwd_native="$PWD"
-  [[ -n "$cwd_native" ]] || cwd_native="$PWD"
-  # Both sides of the $HOME comparison are spelled by `pwd -W`. Normalizing
-  # `$HOME` as given compares a native path against whatever spelling the
-  # environment happens to carry, and an MSYS MOUNT ALIAS has no drive letter
-  # for the normalizer to reconcile: `$HOME=/tmp/x` never equals the `C:/…`
-  # `pwd -W` reports for that same directory, so the exclusion silently failed
-  # and $HOME became project context — the one outcome this block exists to
-  # prevent. Spelling both sides through the same command is what makes them
-  # comparable; normalizing harder cannot, since the two inputs disagree before
-  # the normalizer sees them.
-  home_norm=""
-  # `builtin` on both, matching this script's existing shadow discipline: an
-  # exported `cd` function that returns success WITHOUT changing directory would
-  # otherwise make home_native the cwd, so every corroborated non-git project
-  # would compare equal to $HOME and lose its project settings entirely.
-  if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
-    home_native=$(builtin cd "$HOME" 2>/dev/null && { builtin pwd -W 2>/dev/null || builtin pwd; })
-    [[ -n "$home_native" ]] || home_native="$HOME"
-    home_norm=$(hook::normalize_path "$(hook::physical_path "$home_native")")
-  fi
-  [[ "$(hook::normalize_path "$(hook::physical_path "$cwd_native")")" != "$home_norm" ]] &&
-    PROJECT_ROOT="$cwd_native"
-fi
-
-# --- Effective enabledPlugins (raw per-scope + merged local>project>user) --
-
-user_map='{}'
-[[ -f "$USER_SETTINGS" ]] && user_map=$(jq -c '.enabledPlugins // {}' "$USER_SETTINGS")
-
-project_map='{}'
-local_map='{}'
-if [[ -n "$PROJECT_ROOT" ]]; then
-  [[ -f "$PROJECT_ROOT/.claude/settings.json" ]] &&
-    project_map=$(jq -c '.enabledPlugins // {}' "$PROJECT_ROOT/.claude/settings.json")
-  [[ -f "$PROJECT_ROOT/.claude/settings.local.json" ]] &&
-    local_map=$(jq -c '.enabledPlugins // {}' "$PROJECT_ROOT/.claude/settings.local.json")
-fi
-
-# The three scope maps feed three jq programs below. Route each one through the
-# filesystem ONCE and reuse the path: jq_slurp_tmpfile is a mktemp + write per
-# call, and re-deriving the same three payloads for every program paid that nine
-# times for three distinct values.
-user_map_f="$(jq_slurp_tmpfile "$user_map")"
-project_map_f="$(jq_slurp_tmpfile "$project_map")"
-local_map_f="$(jq_slurp_tmpfile "$local_map")"
-
-# Union of every id ever mentioned in any scope (raw, unmerged) — used to
-# distinguish "never mentioned anywhere" (missing_from_enabled) from
-# "explicitly false somewhere" (deliberate opt-out, never flipped by sync).
-known_ids=$(jq -cn \
-  --slurpfile u "$user_map_f" \
-  --slurpfile p "$project_map_f" \
-  --slurpfile l "$local_map_f" \
-  '($u[0] + $p[0] + $l[0]) | keys')
-
-# Effective value per id: local > project > user.
-effective_map=$(jq -cn \
-  --slurpfile u "$user_map_f" \
-  --slurpfile p "$project_map_f" \
-  --slurpfile l "$local_map_f" \
-  '$u[0] + $p[0] + $l[0]')
-
-# ids explicitly set to false in ANY scope — a deliberate opt-out, even for a
-# plugin never installed at all (e.g. a team pre-declares "we're not using
-# this" in project settings before anyone runs install). "Missing" (needing
-# an install prompt) excludes these; sync never installs over an opt-out.
-explicit_false_ids=$(jq -cn \
-  --slurpfile u "$user_map_f" \
-  --slurpfile p "$project_map_f" \
-  --slurpfile l "$local_map_f" \
-  '[($u[0], $p[0], $l[0]) | to_entries[] | select(.value == false) | .key] | unique')
-
-# Marketplace-invariant, so it is routed once here rather than twice per
-# marketplace inside emit_marketplace (which an --all sweep runs per entry).
-explicit_false_ids_f="$(jq_slurp_tmpfile "$explicit_false_ids")"
-
-# --- Normalized current-project root, for the `currentProject` install flag
-current_project_norm=""
-if [[ -n "$PROJECT_ROOT" ]]; then
-  current_project_norm=$(hook::normalize_path "$(hook::physical_path "$PROJECT_ROOT")")
-  current_project_norm="${current_project_norm%/}"
-fi
 
 # Case-fold path comparisons ONLY on case-insensitive filesystems (mirrors
 # hook::normalize_path's own $OSTYPE check exactly). Applying ascii_downcase
@@ -402,537 +281,24 @@ msys* | cygwin* | win32) case_insensitive_os="true" ;;
 *) ;;
 esac
 
-# --- Resolve default marketplace: the one this plugin was installed from ---
-# Two-stage match against installed_plugins.json's version-pinned installPath:
-#   1. exact — installPath == this plugin's normalized root (the precise case).
-#   2. version-agnostic fallback — installPath and the running root differ ONLY
-#      by their trailing `/<version>` segment. This is common, not an edge case:
-#      marketplace autoUpdate bumps the install shortly after session start while
-#      the session keeps rendering the old version's skill, and `sync`'s own
-#      Step 3 updates claude-ops itself — so every subsequent same-session call of
-#      the bare (no --marketplace) default path would otherwise fail. The fallback
-#      matches the version-stripped `…/cache/<marketplace>/<plugin>` prefix, which
-#      still carries the marketplace (so two marketplaces shipping the same plugin
-#      stay distinguishable). Takes the caller's already-normalized root as $1 so
-#      the caller can reuse it in the error message (a var set here would be lost
-#      across the `$(...)` the caller wraps this in).
-resolve_default_marketplace() {
-  local norm_root="$1" norm_root_parent result
-  # Stage 1: exact installPath match.
-  result=$(jq -r --arg root "$norm_root" --argjson ci "$case_insensitive_os" '
-    .plugins
-    | to_entries[]
-    | select(.value[] | (.installPath // "" | gsub("\\\\";"/")) as $p |
-             if $ci then ($p | ascii_downcase) == ($root | ascii_downcase) else $p == $root end)
-    | .key
-  ' "$INSTALLED_JSON" | head -1 | sed 's/.*@//')
-  if [[ -n "$result" ]]; then
-    printf '%s' "$result"
-    return 0
-  fi
-  # Stage 2: version-agnostic parent-prefix match (survives mid-session skew).
-  norm_root_parent="${norm_root%/*}"
-  [[ -n "$norm_root_parent" && "$norm_root_parent" != "$norm_root" ]] || return 0
-  jq -r --arg parent "$norm_root_parent" --argjson ci "$case_insensitive_os" '
-    .plugins
-    | to_entries[]
-    | select(.value[] | (.installPath // "" | gsub("\\\\";"/") | rtrimstr("/") | sub("/[^/]*$";"")) as $pp |
-             if $ci then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
-    | .key
-  ' "$INSTALLED_JSON" | head -1 | sed 's/.*@//'
-}
-
-# --- Physical containment test for a catalog plugin manifest -----------------
-# True only when $1 resolves — with symlinks followed — to a path strictly
-# under the already-resolved checkout root $2.
-#
-# Why physical rather than lexical: a symlink inside the checkout that points
-# outside it is reached by an ordinary-looking relative source, so no amount of
-# string inspection on the source can detect it. Resolving both sides and
-# comparing is what actually enforces "inside the checkout".
-#
-# Fails CLOSED for the containment question (returns non-zero), which makes the
-# CALLER fail OPEN on the version: an unresolvable path yields no version, so
-# the id stays an update candidate. That is the safe direction — the only
-# unsafe outcome for this pre-filter is withholding an update it did not earn.
-manifest_is_contained() {
-  local candidate="$1" root="$2" resolved
-  [[ -n "$root" ]] || return 1
-  # On failure hook::physical_path ECHOES ITS INPUT and returns non-zero. That
-  # echoed input still begins with the checkout root, so a naive prefix compare
-  # would call it contained without anything having been resolved — the unsafe
-  # direction. Gate on the RETURN STATUS, which `resolved=$(...)` propagates.
-  # Its HOOK_PHYSICAL_PATH_UNRESOLVED global cannot be used here: command
-  # substitution runs the function in a subshell, so the flag it sets never
-  # reaches this scope and would always read as "resolved".
-  resolved=$(hook::physical_path "$candidate") || return 1
-  resolved=$(hook::normalize_path "$resolved")
-  # Strict prefix: the root itself is not a plugin manifest, and the trailing
-  # slash stops "/checkout-evil/..." from matching root "/checkout".
-  [[ "$resolved" == "$root"/* ]]
-}
-
-# --- Emit one marketplace's state object ------------------------------------
-# Args: marketplace name. Prints a JSON object on stdout; on a resolvable
-# per-marketplace failure prints {marketplace:{name,error}} and returns 1
-# (caller decides whether that is fatal for this invocation).
-emit_marketplace() {
-  local name="$1"
-  local mp_entry auto_update last_updated install_location catalog_json
-
-  mp_entry=$(jq -c --arg n "$name" '.[$n] // empty' "$MARKETPLACES_JSON")
-  if [[ -z "$mp_entry" ]]; then
-    jq -cn --arg n "$name" '{marketplace: {name: $n, error: "not found in known_marketplaces.json"}}'
-    return 1
-  fi
-  auto_update=$(jq -r '.autoUpdate // false' <<<"$mp_entry")
-  last_updated=$(jq -r '.lastUpdated // ""' <<<"$mp_entry")
-  install_location=$(jq -r '.installLocation // ""' <<<"$mp_entry")
-  # `auto_update` is jq's own `true`/`false` text; normalize it to a JSON literal
-  # once here rather than re-running the same `$([[ … ]] && echo …)` subshell at
-  # each of the four --argjson call sites below.
-  local auto_update_json=false
-  [[ "$auto_update" == "true" ]] && auto_update_json=true
-
-  if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
-    local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
-    if [[ ! -f "$fixture" ]]; then
-      jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
-        '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "no catalog fixture"}}'
-      return 1
-    fi
-    catalog_json="$fixture"
+# Native (drive-letter) spelling of an MSYS path, with no process when the
+# path is a plain `/<drive>/…` mount, the form `pwd -W` would print for it.
+# Any other spelling (a mount alias like /tmp, a POSIX host) falls back to the
+# subshell `pwd -W` this used to run unconditionally.
+native_cwd_to() {
+  local __nc_dir="$2" __nc_v=""
+  if [[ "$case_insensitive_os" == "true" && "$__nc_dir" =~ ^/([a-zA-Z])(/.*)?$ ]]; then
+    __nc_v="${BASH_REMATCH[1]^}:${BASH_REMATCH[2]:-/}"
   else
-    catalog_json="$install_location/.claude-plugin/marketplace.json"
-    if [[ ! -f "$catalog_json" ]]; then
-      jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
-        '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "marketplace.json not found at installLocation"}}'
-      return 1
-    fi
+    __nc_v=$(builtin cd "$__nc_dir" 2>/dev/null && { builtin pwd -W 2>/dev/null || builtin pwd; }) || __nc_v=""
   fi
-
-  # Not require_json: that helper exit-2's the whole process, appropriate for
-  # the two prerequisite files this script cannot run without at all. A single
-  # marketplace's catalog being malformed is a per-marketplace failure like
-  # the branches above — report it inline and return 1 so one corrupt clone
-  # doesn't abort an --all sweep of every other marketplace.
-  if ! jq empty "$catalog_json" 2>/dev/null; then
-    jq -cn --arg n "$name" --argjson au "$auto_update_json" --arg lu "$last_updated" \
-      '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "marketplace.json is not valid JSON"}}'
-    return 1
-  fi
-  local catalog
-  catalog=$(jq -c '[.plugins[]?.name // empty] | unique' "$catalog_json")
-
-  local catalog_ids catalog_ids_f
-  catalog_ids=$(jq -c --arg mp "$name" '[.[] | . + "@" + $mp]' <<<"$catalog")
-  # Routed once: both the all-scope and the user-scope completeness programs
-  # below read the same catalog id list.
-  catalog_ids_f="$(jq_slurp_tmpfile "$catalog_ids")"
-
-  # --- Per-plugin catalog versions, for the Step 3 update pre-filter ---------
-  # A marketplace.json ENTRY carries no version — only name/source/category/
-  # tags (and optionally defaultEnabled/displayName/relevance). That absence is
-  # why `sync` Step 3 historically called `claude plugin update` for every
-  # user-scope install and let the CLI decide: there was "no per-plugin catalog
-  # version to compare against". There is one, just not in that file — each
-  # plugin's own manifest sits in the marketplace checkout the entry's `source`
-  # points at, and reading it costs no network call and no CLI invocation.
-  #
-  # FAIL OPEN is the contract here, not a defensive nicety. Measured across the
-  # nine marketplaces registered on the authoring machine (Claude Code 2.1.240),
-  # the version resolves for every entry of some marketplaces and for a small
-  # MINORITY of others': an entry whose `source` is an object (a remote git
-  # spec) has no repo-relative path at all, a checkout may not materialize every
-  # entry's directory, and a manifest may carry no `version` key. So an
-  # unresolvable version is the COMMON case, not the rare one. Every such id
-  # gets null, and every consumer must read null as "update candidate" — the
-  # pre-filter may only ever shrink the sweep for an id it positively proved is
-  # already at the catalog version. Anything else risks silently skipping a
-  # stale plugin, which is strictly worse than the redundant no-op call the
-  # pre-filter exists to avoid.
-  local manifest_base
-  if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
-    manifest_base="$FLEET_STATE_CATALOG_DIR/$name"
-  else
-    # installLocation is recorded in native form on Windows (C:\Users\...);
-    # fold to forward slashes so the composed path is one this shell can stat.
-    manifest_base="${install_location//\\//}"
-  fi
-
-  # Containment root for the check below, resolved ONCE per marketplace.
-  # hook::normalize_path folds separators, and on Windows also folds drive-letter
-  # case, so two normalized physical paths compare directly with `==` on either
-  # platform — no ad-hoc downcasing here.
-  local manifest_base_phys
-  manifest_base_phys=$(hook::normalize_path "$(hook::physical_path "$manifest_base")")
-  manifest_base_phys="${manifest_base_phys%/}"
-
-  local catalog_versions_lines="" cv_name cv_src cv_rel cv_ver cv_manifest
-  while IFS=$'\t' read -r cv_name cv_src; do
-    [[ -n "$cv_name" ]] || continue
-    cv_ver=""
-    # `source` is THIRD-PARTY content — it comes out of a marketplace's own
-    # manifest. If it can name a manifest outside the checkout, that foreign
-    # file gets to positively "prove" an id is already at the catalog version
-    # and suppress its update. A wrongly-WITHHELD update is the only unsafe
-    # direction this pre-filter has (a wrongly-emitted id is merely a redundant
-    # no-op call), so reaching outside the checkout must be impossible.
-    #
-    # Two gates, because a lexical one alone is NOT sufficient:
-    #  1. Lexical, below — refuse a `../` path SEGMENT. Cheap, spawns nothing,
-    #     and rejects the common spelling before anything is stat'd. Backslash
-    #     is folded first so `..\x` is caught as the same traversal.
-    #  2. Physical containment, after the -f test — resolve the manifest with
-    #     symlinks followed and require it to sit under the resolved checkout
-    #     root. This is the gate that actually enforces the property: a SYMLINK
-    #     inside the checkout pointing outside it is a perfectly ordinary
-    #     `./name` source that no lexical check can see, and `git clone`
-    #     materializes real symlinks wherever core.symlinks is on.
-    # The physical gate runs only for entries whose manifest exists, so its
-    # subprocess cost tracks resolvable plugins, not catalog size.
-    # Either gate failing yields null → fail open → the id stays a candidate.
-    cv_rel="${cv_src#./}"
-    cv_rel="${cv_rel//\\//}"
-    case "/$cv_rel/" in
-    */../*)
-      cv_rel=""
-      ;;
-    *) ;;
-    esac
-    cv_manifest="$manifest_base/$cv_rel/.claude-plugin/plugin.json"
-    if [[ -n "$cv_rel" && -f "$cv_manifest" ]] && manifest_is_contained "$cv_manifest" "$manifest_base_phys"; then
-      # Through the CR-stripping wrapper like every other call, and
-      # `// empty` so a manifest with no version yields "" (→ null below)
-      # rather than the string "null".
-      # `//` is used deliberately here, unlike at projectPathPresent below
-      # where it would destroy information: the only extra value it swallows
-      # is a boolean `false` version, and swallowing that yields null → the id
-      # stays an update candidate. Every value this operator collapses lands on
-      # the FAIL-OPEN side, so the collapse cannot cause a wrong withhold. A
-      # numeric `0` is preserved (jq treats only false/null as empty).
-      cv_ver=$(jq -r '.version // empty' "$cv_manifest" 2>/dev/null)
-    fi
-    catalog_versions_lines+="$cv_name"$'\t'"$cv_ver"$'\n'
-  done < <(jq -r '.plugins[]? | select((.source | type) == "string") | "\(.name)\t\(.source)"' "$catalog_json")
-
-  # Entries whose source is not a string never enter the loop above, so they
-  # are absent from this map entirely — a lookup returns null, the same
-  # fail-open answer as an entry whose manifest could not be read.
-  local catalog_versions
-  catalog_versions=$(printf '%s' "$catalog_versions_lines" | jq -Rn --arg mp "$name" '
-    [inputs
-     | split("\t")
-     | select(length >= 2 and (.[0] | length) > 0)
-     | {key: (.[0] + "@" + $mp), value: (if .[1] == "" then null else .[1] end)}]
-    | from_entries')
-
-  # --- projectPath liveness (advisory only — NEVER a filter) -----------------
-  # Answers "is this record's projectPath a directory on this machine right
-  # now", nothing more. A false is equally consistent with a worktree that was
-  # removed and with a volume that is merely not mounted, a network share that
-  # is offline, or removable media that is unplugged — so this field annotates
-  # a row, and must never suppress one. Suppressing on it would hide real drift
-  # for anyone whose repos live on an external or network volume.
-  # Computed per DISTINCT path (a machine can hold a hundred records naming a
-  # dozen directories), so the stat count tracks directories, not records.
-  local path_presence_lines="" pp pp_fs
-  while IFS= read -r pp; do
-    [[ -n "$pp" ]] || continue
-    pp_fs="${pp//\\//}"
-    if [[ -d "$pp_fs" ]]; then
-      path_presence_lines+="$pp"$'\t'"true"$'\n'
-    else
-      path_presence_lines+="$pp"$'\t'"false"$'\n'
-    fi
-  done < <(jq -r --arg suffix "@$name" '
-    [.plugins
-     | to_entries[]
-     | select(.key | endswith($suffix))
-     | .value[]
-     | select(.scope == "project" or .scope == "local")
-     | .projectPath // empty]
-    | unique | .[]' "$INSTALLED_JSON")
-
-  local path_presence path_presence_f
-  path_presence=$(printf '%s' "$path_presence_lines" | jq -Rn '
-    [inputs
-     | split("\t")
-     | select(length >= 2 and (.[0] | length) > 0)
-     | {key: .[0], value: (.[1] == "true")}]
-    | from_entries')
-  path_presence_f="$(jq_slurp_tmpfile "$path_presence")"
-
-  # Ids the marketplace entry ships with defaultEnabled:false — a publisher's
-  # deliberate opt-in-required default (takes precedence over the plugin's own
-  # plugin.json field; see plugins-reference.md's "Default enablement"). No
-  # enabledPlugins entry anywhere for one of these is the INTENDED state, not
-  # a completeness gap — never auto-enable it.
-  local default_disabled_ids
-  default_disabled_ids=$(jq -c --arg mp "$name" \
-    '[.plugins[]? | select(.defaultEnabled == false) | .name + "@" + $mp]' "$catalog_json")
-
-  # Every install record for ids in this marketplace, flattened, with the
-  # currentProject flag Windows-normalized on both sides.
-  local installed
-  installed=$(jq -c --arg suffix "@$name" --arg cur "$current_project_norm" --argjson ci "$case_insensitive_os" \
-    --slurpfile pres "$path_presence_f" '
-    .plugins
-    | to_entries[]
-    | select(.key | endswith($suffix))
-    | .key as $id
-    | .value[]
-    | {
-        id: $id,
-        scope: .scope,
-        version: .version,
-        projectPath: (.projectPath // null),
-        currentProject: (
-          if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
-            (.projectPath | gsub("\\\\";"/")) as $p |
-            if $ci then ($p | ascii_downcase) == ($cur | ascii_downcase) else $p == $cur end
-          else null end
-        ),
-        projectPathPresent: (
-          if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
-            # `has` rather than `$pres[0][$pp] // null`: jq treats FALSE as
-            # empty for `//`, so the alternative operator would silently
-            # rewrite a genuine "not present" into "not checked" — collapsing
-            # the exact distinction this field exists to carry.
-            .projectPath as $pp
-            | (if ($pres[0] | has($pp)) then $pres[0][$pp] else null end)
-          else null end
-        )
-      }
-  ' "$INSTALLED_JSON" | jq -cs '.')
-
-  local installed_ids
-  installed_ids=$(jq -c '[.[].id] | unique' <<<"$installed")
-
-  # catalog minus installed minus any id explicitly opted out (false) in any
-  # scope, even one never installed at all.
-  local missing_from_install
-  missing_from_install=$(jq -cn \
-    --slurpfile catalog "$catalog_ids_f" \
-    --slurpfile installed "$(jq_slurp_tmpfile "$installed_ids")" \
-    --slurpfile falseIds "$explicit_false_ids_f" \
-    '($catalog[0] - $installed[0]) - $falseIds[0]')
-
-  # User-scope completeness, distinct from all-scope missing_from_install: a
-  # plugin installed only at project/local scope is present all-scope but not
-  # usable from other directories, so `sync` Step 4 (which installs at user
-  # scope for the "usable from any directory" guarantee) must key off this, not
-  # missing_from_install. Same opt-out exclusion as above.
-  local user_installed_ids
-  user_installed_ids=$(jq -c '[.[] | select(.scope == "user") | .id] | unique' <<<"$installed")
-
-  local missing_from_user_install
-  missing_from_user_install=$(jq -cn \
-    --slurpfile catalog "$catalog_ids_f" \
-    --slurpfile userInstalled "$(jq_slurp_tmpfile "$user_installed_ids")" \
-    --slurpfile falseIds "$explicit_false_ids_f" \
-    '($catalog[0] - $userInstalled[0]) - $falseIds[0]')
-
-  # Ids with a project/local record and NO user-scope record. Every other field
-  # here is structurally blind to them: divergences[] starts by discarding any
-  # id with fewer than two records, and missing_from_user_install lists ids that
-  # are not installed AT ALL at user scope but IS catalog-derived and excludes
-  # ids installed somewhere. So a single-scope project-only install appears in
-  # neither, and without this array nothing in the output names it. Deliberately
-  # NOT filtered to catalog membership: an installed id the catalog no longer
-  # carries is exactly the kind of record a reader wants named.
-  # Excludes ids explicitly opted out (false) in any scope, exactly as
-  # missing_from_install and missing_from_user_install do. Without that
-  # subtraction, a plugin that is deliberately disabled AND installed only at
-  # project/local scope lands in this array, and SKILL.md's Report section puts
-  # the array under "Action needed" — resurfacing a decision the user already
-  # made as drift to act on. An opt-out is an answer, not a gap.
-  local user_scope_orphans
-  user_scope_orphans=$(jq -cn \
-    --slurpfile installed "$(jq_slurp_tmpfile "$installed")" \
-    --slurpfile falseIds "$explicit_false_ids_f" '
-    (([$installed[0][] | select(.scope == "project" or .scope == "local") | .id] | unique)
-     - ([$installed[0][] | select(.scope == "user") | .id] | unique))
-    - $falseIds[0]
-  ')
-
-  local known_at_mp known_at_mp_f
-  known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
-  # Routed once: both the missing_from_enabled and enabled_at_mp programs read it.
-  known_at_mp_f="$(jq_slurp_tmpfile "$known_at_mp")"
-
-  # missing_from_enabled can only be computed for ids whose enabledPlugins
-  # this invocation can actually read: user scope (global) and the current
-  # PROJECT_ROOT's project/local scope. A project/local install belonging to
-  # a DIFFERENT repo is excluded rather than asserted missing — its own
-  # settings files live in that repo and are never read here, so treating an
-  # unread file as "never mentioned" would false-positive on every already-
-  # enabled install elsewhere on the machine (and could later steer a mutation
-  # at the wrong repo).
-  local verifiable_ids
-  verifiable_ids=$(jq -c '[.[] | select(.scope == "user" or .currentProject == true) | .id] | unique' <<<"$installed")
-
-  local missing_from_enabled
-  missing_from_enabled=$(jq -cn \
-    --slurpfile verifiable_ids "$(jq_slurp_tmpfile "$verifiable_ids")" \
-    --slurpfile known "$known_at_mp_f" \
-    --slurpfile defaultDisabled "$(jq_slurp_tmpfile "$default_disabled_ids")" \
-    '($verifiable_ids[0] - $known[0]) - $defaultDisabled[0]')
-
-  local enabled_at_mp
-  enabled_at_mp=$(jq -cn \
-    --slurpfile known "$known_at_mp_f" \
-    --slurpfile eff "$(jq_slurp_tmpfile "$effective_map")" \
-    'reduce $known[0][] as $id ({}; . + {($id): $eff[0][$id]})')
-
-  # `versionsMatch` separates a benign multi-scope install (project and user
-  # scope both pinned to the same version — normal, not actionable) from a
-  # real version skew (some scope is behind another — the "run converge"
-  # signal). A record count alone conflates the two.
-  local divergences
-  divergences=$(jq -c '
-    group_by(.id)
-    | map(select(length > 1))
-    | map({
-        id: .[0].id,
-        scopes: map({scope, version, projectPath, projectPathPresent}),
-        versionsMatch: ((map(.version) | unique | length) == 1)
-      })
-  ' <<<"$installed")
-
-  jq -cn \
-    --arg name "$name" \
-    --argjson autoUpdate "$auto_update_json" \
-    --arg lastUpdated "$last_updated" \
-    --arg project_root "$current_project_norm" \
-    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog")" \
-    --slurpfile catalogVersions "$(jq_slurp_tmpfile "$catalog_versions")" \
-    --slurpfile installed "$(jq_slurp_tmpfile "$installed")" \
-    --slurpfile enabled "$(jq_slurp_tmpfile "$enabled_at_mp")" \
-    --slurpfile missingInstall "$(jq_slurp_tmpfile "$missing_from_install")" \
-    --slurpfile missingUserInstall "$(jq_slurp_tmpfile "$missing_from_user_install")" \
-    --slurpfile missingEnabled "$(jq_slurp_tmpfile "$missing_from_enabled")" \
-    --slurpfile userScopeOrphans "$(jq_slurp_tmpfile "$user_scope_orphans")" \
-    --slurpfile divergences "$(jq_slurp_tmpfile "$divergences")" \
-    '{
-      marketplace: {name: $name, autoUpdate: $autoUpdate, lastUpdated: $lastUpdated},
-      project_root: (if ($project_root | length) > 0 then $project_root else null end),
-      catalog: $catalog[0],
-      catalog_versions: $catalogVersions[0],
-      installed: $installed[0],
-      enabled: $enabled[0],
-      missing_from_install: $missingInstall[0],
-      missing_from_user_install: $missingUserInstall[0],
-      missing_from_enabled: $missingEnabled[0],
-      user_scope_orphans: $userScopeOrphans[0],
-      divergences: $divergences[0]
-    }'
+  [[ -n "$__nc_v" ]] || __nc_v="$__nc_dir"
+  printf -v "$1" '%s' "$__nc_v"
 }
 
-# --- Id projection (--ids) ---------------------------------------------------
-
-# Map an --ids selector to its jq filter, or fail. Single source of truth for
-# BOTH the parse-time validation and the projection itself, so the accepted set
-# can never drift between "what --ids rejects" and "what --ids can emit".
-#
-# `current-project` carries a SECOND tab-separated field, the record's scope,
-# because Step 2 picks `-s project` vs `-s local` per record. It cannot be
-# derived from the id afterwards: one plugin can hold BOTH a project- and a
-# local-scope record for the same repo (the multi-scope case divergences[]
-# exists to track), so an id-only projection would emit that id twice with
-# nothing to tell the two lines apart.
-#
-# `update-candidates-user` is the pre-filtered form of `installed-user`, and its
-# name says CANDIDATE on purpose: it emits a SUPERSET of the ids that actually
-# need updating, never an authoritative stale list. An id is emitted when its
-# catalog version is unknown OR differs from the installed one, so the only ids
-# it withholds are those positively proved to already sit at the catalog
-# version. `== null` rather than `// null`: jq's alternative operator also
-# swallows `false`, and reaching for it here is how a lookup miss and a real
-# value get conflated.
-# Plain string inequality, deliberately not a semver ORDERING compare: an
-# installed version merely DIFFERENT from the catalog's (a local dev build
-# ahead of it, say) stays a candidate, exactly as it is today when Step 3 calls
-# update for every id unconditionally. An ordering compare would start
-# withholding ids on a judgement this script has no business making.
-ids_selector_filter() {
-  case "$1" in
-  installed-user) printf '%s' '.installed[]? | select(.scope == "user") | .id' ;;
-  update-candidates-user)
-    # shellcheck disable=SC2016  # a jq program: $cv is a jq variable and must reach jq unexpanded
-    printf '%s' '.catalog_versions as $cv | .installed[]? | select(.scope == "user") | select(($cv[.id]) == null or ($cv[.id]) != .version) | .id'
-    ;;
-  current-project) printf '%s' '.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)"' ;;
-  missing-user-install) printf '%s' '.missing_from_user_install[]?' ;;
-  missing-enabled) printf '%s' '.missing_from_enabled[]?' ;;
-  user-scope-orphans) printf '%s' '.user_scope_orphans[]?' ;;
-  *)
-    echo "ERROR: unknown --ids selector: $1" >&2
-    echo "  expected one of: installed-user, update-candidates-user," >&2
-    echo "                   current-project, missing-user-install," >&2
-    echo "                   missing-enabled, user-scope-orphans" >&2
-    return 1
-    ;;
-  esac
-}
-
-# Project one marketplace block down to the plain id list a `sync` step loops.
-# Exists so no CALLER has to write its own `jq -r ... | while read`: on Windows
-# a hand-written jq reintroduces the CR this script's own wrapper strips (the
-# native binary writes stdout in text mode), and because `$(...)` strips only
-# the TRAILING CRLF, every id but the last arrives as `<name>@<marketplace>\r`.
-# Passed to `claude plugin update` that id fails with `Plugin "<name>" not
-# found` — the marketplace suffix is silently corrupted, and the error is
-# byte-identical to the bare-name failure, so it misdirects diagnosis. Output
-# here goes through the same wrapper as every other call, so it is CR-free by
-# construction; see context/gotchas.md.
-# Reject a bad selector at PARSE time (ids_selector_filter below), not here:
-# emit_ids only runs after a marketplace resolves, so a late check would do the
-# whole resolution first and then report exit 1 (marketplace unresolvable) for
-# what is really exit 2 (bad selector) — the wrong code and the wrong cause.
-emit_ids() {
-  local block="$1" selector="$2" filter
-  filter=$(ids_selector_filter "$selector") || return 2
-  # `[]?` rather than `[]`: a block legitimately missing a key (an empty
-  # `installed`, say) yields no ids instead of erroring.
-  jq -r "$filter" <<<"$block"
-}
-
-# Emit one marketplace: the JSON block by default, or its projected id list when
-# --ids is in play. Keeps the two single-marketplace call sites (default and
-# --marketplace) identical instead of branching on IDS_SELECTOR at each.
-emit_one() {
-  local block rc
-  block=$(emit_marketplace "$1")
-  rc=$?
-  # A per-marketplace failure block ({marketplace: {name, error}}) goes to
-  # STDOUT in report mode (documented output contract) but to STDERR under
-  # --ids. The documented consumer is `while read … done < <(… --ids …)`, and a
-  # process substitution does NOT propagate its command's exit status, so a JSON
-  # object left on stdout would be read as an id and handed to `claude plugin
-  # update` verbatim. Under --ids stdout carries records or nothing at all.
-  #
-  # Empty-guarded because a failure can come from a branch that returned before
-  # printing; on the success path emit_marketplace always ends in the composed
-  # object, so there is no empty case to guard there.
-  if [[ "$rc" -ne 0 ]]; then
-    if [[ -n "$block" ]]; then
-      if [[ -n "$IDS_SELECTOR" ]]; then
-        printf '%s\n' "$block" >&2
-      else
-        printf '%s\n' "$block"
-      fi
-    fi
-    return "$rc"
-  fi
-  if [[ -n "$IDS_SELECTOR" ]]; then
-    emit_ids "$block" "$IDS_SELECTOR" || return $?
-  else
-    printf '%s\n' "$block"
-  fi
-}
-
-# --- Arg parsing -------------------------------------------------------------
+# --- Arg parsing ---------------------------------------------------------------
+# Parsed before any file is read so a usage error costs no process and reports
+# as exit 2 rather than as whatever the resolution attempt would have hit first.
 
 MODE="default"
 TARGET=""
@@ -994,12 +360,7 @@ if [[ -n "$LIST_MARKETPLACES" ]]; then
     echo "ERROR: --marketplaces cannot be combined with --marketplace, --all, or --ids" >&2
     exit 2
   fi
-  # Through the CR-stripping jq wrapper like every other line-oriented output,
-  # so a `while read` consumer gets CR-free names by construction. An empty
-  # object yields empty output and exit 0: nothing to enumerate is an answer,
-  # not an error.
-  jq -r 'keys[]' "$MARKETPLACES_JSON" || exit 2
-  exit 0
+  MODE="list"
 fi
 
 # --ids projects ONE marketplace block; --all's {marketplaces: {...}} envelope
@@ -1011,19 +372,683 @@ if [[ -n "$IDS_SELECTOR" && "$MODE" == "all" ]]; then
   exit 2
 fi
 
+# Single source of truth for the accepted --ids selectors, so the parse-time
+# rejection below and the projection inside the block jq can never drift. The
+# projection itself is a branch on $selector in that jq program.
+#
+# `current-project` carries a SECOND tab-separated field, the record's scope,
+# because Step 2 picks `-s project` vs `-s local` per record. It cannot be
+# derived from the id afterwards: one plugin can hold BOTH a project- and a
+# local-scope record for the same repo (the multi-scope case divergences[]
+# exists to track), so an id-only projection would emit that id twice with
+# nothing to tell the two lines apart.
+#
+# `update-candidates-user` is the pre-filtered form of `installed-user`, and its
+# name says CANDIDATE on purpose: it emits a SUPERSET of the ids that actually
+# need updating, never an authoritative stale list. An id is emitted when its
+# catalog version is unknown OR differs from the installed one, so the only ids
+# it withholds are those positively proved to already sit at the catalog
+# version. `== null` rather than `// null`: jq's alternative operator also
+# swallows `false`, and reaching for it here is how a lookup miss and a real
+# value get conflated.
+# Plain string inequality, deliberately not a semver ORDERING compare: an
+# installed version merely DIFFERENT from the catalog's (a local dev build
+# ahead of it, say) stays a candidate, exactly as it is today when Step 3 calls
+# update for every id unconditionally. An ordering compare would start
+# withholding ids on a judgement this script has no business making.
+ids_selector_valid() {
+  case "$1" in
+  installed-user | update-candidates-user | current-project | missing-user-install | missing-enabled | user-scope-orphans)
+    return 0
+    ;;
+  *)
+    echo "ERROR: unknown --ids selector: $1" >&2
+    echo "  expected one of: installed-user, update-candidates-user," >&2
+    echo "                   current-project, missing-user-install," >&2
+    echo "                   missing-enabled, user-scope-orphans" >&2
+    return 1
+    ;;
+  esac
+}
+
 # Validate the selector before any marketplace resolution: a typo is a usage
 # error (exit 2) and must report as one, not be masked by whatever the
 # resolution attempt would have returned first.
 if [[ -n "$IDS_SELECTOR" ]]; then
-  ids_selector_filter "$IDS_SELECTOR" >/dev/null || exit 2
+  ids_selector_valid "$IDS_SELECTOR" || exit 2
 fi
+
+# --- Fail-loud presence checks for internal (undocumented) CC state -----------
+# These files are CC-internal, not a published contract. A shape drift means
+# our assumptions are stale — better to fail loud here than silently emit an
+# empty or wrong report. Presence is a builtin test; validity and shape are
+# decided by the first jq pass below, which names the offending file.
+
+if [[ ! -f "$INSTALLED_JSON" ]]; then
+  echo "ERROR: installed_plugins.json not found: $INSTALLED_JSON" >&2
+  exit 2
+fi
+if [[ ! -f "$MARKETPLACES_JSON" ]]; then
+  echo "ERROR: known_marketplaces.json not found: $MARKETPLACES_JSON" >&2
+  exit 2
+fi
+
+# --- Resolve the current project root ---------------------------------------
+# CLAUDE_PROJECT_DIR is authoritative when set — it's the project Claude Code
+# itself is anchored to, which can legitimately differ from cwd's git
+# toplevel (e.g. a Bash call from a subdirectory, or a repo nested inside
+# another). But it is NOT reliably exported to every invocation context
+# (verified empirically: absent in a real headless `-p` session run from
+# inside a project directory) — fall back to the cwd's git toplevel.
+#
+# A third, corroborated source covers the non-Git project: Claude Code does
+# not require a repo, so a headless session anchored in a plain directory has
+# neither the env var nor a git toplevel, yet its `.claude/settings*.json` and
+# install records are real project state that Step 2/Step 5 must not skip. The
+# corroboration is a `.claude` directory at cwd — evidence Claude was anchored
+# HERE, not a bare-$PWD guess that would manufacture project context for any
+# directory. $HOME is excluded even when it carries `.claude`: that directory
+# is USER scope, and reading $HOME/.claude/settings.json as the "project" map
+# would duplicate the user map. A cwd with no `.claude` stays an empty root —
+# the honest answer, and every consumer below already guards for it.
+#
+# The list mode never needs a project root, so it skips the `git rev-parse`.
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
+if [[ -z "$PROJECT_ROOT" && "$MODE" != "list" ]]; then
+  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || PROJECT_ROOT=""
+  PROJECT_ROOT="${PROJECT_ROOT//$'\r'/}"
+fi
+
+# Every path whose physical form this run needs is resolved by ONE batched
+# `realpath` (hook::_physical_prime), then read back from hook-utils' cache
+# with no further process. The plugin root is only needed for default-mode
+# marketplace self-resolution; the cwd/$HOME pair only for the corroborated
+# non-git fallback.
+cwd_native=""
+home_native=""
+phys_tmp=""
+cwd_norm=""
+home_norm=""
+norm_root=""
+key_json=""
+plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
+prime_paths=()
+if [[ -z "$PROJECT_ROOT" && "$MODE" != "list" && -d "$PWD/.claude" ]]; then
+  # `pwd -W` (Git Bash) yields the native drive-letter spelling — the form
+  # CC-written projectPath records carry. A raw MSYS mount alias like /tmp
+  # resolves to a different string than the record even after normalization,
+  # so the native spelling is taken where the shell can produce it.
+  native_cwd_to cwd_native "$PWD"
+  # Both sides of the $HOME comparison are spelled the same way. Normalizing
+  # `$HOME` as given compares a native path against whatever spelling the
+  # environment happens to carry, and an MSYS MOUNT ALIAS has no drive letter
+  # for the normalizer to reconcile: `$HOME=/tmp/x` never equals the `C:/…`
+  # `pwd -W` reports for that same directory, so the exclusion silently failed
+  # and $HOME became project context — the one outcome this block exists to
+  # prevent. Spelling both sides through the same derivation is what makes them
+  # comparable; normalizing harder cannot, since the two inputs disagree before
+  # the normalizer sees them. The fallback subshell uses `builtin cd`, matching
+  # this script's shadow discipline: an exported `cd` function that returns
+  # success WITHOUT changing directory would otherwise make home_native the
+  # cwd, so every corroborated non-git project would compare equal to $HOME and
+  # lose its project settings entirely.
+  if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
+    native_cwd_to home_native "$HOME"
+  fi
+  prime_paths+=("$cwd_native")
+  [[ -n "$home_native" ]] && prime_paths+=("$home_native")
+fi
+[[ -n "$PROJECT_ROOT" ]] && prime_paths+=("$PROJECT_ROOT")
+[[ "$MODE" == "default" ]] && prime_paths+=("$plugin_root")
+if ((${#prime_paths[@]} > 0)); then
+  hook::_physical_prime "${prime_paths[@]}"
+fi
+
+if [[ -n "$cwd_native" ]]; then
+  if [[ -n "$home_native" ]]; then
+    hook::_physical_cached_to phys_tmp "$home_native" || true
+    hook::normalize_path_to home_norm "$phys_tmp"
+  fi
+  hook::_physical_cached_to phys_tmp "$cwd_native" || true
+  hook::normalize_path_to cwd_norm "$phys_tmp"
+  [[ "$cwd_norm" != "$home_norm" ]] && PROJECT_ROOT="$cwd_native"
+fi
+
+# --- Normalized current-project root, for the `currentProject` install flag
+current_project_norm=""
+if [[ -n "$PROJECT_ROOT" ]]; then
+  hook::_physical_cached_to phys_tmp "$PROJECT_ROOT" || true
+  hook::normalize_path_to current_project_norm "$phys_tmp"
+  current_project_norm="${current_project_norm%/}"
+fi
+
+# --- Normalized plugin root, for default-marketplace self-resolution ---------
+# The match itself runs inside pass 1's jq, exactly as before, with the root
+# handed over as a `--arg`. That placement is load-bearing on Windows: jq is a
+# native binary, so MSYS rewrites a mount-alias argument such as `/tmp/...`
+# into the drive-letter spelling installed_plugins.json records carry, which
+# a comparison done in the shell would never see. Keep it in jq.
+norm_root=""
+norm_root_parent=""
+if [[ "$MODE" == "default" ]]; then
+  hook::_physical_cached_to phys_tmp "$plugin_root" || true
+  hook::normalize_path_to norm_root "$phys_tmp"
+  norm_root="${norm_root%/}"
+  norm_root_parent="${norm_root%/*}"
+  [[ -n "$norm_root_parent" && "$norm_root_parent" != "$norm_root" ]] || norm_root_parent=""
+fi
+
+# --- Pass 1: validate, merge scopes, enumerate marketplaces -------------------
+# One jq over every top-level input. It emits one record per line, fields
+# separated by U+001F (unit separator: never whitespace, so `read` cannot
+# collapse an empty field, and never a byte that appears in compact JSON):
+#   ERR<US><message>                       fail loud: the message names the file
+#   CTX<US><json>                          {known_ids, effective, false_ids}
+#   NAME<US><marketplace>                  every key, in sorted order
+#   MP<US><name><US><installLocation><US><autoUpdate><US><lastUpdated>
+#                                          every key whose entry is truthy
+#   PP<US><projectPath>                    every distinct project/local path
+#   TARGET<US><marketplace>                the default marketplace (default
+#                                          mode only; empty when unresolved)
+# The settings files are read as raw text so a malformed one surfaces as its
+# own error instead of an empty capture that only fails several steps later.
+#
+# Default-marketplace resolution is the one this plugin was installed from: a
+# two-stage match against installed_plugins.json's version-pinned installPath.
+#   1. exact: installPath == this plugin's normalized root (the precise case).
+#   2. version-agnostic fallback: installPath and the running root differ ONLY
+#      by their trailing `/<version>` segment. This is common, not an edge case:
+#      marketplace autoUpdate bumps the install shortly after session start while
+#      the session keeps rendering the old version's skill, and `sync`'s own
+#      Step 3 updates claude-ops itself, so every subsequent same-session call of
+#      the bare (no --marketplace) default path would otherwise fail. The fallback
+#      matches the version-stripped `…/cache/<marketplace>/<plugin>` prefix, which
+#      still carries the marketplace (so two marketplaces shipping the same plugin
+#      stay distinguishable).
+settings_args=()
+[[ -f "$USER_SETTINGS" ]] && settings_args+=(--rawfile us "$USER_SETTINGS")
+if [[ -n "$PROJECT_ROOT" ]]; then
+  [[ -f "$PROJECT_ROOT/.claude/settings.json" ]] &&
+    settings_args+=(--rawfile ps "$PROJECT_ROOT/.claude/settings.json")
+  [[ -f "$PROJECT_ROOT/.claude/settings.local.json" ]] &&
+    settings_args+=(--rawfile ls "$PROJECT_ROOT/.claude/settings.local.json")
+fi
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PASS1_PROGRAM='
+  def parsed($raw): ($raw | try (fromjson | {ok: .}) catch {err: true});
+  def map_of($raw; $label):
+    if $raw == null then {}
+    else (parsed($raw) | if .err then error("ERR\u001f" + $label + " is not valid JSON")
+          else (.ok | .enabledPlugins // {}) end)
+    end;
+  (parsed($inst_raw) | if .err then {err: ("installed_plugins.json is not valid JSON: " + $inst_path)}
+     elif (.ok | type == "object" and has("plugins") and (.plugins | type == "object")
+           and (.plugins | to_entries | all(.value | type == "array"))) | not
+     then {err: ("installed_plugins.json does not match the expected {plugins: {<id>: [...]}} shape: " + $inst_path)}
+     else . end) as $ip
+  | (parsed($mk_raw) | if .err then {err: ("known_marketplaces.json is not valid JSON: " + $mk_path)}
+     elif (.ok | type) != "object" then {err: ("known_marketplaces.json is not a JSON object: " + $mk_path)}
+     else . end) as $mp
+  | if $ip.err then "ERR\u001f" + $ip.err
+    elif $mp.err then "ERR\u001f" + $mp.err
+    else
+      $ip.ok as $inst | $mp.ok as $mk
+      | map_of($ARGS.named.us; "user settings") as $u
+      | map_of($ARGS.named.ps; "project settings") as $p
+      | map_of($ARGS.named.ls; "local settings") as $l
+      | ("CTX\u001f" + ({
+            known_ids: (($u + $p + $l) | keys),
+            effective: ($u + $p + $l),
+            false_ids: ([($u, $p, $l) | to_entries[] | select(.value == false) | .key] | unique)
+          } | tojson)),
+        ($mk | keys[] as $k
+          | ("NAME\u001f" + $k),
+            (if $mk[$k] then ($mk[$k]
+              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")")
+             else empty end)),
+        ([$inst.plugins | to_entries[] | .value[] | select(.scope == "project" or .scope == "local") | .projectPath // empty]
+          | unique | .[] | "PP\u001f\(.)"),
+        (if $mode == "default" then
+           ($ci == "true") as $cib
+           | ([$inst.plugins | to_entries[]
+               | select(.value[] | (.installPath // "" | gsub("\\\\"; "/")) as $p |
+                        if $cib then ($p | ascii_downcase) == ($root | ascii_downcase) else $p == $root end)
+               | .key] | .[0] // "") as $exact
+           | (if $exact != "" then $exact
+              elif $parent == "" then ""
+              else ([$inst.plugins | to_entries[]
+                     | select(.value[] | (.installPath // "" | gsub("\\\\"; "/") | rtrimstr("/") | sub("/[^/]*$"; "")) as $pp |
+                              if $cib then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
+                     | .key] | .[0] // "")
+              end) as $hit
+           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; ""))
+         else empty end)
+    end'
+
+pass1=""
+if ! jq_to pass1 -rn \
+  --rawfile inst_raw "$INSTALLED_JSON" --arg inst_path "$INSTALLED_JSON" \
+  --rawfile mk_raw "$MARKETPLACES_JSON" --arg mk_path "$MARKETPLACES_JSON" \
+  --arg mode "$MODE" --arg root "$norm_root" --arg parent "$norm_root_parent" --arg ci "$case_insensitive_os" \
+  ${settings_args[@]+"${settings_args[@]}"} \
+  "$PASS1_PROGRAM"; then
+  # A settings scope that failed to parse: jq's own `error()` already named the
+  # scope on stderr. Refuse to compose a report over a map that could not be
+  # read: a silently empty scope would misreport every id in it.
+  echo "ERROR: could not read the enabledPlugins scopes (see the jq error above)" >&2
+  exit 2
+fi
+
+ctx_json=""
+mp_names=()
+mp_keys=()
+mp_loc=()
+mp_au=()
+mp_lu=()
+pp_lines=()
+resolved_target=""
+while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
+  case "$tag" in
+  ERR)
+    echo "ERROR: $f1" >&2
+    exit 2
+    ;;
+  CTX) ctx_json="$f1" ;;
+  NAME) mp_names+=("$f1") ;;
+  MP)
+    mp_keys+=("$f1")
+    mp_loc+=("$f2")
+    mp_au+=("$f3")
+    mp_lu+=("$f4")
+    ;;
+  PP) pp_lines+=("$f1") ;;
+  TARGET) resolved_target="$f1" ;;
+  *) ;;
+  esac
+done <<<"$pass1"
+
+if [[ "$MODE" == "list" ]]; then
+  # Through the same CR-free capture as every other line-oriented output, so a
+  # `while read` consumer gets CR-free names by construction. An empty object
+  # yields empty output and exit 0: nothing to enumerate is an answer, not an
+  # error.
+  for n in ${mp_names[@]+"${mp_names[@]}"}; do
+    printf '%s\n' "$n"
+  done
+  exit 0
+fi
+
+# --- projectPath liveness (advisory only — NEVER a filter) -------------------
+# Answers "is this record's projectPath a directory on this machine right
+# now", nothing more. A false is equally consistent with a worktree that was
+# removed and with a volume that is merely not mounted, a network share that
+# is offline, or removable media that is unplugged — so this field annotates
+# a row, and must never suppress one. Suppressing on it would hide real drift
+# for anyone whose repos live on an external or network volume.
+# Computed per DISTINCT path across every marketplace's records (a machine can
+# hold a hundred records naming a dozen directories), so the stat count tracks
+# directories, not records, and the answer is taken once for the whole run.
+presence_tsv=""
+for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
+  [[ -n "$pp" ]] || continue
+  pp_fs="${pp//\\//}"
+  if [[ -d "$pp_fs" ]]; then
+    presence_tsv+="$pp"$'\t'"true"$'\n'
+  else
+    presence_tsv+="$pp"$'\t'"false"$'\n'
+  fi
+done
+
+# --- Emit one marketplace's state object ------------------------------------
+# Args: marketplace name. Leaves the JSON object (or, under --ids, the
+# projected id lines) in FS_BLOCK; on a resolvable per-marketplace failure
+# leaves {marketplace:{name,error}} there and returns 1 (caller decides whether
+# that is fatal for this invocation). A global rather than stdout so the caller
+# never forks a subshell to capture it.
+FS_BLOCK=""
+
+error_block_to() {
+  # $1 var, $2 name, $3 error, [$4 autoUpdate "true"/"false", $5 lastUpdated]
+  local __eb_name __eb_err __eb_lu
+  json_string_to __eb_name "$2"
+  json_string_to __eb_err "$3"
+  if [[ $# -ge 5 ]]; then
+    json_string_to __eb_lu "$5"
+    printf -v "$1" '{"marketplace":{"name":%s,"autoUpdate":%s,"lastUpdated":%s,"error":%s}}' \
+      "$__eb_name" "$4" "$__eb_lu" "$__eb_err"
+  else
+    printf -v "$1" '{"marketplace":{"name":%s,"error":%s}}' "$__eb_name" "$__eb_err"
+  fi
+}
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PASS2_PROGRAM='
+  ($c | try (fromjson | {ok: .}) catch {err: true})
+  | if .err then "INVALID"
+    else "OK", (.ok | .plugins[]? | select((.source | type) == "string") | "E\u001f\(.name)\u001f\(.source)")
+    end'
+
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PASS3_PROGRAM='
+  (. | split("\u001d")) as $parts
+  | ($parts[0] | fromjson) as $ctx
+  | ($parts[1] | split("\n")
+      | map(select(length > 0) | split("\t") | select(length >= 2 and (.[0] | length) > 0)
+            | {key: .[0], value: (.[1] == "true")})
+      | from_entries) as $pres
+  # Entries whose source is not a string never reached the payload, so they
+  # are absent from this map entirely — a lookup returns null, the same
+  # fail-open answer as an entry whose manifest could not be read. A manifest
+  # that does not parse, carries no version, or carries false yields null too;
+  # every value this collapses lands on the FAIL-OPEN side, so the collapse
+  # cannot cause a wrong withhold. A numeric 0 is preserved.
+  | ($parts[2] | split("\u001f")
+      | map(select(length > 0) | split("\u001e") | select(length >= 2 and (.[0] | length) > 0)
+            | {key: (.[0] + "@" + $name),
+               value: (.[1]
+                 | if . == "" then null else (try (fromjson | .version) catch null) end
+                 | if . == null or . == false then null elif type == "string" then . else tojson end)})
+      | from_entries) as $cv
+  | ($ci == "true") as $cib
+  # Every install record for ids in this marketplace, flattened, with the
+  # currentProject flag Windows-normalized on both sides.
+  | ($inst[0].plugins | to_entries
+      | map(select(.key | endswith("@" + $name))
+            | .key as $id
+            | .value[]
+            | {
+                id: $id,
+                scope: .scope,
+                version: .version,
+                projectPath: (.projectPath // null),
+                currentProject: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
+                    (.projectPath | gsub("\\\\"; "/")) as $p |
+                    if $cib then ($p | ascii_downcase) == ($cur | ascii_downcase) else $p == $cur end
+                  else null end
+                ),
+                projectPathPresent: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    # `has` rather than `$pres[$pp] // null`: jq treats FALSE as
+                    # empty for `//`, so the alternative operator would silently
+                    # rewrite a genuine "not present" into "not checked".
+                    .projectPath as $pp
+                    | (if ($pres | has($pp)) then $pres[$pp] else null end)
+                  else null end
+                )
+              })) as $installed
+  | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
+  | ($catalog_names | map(. + "@" + $name)) as $catalog_ids
+  | ([$installed[].id] | unique) as $installed_ids
+  # catalog minus installed minus any id explicitly opted out (false) in any
+  # scope, even one never installed at all.
+  | (($catalog_ids - $installed_ids) - $ctx.false_ids) as $missing_from_install
+  # User-scope completeness, distinct from all-scope missing_from_install: a
+  # plugin installed only at project/local scope is present all-scope but not
+  # usable from other directories, so `sync` Step 4 (which installs at user
+  # scope for the "usable from any directory" guarantee) must key off this.
+  | ([$installed[] | select(.scope == "user") | .id] | unique) as $user_installed_ids
+  | (($catalog_ids - $user_installed_ids) - $ctx.false_ids) as $missing_from_user_install
+  # Ids with a project/local record and NO user-scope record. Deliberately NOT
+  # filtered to catalog membership: an installed id the catalog no longer
+  # carries is exactly the kind of record a reader wants named. An opt-out is
+  # an answer, not a gap, so those are subtracted like the two arrays above.
+  | (((([$installed[] | select(.scope == "project" or .scope == "local") | .id] | unique)
+       - ([$installed[] | select(.scope == "user") | .id] | unique))
+      - $ctx.false_ids)) as $user_scope_orphans
+  | ($ctx.known_ids | map(select(endswith("@" + $name)))) as $known_at_mp
+  # missing_from_enabled can only be computed for ids whose enabledPlugins
+  # this invocation can actually read: user scope (global) and the current
+  # PROJECT_ROOT'"'"'s project/local scope. A project/local install belonging to a
+  # DIFFERENT repo is excluded rather than asserted missing.
+  | ([$installed[] | select(.scope == "user" or .currentProject == true) | .id] | unique) as $verifiable_ids
+  # Ids the marketplace entry ships with defaultEnabled:false — a publisher'"'"'s
+  # deliberate opt-in-required default. No enabledPlugins entry anywhere for
+  # one of these is the INTENDED state, not a completeness gap.
+  | ([$catalog[0].plugins[]? | select(.defaultEnabled == false) | .name + "@" + $name]) as $default_disabled
+  | (($verifiable_ids - $known_at_mp) - $default_disabled) as $missing_from_enabled
+  | (reduce $known_at_mp[] as $id ({}; . + {($id): $ctx.effective[$id]})) as $enabled_at_mp
+  # `versionsMatch` separates a benign multi-scope install (project and user
+  # scope both pinned to the same version — normal, not actionable) from a
+  # real version skew (some scope is behind another — the "run converge"
+  # signal). A record count alone conflates the two.
+  | ($installed | group_by(.id)
+      | map(select(length > 1))
+      | map({
+          id: .[0].id,
+          scopes: map({scope, version, projectPath, projectPathPresent}),
+          versionsMatch: ((map(.version) | unique | length) == 1)
+        })) as $divergences
+  | {
+      marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated},
+      project_root: (if ($cur | length) > 0 then $cur else null end),
+      catalog: $catalog_names,
+      catalog_versions: $cv,
+      installed: $installed,
+      enabled: $enabled_at_mp,
+      missing_from_install: $missing_from_install,
+      missing_from_user_install: $missing_from_user_install,
+      missing_from_enabled: $missing_from_enabled,
+      user_scope_orphans: $user_scope_orphans,
+      divergences: $divergences
+    } as $block
+  | if $selector == "" then $block
+    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
+    elif $selector == "update-candidates-user" then
+      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
+       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
+    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
+    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
+    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
+    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
+    else error("unknown selector: " + $selector) end'
+
+emit_marketplace() {
+  local name="$1"
+  local i idx=-1 auto_update_json=false last_updated install_location catalog_json
+
+  for ((i = 0; i < ${#mp_keys[@]}; i++)); do
+    if [[ "${mp_keys[i]}" == "$name" ]]; then
+      idx=$i
+      break
+    fi
+  done
+  if ((idx < 0)); then
+    error_block_to FS_BLOCK "$name" "not found in known_marketplaces.json"
+    return 1
+  fi
+  # `auto_update` is jq's own `true`/`false` text; normalized to a JSON literal
+  # once here for every block below.
+  [[ "${mp_au[idx]}" == "true" ]] && auto_update_json=true
+  last_updated="${mp_lu[idx]}"
+  install_location="${mp_loc[idx]}"
+
+  if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
+    local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
+    if [[ ! -f "$fixture" ]]; then
+      error_block_to FS_BLOCK "$name" "no catalog fixture" "$auto_update_json" "$last_updated"
+      return 1
+    fi
+    catalog_json="$fixture"
+  else
+    catalog_json="$install_location/.claude-plugin/marketplace.json"
+    if [[ ! -f "$catalog_json" ]]; then
+      error_block_to FS_BLOCK "$name" "marketplace.json not found at installLocation" "$auto_update_json" "$last_updated"
+      return 1
+    fi
+  fi
+
+  # --- Pass 2: the catalog's own entry list ------------------------------------
+  # A single marketplace's catalog being malformed is a per-marketplace failure
+  # like the branches above — report it inline and return 1 so one corrupt
+  # clone doesn't abort an --all sweep of every other marketplace. This is
+  # also the only pass that needs the entries as shell data: the manifest each
+  # `source` points at is located with builtins below.
+  local pass2=""
+  jq_to pass2 -rn --rawfile c "$catalog_json" "$PASS2_PROGRAM" || pass2="INVALID"
+  if [[ "$pass2" == "INVALID"* ]]; then
+    error_block_to FS_BLOCK "$name" "marketplace.json is not valid JSON" "$auto_update_json" "$last_updated"
+    return 1
+  fi
+
+  # --- Per-plugin catalog versions, for the Step 3 update pre-filter ---------
+  # A marketplace.json ENTRY carries no version — only name/source/category/
+  # tags (and optionally defaultEnabled/displayName/relevance). That absence is
+  # why `sync` Step 3 historically called `claude plugin update` for every
+  # user-scope install and let the CLI decide: there was "no per-plugin catalog
+  # version to compare against". There is one, just not in that file — each
+  # plugin's own manifest sits in the marketplace checkout the entry's `source`
+  # points at, and reading it costs no network call and no CLI invocation.
+  #
+  # FAIL OPEN is the contract here, not a defensive nicety. Measured across the
+  # nine marketplaces registered on the authoring machine (Claude Code 2.1.240),
+  # the version resolves for every entry of some marketplaces and for a small
+  # MINORITY of others': an entry whose `source` is an object (a remote git
+  # spec) has no repo-relative path at all, a checkout may not materialize every
+  # entry's directory, and a manifest may carry no `version` key. So an
+  # unresolvable version is the COMMON case, not the rare one. Every such id
+  # gets null, and every consumer must read null as "update candidate" — the
+  # pre-filter may only ever shrink the sweep for an id it positively proved is
+  # already at the catalog version. Anything else risks silently skipping a
+  # stale plugin, which is strictly worse than the redundant no-op call the
+  # pre-filter exists to avoid.
+  local manifest_base
+  if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
+    manifest_base="$FLEET_STATE_CATALOG_DIR/$name"
+  else
+    # installLocation is recorded in native form on Windows (C:\Users\...);
+    # fold to forward slashes so the composed path is one this shell can stat.
+    manifest_base="${install_location//\\//}"
+  fi
+
+  # `source` is THIRD-PARTY content — it comes out of a marketplace's own
+  # manifest. If it can name a manifest outside the checkout, that foreign
+  # file gets to positively "prove" an id is already at the catalog version
+  # and suppress its update. A wrongly-WITHHELD update is the only unsafe
+  # direction this pre-filter has (a wrongly-emitted id is merely a redundant
+  # no-op call), so reaching outside the checkout must be impossible.
+  #
+  # Two gates, because a lexical one alone is NOT sufficient:
+  #  1. Lexical, below — refuse a `../` path SEGMENT. Cheap, spawns nothing,
+  #     and rejects the common spelling before anything is stat'd. Backslash
+  #     is folded first so `..\x` is caught as the same traversal.
+  #  2. Physical containment, after the -f test — resolve the manifest with
+  #     symlinks followed and require it to sit under the resolved checkout
+  #     root. This is the gate that actually enforces the property: a SYMLINK
+  #     inside the checkout pointing outside it is a perfectly ordinary
+  #     `./name` source that no lexical check can see, and `git clone`
+  #     materializes real symlinks wherever core.symlinks is on.
+  # Every manifest that passes the -f test is resolved by ONE batched realpath
+  # together with the checkout root, so the subprocess count is constant, not
+  # proportional to the catalog. Either gate failing yields null → fail open →
+  # the id stays a candidate.
+  local -a cv_names=() cv_manifests=() prime=("$manifest_base")
+  local cv_tag cv_name cv_src cv_rel cv_manifest
+  while IFS=$'\x1f' read -r cv_tag cv_name cv_src; do
+    [[ "$cv_tag" == "E" ]] || continue
+    cv_rel="${cv_src#./}"
+    cv_rel="${cv_rel//\\//}"
+    case "/$cv_rel/" in
+    */../*)
+      cv_rel=""
+      ;;
+    *) ;;
+    esac
+    cv_manifest=""
+    if [[ -n "$cv_rel" && -f "$manifest_base/$cv_rel/.claude-plugin/plugin.json" ]]; then
+      cv_manifest="$manifest_base/$cv_rel/.claude-plugin/plugin.json"
+      prime+=("$cv_manifest")
+    fi
+    cv_names+=("$cv_name")
+    cv_manifests+=("$cv_manifest")
+  done <<<"$pass2"
+  hook::_physical_prime "${prime[@]}"
+
+  # Containment root for the check below, resolved ONCE per marketplace.
+  # hook::normalize_path folds separators, and on Windows also folds drive-letter
+  # case, so two normalized physical paths compare directly with `==` on either
+  # platform, so no ad-hoc downcasing here. On failure hook::_physical_cached_to
+  # leaves the input in place and returns non-zero; the root itself keeps the
+  # old lenient reading (an unresolvable root makes every containment test
+  # below fail, which is the fail-open direction).
+  local manifest_base_phys resolved contained bundle="" content
+  hook::_physical_cached_to manifest_base_phys "$manifest_base" || true
+  hook::normalize_path_to manifest_base_phys "$manifest_base_phys"
+  manifest_base_phys="${manifest_base_phys%/}"
+
+  for ((i = 0; i < ${#cv_names[@]}; i++)); do
+    content=""
+    cv_manifest="${cv_manifests[i]}"
+    if [[ -n "$cv_manifest" && -n "$manifest_base_phys" ]]; then
+      # Fails CLOSED for the containment question, which makes the version
+      # fail OPEN: an unresolvable path yields no content, so the id stays an
+      # update candidate. Gate on the RETURN STATUS: on failure the helper
+      # echoes its input, which still begins with the checkout root, so a
+      # naive prefix compare would call it contained without anything having
+      # been resolved. Strict prefix: the root itself is not a plugin manifest,
+      # and the trailing slash stops "/checkout-evil/..." from matching root
+      # "/checkout".
+      contained=0
+      if hook::_physical_cached_to resolved "$cv_manifest"; then
+        hook::normalize_path_to resolved "$resolved"
+        [[ "$resolved" == "$manifest_base_phys"/* ]] && contained=1
+      fi
+      if ((contained)); then
+        IFS= read -r -d '' content <"$cv_manifest" || true
+      fi
+    fi
+    bundle+="${cv_names[i]}"$'\x1e'"$content"$'\x1f'
+  done
+
+  # --- Pass 3: compose the block -----------------------------------------------
+  # The two validated files travel as --slurpfile; everything the shell
+  # assembled (context, presence, manifests) travels on stdin as one payload,
+  # never on argv, because a large catalog would otherwise exceed the platform
+  # argv-length ceiling (#1336). The three sections are separated by U+001D
+  # (group separator), which never appears in compact JSON or in a path.
+  jq_to FS_BLOCK -Rsrc \
+    --slurpfile inst "$INSTALLED_JSON" \
+    --slurpfile catalog "$catalog_json" \
+    --arg name "$name" \
+    --arg au "$auto_update_json" \
+    --arg lastUpdated "$last_updated" \
+    --arg cur "$current_project_norm" \
+    --arg ci "$case_insensitive_os" \
+    --arg selector "$IDS_SELECTOR" \
+    "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"
+}
+
+# Emit one marketplace: the JSON block by default, or its projected id list when
+# --ids is in play. Keeps the two single-marketplace call sites (default and
+# --marketplace) identical instead of branching on IDS_SELECTOR at each.
+emit_one() {
+  local rc=0
+  emit_marketplace "$1" || rc=$?
+  # A per-marketplace failure block ({marketplace: {name, error}}) goes to
+  # STDOUT in report mode (documented output contract) but to STDERR under
+  # --ids. The documented consumer is `while read … done < <(… --ids …)`, and a
+  # process substitution does NOT propagate its command's exit status, so a JSON
+  # object left on stdout would be read as an id and handed to `claude plugin
+  # update` verbatim. Under --ids stdout carries records or nothing at all.
+  if [[ "$rc" -ne 0 ]]; then
+    if [[ -n "$FS_BLOCK" ]]; then
+      if [[ -n "$IDS_SELECTOR" ]]; then
+        printf '%s\n' "$FS_BLOCK" >&2
+      else
+        printf '%s\n' "$FS_BLOCK"
+      fi
+    fi
+    return "$rc"
+  fi
+  # Zero --ids matches is success with EMPTY output, never a blank line.
+  [[ -n "$FS_BLOCK" ]] && printf '%s\n' "$FS_BLOCK"
+  return 0
+}
 
 case "$MODE" in
 default)
-  plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
-  norm_root=$(hook::normalize_path "$(hook::physical_path "$plugin_root")")
-  norm_root="${norm_root%/}"
-  TARGET=$(resolve_default_marketplace "$norm_root")
+  TARGET="$resolved_target"
   if [[ -z "$TARGET" ]]; then
     echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
     echo "  ${norm_root:-<unresolved>}" >&2
@@ -1040,14 +1065,20 @@ single)
   emit_one "$TARGET" || exit $?
   ;;
 all)
-  names=$(jq -r 'keys[]' "$MARKETPLACES_JSON")
-  result='{}'
-  while IFS= read -r n; do
-    [[ -z "$n" ]] && continue
-    block=$(emit_marketplace "$n" || true)
-    result=$(jq -c --arg n "$n" --slurpfile b "$(jq_slurp_tmpfile "$block")" '. + {($n): $b[0]}' <<<"$result")
-  done <<<"$names"
-  jq -cn --slurpfile m "$(jq_slurp_tmpfile "$result")" '{marketplaces: $m[0]}'
+  # The envelope is composed in the shell around each block's compact JSON,
+  # the same bytes `jq -c` would print for the same object, with the keys in
+  # the sorted order pass 1 enumerated them.
+  result='{"marketplaces":{'
+  sep=""
+  for n in ${mp_names[@]+"${mp_names[@]}"}; do
+    [[ -n "$n" ]] || continue
+    emit_marketplace "$n" || true
+    json_string_to key_json "$n"
+    result+="$sep$key_json:$FS_BLOCK"
+    sep=","
+  done
+  result+='}}'
+  printf '%s\n' "$result"
   ;;
 *)
   echo "ERROR: unreachable mode: $MODE" >&2
