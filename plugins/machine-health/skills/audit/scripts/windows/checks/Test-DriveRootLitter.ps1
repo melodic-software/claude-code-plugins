@@ -209,13 +209,13 @@ try {
     $residueSorted = @($residue | Sort-Object volume, name)
 
     $detail = @{
-        baseline_path       = $BaselinePath
-        system_root         = $systemRoot
-        volumes             = @($volumes)
-        residue             = $residueSorted
-        residue_count       = $residueSorted.Count
+        baseline_path         = $BaselinePath
+        system_root           = $systemRoot
+        volumes               = @($volumes)
+        residue               = $residueSorted
+        residue_count         = $residueSorted.Count
         unreadable_root_count = $failedRoots.Count
-        remediation_route   = 'disk-hygiene:clean'
+        remediation_route     = 'disk-hygiene:clean'
     }
 
     if ($failedRoots.Count -gt 0) {
