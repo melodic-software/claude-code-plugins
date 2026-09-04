@@ -177,8 +177,7 @@ is invoked via the Skill tool.
 
 ## Gotchas
 
-Observed failure history and the counterweights this skill exists to hold. Add here when a
-new one surfaces.
+The counterweights this skill exists to hold. Add here when a new one surfaces.
 
 - **Over-abstraction is decoupling's own disease.** An interface with one implementation, an
   event bus for a one-to-one call, a config knob nothing varies. Each adds indirection while
@@ -191,9 +190,9 @@ new one surfaces.
   documents (or functions) that happen to read the same but would change for different
   reasons must not be consolidated. Consolidation actively harms. Test what changes
   together, not what looks alike.
-- **Unverified scan claims do not ship.** A scan agent once reported a service "registered
-  but never composed" that one search disproved. Phase C exists because the report lends
-  every claim its authority.
+- **Unverified scan claims do not ship.** A scan claim inherits the report's authority, so
+  phase C reproduces every finding against the artifacts before it reaches the ledger or the
+  user.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
 - **The ledger records what a re-scan currently finds; it never replays.** Re-emitting stale

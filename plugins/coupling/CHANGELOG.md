@@ -3,6 +3,15 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.6]
+
+### Changed
+
+- **reduce:** the gotchas section states its counterweights as current rules without the
+  observed-failure framing, and the unverified-scan-claims rule keeps its reason without the
+  incident that motivated it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.1.5]
 
 ### Fixed
