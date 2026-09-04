@@ -72,6 +72,20 @@ lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+# True when $1 equals one of the remaining arguments. Collapses the report's
+# order-preserving "append if not already present" passes, which cannot use a
+# sort/uniq: the emission order IS the report order. Callers expand their array
+# as "${arr[@]:-}" to stay safe under `set -u` on bash 3.2, so an empty array
+# arrives as a single empty argument rather than as no arguments at all.
+array_contains() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 # Path presentation. MSYS/Cygwin render Windows drives as /c/..., a form no Windows shell, file
 # manager, or IDE accepts. This report is actionable text whose paths get pasted, so convert to the
 # drive form for PRESENTATION ONLY -- every comparison, dedup key, and filesystem test upstream
@@ -1599,7 +1613,6 @@ repo_verdict() {
   local i conf kind target
   local unknown=0
   local -a cand_targets=()
-  local seen t
   for ((i = 0; i < ${#F_KIND[@]}; i++)); do
     [[ "${F_REPO_IDX[$i]}" == "$repo_idx" ]] || continue
     conf="${F_CONF[$i]}"
@@ -1608,14 +1621,7 @@ repo_verdict() {
     if [[ "$conf" == "UNKNOWN" ]]; then
       unknown=$((unknown + 1))
     elif branch_action_kind "$kind" || worktree_action_kind "$kind"; then
-      seen=false
-      for t in "${cand_targets[@]:-}"; do
-        [[ "$t" == "$target" ]] && {
-          seen=true
-          break
-        }
-      done
-      [[ "$seen" == "true" ]] || cand_targets+=("$target")
+      array_contains "$target" "${cand_targets[@]:-}" || cand_targets+=("$target")
     fi
   done
   if [[ "$unknown" -gt 0 ]]; then
@@ -1675,19 +1681,12 @@ repo_kind_counts_text() {
 
 print_collapsed_target_detail() {
   local repo_idx="$1"
-  local i target kind conf t j seen
+  local i target kind conf t j
   local -a targets=()
   for ((i = 0; i < ${#F_KIND[@]}; i++)); do
     [[ "${F_REPO_IDX[$i]}" == "$repo_idx" ]] || continue
     target="${F_TARGET[$i]}"
-    seen=false
-    for t in "${targets[@]:-}"; do
-      [[ "$t" == "$target" ]] && {
-        seen=true
-        break
-      }
-    done
-    [[ "$seen" == "true" ]] || targets+=("$target")
+    array_contains "$target" "${targets[@]:-}" || targets+=("$target")
   done
   if [[ ${#targets[@]} -eq 0 ]]; then
     printf 'Findings: none\n'
@@ -1723,6 +1722,18 @@ print_collapsed_target_detail() {
     done
     printf '%s\n' '---'
   done
+}
+
+# Append one parsed `git worktree list --porcelain -z` registration to the WT_*
+# parallel arrays. The porcelain separates records with an empty field and the
+# stream also ends on one, so a record carrying no `worktree ` line is a
+# separator artifact rather than a registration: an empty path appends nothing.
+push_worktree_record() {
+  [[ -n "$1" ]] || return 0
+  WT_PATHS+=("$1")
+  WT_BRANCHES+=("$2")
+  WT_PRUNABLE+=("$3")
+  WT_LOCKED+=("$4")
 }
 
 analyze_repo() {
@@ -1888,12 +1899,7 @@ analyze_repo() {
   local wt_prefix status_handoff_targets="" status_handoff_count=0
   while IFS= read -r -d '' field; do
     if [[ -z "$field" ]]; then
-      if [[ -n "$wt_path" ]]; then
-        WT_PATHS+=("$wt_path")
-        WT_BRANCHES+=("$wt_branch")
-        WT_PRUNABLE+=("$wt_prunable")
-        WT_LOCKED+=("$wt_locked")
-      fi
+      push_worktree_record "$wt_path" "$wt_branch" "$wt_prunable" "$wt_locked"
       wt_path="" wt_branch="" wt_prunable="false" wt_locked="false"
       continue
     fi
@@ -1916,12 +1922,7 @@ analyze_repo() {
       "Repair Git metadata or correct the canonical checkout, then rerun"
     return
   fi
-  if [[ -n "$wt_path" ]]; then
-    WT_PATHS+=("$wt_path")
-    WT_BRANCHES+=("$wt_branch")
-    WT_PRUNABLE+=("$wt_prunable")
-    WT_LOCKED+=("$wt_locked")
-  fi
+  push_worktree_record "$wt_path" "$wt_branch" "$wt_prunable" "$wt_locked"
 
   for ((wt_index = 0; wt_index < ${#WT_PATHS[@]}; wt_index++)); do
     wt_path="${WT_PATHS[$wt_index]}"
@@ -2816,14 +2817,7 @@ fi
     for ((fi = 0; fi < ${#F_KIND[@]}; fi++)); do
       [[ "${F_REPO_IDX[$fi]}" == "$ri" ]] || continue
       t="${F_TARGET[$fi]}"
-      seen=false
-      for prev in "${target_list[@]:-}"; do
-        [[ "$prev" == "$t" ]] && {
-          seen=true
-          break
-        }
-      done
-      [[ "$seen" == "true" ]] || target_list+=("$t")
+      array_contains "$t" "${target_list[@]:-}" || target_list+=("$t")
     done
     for ((ti = 0; ti < ${#target_list[@]}; ti++)); do
       [[ "$ti" -gt 0 ]] && printf ',\n'

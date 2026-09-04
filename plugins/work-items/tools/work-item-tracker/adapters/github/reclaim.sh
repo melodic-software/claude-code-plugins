@@ -45,11 +45,11 @@ renewed_at="$(jq -r '.renewed_at' <<<"$lease_json")"
 # Activity check: non-lease comments since renewed_at, or open cross-referenced PRs.
 wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
   --jq "[.[] | select((.body | startswith(\"<!-- work-item-lease v1\") | not) and .created_at > \"$renewed_at\")] | length"
-comment_activity="$(printf '%s\n' "$WIT_GH_OUT" | jq -s 'add // 0')"
+comment_activity="$(jq -s 'add // 0' <<<"$WIT_GH_OUT")"
 
 wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/timeline?per_page=100" \
   --jq '[.[] | select(.event == "cross-referenced" and (.source.issue.pull_request // null) != null and .source.issue.state == "open")] | length'
-pr_activity="$(printf '%s\n' "$WIT_GH_OUT" | jq -s 'add // 0')"
+pr_activity="$(jq -s 'add // 0' <<<"$WIT_GH_OUT")"
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if ((comment_activity > 0 || pr_activity > 0)); then

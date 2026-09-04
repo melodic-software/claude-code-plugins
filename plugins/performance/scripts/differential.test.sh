@@ -94,7 +94,6 @@ assert_contains "the corpus and matrix produced distinct results" "baseline=4 ca
 # unless the difference is stated.
 # discriminating-skip-required: this case is the only thing standing between a
 # narrow verdict and a reader who believes it was a broad one.
-mkdir -p "$WORK/noisy"
 cat >"$WORK/base/noisy.py" <<'QUIET'
 import sys
 

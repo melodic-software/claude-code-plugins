@@ -82,44 +82,44 @@ worktree_root="${PREFLIGHT_WORKTREE_ROOT:-}"
 project_root="${PREFLIGHT_PROJECT_ROOT:-}"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    --count)
-      mode="count"
-      shift
-      ;;
-    --worktree-root)
-      shift
-      [[ "$#" -gt 0 ]] || {
-        echo "ERROR: --worktree-root requires a path" >&2
-        exit 2
-      }
-      worktree_root="$1"
-      shift
-      ;;
-    --worktree-root=*)
-      worktree_root="${1#--worktree-root=}"
-      shift
-      ;;
-    --project-root)
-      shift
-      [[ "$#" -gt 0 ]] || {
-        echo "ERROR: --project-root requires a path" >&2
-        exit 2
-      }
-      project_root="$1"
-      shift
-      ;;
-    --project-root=*)
-      project_root="${1#--project-root=}"
-      shift
-      ;;
-    *)
-      echo "ERROR: unknown argument: $1" >&2
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --count)
+    mode="count"
+    shift
+    ;;
+  --worktree-root)
+    shift
+    [[ "$#" -gt 0 ]] || {
+      echo "ERROR: --worktree-root requires a path" >&2
       exit 2
-      ;;
+    }
+    worktree_root="$1"
+    shift
+    ;;
+  --worktree-root=*)
+    worktree_root="${1#--worktree-root=}"
+    shift
+    ;;
+  --project-root)
+    shift
+    [[ "$#" -gt 0 ]] || {
+      echo "ERROR: --project-root requires a path" >&2
+      exit 2
+    }
+    project_root="$1"
+    shift
+    ;;
+  --project-root=*)
+    project_root="${1#--project-root=}"
+    shift
+    ;;
+  *)
+    echo "ERROR: unknown argument: $1" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -166,7 +166,6 @@ norm_path() {
   # Answers in $NORM_OUT rather than on stdout, and uses only builtins: this runs
   # on every path comparison, and on Windows a fork per call (the command
   # substitution, plus a printf|tr pipeline inside it) dominates the runtime.
-  # normalize_path wraps it for the call sites that want a value.
   local p="$1" home="${HOME:-${USERPROFILE:-}}"
   # A leading ~ (~ alone, or ~/… / ~\… — both separators, since a Windows entry
   # may be written ~\…) expands to the user home so a tilde-form
@@ -176,44 +175,39 @@ norm_path() {
   # neither set leaves ~ literal.
   if [[ -n "$home" ]]; then
     # Strip one trailing separator (either form — HOME=/, USERPROFILE=…\) so the
-    # join below cannot double it; normalize_path does not collapse an internal
+    # join below cannot double it; the folding here does not collapse an internal
     # //, so //.worktrees would never match an absolute /.worktrees/… root.
     home="${home%/}"
     home="${home%\\}"
     # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
     case "$p" in
-      "~") p="$home" ;;
-      "~/"* | "~\\"*) p="$home/${p:2}" ;;
-      *) ;;
+    "~") p="$home" ;;
+    "~/"* | "~\\"*) p="$home/${p:2}" ;;
+    *) ;;
     esac
   fi
   p="${p//\\//}"
   case "$p" in
-    [A-Za-z]:/*)
-      # Windows filesystems are case-insensitive: fold the WHOLE path, not just
-      # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
-      # equal. Non-drive (POSIX) paths stay case-sensitive.
-      p="${p,,}"
-      p="/${p%%:*}${p#*:}"
-      ;;
-    /[A-Za-z]/*)
-      # Git-bash drive spelling (/d/Repos/…) is the same case-insensitive
-      # Windows filesystem — fold it too. A true POSIX single-letter root
-      # directory is the accepted (rare, documented) collision.
-      p="${p,,}"
-      ;;
-    *) ;;
+  [A-Za-z]:/*)
+    # Windows filesystems are case-insensitive: fold the WHOLE path, not just
+    # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
+    # equal. Non-drive (POSIX) paths stay case-sensitive.
+    p="${p,,}"
+    p="/${p%%:*}${p#*:}"
+    ;;
+  /[A-Za-z]/*)
+    # Git-bash drive spelling (/d/Repos/…) is the same case-insensitive
+    # Windows filesystem — fold it too. A true POSIX single-letter root
+    # directory is the accepted (rare, documented) collision.
+    p="${p,,}"
+    ;;
+  *) ;;
   esac
   case "$p" in
-    ?*/) p="${p%/}" ;;
-    *) ;;
+  ?*/) p="${p%/}" ;;
+  *) ;;
   esac
   NORM_OUT="$p"
-}
-
-normalize_path() {
-  norm_path "$1"
-  printf '%s' "$NORM_OUT"
 }
 
 is_main_worktree() {
@@ -289,8 +283,8 @@ resolve_main_root() {
   cand="$(GIT_DIR="$main_gitdir" git config --get core.worktree 2>/dev/null | tr -d '\r')"
   if [[ -n "$cand" ]]; then
     case "$cand" in
-      /* | [A-Za-z]:[/\\]*) ;;
-      *) cand="$main_gitdir/$cand" ;;
+    /* | [A-Za-z]:[/\\]*) ;;
+    *) cand="$main_gitdir/$cand" ;;
     esac
     # core.worktree is spelled with ".." segments ("../../../sub"), which the
     # is-this-a-toplevel leg compares as a literal string — canonicalize first
@@ -305,15 +299,15 @@ resolve_main_root() {
 
   # 4. The conventional "<root>/.git" spelling: the parent of the common dir.
   case "$main_gitdir" in
-    */.git)
-      cand="${main_gitdir%/.git}"
-      if is_main_worktree "$cand"; then
-        main_root="$MAIN_TOP"
-        main_state="verified"
-        return
-      fi
-      ;;
-    *) ;;
+  */.git)
+    cand="${main_gitdir%/.git}"
+    if is_main_worktree "$cand"; then
+      main_root="$MAIN_TOP"
+      main_state="verified"
+      return
+    fi
+    ;;
+  *) ;;
   esac
 
   main_reason="the common git dir '$main_gitdir' names no verifiable working tree"
@@ -426,15 +420,15 @@ verb_in_rules() {
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     case "$rule" in
-      "Bash("*")") inner="${rule#Bash(}" ;;
-      "PowerShell("*")") inner="${rule#PowerShell(}" ;;
-      *) continue ;;
+    "Bash("*")") inner="${rule#Bash(}" ;;
+    "PowerShell("*")") inner="${rule#PowerShell(}" ;;
+    *) continue ;;
     esac
     inner="${inner%)}"
     if [[ "$mode" != "bare-exact-only" ]]; then
       case "$inner" in
-        "$verb "'*' | "$verb:"'*') return 0 ;;
-        *) ;;
+      "$verb "'*' | "$verb:"'*') return 0 ;;
+      *) ;;
       esac
     fi
     if [[ "$mode" == "bare" || "$mode" == "bare-exact-only" ]]; then
@@ -454,17 +448,19 @@ dir_covered() {
   # dir_covered <path> — true when some additionalDirectories entry equals the
   # path or is an ancestor of it, after normalization.
   local want entry
-  want="$(normalize_path "$1")"
+  norm_path "$1"
+  want="$NORM_OUT"
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
-    entry="$(normalize_path "$entry")"
+    norm_path "$entry"
+    entry="$NORM_OUT"
     # Filesystem root authorizes every absolute path ("" after the trailing-slash
     # strip would otherwise expand to //* and match nothing).
     [[ "$entry" == "/" || "$entry" == "" ]] && return 0
     [[ "$want" == "$entry" ]] && return 0
     case "$want" in
-      "$entry"/*) return 0 ;;
-      *) ;;
+    "$entry"/*) return 0 ;;
+    *) ;;
     esac
   done <<DIRS
 $ALL_ADDDIRS

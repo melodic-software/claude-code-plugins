@@ -3,6 +3,238 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.47]
+
+### Fixed
+
+- **`pull-request/scripts/fetch-annotations.sh --help` silently dropped three of
+  its four exit codes.** `usage()` sliced the header with a hardcoded
+  `sed -n '2,20p'`, and the header block runs to line 23, so the banner stopped
+  three lines short: it printed `Exit codes:` and `0 success` and then ended,
+  never showing `1 invalid argument`, `2 gh api call failed` or `5 prerequisite
+  missing`. Measured, not inferred: the old form printed 19 lines and exactly one
+  exit code, the new `sed -n '2,/^$/p'` prints 23 and all four. That
+  blank-line-terminated form is already used by three other scripts in this
+  repository and removes the line-number coupling that caused the drift.
+
+  Looking for the same bug elsewhere found it surviving in one more place, the
+  byte-identical sync-cluster pair `lib/resolve-convention-pattern.sh` and
+  `guardrails/hooks/resolve-convention-pattern.sh`, whose `sed -n '2,40p'` cut a
+  43-line header and dropped all three of their exit codes. The fix here was not
+  transplantable, because those headers run straight into the code with no blank
+  line for `2,/^$/p` to stop at. They were fixed with a first-non-comment-line
+  terminator instead, on the canonical, under `guardrails` 0.31.6.
+- **A comment said "the five consumers" above a list of six.** The numeral is
+  dropped rather than corrected, since the list enumerates them.
+
+### Added
+
+- **A `--help` guard for both scripts, in both directions.** `fetch-annotations`
+  gains one, and `fetch-failed-logs` gains one it never had: three mutations of
+  its `usage()` (an under-slice dropping exit codes, an over-slice leaking
+  `set -uo pipefail` and the variable block, and a `usage()` emitting zero bytes)
+  all previously left that suite green at 14 of 14. Each guard pins the last
+  documented exit code and asserts the banner stops before the first executable
+  line, so a short slice and a long one both fail.
+- **A value assertion for `check_run_name`.** The schema check used `has()`,
+  which is presence-only, so dropping `.name` from the jq projection scored zero
+  across all ten assertions while every emitted record silently carried the
+  string `"null"`. The field is emitted and read by nothing else, so this is the
+  only place its value can be pinned.
+
+### Changed
+
+- The jq projection uses the `{id, name, conclusion, status}` shorthand, verified
+  byte-identical including key order over ten object shapes (absent keys, nulls,
+  nested objects, duplicate keys, bignums, escapes) and four non-objects.
+- Two stale stub dispatch tables in the suites are completed. Each claimed to be
+  the dispatch table while omitting routes its own cases depend on.
+- History narration and three plan/audit-artifact labels removed from the suites.
+
+### Known issues
+
+- **`fetch-failed-logs.sh`'s help output was byte-identical before and after**
+  only because the hardcoded `41` happened to land exactly on the blank line.
+  That was luck the header could have broken at any edit; it is now pinned.
+- **The completed `fetch-failed-logs` dispatch table still lists generic routes
+  before specific ones** while the code matches specific-first, so read top-down
+  as a dispatch order it gives the wrong answer for two fixtures. Pre-existing
+  inversion the completion preserved.
+
+## [0.55.46]
+
+### Added
+
+- **A test that pins the argument ORDER of the owner/repo validation.** Routing
+  `verify_fix_commit` through the shared `is_owner_repo_pair` helper created a
+  failure mode the previous spelling could not express: transposing the two
+  arguments. Every existing head-repo fixture uses a name and an owner that both
+  regexes accept or both reject, so the transposition was killed by **zero** of
+  the 649 tests, on a path-traversal guard whose result is interpolated into a
+  `gh api` URL. A dot is legal in a repository name and illegal in an owner, so a
+  `my.repo` fixture clears validation only when the pair is passed the right way
+  round. Verified by mutation: against a scratch baseline, the transposed build
+  differs from the control by exactly this one test and nothing else.
+
+### Changed
+
+- **`babysit_resolve_thread.py`: both hand-spelled owner/repo segment rules now
+  call `is_owner_repo_pair`.** Both pre-images were character-for-character the
+  helper's predicate, and the file's own comment at the second site ("keeps one
+  rule instead of two") is now literally true. The two regex imports it no longer
+  needs are dropped; repo-wide they appear only in `babysit_gh.py`, and the
+  package has no star imports.
+- **`babysit_merge.py`: seven refusal sites share one `_refuse` closure**,
+  matching the `_usage_error` idiom the sibling guarded CLI already uses at 13
+  sites. The refusal contract is unchanged, established over a 77-shape corpus
+  comparing exit code and stdout and stderr bytes: zero divergence, covering all
+  seven sites, empty envelopes, JSON-escaping payloads, and nine shapes that trip
+  two sites at once. Exactly three stdout key orders exist and both versions
+  produce the same one per shape. Each site's exit code was additionally flipped
+  individually; all seven are guarded.
+- The parse-failure refusal deliberately keeps its inline form and now says why:
+  routing it through `_refuse` would add a `pr` field naming a PR nobody can
+  resolve, demonstrated by the differing output.
+
+### Known issues
+
+- **The reverse-lookup gap in `scripts/affected-tests.sh` is worse than first
+  reported, and it hits this package hardest.** The selector seeds patterns with
+  the basename *including* `.py`, so a suite that says `import foo` rather than
+  naming `foo.py` is invisible. Consequences measured here: `babysit_review_trigger.py`
+  maps to **zero** suites while two suites genuinely exercise it, one of them
+  calling ten distinct symbols on it; `request_review.py` and `refresh_pr_branch.py`
+  select only two transitive suites each, and no test imports `refresh_pr_branch.py`
+  at all, its sole "coverage" being a guard-contract row enforced by `read_text()`
+  plus `assertIn`, which is a source-text grep and never an execution;
+  `test_babysit_merge_branch_rules.py` is not selected for `babysit_merge.py`
+  while its sibling is, purely because the sibling spells the literal filename in
+  a subprocess argv. **`babysit_gh.py` selects one suite** despite being imported
+  by twelve modules and three suites, because the only file in the repository
+  containing the string `babysit_gh.py` is a changelog.
+- **Three envelope shapes are unprotected by any test**: reordering the keys,
+  dropping the `pr` key, and routing the parse failure through the helper all
+  survive the full suite. All were equally unprotected before, but the refactor
+  concentrates the risk from seven edit sites to one.
+
+## [0.55.45]
+
+### Fixed
+
+- **`worktree-create.sh`: two exit codes were documented wrongly, and one of them
+  tells a caller the opposite of the truth.** Exit 5 (the tree was created but
+  `git worktree lock` failed, so the path is still the sole stdout line and the
+  tree exists, yet carries no claim) has shipped since #2389 and appeared in
+  neither the header table nor `usage()`. Verified against an unmodified copy
+  with a `git` shim that fails `worktree lock`: rc=5, exactly one stdout line, the
+  tree present, and no `locked` line in `git worktree list --porcelain` where the
+  control has one. Exit 4 was described as "not a git repo, or `git worktree add`
+  failed", but it also fires when the tree was created and a `.worktreeinclude`
+  file then failed to copy. That case has exit 5's shape, a tree on disk that is
+  not what the caller asked for, so a caller reading 4 as "nothing was created" is
+  wrong for it. Both rows now say so.
+- **`skills/commit/scripts/exec-bit-check.sh`: the two synopses disagreed.**
+  `usage()` was missing both `--list0` and `--all`; the header line was missing
+  `--all`. Both now list all four modes plus `--all`, matching the Modes and
+  Options blocks below them.
+
+### Changed
+
+- **Six files: past-tense narration rewritten as the rule it encodes.** Comments
+  that explained a fix by describing the bug ("which silently truncated or
+  over-ran as the header grew") now state the constraint in the present. Proven
+  comment-only mechanically rather than by reading: two quote- and heredoc-aware
+  shell parsers agree across all ten changed files, and the comparison was shown
+  to discriminate heredoc body text, numeric literals, single-quoted string
+  bodies, and statement reordering while returning unchanged for three
+  comment-reword controls.
+- **`landed-work.sh`: the record flush in `collect_targets` is one nested
+  `flush_record`.** The two call sites carried byte-identical five-line bodies
+  (verified by md5 on the dedented pre-images), and the same idiom already exists
+  in `worktree-claim.sh`. Differential over nine porcelain fixtures, including an
+  empty input, a missing trailing separator, a detached-first ordering, a
+  newline-in-path, and a bare repository: identical rows in every case. Seven
+  mutations caught, including four over-refusals, and three equivalence controls
+  scoring zero, each scoring identically before and after the change.
+
+### Known issues
+
+- **Neither the exit 5 contract nor the new help line is test-covered.**
+  `worktree-create.test.sh` asserts nothing about exit 5, the lock failure, or
+  the "created but not locked" wording. The contract is now documented but
+  unpinned.
+- **`landed-work.sh` carries a redundant `(detached)` assignment inside
+  `flush_record`.** The label is re-derived at every read, so dropping the
+  assignment leaves stdout and stderr byte-identical on a real detached-HEAD
+  worktree; dropping both sites is caught. Whether a bare or non-git row, which
+  returns early before the re-derivation, can observe it is unresolved, so it is
+  left in place rather than deleted on an unverified reading.
+
+## [0.55.44]
+
+### Changed
+
+- **`babysit-prs`: four dedups behind comments, and six tests that make them
+  falsifiable.** `is_owner_repo_pair` in `babysit_gh.py` holds the owner/repo
+  segment rules for the PR-reference and scope-key parsers, which kept two
+  hand-maintained copies. `record_mutation_ledger_entry` in `babysit_state.py`
+  merges the two ledger folds in `save_state`. `legacy_check_identity_keys` in
+  `babysit_delta.py` replaces a tuple literal written out four times.
+  `unscoped_queue_run` names a predicate spelled at five sites. Two GraphQL
+  walks in `babysit_gh.py` now use the package's own `dig` instead of
+  hand-rolled nested narrowing.
+- **`find_open_prs_for_head_ref` is only ever mocked by the suite**, so its
+  rewrite was carried by an exhaustive differential rather than by tests: 844
+  row shapes, zero divergence, including every raise path, with a wrong-key
+  control discriminating on 84. The parser extraction got the same treatment at
+  13,475 invocations, with a traversal-permissive control discriminating on 18
+  pairs and 72 triples.
+
+### Added
+
+- **Six tests, each closing a gap that was silently open.** `.`/`..` refused by
+  both parsers; a dotted repository name still accepted; a legacy
+  check-identity migration covering the display-name-only, empty, and
+  half-migrated cases; and a two-cycle integration round trip proving the
+  mutation ledger merges rather than overwrites. Six of the mutations these
+  kill were SURVIVORS before they existed, established by applying the same
+  mutations to the pre-change tree. One of them,
+  `test_one_identity_array_without_its_partner_is_refused`, is now the only
+  test anywhere that kills deletion of the `any(...) and not all(...)` guard.
+
+### Fixed
+
+- **`babysit_delta.py`: two of the four deduplicated comprehensions were not
+  interchangeable.** The two reading `prev` wrapped their iterable in
+  `json_array()`; the two reading `checks` did not. Over 17 inputs the
+  current-form diverges from the helper on five (`None` and `5` raise
+  `TypeError` rather than yielding an empty set; a string yields per-character
+  keys). Unreachable in practice, because `classify_checks` builds those lists
+  with comprehensions and `checks` is local to `classify_pr`, but the helper is
+  the stricter of the two and the divergence is recorded rather than assumed
+  away.
+
+### Known issues
+
+- **A routing gap defeats the integration test written to protect the ledger.**
+  `affected-tests.sh --explain babysit_state.py` selects only
+  `tests/test_babysit_state.py`. Under a ledger-overwrite mutation that suite
+  stays green and `tests/test_integration.py`, the only suite that
+  discriminates, is never selected. The gate reports success over zero real
+  coverage of that invariant.
+- **Two mutations survive all 649 tests, both pre-existing.** Reducing
+  `unscoped_queue_run` to `scope is None` makes `in_scope_keys` the whole file
+  in non-queue mode; dropping the `if merged:` guard in
+  `record_mutation_ledger_entry` writes an empty entry into the ledger. Naming
+  the first is the natural place to test it.
+- **`save_state`'s first ledger fold is undiscriminated but not dead.**
+  Deleting it leaves all 649 tests green; instrumentation shows seven tests
+  reach it across thirteen invocations and none of the thirteen changes the
+  ledger, because `persisted_pr_state` retains all three fields it reads. It is
+  not migration-era code: `load_state` raises on any `schema_version != 1`. It
+  is a live self-heal for a schema-1 file with a missing `mutation_ledger` key,
+  demonstrated by rebuilding an entry from an on-disk record.
+
 ## [0.55.43]
 
 ### Changed

@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.13]
+
+### Changed
+
+- **`audit/scripts/cant-fail-scan.awk`: one comment corrected.** It described a
+  detector as covering a variant the rule set does not carry. Comment only: the
+  non-comment lines are identical, the program parses under both `awk` and
+  `mawk`, no GNU extension was introduced, and its own suite passes 92 checks.
+
+### Known issues
+
+- **`cant-fail-scan.awk` selects 5 suites and 1 exercises it.** The other four are
+  a basename collision: another plugin's script names this file, and three
+  unrelated plugins own a file sharing its basename. The selector's own header
+  states that a basename match counts even when it lands in a comment, so this
+  shape is by design rather than a defect, but a selection count is not a coverage
+  count.
+
 ## [0.7.12]
 
 ### Changed

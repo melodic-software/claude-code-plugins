@@ -78,9 +78,12 @@ if ! wit_claim_write "$file" "$marker_line" "$(jq -cn --arg h "$holder" '[$h]')"
   exit 1
 fi
 
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$holder" \
-  --arg now "$now" --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg cid "$lease_id" --arg sid "$session_id" \
-  '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
-    ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber),
-    session_id: (if $sid != "" then $sid else null end)}
-   + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)'
+# The claim record is derived from the lease that was just stored, not rebuilt
+# from the same inputs, so what is reported cannot drift from what is on disk
+# (renew-lease.sh reports its renewal the same way). session_id is an explicit
+# null when absent, per the JSON output contract; the stored marker omits it.
+jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" \
+  '{schema_version: $sv, id: $id, holder: .holder, acquired_at: .acquired_at,
+    renewed_at: .renewed_at, ttl_hours: .ttl_hours, lease_comment_id: .lease_comment_id,
+    session_id: (.session_id // null)}
+   + (if has("ttl_minutes") then {ttl_minutes: .ttl_minutes} else {} end)' <<<"$lease"

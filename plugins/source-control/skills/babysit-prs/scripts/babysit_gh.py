@@ -14,6 +14,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from babysit_util import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    dig,
     is_json_array,
     is_json_object,
     json_array,
@@ -101,6 +102,21 @@ def gh_json(args: list[str]) -> Any:
     return json.loads(text) if text.strip() else None
 
 
+def is_owner_repo_pair(owner: str, repo: str) -> bool:
+    """Whether `owner`/`repo` are both well-formed GitHub path segments.
+
+    The one place the segment rules live. The PR-reference and scope-key parsers
+    below, and both call sites in `babysit_resolve_thread.py`, all route through
+    here, so none of the four can drift apart on what it accepts. `.` and `..`
+    match `GITHUB_REPOSITORY_RE` but are path traversal, never a repository.
+    """
+    return bool(
+        GITHUB_OWNER_RE.fullmatch(owner)
+        and GITHUB_REPOSITORY_RE.fullmatch(repo)
+        and repo not in {".", ".."}
+    )
+
+
 def parse_repo_number(value: str) -> tuple[str, int]:
     value = value.strip()
     owner = ""
@@ -124,12 +140,7 @@ def parse_repo_number(value: str) -> tuple[str, int]:
         short_match = re.fullmatch(r"([^/\\#\s]+)/([^/\\#\s]+)#(\d+)", value)
         if short_match:
             owner, repo, number = short_match.groups()
-    if (
-        GITHUB_OWNER_RE.fullmatch(owner)
-        and GITHUB_REPOSITORY_RE.fullmatch(repo)
-        and repo not in {".", ".."}
-        and number.isdigit()
-    ):
+    if is_owner_repo_pair(owner, repo) and number.isdigit():
         return f"{owner}/{repo}".casefold(), int(number)
     raise ValueError(f"Expected PR URL or owner/repo#number, got: {value}")
 
@@ -137,12 +148,7 @@ def parse_repo_number(value: str) -> tuple[str, int]:
 def parse_repo(value: str) -> str:
     """Validate and normalize an `owner/repo` scope key (no PR number)."""
     match = re.fullmatch(r"([^/\\#\s]+)/([^/\\#\s]+)", value.strip())
-    if (
-        not match
-        or not GITHUB_OWNER_RE.fullmatch(match.group(1))
-        or not GITHUB_REPOSITORY_RE.fullmatch(match.group(2))
-        or match.group(2) in {".", ".."}
-    ):
+    if not match or not is_owner_repo_pair(match.group(1), match.group(2)):
         raise ValueError(f"Expected owner/repo, got: {value}")
     return f"{match.group(1)}/{match.group(2)}".casefold()
 
@@ -636,20 +642,15 @@ def fetch_review_threads(
         data = gh_json(args)
         if not is_json_object(data) or data.get("errors"):
             raise RuntimeError(f"Incomplete review-thread response for {repo}#{number}")
-        root = data.get("data")
-        repository = root.get("repository") if is_json_object(root) else None
-        pull_request = (
-            repository.get("pullRequest") if is_json_object(repository) else None
-        )
-        connection = (
-            pull_request.get("reviewThreads") if is_json_object(pull_request) else None
-        )
+        connection = dig(data, "data", "repository", "pullRequest", "reviewThreads")
         if not is_json_object(connection):
             raise RuntimeError(f"Missing review-thread connection for {repo}#{number}")
         nodes = connection.get("nodes")
         page_info = connection.get("pageInfo")
         if not is_json_array(nodes) or not is_json_object(page_info):
-            raise RuntimeError(f"Malformed review-thread connection for {repo}#{number}")
+            raise RuntimeError(
+                f"Malformed review-thread connection for {repo}#{number}"
+            )
         has_next_page = page_info.get("hasNextPage")
         if not isinstance(has_next_page, bool):
             raise RuntimeError(f"Malformed review-thread page info for {repo}#{number}")
@@ -693,7 +694,14 @@ def fetch_review_threads(
                     )
                 if any(
                     key not in comment
-                    for key in ("body", "path", "url", "createdAt", "updatedAt", "databaseId")
+                    for key in (
+                        "body",
+                        "path",
+                        "url",
+                        "createdAt",
+                        "updatedAt",
+                        "databaseId",
+                    )
                 ):
                     raise RuntimeError(
                         f"Incomplete comment in review thread {thread['id']}"
@@ -751,25 +759,9 @@ def find_open_prs_for_head_ref(pr: dict[str, Any]) -> list[str]:
             raise RuntimeError("Associated pull request has no state")
         if state.casefold() != "open":
             continue
-        base = row.get("base")
-        base_repository = base.get("repo") if is_json_object(base) else None
-        base_repo = (
-            base_repository.get("full_name")
-            if is_json_object(base_repository)
-            else None
-        )
-        candidate_head = row.get("head")
-        candidate_repository = (
-            candidate_head.get("repo") if is_json_object(candidate_head) else None
-        )
-        candidate_head_repo = (
-            candidate_repository.get("full_name")
-            if is_json_object(candidate_repository)
-            else None
-        )
-        candidate_head_ref = (
-            candidate_head.get("ref") if is_json_object(candidate_head) else None
-        )
+        base_repo = dig(row, "base", "repo", "full_name")
+        candidate_head_repo = dig(row, "head", "repo", "full_name")
+        candidate_head_ref = dig(row, "head", "ref")
         number = row.get("number")
         if (
             not isinstance(base_repo, str)

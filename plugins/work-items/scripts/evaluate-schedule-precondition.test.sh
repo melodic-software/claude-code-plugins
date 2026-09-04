@@ -41,12 +41,19 @@ else
   fail "plain row"
 fi
 
-"$EVAL" "$TMP" demo >/dev/null 2>&1
+out="$("$EVAL" "$TMP" demo 2>/dev/null)"
 rc=$?
 if [[ "$rc" -eq 2 ]]; then
   pass "confirmation precondition needs operator"
 else
   fail "confirmation precondition exit=$rc"
+fi
+# The caller reads the prompt off stdout ahead of the marker, so both lines are
+# part of the contract, not just the exit code.
+if [[ "$out" == *"confirm release"* && "$out" == *"needs-confirmation"* ]]; then
+  pass "confirmation precondition prints the prompt, then the marker"
+else
+  fail "confirmation precondition stdout: $out"
 fi
 
 out="$("$EVAL" "$TMP" demo --operator-confirmed)"

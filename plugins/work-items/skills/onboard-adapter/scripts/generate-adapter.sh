@@ -144,6 +144,11 @@ PROVIDER="$(sget '.provider')"
 # in shell identifiers or in the jq object-key shorthand, so the function/variable/key
 # spellings underscore them.
 PROVIDER_FUNC="${PROVIDER//-/_}"
+# `tr` rather than `${PROVIDER_FUNC^^}`: the case-folding expansions are bash 4.0+,
+# and this script carries no version gate to keep them behind — on a stock macOS,
+# where `/usr/bin/env bash` finds the system bash 3.2, `^^` is a fatal expansion
+# error, so every valid spec would abort here before an adapter was written. The
+# fork is the price of running where check-drive-root-litter.sh says we run.
 PROVIDER_UPPER="$(tr '[:lower:]' '[:upper:]' <<<"$PROVIDER_FUNC")"
 CONFIG_KEY="$PROVIDER_FUNC"
 
@@ -815,6 +820,11 @@ render() {
   local file="$1"
   shift
   local text
+  # `cat` rather than `$(<"$file")`: the redirection form reports a missing
+  # template as a bash error carrying THIS script's line number, where `cat`
+  # names only the template path. A prior tidy of this file family was refuted
+  # and reverted for shifting a line number into a diagnostic on a reachable
+  # error path (0.39.24); the saved fork is not worth re-opening that.
   text="$(cat "$file")"
   local k v
   # Caller-supplied pairs first: they are per-file (verb name, tables) and never
