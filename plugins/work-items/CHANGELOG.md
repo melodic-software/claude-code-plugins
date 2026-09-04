@@ -3,6 +3,73 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.59]
+
+### Fixed
+
+- **`conformance/run-conformance.sh`: two concurrent conformance runs on one host
+  clobbered each other.** The overlay case derived its path from `dirname` of the
+  binding file, and every binding `mktemp`s that file straight into `$TMPDIR`, so
+  the overlay resolved to a single fixed path shared by every run on the machine:
+  `/tmp/.work-item-tracker.local.json`. The binding is now re-homed into a
+  run-private `mktemp -d` immediately after `cb_setup`, and the trap removes it.
+
+  Measured on separate extractions of the pre- and post-change trees: 8 jira plus
+  8 local-markdown in lockstep gave **9 of 16 red** before and 0 of 16 after; ten
+  jittered pairs gave **19 of 20 red** before and 0 of 20 after; a 40-way stress
+  run and a 25-round reproduction of the CI shape gave **0 red** after, against
+  **15 of 50 red** before. 130 runs on the fixed tree, none red, case counts
+  always 34 and 81. Planting a poisoned overlay at the shared path makes the
+  failure deterministic: 38 cases with 9 failed before, 34 with 0 after.
+
+  The failure is **whole-suite poisoning, not two cases**. Once one run leaves a
+  foreign provider at the shared path, every tracker invocation in every
+  concurrent run exits 3, the provider resolves empty, and `verb_supported` reads
+  every verb false, which changes the reported case count. Matching case counts is
+  therefore not by itself a sufficient regression guard.
+
+  **Scope of the attribution, stated precisely.** `scripts/run-plugin-tests-serial.txt`
+  lists two entries as unexplained failures under `--jobs 4`:
+  `plugins/discovery/agents/tool-honesty.test.sh` and this plugin's
+  `bindings/jira.test.sh`. This mechanism explains the **jira** entry only, and the
+  evidence for that is the asymmetry: under the CI shape jira loses the race 13
+  times in 25 while local-markdown loses 2, so the mechanism predicts which suite
+  gets listed. `tool-honesty.test.sh` is a markdown contract test with no
+  reference to the tracker, no `mktemp` and no shared path; this cannot explain it.
+  The record's own rule is that **both** entries come off the list when the cause
+  is found, so **#3694 stays open**. Note also that the collision cannot fire in
+  the lane as configured today, because `jira.test.sh` is serial-listed and never
+  runs beside the only other runner-invoker. This fix is a precondition for
+  delisting it, not a repair of a currently red lane.
+
+- `bindings/github.test.sh` gained the in-file note explaining that it does not
+  run the abstract suite, which its gitea and linear siblings already carry; for
+  github that reason had lived only in the sibling binding.
+
+### Changed
+
+- `run-conformance.sh`: a global assigned and read only inside one function is now
+  local; an assignment identical in both arms of an `if` is hoisted above it; and
+  a past-tense clause was rewritten present-tense after checking both adapters'
+  current wording.
+- `e2e-probe.sh`: a single-use variable inlined, matching the two sibling calls
+  twelve lines below. The `gh` argv is identical across nine id shapes.
+
+### Known issues
+
+- **`e2e-probe.sh`'s 16 assertions have never been executed by any suite**, and
+  the `reclaim` block's 13 assertions never run in CI, because only github and
+  linear declare `reclaim: true` and neither invokes the runner. Confirmed by
+  planting an early exit at both sites and observing no suite notice.
+- **`bindings/github.sh`'s success path is equally unexecuted**: its suite asserts
+  only that setup *refuses* without a target.
+- **Redirecting `e2e-probe.sh`'s `gh issue close` to a different repository leaves
+  every automated suite green.** That is the sharpest consequence of the item
+  above.
+- Two other surfaces are untested rather than defective: the new trap's cleanup
+  half, and the copied binding's filename, which nothing depends on since only its
+  directory matters.
+
 ## [0.39.58]
 
 ### Changed
