@@ -71,8 +71,21 @@ Discover them at scope time, before triage:
 4. Add every marker family found to the exempt set for that run, and name them in the report so
    the reader can see what was protected and why.
 
-Absence of a finding is a result: report "no repo-local markers discovered" rather than staying
-silent, so a reader can tell discovery ran from discovery finding nothing.
+**A single-form grep is not a search, and here a false negative deletes code.** Discovery failing
+to find a marker is not the same as the marker not existing, but this step treats the two
+identically unless you widen the query: a name can wrap across a line break in the gate that
+documents it, be built by concatenation, differ in case or hyphenation, or be held in a variable
+the matcher interpolates. Vary the form before concluding absence: hyphenated and underscored,
+singular and plural, the bare suffix on its own, and the enclosing helper's name as well as the
+marker's. Prefer finding the code that DOES the matching (the `grep`, `case`, or regex literal a
+gate runs against comment text) over guessing the marker's spelling, because the matcher is
+findable even when the marker's name is not.
+
+Absence of a finding is a result, and it is the weakest result this step produces: report "no
+repo-local markers discovered" rather than staying silent, so a reader can tell discovery ran from
+discovery finding nothing. In an unfamiliar repository with gates the run could not enumerate,
+treat an unexplained comment near a guard, an early `exit 0`, or a lint waiver as class C by
+default rather than betting deletion on a clean discovery pass.
 
 ## Path exclusions
 
