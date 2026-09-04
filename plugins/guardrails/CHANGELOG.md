@@ -3,6 +3,38 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.4]
+
+### Added
+
+- **The shared `report` helper now has a self-test,** closing the gap the
+  previous release recorded under Known issues. It asserts the printed tally
+  beside the exit code, runs each child under a stripped environment, and carries
+  its own failure counter with an explicit exit rather than reporting through the
+  function under test. Seven independent mutants of the helper are killed here
+  and none was caught before: returning zero, an inverted comparison, a correct
+  status with a zeroed tally, printing nothing, always returning one, counters
+  that stop incrementing, and a tally with the two counts swapped.
+
+  Each part of that shape was measured rather than assumed. Under a helper forced
+  to return zero only two of the three assertions go red, because the
+  zero-failures direction legitimately still passes, so a one-directional test
+  would have been decorative. The independent counter is what makes the rest
+  work: a version reporting through the ordinary assertion helper prints failure
+  lines and still exits zero under exactly the sabotage it exists to catch.
+  Stripping the counters from the child environment is not load-bearing today,
+  but without it, running the suite with those names already set turns all three
+  assertions into false reds pointing at a healthy helper.
+
+### Removed
+
+- **A local equality-assertion shadow** whose comment claimed the shared helper
+  had no equality primitive. It has had one since the release that stopped a UNC
+  path reaching telemetry, and eight sibling suites already call it, so the
+  comment would have invited a ninth copy. All twelve migrated assertions were
+  mutation-killed individually; every failing path is byte-identical, and the
+  only difference is the passing line now carrying the measured value.
+
 ## [0.31.3]
 
 ### Changed
