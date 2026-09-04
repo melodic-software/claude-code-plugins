@@ -1,5 +1,48 @@
 # Changelog — session-flow plugin
 
+## [0.35.0]
+
+### Added
+
+- **`scripts/save_point.py`, the engine behind handoff shape 2.** Three
+  subcommands: `new` writes a skeleton whose FILL slots the skill fills in,
+  `validate` checks a finished file against the shape contract, and `emit`
+  prints the resume prompt the file already carries. Its fixture suite lives in
+  `scripts/tests/` and runs through the `scripts/save_point.test.sh` wrapper.
+- **`scripts/harness/hop_chain.py` and `scripts/harness/hop_chain.test.sh`, a
+  headless multi-hop harness.** It drives a chain of handoff hops end to end;
+  the dry-run suite swaps only the `claude` subprocess for a fake runner, so CI
+  exercises the real driver without spending, and a `--budget` generator sizes
+  the live runs.
+
+### Changed
+
+- **`reference/structure.md` and `reference/save-point.md` document handoff
+  shape 2.** The file carries a `## Resume prompt` section whose between-rails
+  text byte-equals the prompt shown on screen, and frontmatter carrying the
+  session id and the `previous_handoff` chain pointer.
+- **The `handoff` skill runs its deterministic tier through the script.** What
+  the shape fixes is produced by `save_point.py` instead of composed by hand
+  each time.
+- **`find-handoff` rung 1 and `continue-in-background` source the prompt via
+  `emit`.** Neither re-derives the prompt text; both read it from the file that
+  holds it.
+- **The three `evals.json` suites, the README, and
+  `workflow/context/continuation.md` follow the new shape.** The eval suites for
+  `handoff`, `find-handoff` and `continue-in-background` cover it, the README
+  describes it, and the continuation doc's free-hand fallback clause is
+  reworded to route through the skill.
+- **Legacy shape-1 save-points are never rewritten and still validate.** The
+  bump is minor rather than patch for the new file shape and the new script
+  surface, not for anything that stops working.
+
+### Fixed
+
+- **The retro chain walker resolves a `handoffs/`-prefixed `previous_handoff`
+  pointer by basename.** `skills/retro/scripts/parse_transcript.py` truncated
+  the chain to a single id when the pointer carried its directory prefix; it now
+  falls back to the pointer's basename beside the current file.
+
 ## [0.34.23]
 
 ### Fixed

@@ -586,25 +586,27 @@ PASS; the one FAIL was a wrongly specified criterion, not a defect: the kept cop
 the originals left in place by a `--keep` chain pass `validate --strict-transcript` (4 of 4
 checked). Sanity Check all green. Delta: 2 new files, design-threads.md, this file.
 
-### Phase 6: Close-out [TODO]
+### Phase 6: Close-out [DONE]
 
 session-flow 0.34.21 → 0.35.0 with a CHANGELOG entry naming shape 2, the script, the consumer
 changes, and the detection-contract changes; full gates; then the follow-up filing and the PR.
 
-- [ ] **Phase-entry check** (first work item of the filing; verifies no duplicate exists):
+- [x] **Phase-entry check** (first work item of the filing; verifies no duplicate exists):
 
   ```bash
   gh issue list --state all --search 'implement phase-boundary ritual handoff STOP order in:title' --json number,title,state
   ```
 
 - [ ] **If search returns a match** → pivot: `gh issue comment <N> --body '<evidence: implement/SKILL.md Step 4 items 3–5 run after item 2 invokes /session-flow:handoff, whose hard rule is STOP with the rails as final text; proposed order 1, 3, 4, then 2>'`; skip the create step; record the comment URL
-- [ ] **If search returns empty** → create:
+- [x] **If search returns empty** → create:
 
   ```bash
   gh issue create --title 'implement: run the phase-boundary ritual before the handoff skill, not after its STOP' --body '<same evidence + proposed order; deferred from handoff-prompt-qol at the user's request>'
   ```
 
-- [ ] **Sanity Check:** the item number (created OR pivoted-to) is recorded in the PLAN notes and URL captured
+- [x] **Sanity Check:** the item number (created OR pivoted-to) is recorded in the PLAN notes and URL captured.
+  Search returned empty (2026-09-04); created melodic-software/claude-code-plugins#3711,
+  <https://github.com/melodic-software/claude-code-plugins/issues/3711>
 - [ ] PR body (via `/source-control:pull-request create`): ends with a "Follow-up" line naming that
   item: "File the implement ritual reorder as a follow-up, not in this PR" (the user's wording), so
   the reviewer sees the deliberately unchanged ordering.
@@ -617,6 +619,35 @@ for the session-flow, context-guard, implementation suites; `scripts/check-chang
 `scripts/check-changed-skills.sh origin/main` exit 0; `scripts/check-skill-portability.sh origin/main` exit 0;
 `npx --no-install markdownlint-cli2 "plugins/session-flow/**/*.md" "docs/topics/handoff-prompt-qol/**/*.md"` exit 0;
 `git status --porcelain` shows no `.work/` path.
+
+**Result (2026-09-04):** Divergence at phase entry: `origin/main` had advanced 13 commits past the
+fork point (`9f07fb5fc`), shipping session-flow 0.34.22 and 0.34.23 and context-guard 0.7.35 to
+0.7.38 with other content, so the branch's context-guard 0.7.35 would read as a VERSION REGRESSION
+under `check-changelog-parity.sh --check-bump`. Resolution: `origin/main` merged into the branch as
+`366e1cae5` (a merge, not a rebase, so every hash cited in the handoffs and in these Result
+paragraphs stays valid); the two context-guard conflicts resolved by taking main's files and
+re-inserting the Phase 4 entry as `## [0.7.39]` above `## [0.7.38]`, body byte-identical to the
+entry committed in `6fbf6f481`. session-flow bumped 0.34.23 to 0.35.0 (from 0.34.23, not from the
+0.34.21 written above) with a `## [0.35.0]` entry above `## [0.34.23]` naming the engine, the
+harness, the shape-2 reference docs and skill wiring, the consumer wiring, and the retro walker
+fix. Follow-up filed as #3711 (the search returned empty). Gates: `check-changelog-parity.sh
+--check-bump origin/main` and `--check` exit 0; `check-changed-skills.sh origin/main` exit 0 (6
+skills, 0 failed); `check-skill-portability.sh` and `check-shell-portability.sh` against
+`origin/main` exit 0; `check-skill.sh --require-evals` PASS on handoff, find-handoff and
+continue-in-background, PASS on implement (line-count WARNs only); markdownlint on
+`plugins/session-flow/**/*.md` and the topic docs 0 issues in 69 files (after removing the
+gitignored `.pytest_cache/`); purged em-dash gate exit 0; ruff clean on the branch's Python; every
+`*.test.sh` and `*.test.py` under session-flow, context-guard and implementation run after the
+merge, 12 suites, 0 failures, including `save_point.test.sh` 52 passed, `parse-transcript.test.sh`
+38 passed, `zone-gate.test.sh` PASS=25 FAIL=0, `hop_chain.test.sh` PASS. Two Sanity Check items were
+not run as written: `run-plugin-tests.sh` has no per-plugin filter (its `--root` is a test-injection
+root), so the per-plugin loop above stands in for it; `affected-tests.sh --run` was stopped before
+it finished, at the user's request, because of its wall clock on this host (filed as #3716, with
+the observation that an in-progress merge makes it resolve the diff base to the fork point and exit
+1 on main-only unmapped files). CI runs both. Fresh-context verifier 13 of 14 PASS; the one FAIL
+was a wrongly scoped criterion: the 21 em dashes it found are all in this file, all from the Phase 0
+commit `dbc9c1440` (the approved plan text), none on a line Phase 6 added, and `docs/topics/` is not
+a purged em-dash surface. The PR body box above ticks when the PR exists.
 
 ### Files affected (summary)
 
