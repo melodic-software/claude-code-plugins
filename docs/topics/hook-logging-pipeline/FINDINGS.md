@@ -86,8 +86,15 @@ A fully disabled hook costs what loading the library costs, because loading the 
 thing it does. The library is 2,766 lines and exists in 18 byte-identical copies (17 under
 `plugins/*/hooks/` plus `lib/`), so the parse is paid on every fire of every hook.
 
-Hoisting a two-line environment read above the `source` line recovers about 2 S per disabled hook
-across roughly 44 switch sites. Reaching an actual zero requires `if:` in `hooks.json`, which
+Hoisting a two-line environment read above the `source` line recovers about 2 S per disabled hook.
+Exact site count, by a grep that anchors on the `hook::check_enabled` call and finds the first
+`source` line anywhere in the file: **40 call-sites, 40 of 40 after the source line, 0 before.** A
+further 21 scripts read the raw `CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED` variable directly (the
+strict-and-loud guard shape), some overlapping the 40. An earlier figure of "roughly 44" in this
+document and in messages to peer lanes was a looser count; a peer lane's independent 43 of 43 is
+consistent with 40 call-sites plus a few raw-variable readers. Directly measured: a gate-first
+disabled hook costs 2.54 ms against a gate-last 5.66 ms, so the hoist recovers 55% of the disabled
+cost. Reaching an actual zero requires `if:` in `hooks.json`, which
 prevents the spawn entirely, but `if:` matches permission-rule patterns and cannot express an
 environment variable, so it cannot carry a kill switch.
 
