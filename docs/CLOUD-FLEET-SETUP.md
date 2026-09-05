@@ -229,9 +229,14 @@ session on this repo in the new environment and ask Claude to verify:
    debugging anything else; `/var/log/melodic-env-setup.log` shows how far the build got.
 1. `gh --version` — read the number, don't just confirm the binary exists. Expect **2.98.0 or
    newer**, the version the CI runner image and dotfiles' mise pin both carry. A `2.45.x` here
-   means the session fell back to Ubuntu's archive `gh`: the setup script's pinned-tarball step
-   failed (`grep gh /var/log/melodic-env-setup.log` for its `WARN`), and scripts that shell out
-   to `gh` are running against a CLI 53 minor versions behind the other two lanes.
+   has two possible causes, and step 0's completion stamp tells them apart before you dig
+   further: if the stamp predates this pin (check its timestamp against when the pinned-tarball
+   change landed in `components/cloud-environment/setup.sh`), the session simply cached an
+   older script version — force a rebuild (any trivial script-field edit) rather than treating
+   this as a failure. Only once the stamp is current does a `2.45.x` reading mean the setup
+   script's pinned-tarball step actually failed (`grep gh /var/log/melodic-env-setup.log` for
+   its `WARN`), leaving scripts that shell out to `gh` running against a CLI 53 minor versions
+   behind the other two lanes.
    Then `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
    `node --version` (expect the `.node-version` pin), `check-tools` for the VM inventory.
 2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
