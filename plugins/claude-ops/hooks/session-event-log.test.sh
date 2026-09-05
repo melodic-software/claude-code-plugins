@@ -82,6 +82,22 @@ run "$P" "$(payload s1 PostToolUse)" "$ON" >/dev/null
 assert_file_absent "a present-but-different guard refuses the write" "$P/.observability/claude/sessions/s1.jsonl"
 assert_eq "the operator's guard is left alone" "# mine" "$(head -1 "$P/.observability/claude/.gitignore")"
 
+# --- an EMPTY guard file is healed, not refused ---------------------------------
+# Two producers racing on one event: the first opens .gitignore, the second
+# reads it before the first has written its byte. Read as an operator file it
+# refuses the write and a line goes missing (the 33-parallel case below caught
+# 32); read as heal-in-progress both write `*` and nothing is lost.
+P=$(project empty-guard)
+mkdir -p "$P/.observability/claude"
+: >"$P/.observability/claude/.gitignore"
+run "$P" "$(payload s1 PreToolUse)" "$ON" >/dev/null
+if [[ -f "$P/.observability/claude/sessions/s1.jsonl" ]]; then
+  ok "an empty guard file does not refuse the write"
+else
+  bad "an empty guard file does not refuse the write"
+fi
+assert_eq "an empty guard file is healed to *" "*" "$(head -1 "$P/.observability/claude/.gitignore")"
+
 # --- outside a checkout there is nothing to keep clean: write, no guard -------
 P=$(project nogit --no-git)
 run "$P" "$(payload s2 PostToolUse)" "$ON" >/dev/null

@@ -72,9 +72,15 @@ slog_guard_ok() {
       *) return 1 ;;
       esac
     done <"$slog__root/.gitignore"
-    return 1
+    # Content but no `*` line (comments only): an operator's file, refused.
+    # No content at all: a sibling producer opened the file a moment ago and
+    # has not written its byte yet (33 hooks fire on one event), or a crash
+    # left it empty; either way the `*` write below is what it needs, and two
+    # writers of the same two bytes cannot disagree.
+    [[ -s "$slog__root/.gitignore" ]] && return 1
+  else
+    mkdir -p "$slog__root" 2>/dev/null || return 1
   fi
-  mkdir -p "$slog__root" 2>/dev/null || return 1
   printf '*\n' >"$slog__root/.gitignore" 2>/dev/null || return 1
   return 0
 }
