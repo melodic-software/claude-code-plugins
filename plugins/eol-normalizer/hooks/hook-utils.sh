@@ -2046,7 +2046,8 @@ hook::emit_telemetry() {
       # tool_response is reachable — but it is not complete: a root key placed
       # after the first container, which is where tool_use_id sits, is omitted
       # rather than guessed. session_id and prompt_id lead the payload, so
-      # routing is unaffected. Tracked for a cheaper exact tail scan.
+      # routing is unaffected. #3784 tracks a cheaper exact tail scan that
+      # would close the gap without paying the neutralizing passes.
       corr_root=$corr_payload
       if [[ "$corr_root" =~ $corr_cut ]]; then
         corr_root=${corr_root%%"${BASH_REMATCH[0]}"*}
