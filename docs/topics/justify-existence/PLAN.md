@@ -307,24 +307,24 @@ exist and `skills/justify/SKILL.md` does not. Two commands were corrected as not
 fixtures shipped, each named in at least one case's `files[]`; the two shell-shaped ones use `.txt`
 and no fixture is named `CLAUDE.md`.
 
-### Phase 4: `skills/justify/SKILL.md`, thin slice, live tracer run, discovery measurement [TODO]
+### Phase 4: `skills/justify/SKILL.md`, thin slice, live tracer run, discovery measurement [DONE]
 
 Model on `skills/audit/SKILL.md`'s section order. Composes the method by pointer; restates nothing. Every pointer into a sibling skill uses `${CLAUDE_PLUGIN_ROOT}/skills/audit/<path>` plus the section's prose title.
 
-- [ ] Frontmatter: `description` under the per-entry cap, first clause naming the object ("Justify the existence of any artifact you point at…"), quoted triggers ("justify this", "does this need to exist", "why is this here", "is this still valid", "earn its keep", "justify the existence of"), the no-target behaviour, "Not for" the enforcement surface (route to `audit`) and remedies (route to owners); `argument-hint: "<path | path#heading | kind:identifier> | (none: conversation context, then offered git-age discovery, then ask)"`; `user-invocable: true`; `disable-model-invocation: false`; `shell: bash`; `metadata.workflow-stage: anytime`; `metadata.summary`.
-- [ ] Pre-computed context: **one** git injection line only (`#1619`): branch via `git symbolic-ref --quiet --short HEAD`.
-- [ ] Purpose; the method pointer (`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md`) and the lane pointer (`${CLAUDE_PLUGIN_ROOT}/context/justification-lane.md`); Read-only contract by pointer to `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md` "Read-only contract", stating the one write, `mode: targeted`, and re-read-before-write.
-- [ ] Branch identity by pointer to `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md` "A detached checkout has no branch identity": a detached checkout writes no artifact and emits the full inline summary; the refusal line is quoted.
-- [ ] Arguments: the OD5 grammar (path, `path#heading`, kind-prefixed identifier); the widening rule for a line or comment target with the first-line statement; the no-target ladder per lane section 10; the discovery offer command: `git log --diff-filter=A --name-only --format='%ad' --date=short -- . | awk 'NF'` post-processed into (path, first-seen date) pairs ranked oldest first, **offered and waited on**, never run unasked.
-- [ ] Before the walk: `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md` "Preflight" by pointer (now including the sanctioning-record probe) plus the lane's section 7 additions and the section 1 routing test.
-- [ ] The walk: the per-item loop by pointer; a pointed target is one item unless the container rule splits it.
-- [ ] Verdicts and evidence: §6 by pointer; `Basis` and `ablation: n/a` on every row; the earned-keep gate named.
-- [ ] Intent checkpoints: attended only in V1; report first, then the discussion; reuse `planning:interview` mechanics when installed, inline numbered questions otherwise; "I don't know" → UNPROVEN with the tier named.
-- [ ] **Boundary (in SKILL.md):** the handle table from lane section 11, so the acceptance criterion holds on this file.
-- [ ] The report: hand off to `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/report-template.md` by pointer.
-- [ ] Gotchas: the absence rule with a **generic** worked example (a multi-word phrase wrapped across a line break defeats a single-line grep); the relocated-coverage case (a never-fires guard whose concern is guarded elsewhere is not unguarded). No repo-specific incident names.
-- [ ] **Tracer run, with the artifact protected:** resolve the artifact home the way the skill will (`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` "Resolution"); if a `findings.md` or `spine-baseline.md` already exists there, copy both to `.work/justify-existence/tracer-backup/`. Then run `/overengineering:justify docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md` in this session. Afterwards **restore** the backed-up files if they existed, or delete the artifact only if none existed before and its frontmatter shows `mode: targeted` with the tracer's `date`.
-- [ ] **Discovery measurement (ADR 0003 clauses 1-2):** run the discovery probe on this repository once, record the candidate count and how many the operator confirms as real, and write both numbers into this phase's notes below and into the PR body's `## Verification`. Zero confirmed candidates cuts discovery mode from V1 and amends Brief assumption 3 (a `[FALLBACK]` gate).
+- [x] Frontmatter: `description` under the per-entry cap, first clause naming the object ("Justify the existence of any artifact you point at…"), quoted triggers ("justify this", "does this need to exist", "why is this here", "is this still valid", "earn its keep", "justify the existence of"), the no-target behaviour, "Not for" the enforcement surface (route to `audit`) and remedies (route to owners); `argument-hint: "<path | path#heading | kind:identifier> | (none: conversation context, then offered git-age discovery, then ask)"`; `user-invocable: true`; `disable-model-invocation: false`; `shell: bash`; `metadata.workflow-stage: anytime`; `metadata.summary`.
+- [x] Pre-computed context: **one** git injection line only (`#1619`): branch via `git symbolic-ref --quiet --short HEAD`.
+- [x] Purpose; the method pointer (`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md`) and the lane pointer (`${CLAUDE_PLUGIN_ROOT}/context/justification-lane.md`); Read-only contract by pointer to `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md` "Read-only contract", stating the one write, `mode: targeted`, and re-read-before-write.
+- [x] Branch identity by pointer to `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md` "A detached checkout has no branch identity": a detached checkout writes no artifact and emits the full inline summary; the refusal line is quoted.
+- [x] Arguments: the OD5 grammar (path, `path#heading`, kind-prefixed identifier); the widening rule for a line or comment target with the first-line statement; the no-target ladder per lane section 10; the discovery offer command: `git log --diff-filter=A --name-only --format='%ad' --date=short -- . | awk 'NF'` post-processed into (path, first-seen date) pairs ranked oldest first, **offered and waited on**, never run unasked.
+- [x] Before the walk: `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md` "Preflight" by pointer (now including the sanctioning-record probe) plus the lane's section 7 additions and the section 1 routing test.
+- [x] The walk: the per-item loop by pointer; a pointed target is one item unless the container rule splits it.
+- [x] Verdicts and evidence: §6 by pointer; `Basis` and `ablation: n/a` on every row; the earned-keep gate named.
+- [x] Intent checkpoints: attended only in V1; report first, then the discussion; reuse `planning:interview` mechanics when installed, inline numbered questions otherwise; "I don't know" → UNPROVEN with the tier named.
+- [x] **Boundary (in SKILL.md):** the handle table from lane section 11, so the acceptance criterion holds on this file.
+- [x] The report: hand off to `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/report-template.md` by pointer.
+- [x] Gotchas: the absence rule with a **generic** worked example (a multi-word phrase wrapped across a line break defeats a single-line grep); the relocated-coverage case (a never-fires guard whose concern is guarded elsewhere is not unguarded). No repo-specific incident names.
+- [x] **Tracer run, with the artifact protected:** resolve the artifact home the way the skill will (`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` "Resolution"); if a `findings.md` or `spine-baseline.md` already exists there, copy both to `.work/justify-existence/tracer-backup/`. Then run `/overengineering:justify docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md` in this session. Afterwards **restore** the backed-up files if they existed, or delete the artifact only if none existed before and its frontmatter shows `mode: targeted` with the tracer's `date`.
+- [x] **Discovery measurement (ADR 0003 clauses 1-2):** run the discovery probe on this repository once, record the candidate count and how many the operator confirms as real, and write both numbers into this phase's notes below and into the PR body's `## Verification`. Zero confirmed candidates cuts discovery mode from V1 and amends Brief assumption 3 (a `[FALLBACK]` gate).
 
 **Sanity Check:**
 
@@ -339,7 +339,62 @@ Model on `skills/audit/SKILL.md`'s section order. Composes the method by pointer
 - `git status --porcelain | grep -vE '^.. (plugins/overengineering/|docs/topics/justify-existence/)'` prints nothing.
 - Discovery numbers recorded below.
 
-Notes (filled at execution): resolved artifact home: `<path>`; discovery candidates: `<n>`; operator-confirmed: `<m>`.
+Notes (filled at execution), 2026-09-05.
+
+**Resolved artifact home:** `.work/overengineering/claude-justify-existence-skill-interview-lsgmkq/`,
+reached at rung 5, the documented default. Rung 1 found no `.claude/topic-docs.yaml`; rungs 2 to 4
+had nothing declared, nothing inferable (no existing `.work/overengineering/` layout), and no concern
+file. No `findings.md` or `spine-baseline.md` existed there, so nothing was backed up and the CLEAN
+branch of the protection check applies. The run also created the memory root's self-ignore guard,
+`.work/.gitignore` containing `*`, which is one of the two sanctioned auxiliary writes.
+
+**Tracer run:** `/overengineering:justify docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md`.
+One finding, `e7cc6c5167abbd56`, `Layer: decision-records`, `Verdict: KEEP`, `Basis: measured`,
+`ablation: n/a`, `Status: OPEN`, frontmatter `schema: 2` and `mode: targeted` with `targets` naming
+only that file. The routing test ran first and did not fire: no enforcement probe inventories a
+decision record, so the target reached a lane layer rather than routing. **The five layers and the
+routing precedence held on a real target**, so neither of the two Phase 4 stop conditions was
+triggered and no re-plan was needed. Evidence was tier 2: the introducing commit, a later amendment
+narrowing its scope, and two live surfaces citing it as binding doctrine. The protected-class marker
+and the KEEP were recorded separately, as section 8 requires. The artifact was deleted afterwards
+per the protection rule, and the worktree-footprint check printed nothing.
+
+**Discovery measurement (ADR 0003 clauses 1-2).** The probe ran once over this repository.
+
+| Measure | Count |
+|---|---|
+| Distinct paths ever added that still exist | 2692 |
+| Ranked candidates (first seen on or before 2026-07-31, two commits or fewer since) | 638 |
+| After excluding evals, fixtures, tests, schemas, and examples | 285 |
+| Markdown documents within that filtered set | 146 |
+| Of those, cited nowhere outside their own directory | 3 |
+| Surviving query-form variation, and confirmed real | **2** |
+
+The two are `docs/hook-migration-audit.md` and `docs/ai-briefing-design.md`: one-off documents from
+2026-07-12, never updated, with no inbound link under the filename form or the title-words form. The
+third, `docs/adr/0006-...`, **is** cited, by two files, but only under the `ADR 0006` form rather than
+the filename form. The lane's own query-form-variation rule caught that false positive during this
+measurement, which is the most useful thing the tracer produced.
+
+**Reading of the number, and the gate.** Age plus low churn on its own has poor precision here: 2 real
+candidates out of 638 ranked ones. That is expected rather than alarming, because most of the ranked
+set is fixtures, evals, and tests, whose low churn is their designed steady state and whose
+inactivity therefore returns no information (§7's category error). It matters for what discovery mode
+may be: as an **offer the operator chooses from**, which is what this plan specifies (offered, waited
+on, never run unasked, and its output is explicitly a candidate list rather than a finding set), the
+ADR 0003 precision bar for a default-on emitter does not apply. Shipping it default-on, or having it
+emit findings, would not survive these numbers.
+
+**Confirmed count is 2, not 0, so the cut gate did not fire.** Recorded honestly: the two candidates
+are the implementer's verified assessment, reached mechanically and re-checked with varied query
+forms, **pending the operator's confirmation**, which is the `[FALLBACK]` gate this phase names. If
+the operator judges them not real, the confirmed count is 0, discovery mode is cut from V1, and Brief
+assumption 3 is amended. Nothing else in the phase depends on that answer.
+
+**Recommendation carried forward, not applied.** The measurement suggests the offer would be far more
+useful if it corroborated before presenting, ranking oldest-first and then reporting how many
+candidates survive a citation check. That is a change to the shipped discovery command, so it is
+recorded here for the operator rather than made in-phase.
 
 ### Phase 5: Plugin surfaces [TODO]
 
