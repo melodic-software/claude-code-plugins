@@ -135,6 +135,31 @@ export function validatePolicy(value) {
     }
   });
 
+  // `managedLabelPatterns` is a DETECTION surface: deliberately loose so every
+  // label-shaped string is caught and refused. It is the wrong gate for
+  // ADMISSION, which needs the opposite bias, so the labels a job may name
+  // directly are an explicit reviewed set, exactly like the hosted ones. Every
+  // entry must itself read as a managed label and must not be a hosted label,
+  // so this set can never quietly admit an arbitrary or hosted target.
+  const approvedManagedRunnerLabels = new Set(value.approvedManagedRunnerLabels);
+  for (const label of approvedManagedRunnerLabels) {
+    if (label !== label.trim()) {
+      throw new ConfigurationError(
+        `policy.approvedManagedRunnerLabels entry ${JSON.stringify(label)} must not carry surrounding whitespace`,
+      );
+    }
+    if (knownGitHubHostedRunnerLabels.has(label.toLowerCase())) {
+      throw new ConfigurationError(
+        `policy.approvedManagedRunnerLabels entry ${JSON.stringify(label)} is a GitHub-hosted runner label`,
+      );
+    }
+    if (!managedLabelRegexes.some((pattern) => pattern.test(label))) {
+      throw new ConfigurationError(
+        `policy.approvedManagedRunnerLabels entry ${JSON.stringify(label)} must match a managed label pattern`,
+      );
+    }
+  }
+
   const selectorWorkflowPaths = new Set(value.selectorWorkflowPaths);
   const validateSelectorReference = (reference, location) => {
     const parsed = parseReusableWorkflowReference(reference);
@@ -433,6 +458,7 @@ export function validatePolicy(value) {
     hostedExceptionReasons: new Set(value.hostedExceptionReasons),
     localCredentialActions: new Set(value.localCredentialActions),
     managedLabelRegexes,
+    approvedManagedRunnerLabels,
   };
 }
 
@@ -863,8 +889,14 @@ function auditLocalPermissionFlow({
           record.file,
           workflowIndex,
         );
+    // A called job that names the fleet label literally executes on the same
+    // persistent host as a selector-routed one. Before the fleet label was a
+    // routing target it classified `invalid` here, matching neither this test
+    // nor the hosted one below, so the whole flow pass fell through and emitted
+    // nothing: a called job inheriting write-capable caller permissions ran on
+    // the fleet with no finding at all.
     const localExecution =
-      target?.kind === "selector-output" ||
+      locallyRoutedTarget(target) ||
       target?.kind === "reusable-input" ||
       target?.kind === "transparent-local-reusable";
     if (localExecution && capability !== "read-only") {
@@ -2553,6 +2585,28 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
       reason: `runner expression ${JSON.stringify(target)} is not an approved routing contract`,
     };
   }
+  // A literal governed fleet label is a first-class routing target on an
+  // enrolled private repository: the selector job is no longer the only way to
+  // reach the managed fleet. Admission is exact membership in the reviewed
+  // `approvedManagedRunnerLabels` set, mirroring the hosted-literal check
+  // below, and deliberately NOT a `managedLabelPatterns` match: that pattern is
+  // a deliberately loose detection surface, so reusing it here would admit any
+  // unreviewed near-miss (`melodic-anything-ubuntu-24.04-x64`) or an
+  // adjacent-text string (`bogus/melodic-review-ubuntu-24.04-x64`) with the
+  // same trust as the real fleet label. The check also sits AFTER the
+  // expression catch-all above, so a `${{ … }}` expression that merely mentions
+  // the label is not a literal; an expression that is a governed route has
+  // already been admitted by routeStatus. Approval is unconditional here and
+  // the routing gate below (`routingEnabled`) refuses it on a public or
+  // non-enrolled repository, which is exactly how selector-output is handled,
+  // so the public case keeps reporting `public-self-hosted-routing` rather than
+  // a generic contract failure.
+  // Compared without trimming, exactly as the hosted-literal check below is, and
+  // exactly as validatePolicy requires of every set entry: a padded label is a
+  // different string from the reviewed one and is not admitted.
+  if (policy.approvedManagedRunnerLabels.has(target)) {
+    return { approved: true, kind: "managed-literal", label: target };
+  }
   if (policy.approvedHostedRunnerLabels.has(target)) {
     return { approved: true, kind: "hosted-literal" };
   }
@@ -2561,6 +2615,17 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     kind: "invalid",
     reason: `runner target ${JSON.stringify(target)} is not in the approved hosted-runner label allowlist`,
   };
+}
+
+// The two ways a job reaches the managed fleet: the governed selector output
+// and, on an enrolled private repository, the governed fleet label written
+// literally. Every gate that used to test for `selector-output` alone tests
+// this instead, so a Phase 4 job that replaces its selector expression with the
+// label keeps the same reviewed permission treatment rather than silently
+// losing it. Keeping the two spellings in one predicate is what stops the
+// grant-applicability test and the grant-consumption test from drifting apart.
+function locallyRoutedTarget(target) {
+  return target?.kind === "selector-output" || target?.kind === "managed-literal";
 }
 
 function rawRunnerStrings(job, includeReusableInputs) {
@@ -2980,7 +3045,7 @@ function privilegedHostedRequirement(
 ) {
   const reusable = reusableWorkflowStatus(job, policy, workflow);
   const reviewedCallerPermissions =
-    target?.kind === "selector-output" &&
+    locallyRoutedTarget(target) &&
     reusable.approved &&
     reusable.contract.allowedCallerPermissions !== undefined;
   // An approved runner-input contract governs the caller's secrets: block the
@@ -2991,7 +3056,7 @@ function privilegedHostedRequirement(
   // caller-permission waiver; allowedCallerPermissions remains the only
   // write-capable waiver, and secret-capable runner-input contracts decline
   // auto-approval so every new SHA of such a workflow is human-reviewed.
-  const reviewedSecretBoundary = target?.kind === "selector-output" && reusable.approved;
+  const reviewedSecretBoundary = locallyRoutedTarget(target) && reusable.approved;
   // A local-routing grant admits only a directly declared, genuinely
   // selector-routed job: a fixed hosted target keeps the ordinary privileged
   // rules and exception inventory, mirroring the allowedCallerPermissions
@@ -3001,7 +3066,7 @@ function privilegedHostedRequirement(
   // allowedCallerPermissions stays the sole write-capable waiver for callers
   // and a grant keyed to such a job surfaces as local-routing-grant-drift.
   const grantApplies =
-    grant !== undefined && target?.kind === "selector-output" && typeof job.uses !== "string";
+    grant !== undefined && locallyRoutedTarget(target) && typeof job.uses !== "string";
   // The publication downgrade holds only while packages:write is the job's
   // entire privileged surface: a deployment environment, credential
   // expression, or credential-minting action found below still demands the
@@ -3030,7 +3095,7 @@ function privilegedHostedRequirement(
       localCall?.approved || reviewedCallerPermissions
         ? undefined
         : permissionHostedRequirement(workflow, job, {
-            requireExplicitReadOnly: target?.kind === "selector-output",
+            requireExplicitReadOnly: locallyRoutedTarget(target),
           });
     if (permissionRequirement?.reason === "publication") {
       publicationRequirement = permissionRequirement;
@@ -3563,10 +3628,13 @@ export async function auditRepository({
         privilegedHosted?.reason === "publication"
           ? (structuralHosted ?? privilegedHosted)
           : (privilegedHosted ?? structuralHosted);
+      // Must stay the exact complement of grantApplies: a grant that admits a
+      // job but is never marked consumed here fires exception-inventory drift
+      // on the same pull request that admitted it.
       if (
         grant &&
         routingEnabled &&
-        target?.kind === "selector-output" &&
+        locallyRoutedTarget(target) &&
         typeof job.uses !== "string" &&
         !hostedRequirement
       ) {
@@ -3611,6 +3679,16 @@ export async function auditRepository({
           governedRoute !== null &&
           new Set(policy.fallbackLabelAllowlist).has(governedRoute.groups.fallback)
         ) {
+          continue;
+        }
+        // The same skip for the label this job routes on, and only for that
+        // exact string. It is conditioned on routingEnabled so a public or
+        // non-enrolled repository still reports the raw pin, and it covers a
+        // `with:` runner value as well as a literal `runs-on` because
+        // rawRunnerStrings reads both: without that, an approved reusable call
+        // whose runner input is the fleet label would report its own admitted
+        // target as a raw pin.
+        if (routingEnabled && target?.kind === "managed-literal" && runner === target.label) {
           continue;
         }
         if (rawManagedLabel(runner, policy)) {
@@ -3709,19 +3787,26 @@ export async function auditRepository({
             target?.kind !== "hosted-reusable" &&
             target?.kind !== "hosted-local-reusable")
         ) {
+          // The suffix is per rule, not shared. A grant never suppresses a
+          // structural requirement (THREAT-MODEL.md), so a job container or
+          // services on the fleet must not read as if writing one would satisfy
+          // it; only the privileged category has a grant as an alternative to an
+          // exception.
           findings.push(
             finding(
               hostedRequirement.rule,
               file,
               jobId,
-              `${hostedRequirement.description} cannot use selector or reusable local-runner routing`,
+              hostedRequirement.rule === "structural-hosted-only"
+                ? `${hostedRequirement.description} cannot use selector or fleet-label routing`
+                : `${hostedRequirement.description} requires a reviewed localRoutingGrants entry or a hosted exception`,
             ),
           );
         }
       }
 
       if (!routingEnabled) {
-        if (selector.isSelector || target?.kind === "selector-output" || attemptsSelectorRoute) {
+        if (selector.isSelector || locallyRoutedTarget(target) || attemptsSelectorRoute) {
           findings.push(
             finding(
               config.visibility === "public"
@@ -3729,7 +3814,7 @@ export async function auditRepository({
                 : "self-hosted-routing-disabled",
               file,
               jobId,
-              "this repository is not permitted to use the local-runner selector",
+              "this repository is not permitted to route work to the managed local-runner fleet",
             ),
           );
         }
@@ -3747,6 +3832,13 @@ export async function auditRepository({
         continue;
       }
       if (target?.kind === "selector-output" && target.approved) {
+        continue;
+      }
+      // An enrolled private repository may name the governed fleet label
+      // directly. Everything that makes such a job privileged has already been
+      // reported above through hostedRequirement, so an admitted fleet literal
+      // needs no exception entry, exactly as a selector-routed job needs none.
+      if (target?.kind === "managed-literal" && target.approved) {
         continue;
       }
       if (attemptsSelectorRoute) {
@@ -3770,7 +3862,7 @@ export async function auditRepository({
               "hosted-exception-required",
               file,
               jobId,
-              `eligible private job must consume the approved selector or declare ${key} in .github/runner-policy.json`,
+              `eligible private job must name the governed fleet label or declare ${key} in .github/runner-policy.json`,
             ),
           );
         }
@@ -3782,7 +3874,7 @@ export async function auditRepository({
             "hosted-exception-required",
             file,
             jobId,
-            `eligible private job must consume the approved selector or declare ${key} in .github/runner-policy.json`,
+            `eligible private job must name the governed fleet label or declare ${key} in .github/runner-policy.json`,
           ),
         );
       } else if (exception) {
