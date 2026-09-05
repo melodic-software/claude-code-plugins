@@ -141,8 +141,9 @@ without editing the plugin.
 ## Plan
 
 Drafted by `/planning:plan` on 2026-09-05 against the Brief above and the design slice in
-[`design/`](design/) (`design-threads.md` T1 to T21, `contracts.md`, `module-boundary.md`,
-`domain-model.md`). Scale: **Large** (a new plugin of roughly sixty files, four cross-cutting
+[`design/`](design/) (`design-threads.md` T1 to T22, `contracts.md`, `module-boundary.md`,
+`domain-model.md`). **Approved by the operator on 2026-09-05** ("approved", no flip line taken):
+the decisions table and both `[FALLBACK]` gates stand as written. Scale: **Large** (a new plugin of roughly sixty files, four cross-cutting
 registry edits, three sibling-plugin edits), so the full template with stress-test applies.
 
 ### Goal
