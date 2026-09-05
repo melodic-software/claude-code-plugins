@@ -96,7 +96,15 @@ def main(argv: list[str]) -> int:
         print(_USAGE, file=sys.stderr)
         return 2
     pattern, paths = args[0], args[1:]
-    regex = re.compile(translate(pattern))
+    try:
+        regex = re.compile(translate(pattern))
+    except re.error as exc:
+        # A consumer writes these patterns by hand in an ecosystem file, and a
+        # bad character class (`[z-a]`) is a configuration mistake, not a
+        # crash. Naming it beats a traceback, and the non-zero exit is what
+        # stops the caller from reading "no files matched" as an answer.
+        print(f"pathglob.py: {pattern!r} is not a usable glob: {exc}", file=sys.stderr)
+        return 2
     hits = [p for p in paths if regex.match(_normalize(p))]
     if any_mode:
         return 0 if hits else 1

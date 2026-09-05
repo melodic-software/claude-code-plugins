@@ -85,8 +85,26 @@ def _finish(
                 "lines": None,
             }
         )
-    functions.sort(key=lambda f: (f["start_line"] is None, f["start_line"] or 0))
-    section["functions"] = functions
+    # One tracefile can carry several `SF` blocks for the same source file (a
+    # concatenation of per-suite runs). The `DA` counts already merge with
+    # `max` into the shared section, so the function records must fold the
+    # same way: replacing them would let a later block's `FNDA:0` erase an
+    # earlier hit and report the function at 0 percent, at maximal CRAP, in a
+    # file the line table shows as covered.
+    existing = {f["name"]: f for f in section["functions"] or []}
+    for function in functions:
+        previous = existing.get(function["name"])
+        if previous is None:
+            existing[function["name"]] = function
+            continue
+        for key in ("start_line", "end_line"):
+            if previous[key] is None:
+                previous[key] = function[key]
+        counts = [h for h in (previous["hit"], function["hit"]) if h is not None]
+        previous["hit"] = max(counts) if counts else None
+    folded = list(existing.values())
+    folded.sort(key=lambda f: (f["start_line"] is None, f["start_line"] or 0))
+    section["functions"] = folded
 
 
 def parse(path: str) -> dict[str, dict]:

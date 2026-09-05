@@ -293,6 +293,18 @@ python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
 assert_eq "--print-scope leaves out a file no lane claims" "" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
+# A value the resolver refuses must stop the run. Reading a derived format from
+# a process substitution would report only the read's own success, so the audit
+# would exit 0 having quietly dropped the configured scope and exclusions.
+(cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >.claude/code-metrics.yaml)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
+rc=$?
+assert_eq "a refused config value stops the run instead of dropping the config" "2:" "$rc:$out"
+err="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
+case "$err" in
+*"scope.exclude"*) pass "the refusal names the offending key" ;;
+*) fail "the refusal names the offending key" "mentions scope.exclude" "$err" ;;
+esac
 rm -rf "$repo" "$home"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

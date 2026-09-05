@@ -93,13 +93,25 @@ fi
 # Glob-driven lanes are decided first, one pathglob call per pattern, so a
 # consumer override wins over the extension map for its lane.
 declare -A GLOB_LANE_OF=()
+GLOB_HITS="$(mktemp)"
+trap 'rm -f "$GLOB_HITS"' EXIT
 for lane in "${!LANE_GLOBS[@]}"; do
   IFS=',' read -r -a patterns <<<"${LANE_GLOBS[$lane]}"
   for pattern in "${patterns[@]}"; do
     [[ -n "$pattern" ]] || continue
+    # The matcher's output goes to a file and its exit status is checked before
+    # the file is read: a process substitution reports only the read's own
+    # success, so a pattern the matcher refused would read as "matched
+    # nothing". Declaring globs turns off this lane's extension fallback, so
+    # that silence would drop the lane's files from the run entirely.
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" "${FILES[@]}" >"$GLOB_HITS"; then
+      printf 'detect-lanes.sh: lane %s: the glob %s could not be used (see the message above)\n' \
+        "$lane" "$pattern" >&2
+      exit 2
+    fi
     while IFS= read -r hit; do
       [[ -n "$hit" ]] && GLOB_LANE_OF["$hit"]="$lane"
-    done < <("${PY[@]}" "$PATHGLOB" "$pattern" "${FILES[@]}")
+    done <"$GLOB_HITS"
   done
 done
 

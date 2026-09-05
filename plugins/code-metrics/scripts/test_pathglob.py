@@ -76,6 +76,17 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("usage", result.stderr)
 
+    def test_an_unusable_glob_is_a_named_error_not_a_traceback(self) -> None:
+        # A consumer writes these by hand in an ecosystem file. A traceback
+        # would be unreadable, and a zero exit would let the caller read
+        # "matched nothing" as an answer.
+        result = run("[z-a]", "a.py")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("[z-a]", result.stderr)
+        self.assertIn("not a usable glob", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.stdout, "")
+
 
 if __name__ == "__main__":
     unittest.main()

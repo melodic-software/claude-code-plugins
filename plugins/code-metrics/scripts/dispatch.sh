@@ -165,7 +165,20 @@ if [[ -z "$CONFIG" ]]; then
 fi
 # Ecosystem globs and lane opt-outs from the resolved document come first, so
 # an explicit command-line --lane-globs/--disable-lane wins over them.
-mapfile -t config_detect_args < <("${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format dispatch-args)
+# Each derived format is written to a file and its exit status checked before
+# it is read. Reading straight from a process substitution reports only the
+# read's own success, so a resolver that refused a value (exit 2) would leave
+# the list empty and the audit would run on with the configured scope, lanes,
+# and exclusions silently dropped, which is the failure the refusal exists to
+# prevent.
+resolver_format() {
+  # resolver_format <format> <output file>
+  if ! "${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format "$1" >"$2"; then
+    die_usage "the configuration could not be read as $1 (see the message above)"
+  fi
+}
+resolver_format dispatch-args "$WORK/dispatch-args"
+mapfile -t config_detect_args <"$WORK/dispatch-args"
 CONFIG_DETECT_ARGS=()
 for line in "${config_detect_args[@]}"; do
   [[ -n "$line" ]] || continue
@@ -187,8 +200,9 @@ for line in "${config_detect_args[@]}"; do
 done
 DETECT_ARGS=("${CONFIG_DETECT_ARGS[@]}" "${DETECT_ARGS[@]}")
 LADDER_OVERRIDES="$WORK/ladder-overrides.tsv"
-"${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format ladder-overrides >"$LADDER_OVERRIDES"
-mapfile -t EXCLUDE_GLOBS < <("${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format excludes)
+resolver_format ladder-overrides "$LADDER_OVERRIDES"
+resolver_format excludes "$WORK/excludes"
+mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
 
 # ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
