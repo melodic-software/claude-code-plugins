@@ -1,0 +1,70 @@
+{
+    "duplicates": [
+        {
+            "firstFile": {
+                "end": 41,
+                "endLoc": {
+                    "column": 1,
+                    "line": 41,
+                    "position": 1002
+                },
+                "name": "plugins/code-metrics/scripts/fixtures/sources/cluster/alpha/shared/shared-utils.sh",
+                "start": 1,
+                "startLoc": {
+                    "column": 0,
+                    "line": 1,
+                    "position": 0
+                }
+            },
+            "format": "bash",
+            "fragment": "# shellcheck shell=bash\n# Fixture source for the code-metrics duplication suites: a helper vendored\n# byte-identical into two sibling plugin directories, standing in for a\n# repository that deliberately replicates one path across its plugins. Never\n# executed, so it carries no shebang and no exec bit; kept lint-clean on\n# purpose. The copy under the sibling directory is byte-for-byte this file.\n\nHARVEST_LABEL=\"harvest\"\n\nannounce_start() {\n  local subject=\"$1\"\n  printf 'start %s %s\\n' \"$HARVEST_LABEL\" \"$subject\"\n}\n\nannounce_finish() {\n  local subject=\"$1\"\n  local outcome=\"${2:-unknown}\"\n  printf 'finish %s %s %s\\n' \"$HARVEST_LABEL\" \"$subject\" \"$outcome\"\n}\n\ncollect_orchard() {\n  local basket=\"$1\"\n  shift\n  local apple\n  for apple in \"$@\"; do\n    if [[ -z \"$apple\" ]]; then\n      continue\n    fi\n    printf '%s/%s\\n' \"$basket\" \"$apple\"\n  done\n}\n\nmeasure_basket() {\n  local basket=\"$1\"\n  if [[ -d \"$basket\" ]]; then\n    find \"$basket\" -type f | wc -l\n    return 0\n  fi\n  printf '0\\n'\n  return 1\n}",
+            "isNew": false,
+            "lines": 41,
+            "secondFile": {
+                "end": 41,
+                "endLoc": {
+                    "column": 1,
+                    "line": 41,
+                    "position": 1002
+                },
+                "name": "plugins/code-metrics/scripts/fixtures/sources/cluster/beta/shared/shared-utils.sh",
+                "start": 1,
+                "startLoc": {
+                    "column": 0,
+                    "line": 1,
+                    "position": 0
+                }
+            },
+            "tokens": 110
+        }
+    ],
+    "statistics": {
+        "detectionDate": "2026-09-05T16:06:08.332Z",
+        "formats": {
+            "bash": {
+                "clones": 1,
+                "duplicatedLines": 40,
+                "duplicatedTokens": 110,
+                "lines": 82,
+                "newClones": 0,
+                "newDuplicatedLines": 0,
+                "percentage": 48.78048780487805,
+                "percentageTokens": 50.0,
+                "sources": 2,
+                "tokens": 220
+            }
+        },
+        "total": {
+            "clones": 1,
+            "duplicatedLines": 40,
+            "duplicatedTokens": 110,
+            "lines": 82,
+            "newClones": 0,
+            "newDuplicatedLines": 0,
+            "percentage": 48.78048780487805,
+            "percentageTokens": 50.0,
+            "sources": 2,
+            "tokens": 220
+        }
+    }
+}

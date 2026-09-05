@@ -1,0 +1,43 @@
+{
+  "skill_name": "audit-duplication",
+  "evals": [
+    {
+      "id": 1,
+      "name": "declared-replication-is-excluded-not-counted",
+      "prompt": "/code-metrics:audit-duplication --all",
+      "expected_output": "Runs the bundled audit-duplication.sh over the whole tree, applies the registries named in duplication.registries, presents the clone groups that survived, and reports the vendored cluster as an exclusion naming the registry file and line rather than as duplication debt.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/audit-duplication.sh rather than grepping for repeated text",
+        "Reports the duplicated-line total after the exclusions, counting each clone group once",
+        "Names the registry path and line for each excluded group and calls it an exclusion the repository declared, not a suppressed finding",
+        "Does not call any surviving clone group a violation, a defect, or a failure"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-detector-installed-is-visible-not-silent",
+      "prompt": "/code-metrics:audit-duplication src/ (jscpd is not installed on this machine)",
+      "expected_output": "The report is still produced with status empty, the run table shows the duplication row as unavailable with jscpd's install hint, and nothing is installed or fetched.",
+      "files": [],
+      "expectations": [
+        "Shows the run table row for duplication as unavailable with the reason and the install hint",
+        "Does not run npm install, npx, or any other fetch to obtain a detector",
+        "States that a run which measured nothing is not the same as zero duplication"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "the-vendored-cluster-question-answered-with-a-registry",
+      "prompt": "Our hook-utils.sh is copied into every plugin on purpose and it is listed in scripts/cross-plugin-source-registry.txt. Does our duplication number still count it?",
+      "expected_output": "Runs audit-duplication.sh with --registry scripts/cross-plugin-source-registry.txt over the copies, shows the duplicated-line total as zero, and points at the excluded entry that names the registry line hooks/hook-utils.sh.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes the registry to the script with --registry (or points at duplication.registries) rather than editing any tool configuration",
+        "Reports zero duplicated lines for that cluster and shows the excluded entry naming hooks/hook-utils.sh",
+        "Explains that the exclusion follows from the repository's own declaration and would report the duplicated lines without it"
+      ]
+    }
+  ]
+}

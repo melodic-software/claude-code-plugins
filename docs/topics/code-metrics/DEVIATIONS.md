@@ -125,3 +125,15 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   `cpd` gained ladder rungs after `jscpd` for typescript, python, go, and dotnet so the
   documented collector override can reach it (Phase 5's finding; the override validates names
   against the ladder). Every plugin suite green afterwards (8 shell suites, 183 pytest cases).
+- **plan-confirmed.** Phase 3 verifier 13 of 13 PASS; Phase 5 verifier 13 of 13 PASS, including
+  the Brief's acceptance case against the live `hook-utils.sh` cluster with a cached `jscpd`
+  5.1.2 (zero debt through `scripts/cross-plugin-source-registry.txt`, 44,256 duplicated lines
+  without it). Observations carried forward, none a defect: `lizard`'s `function_lines` counts a
+  nested function's lines inside its parent (the ISO §8.2.115 reading; the CRAP join subtracts
+  nested ranges, per T7, and Phase 4's brief says so); `radon hal` rows carry neither line and
+  the label `no-line-range` (a third null-range class beside `start-line-only` and
+  `file-level`); `jscpd` reports pairs, so a 17-copy cluster is 16 excluded entries (documented
+  in the skill's Gotchas); after a total registry exclusion `summary.files` counts surviving
+  rows only, while the scope header still shows the file count (a Phase 8 wording check). The
+  `cpd` docstring and SKILL.md were updated by the orchestrator after the verifier ran, because
+  the rungs added in `e5fc309e` made their "no rung ships" wording stale; re-gated.

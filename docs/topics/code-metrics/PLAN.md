@@ -338,7 +338,7 @@ Files:
 - `python3 plugins/code-metrics/skills/setup/scripts/setup-apply.py --dir "$(mktemp -d)" size.file_lines=500` twice: the second run prints `already configured` and the file is byte-identical
 - the phase gate (the full "one row per collector" assertion for `setup-check.sh` moves to Phase 8, once every adapter exists)
 
-### Phase 3: `audit-complexity` [TODO]
+### Phase 3: `audit-complexity` [DONE]
 
 Review: code-design
 
@@ -346,10 +346,10 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.py` + eight `test_<tool>.py` | CREATE | T1 ladder; each translates to `measures[]` rows with `start_line`/`end_line` |
-| [ ] `plugins/code-metrics/scripts/fixtures/tool-output/{lizard.csv,radon-cc.json,radon-hal.json,eslint.json,sonarjs.json,gocyclo.txt,gocognit.json,shellmetrics.csv,multimetric.json}` | CREATE | captured where the sandbox can run the tool, else documented-format with a labelled header; each suite generates its tool's stub at runtime from the capture |
-| [ ] `plugins/code-metrics/skills/audit-complexity/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | cyclomatic, cognitive, halstead; references with provenance (20 §8.2.117; 10; 15; cognitive and Halstead `null`) |
-| [ ] `plugins/code-metrics/reference/collectors/audit-complexity.md` | CREATE | eight stamped rows as a fragment; Phase 8 merges the fragments into `reference/collectors.md` |
+| [x] `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.py` + eight `test_<tool>.py` | CREATE | T1 ladder; each translates to `measures[]` rows with `start_line`/`end_line` |
+| [x] `plugins/code-metrics/scripts/fixtures/tool-output/{lizard.csv,radon-cc.json,radon-hal.json,eslint.json,sonarjs.json,gocyclo.txt,gocognit.json,shellmetrics.csv,multimetric.json}` | CREATE | captured where the sandbox can run the tool, else documented-format with a labelled header; each suite generates its tool's stub at runtime from the capture |
+| [x] `plugins/code-metrics/skills/audit-complexity/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | cyclomatic, cognitive, halstead; references with provenance (20 §8.2.117; 10; 15; cognitive and Halstead `null`) |
+| [x] `plugins/code-metrics/reference/collectors/audit-complexity.md` | CREATE | eight stamped rows as a fragment; Phase 8 merges the fragments into `reference/collectors.md` |
 
 **Sanity Check:**
 
@@ -382,7 +382,7 @@ Files:
 - `python3 plugins/code-metrics/skills/audit-coverage/scripts/join.py --self-test` exits 0 (nested range subtracted; a function with hit flag 0 reports `cov: 0`; coverage.py `functions` preferred when present)
 - the phase gate
 
-### Phase 5: `audit-duplication` [TODO]
+### Phase 5: `audit-duplication` [DONE]
 
 Review: code-design
 
@@ -390,10 +390,10 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.py` + three `test_<tool>.py` | CREATE | jscpd 5 (a Rust binary) writes `<output>/jscpd-report.json`, so the adapter runs it with `--reporters json --output <tmpdir>` and prints the file; its stamp names the major and that v4's layout differs; CPD XML translated; dupl for Go; Bash only via jscpd |
-| [ ] `plugins/code-metrics/scripts/fixtures/{tool-output/jscpd.json,tool-output/cpd.xml,tool-output/dupl.txt,registry/cluster.txt,sources/cluster/{alpha,beta}/shared/shared-utils.sh}` | CREATE | a byte-identical two-plugin cluster under a basename that collides with nothing in this repository (T8 keys on path-within-plugin, not basename; reusing `hook-utils.sh` would select most of the shell corpus under `affected-tests.sh`), and the registry line that sanctions it |
-| [ ] `plugins/code-metrics/reference/collectors/audit-duplication.md` | CREATE | fragment: three stamped rows (jscpd, PMD CPD with its no-JSON note, dupl) |
-| [ ] `plugins/code-metrics/skills/audit-duplication/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | `<skill>.sh` owns `--registry`; debt after exclusions; `excluded[]` names the registry line; `run.test.sh` also carries the Brief's case over this repository's real `plugins/*/hooks/hook-utils.sh` cluster with `scripts/cross-plugin-source-registry.txt`, which runs when a real `jscpd` resolves and otherwise prints `SKIP jscpd` visibly |
+| [x] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.py` + three `test_<tool>.py` | CREATE | jscpd 5 (a Rust binary) writes `<output>/jscpd-report.json`, so the adapter runs it with `--reporters json --output <tmpdir>` and prints the file; its stamp names the major and that v4's layout differs; CPD XML translated; dupl for Go; Bash only via jscpd |
+| [x] `plugins/code-metrics/scripts/fixtures/{tool-output/jscpd.json,tool-output/cpd.xml,tool-output/dupl.txt,registry/cluster.txt,sources/cluster/{alpha,beta}/shared/shared-utils.sh}` | CREATE | a byte-identical two-plugin cluster under a basename that collides with nothing in this repository (T8 keys on path-within-plugin, not basename; reusing `hook-utils.sh` would select most of the shell corpus under `affected-tests.sh`), and the registry line that sanctions it |
+| [x] `plugins/code-metrics/reference/collectors/audit-duplication.md` | CREATE | fragment: three stamped rows (jscpd, PMD CPD with its no-JSON note, dupl) |
+| [x] `plugins/code-metrics/skills/audit-duplication/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | `<skill>.sh` owns `--registry`; debt after exclusions; `excluded[]` names the registry line; `run.test.sh` also carries the Brief's case over this repository's real `plugins/*/hooks/hook-utils.sh` cluster with `scripts/cross-plugin-source-registry.txt`, which runs when a real `jscpd` resolves and otherwise prints `SKIP jscpd` visibly |
 
 **Sanity Check:**
 
