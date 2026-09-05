@@ -531,6 +531,51 @@ else
   fail "warning lost or mislabelled after an armed-write failure: rc=$RC out=${OUT:0:200}"
 fi
 
+# 12c. A steady fire does not rewrite a marker that already holds the value.
+# Every other assertion in this suite reads stdout, which is identical whether
+# the markers were rewritten or skipped, so a revert to unconditional writes
+# would pass them all. This one reads the marker mtimes: both are backdated to
+# 2000-01-01 and a reference file to 2000-01-02, so a rewrite lands in the
+# present and reads as newer than the reference while a skip leaves it older.
+# `-nt` is a bash builtin, so no stat(1) dialect is involved, and mtimes are
+# untouched by root's permission bypass, which is why this is not a chmod test.
+write_snapshot "$H" sskip 90 # dumb — first observation, both markers get written
+run "$H" "$D" sskip
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && -f "$D/state/sskip.zone" && -f "$D/state/sskip.armed" ]]; then
+  ok "write skip: setup observation injects and writes both markers"
+else
+  fail "write skip setup: rc=$RC out=${OUT:0:120} zone=$(cat "$D/state/sskip.zone" 2>/dev/null) armed=$(cat "$D/state/sskip.armed" 2>/dev/null)"
+fi
+SKIP_REF="$WORK/skip-ref"
+touch -t 200001010000 "$D/state/sskip.zone" "$D/state/sskip.armed"
+touch -t 200001020000 "$SKIP_REF"
+run "$H" "$D" sskip # same zone, same gate: nothing to persist
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "write skip: the steady fire is silent"
+else
+  fail "write skip steady fire not silent: rc=$RC out=${OUT:0:120}"
+fi
+if [[ ! "$D/state/sskip.zone" -nt "$SKIP_REF" ]]; then
+  ok "write skip: .zone was not rewritten on a steady fire"
+else
+  fail "write skip: .zone was rewritten although it already held '$(cat "$D/state/sskip.zone" 2>/dev/null)'"
+fi
+if [[ ! "$D/state/sskip.armed" -nt "$SKIP_REF" ]]; then
+  ok "write skip: .armed was not rewritten on a steady fire"
+else
+  fail "write skip: .armed was rewritten although it already held '$(cat "$D/state/sskip.armed" 2>/dev/null)'"
+fi
+# Positive control: the same probe must see a write when one is owed, so a
+# broken probe cannot pass the two assertions above by never detecting anything.
+printf 'acceptable\n' >"$D/state/sskip.zone" # legacy-looking mismatch: a rewrite is owed
+touch -t 200001010000 "$D/state/sskip.zone"
+run "$H" "$D" sskip
+if [[ $RC -eq 0 && "$D/state/sskip.zone" -nt "$SKIP_REF" && "$(cat "$D/state/sskip.zone" 2>/dev/null)" == "dumb" ]]; then
+  ok "write skip: a marker that differs on disk is still rewritten (probe detects writes)"
+else
+  fail "write skip probe: mismatched marker not rewritten: rc=$RC zone=$(cat "$D/state/sskip.zone" 2>/dev/null)"
+fi
+
 # No resolvable state root → stay silent rather than key the last-seen zone to
 # the working directory, which would re-inject on every cd.
 write_snapshot "$WORK/nohome" snr 90
