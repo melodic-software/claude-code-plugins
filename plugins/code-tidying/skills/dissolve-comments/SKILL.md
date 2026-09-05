@@ -23,7 +23,6 @@ contains git.
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Scope (rung, base, count, then a 10-path preview; re-run the script without `--max` for the full set): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/scope-code-files.sh" --max 10 2>/dev/null || echo "(not a git repository)"`
 Tooling layer (present/absent per analysis layer; an absent row names the capability lost): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/comment-tooling-probe.sh" 2>/dev/null || echo "(probe unavailable)"`
 

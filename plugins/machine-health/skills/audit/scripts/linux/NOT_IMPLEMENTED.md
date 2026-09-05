@@ -25,5 +25,5 @@ See `../../reference/linux/NOT_IMPLEMENTED.md` for the full porting checklist. L
 - **Never assume sudo.** Elevation-required checks return `UNKNOWN` with `needs_admin: true`. No interactive prompts, no `sudo -n` (can still prompt under certain policies).
 
 Remove this file once the folder has a working orchestrator and every check in
-`references/windows/check-catalog.md` has a Linux analog or an explicit "not applicable" decision
+`reference/windows/check-catalog.md` has a Linux analog or an explicit "not applicable" decision
 recorded with its rationale.

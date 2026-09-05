@@ -161,7 +161,7 @@ Eyebrow text is small uppercase periwinkle — presenter sees the tier, audience
 
 Drop politician deepfakes, partisan campaign AI memes, and partisan policy threads.
 Industry-controversy items go to the **Legal cluster**. See
-`references/audience-defaults.md` "Apolitical filter" for the full heuristic.
+`reference/audience-defaults.md` "Apolitical filter" for the full heuristic.
 
 ## Meeting number auto-increment
 

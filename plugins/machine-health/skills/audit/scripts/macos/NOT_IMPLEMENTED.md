@@ -27,5 +27,5 @@ See `../../reference/macos/NOT_IMPLEMENTED.md` for the full porting checklist. S
 - PowerShell 7 runs natively on macOS; check scripts stay in PowerShell for language parity with Windows. Helpers in `lib/` copy with near-zero changes.
 
 Remove this file once the folder has a working orchestrator and every check in
-`references/windows/check-catalog.md` has a macOS analog or an explicit "not applicable" decision
+`reference/windows/check-catalog.md` has a macOS analog or an explicit "not applicable" decision
 recorded with its rationale.
