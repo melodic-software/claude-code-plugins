@@ -51,7 +51,14 @@ readonly _HOOK_REWRITE_GUARD_LOADED=1
 
 _HOOK_REWRITE_BEFORE=""
 _HOOK_REWRITE_PREV_EXIT_TRAP=""
+_HOOK_REWRITE_SNAPSHOT_FAILED=0
 HOOK_REWRITE_MESSAGE=""
+# The byte verdict of the take, for the telemetry `data.changed` key (#3755):
+# "true" when the file differs from the snapshot, "false" when it is identical
+# or no rewrite was ever attempted (begin never ran), and "" when the answer
+# is unknown because begin could not snapshot. A producer sends the key only
+# when the verdict is known, so an unknown never reads as "not rewritten".
+HOOK_REWRITE_CHANGED=""
 
 # The EXIT handler begin installs: release the snapshot, then run whatever
 # EXIT handler the caller had armed before begin (captured below). The
@@ -72,11 +79,14 @@ hook::_rewrite_guard_on_exit() {
 #   hook::rewrite_guard_begin "$FILE"
 hook::rewrite_guard_begin() {
   _HOOK_REWRITE_BEFORE=""
+  _HOOK_REWRITE_SNAPSHOT_FAILED=1
   HOOK_REWRITE_MESSAGE=""
+  HOOK_REWRITE_CHANGED=""
   local snap=""
   if snap=$(mktemp 2>/dev/null); then
     if cp "$1" "$snap" 2>/dev/null; then
       _HOOK_REWRITE_BEFORE="$snap"
+      _HOOK_REWRITE_SNAPSHOT_FAILED=0
       # Capture the caller's current EXIT handler so ours can chain it.
       # `trap -p EXIT` prints `trap -- '<quoted cmd>' EXIT`; strip the frame
       # and eval the remaining shell-quoted literal back into a plain string.
@@ -101,18 +111,30 @@ hook::rewrite_guard_begin() {
 }
 
 # Compare <file> against the snapshot, record <message> in
-# HOOK_REWRITE_MESSAGE when it changed (empty otherwise), and release the
-# snapshot. Destructive read — see the lifecycle block above. The caller
-# passes HOOK_REWRITE_MESSAGE as the systemMessage argument of its ONE
-# hook::emit_channels call, so a run that both rewrote and found things puts
-# both channels in one JSON document.
+# HOOK_REWRITE_MESSAGE when it changed (empty otherwise), set the
+# HOOK_REWRITE_CHANGED verdict, and release the snapshot. Destructive read for
+# the message — see the lifecycle block above; the verdict of the first take
+# after begin survives a later take, so a producer that emits telemetry after
+# its take still reads the answer. The caller passes HOOK_REWRITE_MESSAGE as
+# the systemMessage argument of its ONE hook::emit_channels call, so a run
+# that both rewrote and found things puts both channels in one JSON document.
 #   hook::rewrite_take_disclosure "$FILE" "my-plugin: reformatted $(basename "$FILE") via tool."
 hook::rewrite_take_disclosure() {
   local file="$1" message="$2"
   HOOK_REWRITE_MESSAGE=""
-  [[ -n "$_HOOK_REWRITE_BEFORE" ]] || return 0
+  if [[ -z "$_HOOK_REWRITE_BEFORE" ]]; then
+    # No snapshot: either begin never ran (no rewrite attempted, so the file
+    # is unchanged by this hook) or it ran and could not snapshot (unknown).
+    if [[ -z "$HOOK_REWRITE_CHANGED" && "$_HOOK_REWRITE_SNAPSHOT_FAILED" -eq 0 ]]; then
+      HOOK_REWRITE_CHANGED="false"
+    fi
+    return 0
+  fi
   if ! cmp -s "$_HOOK_REWRITE_BEFORE" "$file" 2>/dev/null; then
     HOOK_REWRITE_MESSAGE="$message"
+    HOOK_REWRITE_CHANGED="true"
+  else
+    HOOK_REWRITE_CHANGED="false"
   fi
   rm -f "$_HOOK_REWRITE_BEFORE"
   _HOOK_REWRITE_BEFORE=""

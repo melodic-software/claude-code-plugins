@@ -116,7 +116,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -244,9 +246,12 @@ RC=$?
 
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory
-  # noise — same posture as a successful ruff/typos autofix pass).
+  # noise — same posture as a successful ruff/typos autofix pass). The take
+  # precedes the telemetry emit so data.changed carries its verdict; the
+  # disclosure is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$GO_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -266,10 +271,11 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm would otherwise leak (#3405).
+  # the take also releases the snapshot this arm would otherwise leak (#3405),
+  # and precedes the telemetry emit so data.changed carries its verdict.
   hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+  emit_tel "ok" "$FINDINGS_JSON"
   hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
@@ -283,10 +289,11 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   GO_CTX+=$'\n'"  $line"
 done <<<"$STDERR"
-emit_tel "skipped" '[]'
 # goimports may have written the file before breaking; take the disclosure
 # (which also releases the snapshot this arm would otherwise leak, #3405) and
-# compose it with the tool-break context as one document.
+# compose it with the tool-break context as one document. Taken before the
+# telemetry emit so data.changed records the rewrite the break left behind.
 hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+emit_tel "skipped" '[]'
 hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

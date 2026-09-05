@@ -15,6 +15,10 @@
       "type": "string",
       "description": "Path of the checked file, relative to the consuming repo root."
     },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when `applied` is non-empty (typos wrote at least one correction), false when typos ran and applied none (clean, or report-only mode). Absent on a skip arm, where typos never ran. Added in typos-format 0.6.43."
+    },
     "applied": {
       "type": "array",
       "description": "Corrections this run wrote into the file. Empty array = nothing was modified (clean, or the hook is in report-only mode).",

@@ -3,6 +3,20 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.36]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when the `check --fix` or `format` pass rewrote the file,
+  false when the bytes were identical. The key is omitted, never guessed, on a
+  skip arm before the formatter and when the snapshot could not be taken. This
+  is what fills the per-session observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/ruff-format.schema.json` gains the
+  optional key, and the suite pins it on a reformatting run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
 ## [0.6.35]
 
 ### Changed

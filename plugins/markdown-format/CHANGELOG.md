@@ -3,6 +3,19 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.45]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`
+  on every run that reached the fix pass: true when markdownlint-cli2 reported
+  fixes written (its "Attempted: N fixes" line, the same signal that already
+  drives the user-channel disclosure), false when it reported none. The key is
+  omitted on a skip arm, where no fix pass ran. This is what fills the
+  per-session observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/markdown-format.schema.json` gains the
+  optional key, and the suite pins it on a fixing run and a no-op run.
+
 ## [0.11.44]
 
 ### Changed

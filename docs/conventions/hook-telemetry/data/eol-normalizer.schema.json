@@ -18,6 +18,10 @@
     "action": {
       "type": "string",
       "description": "Outcome for the file's line endings: \"skip\" (already canonical or not applicable) | \"lf\" (normalized to LF) | \"crlf\" (normalized to CRLF). Documented value set, not a closed enum."
+    },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when the bytes on disk differed from the pre-run snapshot after normalization, false when no rewrite was attempted (no eol attribute, -text, binary) or the rewrite changed no bytes. Absent when the snapshot could not be taken. Added in eol-normalizer 0.6.36."
     }
   }
 }
