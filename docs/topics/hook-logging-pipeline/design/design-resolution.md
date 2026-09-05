@@ -23,7 +23,9 @@ Spine (every line):
   session_id       string   from the hook payload; a line is never written without it
   hook_event_name  string   from the hook payload
   status           string   ok | blocked | error | skipped   (open set; readers tolerate unknown)
-  duration_ms      integer  producer-measured elapsed
+  duration_ms      integer? the producing process's own elapsed (the event-log producer's, or the
+                            instrumented hook's when the line came through the envelope); null on
+                            Bash without EPOCHREALTIME
   prompt_id        string?  present when the payload carries it
   tool_use_id      string?  present on tool events
   agent_id         string?  present inside a subagent
@@ -43,7 +45,8 @@ Event registry entry (`plugins/claude-ops/hooks/hook-events.registry.json`, gene
 ```text
   name      string   event name as the reference spells it
   when      string   the "When it fires" cell, verbatim
-  category  string   session | prompt | tool | permission | agent | task | turn | config | worktree | compaction | model | mcp
+  category  string   session | prompt | tool | permission | agent | task | turn | config | worktree | compaction | model | mcp | display
+  producer  string   "observe" | "exclude: <reason>"   (excluded: WorktreeCreate, MessageDisplay, FileChanged, any unknown name)
   claim     string   "hook event <name> is documented in the Hooks reference lifecycle table"
   basis     string   https://code.claude.com/docs/en/hooks#hook-events (raw markdown, curl -sS -L of hooks.md)
   as_of     string   YYYY-MM-DD of the fetch
