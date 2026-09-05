@@ -116,10 +116,18 @@ def leaves(src: bytes, lang) -> tuple[list[tuple[str, str]], bool]:
         if node.type in ("ERROR", "MISSING") or node.is_missing:
             broken = True
         if "comment" in node.type:
-            is_shebang = node.start_point[0] == 0 and src[node.start_byte : node.start_byte + 2] == b"#!"
+            is_shebang = (
+                node.start_point[0] == 0
+                and src[node.start_byte : node.start_byte + 2] == b"#!"
+            )
             if not is_shebang:
                 continue
-            out.append(("shebang", src[node.start_byte : node.end_byte].decode(errors="replace")))
+            out.append(
+                (
+                    "shebang",
+                    src[node.start_byte : node.end_byte].decode(errors="replace"),
+                )
+            )
             continue
         if node.child_count == 0:
             text = src[node.start_byte : node.end_byte].decode(errors="replace")
@@ -135,28 +143,57 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
     b, b_broken = leaves(after, lang)
     if a_broken or b_broken:
         side = "before" if a_broken else "after"
-        return "UNPROVABLE", EXIT_UNPROVABLE, {"reason": f"{side} side has parse errors"}
+        return (
+            "UNPROVABLE",
+            EXIT_UNPROVABLE,
+            {"reason": f"{side} side has parse errors"},
+        )
     if a == b:
         return "COMMENT-ONLY", EXIT_COMMENT_ONLY, {"tokens": len(a)}
     if len(a) != len(b):
-        return "CODE-CHANGED", EXIT_CODE_CHANGED, {"tokens_before": len(a), "tokens_after": len(b)}
+        return (
+            "CODE-CHANGED",
+            EXIT_CODE_CHANGED,
+            {"tokens_before": len(a), "tokens_after": len(b)},
+        )
     diffs = [(x, y) for x, y in zip(a, b) if x != y]
     if all(x[0] in IDENTIFIER_KINDS and y[0] in IDENTIFIER_KINDS for x, y in diffs):
         mapping: dict[str, str] = {}
+        reverse: dict[str, str] = {}
         for (_, old), (_, new) in diffs:
             if mapping.setdefault(old, new) != new:
-                return "CODE-CHANGED", EXIT_CODE_CHANGED, {"reason": "inconsistent identifier mapping", "at": old}
+                return (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": "inconsistent identifier mapping", "at": old},
+                )
+            if reverse.setdefault(new, old) != old:
+                # Two renamed identifiers collapsing onto one name is a merge,
+                # not a rename: the mapping must be injective as well as consistent.
+                return (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": "two identifiers collapse to one name", "at": new},
+                )
         return "RENAME-ONLY", EXIT_RENAME_ONLY, {"mapping": mapping}
     kinds = sorted({x[0] for x, _ in diffs})
-    return "CODE-CHANGED", EXIT_CODE_CHANGED, {"differing_leaves": len(diffs), "kinds": kinds}
+    return (
+        "CODE-CHANGED",
+        EXIT_CODE_CHANGED,
+        {"differing_leaves": len(diffs), "kinds": kinds},
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("before", type=Path)
     parser.add_argument("after", type=Path)
-    parser.add_argument("--lang", help="grammar name; default is derived from AFTER's extension")
-    parser.add_argument("--json", action="store_true", help="emit the verdict as one JSON object")
+    parser.add_argument(
+        "--lang", help="grammar name; default is derived from AFTER's extension"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="emit the verdict as one JSON object"
+    )
     args = parser.parse_args(argv)
 
     ext = args.after.suffix.lower() or args.before.suffix.lower()
@@ -167,7 +204,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"change-shape: unknown --lang {args.lang!r}", file=sys.stderr)
             return EXIT_USAGE
     if entry is None:
-        print(f"change-shape: no grammar mapping for extension {ext!r}; pass --lang", file=sys.stderr)
+        print(
+            f"change-shape: no grammar mapping for extension {ext!r}; pass --lang",
+            file=sys.stderr,
+        )
         return EXIT_USAGE
 
     lang, source = language_for(*entry)
@@ -184,7 +224,12 @@ def main(argv: list[str] | None = None) -> int:
 
     verdict, code, detail = classify(before, after, lang)
     if args.json:
-        print(json.dumps({"verdict": verdict, "language": entry[0], "grammar": source, **detail}, sort_keys=True))
+        print(
+            json.dumps(
+                {"verdict": verdict, "language": entry[0], "grammar": source, **detail},
+                sort_keys=True,
+            )
+        )
     else:
         extra = " ".join(f"{k}={v}" for k, v in detail.items())
         print(f"{verdict} ({entry[0]} via {os.path.basename(source)}) {extra}".rstrip())

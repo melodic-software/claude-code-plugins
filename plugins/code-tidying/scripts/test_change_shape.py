@@ -76,6 +76,16 @@ class TypeScriptVerdicts(unittest.TestCase):
         self.assertEqual(code, 10, out)
         self.assertIn('"mapping": {"helper": "incrementByOne"}', out)
 
+    def test_two_identifiers_collapsing_to_one_name_is_code_changed(self):
+        after = (
+            TS_BASE.replace("helper", "same")
+            .replace("(x: number)", "(same: number)")
+            .replace("x + 1", "same + 1")
+        )
+        code, out, _ = run(TS_BASE, after, ".ts", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("collapse", out)
+
     def test_literal_change_is_code_changed(self):
         after = TS_BASE.replace("x + 1", "x + 2")
         code, out, _ = run(TS_BASE, after, ".ts")

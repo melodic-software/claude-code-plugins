@@ -174,17 +174,23 @@ def comment_blocks(src: bytes, lang):
     for n in nodes:
         text = src[n.start_byte : n.end_byte].decode(errors="replace")
         row, col = n.start_point[0], n.start_point[1]
+        # Runs of single-line comments merge without a length cap; a block
+        # comment (/* */) never joins a run, on either side of it. The test is
+        # on the incoming node and the previous node, never on the merged text,
+        # which contains a newline as soon as two lines have joined.
+        single_line = "\n" not in text
         if (
             blocks
             and blocks[-1][1] == row - 1
             and blocks[-1][3] == col
-            and "\n" not in blocks[-1][2]
+            and blocks[-1][4]
+            and single_line
         ):
             blocks[-1][1] = n.end_point[0]
             blocks[-1][2] += "\n" + text
         else:
-            blocks.append([row, n.end_point[0], text, col])
-    for start, end, text, _ in blocks:
+            blocks.append([row, n.end_point[0], text, col, single_line])
+    for start, end, text, _, _ in blocks:
         yield start + 1, end + 1, text
 
 
@@ -217,6 +223,22 @@ def looks_like_code(body: str, lang, lang_name: str) -> bool:
     return found and leaves >= 2
 
 
+def directive_free_runs(lines: list[str]) -> list[list[int]]:
+    """Indexes of consecutive non-directive lines, one list per run."""
+    runs: list[list[int]] = []
+    current: list[int] = []
+    for i, line in enumerate(lines):
+        if DIRECTIVE.match(line):
+            if current:
+                runs.append(current)
+                current = []
+        else:
+            current.append(i)
+    if current:
+        runs.append(current)
+    return runs
+
+
 def scan(path: Path):
     entry = EXT_LANG.get(path.suffix.lower())
     if entry is None:
@@ -229,18 +251,19 @@ def scan(path: Path):
     for start, end, text in comment_blocks(src, lang):
         stripped_lines = strip_markers(text).split("\n")
         raw_lines = text.split("\n")
-        if DIRECTIVE.match(stripped_lines[0]):
-            continue
-        # Whole block first; a prose line inside a block breaks the parse, so
-        # fall back to each line and merge the adjacent hits back into ranges.
-        if looks_like_code("\n".join(stripped_lines), lang, entry[0]):
-            hits = list(range(len(stripped_lines)))
-        else:
-            hits = [
-                i
-                for i, ln in enumerate(stripped_lines)
-                if not DIRECTIVE.match(ln) and looks_like_code(ln, lang, entry[0])
-            ]
+        # A directive line is never code and splits the block into runs. Each
+        # run is reparsed whole first; a prose line inside a run breaks that
+        # parse, so fall back to each line and merge adjacent hits into ranges.
+        hits: list[int] = []
+        for run in directive_free_runs(stripped_lines):
+            if looks_like_code(
+                "\n".join(stripped_lines[i] for i in run), lang, entry[0]
+            ):
+                hits.extend(run)
+            else:
+                hits.extend(
+                    i for i in run if looks_like_code(stripped_lines[i], lang, entry[0])
+                )
         run_start = None
         for idx, i in enumerate(hits):
             if run_start is None:

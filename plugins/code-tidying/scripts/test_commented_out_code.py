@@ -23,7 +23,12 @@ def scan(text: str, ext: str) -> tuple[int, list, str]:
     with tempfile.TemporaryDirectory() as tmp:
         f = Path(tmp, f"t{ext}")
         f.write_text(text)
-        p = subprocess.run([sys.executable, str(SCRIPT), "--json", str(f)], capture_output=True, text=True, check=False)
+        p = subprocess.run(
+            [sys.executable, str(SCRIPT), "--json", str(f)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         rows = json.loads(p.stdout) if p.returncode == 0 else []
         return p.returncode, rows, p.stderr
 
@@ -53,6 +58,21 @@ class Python(unittest.TestCase):
         self.assertEqual(lines(rows), {4}, rows)
         self.assertEqual(rows[0]["end"], 5)
 
+    def test_long_commented_out_block_is_one_finding(self):
+        # Each two-line fragment of this block fails to parse on its own; only
+        # the whole run parses, so a merge cap would turn it into a false negative.
+        src = (
+            "x = 1\n"
+            "# def old_path(a):\n"
+            "#     if a:\n"
+            "#         return a\n"
+            "#     return None\n"
+            "y = 2\n"
+        )
+        code, rows, err = scan(src, ".py")
+        self.assertEqual(code, 0, err)
+        self.assertEqual([(r["start"], r["end"]) for r in rows], [(2, 5)], rows)
+
 
 @unittest.skipUnless(available(".sh"), "bash grammar not installed")
 class Bash(unittest.TestCase):
@@ -62,8 +82,8 @@ class Bash(unittest.TestCase):
             "# cd into the dir and print the result\n"
             "# shellcheck disable=SC2034\n"
             "x=1\n"
-            "# rm -rf \"$TMP\"\n"
-            "# if [[ -n \"$x\" ]]; then echo yes; fi\n"
+            '# rm -rf "$TMP"\n'
+            '# if [[ -n "$x" ]]; then echo yes; fi\n'
         )
         code, rows, err = scan(src, ".sh")
         self.assertEqual(code, 0, err)
@@ -124,13 +144,21 @@ class Degradation(unittest.TestCase):
             f.write_text("# x = 1\n")
             p = subprocess.run(
                 [sys.executable, "-S", str(SCRIPT), str(f)],
-                capture_output=True, text=True, check=False, env={**os.environ, "PYTHONPATH": tmp},
+                capture_output=True,
+                text=True,
+                check=False,
+                env={**os.environ, "PYTHONPATH": tmp},
             )
         self.assertEqual(p.returncode, 3, p.stderr)
         self.assertIn("UNAVAILABLE", p.stderr)
 
     def test_missing_file_is_usage_error(self):
-        p = subprocess.run([sys.executable, str(SCRIPT), "/no/such/file.py"], capture_output=True, text=True, check=False)
+        p = subprocess.run(
+            [sys.executable, str(SCRIPT), "/no/such/file.py"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         self.assertEqual(p.returncode, 2)
 
 
