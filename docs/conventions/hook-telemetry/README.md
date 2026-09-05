@@ -159,8 +159,9 @@ an envelope carrying a well-formed `data.session_id` is appended to
 `<root>/sessions/<session_id>.jsonl` beside the per-session event log, and an envelope without one
 goes to the shared `<root>/hook-events.jsonl` in the legacy shape. Today the nine claude-ops audit
 hooks send it. The fleet-wide addition to every producer, and promoting the key into the envelope
-spine as `schema_version` 1.1, are the follow-up tracked in #930; until then a whole-root report
-covers every producer and a per-session report covers the producers that send the key.
+spine as `schema_version` 1.1, are the follow-up tracked in #3758 (#930, which first raised it, is
+closed); until then a whole-root report covers every producer and a per-session report covers the
+producers that send the key.
 
 ## Implementers
 
