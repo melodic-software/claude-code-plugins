@@ -188,9 +188,10 @@ cognitive-complexity approximation would be a new measure with no provenance.
 
 ## T12. Halstead difficulty. RESOLVED
 
-**Decision.** Python reports the full Halstead suite from `radon hal -j`; every other lane reports
-the five derived measures `multimetric` emits (volume, difficulty, effort, time, bugs), labelled as
-such. Difficulty is the headline number because it is the one on the operator's list; no threshold
+**Decision.** Python reports the full Halstead suite from `radon hal -j`, per function; every
+other lane reports the five derived measures `multimetric` emits (volume, difficulty, effort,
+time, bugs), which are **per file** (probed 2026-09-05: `multimetric` has no per-function
+granularity), so those rows carry `function: null` and the report labels them file-level. Difficulty is the headline number because it is the one on the operator's list; no threshold
 is shipped, only a `halstead.difficulty` reference key defaulting to `null`.
 
 **Rationale.** The corpus found no maintained native Halstead tool for TS/JS, C# or Go; `multimetric`

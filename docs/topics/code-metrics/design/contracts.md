@@ -104,9 +104,11 @@ Field rules:
 
 - `run[]` is the "Coverage of this run" table. `status` is one of `ok`, `unavailable`,
   `not-applicable`, `deferred`. A non-`ok` row always carries a non-null `reason`.
-- `measures[]` rows are per function for complexity and CRAP, per file for size, per clone group
-  for duplication (`instances[]` replaces `file`/`function`), per lane for type debt
-  (`values.type_coverage_pct`, `values.any_expressions`).
+- `measures[]` rows are per function for cyclomatic, cognitive, Python Halstead, and CRAP
+  (`lizard` and `radon` both emit start and end lines, probed 2026-09-05); per file for size and
+  for `multimetric` Halstead (`function: null`); per clone group for duplication (`instances[]`
+  replaces `file`/`function`); per lane for type debt (`values.type_coverage_pct`,
+  `values.any_expressions`).
 - `values.<measure>` is a number or `null`; `null` means "not measured for this row", never zero.
 - `excluded[]` (duplication only) lists clone groups dropped by a registry, each with the registry
   path and line that sanctioned it.
@@ -138,7 +140,7 @@ Coverage is not a collector: `audit-coverage` reads artifacts through parsers
 
 | Direction | Seam | Gate and fallback |
 |---|---|---|
-| out | `verification:measure metrics baseline|compare` consumes this JSON | The audit skills mention it once: "feed this JSON to `/verification:measure metrics` when the `verification` plugin is installed; otherwise keep the JSON beside your notes and compare by hand". |
+| out | `verification:measure metrics` (its `baseline` and `compare` phases) consumes this JSON | The audit skills mention it once: "feed this JSON to `/verification:measure metrics` when the `verification` plugin is installed; otherwise keep the JSON beside your notes and compare by hand". |
 | out | `mutation-testing`, `testing:audit`, `code-tidying:audit-dead-code`, `coupling:reduce`, `toolchain:lint` own the measures the Brief leaves with them | `principles` names each owner with an "if installed" gate and the fallback "the concern is out of this plugin's scope; nothing here substitutes for it". |
 | in | The consumer's `.claude/ecosystems/<lane>.yaml` | A convention file, not a plugin; bundled extension map is the fallback. |
 | in | The consumer's sanctioned-replication registry | Listed in config; absent means no exclusions. |
