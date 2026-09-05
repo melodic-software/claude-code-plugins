@@ -128,8 +128,8 @@ Claude Code substitutes `userConfig` values when it renders the **skill**. A con
 `${user_config.install_new}` in a spoke and it arrives as that literal token, with **no error and no
 warning**; the value simply never appears, and a step branching on it branches on a placeholder.
 
-This is why `SKILL.md` holds the `install_new` render and `sync.md` Step 4 branches on *that* line
-rather than on its own prose. Verified empirically: `context/sync.md` on disk shows the raw
+This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches on *that* line
+rather than on its own prose. Verified empirically: `context/sync-install-enable.md` on disk shows the raw
 `${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
 configured value. Nothing enforces this — a future spoke that inlines such a token fails silently,
 so it is a review-time rule, not a checkable one.
