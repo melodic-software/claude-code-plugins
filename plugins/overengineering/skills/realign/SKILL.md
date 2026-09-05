@@ -132,9 +132,13 @@ understand into a deletion. So a row in one of those five layers is **displayed 
 its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
 Say so in one line where the finding would otherwise be gated, so the operator sees the finding
 rather than losing it. A lane's findings become executable here once a rollback ladder exists for
-its layers, and not before.
+its layers, and not before. **What such a row loses is the rung, not the decision**: the operator may
+still judge it `REJECTED`, per "Statuses this skill writes", which is why it is presented rather than
+merely listed.
 
-Present the remaining findings in the artifact's order and dispose of each by its current status:
+Present every finding in the artifact's order, those five layers included, and dispose of each by
+its current status. The rung is what the five layers do not get; the disposition below still runs
+for them, and `REJECTED` is the one outcome available:
 
 | Status | What this run does with it |
 |---|---|
@@ -229,10 +233,22 @@ patch and leaves a report claiming the work is done.
 
 ## Statuses this skill writes
 
+**Re-read the artifact from disk immediately before every `Status` write, and merge against that
+copy.** The load in "Before anything" happens before a per-item interview that can run long, and
+another producer may write in that window; the shared contract binds this skill to the re-read for
+that reason. A `Status` written onto a copy loaded minutes ago discards whatever landed in between.
+
 This skill is the artifact's only writer of `Status`, and it writes one only as the outcome it names
 actually happens, never ahead of the operator's yes. `ACCEPTED` on acceptance; `REJECTED` when the
 operator judges the finding and keeps the mechanism; `REALIGNED` when the change has landed;
 `DELEGATED-EXTERNAL` with its pointer; the `ABLATION-*` states as a batch moves through its window.
+
+**A justification-layer row takes `REJECTED` like any other.** The five layers get no rollback rung
+here, but `REJECTED` is a judgment rather than an execution: it records that the operator read the
+finding and kept the artifact, and it mutates nothing outside the record. Withholding it would leave
+those rows permanently `OPEN`, re-presented on every run, and would deny them the durable judgment
+entry that only `REJECTED` and `ABLATION-CONCLUDED-KEEP` qualify for. What is withheld for those
+layers is the ladder, never the operator's ability to decide.
 What each one means is the contract's, not this skill's. Leave every other field exactly as the
 audit computed it, rewriting a verdict here puts this skill's opinion into the audit's record.
 

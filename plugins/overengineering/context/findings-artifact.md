@@ -204,7 +204,7 @@ Constituents, and nothing else:
 |---|---|
 | `check` | `overengineering/<producer>/rule-<layer>` — lowercase `[a-z0-9-]` per segment, `<producer>` one of `audit` or `justify`, the layer taken from the enum above. The producer segment is part of the identity: two lanes judging the same surface would otherwise derive one id, and each run would carry or close the other's finding. |
 | `claim` | `enforcement-item` for an ordinary finding of the enforcement lane; `artifact-item` for one of the justification lane; either with `(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
-| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, `[<container>, <member>]` for a sub-member. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
+| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, and for a sub-member the member's path within its container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry where the members are nested headings, per "A heading is a member, not an ordinal" below. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
 
 The id is `sha256` over the `US`-joined `[check, claim, *flattened canonically-sorted sites]`,
 truncated to 16 hex — the convention owns that computation and this document does not re-derive it.
@@ -522,20 +522,35 @@ names, so:
   heading target would match no site at all, stranding the pointed run so it could not write its own
   finding, and a directory or file target would sweep in findings about sections the run never
   opened, which rule 3 would then close.
-- Rules 1 and 2 apply to a finding whose every site is in `targets`.
-- **Rule 3 applies only to a prior id whose every site is in `targets`** and whose item is now
+- **Rules 1 and 2 apply to a finding ANY of whose sites is in `targets`.** A run that examined one
+  site of a multi-site finding examined that finding: it derived the row from the target in front of
+  it, and the row names every site it binds. So the verdict is recomputed and the status carried.
+- **Rule 3 applies only to a prior id EVERY of whose sites is in `targets`** and whose item is now
   absent. A pointed run at one artifact must never close a finding about another.
+- **The two quantifiers differ on purpose, and unifying them breaks the contract either way.** Rule 3
+  closes a finding, so it must be conservative: closing on partial coverage would retire a finding
+  the run never fully examined. Rules 1 and 2 only refresh one, so they must be permissive: this lane
+  takes one target per run, and a finding binding two sites can never have every site in a one-entry
+  `targets`. Made restrictive, such a finding would fall to rule 4 on every subsequent run, stamped
+  `not re-evaluated this run` by runs that demonstrably did re-evaluate it, and no walk could rescue
+  it because `overengineering:audit` walks only the ten enforcement layers. It would carry a stale
+  verdict and a stale date forever.
 - Every other prior id **carries forward per rule 4**, regardless of `scope`. In a targeted run
   `scope` records the layers the targets fall in, for ordering; it never asserts a walk.
 - The run-level sections `## Evidence availability`, `## Suppressed`, and `## Closed since last run`
   are **not rewritten for anything outside `targets`**. A targeted run appends its own per-target
   evidence-availability lines rather than replacing the walk's per-tier tokens, and computes
-  suppression dispositions only for entries whose ids have **every** site in `targets`, reporting
-  the rest as **not evaluated this run**. The quantifier matches the one rules 1 to 3 use on
-  purpose: a finding the run did not fully re-evaluate must not have its suppression disposition
-  recomputed either. `## Summary` is still recomputed from the spine actually written, as rule 6
+  suppression dispositions only for entries whose ids have **any** site in `targets`, reporting the
+  rest as **not evaluated this run**. This follows rules 1 and 2 rather than rule 3, for their
+  reason: a disposition reports whether a live finding is currently suppressed, which is a refresh
+  and not a closure, and an entry the run examined at one of its sites is one the run can speak to.
+  Stamping it `not evaluated this run` would be the same false staleness rule 4 would apply to the
+  row itself. `## Summary` is still recomputed from the spine actually written, as rule 6
   requires.
-- **`scope` carries forward and grows; it is never overwritten.** A targeted run keeps the prior
+- **In a targeted run `scope` carries forward and grows; that run never overwrites it.** A walk still
+  records exactly the layers it walked, which is what the `scope` frontmatter row defines and what
+  merge rule 3 reads; this bullet governs the pointed producer only, which walks nothing. A targeted
+  run keeps the prior
   artifact's `scope` and adds the layers its own targets fall in. Replacing it would narrow the
   file's record of what the last walk actually covered, which is the one thing rule 4 and the spine
   baseline's `source-scope` both read it for.
