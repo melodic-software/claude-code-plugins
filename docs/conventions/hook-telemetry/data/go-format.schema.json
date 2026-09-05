@@ -19,6 +19,10 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "goimports syntax-error diagnostic lines when the file could not be parsed, one line per diagnostic. Empty array = clean or successfully autofixed (a successful format/import fix carries no findings)."
+    },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when the bytes on disk differed from the pre-run snapshot after goimports ran, false when they were identical. Absent when the verdict is unknown (a skip arm before the formatter, or the snapshot could not be taken). Added in go-format 0.3.39."
     }
   }
 }

@@ -98,7 +98,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -302,6 +304,13 @@ if [[ -n "$NOTICE" ]]; then
   SYSMSG+="$NOTICE"
 fi
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
+
+# Settle the data.changed verdict for the telemetry emit below. On a run where
+# shfmt formatted, the take inside that branch already recorded it and this
+# call keeps it; on a run where shfmt never ran (no .editorconfig opt-in, no
+# binary), no snapshot was ever taken and the verdict is false: this hook did
+# not rewrite the file. The message this resets was consumed above.
+hook::rewrite_take_disclosure "$FILE" ""
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"

@@ -59,10 +59,11 @@ emit_session_event() {
   jq -nc \
     --arg ts "$1" --arg hook "$2" --arg ev "$3" \
     --argjson duration_ms "$4" --argjson exit_code "$5" \
-    --arg subject "$6" --arg status "$7" \
+    --arg subject "$6" --arg status "$7" --arg changed "${8:-}" \
     '{ts:$ts, session_id:"s-a", hook_event_name:$ev, status:$status,
       duration_ms:$duration_ms, source:"envelope", hook:$hook,
-      exit_code:$exit_code, subject:$subject, tool:"Write"}' \
+      exit_code:$exit_code, subject:$subject, tool:"Write"}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' \
     >>"$SESSION_LOG"
 }
 # Append one per-session event-log row (session-event-log.sh's shape). No hook.
@@ -99,8 +100,8 @@ emit_event "2025-01-01T00:00:00.000Z" old-hook Write 100 0 old.sh success
 
 # Per-session file: two more bash-format fires, one blocked guard, and event-log
 # rows (which carry no hook and must never count as a hook fire).
-emit_session_event "2026-04-29T12:01:00.000Z" bash-format PostToolUse 130 0 s.sh success
-emit_session_event "2026-04-29T12:02:00.000Z" bash-format PostToolUse 140 0 t.sh success
+emit_session_event "2026-04-29T12:01:00.000Z" bash-format PostToolUse 130 0 s.sh success false
+emit_session_event "2026-04-29T12:02:00.000Z" bash-format PostToolUse 140 0 t.sh success true
 emit_session_event "2026-04-29T12:03:00.000Z" block-dangerous-git PreToolUse 7 2 "Bash:git push --force" blocked
 emit_log_row "2026-04-29T12:00:59.000Z" PreToolUse tool Write s.sh
 emit_log_row "2026-04-29T12:01:00.500Z" PostToolUse tool Write s.sh
@@ -174,7 +175,11 @@ assert_eq "per-session: one blocked row" "1" "$(printf '%s\n' "$BLOCKED" | grep 
 assert_contains "per-session: blocked row names the hook" "$BLOCKED" "block-dangerous-git"
 
 REWROTE=$(jq -sc "$HOOK_NORM"' | .[] | select(.changed == true) | {ts, hook, subject}' "${SESSION_FILES[0]}")
-assert_eq "per-session: rewrote is empty until a producer emits changed" "" "$REWROTE"
+assert_eq "per-session: one rewrote row, the run whose producer sent changed=true" "1" "$(printf '%s\n' "$REWROTE" | grep -c .)"
+assert_contains "per-session: rewrote row names the rewritten file" "$REWROTE" "t.sh"
+assert_not_contains "per-session: a changed=false run is not a rewrite" "$REWROTE" "s.sh"
+assert_eq "per-session: rows carrying the key are distinguishable from rows without it" "2" \
+  "$(jq -s "$HOOK_NORM"' | map(select(has("changed"))) | length' "${SESSION_FILES[0]}")"
 
 TIMELINE=$(jq -sr '.[] | select(.source == "event-log")
   | [.ts, .hook_event_name, .category, (.tool_name // ""), (.file_path // ""), (.agent_id // "")]
