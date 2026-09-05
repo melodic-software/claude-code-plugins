@@ -1113,6 +1113,182 @@ else
   fail "crlf: a CR on the disk side defeated the no-change skip"
 fi
 
+# --- ACCOUNT IDENTITY: the drain's account.email field ------------------------
+# The drain stamps the account whose windows a snapshot describes, read from
+# Claude Code's own state file. Every case below is deterministic about MTIME
+# ORDERING rather than about wall-clock luck: `-nt` resolves at one-second
+# granularity here, so a state file written in the same second as the spool
+# record it is compared against could read either way. Every case therefore
+# backdates the file that must be older with `touch -t`, the idiom the no-change
+# cases above already use, and each was checked to FAIL when that ordering is
+# inverted.
+
+STATE_EMAIL='{"oauthAccount":{"emailAddress":"lane@example.com"},"projects":{}}'
+
+# Seed a state file and pin it older than anything the render will write, so the
+# staleness guard's answer is decided by the fixture and never by timing.
+write_old_state() {
+  write_settings "$1" "$2"
+  touch -t 200001010000 "$1"
+}
+
+# --- Case 34: the state file's account lands in the snapshot ------------------
+HOME_ACCT="$WORK/home-account"
+mkdir -p "$HOME_ACCT"
+write_old_state "$HOME_ACCT/.claude.json" "$STATE_EMAIL"
+run "$HOME_ACCT" "$(build_input)" cat >/dev/null
+ACCT_FILE="$HOME_ACCT/$TEE_REL"
+if [[ "$(jq -r '.account.email' <"$ACCT_FILE")" == "lane@example.com" ]]; then
+  ok "account: account.email is the state file's oauthAccount.emailAddress"
+else
+  fail "account: account.email = $(jq -c '.account' <"$ACCT_FILE" 2>/dev/null), want lane@example.com"
+fi
+if jq -e '.rate_limits.five_hour.used_percentage == 23.5 and (.captured_at | type) == "string"' <"$ACCT_FILE" >/dev/null 2>&1; then
+  ok "account: the injected field leaves the rest of the snapshot intact"
+else
+  fail "account: injection damaged the snapshot: $(cat "$ACCT_FILE" 2>/dev/null)"
+fi
+
+# --- Case 35: no state file → no account key ---------------------------------
+# Absence, never a guess: the reader contract routes a missing account.email to
+# "could not attribute", which is a state every consumer already handles.
+HOME_NOACCT="$WORK/home-account-absent"
+mkdir -p "$HOME_NOACCT"
+run "$HOME_NOACCT" "$(build_input)" cat >/dev/null
+if jq -e 'has("account") | not' <"$HOME_NOACCT/$TEE_REL" >/dev/null 2>&1; then
+  ok "account: an absent state file leaves the account key absent"
+else
+  fail "account: key present without a state file: $(jq -c '.account' <"$HOME_NOACCT/$TEE_REL")"
+fi
+
+# --- Case 36: CLAUDE_CONFIG_DIR redirects the state file read ----------------
+# Set inline on this one invocation: the suite unsets it at the top for
+# hermeticity, and exporting it would redirect the settings lookup for every
+# case above as well. HOME carries a DIFFERENT address, so a reader that ignored
+# CLAUDE_CONFIG_DIR would land a value this assertion rejects rather than a
+# missing key that could pass for any other reason.
+HOME_CFG="$WORK/home-account-cfgdir"
+CFG_DIR="$WORK/account-cfgdir"
+mkdir -p "$HOME_CFG" "$CFG_DIR"
+write_old_state "$HOME_CFG/.claude.json" '{"oauthAccount":{"emailAddress":"wrong-home@example.com"}}'
+write_old_state "$CFG_DIR/.claude.json" "$STATE_EMAIL"
+printf '%s' "$(build_input)" | HOME="$HOME_CFG" CLAUDE_CONFIG_DIR="$CFG_DIR" bash "$TEE" cat >/dev/null
+if [[ "$(jq -r '.account.email' <"$HOME_CFG/$TEE_REL")" == "lane@example.com" ]]; then
+  ok "account: CLAUDE_CONFIG_DIR/.claude.json is read instead of HOME's"
+else
+  fail "account: CLAUDE_CONFIG_DIR ignored, account.email = $(jq -r '.account.email' <"$HOME_CFG/$TEE_REL" 2>/dev/null)"
+fi
+
+# --- Case 37: a malformed value is dropped, and the statusline is untouched ---
+# The value crosses into a JSON string this writer builds with parameter
+# expansion, so a quote or a backslash could terminate or escape out of it. Each
+# fixture below is checked twice: the account key must be absent, AND the
+# wrapped statusline's stdout must still be the payload byte-for-byte, which is
+# the invariant no tee outcome may ever break.
+ACCT_BAD_N=0
+ACCT_BAD_FAILS=0
+ACCT_INPUT="$(build_input)"
+for bad in \
+  '{"oauthAccount":{"emailAddress":"no-at-sign"}}' \
+  '{"oauthAccount":{"emailAddress":"a@b\"c"}}' \
+  '{"oauthAccount":{"emailAddress":"a@b\\c"}}' \
+  '{"oauthAccount":{"emailAddress":"a@"}}' \
+  '{"oauthAccount":{"emailAddress":null}}' \
+  '{"oauthAccount":{}}'; do
+  ACCT_BAD_N=$((ACCT_BAD_N + 1))
+  HOME_BAD="$WORK/home-account-bad-$ACCT_BAD_N"
+  mkdir -p "$HOME_BAD"
+  write_old_state "$HOME_BAD/.claude.json" "$bad"
+  BAD_OUT="$(printf '%s' "$ACCT_INPUT" | HOME="$HOME_BAD" bash "$TEE" cat)"
+  if ! jq -e 'has("account") | not' <"$HOME_BAD/$TEE_REL" >/dev/null 2>&1; then
+    ACCT_BAD_FAILS=$((ACCT_BAD_FAILS + 1))
+    fail "account: malformed value admitted: $bad -> $(jq -c '.account' <"$HOME_BAD/$TEE_REL")"
+  fi
+  if [[ "$BAD_OUT" != "$ACCT_INPUT" ]]; then
+    ACCT_BAD_FAILS=$((ACCT_BAD_FAILS + 1))
+    fail "account: malformed value altered the wrapped stdout: $bad"
+  fi
+done
+if [[ "$ACCT_BAD_FAILS" == "0" ]]; then
+  ok "account: $ACCT_BAD_N malformed values each dropped, stdout byte-identical"
+fi
+# Non-vacuity control: the same harness with a VALID value must produce the key,
+# so the loop above cannot be passing because nothing is ever injected.
+HOME_BAD_CTL="$WORK/home-account-bad-control"
+mkdir -p "$HOME_BAD_CTL"
+write_old_state "$HOME_BAD_CTL/.claude.json" "$STATE_EMAIL"
+printf '%s' "$ACCT_INPUT" | HOME="$HOME_BAD_CTL" bash "$TEE" cat >/dev/null
+if [[ "$(jq -r '.account.email' <"$HOME_BAD_CTL/$TEE_REL")" == "lane@example.com" ]]; then
+  ok "account: the malformed-value control confirms the same harness does inject"
+else
+  fail "account: control did not inject, so the malformed-value cases are vacuous"
+fi
+
+# --- Case 38: a stdin account key wins; the writer injects nothing ------------
+# The projection already forwards any top-level key containing "account", so
+# when the harness supplies identity itself the two shapes must not contradict
+# each other. The state file here holds a DIFFERENT address, so a writer that
+# injected anyway would be caught rather than merely unobserved.
+HOME_STDIN_ACCT="$WORK/home-account-stdin"
+mkdir -p "$HOME_STDIN_ACCT"
+write_old_state "$HOME_STDIN_ACCT/.claude.json" "$STATE_EMAIL"
+run "$HOME_STDIN_ACCT" "$(build_input '"account_id":"acct-9"')" cat >/dev/null
+STDIN_ACCT_FILE="$HOME_STDIN_ACCT/$TEE_REL"
+if [[ "$(jq -r '.account_id' <"$STDIN_ACCT_FILE")" == "acct-9" ]]; then
+  ok "account: a stdin account_id still passes through"
+else
+  fail "account: stdin account_id lost: $(jq -c 'keys' <"$STDIN_ACCT_FILE")"
+fi
+if jq -e 'has("account") | not' <"$STDIN_ACCT_FILE" >/dev/null 2>&1; then
+  ok "account: a stdin account key suppresses the injected account.email"
+else
+  fail "account: writer injected over a stdin account key: $(jq -c '.account' <"$STDIN_ACCT_FILE")"
+fi
+
+# --- Case 39: a state file newer than the chosen record → no account key ------
+# The drain can choose ANY session's record, so the file that dates the
+# observation is the chosen record's spool file, not this render's. A state file
+# modified after that observation means a switch may have happened in between,
+# and the identity is omitted rather than attached to windows it may not
+# describe. Built so the chosen record is a PRE-SEEDED one: this render is
+# windowless, so the window-bearing pool holds only sess-old.
+#
+# The record is aged FIVE minutes, not backdated to 2000 like the snapshots
+# above: the drain sweeps spool records older than fifteen minutes, so a record
+# pinned at the epoch would be deleted before it could be chosen and the case
+# would test nothing. Five minutes is far outside `-nt`'s one-second resolution
+# and far inside the sweep floor.
+HOME_STALE="$WORK/home-account-stale"
+mkdir -p "$HOME_STALE/$SPOOL_REL"
+STALE_NOW="$(date +%s)"
+STALE_E=$((STALE_NOW + 1000))
+write_settings "$HOME_STALE/$SPOOL_REL/sess-old.json" \
+  "{\"e\":$STALE_E,\"p\":{\"session_id\":\"sess-old\",\"rate_limits\":{\"five_hour\":{\"used_percentage\":31,\"resets_at\":1738425600}}}}"
+touch -d "@$((STALE_NOW - 300))" "$HOME_STALE/$SPOOL_REL/sess-old.json"
+write_settings "$HOME_STALE/.claude.json" "$STATE_EMAIL" # left at "now": NEWER than the record
+printf '{"session_id":"sess-drainer"}' | HOME="$HOME_STALE" bash "$TEE" cat >/dev/null
+STALE_FILE="$HOME_STALE/$TEE_REL"
+if [[ "$(jq -r '.session_id' <"$STALE_FILE")" == "sess-old" ]]; then
+  ok "account: the pre-seeded record was the chosen one (case is on the right file)"
+else
+  fail "account: drain chose $(jq -r '.session_id' <"$STALE_FILE"), so the staleness case is vacuous"
+fi
+if jq -e 'has("account") | not' <"$STALE_FILE" >/dev/null 2>&1; then
+  ok "account: a state file newer than the chosen record omits account.email"
+else
+  fail "account: stale identity attached anyway: $(jq -c '.account' <"$STALE_FILE")"
+fi
+# Invert ONLY the mtime ordering and nothing else: the same fixtures must now
+# attribute. This is what proves the case above tests the guard rather than some
+# unrelated reason the key could be missing.
+touch -t 200001010000 "$HOME_STALE/.claude.json"
+printf '{"session_id":"sess-drainer"}' | HOME="$HOME_STALE" bash "$TEE" cat >/dev/null
+if [[ "$(jq -r '.account.email' <"$STALE_FILE")" == "lane@example.com" ]]; then
+  ok "account: backdating the state file alone restores account.email"
+else
+  fail "account: inverted ordering did not attribute: $(jq -c '.account' <"$STALE_FILE" 2>/dev/null)"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

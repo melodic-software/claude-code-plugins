@@ -29,11 +29,48 @@
 # (session_id, session_name, and any key whose name contains "account", so a
 # future account-identifier field is adopted automatically only when it
 # arrives under a top-level key of that shape; every other shape needs a
-# writer change).
+# writer change), plus an `account` object the DRAIN injects when it can
+# attribute the observation (see ACCOUNT IDENTITY below).
 # The path is deliberately HOME-anchored and outside ${CLAUDE_PLUGIN_DATA}:
 # it is a documented cross-plugin artifact seam that sibling-plugin lane
-# sessions read, machine-scope by design (the file is last-writer-wins and
-# carries no account id today — loop-lane §6 owns that gap's framing).
+# sessions read, machine-scope by design (the file is still
+# last-writer-wins across every session on the machine — loop-lane §6 owns
+# that gap's framing, and the account field below narrows it rather than
+# closing it).
+#
+# ACCOUNT IDENTITY. The drain stamps `account: {"email": "<value>"}` at the
+# top level so a reader can tell WHICH account's windows a snapshot describes.
+# The value is read from Claude Code's own state file
+# (${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json, key .oauthAccount.emailAddress),
+# which is internal CLI state and therefore a recheck trigger the reader
+# contract carries.
+#
+# THREE GUARDS, and each one omits rather than guesses:
+#
+#   1. A stdin `account*` key always wins. The projection already forwards
+#      any top-level key whose name contains "account", so when the harness
+#      itself supplies identity the writer injects nothing and the shapes
+#      cannot contradict each other.
+#   2. A state file NEWER than the chosen record's spool file means a switch
+#      may have happened between the observation and this drain, so the
+#      identity is omitted rather than attached to windows it may not
+#      describe. Mislabeling is worse than absence: absence is already a
+#      state every reader handles.
+#   3. A value that is absent, unreadable, or not email-shaped is dropped.
+#
+# WHY THIS COSTS ONE PROCESS AND ONLY ON THE DRAIN. Reading the state file
+# with bash (`$(<file)`) plus parameter-expansion extraction was measured at
+# 3.6-4.0 s on an 88 KB state file (2026-09-04, target desktop) — unusable on
+# any path. `jq -r` over the same file is 35 ms and `claude auth status --json`
+# is 175 ms, so jq is the mechanism and the drain is the place: the render path
+# stays fork-free, and one drain per 30-second cadence pays for the machine.
+# Bash opens the file and jq reads stdin, so the Windows MSYS-path limitation
+# that keeps every other file out of jq's argv does not apply here either.
+#
+# NOT ON THE NON-SPOOL PATHS. RLG_TEE_ASYNC=1 and bash below 4.2 both route
+# through _rlg_tee_run, which has no spool file to date the state file against
+# and therefore cannot evaluate guard 2. Those paths write no `account` key at
+# all; a reader sees the same absence it already handles.
 #
 # ATOMICITY: 3+ concurrent sessions write this one path and readers must
 # never see torn JSON, so the snapshot is written to a session-unique temp
@@ -738,25 +775,54 @@ _RLG_PAYLOAD=""
 _RLG_HAS_WINDOWS=false
 _RLG_USER_VERDICT=""
 _RLG_USER_PROBED=0
+# The drain's two extra lines (see _rlg_drain). The probe emits neither, so both
+# reset to their empty verdict on every absorb — which is what makes the
+# drain-then-probe-fallback order impossible to get wrong: a fallback payload
+# carries no chosen shard, so the account guard below declines to attribute it.
+_RLG_CHOSEN_SHARD=""
+_RLG_HAS_ACCOUNT=false
 
-# Absorb one jq pass's three output lines — payload, window-bearing, user verdict
-# — into the globals above. Shared verbatim by _rlg_probe and _rlg_drain so the
-# two can never disagree about how a pass is read, exactly as they already share
-# the filter text itself.
+# Absorb one jq pass's output lines — payload, window-bearing, user verdict, and
+# from the drain two more: the chosen record's shard name and whether its body
+# already carries an account-shaped key — into the globals above. Shared verbatim
+# by _rlg_probe and _rlg_drain so the two can never disagree about how a pass is
+# read, exactly as they already share the filter text itself.
 #
 # An unparsable payload means jq produced nothing usable; the user verdict is
 # then left unprobed so the gate falls back to its own read rather than silently
 # reading "no verdict configured" off a failed parse.
+#
+# EVERY LINE AFTER THE PAYLOAD IS CR-STRIPPED, and that is a correctness fix
+# rather than tidying. A native jq on Windows terminates its output lines with
+# CRLF while `read -r` splits on LF only, so a token line arrives as `true\r`
+# and compares equal to nothing. Only the LAST line was ever reliably clean:
+# MSYS command substitution drops the trailing CRLF, so which token was correct
+# depended on how many lines the pass happened to emit and on whether the
+# verdict was empty. The payload deliberately keeps its CR — the snapshot's
+# bytes stay exactly what jq wrote, and _rlg_strip_captured_at already
+# normalizes the COMPARISON rather than the payload — but a boolean, a verdict
+# and a shard name carry no meaning in a CR, so they are stripped here.
 _rlg_absorb_jq_lines() {
-  local line
+  local line _win _verdict _shard _acct
   local -a lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     lines+=("$line")
   done <<<"$1"
   _RLG_PAYLOAD="${lines[0]:-}"
-  [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
+  _win="${lines[1]:-}"
+  _verdict="${lines[2]:-}"
+  _shard="${lines[3]:-}"
+  _acct="${lines[4]:-}"
+  _win="${_win%$'\r'}"
+  _verdict="${_verdict%$'\r'}"
+  _shard="${_shard%$'\r'}"
+  _acct="${_acct%$'\r'}"
+  [[ "$_win" == true ]] && _RLG_HAS_WINDOWS=true
+  _RLG_CHOSEN_SHARD="$_shard"
+  _RLG_HAS_ACCOUNT=false
+  [[ "$_acct" == true ]] && _RLG_HAS_ACCOUNT=true
   if [[ -n "$_RLG_PAYLOAD" ]]; then
-    _RLG_USER_VERDICT="${lines[2]:-}"
+    _RLG_USER_VERDICT="$_verdict"
     _RLG_USER_PROBED=1
   fi
   return 0
@@ -903,6 +969,71 @@ acquire_drain_lock() {
   return 1
 }
 
+# Resolve the account identity for the chosen record into _RLG_ACCOUNT_EMAIL,
+# or leave it empty. See ACCOUNT IDENTITY at the top of this file for the three
+# guards and the measurements that put this on the drain.
+#
+# Every rejection leaves the variable empty, so the caller has exactly one thing
+# to test and no rejection path can partially attribute a snapshot.
+#
+# THE STALENESS TEST IS A BUILTIN, and `-nt` is also true when the state file
+# exists and the spool file does not — the fail-closed direction, and the one an
+# empty shard name lands on too.
+#
+# VALIDATION is a whitelist of shape, not a parser: the value crosses into a
+# JSON string this script builds with parameter expansion, so a double quote or
+# a backslash would let it terminate or escape out of that string. Control
+# characters are rejected for the same reason (a raw newline cannot appear in a
+# JSON string, and would also split the one-line snapshot record). The `@` and
+# the 3-254 length bound are what make it an email rather than arbitrary text.
+_RLG_ACCOUNT_EMAIL=""
+_rlg_account_email() {
+  local spool="$1" shard="$2" state email
+  _RLG_ACCOUNT_EMAIL=""
+  [[ -n "$shard" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  state="${CLAUDE_CONFIG_DIR:-${HOME:-}}/.claude.json"
+  [[ -r "$state" ]] || return 0
+  [[ "$state" -nt "$spool/$shard.json" ]] && return 0
+  # Bash opens the file; jq reads stdin. Same rule as every other file this
+  # script hands jq: a native jq on Windows cannot open an MSYS-style path, and
+  # argv is world-readable while .claude.json holds account state.
+  email="$(jq -r '.oauthAccount.emailAddress // empty' <"$state" 2>/dev/null)" || return 0
+  email="${email%$'\r'}"
+  [[ -n "$email" ]] || return 0
+  [[ "$email" == *@* ]] || return 0
+  [[ "$email" == *'"'* ]] && return 0
+  [[ "$email" == *\\* ]] && return 0
+  [[ "$email" =~ [[:cntrl:]] ]] && return 0
+  ((${#email} >= 3 && ${#email} <= 254)) || return 0
+  _RLG_ACCOUNT_EMAIL="$email"
+  return 0
+}
+
+# Splice a validated account.email into the compact snapshot body, into
+# _RLG_INJECTED. Parameter expansion rather than another jq: the body is already
+# compact single-line JSON, the value is whitelist-validated above, and a second
+# jq here would double this feature's process cost for a string append.
+#
+# A trailing CR is preserved on the side it arrived on, for the reason
+# _rlg_strip_captured_at gives: the bytes this writer emits stay what they were.
+# A body that is not an object is returned untouched, so no failure here can
+# produce something a reader cannot parse.
+_RLG_INJECTED=""
+_rlg_inject_account() {
+  local body="$1" email="$2" cr=""
+  _RLG_INJECTED="$1"
+  if [[ "$body" == *$'\r' ]]; then
+    cr=$'\r'
+    body="${body%$'\r'}"
+  fi
+  [[ "$body" == \{*\} ]] || return 0
+  body="${body%\}}"
+  [[ "$body" == "{" ]] || body+=","
+  _RLG_INJECTED="$body\"account\":{\"email\":\"$email\"}}$cr"
+  return 0
+}
+
 # Flush the spool into one contract snapshot. Runs IN-PROCESS in the elected
 # render: detaching would pay back the fork this whole design removes.
 _rlg_drain() {
@@ -956,13 +1087,24 @@ _rlg_drain() {
   local out
   _rlg_read_settings_json
 
-  # ONE jq pass, same three lines in the same order _rlg_probe emits, so
-  # everything downstream is shared code. Lines are read raw and parsed under
-  # `try` so a torn record is dropped instead of failing the batch. The chosen
-  # record is the newest WINDOW-BEARING one, falling back to the newest overall
-  # when the machine has no window-bearing session at all; ties on the
-  # one-second stamp are broken in favour of THIS render's own shard, whose
-  # observation is the freshest by construction.
+  # ONE jq pass, whose first three lines are the same three in the same order
+  # _rlg_probe emits, so everything downstream is shared code. Lines are read raw
+  # and parsed under `try` so a torn record is dropped instead of failing the
+  # batch. The chosen record is the newest WINDOW-BEARING one, falling back to
+  # the newest overall when the machine has no window-bearing session at all;
+  # ties on the one-second stamp are broken in favour of THIS render's own shard,
+  # whose observation is the freshest by construction.
+  #
+  # TWO MORE LINES, both for the account field and neither computable outside
+  # this pass. Line 4 is the CHOSEN record's shard name — the drain can pick any
+  # session's record, so the file whose mtime dates the observation is not
+  # necessarily this render's own — derived here with the same charset rule
+  # _rlg_shard_name applies, so the two can no more disagree than the probe and
+  # the drain can. Line 5 is whether the chosen body already carries an
+  # account-shaped key, asked with keys_unsorted for the reason the
+  # window-bearing verdict is asked with has(): a substring test over the body
+  # text would see a nested `rate_limits.account_x`, or an escaped quote inside
+  # a value, and wrongly decline to attribute a snapshot that has no identity.
   if [[ -n "$batch" ]]; then
     out="$(RLG_SETTINGS_DOC="$_RLG_SETTINGS_JSON" jq -Rrcn --arg self "$self" "
       $_RLG_BODY_JQ
@@ -980,9 +1122,15 @@ _rlg_drain() {
           | (([ $tied[] | select(.p.session_id == $self) ] | last)
              // ($tied | last)) as $chosen
           | ($chosen.p | rlg_body($chosen.e | floor | todate)) as $body
+          | ((if ($chosen.p.session_id | type) == "string"
+              then $chosen.p.session_id else "" end)
+             | if test("^[A-Za-z0-9._-]{1,64}$") and (startswith(".") | not)
+               then . else "misc" end) as $shard
           | $body,
             ($body | has("rate_limits")),
-            (try ('"$_RLG_VERDICT_JQ"') catch "")
+            (try ('"$_RLG_VERDICT_JQ"') catch ""),
+            $shard,
+            ($body | keys_unsorted | any(test("account"; "i")))
         end
     ' <<<"$batch" 2>/dev/null)" || out=""
     _rlg_absorb_jq_lines "$out"
@@ -994,6 +1142,17 @@ _rlg_drain() {
 
   if _rlg_tee_enabled; then
     [[ -e "$marker" ]] && rm -f "$marker" 2>/dev/null
+    # A stdin account key always wins, so the writer injects only into a body
+    # that has none. Inside the enablement branch, so a disabled plugin never
+    # pays the process — and after the bootstrap fallback above, which leaves
+    # the chosen shard empty and therefore declines to attribute at all.
+    if [[ "$_RLG_HAS_ACCOUNT" != true ]]; then
+      _rlg_account_email "$spool" "$_RLG_CHOSEN_SHARD"
+      if [[ -n "$_RLG_ACCOUNT_EMAIL" ]]; then
+        _rlg_inject_account "$_RLG_PAYLOAD" "$_RLG_ACCOUNT_EMAIL"
+        _RLG_PAYLOAD="$_RLG_INJECTED"
+      fi
+    fi
     tee_snapshot
   else
     # Stamp the marker so the render path can stop spooling with one builtin
