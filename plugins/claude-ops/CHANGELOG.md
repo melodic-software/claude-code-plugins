@@ -3,6 +3,62 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.5]
+
+### Added
+
+- **`fleet-state.sh --ids <selector> --from <report.json>` projects a selector from a
+  report the script already emitted.** `sync` re-reads the full JSON report before
+  each mutating step, and every selector is derivable from it, so the separate
+  live `--ids` process was paying a second process to re-parse
+  `installed_plugins.json`, re-walk the catalog manifests, and re-run `realpath`
+  in order to recompute a block the caller was already holding. `--from` reads no
+  Claude Code state file at all and runs the SAME jq projection the live mode
+  runs, so the CR-free, TAB-separated output contract is unchanged, which is the
+  reason the selector exists instead of a hand-written `jq` at each call site.
+  Refused with exit 2 and an EMPTY stdout, so a `< <(…)` consumer can never read
+  an error as a plugin id: `--from` with `--all`, `--from` without `--ids`, a
+  missing or malformed file, an `--all` envelope (valid JSON that every selector
+  projects to nothing, refused by name rather than silently returning an empty
+  list), and a `--marketplace <name>` disagreeing with the report's own
+  `marketplace.name`. That flag is an optional consistency check under `--from`,
+  never a second read. New regression cases cover per-selector equality with the
+  live projection, each rejection's exit code and empty stdout, and a projection
+  run with every state file absent. (#3728)
+- **`sync` writes a per-run journal.** At run start it creates
+  `${CLAUDE_PLUGIN_DATA}/plugins-sync/runs/<UTC timestamp>/`, saves the pre-sweep,
+  mid-sweep, and post-sweep `fleet-state.sh` reports there, and appends every
+  mutating CLI call and its output to `journal.log`. Step 6 reads the
+  `<old>`/`<new>` pairs and the three `divergences[]` snapshots out of those files instead
+  of out of conversation, so a sweep of several dozen mutations is no longer one
+  context compaction away from being unable to emit its own report, and `converge`
+  or a later audit gets a real before-state. This does not reverse the deferred
+  `--run-log` finding, it honors its reasoning: the journal is agent-executed shell
+  around calls the algorithm already makes, and `fleet-state.sh` stays the
+  read-only inspector its own header advertises. The path is substituted in
+  `SKILL.md` because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and not in a
+  `context/*.md` spoke, which is read raw. (#3728)
+- **New spoke `context/sync-install-enable.md` carrying sync Steps 4 and 5.**
+  Roughly a hundred lines of install policy branches, the `--setting-sources`
+  caveat, the reinstall-recurrence caveat, the normalizer contract,
+  `defaultEnabled` precedence, and the project-scope enable-gap suppression
+  ordering used to load on every run, and are unreachable when
+  `missing_from_user_install` and `missing_from_enabled` are both empty, the
+  common case on a current fleet. `sync.md` keeps a pointer with the read
+  condition, the same progressive-disclosure pattern the hub already uses for
+  `converge.md` and `scope-semantics.md`. The Report template and the
+  `install_new` render stay in `SKILL.md`, which documents them as deliberate
+  hub-only exceptions. (#3728)
+
+### Changed
+
+- **`sync.md`'s Step 2 and Step 3 loops project their id lists with `--from`**
+  against the report each step already read, rather than launching a second
+  `fleet-state.sh`. The mandate to take ids from the script and never from a
+  hand-written `jq` is unchanged, and so is every selector's output. Cross-file
+  references in `converge.md`, `gotchas.md`, and `scope-semantics.md` that named
+  `sync.md` Step 4 or Step 5 now point at the new spoke. (#3728)
+
 ## [0.42.4]
 
 ### Changed
