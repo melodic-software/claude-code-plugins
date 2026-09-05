@@ -1,16 +1,17 @@
 # web-writing-conciseness
 
 Topic slug: `web-writing-conciseness`. Interview ledger and discovery artifacts:
-`.work/web-writing-conciseness/` (memory tier, not committed). Status: Brief in progress
-(round 1 of the interview locked 2026-09-05; round 2 open).
+`.work/web-writing-conciseness/` (memory tier, not committed). Status: Brief LOCKED 2026-09-05
+after three interview rounds (18 questions, all resolved, user-confirmed). Ready for
+`/planning:plan`.
 
 ## Brief
 
 ### TLDR
 
-- A new small plugin (`writing`, category `presentation`) with one dual-mode skill (name open,
-  Q9): invoked bare it sets a standing write-for-readers posture for the session; given a target
-  it rewrites that text for scanning human readers. Plus one doctrine reference file.
+- A new small plugin (`writing`, category `presentation`) with one dual-mode skill,
+  `writing:concise`: invoked bare it sets a standing posture for the session; given any target it
+  reshapes that text for a scanning human reader. Plus one doctrine reference file.
 - Doctrine derived from NN/g (concise, scannable, objective), GOV.UK, US plain language, Google,
   Microsoft, and BLUF, paraphrased with drift stamps; NN/g is never vendored.
 - Reciprocal routing: ai-slop, docs-hygiene:write-for-humans, and discipline:tighten-your-output
@@ -21,6 +22,12 @@ Topic slug: `web-writing-conciseness`. Interview ledger and discovery artifacts:
 - Judgment-only V1 with before/after word counts; thresholds shipped as a labelled fallback.
 
 ### Goal
+
+The doctrine rests on one reader model: the reader scans and takes away a fraction of what was
+written. Four properties follow, and the skill enforces all four. The point comes first. No more
+words than the meaning needs. Structure survives scanning. Tone stays factual. Conciseness leads
+the name because it was the largest single lever in the evidence, but a wall of text usually fails
+all four at once, and fixing one alone does not make it readable.
 
 Agents stop posting walls of text that product owners and executives cannot read. Any prose an
 agent writes for a human reader in an external system (Jira, ADO, Linear, GitHub PR bodies and
@@ -50,9 +57,11 @@ been posted, on request.
 
 ### Acceptance criteria
 
-- A new plugin directory with `plugin.json`, README, CHANGELOG, one dual-mode SKILL.md, a
-  `reference/` doctrine file, and `evals/evals.json`; `skill-quality:check` and
-  `scripts/check-skill-leaf-names.sh --check` pass.
+- A `plugins/writing/` directory with `plugin.json`, README, CHANGELOG, `skills/concise/SKILL.md`,
+  a `reference/` doctrine file, and `evals/evals.json`; `skill-quality:check` and
+  `scripts/check-skill-leaf-names.sh --check` pass. The skill's description names all four
+  properties in its first line, so the one-word name never has to carry them alone, and routes
+  away from `adhd:clarify`, `docs-hygiene:compress`, and `discipline:tighten-your-output` by name.
 - Inputs are universal: the skill accepts any text or reference the agent can resolve with the
   tools it has (pasted text, a file, a URL, a PR, a ticket key) and does not enumerate input types.
 - Reader, destination, and completeness floor are inferred from principles stated in the doctrine
@@ -103,10 +112,17 @@ been posted, on request.
 - A PreToolUse hook on `gh pr create` or `gh issue comment`: deferred until demonstrated demand
   and a measured budget share.
 - Requesting written permission from NN/g to vendor articles.
+- Exporting the doctrine as a Cursor rule file: V1 is Claude Code only. Deferred because a Cursor
+  rule is a static prose copy that would drift from the doctrine; generating it is a small
+  follow-up once the doctrine file exists.
+- A second skill for the standing posture: the one skill carries both modes.
 
 ### Deferred questions
 
-(none yet; round 2 in progress)
+None. All 18 interview questions reached a decision; the register gate
+(`plugins/planning/scripts/check-open-questions.sh`) exits 0 with 0 open, 0 deferred, 0 blocked.
+Items the interview decided to defer are recorded under Out-of-scope with their promotion paths,
+not here.
 
 ## Plan
 
