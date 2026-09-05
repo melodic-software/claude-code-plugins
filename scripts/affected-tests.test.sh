@@ -475,6 +475,14 @@ select_shard() {
   [[ -n "$spec" ]] && argv+=(--shard "$spec")
   (cd "$repo" && "${argv[@]}" -- "${shard_paths[@]}" 2>/dev/null)
 }
+# The equals form, spelled out separately because select_shard cannot express an
+# EMPTY spec: `--shard=` with nothing after it is what an environment variable
+# that expanded to nothing produces, and a presence test on the value alone
+# would read it as "no shard requested" and run the whole selection on every leg
+# while exiting 0 (claude-code-plugins#3773, Codex P2).
+select_shard_eq() {
+  (cd "$repo" && bash scripts/affected-tests.sh "--shard=$1" -- "${shard_paths[@]}" 2>/dev/null)
+}
 
 shard_rc=0
 shard_full="$(select_shard "")" || shard_rc=$?
@@ -525,6 +533,22 @@ for badspec in 4/4 bogus 0/0 1/ /4 "1/4/4" "-1/4"; do
     fail "--shard '$badspec' should exit 2, got rc=$RC"
   fi
 done
+
+out="$(select_shard_eq "")"
+RC=$?
+if [[ "$RC" -eq 2 ]]; then
+  ok "an empty --shard= is a usage error, not a silent full run"
+else
+  fail "--shard= should exit 2, got rc=$RC with $(printf '%s\n' "$out" | grep -c . || true) suite(s)"
+fi
+
+out="$(select_shard_eq 0/3)"
+if [[ -n "$(printf '%s' "$out" | grep . || true)" ]] &&
+  [[ "$(printf '%s\n' "$out" | grep . | sort)" == "$(select_shard 0/3 | grep . | sort)" ]]; then
+  ok "--shard=<spec> and --shard <spec> select the same leg"
+else
+  fail "the equals form of --shard does not match the space form"
+fi
 
 # --- --run --shard executes each suite on exactly one leg -------------------
 # The partition above is about selection; this is about execution. Two legs are

@@ -264,6 +264,11 @@ allow_unmapped=0
 explain=0
 print_fanout=""
 shard_spec=""
+# Whether --shard was SUPPLIED, tracked apart from its value. `--shard=` with an
+# empty right-hand side is what an environment variable that expanded to nothing
+# produces, and a presence test on the value alone would read it as "no shard
+# requested" and run the whole selection on every leg while reporting success.
+shard_given=0
 shard_index=0
 shard_total=1
 declare -a explicit_paths=()
@@ -328,10 +333,12 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     shard_spec="$2"
+    shard_given=1
     shift 2
     ;;
   --shard=*)
     shard_spec="${1#--shard=}"
+    shard_given=1
     shift
     ;;
   --print-fanout)
@@ -362,7 +369,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "$shard_spec" ]] && ! parse_shard "$shard_spec"; then
+if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total; got: $shard_spec" >&2
   exit 2
 fi
