@@ -40,7 +40,9 @@ quickly and cheaply graded; put that at the center of design choices.
 
 Constrain the output format to make cheap grading possible: e.g. "return just the number of legs as
 an integer and nothing else" (plus a small `max_tokens`) turns a free-form task into an exact-match
-one.
+one. Size `max_tokens` for the model under evaluation: where thinking is always on it counts
+against the same limit, so a value tight enough to fence a bare integer can cut the response off
+before the answer is written. Constrain the format in the prompt and leave the limit headroom.
 
 ## Scaling authoring
 
