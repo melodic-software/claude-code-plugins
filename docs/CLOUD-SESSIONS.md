@@ -214,6 +214,24 @@ enables; the cloud bootstrap installs (see
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
   published `main`. Local collaborators are prompted once they trust the folder.
+- **`skillListingBudgetFraction` is set to `0.05` because enabling the whole catalog does not
+  fit the stock listing budget.** Claude Code loads every enabled skill's name and description
+  each turn and caps the total at
+  [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) of the context window,
+  default 1%. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring skills
+  first, so a skill that is never invoked loses the keywords a request would have matched and
+  goes on not being invoked. Measured on `main` at 3ea592bb with
+  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`: **182 listing-eligible
+  skills, 135,596 characters**. At the 90,000-character budget this repo previously ran on,
+  `claude-ops:audit-skill-visibility` puts **72 of those 182 skills in the starved bucket**; at
+  0.05 it reports `listing-fits` and **0 starved**. The value is a *fit-today* lever, not a
+  durable one: the same tool measured 56,922 characters on 2026-07-20 and 86,005 on 2026-08-05,
+  which is roughly 1,700 characters of growth a day, and no fraction anyone would want to pay
+  for buys more than weeks against that. Trimming the descriptions at their source is the durable
+  fix and is tracked separately in
+  [#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526). A second,
+  report-only CI step measures the aggregate against this configured fraction so the day the
+  fleet outgrows it is visible rather than silent.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
