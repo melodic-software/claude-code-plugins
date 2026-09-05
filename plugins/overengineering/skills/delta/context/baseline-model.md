@@ -85,11 +85,10 @@ and whatever moved in between would then be reported by no cycle at all.
 **A `schema: 2` artifact changes what is captured in one way only: nothing.** The spine is still
 `(id, layer, artifact, verdict, status)`. `Basis`, `mode`, and `targets` are outside it by
 construction, so a capture taken after a targeted run holds the same tuples a capture after a walk
-would, and a `Basis` move produces no delta. A row this lane can never compare, one in any of the five
-justification layers, is captured like any other so the snapshot stays a faithful record of the
-artifact; it simply never appears in a comparison. The test is `Layer`, which is in the spine and on
-every row: `check` is a hash input rather than a serialized field, so no consumer can read a
-producer off a finding.
+would, and a `Basis` move produces no delta. A row this lane can never compare, one whose `Layer` is
+one of the justification lane's five, is captured like any other so the snapshot stays a faithful
+record of the artifact; it simply never appears in a comparison. The layer is what identifies such a
+row, never the `check` producer segment, which is an id constituent the artifact does not serialize.
 
 **A baseline older than one cycle widens the span rather than being discarded.** When the stored
 baseline's `source-date` predates the immediately preceding cycle, an interrupted cycle left it

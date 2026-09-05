@@ -88,8 +88,13 @@ human gate. Name it as the next step; never start it unasked.
 
 Parse `$ARGUMENTS`:
 
-- **Layer scope**. One or more values from the layer vocabulary owned by
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`; default `all`. A mature repository's surface
+- **Layer scope**. One or more of the **ten enforcement layers** in the vocabulary owned by
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, `agent-hooks` through
+  `external-integrations`; default `all`, meaning those ten and never the five the justification lane
+  owns. The narrowing is load-bearing: `scope` is what merge rule 3 reads to decide a prior finding's
+  item is gone, so a layer recorded but not walked closes another producer's rows as deleted
+  artifacts. Asked for one of the five, this skill refuses and names `/overengineering:justify`,
+  which owns them one target at a time. A mature repository's surface
   runs past a hundred items and does not fit one context window, so layer-scoped passes are the
   supported way to cover it: they compose because a re-run merges into the same artifact by stable
   finding id. Record exactly the layers walked in the artifact's `scope`, a layer absent from
@@ -137,7 +142,7 @@ the artifact's enum order, with each layer's discovery probes and evidence sourc
 shallow-clone reads, the aggregating-container granularity rule, and the per-layer incremental write.
 Read it at the start of the walk, not per layer.
 
-Two properties of the walk matter enough to state here:
+Three properties of the walk matter enough to state here:
 
 - **Write the artifact per layer, as the walk proceeds.** A partial artifact is a checkpoint, not a
   failure, a context-exhausted run then dies with its completed layers persisted and a later pass
