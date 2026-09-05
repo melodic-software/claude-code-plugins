@@ -13,8 +13,8 @@ on:
     # do-not-merge / issue-linkage answers without a new commit, so the required
     # check has to re-evaluate. Whether such an event is CONTRACT-ONLY (lanes
     # gated off, ci-status carrying the recorded `ci-lanes` verdict forward) is
-    # decided by one predicate, repeated verbatim in `cancel-in-progress` and in
-    # every job's `if:` except `ci-status`:
+    # decided by one predicate, repeated verbatim in the `concurrency` group and
+    # in every job's `if:` except `ci-status`:
     #
     #   github.event.pull_request.head.repo.full_name == github.repository &&
     #   (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
@@ -30,20 +30,29 @@ on:
 permissions:
   contents: read
 
-# The PR number scopes cancellation to exactly one PR (head_ref would collide
-# across same-named fork branches); push runs fall back to the unique run_id,
-# so default-branch runs are never cancelled.
+# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
+# run takes a group of its own keyed on `github.run_id`, so it can neither be
+# cancelled nor evict anything, and the `ci-status` composite's bounded
+# carry-forward wait is what makes it read the full run's `ci-lanes` status
+# rather than queueing for it. The previous shape queued instead, on a shared
+# group with `cancel-in-progress` false, and eviction is unconditional: a
+# pending run evicted before its `ci-status` job started left the check suite
+# with no `ci-status` check run at all, and the required check stopped reporting
+# until someone re-ran that specific run (melodic-software/github-iac#378).
 #
-# A contract-only event never cancels: it must queue behind an in-flight full
-# run so the `ci-lanes` status it reads is already written. GitHub keeps one
-# running and one pending run per group and the newest pending wins, so the
-# carry-forward always executes after the full run it depends on. A
-# `synchronize` still cancels everything on the old SHA. The value carries no
-# event guard because the group key already gives every push run a group of its
-# own.
+# The full branch keeps one group per pull request, so a `synchronize` still
+# cancels everything on the old SHA. Push runs fall back to the unique
+# `github.run_id` and are never cancelled; the PR number scopes cancellation to
+# exactly one pull request, where `head_ref` would collide across same-named
+# fork branches.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+  group: >-
+    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
+    (github.event.action == 'edited' && !github.event.changes.base)))
+    && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
+  cancel-in-progress: true
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -154,7 +163,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/change-detection@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           filters: |
             shell:
@@ -316,21 +325,21 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdown@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/markdown@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           config: .markdownlint-cli2.jsonc
 
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           config: _typos.toml
 
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -339,7 +348,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           config: .editorconfig-checker.json
 
@@ -350,7 +359,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           rcfile: .shellcheckrc
 
@@ -358,13 +367,13 @@ jobs:
         id: actionlint
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
 
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -372,7 +381,7 @@ jobs:
         id: plugin_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -412,7 +421,7 @@ jobs:
         id: dependabot_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -420,7 +429,7 @@ jobs:
         id: workflow_schema
         if: needs.changes.outputs.run_full == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -435,7 +444,7 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
 
       # THE ONE REFERENCE IN THIS FILE HELD AT THE OLD SHA, deliberately. Every
       # other ci-workflows reference here moved to v0.19.0; this one did not.
@@ -456,7 +465,7 @@ jobs:
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -489,12 +498,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1022,7 +1031,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -1284,7 +1293,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-format contract tests in this same job.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@85e140fa2fe9ebe96c41156055e7676de208090a # v0.19.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
@@ -1903,6 +1912,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
+      # ci-status lists this workflow's runs on this head SHA to find an earlier
+      # incomplete one before it reads the carried-forward status. Under an
+      # explicit block the default is none, and the call would 403.
+      actions: read
       contents: read
       # pr-contract upserts the advisory linkage comment and moves the linkage
       # label; ci-status records the `ci-lanes` commit status the carry-forward
@@ -1911,7 +1924,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-contract@449157aaa8e30f7b1457305d8048ebe6168e174a # v0.20.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-contract@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -1925,7 +1938,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/ci-status@449157aaa8e30f7b1457305d8048ebe6168e174a # v0.20.0
+        uses: melodic-software/ci-workflows/.github/actions/ci-status@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           # Derived from the needs graph above — the single source of truth for
           # the lane list. Adding a lane to needs automatically extends this
@@ -1934,4 +1947,10 @@ jobs:
           # The replaced inline aggregator passed only `success`, so a `skipped`
           # lane was already red here.
           treat-skipped-as: fail
+          # A contract-only run no longer queues behind the full run it reads
+          # from, so it waits for one instead. 240 seconds is this job's
+          # `timeout-minutes: 5` less the 60-second margin the composite's
+          # README requires, so the fail-closed error is never preempted by the
+          # job timeout.
+          carry-forward-wait-seconds: '240'
           token: ${{ github.token }}
