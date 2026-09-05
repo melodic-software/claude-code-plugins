@@ -177,7 +177,8 @@ key the nine claude-ops audit hooks added under the additive rule before 1.1 and
 envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
 per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
 carries no session) goes to the shared `<root>/hook-events.jsonl` in the legacy shape. The
-per-session report therefore covers every fleet producer from their 1.1 versions on (#3758).
+per-session report therefore covers every fleet producer from their 1.1 versions on (#3758, which
+finishes the thread #930 opened).
 
 ## Implementers
 
