@@ -95,9 +95,11 @@ re-judged by pointing that lane at the artifact again, never by a delta cycle.
 see one if it did.** A `mode: targeted` artifact appends its own per-target availability lines and
 leaves the walk's per-tier tokens untouched, so every token this lane compares was written by a
 walk and a difference between two of them is a real move. That guarantee is what makes the
-comparison sound, because the detection is not available: the spine baseline records `source-date`
-and `source-scope` and no mode, so nothing in what this lane reads says whether a pointed run sat
-inside the span. Rely on the guarantee rather than looking for the run, and never report an
+comparison sound, because the detection is not reliably available: **the spine baseline** records
+`source-date` and `source-scope` and no mode, so the baseline alone never says whether a pointed run
+sat inside the span. The current artifact's own frontmatter does carry `mode`, and this lane reads it
+on a bootstrap cycle and when a baseline's provenance is in question, but that answers only what the
+latest write was, not what happened across the span. Rely on the guarantee rather than looking for the run, and never report an
 availability move as uncertain on the grounds that one might have.
 
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
