@@ -1463,19 +1463,20 @@ else
   bs_release() { :; }
 fi
 
-# --- Test 18: hook::buffer_stdin — timeout path (return 2 / BLOCKED) ----------
-# Incomplete JSON on a pipe that stays open past the read timeout must trip the
-# bounded-read timeout branch: return 2 and a `BLOCKED:` diagnostic on stderr
-# (the Win32-pipe late-EOF stall the bounded read exists to survive). Drives the
-# real function: a producer emits a partial payload then holds the pipe open, and
-# STDIN_READ_TIMEOUT is shortened so the case is fast. jq present (this host) is
-# what lets the function distinguish a truncated read from a small-but-complete
-# one; without it the branch fails open to return 1, so this asserts the
-# jq-present timeout shape specifically.
+# --- Test 18: hook::buffer_stdin — a held-open pipe is a stall, and stays rc 2 -
+# Incomplete JSON on a pipe that stays open past the read timeout trips the
+# bounded-read timeout branch (the Win32-pipe stall the bounded read exists to
+# survive). The verdict is rc 2 with the `BLOCKED: ... timed out` line, the
+# pre-#3507 verdict, whatever the content: Test 18h below pins the well-formed
+# prefix under this same hold, beside its early-EOF twin, since that pair is
+# the whole #3507/#3740 discriminator. This case pins the other content: a
+# producer that hangs after garbage cannot turn a fail-closed verdict into an
+# allow. Drives the real function: a producer emits a partial payload then
+# holds the pipe open, and STDIN_READ_TIMEOUT is shortened so the case is fast.
 bs_rc_file="$(mktemp)"
 bs_err_file="$(mktemp)"
 {
-  printf '{"incomplete":'
+  printf 'not json'
   bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
@@ -1483,12 +1484,112 @@ bs_err_file="$(mktemp)"
   bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
-  ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
+# The stall verdict is decided before the content split, so the line is the
+# timed-out one, not "not valid JSON": what matters here is rc 2 either way.
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "buffer_stdin: non-JSON text past timeout → return 2 + BLOCKED timed out (a stall is not an allow)"
 else
-  fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
+  fail "buffer_stdin stall with non-JSON: rc=$bs_rc err=$(cat "$bs_err_file")"
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
+
+# --- Test 18h: the cut-short / not-JSON split at EOF (#3507) ------------------
+# The reporter's own path. bash reports an early EOF and a pipe read error with
+# the same rc 1, so on a starved Windows host a payload the harness had not
+# finished writing reached the verdict as a truncated buffer at "EOF" and was
+# returned as rc 2 "not valid JSON" — a block, and a message that blamed the
+# command. At EOF the verdict is content-based: a well-formed prefix is rc 3,
+# text that never parsed is rc 2, and a complete document is rc 0. The stall
+# arm is NOT part of that split — see the paired case after the table.
+bs_case() { # bs_case <label> <stdin> <want rc> <stderr has | -> <stderr lacks | ->
+  local label="$1" stdin="$2" want="$3" has="$4" hasnt="$5" rc=0 err
+  err=$(printf '%s' "$stdin" | hook::buffer_stdin 2>&1 >/dev/null) || rc=$?
+  if [[ "$rc" == "$want" ]] &&
+    { [[ "$has" == "-" ]] || [[ "$err" == *"$has"* ]]; } &&
+    { [[ "$hasnt" == "-" ]] || [[ "$err" != *"$hasnt"* ]]; }; then
+    ok "buffer_stdin: $label → rc $rc"
+  else
+    fail "buffer_stdin: $label: rc=$rc (want $want) err=$err"
+  fi
+}
+bs_case "truncated object at EOF is cut short" '{"tool_name":"Bash","tool_input":{"command":"ls' 3 'cut short' 'BLOCKED'
+bs_case "cut-short diagnostic says the pipe closed, not stalled" '{"tool_input":{"command":' 3 'pipe closed' 'went quiet'
+bs_case "truncated right after a nested close brace is still cut short" '{"tool_input":{"command":"x"}' 3 'cut short' '-'
+bs_case "truncated inside a string value is cut short" '{"tool_input":{"command":"cat > f' 3 'cut short' '-'
+bs_case "a lone opening brace is cut short" '{' 3 'cut short' '-'
+bs_case "text that is not JSON still fails closed" 'not json' 2 'not valid JSON' 'cut short'
+bs_case "a complete document plus trailing junk is not JSON" '{"a":1} x' 2 'not valid JSON' 'cut short'
+bs_case "structurally wrong JSON is not JSON" '{"a" 1}' 2 'not valid JSON' 'cut short'
+bs_case "an over-closed document is not JSON" '{"a":1}}' 2 'not valid JSON' 'cut short'
+bs_case "whitespace-only stdin is empty" $' \n' 1 '-' 'cut short'
+bs_case "a complete payload still parses" '{"tool_input":{"command":"ls"}}' 0 '-' '-'
+# THE SAME BYTES as the first row, with the pipe HELD OPEN past the idle bound
+# instead of closed: rc 2, `BLOCKED: ... timed out`, and no "cut short". This
+# is the #3740 narrowing, and the one case that tells the two arms apart — the
+# first commit of #3507 returned rc 3 for both, and under that verdict this
+# row would have been rc 3 with "went quiet" on stderr. The stall arm stays
+# fail-closed by decision: a stall is reachable from the agent's side (a
+# payload past 64 KiB splits the harness write; host load from earlier tool
+# calls widens the gap), and the dispatcher takes rc 3 before any guard is
+# sourced, so an allow on it would skip every guard on the lane at once.
+# Genuine stalls on a starved host are still denied, and that is the trade.
+# The hold is the release handshake, so the read cannot reach EOF first and
+# quietly pass as the other arm.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"ls'
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+# portability-ok: grep -q quiet match, not grep -P
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file" && ! grep -q 'cut short' "$bs_err_file"; then
+  ok "buffer_stdin: the truncated-object prefix with the pipe held open past the bound → rc 2 timed out (a stall is not cut short; fail-closed by decision, #3740)"
+else
+  fail "buffer_stdin stall-vs-EOF discriminator: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
+# The whitespace-only row above, with the pipe HELD OPEN past the idle bound
+# instead of closed: still rc 2 `BLOCKED: ... timed out`, the pre-#3507
+# verdict. The stall check must come BEFORE the whitespace-only check inside
+# the verdict; an earlier revision of #3740 had them the other way round, and
+# a whitespace-only prefix followed by a stall came back as the silent rc 1
+# (an allow) instead of rc 2. Not agent-reachable (the harness never writes a
+# whitespace-only prefix), but a block-to-allow shift on the stall arm, and
+# the stall arm is fail-closed by decision. This row fails if that ordering
+# regresses.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{
+  printf ' \n'
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+# portability-ok: grep -q quiet match, not grep -P
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file"; then
+  ok "buffer_stdin: whitespace-only stdin with the pipe held open past the bound → rc 2 timed out (a stall is decided before the empty-payload check)"
+else
+  fail "buffer_stdin whitespace-only stall: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
+# The split leans on jq's own wording for a document that ended early. Pin it,
+# so a jq release that renames the diagnostic fails HERE — visibly — rather
+# than showing up as a return to blocking on truncated payloads (the fallback
+# for an unrecognized diagnostic is rc 2, the pre-#3507 verdict).
+bs_jq_err=$(printf '{"a":' | jq -e . 2>&1 >/dev/null) || true # jq exits 5 here by design; the wording is the subject
+if [[ "$bs_jq_err" == *Unfinished* ]]; then
+  ok "jq names a document that ended early 'Unfinished' (the cut-short oracle holds on this jq)"
+else
+  fail "jq no longer says 'Unfinished' for a truncated document: $bs_jq_err"
+fi
 
 # --- Test 18b: hook::buffer_stdin — stall AFTER a complete payload succeeds ---
 # The Win32-pipe late-EOF case the bounded read exists for: the producer emits a
@@ -1889,7 +1990,10 @@ else
 fi
 
 # And the other side of the same contract: a trickle that then goes SILENT with
-# an incomplete payload must still fail closed. Re-arming on progress must not
+# an incomplete payload must still be declared a stall — rc 2 with the timed-out
+# BLOCKED line (the well-formed prefix does not soften a stall; only an early
+# EOF is "cut short", #3740), never rc 0 with a partial payload and never the
+# rc 3 allow. Re-arming on progress must not
 # become "never time out". The bound stays SHORT here on purpose: this case needs
 # the stall declared before the producer stops holding, so load pushing the gaps
 # out only makes it fire sooner. It has no flaky direction, which is why it keeps
@@ -1911,9 +2015,9 @@ fi
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
-  ok "buffer_stdin: trickle that then goes silent mid-payload → still rc 2"
+  ok "buffer_stdin: trickle that then goes silent mid-payload → still a stall (rc 2, fail-closed)"
 else
-  fail "buffer_stdin trickle-then-stall: rc=$bs_rc out=$(cat "$bs_out_file")"
+  fail "buffer_stdin trickle-then-stall: rc=$bs_rc (expected 2) out=$(cat "$bs_out_file")"
 fi
 rm -f "$bs_rc_file" "$bs_out_file"
 [[ "$bs_tick_kind" == fifo ]] && exec 9<&-
@@ -1976,9 +2080,9 @@ fi
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
-  ok "buffer_stdin: pre-4.1 fallback still fails closed on a stalled pipe (rc 2)"
+  ok "buffer_stdin: pre-4.1 fallback still declares a stalled pipe (rc 2, fail-closed)"
 else
-  fail "buffer_stdin pre-4.1 stall: rc=$bs_rc"
+  fail "buffer_stdin pre-4.1 stall: rc=$bs_rc (expected 2)"
 fi
 rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
@@ -2057,7 +2161,7 @@ bs_rc_file="$(mktemp)"
 }
 bs_rc=$(cat "$bs_rc_file")
 if [[ "$bs_rc" == "2" ]]; then
-  ok "buffer_stdin: a valid non-default stdin_read_timeout is honored, not overridden"
+  ok "buffer_stdin: a valid non-default stdin_read_timeout is honored, not overridden (stall declared, rc 2)"
 else
   fail "buffer_stdin valid non-default timeout: rc=$bs_rc (expected 2)"
 fi

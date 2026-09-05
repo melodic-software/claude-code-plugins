@@ -544,6 +544,74 @@ crash_rc=$?
 assert_exit "crash path fails open" 0 "$crash_rc"
 assert_contains "crash path names guard did not run" "$crash_out" "guard did not run"
 
+# --- A payload cut short in transit is a loud allow, not a block (#3507) -----
+# The reported incident: a plain read-only command was denied with "hook stdin
+# is not valid JSON" on a starved Windows host, because the harness pipe
+# delivered part of the payload and then reported end-of-file (bash gives an
+# early EOF and a pipe read error the same rc 1). What arrived is a well-formed
+# JSON prefix, which the agent cannot shape — the harness serializes it — so
+# the guard must not deny on it: exit 0, a dual-channel notice, and a `skipped`
+# telemetry envelope. ONLY that transport shape is allowed: the same prefix on
+# a pipe that stays open and goes quiet past the idle bound is a stall, and a
+# stall stays fail-closed by decision (#3740) — payload size and host load
+# both move it, and under the dispatcher an allow on it would skip every guard
+# at once. The stalled arm therefore asserts exit 2, and its hold is a FIFO
+# handshake released only after the guard exits: a fixed sleep a slow spawn
+# outran would end the read in early EOF, which is now the OTHER verdict, and
+# the case would pass for the wrong reason. The command inside the prefix is a
+# real bypass form, so this also pins that a cut-short payload is never
+# matched: there is nothing to match, and the verdict is the transport one.
+CUT_BYPASS='{"tool_name":"Bash","tool_input":{"command":"cat > foo.txt'
+cut_rc=0
+cut_out=$(printf '%s' "$CUT_BYPASS" | env CLAUDE_PROJECT_DIR= bash "$HOOK" 2>"$TEST_TMPDIR/cut.err") || cut_rc=$?
+assert_exit "cut-short payload (early EOF) is allowed" 0 "$cut_rc"
+assert_contains "cut-short payload: stderr names the transport fault" "$(cat "$TEST_TMPDIR/cut.err")" "cut short"
+assert_absent "cut-short payload: nothing is BLOCKED" "$(cat "$TEST_TMPDIR/cut.err")" "BLOCKED"
+assert_contains "cut-short payload: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$cut_out")" "not evaluated"
+assert_contains "cut-short payload: additionalContext carries the notice" "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$cut_out")" "not evaluated"
+assert_eq "cut-short payload: hookEventName is PreToolUse" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$cut_out" | tr -d '\r')"
+CUT_FIFO="$TEST_TMPDIR/cut.fifo"
+if mkfifo "$CUT_FIFO" 2>/dev/null; then
+  cut_hold() { read -r _ <"$CUT_FIFO"; }
+  cut_release() { : >"$CUT_FIFO"; }
+else
+  cut_hold() { sleep 30; }
+  cut_release() { :; }
+fi
+{
+  printf '%s' "$CUT_BYPASS"
+  cut_hold
+} | {
+  env CLAUDE_PROJECT_DIR= CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash "$HOOK" >"$TEST_TMPDIR/cut.out" 2>"$TEST_TMPDIR/cut.err"
+  echo "$?" >"$TEST_TMPDIR/cut.rc"
+  cut_release
+}
+cut_rc=$(cat "$TEST_TMPDIR/cut.rc")
+assert_exit "same prefix, pipe stalled: BLOCKED (a stall stays fail-closed, #3740)" 2 "$cut_rc"
+assert_contains "stalled prefix: stderr names the stall" "$(cat "$TEST_TMPDIR/cut.err")" "timed out before a complete JSON payload"
+assert_absent "stalled prefix: not reported as cut short" "$(cat "$TEST_TMPDIR/cut.err")" "cut short"
+assert_absent "stalled prefix: no allow notice" "$(cat "$TEST_TMPDIR/cut.err")" "not evaluated"
+assert_silent "stalled prefix: nothing on stdout (no hook document, no notice)" "$(cat "$TEST_TMPDIR/cut.out")"
+# Text that is not JSON keeps failing closed: a payload the guard cannot read
+# is what a bypass attempt would look like, and it is not a transport shape.
+cut_rc=0
+printf 'not json' | env CLAUDE_PROJECT_DIR= bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/cut.err" || cut_rc=$?
+assert_exit "not-JSON stdin still fails closed" 2 "$cut_rc"
+assert_contains "not-JSON stdin names the reason" "$(cat "$TEST_TMPDIR/cut.err")" "not valid JSON"
+# Telemetry on the degraded path: status skipped, the reason named, and no
+# subject — the guard never read a command to derive one from.
+TEL_CUT="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_CUT="$(make_sink "cat >\"$TEL_CUT\"")"
+printf '%s' "$CUT_BYPASS" | env HOOK_TELEMETRY_SINK="$SINK_CUT" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" >/dev/null 2>&1 || true
+if wait_for_sink "$TEL_CUT"; then
+  assert_eq "telemetry: cut-short status skipped" "skipped" "$(jq -r '.status' "$TEL_CUT" | tr -d '\r')"
+  assert_eq "telemetry: cut-short reason" "stdin-cut-short" "$(jq -r '.data.reason' "$TEL_CUT" | tr -d '\r')"
+  assert_eq "telemetry: cut-short carries no subject" "" "$(jq -r '.data.subject' "$TEL_CUT" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a cut-short payload"
+fi
+
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"

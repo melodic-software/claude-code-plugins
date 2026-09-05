@@ -91,16 +91,39 @@ esac
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
-# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed out
-# before a complete payload) FAILS CLOSED — the guard cannot evaluate the tool
-# call, and a silent skip would pass exactly the traffic this guard exists to
-# stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
-# does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below — hook::require_jq needs
-# the buffered input for its once-per-session notice scoping.
+# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that is
+# not JSON, or a pipe that stayed open and went quiet before the document was
+# complete) FAILS CLOSED — the guard cannot evaluate the tool call, and a
+# silent skip would pass exactly the traffic this guard exists to stop.
+# buffer_stdin already printed the BLOCKED reason to stderr. rc 3 (#3507) is
+# the one other way a payload can be unreadable: a well-formed JSON prefix
+# arrived and the pipe then CLOSED. That is a transport fault the agent cannot
+# cause — the harness serializes the payload and owns the pipe's close — and it
+# says nothing about the command, so it is not a block; it is a loud allow
+# (dual-channel notice plus a `skipped` telemetry envelope), because a
+# legitimate command was being denied for it on a starved Windows host with a
+# message that blamed the command. A STALL on such a prefix is deliberately not
+# rc 3 (#3740): payload size and host load both move it, so it stays a block.
+# Buffering does not require jq (hook::buffer_stdin's own
+# JSON-completeness check is jq-optional), so it runs before the jq gate below
+# — hook::require_jq needs the buffered input for its once-per-session notice
+# scoping.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
+  if ((rc == 3)); then
+    hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
+    if [[ -n "$start" ]] && hook::telemetry_enabled; then
+      # Declared before the call because hook::json_str_object_to assigns
+      # through a nameref; without this, shellcheck reads the variable at the
+      # next line as never assigned (SC2154). The sibling emit_tel below gets
+      # the same effect from its `local data`, which this site cannot use: it
+      # runs at top level, inside hook::buffer_stdin's failure block.
+      _bbh_tel=""
+      hook::json_str_object_to _bbh_tel tool "" subject "" form "" reason "stdin-cut-short"
+      hook::emit_telemetry "block-hook-bypass" "PreToolUse" "skipped" "$start" "$_bbh_tel" "${CLAUDE_PROJECT_DIR:-}"
+    fi
+  fi
   exit 0
 }
 
