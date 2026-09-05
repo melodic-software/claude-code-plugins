@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.10]
+
+### Changed
+
+- audit: the Purpose section keeps the two detection layers and leaves the relay-routing contract to audit step 6, which now also carries the rewrite-guide clause; the em-dash zero-tolerance rule is stated without the plan-approval provenance in SKILL.md and in the catalog entry, which carries the reason; the catalog's calibration record points at `detect.sh` for the shipped-rule count instead of a copied count, names the third pass without the pull-request number, and states the quotation exemption's input filter and tier rule as current facts; the rewrite guide drops the dogfood incident and the "now" from the quotation-exemption note.
+- setup: the `thresholds` key table lists the two density rules `detect.sh` reads; `rule_of_three` left the density table when it moved to the judgment rubric.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.8]
 
 ### Fixed
