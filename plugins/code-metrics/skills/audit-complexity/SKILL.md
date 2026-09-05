@@ -106,8 +106,10 @@ collectors.
   `PATH` or in `node_modules/.bin`), and the cognitive rung also needs `eslint-plugin-sonarjs` in
   `node_modules`. Otherwise the row is `unavailable` with that reason; `lizard` still covers
   TypeScript cyclomatic complexity.
-- Python and Bash have no maintained cognitive-complexity collector (validated 2026-09-04). Those
-  rows read `unavailable` with that sentence rather than reporting a substitute measure.
+- Python and Bash have no maintained cognitive-complexity collector, so those rows read
+  `unavailable` with that reason rather than reporting a substitute measure. The claim, what it
+  rests on, when it was checked, and what should send you to check again are recorded in
+  [`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`](../../reference/collectors.md).
 - Halstead outside Python is per file, so a file's difficulty is not a function's. Python is the
   only lane with per-function Halstead, and even there the rows carry no line range.
 - A collector that reports only a start line cannot bound a function's lines, so `audit-coverage`

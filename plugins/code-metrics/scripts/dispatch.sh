@@ -341,14 +341,13 @@ done <"$WORK/dedup"
 # scope.exclude: drop every file a configured glob matches, counting them.
 EXCLUDED=0
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
-  mapfile -t candidates <"$SCOPED"
   : >"$WORK/excluded"
   for pattern in "${EXCLUDE_GLOBS[@]}"; do
     [[ -n "$pattern" ]] || continue
     # An exclusion the matcher cannot use is a configuration error, not an
     # exclusion that matched nothing: continuing would measure the very files
     # the consumer asked to leave out and still exit 0.
-    if ! "${PY[@]}" "$PATHGLOB" "$pattern" "${candidates[@]}" >>"$WORK/excluded"; then
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$SCOPED" >>"$WORK/excluded"; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
     fi
   done
@@ -366,8 +365,10 @@ FILE_COUNT="$(wc -l <"$SCOPED" | tr -d ' ')"
 # ---- lanes -------------------------------------------------------------------
 LANES_TSV="$WORK/lanes"
 if [[ "$FILE_COUNT" -gt 0 ]]; then
-  mapfile -t scoped_files <"$SCOPED"
-  bash "$DETECT" "${DETECT_ARGS[@]}" -- "${scoped_files[@]}" >"$LANES_TSV" || exit 2
+  # The scope travels as a file, not as an argument vector: a whole repository
+  # is tens of thousands of paths and would exceed the platform command line
+  # limit, which on Git Bash under Windows is far below what `--all` produces.
+  bash "$DETECT" "${DETECT_ARGS[@]}" --paths-from "$SCOPED" >"$LANES_TSV" || exit 2
 else
   : >"$LANES_TSV"
 fi

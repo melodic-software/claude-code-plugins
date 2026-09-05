@@ -240,9 +240,23 @@ def _match_function(
     functions: list[dict[str, Any]], name: str | None, start_line: int | None
 ) -> dict[str, Any] | None:
     tail = (name or "").rsplit(".", 1)[-1]
-    for candidate in functions:
-        if candidate.get("name") == name:
-            return candidate
+    # An exact name is not an identity either: two `render` methods in one file
+    # both carry that name, and the records are kept separate now, so taking
+    # the first would hand the second method the first one's hit flag and
+    # region. Disambiguate by the start line the complexity collector reported,
+    # exactly as the tail branch below does.
+    exact = [candidate for candidate in functions if candidate.get("name") == name]
+    if len(exact) == 1:
+        return exact[0]
+    if exact:
+        positioned = [
+            candidate
+            for candidate in exact
+            if candidate.get("start_line") == start_line
+        ]
+        if start_line is not None and len(positioned) == 1:
+            return positioned[0]
+        return None
     # A shared tail is not an identity: `A.render` and `B.render` both end in
     # `render`, so an unqualified complexity row matches each. Prefer the
     # candidate whose start line the complexity collector also reported, and

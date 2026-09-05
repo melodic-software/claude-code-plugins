@@ -30,7 +30,7 @@ import sys
 
 MIN_PYTHON = (3, 9)
 
-_USAGE = "usage: pathglob.py [--any] <pattern> <path>..."
+_USAGE = "usage: pathglob.py [--any] <pattern> [--paths-from <file>] <path>..."
 
 
 def _normalize(path: str) -> str:
@@ -42,7 +42,15 @@ def _normalize(path: str) -> str:
 
 def translate(pattern: str) -> str:
     """Return an anchored regex for a gitignore-style glob."""
-    pattern = _normalize(pattern).rstrip("/")
+    pattern = _normalize(pattern)
+    # A trailing slash names a directory, and gitignore semantics exclude
+    # everything under it. Dropping the slash would leave a bare segment that
+    # matches only a path literally called `vendor`, so `vendor/` would exclude
+    # nothing and the whole directory would stay in scope.
+    directory = pattern.endswith("/")
+    pattern = pattern.rstrip("/")
+    if directory and pattern:
+        pattern += "/**"
     anchored = "/" in pattern
     if pattern.startswith("/"):
         pattern = pattern[1:]
@@ -88,14 +96,26 @@ def matches(pattern: str, path: str) -> bool:
 
 def main(argv: list[str]) -> int:
     any_mode = False
+    listed: list[str] = []
     args = list(argv)
     if args and args[0] == "--any":
         any_mode = True
         args = args[1:]
-    if len(args) < 2:
+    # `--paths-from` reads the paths from a file, one per line. A whole
+    # repository's scope does not fit in one argument vector on every platform
+    # this runs on, and a file has no such ceiling.
+    if len(args) >= 3 and args[1] == "--paths-from":
+        try:
+            with open(args[2], encoding="utf-8") as handle:
+                listed = [line.rstrip("\n") for line in handle if line.strip()]
+        except OSError as exc:
+            print(f"pathglob.py: {exc}", file=sys.stderr)
+            return 2
+        args = [args[0]] + args[3:]
+    if len(args) < 1 or (len(args) < 2 and not listed):
         print(_USAGE, file=sys.stderr)
         return 2
-    pattern, paths = args[0], args[1:]
+    pattern, paths = args[0], listed + args[1:]
     try:
         regex = re.compile(translate(pattern))
     except re.error as exc:

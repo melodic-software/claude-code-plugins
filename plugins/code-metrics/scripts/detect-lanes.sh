@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Classify files into the plugin's lanes (design thread T2).
 #
-#   detect-lanes.sh [--globs <lane>=<glob>[,<glob>...]]... [--disable <lane>]... [--] <file>...
+#   detect-lanes.sh [--globs <lane>=<glob>[,<glob>...]]... [--disable <lane>]...
+#                   [--paths-from <file>] [--] <file>...
+#
+# `--paths-from` reads the file list from a file, one path per line. A scope of
+# tens of thousands of paths does not fit in one argument vector on every
+# platform this runs on, and the file has no such ceiling.
 #
 # Prints one `<lane><TAB><file>` line per file that belongs to a lane, in the
 # order the files were given; a file that belongs to no lane prints nothing.
@@ -56,6 +61,24 @@ while [[ $# -gt 0 ]]; do
     DISABLED["$2"]=1
     shift 2
     ;;
+  --paths-from)
+    # The whole scope can be tens of thousands of paths, and passing it as one
+    # argument vector fails outright once it crosses the platform's command
+    # line limit, which on Git Bash under Windows is far smaller than on
+    # Linux. A file has no such ceiling.
+    [[ $# -ge 2 ]] || {
+      usage
+      exit 2
+    }
+    [[ -f "$2" ]] || {
+      printf 'detect-lanes.sh: path list does not exist: %s\n' "$2" >&2
+      exit 2
+    }
+    while IFS= read -r listed; do
+      [[ -n "$listed" ]] && FILES+=("$listed")
+    done <"$2"
+    shift 2
+    ;;
   --help | -h)
     usage
     exit 0
@@ -94,7 +117,12 @@ fi
 # consumer override wins over the extension map for its lane.
 declare -A GLOB_LANE_OF=()
 GLOB_HITS="$(mktemp)"
-trap 'rm -f "$GLOB_HITS"' EXIT
+FILE_LIST="$(mktemp)"
+trap 'rm -f "$GLOB_HITS" "$FILE_LIST"' EXIT
+# The matcher reads the scope from a file for the same reason this script
+# accepts one: a whole repository's paths do not fit in one argument vector on
+# every platform this runs on.
+printf '%s\n' "${FILES[@]}" >"$FILE_LIST"
 for lane in "${!LANE_GLOBS[@]}"; do
   IFS=',' read -r -a patterns <<<"${LANE_GLOBS[$lane]}"
   for pattern in "${patterns[@]}"; do
@@ -104,7 +132,7 @@ for lane in "${!LANE_GLOBS[@]}"; do
     # success, so a pattern the matcher refused would read as "matched
     # nothing". Declaring globs turns off this lane's extension fallback, so
     # that silence would drop the lane's files from the run entirely.
-    if ! "${PY[@]}" "$PATHGLOB" "$pattern" "${FILES[@]}" >"$GLOB_HITS"; then
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$FILE_LIST" >"$GLOB_HITS"; then
       printf 'detect-lanes.sh: lane %s: the glob %s could not be used (see the message above)\n' \
         "$lane" "$pattern" >&2
       exit 2

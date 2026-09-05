@@ -171,6 +171,53 @@ class ArtifactMergeTests(unittest.TestCase):
             rows["B.render"]["values"]["crap"], rows["A.render"]["values"]["crap"]
         )
 
+    def test_two_methods_sharing_an_exact_name_bind_by_position(self) -> None:
+        # Keeping the two records separate is only half the fix: the lookup
+        # must not then hand both complexity rows the first record. The
+        # artifact names both methods `render` exactly, so the start line the
+        # complexity collector reported is what separates them.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row("src/a.py", "render", 1, 4, "python", 2),
+                    complexity_row("src/a.py", "render", 10, 14, "python", 2),
+                ]
+            )
+            case.artifact(
+                "cobertura",
+                {
+                    "src/a.py": {
+                        "lines": {"1": 1, "2": 1, "10": 0, "11": 0},
+                        "functions": [
+                            {
+                                "name": "render",
+                                "start_line": 1,
+                                "end_line": 4,
+                                "hit": 1,
+                                "lines": {"1": 1, "2": 1},
+                            },
+                            {
+                                "name": "render",
+                                "start_line": 10,
+                                "end_line": 14,
+                                "hit": 0,
+                                "lines": {"10": 0, "11": 0},
+                            },
+                        ],
+                    }
+                },
+            )
+            document = case.join()
+        rows = [
+            row
+            for row in document["measures"]
+            if row["function"] == "render" and row["start_line"] is not None
+        ]
+        by_start = {row["start_line"]: row for row in rows}
+        self.assertEqual(sorted(by_start), [1, 10])
+        self.assertEqual(by_start[1]["values"]["coverage_pct"], 100.0)
+        self.assertEqual(by_start[10]["values"]["coverage_pct"], 0.0)
+
     def test_a_function_only_one_artifact_knows_the_end_of_keeps_that_range(
         self,
     ) -> None:
