@@ -75,7 +75,9 @@ These remediations are proposed periodically in online discussions but are **not
 3. Next run sees the approval, flips authorization to enabled, and attempts the remediation.
 4. If the remediation causes trouble, the human flips `approved: true` back to `false`; the skill respects the revocation immediately on next run.
 
-`approvals.json` is the single source of truth. The `TODO.md` shipped with the plugin is policy documentation only -- no checkboxes drive behavior. On first run, checked boxes from a legacy `TODO.md` migrate into `approvals.json` (one-shot); after that, TODO.md is ignored.
+`approvals.json` is the single source of truth. The `TODO.md` shipped with the plugin is policy
+documentation only; no checkbox in it drives behavior. One-time carry-forward of checkbox-era
+approvals is specified in [`../shared/approvals.md`](../shared/approvals.md).
 
 ---
 

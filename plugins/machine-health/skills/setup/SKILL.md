@@ -43,14 +43,12 @@ there is no root to write to. (This differs from `/machine-health:audit`, which 
 to an orchestrator that has its own documented fallback ladder; this skill reads and writes the
 overlay directly and has no such rung.)
 
-**Split-state-root report.** Because an earlier version of this skill did write a hardcoded
-`~/.claude/plugins/data/machine-health`, `check` reports a split when it finds one: probe that exact
+**Split-state-root report.** Older installs may hold a stray root at the literal
+`~/.claude/plugins/data/machine-health`; `check` reports a split when it finds one: probe that exact
 legacy path and any `machine-health-*` sibling of the resolved `<StateBase>`, and for each that
 exists and is not `<StateBase>`, name it and list what it holds. Only `<StateBase>` is read.
 Consolidating is the operator's move. Moving or deleting the stray root is a decision about their
-data, and this skill neither relocates nor removes files. This split-state detection stays bespoke
-rather than becoming a retirement-manifest record: the stray roots are machine-scope surfaces under
-the operator's state base, outside the repo-scope retirement schema (ADR 0018, decision 6).
+data, and this skill neither relocates nor removes files.
 
 ## `check` (read-only)
 

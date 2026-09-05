@@ -10,8 +10,11 @@ Describes what discovery does, what counts as "straightforward" vs "needs approv
 2. **Diff against the catalog.** Compare inventory to `catalog/checks.jsonc` entries for this OS. Identify subsystems with no corresponding check.
 3. **Propose 1–3 new checks.** Cap at three per run to avoid floods. Prioritize: (a) subsystems with a trend angle (disk usage, version skew), (b) security-relevant subsystems (cert expiry, TPM/BitLocker), (c) noisy-in-event-log subsystems not covered.
 4. **Classify each proposal.** Straightforward vs needs approval (see next section).
-5. **Implement straightforward proposals immediately.** Write the new check script, add a catalog entry; check runs next week. No human in the loop.
-6. **Queue non-straightforward proposals in `<StateBase>/TODO.md`.** Human approval required.
+5. **Report every proposal in this run's report.** The orchestrator's discovery pass probes and
+   compares; it writes no catalog entry and no `TODO.md` line itself.
+6. **Act on the proposals after the run.** A straightforward proposal becomes a custom check the
+   skill writes under `<StateBase>/scripts/<os>/checks/` and registers in the catalog overlay. Any
+   other proposal becomes a `<StateBase>/TODO.md` entry for the human to decide on.
 7. **Surface both kinds** in the report under "Newly discovered checks" with rationale.
 
 ## Straightforward vs. needs approval
