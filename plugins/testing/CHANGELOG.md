@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Fixed
+
+- **`write/context/organize.md`:** the two `dotnet-test` references carried no presence gate and
+  no fallback; each now names its plugin and what to do without it, and the CRAP entry points at
+  `/code-metrics:audit-coverage` when the `code-metrics` plugin is installed for every other lane.
+
 ## [0.7.13]
 
 ### Changed

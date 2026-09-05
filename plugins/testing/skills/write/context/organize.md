@@ -60,7 +60,7 @@ Track per-repo via the repo's own testing-conventions documentation — architec
 
 ## Marketplace plugin skills (invoke only when installed)
 
-These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed:
 
-- **`dotnet-test:crap-score`** — calculate CRAP (Change Risk Anti-Patterns) scores to prioritize which untested code is riskiest. Combines cyclomatic complexity with coverage data to identify methods where tests would have the highest impact
-- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state). Use when assessing test quality during reorganization
+- **`dotnet-test:crap-score`** — calculate CRAP (Change Risk Anti-Patterns) scores to prioritize which untested code is riskiest, when the `dotnet-test` plugin is installed. Combines cyclomatic complexity with coverage data to identify methods where tests would have the highest impact. For any other lane, or without that plugin, invoke `/code-metrics:audit-coverage` when the `code-metrics` plugin is installed (CRAP per function from the build's existing coverage artifact, never a test run); otherwise read cyclomatic complexity beside the coverage report by hand
+- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state), when the `dotnet-test` plugin is installed. Use when assessing test quality during reorganization; without it, invoke `/testing:audit` for the assertion-free and tautological cases and review the rest against an explicit test-smell checklist
