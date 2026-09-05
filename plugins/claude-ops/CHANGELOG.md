@@ -20,6 +20,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   (#3758). `schema_version` reads `1.1`; the sink suite pins the spine route
   and its precedence over the data key. Numbered above 0.42.9 (#3765) and
   0.42.8, which a sibling change holds.
+  The four keys are read from the payload ROOT only, so a same-named key inside
+  `tool_input` or `tool_response` can never reach the spine and file a row
+  under another session; above a 65536-byte payload only the region ahead of
+  the first nested container is read, which omits `tool_use_id` rather than
+  guessing it (#3784). A row in the per-session report is therefore the
+  harness's own id, never a tool argument.
 
 ## [0.42.10]
 

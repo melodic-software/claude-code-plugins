@@ -71,6 +71,18 @@ The library reads the payload the producer buffered: `HOOK_TELEMETRY_PAYLOAD` wh
 another name sets `HOOK_TELEMETRY_PAYLOAD` before it emits; a producer with no payload emits none of
 the four. A sink on 1.0 sees four unknown keys and ignores them under the tolerate-unknown rule.
 
+**Only the payload root is read.** A key of the same name nested inside `tool_input` or
+`tool_response` is never taken, so a tool whose own parameter happens to be called `tool_use_id` or
+`agent_id` cannot put a value on the spine. A consumer can therefore treat a present key as the
+harness's own, not as tool-supplied input.
+
+**A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
+on a payload carrying a whole file, so above 65536 bytes the library falls back to reading only the
+region ahead of the first nested container. `session_id` and `prompt_id` lead the documented payload
+and are unaffected; `tool_use_id` follows `tool_input` and is therefore omitted on a payload over
+that size. Absent still means absent — never guessed, and never a value from somewhere else.
+Tightening this without paying the cost is [#3784](https://github.com/melodic-software/claude-code-plugins/issues/3784).
+
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠
 `total_duration_ms`) so a name never misleads.
