@@ -116,7 +116,8 @@ Once the row's answer is written, ratification recorded, or triage disposition a
   lands. The live lease comment persists until TTL expiry; a later session-start `reclaim` clears an
   expired inactive lease. A brief frontier delay while assignee still blocks selection after the
   flip is acceptable; a pre-flip clear is not.
-- **When disposition leaves the item human-gated** (decline, parked intake): clear `@me` via the
+- **When disposition leaves the item human-gated** (decline, parked intake, an answered
+  escalation on a human-floor work class that was not reclassified): clear `@me` via the
   same adapter assignee edit once disposition comments are written, still while holding the claim
   through those writes.
 - A row skipped on exit `7` needs no assignee clear.
@@ -154,7 +155,30 @@ answer without stopping the pass to ask which item is in front of them.
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane.
+  it from this lane. **Read the item's `work-class:` label first: a human-floor class blocks this
+  flip**, per the branch below.
+- **Human-floor work class: reclassify or stay gated, never the plain flip.** An item carrying
+  `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is human-gated
+  regardless of any other signal
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
+  "Human-floor classes exclude the autonomous-eligible role label"), so an answered escalation
+  never makes it autonomously dispatchable. Applying the autonomous-eligible role label to it is
+  a labeling defect and buys nothing, `list-frontier --autonomous` floors it on the work class
+  anyway. **Removing the human-gated role label is what strands it**: the autonomous frontier
+  floors it, and this lane's attention view keys on that role label plus a marker comment rather
+  than on the frontier, so nothing lists the item again. Resolve such a row one of two ways:
+  - **Reclassify, then flip**, when the operator's answer genuinely narrows the work to an
+    autonomously dispatchable class (C1-C3). Replace the `work-class:` label with the new member
+    and perform the role-label flip **in the same edit**, and record the reclassification and the
+    operator's reason as a comment. The item is then no longer floored and re-enters the worker
+    frontier on its next cycle like any other flipped item.
+  - **Keep it human-gated**, when the class stands, which is the default. Leave the human-gated
+    role label in place, never apply the autonomous-eligible one, and write the answer together
+    with the item's completion route (executed attended by whom, or closed as declined) as a
+    comment. The row keeps listing here until the item is executed attended, reclassified, or
+    closed. That is the intended outcome, not a leak: a floor-class item has no autonomous
+    completion route for this lane to hand it to, and the human-gated role label is what keeps
+    it in front of an operator.
 
 Answers and dispositions written by the agent on the operator's behalf carry triage's AI
 disclaimer; the operator's own words need none.
@@ -220,6 +244,11 @@ user request" the hard-stop rule anticipates).
 - **Never flip without clearing.** Applying the autonomous-eligible role while the human-gated
   role remains would leave the item excluded from `list-frontier --autonomous` anyway, the flip
   is one edit that applies one role and removes the other.
+- **Never clear the human-gated role off a floor class.** The inverse mistake, and the one that
+  loses the item outright. A `work-class: structural` or `work-class: untrusted-provenance` item
+  stripped of the human-gated role label is floored out of `list-frontier --autonomous` and no
+  longer matches any row condition in this lane's attention view, so neither lane ever surfaces
+  it again. Reclassify it in the same edit as the flip, or leave the role label alone.
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.
