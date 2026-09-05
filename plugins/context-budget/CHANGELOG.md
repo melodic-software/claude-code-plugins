@@ -5,6 +5,13 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.22]
+
+### Changed
+
+- audit: the description discloses the explicit `fix` override instead of claiming an unconditional read-only contract; the Gotchas section states the listing-signature guard as the current rule without the narrative of the run that motivated it; a new honesty bullet says the snapshot's free-space and window figures belong to the spawned headless session and are no reason to shorten the audit.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.6.17]
 
 ### Changed
