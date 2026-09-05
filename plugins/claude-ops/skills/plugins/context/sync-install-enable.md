@@ -165,7 +165,7 @@ repo instead).
 **`sync` never writes a committed settings file — the scope decides whether this step acts or
 reports.** SKILL.md's scope section makes `converge` the one action that may touch a committed
 `.claude/settings.json`, and only behind its confirm gate. `enable <id> -s project` writes exactly
-that file (verified on Claude Code 2.1.228 — see [scope-semantics.md](scope-semantics.md)), so this
+that file (verified on Claude Code 2.1.228, re-verified unchanged on 2.1.261 — see [scope-semantics.md](scope-semantics.md)), so this
 step must not issue it. Confirming instead of skipping is not an option: `converge` can afford a
 confirm because it *aborts* in an autonomous session, while `sync` is the on-demand and headless
 maintenance action with no such abort, so there may be no human to answer.
