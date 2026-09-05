@@ -1,3 +1,7 @@
+> Fixture. A standing rules file of the kind a consumer loads by construction on every session,
+> rather than on demand: it states the rule and nothing else, and no part of it is anything but
+> instruction text.
+
 # Migration files are append-only
 
 A migration that has run anywhere other than a local machine is never edited. Correct it with a new

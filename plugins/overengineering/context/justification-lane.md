@@ -29,9 +29,24 @@ line number, and read the section rather than a summary of it here.
   the routing is what gets judged, and the row says which part that was.
 - **Nothing inventoried.** Classify under section 3.
 
+**The test for "whole" is whether anything of the target is left over.** A probe inventories a target
+whole when the probe's own item is that file and no part of the file falls outside it: a registration
+manifest is entirely a registration surface, and a standing-instruction file that states rules and
+nothing else is entirely instruction text. A target is only partly inventoried when some part of it
+is an item the probe does not claim. A skill file is the plain case, because its always-loaded
+frontmatter is instruction text while its on-demand body is not. An instruction file that imports
+others is the same shape: the enforcement probe inventories each imported file's instruction text as
+its own item, which leaves the host file's composition, this set of imports gathered here, as
+something no probe claims and this lane judges. Where the leftover part is nothing a reader could
+point at, the target was inventoried whole and routes.
+
 **Imports are read, not inferred.** An instruction file that pulls in others is a different item from
 the files it pulls in. Open them, decide which of them an enforcement probe claims, and classify only
-what is left. Guessing at an import graph produces a verdict about a file nobody examined.
+what is left. Guessing at an import graph produces a verdict about a file nobody examined. **An
+import that does not resolve is recorded as unresolved**, named in `Routed-to` as an import whose
+target was not found, and never treated as though the file had been read: an unresolvable import is
+itself evidence about the host file, and inventing its contents would put a verdict on a file that
+does not exist.
 
 ## 2. Item inventory, what counts as one item
 
@@ -53,6 +68,18 @@ id contract in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Fi
 identity may never rest on a positional ordinal, because the next edit above it moves the line and
 the same item derives a different id. When the target was a comment, the widening line also names
 `code-tidying:dissolve-comments` as the owner of comments themselves.
+
+**Things that each configure their own subject are separate items, not repetitions of one.** Where a
+target describes a pattern that recurs, such as every bundle shipping its own setup component or
+every module carrying its own configuration file, count the items by what each one is *about*,
+rather than by what they have in common. A component that configures its own bundle and names that bundle's own settings keys
+is a different item from the one next to it, so a count of one violation per occurrence is refused
+and the refusal is stated with its reason rather than the number being quietly reduced. Separate the
+occurrences that actually differ from the ones that do not, and say what distinguishes them: a
+manifest listing ten entries of which eight share a trait and two do not is describing two groups,
+and the two are evidence about the pattern rather than exceptions to it. Where the pattern itself is
+worth a finding, it is argued **once**, naming what a shared alternative would have to preserve, and
+never once per occurrence.
 
 **Per-member sub-verdicts only where the member list is mechanical.** The container rule is the
 enforcement lane's, in `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`, section
@@ -98,7 +125,10 @@ distinction between the two is the whole difference between UNPROVEN and RETIRE.
 
 ### `dependencies`
 
-Declared packages and pinned tools. The identifier form is `package:<name>`.
+Declared packages and pinned tools. The identifier form is `package:<ecosystem>/<name>`, the
+ecosystem being the manifest that declares it, per the closed prefix set in
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids". One name declared in
+two ecosystems is two items.
 
 **Discovery probes.** Import or call sites in the tree; presence in the lockfile as a direct rather
 than transitive entry; the upstream project's own status, which is a live check with a date, not a
@@ -177,9 +207,11 @@ restated here. This lane adds four:
 - **Retire costs more than keep.** A RETIRE row names the surfaces searched and what a counterexample
   would have looked like. A retirement resting on one document or one query form is refused, and the
   row stays UNPROVEN until the search is done properly.
-- **Targeted mode always.** Every run of this lane writes `mode: targeted` and lists what it examined
-  in `targets`. The merge consequences are in
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Re-run merge semantics".
+- **Targeted mode always.** Every run of this lane writes `schema: 2` and `mode: targeted`, lists
+  what it examined in `targets`, and writes a `scope` that carries the prior artifact's value
+  forward with these targets' layers added. The frontmatter contract is in
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Frontmatter", and the merge
+  consequences are in that document's section "Re-run merge semantics".
 - **Re-read before write.** Load the artifact from disk immediately before writing, merge against
   that copy, and record its `date`. Another session may have written between the read that started
   this run and the write that ends it.
@@ -210,8 +242,9 @@ same item in the same layer derives the **same id** as the first. One item, one 
 `Basis` is defined in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Per-finding
 fields", and is not redefined here. Two consequences bind this lane directly:
 
-- **A row with no tier consulted is UNPROVEN and `unexamined`.** There is no third option, and an
-  `unexamined` row carrying any other verdict is a contract violation.
+- **A row that measured nothing is UNPROVEN and `unexamined`.** That covers a row with no tier
+  consulted and a row whose every consult came back silent or unavailable alike. There is no third
+  option, and an `unexamined` row carrying any other verdict is a contract violation.
 - **A KEEP is `measured` or it is not a KEEP.** A keep resting on a class match is the fused shape
   section 8 refuses. Where the oracle itself is cited, the row is `measured` and the citation is
   what makes it so.
@@ -270,8 +303,9 @@ new" is outside the method.
 - **A `Basis` move is invisible to `delta`.** `Basis` sits outside the spine on purpose, so the
   cross-run diff stays a statement about verdicts. A row whose evidence improved from
   `class-inferred` to `measured` reports as unchanged.
-- **Two sessions writing one artifact rely on re-read-before-write, not a lock.** Section 7 makes the
-  window small. It does not close it, and no lock is claimed.
+- **Two sessions writing one artifact rely on re-read-before-write, not a lock.** The obligation
+  binds both producers and lives in the shared contract rather than here, so neither lane can honour
+  it alone. It makes the window small. It does not close it, and no lock is claimed.
 - **A citation search scoped by location misses citations, the way one scoped by name does.** Section
   7 varies the query form, which catches a document cited under a different name. The matching trap
   is a document cited from a place the search does not look. Excluding a document's own directory is

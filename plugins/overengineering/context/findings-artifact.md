@@ -21,11 +21,13 @@
 - [Obligations, by skill](#obligations-by-skill)
 - [External authority](#external-authority)
 
-One markdown file is the whole seam between this plugin's two skills. `overengineering:audit`
-produces it and is read-only on everything else; `overengineering:realign` is its **only mutating**
-consumer and its only writer of operator judgment. `overengineering:delta` reads it across runs and
-writes nothing here at all. All three skills read this document; **none restates it**, and no other
-plugin is assumed to read it.
+One markdown file is the whole seam between this plugin's four skills. **Two of them produce it**:
+`overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
+`overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
+read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
+only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
+here at all. All four skills read this document; **none restates it**, and no other plugin is
+assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
 evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, verdict —
@@ -101,7 +103,7 @@ branch: <branch at audit time; never `HEAD`, and never written at all when the b
 | `type` | yes | Exactly `overengineering-findings`. The selector realign matches on. |
 | `schema` | yes | Integer contract version, currently `2`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
 | `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. |
-| `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run lists the layers those targets fall in, for ordering only, and asserts no exhaustive walk. |
+| `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run carries the prior artifact's value forward and adds the layers those targets fall in, and the added layers are for ordering only and assert no exhaustive walk. |
 | `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
 | `branch` | yes | The branch at audit time, resolved with `git symbolic-ref` — **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
@@ -229,11 +231,19 @@ names **every** site in its body, saying what each one contributes, rather than 
 footnote.
 
 **Kind prefixes for items with no path in this repo.** `protection:<rule-name>`, `app:<name>`,
-`integration:<name>`, `package:<name>` for a declared dependency or pinned tool in the
+`integration:<name>`, `package:<ecosystem>/<name>` for a declared dependency or pinned tool in the
 `dependencies` layer, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
 the repo tree, such as a user- or machine-scope settings file that registers a mechanism governing
 work here. The prefix set is closed here and is the same set a `sites` `surface` draws from; a new
 one is added to this list, never coined per run, or two runs derive two different ids for one item.
+
+**`package:` carries its ecosystem because a name alone is not an identity.** The `<ecosystem>`
+segment is the manifest that declares the dependency — `npm`, `pypi`, `nuget`, `go`, `cargo`, or
+`tool` for a pinned CLI binary with no package manifest. A polyglot consumer routinely declares one
+name in more than one of them, and an unqualified `package:ruff` would derive a single id for the
+PyPI package, an npm package of the same name, and a pinned binary, so a suppression or a status an
+operator wrote against one would carry onto two they never judged. This is the same collision the
+heading-ancestry rule below prevents for sections of a file.
 
 **A heading is a member, not an ordinal.** Where a target names a section rather than a whole file
 (`path#heading`), its `anchor/v1` locator path is the heading's **full ancestry** within the file,
@@ -382,12 +392,21 @@ under a `**Members (<n>):**` label, one entry per member:
 
 The three fixed constituents — id, name, verdict — lead the entry in that order and stay on its
 first physical line; everything after the second em dash is prose. A member id derives from the same
-rule as every other id, with `claim` = `enforcement-item(member=<name>)` and its site anchored at
-`[<container>, <member>]`, so a suppression or a realignment can key on a member without keying on
-the container.
+rule as every other id, with `claim` = the producing lane's own claim carrying `(member=<name>)` —
+`enforcement-item(member=<name>)` on the enforcement lane, `artifact-item(member=<name>)` on the
+justification lane — and its site anchored at the member's ordered locator path within the
+container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry
+where the members are nested headings, per the ancestry rule under "Finding ids". A member keyed by
+name alone would collide wherever a container repeats a member name at two depths. So a suppression
+or a realignment can key on a member without keying on the container.
 
 **A member's verdict is its own.** The container's spine verdict judges the aggregating surface as a
 whole; it neither overrides a member's verdict nor is computed from them.
+
+**A member's basis goes in its prose.** The entry format is fixed at three leading constituents, so
+a member carries no `Basis` field. Where a lane's rules bind a verdict to a basis — a `KEEP` that
+must be `measured`, say — the member's prose states the basis in those same words, and a member
+verdict whose prose states none is read as unsupported rather than as measured.
 
 **What the cross-run diff covers.** The documented spine diff compares **container spines** — that
 is what the spine's line format guarantees, and it is unaffected by how many members a container
@@ -403,7 +422,7 @@ reader can never mistake a member count for a finding count.
 | `Artifact` | yes | always | Repo-relative path; or, for an item with no path in this repo, a kind-prefixed stable identifier from the closed set under "Finding ids" so it cannot collide with a path. On a multi-site finding this is the primary subject only, and the body names every site. |
 | `Verdict` | yes | always | One of the six tokens. Argued per `context/scrutiny-method.md` §6. |
 | `Status` | yes | always | One vocabulary value (below). Written `OPEN` by the audit on a new finding; otherwise carried forward. |
-| `Protected` | no | when a protected class matched | Which class and which pattern matched; whether the cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. |
+| `Protected` | no | when a class match bore on the verdict, whether or not that class carries a cap | Which class and which pattern matched; whether a retirement cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. A class that carries no cap says so, and the row's `Verdict` and `Basis` still carry the earned-keep judgment on the item's own evidence. Recording an uncapped class match here is what keeps a class claim out of the verdict, where it would read as an answer to a question it does not answer. |
 | `Evidence` | no | always | At least one empirical citation with its tier (`scrutiny-method` §2), or `UNPROVEN` naming the tier consulted and whether it was **silent** or **unavailable**. Doc-only support is marked `unverified`. |
 | `Liveness` | no | always | Three independently-answered lines — source posture, wiring, runtime enforcement — each naming what was actually read. An unread question is recorded as unread, never inferred. |
 | `Intent` | no | always | The reconstruction and its confidence; `OPEN-INTENT` where the run was unattended and confidence was low. |
@@ -413,9 +432,9 @@ reader can never mistake a member count for a finding count.
 | `Threshold` | no | when one was applied | Which threshold row fired, its source, and its analogical label carried verbatim. A threshold cited without its label is a contract violation, not a style slip. |
 | `Routed-to` | no | when routed | The neighbor surface the finding was handed to, and whether that surface was present. |
 | `Delegation` | no | `DELEGATED-EXTERNAL` only | The pointer to the delegation artifact. |
-| `Ablation` | no | `ABLATION-*` only | Rung reached, window length, window end date, and the durable pointer. |
+| `Ablation` | no | `ABLATION-*` only, and `n/a` on every row in a justification layer | Rung reached, window length, window end date, and the durable pointer. On a justification-layer row the literal `n/a`, because a document or a decision record has nothing to disable and watch, and a row that simply omitted the field would leave a reader unable to tell a gate that does not apply from one nobody answered. |
 | `Judgment` | no | when one was persisted | The suppression entry id and the layer it was written to. |
-| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: no tier was consulted, and this value is legal **only** with `Verdict: UNPROVEN`. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
+| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: nothing was measured, either because no tier was consulted or because every tier consulted came back silent or unavailable, and this value is legal **only** with `Verdict: UNPROVEN`. The two readings share a value on purpose: a consult that returned nothing supports a verdict no better than a consult never made, and the `Evidence` field already records which tiers were tried and what each returned. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
 
 **The audit perturbs the telemetry it reads.** Writing this artifact fires the very recorders whose
 rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
@@ -480,9 +499,29 @@ prevent, reintroduced by the producer itself.
 
 ## Re-run merge semantics
 
-**A targeted run merges narrowly, and this clause governs every rule below it.** Where
-`mode: targeted`, the run examined only what `targets` names, so:
+**Every producer re-reads immediately before it writes.** Two lanes write this file, so a producer
+that merges against a copy it loaded earlier in its run silently drops whatever the other wrote in
+between — and drops it with no record, because rule 3 writes a closure row only for a layer this run
+walked, and the two producers walk disjoint layers. Load the on-disk artifact immediately before
+each write, merge against that copy, and read a `date` newer than the one this run loaded as another
+producer's work to merge rather than to overwrite. This is a producer obligation binding on every
+writer, not one lane's convention, and it is what stands in for a lock this contract does not claim.
 
+**A targeted run merges narrowly, and this clause governs rules 1 to 4 and rule 6 below it.** Rule 5
+fires only on a verdict this run recomputed, which in a targeted run is only a target, and rule 7 is
+read-only, so neither needs scoping. Where `mode: targeted`, the run examined only what `targets`
+names, so:
+
+- **A site is in `targets` when this run derived that site from a `targets` entry**, never when its
+  `surface` string matches one. The two are different value spaces: a `targets` entry may be a
+  `path#heading`, whose site carries the file as its `surface` and the heading's ancestry in its
+  `anchor/v1`, and a directory target is one item whose site is the directory itself. So a target
+  naming a heading covers the single site whose anchor is that heading's ancestry and no other
+  section of the same file, and a target naming a directory covers the directory's own site and
+  never the separate sites of the files beneath it. Matching on `surface` alone fails both ways: a
+  heading target would match no site at all, stranding the pointed run so it could not write its own
+  finding, and a directory or file target would sweep in findings about sections the run never
+  opened, which rule 3 would then close.
 - Rules 1 and 2 apply to a finding whose every site is in `targets`.
 - **Rule 3 applies only to a prior id whose every site is in `targets`** and whose item is now
   absent. A pointed run at one artifact must never close a finding about another.
@@ -491,9 +530,15 @@ prevent, reintroduced by the producer itself.
 - The run-level sections `## Evidence availability`, `## Suppressed`, and `## Closed since last run`
   are **not rewritten for anything outside `targets`**. A targeted run appends its own per-target
   evidence-availability lines rather than replacing the walk's per-tier tokens, and computes
-  suppression dispositions only for entries whose ids have a site in `targets`, reporting the rest
-  as **not evaluated this run**. `## Summary` is still recomputed from the spine actually written,
-  as rule 6 requires.
+  suppression dispositions only for entries whose ids have **every** site in `targets`, reporting
+  the rest as **not evaluated this run**. The quantifier matches the one rules 1 to 3 use on
+  purpose: a finding the run did not fully re-evaluate must not have its suppression disposition
+  recomputed either. `## Summary` is still recomputed from the spine actually written, as rule 6
+  requires.
+- **`scope` carries forward and grows; it is never overwritten.** A targeted run keeps the prior
+  artifact's `scope` and adds the layers its own targets fall in. Replacing it would narrow the
+  file's record of what the last walk actually covered, which is the one thing rule 4 and the spine
+  baseline's `source-scope` both read it for.
 
 The reason is asymmetry: a walk that omits a layer says so in `scope` and rule 4 protects it, but a
 targeted run walks no layer at all, so without this clause rule 3 would read every un-examined
@@ -575,15 +620,16 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 
 ## Obligations, by skill
 
-| Obligation | `audit` | `realign` | `delta` |
-|---|---|---|---|
-| Writes the artifact | yes — it is the producer | yes — status and status-bound fields only | **never** — a third reader and no writer of any field here |
-| Mutates anything outside the artifact | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
-| Writes `Status` | `OPEN` on new findings; carries the rest forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
-| Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
-| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
-| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Obligation | `audit` | `justify` | `realign` | `delta` |
+|---|---|---|---|---|
+| Writes the artifact | yes — the walking producer, `mode: walk` | yes — the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes — status and status-bound fields only | **never** — a reader, and no writer of any field here |
+| Mutates anything outside the artifact | **never** | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
+| Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
+| Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
+| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
+| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
+| Behavior when the artifact is missing | n/a | n/a — it creates one, since a first pointed run has nothing to merge against | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
 artifact, compares that artifact's spine against the baseline the previous cycle left behind, and
