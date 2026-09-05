@@ -357,7 +357,7 @@ Files:
 - `grep -c 'scc' plugins/code-metrics/skills/audit-complexity/SKILL.md` prints 0 (scc never named as a complexity source)
 - the phase gate
 
-### Phase 4: `audit-coverage` with CRAP [TODO]
+### Phase 4: `audit-coverage` with CRAP [DONE]
 
 Review: code-design
 
@@ -365,11 +365,11 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/parsers/{lcov,cobertura,coverage_py_json,go_cover}.py` + four `test_*.py` | CREATE | one interface `parse(path) -> {file: {"lines": {line: hits}, "functions": [...] or None}}`; lcov handles `FNL`/`FNA`, `FN`/`FNDA`, `MCDC`; Cobertura tolerant of DTD drift and `<source>` prefixes; coverage.py returns its `functions` regions when present (7.6.0 and later); Go cover profile blocks parsed directly |
-| [ ] `plugins/code-metrics/scripts/fixtures/coverage/{lcov-1x.info,lcov-2.2.info,lcov-absolute-sf.info,cobertura.xml,coverage-py.json,go-cover.out}` | CREATE | one per format, the 2.2 file with `FNL`/`FNA` and no `FN`, one lcov file with absolute `SF:` paths for the normalization case, a coverage.py file carrying `functions`, a Go profile |
-| [ ] `plugins/code-metrics/skills/audit-coverage/scripts/join.py` + `test_join.py` | CREATE | path normalization on both sides (`coverage.path_prefix_strip`, repo root, `<source>` prefixes, forward slashes), the `partial, N of M scope files present` reason, artifact regions preferred over the line-range join, nested ranges subtracted, function-hit flag forcing `cov: 0`, `cov_source` per row |
-| [ ] `plugins/code-metrics/skills/audit-coverage/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,scripts/crap.py,scripts/test_crap.py,evals/evals.json}` | CREATE | `<skill>.sh` owns the `--artifacts` option (a skill-level flag the dispatcher passes through, Phase 1); artifact discovery and explicit paths; per-file and per-function coverage; CRAP by invoking the sibling `audit-complexity` run script; missing artifact is a visible warning plus a reduced result |
-| [ ] `plugins/code-metrics/reference/collectors/audit-coverage.md` | CREATE | fragment: rows for the three formats with the lcov 2.2 and coverage.py SQLite stamps |
+| [x] `plugins/code-metrics/scripts/parsers/{lcov,cobertura,coverage_py_json,go_cover}.py` + four `test_*.py` | CREATE | one interface `parse(path) -> {file: {"lines": {line: hits}, "functions": [...] or None}}`; lcov handles `FNL`/`FNA`, `FN`/`FNDA`, `MCDC`; Cobertura tolerant of DTD drift and `<source>` prefixes; coverage.py returns its `functions` regions when present (7.6.0 and later); Go cover profile blocks parsed directly |
+| [x] `plugins/code-metrics/scripts/fixtures/coverage/{lcov-1x.info,lcov-2.2.info,lcov-absolute-sf.info,cobertura.xml,coverage-py.json,go-cover.out}` | CREATE | one per format, the 2.2 file with `FNL`/`FNA` and no `FN`, one lcov file with absolute `SF:` paths for the normalization case, a coverage.py file carrying `functions`, a Go profile |
+| [x] `plugins/code-metrics/skills/audit-coverage/scripts/join.py` + `test_join.py` | CREATE | path normalization on both sides (`coverage.path_prefix_strip`, repo root, `<source>` prefixes, forward slashes), the `partial, N of M scope files present` reason, artifact regions preferred over the line-range join, nested ranges subtracted, function-hit flag forcing `cov: 0`, `cov_source` per row |
+| [x] `plugins/code-metrics/skills/audit-coverage/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,scripts/crap.py,scripts/test_crap.py,evals/evals.json}` | CREATE | `<skill>.sh` owns the `--artifacts` option (a skill-level flag the dispatcher passes through, Phase 1); artifact discovery and explicit paths; per-file and per-function coverage; CRAP by invoking the sibling `audit-complexity` run script; missing artifact is a visible warning plus a reduced result |
+| [x] `plugins/code-metrics/reference/collectors/audit-coverage.md` | CREATE | fragment: rows for the three formats with the lcov 2.2 and coverage.py SQLite stamps |
 
 **Sanity Check:**
 
