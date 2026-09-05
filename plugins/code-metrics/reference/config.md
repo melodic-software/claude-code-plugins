@@ -67,11 +67,15 @@ scalar, and the resolver refuses it by key and layer (exit 2, and a FAIL `config
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
 | `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet` |
-| `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning |
+| `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that lane and measure, and the run row says so |
 
 A `reference` of `null` means "report the value, count nothing"; a number counts values at or
 above it (below it for coverage and type coverage) as `over_reference`. No finding, severity, or
 exit code follows from either.
+
+A resolved `scope.default` of `all` and a resolved `scope.base` reach every audit entry point, so
+a repository can make the tree the default. A command-line `--all`, `--base`, or explicit path
+still wins over both.
 
 ## Example
 

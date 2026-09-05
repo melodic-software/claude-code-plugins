@@ -116,11 +116,16 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 ## Gotchas
 
 - The complexity collector decides which functions can carry CRAP at all. With no collector
-  resolving for a lane, that lane has no function rows and its CRAP row says so.
+  resolving for a lane, that lane has no function rows and its `<lane>/crap` row is `unavailable`
+  naming the collector's own reason. File-level coverage is unaffected: the scope the join keys on
+  is the one the audits measure, not the files a complexity collector emitted rows for, so a file
+  with no functions still reports its lines.
 - Path shapes differ between artifact and source tree. The join normalizes both sides, strips the
   repository root and the configured prefixes, then falls back to a component-wise suffix match
-  and finally to a unique basename (which is how a Go profile's module path resolves). A repeated
-  basename that no prefix rule disambiguates stays unmatched and shows up in the partial count.
+  and finally to a unique basename (which is how a Go profile's module path resolves). Both
+  fallbacks require a single winner: an artifact path that fits two scoped files equally well
+  (two services vendoring the same `pkg/a.py`) stays unmatched and shows up in the partial count,
+  because attributing it to either would credit one service with the other's coverage.
 - An artifact older than the source it describes joins by line number and will be wrong without
   saying so. Re-run the tests before reading the numbers when the diff has moved lines.
 - Two artifacts covering one file are merged by keeping the larger hit count per line, so a line
