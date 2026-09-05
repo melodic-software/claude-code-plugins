@@ -12,6 +12,7 @@
 # Usage:
 #   fleet-state.sh [--marketplace <name> | --all]
 #   fleet-state.sh [--marketplace <name>] --ids <selector>
+#   fleet-state.sh --ids <selector> --from <report.json> [--marketplace <name>]
 #   fleet-state.sh --marketplaces
 #
 # With neither flag, resolves the default marketplace dynamically: the one
@@ -92,6 +93,22 @@
 #   Zero matches is success with empty output (exit 0), not an error. Reject:
 #   `--ids` with `--all` (no single block to project), or an unknown selector.
 #
+#   `--from <report.json>` projects the selector from a report this script
+#   already emitted (the object `--marketplace <name>` prints) instead of
+#   recomputing the fleet: no CC state file is read, no catalog manifest is
+#   walked, no realpath runs. Every selector is derivable from that report, and
+#   `sync` re-reads the full report before each mutating step anyway, so the
+#   separate live `--ids` process was recomputing a block the caller already
+#   held. The projection runs the SAME jq program the live mode runs, so the
+#   CR-free, TAB-separated output contract is unchanged. Reject (exit 2, stdout
+#   left EMPTY so a `< <(…)` consumer can never read an error as an id):
+#   `--from` with `--all`, `--from` without `--ids`, a missing or unreadable
+#   file, JSON that is not a single-marketplace report (an `--all` envelope is
+#   refused by name rather than projected to a silent empty list), and a
+#   `--marketplace <name>` that disagrees with the report's own
+#   `marketplace.name` — that flag is an optional consistency check here, never
+#   a second read.
+#
 # Output (stdout) with --marketplaces: NOT JSON — every marketplace name from
 #   known_marketplaces.json, one per line, nothing else, CR-free by the same
 #   capture discipline as --ids. Empty output for an empty object is success
@@ -114,7 +131,8 @@
 #   1  a single-marketplace run's marketplace could not be resolved/read
 #   2  fatal: jq missing, an internal CC state file is present but does not
 #      match its expected shape (fail loud on schema drift — never guess), a
-#      bad/absent --ids selector, or --ids combined with --all
+#      bad/absent --ids selector, --ids combined with --all, or a rejected
+#      --from invocation (see the --from paragraph above)
 #
 # Process budget. Every external command this script runs is a process
 #   creation, and on Windows Git Bash each one costs fork() emulation plus a
@@ -304,6 +322,7 @@ MODE="default"
 TARGET=""
 IDS_SELECTOR=""
 LIST_MARKETPLACES=""
+FROM_REPORT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --marketplaces)
@@ -316,6 +335,15 @@ while [[ $# -gt 0 ]]; do
     # following arg, `shift 2` fails (no set -e) and the loop spins forever.
     if [[ -z "$IDS_SELECTOR" ]]; then
       echo "ERROR: --ids requires a selector" >&2
+      exit 2
+    fi
+    shift 2
+    ;;
+  --from)
+    FROM_REPORT="${2:-}"
+    # Same guard-before-`shift 2` reasoning as --marketplace below.
+    if [[ -z "$FROM_REPORT" ]]; then
+      echo "ERROR: --from requires a report path" >&2
       exit 2
     fi
     shift 2
@@ -356,8 +384,8 @@ done
 # order-independent: `--marketplaces --all` and `--all --marketplaces` fail
 # identically.
 if [[ -n "$LIST_MARKETPLACES" ]]; then
-  if [[ "$MODE" != "default" || -n "$IDS_SELECTOR" ]]; then
-    echo "ERROR: --marketplaces cannot be combined with --marketplace, --all, or --ids" >&2
+  if [[ "$MODE" != "default" || -n "$IDS_SELECTOR" || -n "$FROM_REPORT" ]]; then
+    echo "ERROR: --marketplaces cannot be combined with --marketplace, --all, --ids, or --from" >&2
     exit 2
   fi
   MODE="list"
@@ -411,11 +439,136 @@ ids_selector_valid() {
   esac
 }
 
+# The fields each selector's branch of PROJECTION_PROGRAM actually consumes,
+# as `<field>:<jq type>` pairs. This exists for `--from`: a live run computed
+# the block itself and every field is present by construction, but a saved
+# report is arbitrary input, and a syntactically valid object that simply lacks
+# the field a selector reads projects to NOTHING and exits 0 — a silently-empty
+# id list, the exact failure class `--ids` exists to prevent.
+#
+# ADDITIVE to the baseline shape check below (.marketplace.name plus
+# .installed, which together are what makes a file a fleet-state report at
+# all), never a replacement for it. Keep this in step with PROJECTION_PROGRAM:
+# a selector that starts reading a new field adds it here.
+ids_selector_required_fields() {
+  case "$1" in
+  installed-user | current-project) echo 'installed:array' ;;
+  update-candidates-user) echo 'installed:array catalog_versions:object' ;;
+  missing-user-install) echo 'missing_from_user_install:array' ;;
+  missing-enabled) echo 'missing_from_enabled:array' ;;
+  user-scope-orphans) echo 'user_scope_orphans:array' ;;
+  *) echo '' ;;
+  esac
+}
+
 # Validate the selector before any marketplace resolution: a typo is a usage
 # error (exit 2) and must report as one, not be masked by whatever the
 # resolution attempt would have returned first.
 if [[ -n "$IDS_SELECTOR" ]]; then
   ids_selector_valid "$IDS_SELECTOR" || exit 2
+fi
+
+# The selector projection, in ONE place. Pass 3 appends it to its own program so
+# a live run projects the block it just composed; `--from` runs it standalone
+# over a saved report. One code path means the CR-safe, tab-separated output
+# contract cannot drift between the two modes — the whole reason `--ids` exists
+# instead of a hand-written jq at each call site.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PROJECTION_PROGRAM='
+  if $selector == "" then $block
+    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
+    elif $selector == "update-candidates-user" then
+      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
+       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
+    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
+    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
+    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
+    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
+    else error("unknown selector: " + $selector) end'
+
+# --- --from: project a selector from an already-emitted report ----------------
+# `sync` re-reads the full JSON report before each mutating step anyway, and
+# every selector is derivable from that report. Re-running the whole live
+# pipeline for the projection costs a second process that re-parses
+# installed_plugins.json, re-walks the catalog manifests, and re-runs realpath,
+# to recompute a block the caller is already holding. `--from` runs the same
+# PROJECTION_PROGRAM over the saved report instead.
+#
+# It is a PROJECTION mode, so every flag that would drive a live read is a
+# contradiction and is refused rather than silently ignored: `--all` has no
+# single block to project (the same reason --ids refuses it), and `--from`
+# without `--ids` has nothing to project and would otherwise fall through to
+# the `$selector == ""` branch and echo the report straight back.
+FS_FROM_NAME=""
+if [[ -n "$FROM_REPORT" ]]; then
+  if [[ "$MODE" == "all" ]]; then
+    echo "ERROR: --from cannot be combined with --all" >&2
+    echo "  --from projects ONE saved single-marketplace report." >&2
+    exit 2
+  fi
+  if [[ -z "$IDS_SELECTOR" ]]; then
+    echo "ERROR: --from requires --ids <selector>" >&2
+    echo "  --from projects a selector from a saved report; it emits no JSON report itself." >&2
+    exit 2
+  fi
+  if [[ ! -f "$FROM_REPORT" ]]; then
+    echo "ERROR: --from report not found: $FROM_REPORT" >&2
+    exit 2
+  fi
+  # Validate the SHAPE, not just the JSON. An --all envelope
+  # ({"marketplaces": {...}}) parses fine and every selector branch projects it
+  # to nothing — a silently-empty id list, which is the exact failure class the
+  # --ids contract exists to prevent. So does a truncated object that carries
+  # the baseline fields but not the one THIS selector reads, so the per-selector
+  # required-field list above is checked too. Fail loud and name the fix instead.
+  #
+  # The verdict comes back on stdout as `ok:<name>` or `err:<detail>` rather
+  # than through jq's `error()`: the detail has to reach the operator's terminal
+  # naming the offending field, and a nonzero jq exit only distinguishes an
+  # unparsable file from a well-formed but wrong-shaped one.
+  FS_FROM_CHECK=""
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
+        if type != "object" then "err:not a JSON object"
+        elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
+        elif (.marketplace | type) != "object" or (.marketplace.name | type) != "string"
+          then "err:missing or wrong-typed field .marketplace.name (expected a string)"
+        elif (.installed | type) != "array"
+          then "err:missing or wrong-typed field .installed (expected an array)"
+        else . as $r
+          | [$required | split(" ")[] | select(length > 0) | split(":")
+             | select(($r[.[0]] | type) != .[1])
+             | "missing or wrong-typed field .\(.[0]) (expected \(if .[1] == "array" then "an" else "a" end) \(.[1]))"]
+            as $bad
+          | if ($bad | length) > 0 then "err:" + ($bad | join("; "))
+            else "ok:" + $r.marketplace.name end
+        end' "$FROM_REPORT" 2>/dev/null; then
+    FS_FROM_CHECK="err:not valid JSON"
+  fi
+  if [[ "$FS_FROM_CHECK" != ok:* ]]; then
+    echo "ERROR: --from report is not a usable fleet-state report for --ids $IDS_SELECTOR: $FROM_REPORT" >&2
+    echo "  ${FS_FROM_CHECK#err:}" >&2
+    echo "  Expected the JSON object \`--marketplace <name>\` prints (.marketplace.name," >&2
+    echo "  .installed, .catalog_versions, …), not an --all envelope or arbitrary JSON." >&2
+    exit 2
+  fi
+  FS_FROM_NAME="${FS_FROM_CHECK#ok:}"
+  # --marketplace alongside --from is an optional CONSISTENCY CHECK, never a
+  # second read: projecting one marketplace's report while believing it is
+  # another's is how a sweep mutates the wrong fleet.
+  if [[ "$MODE" == "single" && "$TARGET" != "$FS_FROM_NAME" ]]; then
+    echo "ERROR: --from report is for marketplace '$FS_FROM_NAME', not '$TARGET': $FROM_REPORT" >&2
+    exit 2
+  fi
+  # Same jq_to capture discipline as every other mode, so the CR strip is
+  # identical; zero matches is success with EMPTY output, never a blank line.
+  if ! jq_to FS_BLOCK -r --arg selector "$IDS_SELECTOR" \
+    ". as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
+    echo "ERROR: --from projection failed for selector '$IDS_SELECTOR': $FROM_REPORT" >&2
+    exit 2
+  fi
+  [[ -n "$FS_BLOCK" ]] && printf '%s\n' "$FS_BLOCK"
+  exit 0
 fi
 
 # --- Fail-loud presence checks for internal (undocumented) CC state -----------
@@ -879,16 +1032,7 @@ PASS3_PROGRAM='
       user_scope_orphans: $user_scope_orphans,
       divergences: $divergences
     } as $block
-  | if $selector == "" then $block
-    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
-    elif $selector == "update-candidates-user" then
-      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
-       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
-    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
-    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
-    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
-    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
-    else error("unknown selector: " + $selector) end'
+  | '"$PROJECTION_PROGRAM"
 
 emit_marketplace() {
   local name="$1"

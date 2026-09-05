@@ -31,6 +31,13 @@
 # Omit -e: we explicitly capture exit codes from `<bin> --help` and decide.
 set -uo pipefail
 
+# Cache location, key, window and flag pattern are shared with the
+# cli-flag-verify hook, which answers cache hits without spawning this script.
+CFV_LIB_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$CFV_LIB_DIR" == "${BASH_SOURCE[0]}" ]] && CFV_LIB_DIR=.
+# shellcheck source=cli-flag-cache.sh
+source "$CFV_LIB_DIR/cli-flag-cache.sh"
+
 usage() {
   sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
@@ -93,27 +100,31 @@ if ! command -v "$BIN" >/dev/null 2>&1; then
   exit 2
 fi
 
-# Cache directory — derived constants (fixed by env, not flags).
-if [[ -n "${LOCALAPPDATA:-}" ]]; then
-  CACHE_BASE="${LOCALAPPDATA//\\//}/guardrails"
-else
-  CACHE_BASE="${XDG_CACHE_HOME:-$HOME/.cache}/guardrails"
-fi
-CACHE_DIR="$CACHE_BASE/cli-flag-cache"
-mkdir -p "$CACHE_DIR" 2>/dev/null || true
+# Cache directory and key come from the shared definitions (cli-flag-cache.sh).
+CACHE_DIR=""
+cfv_cache_dir_to CACHE_DIR
+# The directory exists on every run but the first; a test costs nothing and a
+# spawn costs a process (a fork emulation on Windows Git Bash).
+[[ -d "$CACHE_DIR" ]] || mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-# Cache key: bin + subcmds joined by '__'. Slugify path-unsafe chars to '_'.
-CACHE_KEY="$BIN"
-for s in "${SUBCMDS[@]}"; do
-  CACHE_KEY="${CACHE_KEY}__${s}"
-done
-CACHE_KEY="${CACHE_KEY//[^a-zA-Z0-9_-]/_}"
+CACHE_KEY=""
+cfv_cache_key_to CACHE_KEY "$BIN" "${SUBCMDS[@]}"
 CACHE_FILE="$CACHE_DIR/$CACHE_KEY.help"
 
-# Cache hit if file exists, mtime within 24h, non-empty.
+# Cache hit if file exists, mtime within 24h, non-empty. The 24 h mark is a
+# reference file touched to that timestamp and compared with bash's own `-nt`:
+# one `touch` (POSIX `-t`) in place of `find | grep`, which cost two processes
+# plus the pipe. Bash without EPOCHSECONDS (before 5.0) keeps the find shape.
 USE_CACHE=false
-if [[ -s "$CACHE_FILE" ]] && find "$CACHE_FILE" -mmin -1440 2>/dev/null | grep -q .; then
-  USE_CACHE=true
+if [[ -s "$CACHE_FILE" ]]; then
+  FRESH_REF="$CACHE_DIR/.fresh-24h"
+  if [[ -n "${EPOCHSECONDS:-}" ]] &&
+    printf -v FRESH_STAMP '%(%Y%m%d%H%M.%S)T' "$((EPOCHSECONDS - CFV_CACHE_WINDOW_MIN * 60))" 2>/dev/null &&
+    touch -t "$FRESH_STAMP" "$FRESH_REF" 2>/dev/null; then
+    [[ "$CACHE_FILE" -nt "$FRESH_REF" ]] && USE_CACHE=true
+  elif find "$CACHE_FILE" -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null | grep -q .; then
+    USE_CACHE=true
+  fi
 fi
 
 HELP_OUTPUT=""
@@ -139,28 +150,16 @@ else
   printf '%s' "$HELP_OUTPUT" >"$CACHE_FILE" 2>/dev/null || true
 fi
 
-# Match anchored on word boundaries. The flag may appear as:
-#   `  --flag         description`            (column-aligned)
-#   `  --flag <ARG>   description`            (with metavar)
-#   `  --flag=VALUE`                          (equals form)
-#   `  -F, --flag`                            (with short form)
-#   `  --flag, -F`                            (reverse short form)
-#   `  [--flag]`                              (optional-arg notation)
-#   `  [-S|--save|--save-dev|--save-optional]` (pipe-separated synopsis, e.g. npm)
-#   `--flag` inside a usage line               (rare but valid)
-# Pattern: `--flag` followed by a flag terminator — space, =, comma, `[`, `]`,
-# `|`, `)`, or end-of-line. The trailing class lists `]` first (literal), then
-# the POSIX space class and the remaining literals. The leading
-# `(^|[^a-zA-Z0-9_-])` plus this trailing terminator prevent a prefix false
-# match (e.g. searching `--save-dev` must not match `--save-developer`).
-FLAG_PATTERN="(^|[^a-zA-Z0-9_-])${FLAG_NAME}([][:space:]=,|)[]|\$)"
-# Pipeline, not a here-string: bash materializes a here-string through a pipe
-# it fills BEFORE exec'ing the reader (payloads over the pipe size fall back to
-# a TMPDIR temp file), so a large --help payload rides on bash's runtime
-# pipe-capacity probe and a writable TMPDIR. printf is a builtin and grep reads
-# concurrently, so this streams any payload size with no such window. Feeds the
-# same bytes a here-string would (content plus trailing newline).
-if printf '%s\n' "$HELP_OUTPUT" | grep -E "$FLAG_PATTERN" >/dev/null; then
+# The match pattern is the shared definition (cli-flag-cache.sh documents the
+# help-text shapes it accepts); the hook applies the same one on a cache hit.
+FLAG_PATTERN=""
+cfv_flag_pattern_to FLAG_PATTERN "$FLAG_NAME"
+# Matched in-process: bash's `=~` is the same ERE dialect grep -E reads, and
+# over the whole multi-line string the leading class admits the newline that
+# precedes a line start, so a flag at the start of any --help line matches
+# exactly as it did under grep. No pipe, no process, no pipe-capacity window.
+# The --verbose path below still greps, because it wants the line number.
+if [[ "$HELP_OUTPUT" =~ $FLAG_PATTERN ]]; then
   if $VERBOSE; then
     printf '%s\n' "$HELP_OUTPUT" | grep -nE "$FLAG_PATTERN" | head -1
   fi
