@@ -40,10 +40,10 @@ screen **at full resolution**" ([computer use
 tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool), verified
 2026-08-10).
 
-Confirmed locally by an accident worth keeping: during a capture outage, `zoom` returned
-`Screenshot capture failed after 3 attempts` rather than a blurry crop. A cropping
-implementation would have succeeded and looked bad; a re-capturing one fails outright. Two
-consequences follow from that single fact:
+Local behavior matches: while capture is failing, `zoom` returns
+`Screenshot capture failed after 3 attempts` rather than a blurry crop. A crop of the
+downscaled image would succeed and look bad; a re-capture fails outright. Two consequences
+follow from that single fact:
 
 - **Zoom recovers real detail** — status-bar text, tab titles, line numbers, small labels.
 - **Zoom is useless while capture is broken.** If `zoom` errors, stop zooming and go diagnose
@@ -81,9 +81,9 @@ already does the recommended thing. The guidance is still worth knowing because 
 the documented primary cause of poor click accuracy. Do not translate the API advice into a
 display-settings change on a Claude Code machine.
 
-## Not pursued
+## `save_to_disk` is not an escape hatch
 
-`screenshot` accepts `save_to_disk: true`. On Windows it produced no file discoverable anywhere
-under the user profile (searched 2026-08-10). Whether it writes elsewhere, or is a no-op on this
-platform, is unresolved — do not rely on it as a full-resolution escape hatch until someone
-verifies where the bytes land.
+`screenshot` accepts `save_to_disk: true`, but on Windows no file was found anywhere under the
+user profile (searched 2026-08-10; recheck if the CLI computer-use page or the tool description
+documents where `save_to_disk` writes). Where it writes, or whether it is a no-op on this
+platform, is unresolved, so do not rely on it for a full-resolution capture.

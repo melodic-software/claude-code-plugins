@@ -49,9 +49,9 @@ Load only the file for the machine you are on:
 | Platform | File |
 |---|---|
 | Windows | [reference/windows-quirks.md](reference/windows-quirks.md) |
-| macOS | not yet written. See the honest-gap note below |
+| macOS | no quirks file ships. See the verification gap below |
 
-**Verification gap (declared, not hidden).** Every empirical claim in this plugin was measured
+**Verification gap.** Every empirical claim in this plugin was measured
 on Windows 11 with the Claude Desktop surface. macOS is supported by the platform and by this
 plugin's platform-neutral content, but no macOS quirks file ships because none has been
 verified. A macOS user gets the platform-neutral material and no fabricated specifics.
