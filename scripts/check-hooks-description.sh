@@ -45,25 +45,31 @@ flag() {
   errors=$((errors + 1))
 }
 
-# Classify one file's top-level description. jq prints one word:
+# Classify one file's top-level description. jq prints one word per JSON
+# document it reads:
 #   missing | notstring | blank | multiline | ok
-# and nothing at all when the file does not parse. CRLF line endings in a Git
-# Bash checkout sit between tokens, where jq treats them as whitespace; a
-# line break INSIDE the value can only be an escaped one the author wrote.
-classify() {
-  jq -r '
-    if has("description") | not then "missing"
-    elif (.description | type) != "string" then "notstring"
-    elif (.description | test("[\n\r]")) then "multiline"
-    elif (.description | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length) == 0 then "blank"
-    else "ok" end' "$1" 2>/dev/null || true
-}
+# CRLF line endings in a Git Bash checkout sit between tokens, where jq
+# treats them as whitespace; a line break INSIDE the value can only be an
+# escaped one the author wrote.
+#
+# jq's exit status is checked SEPARATELY from its output: a file whose first
+# document is well-formed but which carries trailing garbage makes jq print a
+# verdict for the document and then exit non-zero on the garbage, so output
+# alone would clear a file Claude Code cannot load. Only a zero exit with
+# exactly one verdict word counts as parsed.
+CLASSIFY_PROG='
+  if has("description") | not then "missing"
+  elif (.description | type) != "string" then "notstring"
+  elif (.description | test("[\n\r]")) then "multiline"
+  elif (.description | gsub("^[[:space:]]+|[[:space:]]+$"; "") | length) == 0 then "blank"
+  else "ok" end'
 
 for file in plugins/*/hooks/hooks.json; do
   [[ -f "$file" ]] || continue
   scanned=$((scanned + 1))
-  verdict="$(classify "$file")"
-  if [[ -z "$verdict" ]]; then
+  rc=0
+  verdict="$(jq -r "$CLASSIFY_PROG" "$file" 2>/dev/null)" || rc=$?
+  if ((rc != 0)) || [[ -z "$verdict" || "$verdict" == *$'\n'* ]]; then
     flag "$file" "not parseable as JSON, so this gate cannot clear it"
     continue
   fi

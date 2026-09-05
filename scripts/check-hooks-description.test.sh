@@ -124,6 +124,32 @@ else
 fi
 rm -rf "$f"
 
+# --- a well-formed document followed by trailing garbage is still a failure --
+# jq prints a verdict for the first document and then exits non-zero on the
+# garbage; the gate must read the status, not only the word (Codex, #3764).
+f="$(new_fixture)"
+hooks_file "$f" alpha '{"description":"Formats Go source.","hooks":{}} trailing'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "trailing garbage after a labeled document should fail, got success: $out"
+else
+  if echo "$out" | grep -q 'not parseable as JSON'; then
+    ok "trailing garbage after a labeled document fails closed"
+  else
+    fail "expected the parse-failure line for trailing garbage, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- two documents in one file is not one hooks.json either -----------------
+f="$(new_fixture)"
+hooks_file "$f" alpha '{"description":"One.","hooks":{}} {"description":"Two.","hooks":{}}'
+if run_check "$f" >/dev/null 2>&1; then
+  fail "two concatenated documents should fail"
+else
+  ok "two concatenated documents fail closed"
+fi
+rm -rf "$f"
+
 # --- the live tree ----------------------------------------------------------
 if out="$(cd "$SELF_DIR/.." && bash scripts/check-hooks-description.sh 2>&1)"; then
   ok "the repository's own hooks.json files all carry a description"
