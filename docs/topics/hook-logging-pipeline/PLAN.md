@@ -510,9 +510,9 @@ Runs before retention so every producer row, including the one `session-retentio
   asserted in the suite.
 - **Sanity Check:** `bash plugins/claude-ops/hooks/session-retention.test.sh` exit 0; `jq '.hooks.SessionEnd[].hooks[].command' plugins/claude-ops/hooks/hooks.json | grep -c session-retention` prints 1; `grep -c 'read ' plugins/claude-ops/hooks/session-retention.sh` prints 0.
 
-#### Phase 6: Setup guard and retirement record [TODO]
+#### Phase 6: Setup guard and retirement record [DONE]
 
-- [ ] `plugins/claude-ops/skills/setup/SKILL.md` leaves the check-only carve-out: `argument-hint`
+- [x] `plugins/claude-ops/skills/setup/SKILL.md` leaves the check-only carve-out: `argument-hint`
   `check | apply`; the "Check-only" sentence rewritten; `check` probe 5 reads
   `${user_config.session_event_log_dir}` (channel E) and reports the guard (`<dir>/.gitignore`
   first non-comment line `*`): INFO when logging is off, FAIL with the `apply` remediation when on
