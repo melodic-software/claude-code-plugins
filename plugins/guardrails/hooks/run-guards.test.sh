@@ -133,6 +133,35 @@ assert_eq "--lib library is loaded before the guards run" "ps=1" "$(cat "$SEEN")
 run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
 assert_eq "dirname inside a dispatched guard is the external command" "file /" "$(cat "$SEEN")"
 
+# --- relative and bare BASH_SOURCE still locate hook-utils --------------------
+# Production always invokes with an absolute path, so the `cd && pwd` arm in
+# run-guards.sh and the `_HOOK_SELF=.` fallback were unhit by the rest of this
+# suite. `./run-guards.sh` makes `${BASH_SOURCE[0]%/*}` answer `.` (a relative
+# dir); a bare filename makes the strip a no-op and takes the `=` fallback.
+# Both must still source the sibling library and serve the jq cache.
+run_from_hooks_dir() {
+  local spelling="$1"
+  shift
+  : >"$SEEN"
+  RC=0
+  OUT=$(
+    cd "$HOOK_DIR" || exit 1
+    bash "$spelling" "$@" <<<"$PAYLOAD" 2>"$TEST_TMPDIR/err"
+  ) || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+run_from_hooks_dir ./run-guards.sh "$TEST_TMPDIR/allow.sh"
+assert_exit "relative ./run-guards.sh exits 0" 0 "$RC"
+assert_eq "relative ./run-guards.sh still serves the cache" \
+  $'git status --short\nBash' "$(cat "$SEEN")"
+run_from_hooks_dir run-guards.sh "$TEST_TMPDIR/allow.sh"
+assert_exit "bare run-guards.sh exits 0" 0 "$RC"
+assert_eq "bare run-guards.sh still serves the cache" \
+  $'git status --short\nBash' "$(cat "$SEEN")"
+bare_guard_rc=0
+(cd "$HOOK_DIR" && bash block-no-verify.sh <<<"$PAYLOAD" >/dev/null) || bare_guard_rc=$?
+assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
+
 # --- benign Bash lane: no dirname/sed exec on the dispatched hot path ----------
 # 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
 # and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname

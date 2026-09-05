@@ -23,7 +23,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes; a
   dispatched guard still sees the real `dirname` command, not a dispatcher
   shadow. `run-guards.test.sh` pins both the empty shim log and the source
-  shape. What each guard checks is unchanged.
+  shape, plus `./run-guards.sh` and a bare `run-guards.sh` / `block-no-verify.sh`
+  so the relative `cd && pwd` arm and the `_HOOK_SELF=.` fallback are not
+  comment-only. What each guard checks is unchanged.
 
 ## [0.32.5]
 
