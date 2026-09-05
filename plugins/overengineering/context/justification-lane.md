@@ -273,10 +273,9 @@ new" is outside the method.
 - **Two sessions writing one artifact rely on re-read-before-write, not a lock.** Section 7 makes the
   window small. It does not close it, and no lock is claimed.
 - **A citation search scoped by location misses citations, the way one scoped by name does.** Section
-  7 already varies the query form, which catches a document cited under a different name. The
-  matching trap is a document cited from a different place than the search looks: this lane's own
-  discovery measurement filtered candidates to those "cited nowhere outside their own directory", and
-  so reported `docs/ai-briefing-design.md` as uncited even though `docs/MIGRATION-PLAYBOOK.md` links
-  to it. Both files sit in `docs/`, so the filter excluded the one citation that existed. Section
-  10's corroboration step is scoped repository-wide because of it, and any future narrowing of a
-  citation search is a new instance of this limit rather than an optimization.
+  7 varies the query form, which catches a document cited under a different name. The matching trap
+  is a document cited from a place the search does not look. Excluding a document's own directory is
+  the common form: neighbouring documents cite each other, so that exclusion drops exactly the
+  citations a tightly-grouped set has, and reports a cited document as uncited. Section 10's
+  corroboration step is therefore scoped to the whole repository, and any narrowing of a citation
+  search by location is a new instance of this limit rather than an optimization.
