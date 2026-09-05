@@ -1,5 +1,5 @@
 ---
-description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, a rich rendered page, or, where the bundled design skill is available, a hand-editable design canvas) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed. It does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, a rich rendered page, or, where the bundled design skill is available, a hand-editable design canvas) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. It routes chart craft and artifact-design fundamentals to those capabilities when installed. It does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
 user-invocable: true
 disable-model-invocation: false
@@ -15,9 +15,7 @@ metadata:
 On demand, at any point in a conversation, decide **what** is most worth showing
 visually and **how** to show it, then render it. This skill is a **form + medium
 router**: it makes two decisions, the form and the medium, and produces the
-output. It is not a craft teacher. The craft of a good chart, and the fundamentals
-of a good rich page, are owned by other capabilities; this skill routes to them
-and never restates them.
+output.
 
 ## When this fires, and when it does not
 
@@ -66,7 +64,7 @@ When the form is a chart and a chart-craft/dataviz capability is installed, invo
 it for the craft (form heuristic, palette, mark specs); when it is not installed,
 fall back to a simple, honest default (a labelled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
-unavailable. Never restate its craft here.
+unavailable.
 
 When the form is a hand-tweakable visual layout, route to the design-canvas
 capability. That is the bundled `design` skill, when it appears in this session's
@@ -83,7 +81,7 @@ are throwaway or plain-static. When the skill is **absent from the list**, the
 rich rendered page covers the same ground. Do not mention `/design` (that user
 has no such command). When it is **listed but the invocation is refused**, suggest
 the user run `/design` themselves. The canvas surface facts and their
-verified-on/recheck record live in the catalog spoke. Do not restate them here.
+verified-on/recheck record live in the catalog spoke.
 
 ## Step 3: Pick the medium
 
@@ -183,8 +181,7 @@ honored and simply removes that axis from any question.
   and prefer a page when the *rendered* diagram is the point.
 - **A rich page** follows the Artifact tool's own contract and, when an
   artifact-design capability is installed, its guidance. The page-contract facts
-  live once in [`context/decision-matrix.md`](context/decision-matrix.md). Do not
-  restate them here.
+  live once in [`context/decision-matrix.md`](context/decision-matrix.md).
 - Report what you produced and, for a page, its path or link.
 
 ## Gotchas
