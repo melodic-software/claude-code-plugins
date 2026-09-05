@@ -49,7 +49,7 @@ Sing actual melodies, not spoken word. The model learns your sung timbre, not yo
 
 **Why single clip + variety beats multiple flat clips:** Suno's auto-selection picks a 2-min window from training material. A varied single window gives it the full dynamic spectrum to model from; multiple flat clips often get sampled at the most-frequent dynamic and miss your range.
 
-**MEDIUM confidence — community-derived; Suno does not publish a recommendation for clip count or target length.** An earlier revision advised three separate clips; that guidance was deliberately retired in favor of the single varied clip, the only approach here with a stated mechanism: community reports say Suno's auto-selection favors the most-frequent dynamic, so variety within one clip beats several flat-dynamic clips.
+**MEDIUM confidence — community-derived; Suno does not publish a recommendation for clip count or target length.** Three separate clips is the wrong shape; the single varied clip is the only approach here with a stated mechanism: community reports say Suno's auto-selection favors the most-frequent dynamic, so variety within one clip beats several flat-dynamic clips.
 
 ### Two-stage bootstrap for non-singers
 

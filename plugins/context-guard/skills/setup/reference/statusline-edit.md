@@ -19,8 +19,8 @@ ineffective remediation those branches exist to withhold.
 
 Read [`unwrap-before-compose.md`](unwrap-before-compose.md) now, before composing. It owns
 the peel rules and the shell-syntax guard, shared byte-identical with rate-limit-guard.
-Composing without it is what produced `context -> rate -> rate -> renderer` and the
-compounding `sh -c` wrap. The JSON blocks below are this plugin's printed paths only.
+Composing without those rules double-wraps a sibling tee and stacks another `sh -c`
+layer on every re-run. The JSON blocks below are this plugin's printed paths only.
 
 ## The edit blocks
 

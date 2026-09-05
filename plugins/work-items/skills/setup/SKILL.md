@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps to the label, and optionally remaps canonical role labels. First-time bind writes minimum viable config only, binding, role labels, both label axes, legacy backfill, empty skeleton, and candidate inference plus per-item interview is opt-in via --seed-schedule or a skip-RECOMMENDED offer (silent when unattended); a schedule with items is summarized and offered updates as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable. Safe to invoke again to reconfigure or to seed the schedule later."
+description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps to the label, and optionally remaps canonical role labels. First-time bind writes minimum viable config only, binding, role labels, both label axes, legacy backfill, empty skeleton, and candidate inference plus per-item interview is opt-in via --seed-schedule or a skip-RECOMMENDED offer (silent when unattended); a schedule with items is summarized and offered updates. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable. Safe to invoke again to reconfigure or to seed the schedule later."
 argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -101,7 +101,7 @@ when this pass must stop instead of guessing.
    (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
    repository `.gitignore` rule covers it even when the overlay file does not exist yet, and append
-   that line when none does, **announcing the edit** (ADR 0015; touch nothing else there).
+   that line when none does, **announcing the edit** (touch nothing else there).
    `$GIT_DIR/info/exclude` and `core.excludesFile` do not protect a teammate. A *tracked* overlay
    in the index is a finding to stop and report, never ignore. Ignored and untracked are **two
    independent probes**; a bare `git check-ignore` is silent for an already-tracked path. Run the
@@ -136,9 +136,8 @@ branches on **how many rows the schedule already carries**, never on whether the
 skipped first-time `apply` leaves `{"items": []}` on disk, so a file-absence gate would make the
 seeding path unreachable by re-running:
 
-- **Schedule carries ≥1 item**. Unchanged from before: summarize it, infer candidates, and interview
-  against that baseline (steps 7–9), offering updates. `--seed-schedule` is a no-op here; this branch
-  already interviews.
+- **Schedule carries ≥1 item**. Summarize it, infer candidates, and interview against that baseline
+  (steps 7–9), offering updates. `--seed-schedule` is a no-op here; this branch already interviews.
 - **Schedule absent, or present with an empty `items` array**. Write only the minimum viable config:
   the provider binding, the role-label pass, and the empty `{"items": []}` skeleton so `due` /
   `recheck` / `work` stop degrading to "no recurring schedule configured". Steps 4–5 do not run: no
@@ -167,7 +166,7 @@ the run must say in its summary about each decision it took without asking.
 
 ### The `apply` flow, step by step
 
-Attended and unattended runs take the same twelve steps; only the answers differ.
+Attended and unattended runs take the same numbered steps; only the answers differ.
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)
@@ -193,9 +192,8 @@ unambiguous; ask only where an item genuinely needs the user.
    quota guard and the work-loop reader fails closed to general tier.
 5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
    [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
-   load-bearing on upgrade (#1716): items already triaged with only a body prose frontier-tier stamp
-   will not be re-triaged, so setup applies the label here once the axis exists. Stays bespoke: it
-   backfills forge labels on tracker items, not a repo-scope artifact the retirement schema detects.
+   load-bearing on upgrade: items already triaged with only a body prose frontier-tier stamp
+   will not be re-triaged, so setup applies the label here once the axis exists.
 6. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
@@ -373,8 +371,9 @@ PASS/FAIL/INFO table and its remediation lines, mutating nothing.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Duplicate the per-item `add --recurring` path, that path stays for filing a single recurring item;
   setup is the bulk path that seeds or reshapes the whole schedule, opt-in on a first-time bind.
-- Author or vendor a provider adapter, the seam ships the `github`, `local-markdown`, and `jira`
-  adapters; a consumer-supplied adapter lives in the consuming repo at
+- Author or vendor a provider adapter, the seam ships the bundled adapters named under "Provider
+  binding" (`github`, `local-markdown`, `jira`, `gitea`, `linear`); a consumer-supplied adapter lives
+  in the consuming repo at
   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
 - Store secrets, the binding is tracked in git and carries non-secret config only (a provider token is
   referenced by name from inside its adapter, never written here).

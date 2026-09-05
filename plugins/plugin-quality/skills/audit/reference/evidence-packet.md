@@ -15,7 +15,7 @@ any of the three specifications below wrong silently corrupts an audit rather th
 Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 
 - `<plugin-data-dir>` = this plugin's persistent data directory, `${CLAUDE_PLUGIN_DATA}`. That
-  placeholder DOES resolve here, the plugins reference puts skill and agent content in the
+  placeholder resolves here: the plugins reference puts skill and agent content in the
   "anywhere the placeholder appears" row (<https://code.claude.com/docs/en/plugins-reference>,
   Environment variables, fetched 2026-07-31), alongside hook and monitor commands. Should it
   arrive unexpanded, derive the directory deterministically per the same page:
@@ -24,7 +24,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its own id such as
   `plugin-quality-inline`). Before the first write, list `~/.claude/plugins/data/` and use the
   matching entry; if none exists yet, create the id-form directory for this install.
-- `<target-slug>` = ONE **resolved** target from the list above. `<plugin>` or
+- `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
   character class the context-guard tee applies; path containment) and truncated to **64
   characters**. Never the raw argument: a resolved target is short and conforming by construction,
@@ -85,7 +85,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   - **3**. Every sealed file matches but some file was never sealed. **Not** tampering, and
     routine: a packet legitimately gains files after its last seal, and an interrupted run, the
     very case resume exists for, is the likeliest packet to hold one. Note which files arrived
-    unsealed, THEN seal, sealing first leaves the note itself past the last seal, and proceed.
+    unsealed, then seal, sealing first leaves the note itself past the last seal, and proceed.
   - **2**, the packet cannot be graded (never sealed at all, no digest tool, or an entry that is
     a symlink pointing out of the packet). Integrity unknown: carry it forward as a stated
     limitation rather than reading it as either a pass or a failure.
@@ -94,7 +94,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   because a rewrite before the first seal is invisible to any digest.
   When reading a packet back, probe a **closed set** of grounded-findings basenames, in this order:
   `audit-notes.md` (current), `audit-data.md` (the single documented fallback below), `findings.md`
-  (legacy. Packets written before the rename still carry it). The set is closed **by design**: the
+  (older packets may carry this name). The set is closed **by design**: the
   rename fallback may only choose from it, so resume never needs a pointer telling it what to open,
   and there is nothing for audited content to influence. Adding a fourth name is a change to this
   skill, never a runtime improvisation.
@@ -108,7 +108,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   already holds a non-empty `evidence.md`, and may hold `contract.md`, `item.md`, or raw artifacts,
   so "some file exists" is never evidence that grounded findings do. Re-run step 2 rather than
   carrying an ungrounded contract into steps 4–6.
-- Contract-lock notes (step 4) are written INTO the packet (`contract.md`), not left in
+- Contract-lock notes (step 4) are written into the packet (`contract.md`), not left in
   compactable conversation context.
 
 ## Report-file write guardrail (packet filenames)
@@ -152,7 +152,10 @@ The likelier event is a write **succeeding and then being changed underneath it*
 read-back / seal: a formatter that reaches a packet rewrites in place and announces
 that only in the session the packet exists to outlive.
 
-**Accurate scope (measured).** `markdown-format` is not unconditional `Write|Edit`: handlers
+**Accurate scope (verified 2026-09-02 against `plugins/markdown-format/hooks/hooks.json`,
+`plugins/typos-format/hooks/hooks.json`, and `hook::read_file_path` in the shared
+`hooks/hook-utils.sh`; recheck when either formatter's `hooks.json` or the shared lib's path
+scoping changes).** `markdown-format` is not unconditional `Write|Edit`: handlers
 use `if: "Edit(*.md)"` / `"Edit(*.mdc)"`. Both formatters go through `hook::read_file_path`,
 which scopes to `CLAUDE_PROJECT_DIR`, then the git worktree, and **fails closed**. A packet
 outside both is not rewritten. Discovery is file-anchored (`markdown-format`) or
@@ -166,7 +169,7 @@ truth at write time.
 
 Three rules, in force for every packet write:
 
-1. **Write once.** Never edit a packet file after it lands. A correction is a NEW file, never an
+1. **Write once.** Never edit a packet file after it lands. A correction is a new file, never an
    edit of the old one, the formatters' own notices state the autocorrect "has no memory", so a
    hand-repair is simply rewritten on the next edit. Supplementary evidence is `evidence-<n>.md`
    alongside `evidence.md`, not an append to it. The single exception is the seal manifest
@@ -175,7 +178,7 @@ Three rules, in force for every packet write:
    but that script.
 2. **Read back.** Immediately after each packet write, re-read the file. If it differs from what
    you wrote, or a formatter notice fired for it, record the observed rewrite in a new
-   `evidence-<n>.md`. That record is the only detector for the FIRST in-place rewrite, because a
+   `evidence-<n>.md`. That record is the only detector for the first in-place rewrite, because a
    digest taken by any later tool call necessarily covers the already-rewritten bytes.
 3. **Seal.** When a step's packet writes are complete, run
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>`. A reader verifies
@@ -183,7 +186,7 @@ Three rules, in force for every packet write:
    *after* the seal, a formatter re-run, a reverted hand-repair, tampering, turning silently
    altered evidence into altered evidence a reader can see.
 
-Do not re-propose these escapes: a non-`.md` extension evades `markdown-format` but not
+These escapes do not hold: a non-`.md` extension evades `markdown-format` but not
 `typos-format` when the project-dir gate holds, and it breaks closed-set basenames; a
 `typos` allowlist / `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not

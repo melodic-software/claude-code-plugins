@@ -39,7 +39,7 @@ The `length == 1` guard is the refusal to guess. Zero new heading-bearing commen
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
-## Stage 0 — Extraction (Sonnet)
+## Stage 0 — Extraction (subagent)
 
 Per-surface free-text → records `{surface, file, line, line_basis, category, native_severity, native_confidence, raw_text}`.
 
@@ -47,7 +47,7 @@ Per-surface free-text → records `{surface, file, line, line_basis, category, n
 - **Category normalization** — a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), NOT raw per-source strings (they false-split).
 - **Parse-failure accounting** — record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. NEVER drop.
 
-## Stage 1 — Severity crosswalk (deterministic / Haiku)
+## Stage 1 — Severity crosswalk (deterministic)
 
 Map native severity → the tier vocabulary in effect (the project's own, else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`):
 
@@ -57,11 +57,11 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.
 - **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
 
-## Stage 2 — Confidence enum (deterministic / Haiku)
+## Stage 2 — Confidence enum (deterministic)
 
-Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (all four agent leaves per their output formats; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
+Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
-## Stage 3 — Dedup (Sonnet)
+## Stage 3 — Dedup (subagent)
 
 Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check — merge two line-less records only when their `raw_text` describes the same issue; path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT** — a false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
 
@@ -74,4 +74,4 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 
 ## Model assignment
 
-Stage 0 Sonnet (parse fidelity) · Stage 1–2 deterministic/Haiku (enum lookup) · Stage 3 Sonnet (semantic merge) · Stage 4 deterministic.
+Stages 0 and 3 are judgment steps and run as subagent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.

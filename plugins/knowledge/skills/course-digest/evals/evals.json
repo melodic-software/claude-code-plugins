@@ -55,7 +55,7 @@
       "id": 5,
       "name": "synthesis-and-deliverable-output-shape",
       "prompt": "The extraction for tdd-csharp-ferreira is done — transcripts, frames, and the companion code repo are all in place. Synthesize it and tell me what applies to our repo.",
-      "expected_output": "Phase 3 synthesizes each module across all three modalities (transcript, frames, code repo), surfacing and classifying discrepancies between what the instructor says, shows, and codes. Phase 5 produces both repo-candidates.md and action-items.md, categorized per the analysis template, mapped to THIS repository's .NET/modular-monolith stack.",
+      "expected_output": "Phase 3 synthesizes each module across all three modalities (transcript, frames, code repo), surfacing and classifying discrepancies between what the instructor says, shows, and codes. Phase 5 produces both repo-candidates.md and action-items.md, categorized per the analysis template, mapped to THIS repository's own stack.",
       "files": [],
       "expectations": [
         "Phase 3 synthesizes across all three modalities (transcript, visual frames, code repo) rather than summarizing transcripts alone",

@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.63]
+
+### Changed
+
+- attend-queue: removed the issue numbers from the telemetry-upsert prose; the body gate and read-back are stated as rules
+- decompose: role labels default without a warning and stop on a malformed value; dropped the roadmap wrapper on the integration-branch fallback and the unnamed "upstream analog" sentence; rewrote the description's trigger list as intent categories
+- onboard-adapter: stated the per-instance-facts rule directly instead of narrating how the jira adapter was built
+- setup: removed ADR and issue numbers, the "stays bespoke" justification, the step count, and "as before"; the boundary list and providers reference now name all five bundled adapters
+- ship: rewrote the description's trigger list as intent categories
+- track: role labels default without a warning at every action entry; stats defers the aggregation limit to the adapter README; dropped the retired label-protocol and label-reconciliation references, the hardcoded group and verb counts, the maintainer aside in recheck, and the section number into pull-request; rewrote the description's trigger list as intent categories
+- triage: corrected the renamed `re-anchor` plugin to `discipline`; removed issue numbers and the migration-relative lane-config wording
+- work: removed issue numbers and the classifier-denial incident narrative; deleted the compatibility passage for an old implementation version; stated the claim-before-dispatch invariant once; dropped the roadmap and "no longer" phrasing; the workflow requirement is a plain statement; rewrote the description's trigger list as intent categories
+- work-loop: removed issue numbers; restored "Report and pace" as its own cycle step; the claim-before-dispatch gotcha is one sentence; moved the maintainer-only C3 gate check into a new `skills/work-loop/AGENTS.md`
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.39.62]
 
 ### Changed

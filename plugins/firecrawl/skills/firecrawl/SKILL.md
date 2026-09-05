@@ -1,5 +1,5 @@
 ---
-description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, search, crawl, map, parse, interact, agent, monitor. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', or WebFetch returns 403/429 (Cloudflare, PerimeterX, anti-bot block), a page requires JS rendering or clicks/form fills, you need web search with scraped results, bulk URL discovery and crawling, a local file (PDF/DOCX/XLSX) needs text extraction to markdown, or a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when you want synthesis rather than primary source."
+description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when you want synthesis rather than primary source."
 argument-hint: "<command> [args]. Commands: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage"
 user-invocable: true
 disable-model-invocation: false
@@ -20,7 +20,10 @@ The `firecrawl --status` line above includes auth state. If it shows unauthentic
 
 `firecrawl-cli` is the CLI alternative to the `firecrawl-mcp` MCP server. It wraps api.firecrawl.dev with agent defaults: retry/rotation on anti-bot blocks, JS rendering, and an `-o <path>` flag that writes results to disk instead of streaming into the conversation.
 
-When WebFetch fails on a large page and an MCP equivalent would dump 30K tokens of raw markdown into context, this skill writes to a tempfile and lets the agent `Read` only the slice it needs. Scalekit benchmark measured 32–35× token savings vs the MCP on comparable tasks.
+When WebFetch fails on a large page, an MCP equivalent streams the whole document into the
+conversation. This skill writes it to a spill file and lets the agent `Read` only the slice it
+needs. The saving scales with document size, so it is largest on exactly the long pages that
+defeat WebFetch in the first place.
 
 ## When to reach for this skill
 

@@ -9,7 +9,9 @@ Sources: [StrykerJS configuration](https://stryker-mutator.io/docs/stryker-js/co
 [Stryker4s configuration](https://stryker-mutator.io/docs/stryker4s/configuration/),
 [PIT FAQ](https://pitest.org/faq/),
 [Infection CLI](https://infection.github.io/guide/command-line-options.html),
-[mutmut](https://mutmut.readthedocs.io/). Fetched 2026-08-15.
+[mutmut](https://mutmut.readthedocs.io/). Fetched 2026-08-15. Recheck when any listed tool
+publishes a release note touching its diff-scoping switch or its in-place / out-of-tree write
+behavior, when a new mutation tool appears for a listed ecosystem, or at the next fleet audit.
 
 ## Established tools
 
@@ -105,8 +107,7 @@ A defensible manual pass needs all five:
    what was identical about them.
 
 That last point is not theoretical. This repository's own `lib/hook-utils.test.sh` carries a worked
-example: a block deleted from `hook-utils.sh`, a baseline and mutant run measured and reported
-(`rc=0 len=65536` in both, 2948 ms against 5823 ms), the survivor diagnosed, the test redesigned
-around a non-temporal observable so it would go red, and the one delivery shape under which the
-mutant is genuinely undetectable documented with the measurement that established it. That is the
-bar.
+example: a block deleted from `hook-utils.sh`, a baseline and mutant run measured and reported, the
+survivor diagnosed, the test redesigned around a non-temporal observable so it would go red, and the
+one delivery shape under which the mutant is genuinely undetectable documented with the measurement
+that established it. Read the figures there, where they are maintained. That is the bar.

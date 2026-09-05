@@ -99,8 +99,7 @@ technology choice and adds the field survey, the ladder, and the coupling
 price. Route a broader inherited-design challenge there. The reciprocal
 boundary: consistency of idioms, structure, and process, where matching the
 established way is usually right, is `/discipline:reuse-or-replace`'s axis,
-which carves tool/dependency selection out to this skill; keep the two
-carve-outs in sync.
+which carves tool/dependency selection out to this skill.
 
 ## What this skill does NOT do
 
@@ -112,13 +111,11 @@ carve-outs in sync.
   from memory.
 - **Does not fabricate a finding.** A choice already problem-derived and
   field-surveyed audits clean; say so.
+- **Does not audit a whole repository's dependency graph.** The audit covers the
+  selection in flight; a repo-wide coupling-risk inventory is out of scope.
 
 ## Gotchas
 
 - **The reflex hides as a reason.** "We use X here" and "X is what I know"
   are the incumbency and habit sins wearing the costume of a rationale; a
   real rationale names the requirement X satisfies, not its familiarity.
-- **A deep dependency-inventory variant is deliberately deferred.** Auditing
-  an entire repo's dependency graph for coupling risk is out of scope here;
-  that sibling lands on the first real dependency-inventory audit request,
-  not before, not shipped speculatively.

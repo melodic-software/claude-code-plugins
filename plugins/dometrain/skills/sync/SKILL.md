@@ -10,16 +10,14 @@ shell: bash
 
 Report-only drift check between this plugin's vendored `dometrain-grounding` baseline
 (`vendor/SKILL.md`) and Dometrain's current upstream skill content
-(`github.com/Dometrain/mcp`, `skills/dometrain-grounding/SKILL.md`). Mirrors `context7:lookup`'s
-`update` action, reduced to one upstream dependency (no CLI to upgrade, only vendored prose to
-diff).
+(`github.com/Dometrain/mcp`, `skills/dometrain-grounding/SKILL.md`). There is one upstream
+dependency and no CLI to upgrade, only vendored prose to diff.
 
-**Consumer-vs-maintainer role split, per explicit design constraint:** this skill is
-`disable-model-invocation: true`. Never reachable by the model on its own initiative, only by a
-human's explicit `/dometrain:sync` invocation. `check` (the only action) is report-only; no
-`--refresh-baseline` argument is skill-exposed. That flag is documented in `context/update.md`
-for a maintainer to type as a raw bash command in a working clone. This skill's own dispatch
-never constructs or passes it through.
+**Consumer vs maintainer role split:** this skill is `disable-model-invocation: true`, so it is
+reachable only by a human's explicit `/dometrain:sync` invocation, never by the model on its own
+initiative. `check` (the only action) is report-only. The `--refresh-baseline` flag is not
+skill-exposed; `context/update.md` documents it for a maintainer to type as a raw bash command in a
+working clone.
 
 ## `check` (report-only, the only action)
 
@@ -37,8 +35,7 @@ The script:
 3. Reports "No drift detected" or shows the diff for manual review.
 
 Never writes to `vendor/SKILL.md` or `grounding/SKILL.md`. Direct the user to
-[context/update.md](context/update.md) for the maintainer-only integration protocol
-(`--refresh-baseline`). Do not run that flag from this skill's own dispatch.
+[context/update.md](context/update.md) for the maintainer-only integration protocol.
 
 ## Output
 

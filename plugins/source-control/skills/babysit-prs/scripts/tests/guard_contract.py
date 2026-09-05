@@ -345,8 +345,8 @@ REFUSALS: tuple[Refusal, ...] = (
             "The wrapper refusal covers an =value spelling of the flag or of any "
             "prefix of it, not just a bare long option. `--allow-unpinned-head=true` "
             "is not itself a PREFIX of `--allow-unpinned-head` -- the `=true` tail "
-            "breaks a plain prefix comparison, so an unstemmed filter (#1522) let "
-            "the argument reach argparse, which happens to also reject it today "
+            "breaks a plain prefix comparison, so an unstemmed filter would let "
+            "the argument reach argparse, which happens to also reject it "
             "only because the guarded flag is store_true and takes no explicit "
             "value. That made the wrapper's refusal depend on the interpreter "
             "behind it, exactly what this guard exists to not do."
@@ -854,7 +854,7 @@ PREDICATES: tuple[Predicate, ...] = (
         id="classify.include-human-bulk-refuses-human-deferred",
         claim=(
             "Bulk --include-human must not sweep a thread whose most recent human reply "
-            "explicitly parks the finding (#671). A pinned --thread-id call is an "
+            "explicitly parks the finding. A pinned --thread-id call is an "
             "explicit per-thread vet and may still proceed."
         ),
         enforced_at=CLASSIFY_ANCHOR,

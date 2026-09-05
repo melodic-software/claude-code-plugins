@@ -5,10 +5,10 @@
       "id": 1,
       "name": "check-flag-is-read-only-drift-report",
       "prompt": "/firecrawl:update --check",
-      "expected_output": "Runs the default read-only drift report: fetches npm metadata and the upstream SKILL.md, compares the installed CLI against the registry latest (logging the UPSTREAM.md recorded version without treating record-only staleness as CLI drift), and compares the fetched upstream SKILL.md SHA against UPSTREAM.md. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
+      "expected_output": "Runs the read-only drift report: fetches npm metadata and the upstream SKILL.md, compares the installed CLI against the registry latest (logging the UPSTREAM.md recorded version without treating record-only staleness as CLI drift), and compares the fetched upstream SKILL.md SHA against UPSTREAM.md. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
       "files": [],
       "expectations": [
-        "Treats --check as the read-only default and performs no mutations",
+        "Treats --check as the read-only mode and performs no mutations",
         "Compares installed CLI versus registry latest, and fetched upstream SKILL.md SHA versus UPSTREAM.md",
         "Does not treat a stale UPSTREAM.md CLI version as CLI drift when installed already equals latest",
         "Does not run npm install -g or rewrite plugins/firecrawl/skills/firecrawl/SKILL.md"

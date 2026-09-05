@@ -1,15 +1,15 @@
 # Lane: self-update
 
-The recursive lane — tidy operating on its own plugin files. **Maintainer-facing:** valid ONLY in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy — consumers receive updates through `/plugin marketplace update`. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane. Read the EXTRA HARD list at the start of every run.
+The recursive lane — tidy operating on its own plugin files. **Maintainer-facing:** valid ONLY in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy — consumers receive updates through `/plugin marketplace update`. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane.
 
 ## Scope
 
 ```text
-skills/tidy/SKILL.md
-skills/tidy/lanes/**.md
-skills/tidy/templates/**.md
-skills/tidy/reference/**.md
-skills/batch-simplify/**.md
+skills/*/SKILL.md
+skills/*/lanes/**.md
+skills/*/templates/**.md
+skills/*/reference/**.md
+skills/*/context/**.md
 ```
 
 (Paths relative to the plugin root of the working-tree checkout.)
@@ -30,7 +30,7 @@ In addition to global HARD/SOFT, this lane has an extra-HARD list that gates ALL
 
 Summary of what this lane CANNOT modify, even though the files are technically in scope:
 
-- **All skill frontmatter** — every field, across both skills' SKILL.md files
+- **All skill frontmatter**, every field, in every `skills/*/SKILL.md` this plugin ships
 - **The HARD/SOFT exclusion lists themselves** in `reference/exclusions.md` — the safety net cannot tidy itself
 - **The Action Router section** of `SKILL.md` — the argument grammar is a contract with users
 - **The Workflow phase list** — phase names and order are part of the contract; renumbering or renaming changes behavior

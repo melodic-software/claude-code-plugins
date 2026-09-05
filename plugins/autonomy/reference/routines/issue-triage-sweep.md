@@ -87,7 +87,7 @@ its routing obligation.
 ## Precedent
 
 The proven manual pattern is the recurring human triage sweep over untriaged intake, as
-documented in mature projects' triage guides. Precedents from the routine-catalog research
-(row 10): narrow ML triage-classifier suites — whose key finding is that "triage" decomposes
+documented in mature projects' triage guides. Precedents: narrow ML
+triage-classifier suites — whose key finding is that "triage" decomposes
 into many per-field classification judgments, not one job — plus tracker-native hosted
 triage assistants and coding-agent vendors' showcased backlog-maintenance routines.

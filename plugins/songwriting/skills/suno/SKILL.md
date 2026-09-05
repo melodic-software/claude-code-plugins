@@ -156,7 +156,7 @@ The `no X` syntax works for negative prompts: `no autotune, no reverb wash`. Gro
 | 5+ stacked genres | Muddy mix, incoherent style | Pick 1-2 max, or use a clear hybrid (`nu-metal dubstep`) |
 | 9+ mood words | Conflicting emotional signals | 2-3 related moods |
 | `amazing`, `epic`, `beautiful` | Zero effect on output | Replace with acoustic descriptors (`raspy`, `breathy`, `intimate`) |
-| BPM as descriptor (`fast`) | ±20 BPM drift | Use numeric (`128 BPM`). ~90% adherence in v5.5 |
+| BPM as descriptor (`fast`) | ±20 BPM drift | Use numeric (`128 BPM`). Adherence is high but no rate is published; see `context/style.md` |
 | `(x2)` after a lyric line | Repeat is largely ignored | Write the line twice with minor variation |
 | Naming artists directly (`like Drake`) | Blocked or ignored | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | `no drums` in a drum-heavy genre alone | Drums still appear | Pair with positive (`piano only, no drums`) |

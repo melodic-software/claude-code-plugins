@@ -9,10 +9,18 @@ metadata:
   summary: Reconstruct why a thing was built this way, from evidence outside the code
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Project root, `git rev-parse --show-toplevel`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -107,10 +115,10 @@ ladder. Only the tier decides which section a claim lands in.
 implementation tells you what was built, almost never why. Code-shape inference does not get a low
 tier. It leaves the scale entirely and is recorded as a gap.
 
-This is a deliberate departure from the upstream skill this one is reauthored from, which permits
-labelled code-shape inference at `Inferred`. The reason is operational rather than epistemic: code
-is always present and costs nothing to consult, so a weak-but-admissible rung for it gets filled
-exactly when the real record is thin, which is exactly when a reader most needs to be told so.
+Code-shape inference is excluded from the scale rather than admitted at a low tier, and the reason
+is operational rather than epistemic: code is always present and costs nothing to consult, so a
+weak-but-admissible rung for it gets filled exactly when the real record is thin, which is exactly
+when a reader most needs to be told so.
 
 **Version-control behaviour is not code shape.** Change coupling, churn and hotspot data are evidence
 the code alone cannot give you, and they are admissible, but they locate rather than explain: they

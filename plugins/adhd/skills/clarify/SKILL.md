@@ -146,8 +146,8 @@ this invocation, and nothing documented reclaims the OS temp tree on a
 schedule, so write one file per run and never an accumulating tree. Resolve
 that one path deterministically: never
 branch on whether the harness injected a scratchpad path or set
-`CLAUDE_JOB_DIR`, and never depend on the session scratchpad, which is an
-undocumented surface upstream has declined to support. Do not rely on a
+`CLAUDE_JOB_DIR`, and never depend on the session scratchpad, which is
+undocumented. Do not rely on a
 plugin-data substitution variable for this location either: skill-body
 substitution is documented only for a fixed set of variables, and an
 undocumented token can substitute unpredictably (including to the wrong

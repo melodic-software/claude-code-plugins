@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Discovery phase of autonomy adoption (v0). Maps the roles in
+Discovery phase of autonomy adoption. Maps the roles in
 [`${CLAUDE_PLUGIN_ROOT}/reference/role-topology.md`](${CLAUDE_PLUGIN_ROOT}/reference/role-topology.md) to this org's real instances
 and records the result as the schema-versioned binding the resolution ladder in
 [`${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md) reads at the repo-local layer. Never assumes
@@ -17,16 +17,16 @@ it cannot infer, and every landed change is reviewable per
 
 ## Actions
 
-- **`check`** (read-only): resolve the effective binding across ALL rungs of the binding-seam
+- **`check`** (read-only): resolve the effective binding across all rungs of the binding-seam
   resolution ladder. User-global (`~/.claude/autonomy/`) → project (`.claude/autonomy/`) →
-  local overlay (`.claude/autonomy/**/*.local.*`), additive, PLUS the org rung when the merged
+  local overlay (`.claude/autonomy/**/*.local.*`), additive, plus the org rung when the merged
   layers carry an `org_policy_home` pointer: fetch the org binding via the host CLI with the
   consumer's own auth and fold it in at its ladder position. Report what is bound, what is
   missing, and which layer or rung contributes each value; an unreachable org-policy home is
-  WARNED as not-considered, never silently omitted. No writes.
+  warned as not-considered, never silently omitted. No writes.
 - **`apply`** (idempotent): run discovery, then write or update the project binding. Re-running
   reads the existing binding and proposes deltas; it never overwrites blind and never touches
-  unrelated user content. All project paths anchor at the PROJECT ROOT. Resolve
+  unrelated user content. All project paths anchor at the project root. Resolve
   `${CLAUDE_PROJECT_DIR}` (fall back to the repository toplevel) before writing; invoking the
   skill from a subdirectory must never create a nested `.claude/autonomy/`.
 
@@ -41,6 +41,10 @@ it cannot infer, and every landed change is reviewable per
 A locator without `#<path>` triggers document discovery at bind time (the binding instance
 document is found by its schema-versioned shape per the org repo's own layout) and the
 resolved path is persisted alongside the pointer so later fetches are deterministic.
+
+Slices marked argument-selected below (guardrail, routine) run only when the free-text remainder
+of the invocation names them, for example `apply` followed by "wire the guardrail slice"; none of
+the enumerated flags selects a slice.
 
 `apply` with every argument supplied runs non-interactively, no prompts, so automation and
 headless use work. With arguments missing, discovery infers first and interviews only the
@@ -65,7 +69,7 @@ ask and offer to persist; otherwise → safe free-tier default).
 - `schema_version` (string, from `"1.0"`);
 - `roles`, an object keyed by the kebab-case role names of the role-topology contract
   (`capability-distribution-home`, `ci-orchestration-home`, `settings-as-code-home`,
-  `org-policy-home`, `runner-execution-home`); a value MAY be null (unborn role, or no org
+  `org-policy-home`, `runner-execution-home`); a value may be null (unborn role, or no org
   instance, never invented);
 - `org_policy_home`, the pointer (or `null`), with its resolved document path when
   discovered;
@@ -73,13 +77,13 @@ ask and offer to persist; otherwise → safe free-tier default).
 - `substrate`, an object with kebab-case surface keys (`local-machine`, `ci-runners`,
   `self-run-infrastructure`), boolean values.
 
-The same file name is the shape at EVERY layer: the user-global layer is
+The same file name is the shape at every layer: the user-global layer is
 `~/.claude/autonomy/binding.json`, the project layer `.claude/autonomy/binding.json`, and
 each layer's personal overlay `binding.local.json` beside it. The project file is tracked
 (team-shared); recommend the recursive consumer `.gitignore` line: `.claude/**/*.local.*`.
 Layers resolve per the binding-seam ladder — user-global → org binding (when pointed) →
 project → local overlay — additively. Capability slices (like telemetry below) add their
-sections ADDITIVELY under their slice name: a binding without a slice's section is valid
+sections additively under their slice name: a binding without a slice's section is valid
 (absent-section tolerance) and no schema major bump is needed for an additive section.
 
 ## Telemetry slice
@@ -127,10 +131,10 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
 
 Wires the capture-enabled state of
 [`${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md`](${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md),
-discovery-first: detect the tracker class and close-flow surface, WIRE the close- and
+discovery-first: detect the tracker class and close-flow surface, wire the close- and
 reply-triggered attestation handlers via the close-triggered snippet in
 [`templates/return-capture.md`](templates/return-capture.md) where machine-editable (the
-marker-keyed comment floor, or provenance-verifiable native fields), ADVISE where GUI-only or
+marker-keyed comment floor, or provenance-verifiable native fields), advise where GUI-only or
 entitlement-gated, and record the
 `capture` section of the repo-local autonomy binding. Read
 [`context/capture-slice.md`](context/capture-slice.md) when `apply` reaches the capture slice: it
@@ -156,7 +160,7 @@ step.
 
 ## Guardrail binding resolution
 
-How guardrail policy resolves across the TWO governance surfaces the guardrail contract
+How guardrail policy resolves across the two governance surfaces the guardrail contract
 splits policy into. This section owns resolution; the [guardrail slice below](#guardrail-slice)
 (detect → bind → live-validate → fail-closed) is the action that produces the security binding
 this order resolves.
@@ -164,13 +168,13 @@ this order resolves.
 **Two-surface split.** Security-sensitive guardrail axes. Isolation bindings with their
 runtime markers, merge policy, verification blocking knobs, per-class verification
 topology, promotion state, escalation
-routes, admission rules and caps. Bind ONLY in the security binding document in the
+routes, admission rules and caps. Bind only in the security binding document in the
 settings-as-code home, outside the blast radius of the agents it governs. Its schema is
 contract-owned and ships at
 [`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json);
 [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) validates a
 document (schema shape + the semantic rules the schema cannot express) and, with
-`--evidence`, resolves each promotion cell's EFFECTIVE state against a promotion-evidence
+`--evidence`, resolves each promotion cell's effective state against a promotion-evidence
 source, the bound state is a ceiling contrary evidence lowers without writing the
 binding. Read the
 [admission-policy leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/admission-policy.md) directly
@@ -194,7 +198,7 @@ binding field.
 
 **Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
 security binding → repo-local non-security remaps. Later layers refine earlier ones for
-NON-SECURITY axes only; no repo-local (agent-writable) value ever supplies or overrides a
+non-security axes only; no repo-local (agent-writable) value ever supplies or overrides a
 security axis.
 
 **Security-binding locator registry.** When settings-as-code is a separate repository,
@@ -205,7 +209,7 @@ on the org governance surface.
 **Agent-unwritable bootstrap for security resolution.** The repo-local `org_policy_home`
 pointer is tolerable for non-security defaults only, a repo-writable pointer would let
 an agent redirect the whole chain to a forged policy repository carrying a forged
-registry, binding, and matching runtime markers. For SECURITY resolution the seam pins
+registry, binding, and matching runtime markers. For security resolution the seam pins
 the org-policy-home identity from an agent-unwritable bootstrap: org-level platform
 configuration outside repo blast radius (an org-level setting or variable repo agents
 cannot write) or the executor's trusted deployment config. Any security resolution that
@@ -221,7 +225,7 @@ no security axis ever resolves from a documented default or a repo-local surface
 
 Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md)
 (open it, then the `guardrails/<leaf>.md` it routes to, for whatever axis is in question): detect,
-bind, live-validate, fail-closed, always detect-diff-reconciling against the org's EXISTING
+bind, live-validate, fail-closed, always detect-diff-reconciling against the org's existing
 guardrail surfaces. The [resolution section above](#guardrail-binding-resolution) owns how bound
 policy resolves; this slice is the action that produces the security binding it resolves. Read
 [`context/guardrail-slice.md`](context/guardrail-slice.md) when `apply` reaches the guardrail
@@ -236,7 +240,7 @@ Wires the standing-routine state of the
 [routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md) (read it to pick a routine; each
 recipe is a leaf under `routines/`): a routine is a scheduled
 `temporal`-class signal adapter behind the governed queue, never a private execution or merge path.
-Like the [guardrail slice](#guardrail-slice) it PREPARES the security surface and never writes it.
+Like the [guardrail slice](#guardrail-slice) it prepares the security surface and never writes it.
 Read [`context/routine-slice.md`](context/routine-slice.md) when `apply` reaches the routine slice:
 it owns the discovery-first reconciliation against the org's existing schedulers and bots, the
 [`templates/routine-definitions.md`](templates/routine-definitions.md) template, the CI-cron
@@ -263,7 +267,7 @@ fails loud on internal failure, never a verdict-shaped fallback.
    A bare repo yields `unsupported` / `unknown` for every identity, never an error.
 2. **`apply`**. Detect-diff-reconcile against existing `prerequisite_resolution`
    declarations; a declaration contradicting a ran-negative probe is a finding (identity
-   stays negative while the finding is open. ADR 0011 Decision 2). The prose-context pass
+   stays negative while the finding is open). The prose-context pass
    reads `CLAUDE.md` / `AGENTS.md` (session-reachable only by reference) / `README` to
    *propose* declarations into **non-security keys only**; the human ratifies; the slice
    writes the additive section (`surface_refs` + `declarations`, no `surfaces` map).
@@ -277,7 +281,7 @@ fails loud on internal failure, never a verdict-shaped fallback.
 ## Runner note
 
 The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
-until a build trigger fires and the runner-execution home is born, setup records NOTHING
+until a build trigger fires and the runner-execution home is born, setup records nothing
 runner-specific. No probe, no wiring, no binding section for the unborn home. The single
 exception is escalation notification routes, which already home on the security surface: the
 severity axis (`notice`/`attention`/`urgent`) and the personal-push tier are prepared as route
@@ -297,16 +301,15 @@ split.
 
 ## Gotchas
 
-Editing- and run-time failure modes, the two-binding split (repo-local autonomy binding vs the
-separate security binding), the spell gate splitting coined hyphenated compounds, and a scheduling
-surface recorded in two `surfaces` maps resolving as ambiguous, are catalogued in
+Run-time failure modes, the two-binding split (repo-local autonomy binding vs the separate
+security binding), detector-fired temporal signals that carry no routine identity, and a
+scheduling surface recorded in two `surfaces` maps resolving as ambiguous, are catalogued in
 [`context/gotchas.md`](context/gotchas.md).
 
 ## What this skill does NOT do
 
 - Wire capability slices that have not shipped yet. Each lands with its own work package and
-  extends this skill (the runner charter execution pack remains the next such slice after
-  prerequisite-resolution).
+  extends this skill.
 - Estimate, impute, or backfill the two human-attested return fields. Ever.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace

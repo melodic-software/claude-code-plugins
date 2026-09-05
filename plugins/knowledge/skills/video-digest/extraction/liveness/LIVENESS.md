@@ -1,12 +1,8 @@
 # Source-adapter liveness lane (video-digest)
 
 Owner doc for the **scheduled / offline-compatible liveness lane** that detects
-upstream drift in the video-digest source adapters (YouTube + X). Tracker:
-[#2797](https://github.com/melodic-software/claude-code-plugins/issues/2797).
-Broader refactor record: `docs/adr/0012-dispatch-video-sources-through-a-static-adapter-registry.md`,
-`docs/adr/0013-keep-storage-format-identifiers-stable-across-renames.md`, and the
-knowledge plugin CHANGELOG 0.13.0 entry (the refactor that deferred this lane off
-the merge path).
+upstream drift in the video-digest source adapters (YouTube + X). The lane runs off
+the merge path by design; see "Split from conformance" below.
 
 ## Split from conformance
 
@@ -29,7 +25,7 @@ Manifest: `plugins/knowledge/skills/video-digest/extraction/liveness/probes.json
 | Probe id | Source | Live URL / fixture role |
 |---|---|---|
 | `youtube-canonical` | YouTube | Canonical example URL from the registry-conformance suite |
-| `x-verified-public` | X | Phase 2/3 verified public status (`lispower1/1001551623938805763`) |
+| `x-verified-public` | X | Verified public status (`lispower1/1001551623938805763`) |
 | `x-login-required-shape` | X | Auth-dependent shape; **skips** live when no cookies file is set |
 
 Live mode compares extractor key, id / display_id, and format presence against
@@ -52,8 +48,9 @@ materializes them to a temp file before probing):
 - `VIDEO_DIGEST_YT_DLP_COOKIES_FILE`
 - `YOUTUBE_YT_DLP_COOKIES_FILE`
 
-Auth-required probes without cookies **skip**, never fail — X auth-fallback
-windows are weeks-to-months volatile (Phase 2/3 design note).
+Auth-required probes without cookies **skip**, never fail: X auth-fallback
+windows are weeks-to-months volatile, so an auth failure here is expected drift,
+not a regression.
 
 ## Workflow
 

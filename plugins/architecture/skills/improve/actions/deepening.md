@@ -13,9 +13,9 @@ leverage never cashed in. Decide *where* to look before looking:
 - If the user named a direction — a module, a subsystem, a pain point, whether in the invocation
   arguments or the conversation — scope the scan to it and skip the inference below.
 - Otherwise, walk back the recent commit history to find the hot spots — the files and areas that
-  keep coming up — and let those paths pull the scan first. The pre-computed **Recent commits**
-  context is the starting evidence; extend with `git log --oneline -20` when it runs thin. If the
-  changes are scattered with no clear hot spot, widen the net.
+  keep coming up — and let those paths pull the scan first. The **Recent commits** list gathered by
+  this skill's repository-context step is the starting evidence; when it runs thin, go deeper with a
+  longer `git log --oneline`. If the changes are scattered with no clear hot spot, widen the net.
 
 The scope chosen here sets each scan subagent's assigned area.
 
@@ -41,7 +41,7 @@ Classify each candidate's dependencies per [../research/deepening/dependencies.m
 Hard gate between the scan and the report. Scan-agent accuracy is mixed, and the HTML report is a user-facing artifact that lends every claim its authority — an overstated claim there is cheap to make and expensive to reputation. The scan output carries a `confidence` field (`strong` / `worth-exploring` / `speculative`) but no badge yet — the `recommendation` badge is assigned in Phase 2. Gate on the scan field that exists here. Before rendering Phase 2, adversarially verify:
 
 - **Every candidate the scan returned with `confidence: strong`** (the ones headed for a `Strong` badge) — reproduce its `shallow-signal` (the concrete observation from the scan-briefing return schema). If the signal does not reproduce, drop the candidate's confidence below `strong`.
-- **Every `runtime-claim`** — any candidate asserting a live bug or dead code. These are grep-cheap to check and the most damaging to get wrong (the worked failure: a scan reporting a service "registered but never composed" that a single grep showed *is* consumed, via a different consumer, with tests). Reproduce the claim against the actual code before it reaches the report; correct or drop it if it does not hold.
+- **Every `runtime-claim`** — any candidate asserting a live bug or dead code. These are grep-cheap to check and the most damaging to get wrong: a service can look unregistered from the file that should compose it and still be consumed elsewhere, with tests. Reproduce the claim against the actual code before it reaches the report; correct or drop it if it does not hold.
 
 Verification can be a second cheap read-only subagent pass or inline reproduction — the bar is that no `confidence: strong` candidate and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan.
 

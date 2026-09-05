@@ -1,8 +1,5 @@
 # Gotchas
 
-Observed during this plugin's own build and corpus runs, not hypothesized. Each one produced a
-wrong or invisible result before it was found.
-
 ## A silent regex failure looks like a clean corpus
 
 mawk panics at compile time on interval expressions (`{0,4}`), and the scan then returns nothing
@@ -26,22 +23,12 @@ nothing.
 
 ## A high declined count is the honest answer, not a defect
 
-Roughly 8 percent of this repository's stamp candidates decline, because the corpus genuinely
-writes month-name and bare-year dates ("as of July 2026", "as of 2026"). That number is a fact
-about the corpus.
+A real share of this repository's stamp candidates decline, because the corpus genuinely writes
+month-name and bare-year dates ("as of July 2026", "as of 2026"). That count is a fact about the
+corpus.
 
 Do not tune the parser to shrink it. A parser that guesses at those forms manufactures findings
 against dates nobody wrote down precisely, which is worse than declining them and saying so.
-
-## `affected-tests.sh --run` exits 3 for this plugin, and 3 is not failure
-
-Exit 1 is a failing suite. Exit 3 means every shell suite it selected passed AND it also
-selected a suite in an ecosystem whose runner it deliberately declines to guess. This plugin
-carries `fingerprint.test.mjs`, so any diff touching it selects that suite and the runner can
-never return 0.
-
-Read both lanes: the shell result from `--run`, and
-`node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.test.mjs` on its own.
 
 ## Zero expiry findings can be a real result
 

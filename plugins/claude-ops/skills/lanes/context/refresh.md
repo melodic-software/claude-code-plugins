@@ -1,9 +1,9 @@
 # Mid-session refresh: why a running lane can't hot-reload its own fix
 
 Loop lanes routinely merge fixes to the very plugins they run on (`babysit` fixes
-`babysit`, the work lane fixes `work-items`). The question this file answers
-(#514): can a **running** lane consume a just-merged fix to its own skill files
-without an operator restart?
+`babysit`, the work lane fixes `work-items`). The question this file answers:
+can a **running** lane consume a just-merged fix to its own skill files without
+an operator restart?
 
 ## Empirical answer: no true mid-session hot-reload for a running loop lane
 
@@ -34,7 +34,7 @@ but that path needs a human to type it and does not reach an autonomous loop who
 skill body is already fixed in context.
 
 **Conclusion:** restart is the honest mechanism. It also resets context bloat
-(composes with #496's restart discipline), so the live decision is restart
+(composes with the restart discipline), so the live decision is restart
 *frequency*, not hot reload.
 
 ## Detecting that a self-fix landed (checkable git probe)
@@ -56,10 +56,9 @@ default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo
 # distinct keys; keyed on git's canonical (symlink-resolved) toplevel, which is
 # exactly what lane-launcher.sh hashes.
 repo_key="$(printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin)"
-# the commit lane-launcher.sh recorded when this lane last (re)started (#792)
+# the commit lane-launcher.sh recorded when this lane last (re)started
 # tr -d '\r': strip a Windows CRLF read hazard on any captured value (the
-# repo's standing convention — see the CHANGELOG's #1176/F2 note) before it
-# reaches the git log range below.
+# repo's standing convention) before it reaches the git log range below.
 lane_launch_commit="$(cat "$data_dir/lanes/$repo_key/<lane>-launch-commit" 2>/dev/null | tr -d '\r')"
 # merged changes to the claude-ops plugin the running lane has NOT consumed
 [[ -n "$lane_launch_commit" ]] && git log --oneline "${lane_launch_commit}..${default}" -- plugins/claude-ops/
@@ -136,7 +135,7 @@ update) is the `plugins` skill's job — see its
   so the merged skill body loads. Restart discards the lane's in-flight
   conversation, so prefer a cycle boundary over mid-cycle.
 - **Periodic floor:** even with no detected merge, restart lanes on the daily
-  harvest/reset cadence (the same restart that clears context bloat, #496). This
+  harvest/reset cadence (the same restart that clears context bloat). This
   bounds self-fix staleness to at most one cadence interval.
 - **Until restart:** a behavior known-broken-but-fixed-on-main must be carried as a
   temporary workaround in the loop prompt — the existing prompt rule for *unmerged*

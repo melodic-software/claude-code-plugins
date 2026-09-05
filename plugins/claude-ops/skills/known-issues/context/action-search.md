@@ -11,7 +11,7 @@
 
 ## Process
 
-**Step 1: Search GitHub Issues** using `gh` CLI (authenticated via `GH_TOKEN` — never use global `gh auth`):
+**Step 1: Search GitHub Issues** using the `gh` CLI, with whatever authentication the consumer's environment already provides:
 
 ```bash
 # Open issues

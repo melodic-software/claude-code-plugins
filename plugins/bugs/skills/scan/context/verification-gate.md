@@ -19,9 +19,10 @@ Give the gate this stance verbatim:
 > until you have specifically failed to explain it away. Do not accept the candidate's reasoning; redo
 > it from the source. **If uncertain, it is NOT a finding.**
 
-The known failure mode of a verification subagent is declaring a pass without doing the work. Counter
-it with an explicit imperative: the gate MUST open the cited file and read the surrounding code, MUST
-attempt the falsification routes below, and MUST state which ones it tried.
+A verification subagent can return a verdict without having done the work. The gate therefore
+opens the cited file and reads the surrounding code, attempts each falsification route below, and
+states which routes it tried and what each one showed; a verdict that names no route is not a
+verdict.
 
 ## What the gate receives
 

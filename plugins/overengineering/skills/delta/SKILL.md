@@ -1,5 +1,5 @@
 ---
-description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when: 'what changed since the last audit', 'delta since the last run', 'run the enforcement audit on a schedule', 'recurring overengineering check', 'only show me what is new', 'did any verdict move', 'weekly automation-cruft check'. Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
+description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when the ask is for what moved since the last enforcement audit ('what changed since the last audit', 'did any verdict move') or for a recurring, scheduled enforcement check ('run the enforcement audit on a schedule'). Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,14 +9,22 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
 
-Deliberately one line. A precompute block carrying a git command **and** more than one injection line
-is refused outright in a worktree-isolated agent, which is exactly the dispatched context a scheduled
-run of this lane arrives in. The baseline's UTC stamps are read with an ordinary `date -u
-+%Y%m%dT%H%M%SZ` call at the moment they are written, where they are accurate anyway.
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
+The branch is deliberately a body call and not a pre-compute line: a worktree-isolated agent is
+exactly the dispatched context a scheduled run of this lane arrives in. The baseline's UTC stamps
+are read with an ordinary `date -u +%Y%m%dT%H%M%SZ` call at the moment they are written, where they
+are accurate anyway.
 
 **`symbolic-ref`, not `rev-parse --abbrev-ref`, and the difference is the whole guard.**
 `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD` on a detached checkout, a value
@@ -117,8 +125,8 @@ unchanged**:
 
 ## The run
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the `no branch ref` string. When it yields the string, the checkout is detached (or absent) and
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output. When it fails, the checkout is detached (or absent) and
    **`HEAD` is never accepted as a branch identity**. See "A detached checkout has no branch
    identity" in [context/run-states.md](context/run-states.md) for what to do and what not to.
    Resolve the home by running the whole rung order in
@@ -270,7 +278,7 @@ intent. … An explicit user `/work-items:track add ...` invocation IS the autho
 model-initiated filing is not"*, so an unattended scheduled cycle, which is the mode this lane
 exists for, has no authorization to file anything and a conforming tracker must refuse it. Setting
 the key **is** the explicit, recorded authorization the gate asks for, given once by a human in a
-file. **Do not flip this default back to `auto`**: a default-on route makes the lane's ordinary
+file. **`inline` is the default for that reason**: a default-on route would make the lane's ordinary
 unattended path a request the tracker is contractually obliged to decline.
 
 | `queue_route` | Condition | What the lane does |

@@ -94,5 +94,4 @@ Exit codes: 0 all checks passed; 1 one or more named check failures; 2 unusable 
 (parse/IO/schema-literal errors); 3 internal invariant violation. A clean run prints what it
 exercised (file names, row count, node count, field list) — silence is never a pass, and a pass
 covers only what was printed. The gate was written and tested to fail loudly on unparsable and
-malformed input BEFORE being made a required artifact (two prior gates in this codebase shipped
-fail-open and were caught by verifiers).
+malformed input BEFORE being made a required artifact.

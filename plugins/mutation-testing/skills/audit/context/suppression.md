@@ -22,8 +22,8 @@ suppress** — it is reported as malformed, never silently partially parsed.
 | `reason` | Why killing this mutant would not improve the suite. Non-empty, and a sentence a reviewer a year from now can judge — not "arid" restated. |
 | `date` | ISO-8601, when it was accepted. |
 
-`reason` and `date` alone are **not** a valid entry. An early draft of this plugin described the
-record as carrying only those two; that was wrong, and an entry shaped that way is malformed.
+`reason` and `date` alone are **not** a valid entry: an entry carrying only those two is missing
+`check`, `claim`, and `sites`, and is malformed.
 
 ## Anchor and id derivation — this consumer's contract
 

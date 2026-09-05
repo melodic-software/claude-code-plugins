@@ -26,7 +26,7 @@ test('login flow', async ({ page }) => {
   // Generated from a playwright-cli session:
   await page.goto('https://example.com/login');
   await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
-  await page.getByRole('textbox', { name: 'Password' }).fill('password123');
+  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.E2E_TEST_PASSWORD!);
   await page.getByRole('button', { name: 'Sign In' }).click();
 
   // Add assertions manually — the CLI captures actions, not expectations:

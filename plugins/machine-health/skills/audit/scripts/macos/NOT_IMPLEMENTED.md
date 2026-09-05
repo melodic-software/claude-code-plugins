@@ -26,4 +26,6 @@ See `../../reference/macos/NOT_IMPLEMENTED.md` for the full porting checklist. S
 - Write one `checks/Test-*.ps1` per seeded catalog entry (port each Windows check to its macOS equivalent; mark not-applicable checks with rationale in the catalog).
 - PowerShell 7 runs natively on macOS; check scripts stay in PowerShell for language parity with Windows. Helpers in `lib/` copy with near-zero changes.
 
-Remove this file once the folder has a working orchestrator and all eight seeded checks have macOS analogs (or explicit "not applicable" decisions).
+Remove this file once the folder has a working orchestrator and every check in
+`reference/windows/check-catalog.md` has a macOS analog or an explicit "not applicable" decision
+recorded with its rationale.

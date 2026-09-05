@@ -14,8 +14,7 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
   to surface inherits precisely the blind spot the ledger exists to close, and then certifies it. Use
   a surface that is exhaustive by construction, and record the corpus as narrowed when it is.
-- **Stopping at the floor while gaps remain.** Every query minimum reads "at least", never "exactly".
-  Models satisfice to stated numbers, so a flat floor reliably produces exactly-floor shallow phases;
+- **Stopping at the floor while gaps remain.** Every query minimum reads "at least", never "exactly";
   the Phase 1 gap count is what sets the Phase 2 query count.
 - **A probe standing in for a fetch.** A title, an index entry, or a search snippet establishes that
   a rung *exists* — never that it lacks the claim, because the section being chased is exactly what a

@@ -51,15 +51,7 @@ Flag untested areas honestly — risks, not failures.
 
 ### 5. Structural comparison
 
-Show what changed structurally:
-
-```bash
-# Files changed
-git diff --stat HEAD~1
-
-# Structural summary
-git diff --name-status HEAD~1   # shows A(dded), M(odified), D(eleted), R(enamed)
-```
+Show what changed structurally with `git diff --stat` and `git diff --name-status`, each run as its own plain git command, against the pre-refactor base: the working tree against `HEAD` for uncommitted work, or the branch against its merge-base when the refactor is committed. A committed refactor spans its commits, not only the last one.
 
 ### 6. Report
 

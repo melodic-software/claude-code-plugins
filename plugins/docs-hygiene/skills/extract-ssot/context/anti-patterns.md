@@ -174,9 +174,9 @@ accidental case looks similar and is the opposite problem — two files assert t
 the SAME audience and NEITHER is the declared owner, so nothing keeps them in sync and they drift.
 That is a defect, not a design.
 
-The **N=2 bucket is how accidental bifurcation reaches the user.** Two instances never cleared the
-old reporting threshold, so the most common form of this defect was silently discarded by the very
-skill meant to catch it. `verify` Gate 4 now splits the two: intentional refuses as below;
+The **N=2 bucket is how accidental bifurcation reaches the user.** Two instances are the most common
+form of this defect, and they are rostered rather than discarded. `verify` Gate 4 splits the two:
+intentional refuses as below;
 accidental PROCEEDs at `bucket: N=2` with the remedy **`name-an-owner`** — declare one of the two
 existing files canonical and make the other cite it. No third file is created; minting one would be
 the premature abstraction Rule of Three guards against.

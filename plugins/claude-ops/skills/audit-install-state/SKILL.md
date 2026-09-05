@@ -115,9 +115,9 @@ a `manifest.json` / baseline shallow under `plugins/data/`) was found. Its direc
 deny-listed and every entry under it reports `deny-listed` instead of a staleness verdict.
 
 Treat a deny-listed subtree as the possible **sole copy** of somebody's revert path. Do not propose
-anything for it. Check the ledger's `age_days`, live versus abandoned changes everything, and
-**diff against the stored baseline rather than believing the ledger's own summary**; one such file
-claimed "all 68 keys set false" when the truth was 70 keys with one still true.
+anything for it. Check the ledger's `age_days`, since live versus abandoned changes everything, and
+**diff against the stored baseline rather than believing the ledger's own summary**. A ledger's
+self-description is written by the experiment it describes and can be wrong about its own key count.
 
 ## Phase 2. Retention, before any staleness claim
 
@@ -160,7 +160,8 @@ Everything that is not `pid` reads `not_applicable` **by construction**, not bec
 missed. That distinction is the whole point:
 
 - `ide/<n>.lock`, the number is a **listening TCP port**. The real PID is in the body, which is not
-  opened. One audit came within a step of deleting a live VS Code integration on this exact error.
+  opened. A process lookup on the port number returns a clean miss, and deleting on that miss breaks
+  a live IDE session.
 - `rate-limit-guard/*.tmp.<n>`. MSYS2 `$$`, not an OS PID. Judge by age and zero length.
 - `shell-snapshots/...`, `backups/...`. Epoch milliseconds. No PID anywhere in the name.
 - unrecognised. Reported as `unknown`. A scheme the table has never seen fails closed.
@@ -198,9 +199,9 @@ State that the tree was live (`quiesced: false`). Counts drift while a scan runs
 count keyed on sessions carries a margin of error, because a session whose record vanished mid-run is
 *unknown*, not *dead*.
 
-If you fan this out across agents, keep an explicit cross-review stage: in the audit this skill came
-from, five errors were made and five were caught, **none by the agent that made it**. Parallelism buys
-coverage, not correctness. Verify a peer's claim against your own evidence before adopting it, and
+If you fan this out across agents, keep an explicit cross-review stage run by a fresh-context reviewer
+that did not produce the findings. Parallelism buys coverage, not correctness, and a producer rarely
+catches its own error. Verify a peer's claim against your own evidence before adopting it, and
 record a disagreement nothing depends on as unresolved rather than settling it silently.
 Cross-review procedure: see [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
@@ -226,7 +227,7 @@ Upstream-claim verification: see [reference/evidence-discipline.md](reference/ev
   variable, not decay. Phase 1 exists for this.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence
   the sweep completed, including its remove-the-empty-directory step.
-- **The "safe, no judgment required" tier is the one most in need of an independent check**, the one
-  operation a prior audit called mechanically provable was wrong, because a case-insensitive
-  comparer collapsed three distinct deny rules. This skill's deny matching is case-sensitive and
-  tested; it encodes no dedupe or subsumption logic at all.
+- **The "safe, no judgment required" tier is the one most in need of an independent check.** A
+  case-insensitive comparer collapses deny rules that differ only by case, so a "mechanically
+  provable" dedupe can drop protections. This skill's deny matching is case-sensitive and tested; it
+  encodes no dedupe or subsumption logic at all.

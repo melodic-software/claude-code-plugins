@@ -21,14 +21,17 @@ Read when running the update action. The update model, preservation invariants, 
 ```text
 1. Gather state    firecrawl --status           → current version, auth, credits
                    npm view firecrawl-cli version → latest published
-                   curl upstream SKILL.md → /tmp  → SHA256
-                   firecrawl --help → /tmp        → current command surface
+                   curl upstream SKILL.md → run dir → SHA256
+                   firecrawl --help → run dir       → current command surface
+                   update.sh creates one run directory per invocation with
+                   mktemp -d "${TMPDIR:-/tmp}/firecrawl-update-XXXXXX" and removes
+                   it on exit, so every intermediate file lives there.
 2. Compare         version delta, upstream SHA vs UPSTREAM.md record
 3. Report          one-pane summary — nothing mutated yet
 4. [Gate 1]        prompt to proceed with npm install
 5. Execute npm     npm install -g firecrawl-cli@latest
                    firecrawl --status           → verify post-install
-                   firecrawl --help → /tmp       → new command surface
+                   firecrawl --help → run dir     → new command surface
                    diff old vs new help
 6. [Gate 2]        integrate upstream SKILL.md changes into ours
                    — small delta: inline-edit preserving the Preservation rules
@@ -37,6 +40,5 @@ Read when running the update action. The update model, preservation invariants, 
                      (passing the Preservation rules), otherwise inline-edit
                    show proposed SKILL.md diff, prompt to apply
 7. Finalize        update UPSTREAM.md (date, SHA, version, previous-version for rollback)
-                   clean up /tmp/fc-*
                    run the repo's markdown + shell linters over the changed files
 ```

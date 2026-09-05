@@ -81,5 +81,4 @@ escalation rules.
 The proven manual pattern: recurring hand-run debt review sessions producing a backlog of
 cleanup tickets. Productized precedent: hotspot-ROI code-health platforms prioritizing by
 change frequency, deterministic refactoring-recipe engines running remediation campaigns,
-and dedicated org-wide fix-it cadences. Precedent record: routine-catalog research,
-row 24.
+and dedicated org-wide fix-it cadences.

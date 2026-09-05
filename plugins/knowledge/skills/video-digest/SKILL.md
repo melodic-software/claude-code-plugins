@@ -182,7 +182,7 @@ before writing or staging slice artifacts.
 
 Observed failure modes. Recovery detail in `context/gotchas.md`: bot/sign-in cookie fallback,
 HTTP 429 backoff + concurrency cap, temp-session expiry (re-run `run-watch.js` before vision),
-cloud-agent media-toolchain fail-closed, retired `watch-progress.json`. Source-specific failure
+cloud-agent media-toolchain fail-closed, phase state only in `watch.json`. Source-specific failure
 patterns live in the source spokes.
 
 ## Prerequisites

@@ -27,7 +27,7 @@ A recording always supplements screenshot evidence; it never replaces it.
 
 Selects whether the driven browser is visible.
 
-- `headless` (default) — drive without a visible window; preserves current behavior.
+- `headless` (default): drive without a visible window.
 - `headed` — surface the browser window for direct observation.
 
 `run-e2e` resolves the value and passes it through to the executor, which owns the flag that realizes it.

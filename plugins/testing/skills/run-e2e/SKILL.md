@@ -1,5 +1,5 @@
 ---
-description: "End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: 'e2e', 'smoke test', 'test the app', 'run it end to end', 'does the app actually work', 'click through the UI', or when UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
+description: "End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
 argument-hint: "[scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,10 +9,22 @@ metadata:
   summary: Start the app, drive real flows, capture evidence
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -29,7 +41,7 @@ Autonomous live verification of a running application: start it, navigate, inter
 | UI flows, browser evidence, API + UI orchestration | [context/e2e.md](context/e2e.md) |
 | Non-UI runtime surface (library, MCP server, hooks, scripts, infrastructure) | [context/non-ui.md](context/non-ui.md) |
 
-UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) MUST use the e2e route, the UI evidence contract is mandatory there.
+UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route because the UI evidence contract applies there.
 
 ## Step 1: Prerequisites
 
@@ -57,9 +69,9 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
 ## Handoff
 
-- Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface, but is [user-invoked by default from v2.1.215](https://code.claude.com/docs/en/skills#bundled-skills), before v2.1.215 Claude could also run it on its own, and from v2.1.225 a runtime gate governs invocability rather than a fixed version cutoff, so two clients on one version can differ. Suggest the user run it and consume its findings rather than delegating to it, on every version: the suggestion holds across the whole `≥2.1.145` availability window and across either invocability state, delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability
+- Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability
 - All scenarios pass → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is installed (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
-- Visual bugs or API errors found → invoke `/testing:diagnose` via the Skill tool
+- Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 
 ## What this skill does NOT do
@@ -69,6 +81,6 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
 ## Gotchas
 
-- **Semantic locators ONLY**. Accessibility-based element refs from snapshots, never CSS selectors or XPath that break on cosmetic changes
+- **Semantic locators**. Use the snapshot's accessibility-based element refs; CSS selectors and XPath break on cosmetic changes
 - Orchestrator version coupling + health-check waits. Wait for the orchestrator's health signal before driving flows; don't poll blindly
 - Playwright CLI vs MCP token budget: CLI is substantially cheaper (artifacts go to disk, only paths enter context). CLI by default; detail in [context/e2e.md](context/e2e.md)
