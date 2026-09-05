@@ -116,13 +116,13 @@ try {
         }
 
         $detail = @{
-            stability_days      = $metrics.Count
-            stability_min_7d    = $stabilityMin
-            stability_avg_7d    = $stabilityAvg
-            records_count       = $records.Count
+            stability_days       = $metrics.Count
+            stability_min_7d     = $stabilityMin
+            stability_avg_7d     = $stabilityAvg
+            records_count        = $records.Count
             hardware_crash_count = $hardwareCrashCount
-            repeat_crash_count  = $repeatCrashCount
-            top_events          = $topEvents
+            repeat_crash_count   = $repeatCrashCount
+            top_events           = $topEvents
         }
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

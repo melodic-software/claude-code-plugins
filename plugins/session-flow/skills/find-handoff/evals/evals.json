@@ -206,6 +206,19 @@
         "The observed `state` value is reported as read, not coerced into one of the familiar labels — the branch values are observed, not a closed set",
         "The candidate is not excluded from the default winner: exclusion is for live and for completed continuations, and this is neither"
       ]
+    },
+    {
+      "id": 16,
+      "name": "shape-2-prompt-is-recovered-from-the-file-alone",
+      "prompt": "Find my lost handoff. The skill wrote the file a minute ago and I ran /clear before copying the prompt. (Note: the handoffs directory also holds a slightly older file that still contains `<!-- FILL:` comments from a run that got cut off.)",
+      "expected_output": "Rung 1 globs the current repo's handoffs directory, keeps the `type: handoff` files, and skips the one still carrying `<!-- FILL` slots, naming it as an unfinished skeleton rather than presenting it. The remaining candidate has `handoff_shape: 2`, so its resume prompt is recovered from the file itself: the skill prints the `## Resume prompt` section with `save_point.py emit <file>` through the interpreter ladder (falling back to `sed -n '/^## Resume prompt$/,$p'` when no Python is on PATH, saying that the stored path was not re-checked). It surfaces that block, the below-rail `claude --resume <UUID>` line, and the file's metadata at the confirm gate, and stops for yes/no. No transcript scan is needed.",
+      "files": [],
+      "expectations": [
+        "A `type: handoff` file that still contains a `<!-- FILL` slot is skipped and named as an unfinished skeleton, never surfaced as the lost handoff",
+        "For the `handoff_shape: 2` candidate the resume prompt is printed from the file's own `## Resume prompt` section via `save_point.py emit` (or the `sed -n` fallback without Python), not reconstructed and not sought in a transcript first",
+        "The surfaced prompt includes the block between the rails and the below-rail `claude --resume` line, with the directive's `Read @` path being the file's real path (emit substitutes the current path when the stored one is stale, and the fallback says no substitution ran)",
+        "The skill still stops at the confirm gate with the file's metadata (topic, date, session_id chain) before any resume, and reads no more of the file body than that final section"
+      ]
     }
   ]
 }

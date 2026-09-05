@@ -18,12 +18,16 @@
 
 set -uo pipefail
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
 # Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
 # an unset switch must read as the plugin.json default, which is false.
+#
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. This one was already inlined, so
+# the hoist only moves it; scripts/check-killswitch-hoist.sh keeps it here.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED:-false}" == "true" ]] || exit 0
+
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.

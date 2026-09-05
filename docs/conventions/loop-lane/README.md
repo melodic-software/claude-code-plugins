@@ -166,10 +166,11 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 ~30 minutes later — 3 minutes *after* the PR had merged).
 
 - **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
-  server-side: the org ruleset requires the `do-not-merge` status check, and the workflow behind it
-  re-evaluates on `labeled`/`unlabeled`, so applying the label flips a SHA-bound required check with
-  no bypass actors. A PR **comment is never a hold** — comments are advisory by construction; no
-  gate reads them, and an escalation comment on the PR obliges nothing until the label is on.
+  server-side: the org ruleset requires the `ci-status` check, whose `pr-contract` step fails on the
+  `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
+  SHA-bound required check with no bypass actors. A PR **comment is never a hold** — comments are
+  advisory by construction; no gate reads them, and an escalation comment on the PR obliges
+  nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge` — before drafting the escalation comment, before assembling the supporting
   evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a

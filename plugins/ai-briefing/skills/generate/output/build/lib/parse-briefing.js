@@ -17,7 +17,7 @@
 //   ...
 //
 // Output:
-//   { meta: { meetingNumber, window, items_count, sources_line }, buckets: { Anthropic: { HIGH:[…], MED:[…], LOW:[…] }, ... } }
+//   { meta: { meetingNumber, window, sourcesLine }, buckets: { Anthropic: { HIGH:[…], MED:[…], LOW:[…] }, ... } }
 
 import { unified } from "unified";
 import remarkParse from "remark-parse";

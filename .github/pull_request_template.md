@@ -1,10 +1,11 @@
 <!--
 Fill in each section and delete these guidance comments before submitting.
 
-The pr-issue-linkage check requires BOTH a native closing keyword AND a
-non-empty ## Related section. It strips HTML comments before validating, so an
-unedited template does not pass until you replace the placeholders with real
-content.
+The issue-linkage half of the ci-status pull-request contract asks for BOTH a
+native closing keyword AND a non-empty ## Related section. It is advisory: a body
+that misses either gets a comment and the needs-issue-linkage label rather than a
+red check. It strips HTML comments before validating, so an unedited template
+does not conform until you replace the placeholders with real content.
 -->
 
 Closes #

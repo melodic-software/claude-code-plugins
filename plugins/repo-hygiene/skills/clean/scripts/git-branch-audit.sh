@@ -100,7 +100,7 @@ classify_branch() {
   elif grep -qxF "$branch" <<<"$WORKTREE_BRANCHES"; then
     tier="WORKTREE"
     reason="checked out in worktree — clean up the worktree first"
-  elif [[ -n "${PR_STATE[$branch]:-}" && "${PR_STATE[$branch]}" == "MERGED" ]]; then
+  elif [[ "${PR_STATE[$branch]:-}" == "MERGED" ]]; then
     local_tip="$(git -C "$REPO_ROOT" rev-parse "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
     if [[ -n "${PR_REFOID[$branch]:-}" && -n "$local_tip" && "$local_tip" != "${PR_REFOID[$branch]}" ]]; then
       tier="REVIEW"
@@ -114,7 +114,7 @@ classify_branch() {
   elif grep -qxF "$branch" <<<"$MERGED_BRANCHES"; then
     tier="SAFE"
     reason="merged (git ancestry)"
-  elif [[ -n "${PR_STATE[$branch]:-}" && "${PR_STATE[$branch]}" == "CLOSED" ]]; then
+  elif [[ "${PR_STATE[$branch]:-}" == "CLOSED" ]]; then
     tier="REVIEW"
     reason="PR closed without merge"
     pr_line="#${PR_NUM[$branch]} CLOSED"

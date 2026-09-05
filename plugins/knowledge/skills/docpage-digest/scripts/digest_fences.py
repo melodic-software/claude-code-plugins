@@ -90,11 +90,11 @@ def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:
     in_fence = False
     open_ticks = 0
     for idx, line in enumerate(lines):
-        is_open, _indented, ticks = _is_fence_opener(line)
         if in_fence:
             if _is_fence_closer(line, open_ticks):
                 in_fence = False
             continue
+        is_open, _indented, ticks = _is_fence_opener(line)
         if is_open:
             in_fence = True
             open_ticks = ticks
@@ -231,7 +231,7 @@ def payload_in_source(payload: str, source: str) -> bool:
         lost_trailing = (
             bool(rest_of_line)
             and rest_of_line.strip(" \t") == ""
-            and not (payload.endswith(" ") or payload.endswith("\t"))
+            and not payload.endswith((" ", "\t"))
         )
         if not lost_trailing:
             return True

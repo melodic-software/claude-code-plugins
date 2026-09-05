@@ -90,9 +90,8 @@ function cloneRepoToTemp(parsed) {
   return cloneDir;
 }
 
-function resolveCloneDir(parsed, courseDir) {
+function resolveCloneDir(parsed, codeOutputDir) {
   if (args["skip-clone"]) {
-    const codeOutputDir = join(courseDir, "code");
     if (!existsSync(codeOutputDir)) {
       log.error("  --skip-clone specified but code/ directory does not exist.");
       process.exit(1);
@@ -158,7 +157,7 @@ function main() {
     process.exit(1);
   }
 
-  const { cloneDir, isTemp } = resolveCloneDir(parsed, courseDir);
+  const { cloneDir, isTemp } = resolveCloneDir(parsed, codeOutputDir);
 
   log.info("  Analyzing structure...");
   const structure = detectRepoStructure(cloneDir);

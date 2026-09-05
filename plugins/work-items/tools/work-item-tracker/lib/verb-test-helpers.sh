@@ -24,9 +24,8 @@ assert_help() {
 
 # assert_usage_error <script> <args…> — the invocation exits 2 (usage).
 assert_usage_error() {
-  local script="$1"
+  local script="$1" name rc
   shift
-  local name rc
   name="$(basename "$script")"
   bash "$script" "$@" >/dev/null 2>&1
   rc=$?

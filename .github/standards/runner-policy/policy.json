@@ -940,7 +940,7 @@
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@0f8176e87e0be518f382664779655011bf95784a": {
       "routing": "runner-input",
       "runnerInput": "runner",
-      "allowedInputs": ["runner"],
+      "allowedInputs": ["runner", "pr-number", "timeout-minutes"],
       "allowedSecrets": {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
       },
@@ -1067,6 +1067,36 @@
         "contents": "read",
         "issues": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/checks.yml@b260ba091ca89bb3292eb53abea07ca8f0a51bf1": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "filters",
+        "timeout-minutes",
+        "typos",
+        "gitleaks",
+        "editorconfig",
+        "markdown",
+        "shellcheck",
+        "actionlint",
+        "exec-bit",
+        "machine-specific-paths",
+        "eol-renormalize",
+        "comment-hygiene",
+        "lychee-offline",
+        "check-jsonschema",
+        "check-jsonschema-files",
+        "check-jsonschema-builtin-schema",
+        "machine-specific-paths-exclude",
+        "comment-hygiene-exclude"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
     }
   },
   "canonicalSelectorInputs": {
@@ -1104,6 +1134,7 @@
   "managedLabelPatterns": [
     "(?:^|[^a-z0-9-])(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
   ],
+  "approvedManagedRunnerLabels": ["melodic-ubuntu-24.04-x64", "melodic-review-ubuntu-24.04-x64"],
   "hostedExceptionReasons": [
     "dependabot",
     "docker-socket",

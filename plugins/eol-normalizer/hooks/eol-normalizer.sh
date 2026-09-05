@@ -30,12 +30,15 @@ set -uo pipefail
 # separator, where the strip is a no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
-
-hook::check_enabled "EOL_NORMALIZER"
 
 # Capture $EPOCHREALTIME immediately after the kill switch so duration_ms covers
 # the work below. EPOCHREALTIME is Bash 5.0+; on older bash it is unset, so
@@ -101,9 +104,13 @@ if hook::telemetry_enabled; then
   FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
 fi
 
-# Build the telemetry data object. jq is authoritative; the fallback is a fixed
-# empty-shape object (never an interpolation of TOOL/FILE_REL, which could inject
-# quotes or backslashes from a path and corrupt the envelope).
+# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
+# action taken. jq is authoritative. The fallback is a fixed empty-shape
+# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
+# backslashes from a path and corrupt the envelope. The fallback is essentially
+# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \

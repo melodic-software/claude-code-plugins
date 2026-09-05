@@ -50,7 +50,6 @@ const CATEGORY_ORDER = [
   "music",
   "personal",
 ];
-const KNOWN_CATEGORIES = new Set(CATEGORY_ORDER);
 
 // The document's own statement of the vocabulary: the backticked first column
 // of the two tier tables under "## Vocabulary", in document order. This is a
@@ -107,7 +106,7 @@ function buildBlock() {
 
   const byCategory = new Map(CATEGORY_ORDER.map((category) => [category, []]));
   for (const plugin of marketplace.plugins) {
-    if (!KNOWN_CATEGORIES.has(plugin.category)) {
+    if (!byCategory.has(plugin.category)) {
       throw new Error(
         `${plugin.name}: category "${plugin.category}" is not in the taxonomy ` +
           "vocabulary (docs/CATALOG-TAXONOMY.md). Add it there and to CATEGORY_ORDER first.",

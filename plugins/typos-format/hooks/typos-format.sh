@@ -83,10 +83,13 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-
-hook::check_enabled "TYPOS_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
@@ -198,7 +201,10 @@ FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED
 # array (additive schema property, defaults to empty). jq is authoritative. The
 # fallback is a fixed empty-shape object — NOT an interpolation of
 # TOOL/FILE_REL, which could inject quotes or backslashes from a path and
-# corrupt the envelope.
+# corrupt the envelope. The fallback is essentially unreachable in practice (it
+# fires only if `jq -c` fails, and when jq is absent hook::emit_telemetry drops
+# the envelope anyway), so losing the values here is harmless and strictly
+# safer than emitting malformed JSON.
 #
 # Both arrays arrive on STDIN, never as --argjson values. They are uncapped by
 # design, and Windows caps a process command line at 32767 characters — about
@@ -258,7 +264,7 @@ fi
 # that basename is a redaction for telemetry, and resolving it against the repo
 # root would scan a different file or none at all.
 TYPOS_ARG="$FILE"
-RUN_DIR="${root:-$(dirname "$FILE")}"
+RUN_DIR="${root:-$FILE_DIR}"
 if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi
@@ -273,7 +279,7 @@ fi
 # the component fails" — and every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
 # https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
-# Same idiom as hook::check_enabled's kill switch. Only the literal "true"
+# Same idiom as the hoisted kill switch at the top. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.
 WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-false}"

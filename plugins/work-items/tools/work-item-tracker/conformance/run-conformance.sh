@@ -154,8 +154,9 @@ assert_eq "missing binding → exit 3" "3" "$?"
 # (lease TTL, jira/linear/gitea auth identity); any other key is a configuration error (exit 3,
 # same first-run signal as a missing binding), and removing the overlay restores
 # the team view. Deep merge semantics are unit-tested (lib/binding.test.sh); this
-# asserts the seam-level behavior through the CLI.
-OVERLAY_PATH="$(cd "$(dirname "$WORK_ITEM_TRACKER_BINDING")" && pwd)/.work-item-tracker.local.json"
+# asserts the seam-level behavior through the CLI. The binding was re-homed into
+# $BINDING_DIR above, so that is the directory the CLI derives the overlay from.
+OVERLAY_PATH="$BINDING_DIR/.work-item-tracker.local.json"
 printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
 wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
 printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
@@ -301,8 +302,9 @@ fi
 if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier"
-  assert_contains "frontier holds unblocked A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
-  assert_not_contains "frontier drops blocked B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
+  frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
+  assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
+  assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
 fi
 
 # --- lease lifecycle + claim race ---
@@ -347,8 +349,9 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     # and linear "lease is still live", so exact-matching either spelling makes the
     # suite unrunnable for the other adapter. What must hold is that reclaim selected
     # the ACTIVE lease rather than the superseded newer one.
-    assert_contains "reclaim picked the active lease" "$(jq -r '.reason' <<<"$WIT_OUT")" "live"
-    assert_not_contains "…and not the superseded one" "$(jq -r '.reason' <<<"$WIT_OUT")" "superseded"
+    reclaim_reason="$(jq -r '.reason' <<<"$WIT_OUT")"
+    assert_contains "reclaim picked the active lease" "$reclaim_reason" "live"
+    assert_not_contains "…and not the superseded one" "$reclaim_reason" "superseded"
 
     # Expired-lease reclaim: ttl 0 lease on B expires immediately.
     if [[ -n "$ITEM_B_ID" ]]; then
