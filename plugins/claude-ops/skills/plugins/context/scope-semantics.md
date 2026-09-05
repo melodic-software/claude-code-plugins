@@ -8,9 +8,10 @@ machine, not assumed from training data. Last re-verified 2026-09-05 against
 plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below.
 
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
-The 2026-09-05 pass re-ran the plugin-CLI write matrix, the project-scope cwd keying, the
-merged-effective `enable` gate, and the reap-by-path survey live on **Claude Code 2.1.261**; those
-claims carry that version. These claims were **not re-run on 2.1.261** and keep their older stamps:
+The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
+(against a real version bump, not a no-op), the project-scope cwd keying, the merged-effective
+`enable` gate, and the reap-by-path survey live on **Claude Code 2.1.261**; those claims carry that
+version. These claims were **not re-run on 2.1.261** and keep their older stamps:
 the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
