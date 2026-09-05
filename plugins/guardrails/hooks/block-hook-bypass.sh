@@ -114,6 +114,10 @@ INPUT=$(hook::buffer_stdin) || {
   if ((rc == 3)); then
     hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
     if [[ -n "$start" ]] && hook::telemetry_enabled; then
+      # Declared before the by-name assignment, the top-level twin of
+      # emit_tel's `local data`: the helper writes through a nameref, an
+      # assignment the linter cannot see (SC2154 otherwise).
+      _bbh_tel=""
       hook::json_str_object_to _bbh_tel tool "" subject "" form "" reason "stdin-cut-short"
       hook::emit_telemetry "block-hook-bypass" "PreToolUse" "skipped" "$start" "$_bbh_tel" "${CLAUDE_PROJECT_DIR:-}"
     fi
