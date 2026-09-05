@@ -509,7 +509,7 @@ Files:
 - `bash scripts/check-changelog-parity.sh --check-bump origin/main` exits 0
 - the phase gate, run for each of the three sibling plugins' changed skills with `CHECK_SKILL_SKILLS_ROOT` pointed at that plugin's `skills/`
 
-### Phase 11: Fresh-eyes review, full validation, draft PR [TODO]
+### Phase 11: Fresh-eyes review, full validation, draft PR [DONE]
 
 Review: architecture, code-design
 
