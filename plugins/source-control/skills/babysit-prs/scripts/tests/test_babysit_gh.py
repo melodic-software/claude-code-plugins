@@ -15,6 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_checks as checks
 import babysit_gh as gh
 
 
@@ -452,6 +453,235 @@ class RestHydrateReviewsTests(unittest.TestCase):
             gh.rest_hydrate_reviews(pr, "owner/repo", 1)
         self.assertNotIn("latestReviews", pr)
         self.assertEqual(pr["reviews"], [])
+
+
+GRAPHQL_403 = RuntimeError(
+    "gh api graphql failed: gh: this GraphQL operation is not enabled for this "
+    "session (HTTP 403)"
+)
+
+
+class GraphQLAvailabilityClassificationTests(unittest.TestCase):
+    """The 403 that means "this session is served no GraphQL" must be separable
+    from every other gh failure, or the REST substitution either never fires or
+    fires over a real error and hides it."""
+
+    def test_the_pinned_operation_refusal_is_recognized(self) -> None:
+        self.assertTrue(gh.is_graphql_unavailable(GRAPHQL_403))
+
+    def test_a_bare_403_is_recognized(self) -> None:
+        self.assertTrue(
+            gh.is_graphql_unavailable(RuntimeError("gh: Forbidden (HTTP 403)"))
+        )
+
+    def test_other_failures_are_not_reclassified(self) -> None:
+        for message in (
+            "gh: Not Found (HTTP 404)",
+            "gh: Bad credentials (HTTP 401)",
+            "gh executable not found on PATH",
+            "gh api graphql timed out after 60s",
+        ):
+            with self.subTest(message=message):
+                self.assertFalse(gh.is_graphql_unavailable(RuntimeError(message)))
+
+    def test_http_status_reads_the_last_attempt(self) -> None:
+        self.assertEqual(gh.gh_http_status("(HTTP 502) ... (HTTP 403)"), 403)
+        self.assertIsNone(gh.gh_http_status("connection reset"))
+
+
+class ViewPrRestFallbackTests(unittest.TestCase):
+    """`gh pr view --json` is GraphQL end to end, so the refusal takes out the
+    engine's primary hydration call. Every field REST can source is re-sourced
+    rather than lost."""
+
+    REST_PULL = {
+        "number": 7,
+        "title": "a title",
+        "state": "open",
+        "draft": False,
+        "merged": False,
+        "mergeable": True,
+        "mergeable_state": "blocked",
+        "maintainer_can_modify": True,
+        "updated_at": "2026-01-02T03:04:05Z",
+        "html_url": "https://github.com/owner/repo/pull/7",
+        "user": {"login": "someone", "type": "User"},
+        "labels": [{"name": "do-not-merge"}],
+        "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
+        "head": {
+            "ref": "feature",
+            "sha": "a" * 40,
+            "repo": {"full_name": "fork/repo", "owner": {"login": "fork"}},
+        },
+    }
+
+    def _rest_gh_json(self, args: list[str]) -> Any:
+        endpoint = args[1] if len(args) > 1 else ""
+        if endpoint == "repos/owner/repo/pulls/7":
+            return dict(self.REST_PULL)
+        if endpoint.startswith("repos/owner/repo/actions/runs"):
+            return {"workflow_runs": [{"check_suite_id": 11, "name": "ci"}]}
+        if endpoint.endswith("/check-runs?per_page=100"):
+            return [
+                [
+                    {
+                        "name": "build",
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "started_at": "2026-01-02T00:00:00Z",
+                        "completed_at": "2026-01-02T00:10:00Z",
+                        "details_url": "https://example/run",
+                        "check_suite": {"id": 11},
+                    }
+                ]
+            ]
+        if endpoint.endswith("/status"):
+            return {
+                "statuses": [
+                    {
+                        "context": "legacy/status",
+                        "state": "success",
+                        "target_url": "https://example/status",
+                        "created_at": "2026-01-02T00:00:00Z",
+                    }
+                ]
+            }
+        if endpoint.endswith("/reviews?per_page=100"):
+            return [
+                [
+                    {
+                        "id": 1,
+                        "user": {"login": "reviewer", "type": "User"},
+                        "state": "CHANGES_REQUESTED",
+                        "body": "no",
+                        "submitted_at": "2026-01-02T00:00:00Z",
+                        "commit_id": "a" * 40,
+                    }
+                ]
+            ]
+        raise AssertionError(f"unexpected REST call: {args}")
+
+    def _view(self, fields: list[str]) -> tuple[dict[str, Any], bool]:
+        def run_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                raise GRAPHQL_403
+            raise AssertionError(f"unexpected call: {args}")
+
+        with mock.patch.object(gh, "gh_json", side_effect=self._rest_gh_json):
+            return gh.view_pr_fields("owner/repo", 7, fields, run_json=run_json)
+
+    def test_the_bundle_is_rebuilt_from_rest(self) -> None:
+        bundle, graphql = self._view(
+            [
+                "state",
+                "isDraft",
+                "mergeable",
+                "mergeStateStatus",
+                "headRefOid",
+                "baseRefName",
+                "title",
+                "labels",
+                "url",
+                "isCrossRepository",
+                "headRepository",
+                "headRepositoryOwner",
+                "statusCheckRollup",
+            ]
+        )
+        self.assertFalse(graphql)
+        self.assertEqual(bundle["state"], "OPEN")
+        self.assertEqual(bundle["mergeable"], "MERGEABLE")
+        self.assertEqual(bundle["mergeStateStatus"], "BLOCKED")
+        self.assertEqual(bundle["headRefOid"], "a" * 40)
+        self.assertEqual(bundle["baseRefName"], "main")
+        self.assertEqual(bundle["labels"], [{"name": "do-not-merge"}])
+        self.assertTrue(bundle["isCrossRepository"])
+        self.assertEqual(bundle["headRepository"]["nameWithOwner"], "fork/repo")
+        self.assertEqual(bundle["headRepositoryOwner"]["login"], "fork")
+
+    def test_the_rollup_carries_both_node_types_and_classifies(self) -> None:
+        bundle, _ = self._view(["statusCheckRollup"])
+        classified = checks.classify_checks(bundle["statusCheckRollup"])
+        self.assertEqual(classified["failing"], ["build"])
+        self.assertEqual(classified["success"], 1)
+        rollup = {entry["__typename"] for entry in bundle["statusCheckRollup"]}
+        self.assertEqual(rollup, {"CheckRun", "StatusContext"})
+        self.assertEqual(bundle["statusCheckRollup"][0]["workflowName"], "ci")
+
+    def test_only_the_blocking_review_direction_is_derived(self) -> None:
+        bundle, _ = self._view(["reviewDecision"])
+        self.assertEqual(bundle["reviewDecision"], "CHANGES_REQUESTED")
+
+    def test_an_approval_is_never_derived_from_rest(self) -> None:
+        # GraphQL's reviewDecision folds in CODEOWNERS and the required
+        # reviewer count; deriving APPROVED here would clear the merge gate's
+        # approval hold on evidence that cannot prove it.
+        self.assertEqual(
+            gh.rest_review_decision(
+                [{"state": "APPROVED", "author": {"login": "a"}, "submittedAt": "1"}]
+            ),
+            "",
+        )
+
+    def test_a_graphql_only_field_is_absent_never_fabricated(self) -> None:
+        bundle, _ = self._view(["state", "closingIssuesReferences"])
+        self.assertNotIn("closingIssuesReferences", bundle)
+
+    def test_a_non_403_failure_is_not_swallowed(self) -> None:
+        def run_json(args: list[str]) -> Any:
+            raise RuntimeError("gh: Not Found (HTTP 404)")
+
+        with self.assertRaises(RuntimeError) as caught:
+            gh.view_pr_fields("owner/repo", 7, ["state"], run_json=run_json)
+        self.assertIn("404", str(caught.exception))
+
+
+class ThreadResolutionFailsClosedTests(unittest.TestCase):
+    """Thread resolution is GraphQL-only. An empty list would read as "zero
+    unresolved threads", which is the false-clean the merge gate exists to
+    prevent, so the refusal is raised as itself."""
+
+    def test_the_paginator_raises_rather_than_returning_empty(self) -> None:
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=GRAPHQL_403),
+            self.assertRaises(gh.GraphQLUnavailableError),
+        ):
+            gh.fetch_review_threads("owner/repo", 1)
+
+    def test_an_ordinary_graphql_failure_stays_a_plain_runtime_error(self) -> None:
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=RuntimeError("(HTTP 502)")),
+            self.assertRaises(RuntimeError) as caught,
+        ):
+            gh.fetch_review_threads("owner/repo", 1)
+        self.assertNotIsInstance(caught.exception, gh.GraphQLUnavailableError)
+
+    def test_inline_comments_are_re_sourced_over_rest_and_marked_unproven(self) -> None:
+        rest_comments = [
+            [
+                {
+                    "id": 5,
+                    "user": {"login": "reviewer", "type": "User"},
+                    "body": "please fix",
+                    "path": "a.py",
+                    "html_url": "https://example/c",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                }
+            ]
+        ]
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["api", "graphql"]:
+                raise GRAPHQL_403
+            return rest_comments
+
+        with mock.patch.object(gh, "gh_json", side_effect=gh_json):
+            comments = gh.fetch_unresolved_review_comments("owner/repo", 1)
+        self.assertEqual(len(comments), 1)
+        self.assertTrue(comments[0]["threadResolutionUnproven"])
+        self.assertFalse(comments[0]["threadIsOutdated"])
+        self.assertEqual(comments[0]["author"]["login"], "reviewer")
 
 
 if __name__ == "__main__":

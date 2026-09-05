@@ -1253,7 +1253,11 @@ def classify_pr(
         "head_ref": pr.get("headRefName"),
         "head_sha": head_sha,
         "base_ref": pr.get("baseRefName"),
-        "base_sha": pr.get("baseRefOid"),
+        # False when this PR was hydrated over REST because the session is not
+        # served GraphQL: thread resolution is unproven for it, so the merge
+        # gate will hold it as readiness UNPROVEN. Absent key means the record
+        # predates the fallback, which was always a GraphQL read.
+        "graphql_available": bool(pr.get("_graphql_available", True)),
         "head_repository": mutation_policy["head_repo"],
         "head_repository_owner": mutation_policy["head_owner"],
         "is_cross_repository": mutation_policy["is_cross_repository"],

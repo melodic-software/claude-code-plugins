@@ -80,6 +80,7 @@ from babysit_classify import (
 )
 from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
+    GraphQLUnavailableError,
     fetch_issue_comments,
     fetch_pull_request_commits,
     fetch_pull_request_review_comments,
@@ -90,6 +91,7 @@ from babysit_gh import (
     normalized_rest_author,
     parse_repo_number,
     resolve_authors,
+    view_pr_fields,
 )
 from babysit_review_trigger import (
     ReviewTriggerConfig,
@@ -183,12 +185,17 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
     return {owner.casefold() for owner in parse_csv_set(raw)}
 
 
-def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
+def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None:
     """Unresolved review threads via the single shared paginator.
 
     One comment per thread is enough to attribute the finding; the paginator
     drops resolved threads and fails closed on a malformed connection, so a
     hidden page can never falsely report zero unresolved threads.
+
+    Returns None -- never `[]` -- when the session is not served GraphQL. Thread
+    resolution is GraphQL-only, an empty list is indistinguishable from "zero
+    unresolved threads", and that reading is the false-clean this gate exists to
+    prevent. `evaluate` turns the None into a blocker naming the restriction.
     """
 
     def project(thread: dict[str, Any]) -> dict[str, object]:
@@ -203,12 +210,13 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
             "isOutdated": thread.get("isOutdated", False),
         }
 
-    return [
-        cast(dict[str, object], record)
-        for record in fetch_review_threads(
+    try:
+        records = fetch_review_threads(
             repo, number, include_resolved=False, comments_first=1, projection=project
         )
-    ]
+    except GraphQLUnavailableError:
+        return None
+    return [cast(dict[str, object], record) for record in records]
 
 
 def repository_default_branch(repo: str) -> str | None:
@@ -933,20 +941,29 @@ def evaluate(
     settle: ReviewSettleConfig | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
-    pr_data = gh_json(
-        [
-            "pr",
-            "view",
-            str(number),
-            "-R",
-            repo,
-            "--json",
-            "state,isDraft,mergeable,mergeStateStatus,reviewDecision,"
-            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup,"
-            "closingIssuesReferences",
-        ]
-    )
-    pr = cast(dict[str, Any], pr_data) if isinstance(pr_data, dict) else {}
+    # `closingIssuesReferences` is requested only when the autopilot merge tier
+    # is configured, because only the tier reads it. The field is GraphQL-only,
+    # so asking for it on the default gate path made every run of the base gate
+    # depend on a surface it never consumed.
+    view_fields = [
+        "state",
+        "isDraft",
+        "mergeable",
+        "mergeStateStatus",
+        "reviewDecision",
+        "headRefOid",
+        "baseRefName",
+        "author",
+        "url",
+        "title",
+        "labels",
+        "statusCheckRollup",
+    ]
+    if tier is not None:
+        view_fields.append("closingIssuesReferences")
+    # `run_json=gh_json` keeps this module's own gh seam in the path (the one
+    # every gate test stubs) while the REST re-source lives once, in `babysit_gh`.
+    pr, graphql_available = view_pr_fields(repo, number, view_fields, run_json=gh_json)
     threads = unresolved_threads(repo, number)
     checks = classify_checks(pr.get("statusCheckRollup"))
     failing = checks["failing"]
@@ -1028,7 +1045,20 @@ def evaluate(
             f"needs {required_reviews} approving review(s); "
             f"reviewDecision={review_decision or 'none'}"
         )
-    if threads:
+    if threads is None:
+        # Readiness is UNPROVEN, not clean: review-thread resolution is served
+        # only over GraphQL, and sandboxed sessions (Claude Code on the web and
+        # remote execution) serve only a pinned set of GraphQL operations,
+        # refusing the rest with HTTP 403. Every other input above was
+        # re-sourced over REST; this one has no REST equivalent, and
+        # `reference/safety.md` forbids substituting a lesser signal for a gate
+        # verdict, so the gate holds instead of approximating one.
+        blockers.append(
+            "unresolved review threads could not be read: GitHub's GraphQL API "
+            "is not served to this session, and thread resolution has no REST "
+            "equivalent -- readiness is UNPROVEN, not clean"
+        )
+    elif threads:
         who = ", ".join(sorted({str(t.get("author")) for t in threads}))
         blockers.append(
             f"{len(threads)} unresolved review thread(s) [{who}] "
@@ -1180,8 +1210,12 @@ def evaluate(
         "effectiveRules": rules,
         "requiredSignatures": signature_result,
         "requiredChecks": required_check_status,
-        "unresolvedThreadCount": len(threads),
+        "graphqlAvailable": graphql_available,
+        # None, never 0, when thread resolution could not be read: a count of
+        # zero is a claim this run cannot make.
+        "unresolvedThreadCount": None if threads is None else len(threads),
         "unresolvedThreads": threads,
+        "threadResolutionProven": threads is not None,
         "failingChecks": failing,
         "pendingChecks": pending,
         "ready": ready,

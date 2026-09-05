@@ -35,6 +35,13 @@ is.
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here**, not eligible at any rung, exactly as an item with no record at all.
+   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable where only a pinned
+   set of GraphQL operations is served (Claude Code on the web and remote execution;
+   `skills/babysit-prs/SKILL.md` "Engine and degrade"). That is the no-close-linkage case already
+   ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
+   merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
+   because review-thread resolution has no REST equivalent. Report the restriction once for the
+   cycle rather than per PR.
    A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
