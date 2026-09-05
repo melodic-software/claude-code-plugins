@@ -14,7 +14,11 @@ if `https://code.claude.com/docs/en/statusline` changes the `rate_limits` object
 observation under "Cloud / remote sessions" below if Claude Code ships statusline wiring or a
 persistent `~/.claude/rate-limit-guard/` filesystem inside cloud or remote-session containers —
 the shipped producer the "Documented residual" paragraph below names as the path to proactive
-mode there.
+mode there; and re-verify the `account` field's source under "Tee file shape" below if
+`.oauthAccount.emailAddress` moves or is renamed in `~/.claude.json`. That key is **internal CLI
+state**, not a documented surface: nothing upstream promises it, so the writer treats a missing or
+unrecognized value as "cannot attribute" and this contract expects the field to be absent whenever
+it does.
 
 ## Operable floor (consumers inline these values verbatim)
 
@@ -26,8 +30,9 @@ mode there.
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
   consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries **no account-identifier field**, so a write is the only signal that the windows changed
-  under you (account switch, another session's refresh).
+  carries an **`account.email` field when the writer could attribute the observation**, so a write
+  is still the signal that the windows changed under you (account switch, another session's
+  refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 
@@ -50,6 +55,7 @@ One JSON object, rewritten atomically on a **drain cadence** rather than on ever
 {
   "captured_at": "2026-07-23T17:41:02Z",
   "session_id": "abc123",
+  "account": { "email": "lane@example.com" },
   "rate_limits": {
     "five_hour": { "used_percentage": 23.5, "resets_at": 1784841300 },
     "seven_day": { "used_percentage": 41.2, "resets_at": 1785142800 }
@@ -77,10 +83,30 @@ One JSON object, rewritten atomically on a **drain cadence** rather than on ever
   does an `account_uuid` buried inside a non-matching object such as `user`, because nothing at the
   top level matched. A future account identifier therefore arrives without a writer change only when
   its own top-level key name contains `account`; every other shape needs one. Treat these values as
-  **untrusted**: `session_name`, and any future account field — which may be an **object of
-  arbitrary strings**, not just a scalar — are user/AI-influenced, so consumers parse them only with
-  a JSON parser and never string-interpolate them into a shell command, another interpreter, or a
-  prompt.
+  **untrusted**: `session_name`, and any account field — which may be an **object of arbitrary
+  strings**, not just a scalar — are user/AI-influenced, so consumers parse them only with a JSON
+  parser and never string-interpolate them into a shell command, another interpreter, or a prompt.
+- `account` — `{"email": "<address>"}`, the account whose windows this snapshot describes. Present
+  only when the writer could **attribute** the observation. The value is Claude Code's own
+  `.oauthAccount.emailAddress`, read from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` once per drain
+  (see the recheck trigger at the top of this file: that key is internal CLI state).
+  **Absence is normal and never means "one account on this machine".** The writer omits the key
+  rather than risk mislabeling, in four cases:
+  - The state file is absent or unreadable, or holds no email-shaped value.
+  - The stdin payload already carried a top-level `account*` key. That one wins under the
+    forward-pass rule above, and no `account` object is added beside it.
+  - **The staleness guard:** the state file was modified **after** the chosen record's spool file,
+    which means an account switch may have happened between the observation and the flush. The
+    windows are still teed; only the identity is withheld.
+  - The writer ran on a path that has no spool file to date that comparison against
+    (`RLG_TEE_ASYNC=1`, or bash below 4.2, which never drains).
+
+  A reader that needs identity therefore treats a missing `account.email` as **unattributed**, never
+  as a match, and a snapshot whose `account.email` differs from the account a consumer is running
+  under describes **someone else's windows**. The untrusted-value rule above covers this field too:
+  the writer validates only enough to keep its own JSON well-formed (an `@`, no double quote,
+  backslash, or control character, 3–254 characters), which is a shape whitelist and not an
+  assertion that the address is real or that it belongs to the reader.
 
 ## Capability detection (fail-open)
 
@@ -204,14 +230,18 @@ sweeping the directory expects them:
 
 ## Invariants and boundaries
 
-- **Single-account-per-machine is a known gap.** The tee file is last-writer-wins with no account
-  id: a mid-drain login to a second account feeds that account's healthy windows to lanes exhausted
-  on the first, and the guard cannot detect it. The loop-lane convention §6 owns the framing and
-  records it as a gap rather than as a safe assumption; the account-identity design that resolves
-  it (a writer-side field, reader-side invalidation of latched state, a lane-floor re-audit) is not
-  built. What holds now, and only this far: the writer already forward-passes an account-matching
-  key under the exact rule "Tee file shape" states, so an identity field of that shape costs no
-  writer change in the release one appears, and every other shape costs one.
+- **Single-account-per-machine is a narrowed gap, not a closed one.** The tee file is still
+  last-writer-wins across every session on the machine: a mid-drain login to a second account feeds
+  that account's healthy windows to lanes exhausted on the first. What changed is that a snapshot
+  now usually says **whose** windows it carries, so a reader can detect the mismatch instead of
+  being blind to it. The loop-lane convention §6 owns the framing. Of the three sides that design
+  named (a writer-side field, reader-side invalidation of latched state, a lane-floor re-audit),
+  the writer-side field has landed as `account.email` above; the other two are not built, and
+  `TODO(#1218)` tracks them. No consuming lane acts on the field yet. Two residuals keep this a gap
+  rather than an invariant: the field is **absent** whenever the writer could not attribute the
+  observation (four cases, listed under "Tee file shape"), and absence is indistinguishable from
+  "the writer never attributes on this platform"; and a reader that latched a `resets_at` before a
+  switch has no obligation yet to drop it.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on

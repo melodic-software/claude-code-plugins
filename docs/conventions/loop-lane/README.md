@@ -832,12 +832,14 @@ no machine, org size, or budget"
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
 gap changes no lane's obligations today; it removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and it is designed elsewhere.** `TODO(#1218)` owns the
-design across all three sides — a writer-side identity field in the tee shape, reader-side
-invalidation of latched state on identity change, and the re-audit of every lane body's inlined
-guard floor that a floor change obliges. This section is deliberately not the place that decides
-them: it records the gap and defers, so that when the design lands it replaces a stated gap rather
-than contradicting a stated invariant.
+**The resolution is account identity, and its writer-side half has landed.** The tee now carries an
+`account.email` field naming the account whose windows a snapshot describes, present whenever the
+writer could attribute the observation and absent rather than wrong when it could not
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). The other two sides
+remain `TODO(#1218)` follow-up: reader-side invalidation of latched state on an identity change,
+and the re-audit of every lane body's inlined guard floor. No lane acts on the field yet, so the
+gap above narrows rather than closes — a lane can now be told whose windows it is reading, and is
+not yet obliged to do anything about the answer.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the

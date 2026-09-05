@@ -3,6 +3,63 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **The tee snapshot names the account whose windows it carries.** The drain stamps
+  `account: {"email": "<address>"}` at the top level, read from Claude Code's own
+  `.oauthAccount.emailAddress` in `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`. A reader can now tell
+  whether a snapshot describes the account it is running under, which is the writer-side half of the
+  account-identity design; reader-side invalidation of latched state and the lane-floor re-audit
+  remain `TODO(#1218)` follow-up, so the multi-account gap narrows rather than closes.
+
+  **Mislabeling is worse than absence, so the field is omitted in four cases:** the state file is
+  missing, unreadable, or holds no email-shaped value; the stdin payload already carried a top-level
+  `account*` key (that one wins, and the writer adds nothing beside it); the state file was modified
+  **after** the chosen record's spool file, which means a switch may have happened between the
+  observation and the flush; or the writer ran on a path with no spool to date that comparison
+  against (`RLG_TEE_ASYNC=1`, or bash below 4.2). Statusline output and exit codes are unchanged in
+  every case, as they are for every other tee outcome.
+
+  **Cost is one process per 30-second drain, and the render path stays fork-free** (the zero-fork
+  trace case still passes). Mechanism measured on the target desktop, 2026-09-04, against an 88 KB
+  state file: bash `$(<file)` plus parameter-expansion extraction 3.6–4.0 s, unusable on any path;
+  `jq -r` over stdin 35 ms; `claude auth status --json` 175 ms. Bash opens the file and jq reads
+  stdin, so the Windows MSYS-path limitation that keeps every other file out of jq's argv does not
+  apply. The batch jq pass gained two output lines for this — the chosen record's shard name, which
+  is what the staleness comparison dates against, and a structural `keys_unsorted` test for an
+  existing account key, asked the same way the window-bearing verdict is asked with `has()` rather
+  than as a substring scan.
+
+  `.oauthAccount.emailAddress` is **internal CLI state**, not a documented surface: the reader
+  contract carries it as a recheck trigger, and the untrusted-value rule applies to the field
+  unchanged. The writer's validation (an `@`, no double quote, backslash, or control character,
+  3–254 characters) is a shape whitelist that keeps its own JSON well-formed, not an assertion that
+  the address is real. (Refs #1218)
+
+### Fixed
+
+- **A native jq's CRLF no longer decides which of the tee's own verdicts is readable.** Every line
+  after the payload in the shared jq pass is now CR-stripped in `_rlg_absorb_jq_lines`. A native jq
+  on Windows terminates its output lines with CRLF and `read -r` splits on LF only, so a token line
+  arrived as `true\r` and compared equal to nothing; only the LAST line was reliably clean, because
+  MSYS command substitution drops the trailing CRLF. Which verdict was correct therefore depended on
+  how many lines the pass emitted and on whether the enablement verdict was empty — with an empty
+  verdict the window-bearing token was clean and the verdict was not, and with a configured verdict
+  the reverse. Adding two lines for the account field would have left both wrong, which is how this
+  surfaced. The payload keeps its CR deliberately: the snapshot's bytes stay what jq wrote, and the
+  no-change compare already normalizes its key rather than the payload. Invisible on a Linux runner,
+  where jq emits LF; a case driven by the suite's existing CRLF `jq` shim now covers it on every
+  platform.
+
+### Changed
+
+- **The operable floor's staleness bullet no longer claims the file carries no account identifier.**
+  Amended in `reference/reader-contract.md` and in all six inlined copies in the same change, which
+  `scripts/check-loop-lane-floor-drift.sh` proves moved together. A write is still the signal that
+  the windows changed under you; it is no longer the *only* one.
+
 ## [0.7.35]
 
 ### Changed

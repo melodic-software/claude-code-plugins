@@ -52,12 +52,16 @@ resume on their own after the reset. Four parts:
   otherwise. The render path itself has been fork-free since the spool landed, which the suite
   asserts directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render
   path").
-- **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
-  identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
-  feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6
-  owns that framing; the reader contract cites it. The wrapper adopts a future account-identifying
-  field automatically only when its own top-level key name contains `account`; every other shape
-  needs a writer change (`reference/reader-contract.md`, "Tee file shape").
+- **Multi-account operation is a narrowed gap, not yet a supported mode.** The snapshot names the
+  account whose windows it carries in an `account.email` field, so a machine switching accounts
+  mid-drain is now visible to a reader that checks it. Two things keep it a gap. The field is
+  **absent** whenever the writer could not attribute the observation — no state file, no
+  email-shaped value, a stdin `account*` key that wins instead, or a state file modified after the
+  chosen record, which means a switch may have happened in between — and no consuming lane acts on
+  the field yet. The loop-lane convention §6 owns that framing; the reader contract states the four
+  absence cases and the untrusted-value rule (`reference/reader-contract.md`, "Tee file shape").
+  The wrapper still forwards a harness-supplied identity automatically when its own top-level key
+  name contains `account`, and that value always wins over the writer's.
 
 ## Install
 
