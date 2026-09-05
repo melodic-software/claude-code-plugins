@@ -8,7 +8,7 @@ The `/document-skills:pptx` skill stack is documented as a **fallback path** at 
 
 ## Default brand spec
 
-These tokens are defined in `output/build/brand.js` (the neutral engine default) and embedded into the generated `slides-data.js` `theme` + `meta` exports by the emitter. Do NOT redefine per run; a consumer profile supplies a schema-validated `brand.json` to rebrand.
+These tokens are defined in `output/build/brand.js` (the neutral engine default) and embedded into the generated `slides-data.js` `theme` + `meta` exports by the emitter. Do not redefine them per run; a consumer profile supplies a schema-validated `brand.json` to rebrand.
 
 ### Color palette (default)
 
@@ -54,7 +54,7 @@ The neutral default ships **no** org logo (`brand.js` `logoColor` / `logoWhite` 
 
 Logos are bundled at `output/build/assets/logo-<slug>.svg`. HTML inlines SVG with
 `fill: currentColor` so they render white-on-dark. Missing optional assets degrade to a
-text-only header; runtime downloads are forbidden. PPTX SHOULD use bundled PNG variants
+text-only header; runtime downloads are forbidden. PPTX should use bundled PNG variants
 when needed (pptxgenjs cannot inline SVG with `currentColor`) or skip the provider logo.
 
 **Bundled slug list:**
@@ -100,7 +100,6 @@ Total typical: 35-50 slides. Order is fixed; sections may be empty (skip the sli
 | ... | `news` (Compute) | NVIDIA / AMD / hyperscaler / datacenter | when window has compute news |
 | ... | `news` (Real-world AI) | Tesla Robotaxi / Waymo / humanoid prod | when window has real-world news |
 | ... | `news` / `condensed` (EXTRAS) | Robotics HIGH → MED → LOW | when extras enabled |
-| ... | `flair` | Holiday-themed + viral AI + curate-your-own slot | YES — always (placeholder OK) |
 | N-5 | `patterns` | "Notable patterns this window" — synthesis | YES when ≥3 cross-bucket themes |
 | N-4 | `prompt` | "AI Tools & Techniques" prompt + note | YES |
 | N-3 | `prompt` | "AI Tips & Tricks · Show and Tell" prompt + note | YES |
@@ -125,12 +124,11 @@ For each bucket with items: HIGH first, then MED condensed, then LOW condensed. 
 11. Compute & Infrastructure
 12. Real-world AI
 13. EXTRAS — Robotics HIGH + MED + LOW
-14. Flair (always-include placeholder slot)
-15. Patterns synthesis (when ≥3 themes)
+14. Patterns synthesis (when ≥3 themes)
 
 ### Split rules
 
-- **HIGH news slides:** keep to **5-7 bullets max**. Overflow → split into "Provider — topic 1" + "Provider — topic 2" titled slides (see Anthropic Models & research / Reach & ecosystem in ai-meeting-20).
+- **HIGH news slides:** keep to **5-7 bullets max**. Overflow splits into topic-titled slides for the same provider, for example "Provider: models and research" and "Provider: reach and ecosystem".
 - **MED condensed:** **>7 items → 2-col layout** (`condensed-grid` CSS). 8-12 typical.
 - **LOW condensed:** typically <5 items, single-col.
 
@@ -158,11 +156,12 @@ Eyebrow text is small uppercase periwinkle — presenter sees the tier, audience
 | **Compute & Infrastructure** | `nvidia` (when dominant) or `null` | chip launches, hyperscaler GPU deals, datacenter capacity |
 | **Real-world AI — autonomous vehicles** | `tesla` (when dominant) or `null` | robotaxi launches, fleet expansions, humanoid production cadence |
 | **Patterns synthesis** | `null` | always when ≥3 cross-bucket themes detected |
-| **Flair** | `null` | always — even with curate-your-own placeholder |
 
-### Apolitical filter — flair gate
+### Apolitical filter
 
-Drop politician deepfakes, partisan campaign AI memes, partisan policy threads. KEEP brand parodies (PETA-style), fan-art trailers (Wes Anderson Star Wars), science weirdness (fly-brain emulation), real-world AI moments. Industry-controversy items go to **Legal cluster**, not Flair. See SKILL.md "Apolitical filter" for full heuristic.
+Drop politician deepfakes, partisan campaign AI memes, and partisan policy threads.
+Industry-controversy items go to the **Legal cluster**. See
+`references/audience-defaults.md` "Apolitical filter" for the full heuristic.
 
 ## Meeting number auto-increment
 
@@ -171,10 +170,10 @@ Read `meeting_n` from `context/seen-items.json`. On `--format slides|html`:
 1. Read current `meeting_n` (defaults to 0 if missing)
 2. Increment by 1: `meeting_n += 1`
 3. Use `meeting_n` for the title slide (`slides-data.js` `meta.meetingNumber`)
-4. Write incremented value back to `seen-items.json` AFTER successful slide generation
-5. If user passes `--meeting-n <N>` flag, override auto-increment with explicit number — do NOT increment state
+4. Write the incremented value back to `seen-items.json` only after slide generation succeeds
+5. `--meeting-n <N>` overrides the auto-increment with an explicit number and does not increment state
 
-`slides-data.js` is rewritten per run (briefing markdown → emit data file → run pipeline). The hardcoded `meetingNumber: 20` in the existing file is the LAST run's value — overwritten on next emit.
+`slides-data.js` is rewritten per run (briefing markdown → emit data file → run pipeline).
 
 ## In-tree build pipeline (canonical)
 
@@ -183,7 +182,7 @@ Full schema, commands, and dependency setup: see `references/build-pipeline.md`.
 ```bash
 cd output/build
 
-# One-time setup
+# One-time setup, in-repo maintainer form; consumers run `/ai-briefing:setup apply install-build-deps`
 npm ci                               # installs the committed dependency tree
 npx playwright install chromium --only-shell
 
@@ -200,7 +199,7 @@ node validate.js                     # gate: all URLs render, 0 console errors
 
 ## Fallback skill paths (when in-tree pipeline unavailable)
 
-These paths are documented for completeness — the in-tree `output/build/*.js` pipeline is canonical and reproduces org branding deterministically. Use a fallback skill ONLY when the in-tree pipeline cannot run (Node unavailable or build pipeline broken). All three are graceful fallbacks, not the critical path.
+These paths are documented for completeness — the in-tree `output/build/*.js` pipeline is canonical and reproduces org branding deterministically. Use a fallback skill only when the in-tree pipeline cannot run (Node unavailable or build pipeline broken). All three are graceful fallbacks, not the critical path.
 
 ### PPTX fallback
 
@@ -208,7 +207,7 @@ Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-
 
 ### HTML fallback
 
-Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` (marketplace `claude-plugins-official`) for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box — reproduce those from `build-html.js`.
+Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box — reproduce those from `build-html.js`.
 
 ### PDF fallback paths
 
@@ -217,23 +216,10 @@ Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claud
 
 ### Skill stack reference (only relevant for fallback)
 
-| Skill | Source | Role |
-|---|---|---|
-| `document-skills:pptx` | `anthropic-agent-skills` | PPTX fallback |
-| `document-skills:pdf` | same | PDF post-processing (merge cover/body, extract verification) |
-| `document-skills:theme-factory` | same | 10 preset themes (use only as starting point — re-apply org brand tokens after) |
-| `frontend-design:frontend-design` | `claude-plugins-official` | HTML fallback |
-| `ui-ux-pro-max:slides` | `ui-ux-pro-max-skill` | layout patterns / emotion arcs (Team All-Hands closest to AI-meeting structure) |
-| `ui-ux-pro-max:ui-ux-pro-max` | same | 161 palettes, 57 font pairings (do NOT use — org brand is canonical) |
-
-## Stale references — DO NOT use
-
-These tools are NOT installed and superseded by the in-tree pipeline:
-
-| Stale ref | Why removed |
-|---|---|
-| `tfriedel/claude-office-skills` | Third-party, unmaintained |
-| `zarazhangrui/frontend-slides` | Third-party, single-author |
+The fallback skills named above ship from other marketplaces and are not bundled with this
+plugin. Confirm what is installed in the current session before routing to one, and reproduce
+the brand tokens from `slides-data.js` `theme` afterwards, because none of them apply the
+profile brand.
 
 ## Troubleshooting
 

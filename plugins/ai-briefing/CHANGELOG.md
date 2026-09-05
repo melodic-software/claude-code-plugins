@@ -3,6 +3,24 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.26]
+
+### Changed
+
+- **generate:** the build-pipeline and slide-generation references now describe the shipped
+  pipeline. Dropped the `flair` slide type the Zod schema has no case for, dropped the phantom
+  `lib/holidays.js` and `providers.md` pointers, added the build and `lib/` modules the pipeline
+  inventory never named, replaced the prev/next and swipe navigation description with the
+  sectioned-scroll behavior, pointed the validator gate list at the script's own header instead
+  of restating it, replaced the Node 20 requirement and its passed end-of-life trigger with a
+  pointer to the setup preflight, dropped step numbers that no longer match the skill, labelled
+  the in-repo prerequisites so consumers take the setup path, removed the stale-reference and
+  skill-inventory tables, and lowered all-caps emphasis to plain prose.
+- **generate:** the audience-defaults reference now names the loading step in words rather than
+  by a step number the skill no longer uses.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.20]
 
 ### Changed
