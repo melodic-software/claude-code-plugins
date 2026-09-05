@@ -203,7 +203,18 @@ Contract migration. The pre-flight consumer check is the first work item.
 - `test "$(grep -cE '^\| \`(Basis|mode|targets)\`' plugins/overengineering/context/findings-artifact.md)" -eq 3 && echo OK` prints `OK`.
 - `test "$(grep -cE 'overengineering/<producer>/rule-<layer>|artifact-item|package:<name>' plugins/overengineering/context/findings-artifact.md)" -ge 3 && echo OK` prints `OK`.
 - `test "$(grep -cE 'not rewritten|not evaluated this run' plugins/overengineering/context/findings-artifact.md)" -ge 2 && echo OK` prints `OK` (the targeted clause scopes the run-level sections and dispositions).
-- For each of `plugins/overengineering/skills/{realign,delta,audit}/SKILL.md`: normalize whitespace, then match. `tr '\n' ' ' < <file> | tr -s ' ' | grep -qE '`(schema: )?1` and `(schema: )?2`are both recognized' && echo OK` prints `OK`. **Normalize before matching; do not tighten the regex** (corrected twice on 2026-09-05 during Phase 1). A single-line `grep` reported the phrase absent in `realign`, where it wraps across a line break. A wrap-tolerant `grep -Pz` still reported it absent in `delta`, where the wrap falls mid-phrase, and in `audit`, which says `schema: 1` rather than `1`. All three texts were correct on every run. This is the lane's own absence rule landing three times on its own check, and it is the concrete reason the lane requires varying the query form before "not found" becomes a finding.
+- For each of `plugins/overengineering/skills/{realign,delta,audit}/SKILL.md`, normalize whitespace and then match. The command is fenced rather than inline because the repo's markdown formatter strips the space after an inline code span, which silently broke this very check twice:
+
+  ```bash
+  for x in realign delta audit; do
+    tr '\n' ' ' < "plugins/overengineering/skills/$x/SKILL.md" | tr -s ' ' \
+      | grep -qE '`(schema: )?1` and `(schema: )?2` are both recognized' \
+      && echo "$x OK" || echo "$x FAIL"
+  done
+  ```
+
+ **Normalize before matching; do not tighten the regex** (corrected twice on 2026-09-05 during Phase 1). A single-line `grep` reported the phrase absent in `realign`, where it wraps across a line break. A wrap-tolerant `grep -Pz` still reported it absent in `delta`, where the wrap falls mid-phrase, and in `audit`, which says `schema: 1` rather than `1`. All three texts were correct on every run. This is the lane's own absence rule landing three times on its own check, and it is the concrete reason the lane requires varying the query form before "not found" becomes a finding.
+
 - `grep -qE 'no rung' plugins/overengineering/skills/realign/SKILL.md && echo OK` prints `OK`; `jq -e '[.evals[].name] | index("justify-producer-row-is-presented-never-executed")' plugins/overengineering/skills/realign/evals/evals.json` exit 0.
 - `grep -qE 'not walkable by' plugins/overengineering/skills/delta/context/run-states.md && echo OK` prints `OK`.
 - `grep -qiE 'sanctioning' plugins/overengineering/skills/audit/context/surface-walk.md && echo OK` prints `OK`.
