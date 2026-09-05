@@ -48,7 +48,8 @@ Both tools require a `query` argument for result ranking. Same input shape as CL
 
 ## Why prefer MCP over CLI for most lookups
 
-Empirical observation (2026-04, React + EF Core test queries):
+Empirical observation, 2026-04, React and EF Core test queries. Recheck when the `ctx7` minor
+version changes, or when Context7 changes its default response depth.
 
 | Dimension | Result |
 |---|---|
@@ -68,12 +69,6 @@ Empirical observation (2026-04, React + EF Core test queries):
 - Connection failed at session start (check `claude mcp list`)
 
 Fall back to CLI in those cases — same backend, different transport path. If both are blocked, check `CONTEXT7_API_KEY`, or fall back to other documentation sources and tell the user Context7 was unavailable.
-
-## Serialization and performance
-
-Observed behavior (not a documented guarantee): back-to-back `resolve-library-id` + `query-docs` calls complete serially (~2s each, ~4s for the pair) — no parallelism benefit.
-
-Irrelevant in practice — you always need the `library` result before the `docs` call — so serial is correct.
 
 ## Do not re-configure via `ctx7 setup --mcp`
 

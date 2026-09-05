@@ -3,6 +3,23 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.8]
+
+### Changed
+
+- **clean:** the frontmatter hook comments, the `--execute` sentence, the Dev Drive sentence, and
+  the Gotchas opener state the current rule without issue numbers or a diff against an earlier
+  wording. `reference/safety-model.md` states the Windows and macOS decline, the flagged-spelling
+  set, the kill-switch delivery, the hook launch form, the guard failure detector, the
+  `user_config` prohibition, the scratchpad rule, and the roll-up guarantee as present-tense rules
+  with no issue numbers, plugin version pins, dates, or measured figures. One issue number is
+  dropped from `reference/unsupported-platform-handoff.md`. Upstream `anthropics/claude-code` issue
+  pointers stay.
+- **setup:** two issue-number parentheticals removed; the guard's kill-switch scope now says
+  managed settings are read first, then the user file, matching `lib/killswitch_config.py`.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.21.7]
 
 ### Added

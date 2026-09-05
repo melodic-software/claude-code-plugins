@@ -116,7 +116,7 @@
       "id": 10,
       "name": "legacy-unkeyed-report-is-not-served-or-adopted",
       "prompt": "Show me the memory health report. I know I have run this before — I can see a last-audit.md sitting in the plugin's data directory from an older version.",
-      "expected_output": "The report action looks at THIS project's derived path and finds nothing there. It does not serve the older unkeyed file and does not migrate it into this project's key: a machine-global last-audit.md — including the pre-rename health/ layout — carries no project segment, so nothing records which repository produced it, and adopting it would invent an attribution. The answer names the leftover file's path as something the user may delete, states that no audit has been run for this project, and offers to run one.",
+      "expected_output": "The report action looks at THIS project's derived path and finds nothing there. It does not serve the older unkeyed file and does not migrate it into this project's key: a machine-global last-audit.md — including a `health/` directory — carries no project segment, so nothing records which repository produced it, and adopting it would invent an attribution. The answer names the leftover file's path as something the user may delete, states that no audit has been run for this project, and offers to run one.",
       "files": [],
       "expectations": [
         "Does NOT present the unkeyed legacy report as this project's findings",

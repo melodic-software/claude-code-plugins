@@ -4,9 +4,9 @@ Delegation spends a worker's context window instead of your own — this chapter
 
 ## When to delegate, when to stay inline
 
-Delegate on exactly three task shapes; treat everything else as inline work.
+Delegate on three task shapes; treat everything else as inline work.
 
-1. **Genuine fan-out** — TRIGGER: 5 or more independent items needing the same treatment with no shared mutable state (audit each module, check each dependency). Below 5, spawn overhead plus merge cost eats the concurrency gain — do them inline in sequence.
+1. **Genuine fan-out**. TRIGGER: several independent items needing the same treatment with no shared mutable state (audit each module, check each dependency). Weigh spawn plus merge cost against the wall-clock the concurrency saves and the context each item would flood: a handful of one-call items stays inline, a handful of multi-call items is a wave.
 2. **Context-flooding side work** — TRIGGER: investigation whose raw output you will consume once as a conclusion and never re-read (broad searches, log trawls, long external documents), where you expect raw output several times larger than the answer you need. Kept inline, that dead weight dilutes every later decision in the session.
 3. **Isolation as the point** — TRIGGER: verification or review where NOT sharing your context is the value (section "Fresh-context verification" below), or work needing a tool posture you refuse to hold in the main session, such as a strictly read-only reviewer.
 

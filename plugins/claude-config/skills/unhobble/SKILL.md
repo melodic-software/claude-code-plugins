@@ -85,8 +85,9 @@ means passing its phase commands from inside the same checkout its manifest name
    operator's call, default kept per the official carve-out). For hook entries specifically, the
    classification rubric, covering mechanism vs class, the hybrid trim-not-delete rule, and the
    ground-truth-oracle carve-out (behavioral purpose with a non-derivable machine oracle is a
-   keep), is owned by the marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section; this
-   phase applies it to hooks, never re-derives it. Non-hook surfaces (rules, instruction files,
+   keep), is owned by the marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/PLUGIN-PHILOSOPHY.md>);
+   read it there and apply it to hooks, never re-derive it. Non-hook surfaces (rules, instruction files,
    skills, agents, plugins) classify by the class definitions above; `hybrid` applies to any unit
    whose behavioral and policy surfaces can be split in place. Classification is per unit that
    Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction

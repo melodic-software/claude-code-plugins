@@ -3,6 +3,22 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.9]
+
+### Changed
+
+- **firecrawl:** the description lists all ten subcommands and states each trigger once; the
+  Purpose paragraph explains the spill-file saving by mechanism instead of restating a third-party
+  benchmark figure; `context/commands.md` drops the retired MCP family name from the `interact`
+  entry.
+- **update:** `UPSTREAM.md` records no sync until `scripts/update.sh --apply` writes one, replacing
+  a seeded date that predates the plugin; `context/update-flow.md` describes the per-run temp
+  directory the script creates and removes instead of hardcoded `/tmp` paths; the body drops the
+  auto-fire prohibition that `disable-model-invocation: true` already enforces; `--check` is the
+  read-only mode rather than a "default", matching the argument hint, and eval case 1 says so.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.8]
 
 ### Changed

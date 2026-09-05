@@ -24,9 +24,11 @@ the honest → intent → domain-abstraction progression.
 
 - Origin, Arlo Belshee ("Read by Refactoring"):
   `https://arlobelshee.com/good-naming-is-a-process-not-a-single-step/` —
-  PRIMARY. Flag: this host was DNS-unreachable during research, so Belshee's exact
-  per-stage prose is corroborated by the Deep Roots rewrite below rather
-  than quoted from the origin.
+  PRIMARY. Belshee's exact per-stage prose is corroborated by the Deep Roots
+  rewrite below rather than quoted from the origin. Basis: the host did not
+  resolve when the entry was written, as of 2026-07-17. Recheck trigger: the
+  host resolving again, which allows quoting the origin directly and restores
+  this entry to a fully primary citation.
 - Canonical rewrite, Tim Ottinger + Llewellyn Falco: [deeproots-series]
   and [deeproots-path] — AUTHORITATIVE. Confirm the ordered stages and the
   three-phase structure.
@@ -69,9 +71,11 @@ truth is the consuming org's conventions).
   meaningful in context. The fetchable stand-in for the Clean Code chapter.
 - Clean Code, ch. 2 "Meaningful Names" (Martin, with Ottinger):
   `https://www.oreilly.com/library/view/clean-code-a/9780136083238/chapter02.xhtml`
-  — nominally PRIMARY (the authors' own chapter), but the full text is
-  paywalled and was NOT obtained this pass; its specific rules rest on
-  secondary write-ups, so treat it as Tier-2-for-verification.
+  — nominally PRIMARY (the authors' own chapter), but its specific rules here
+  rest on secondary write-ups, so treat it as Tier-2-for-verification. Basis:
+  the full text sat behind the publisher's paywall and was not obtained, as of
+  2026-07-18. Recheck trigger: obtaining the chapter text, which promotes this
+  entry to PRIMARY and lets its rules be cited directly.
 
 ## Domain language
 
@@ -138,9 +142,10 @@ style conflicts route to the consuming ecosystem, not a house verdict.
 ## Framework / style-guide naming (supporting)
 
 - .NET naming guidelines (Microsoft): [dotnet-naming] — PRIMARY. Reproduces
-  the 2008 2nd-edition text (self-flagged); the 3rd edition (2020) is not
-  freely available, so treat the specific DO/DO NOT rules as Tier-2 pending
-  the current edition.
+  the 2008 2nd-edition text (self-flagged), so treat the specific DO/DO NOT
+  rules as Tier-2. Basis: the 3rd edition (2020) was not freely available, as
+  of 2026-07-18. Recheck trigger: the 3rd-edition text becoming reachable,
+  which re-derives the DO/DO NOT rules against the current edition.
 - Kevlin Henney, "Seven Ineffective Coding Habits" (naming): [henney] —
   PRIMARY. Meaning over word-count; "adding words is not adding meaning".
 - Google style guides (per-language naming): [google-style] — PRIMARY.

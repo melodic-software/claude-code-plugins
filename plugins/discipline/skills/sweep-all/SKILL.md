@@ -1,5 +1,5 @@
 ---
-description: "Compose this plugin's discipline correctors into ONE batched pass. Requires conversation-inheriting fork subagents (`subagent_type: fork`); when fork mode is unavailable the skill emits `SWEEP-ALL: DEGRADED (fork-unavailable)` and runs the posture digest only (no audits, no corrections, no inline sequential fallback). At conversation start it instead reports a cheap posture digest (which disciplines are in scope) with no audit. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every standing discipline at once. Membership is each corrector's own tier metadata; for a single discipline, invoke that corrector directly."
+description: "Compose this plugin's discipline correctors into ONE batched pass. Requires conversation-inheriting fork subagents (`subagent_type: fork`); without fork mode it degrades to the posture digest and audits nothing. At conversation start it instead reports a cheap posture digest (which disciplines are in scope) with no audit. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every standing discipline at once. Membership is each corrector's own tier metadata; for a single discipline, invoke that corrector directly."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -37,9 +37,7 @@ hand-maintained list.
 
 Glob the sibling corrector directories and read each one's
 `metadata.discipline-batch` (`core` / `situational` / `never`) and
-`metadata.discipline-batch-rank`. The runbook never hardcodes member names;
-the tier is colocated with each corrector, so changing a shipped tier is a PR
-to that corrector. Drift is structurally impossible.
+`metadata.discipline-batch-rank`.
 
 - **core**. In scope every session.
 - **situational**. In scope only when relevant to THIS conversation. Route
@@ -50,19 +48,11 @@ to that corrector. Drift is structurally impossible.
 - **never**. Excluded from the batch by execution or interaction class
   (heavier fan-out tiers; correctors that need a non-fork fresh context or
   stop to remediate with the user). Membership is whichever correctors
-  declare `discipline-batch: never`. This runbook does not enumerate them.
-  Report that they exist (from the glob) and are invoked directly, not
-  batched.
+  declare `discipline-batch: never`. Report that they exist (from the glob)
+  and are invoked directly, not batched.
 
-**userConfig overlay** (see Configuration) applies after tier resolution:
-`exclude` drops a member, `promote` lifts a **situational** corrector to
-always-run, `demote` drops a core corrector to relevance-gated. `promote`
-is situational-only: a name whose resolved tier is `never` or `core`, or
-that matches no installed corrector, draws a **visible warning** and is
-not promoted (core stays core; never stays out of the batch; unknown is
-ignored). Report the net effect, including every such warning, when an
-overlay changes the resolved set. Zero-config = tiers exactly as the
-correctors declare them.
+The **userConfig overlay** (see Configuration below) applies after tier
+resolution and can change the resolved set; report the net effect when it does.
 
 ## Preflight: prove the fan-out can inherit (before step 1)
 
@@ -129,8 +119,7 @@ never/core/unknown promote warning in that report, never silently drop them.
   lifecycle belong to the `session-flow` plugin; this only sequences the
   re-anchor correctors.
 - **Does not batch the `never` tier**. Correctors that declare
-  `discipline-batch: never` are invoked directly; this runbook does not list
-  them by name.
+  `discipline-batch: never` are invoked directly.
 - **Does not define membership by inline names**. Membership is each
   corrector's own tier metadata (glob + read). Inline names elsewhere in this
   file illustrate rank-order intent or overlay examples, never the member set.
@@ -156,16 +145,14 @@ never/core/unknown promote warning in that report, never silently drop them.
   before the FIRST dispatch (the canary included) and compare afterwards, and
   treat any difference as a fork that wrote. Untrusted output, stop rather
   than correct on top of it. That is detection after the fact, not prevention,
-  and a robust comparison is more than a `git status` diff. Specifying one is
-  tracked in `#1631` rather than half-specified here.
-- **`isolation: "worktree"` was considered for the audit forks and rejected.**
-  The Agent tool accepts it on a fork, and it would move a fork's file edits
-  off the user's checkout, but a git worktree is created from a commit, so the
+  and a robust comparison is more than a `git status` diff; this skill does not
+  specify one.
+- **Do not pass `isolation: "worktree"` on the audit forks.** The Agent tool
+  accepts it on a fork, but a git worktree is created from a commit, so the
   fork would not see the uncommitted work in flight, which is usually the very
   thing the audit exists to inspect. It also would not bound a write addressed
   by an absolute path, and inherited history is full of absolute paths. It
-  trades a real loss of audit fidelity for partial containment. Record this if
-  it is proposed again.
+  trades a real loss of audit fidelity for partial containment.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.

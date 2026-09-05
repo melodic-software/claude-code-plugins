@@ -41,12 +41,11 @@ applied to its output:
 - `plugins`: plugin `settings.json` self-grant (P3) only
 - `all`: everything (default)
 
-Saying so is the fix, not a workaround. The filter reads like a scan-scope, and the cost argument
-for making it one no longer holds: since #2249 the root is a git toplevel, `$CLAUDE_PROJECT_DIR`, or
-an explicitly named directory, never an unbounded sweep, and over this repository the two `find`
-walks measure **0.49 s** and **0.41 s** (2026-08-12). Detector flags to skip half a second of walk
-would buy nothing and add a second place for scope to be defined. The coverage block still reports
-the whole denominator on a filtered run, so a narrowed report never implies a narrowed scan.
+The filter reads like a scan-scope, but a detector-side scope flag would buy nothing: the root is a
+git toplevel, `$CLAUDE_PROJECT_DIR`, or an explicitly named directory, never an unbounded sweep, and
+the walk takes well under a second. A second place for scope to be defined would only add drift. The
+coverage block still reports the whole denominator on a filtered run, so a narrowed report never
+implies a narrowed scan.
 
 This skill is report-only. There is no `--fix`: the correct P3 remediation is inherently
 operator-manual (the bare-name rule must land in user-global `~/.claude/settings.json`, which a skill

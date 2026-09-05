@@ -68,9 +68,9 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 ## Output
 
-Report the current effective `quiz_policy`, the effective report-library root, any recommended
-changes, and whether the user must reconfigure through Claude Code. Do not claim a configuration
-change until a rerun observes the new rendered values.
+Report the current effective `quiz_policy`, the effective report-library root, the effective
+teach workspace root, any recommended changes, and whether the user must reconfigure through
+Claude Code. Do not claim a configuration change until a rerun observes the new rendered values.
 
 ## Boundaries
 

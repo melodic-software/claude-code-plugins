@@ -29,7 +29,7 @@ Screenshots add value only when visual content provides information beyond the t
 
 ## Proven extraction pipeline (primary method)
 
-Empirically validated on a 30-minute code-heavy lesson ("Writing the first Tests"). Uses ffmpeg to extract frames directly from HLS video stream — no browser rendering, no CORS, no shadow DOM.
+Uses ffmpeg to extract frames directly from the HLS video stream — no browser rendering, no CORS, no shadow DOM. The commands below are worked with Dometrain's values (a `mux-player` element and a `dometrain.com` referer); the player selector comes from the adapter's `platformConfig.videoPlayerSelector`, and the referer requirement is per-platform, with Hotmart needing none. Substitute both from the adapter you are working on.
 
 ### The three-step approach
 
@@ -84,7 +84,7 @@ ffmpeg -y \
 
 ## Empirical threshold calibration
 
-Tested on "Writing the first Tests" (29m 58s, code-heavy, Rider IDE):
+Measured on a 30-minute code-heavy IDE screencast:
 
 | Threshold | Frames | Result |
 |---|---|---|
@@ -94,9 +94,9 @@ Tested on "Writing the first Tests" (29m 58s, code-heavy, Rider IDE):
 
 **Recommendation: use 0.1 as the default.** Cliff between 0.1 and 0.2 is dramatic for screencast content because visual changes are incremental (typing, scrolling) rather than hard cuts.
 
-### Why 0.1 works for this instructor
+### Why 0.1 works on overlay-heavy screencasts
 
-This instructor (Guilherme Ferreira) uses **TDD phase overlays** — colored banners showing RED, GREEN, or REFACTORING that appear/change during TDD cycle. These overlays trigger scene changes at exactly the right moments: when TDD phase transitions, which is when code on screen has meaningfully changed.
+Courses whose instructor uses on-screen phase overlays (colored banners marking a step change) get scene changes at exactly the right moments: the overlay changes when the code on screen has meaningfully changed.
 
 ### Caveat: instructor variability
 
@@ -158,9 +158,9 @@ Generate a JSON manifest per lesson pairing frames with transcript context. This
 - `keep`: Boolean — true for unique valuable content, false for duplicates/talking-head
 - `transcriptContext`: Nearest transcript segment text (paired by timestamp proximity)
 
-## Empirical findings (from TDD course extraction, March 2026)
+## Empirical findings
 
-Validated across 57 lessons, 992 frames:
+Measured across a full code-heavy course extraction. Re-check any row that stops holding after an ffmpeg, Playwright, or platform-player upgrade, and record what changed:
 
 | Finding | Details |
 |---------|---------|

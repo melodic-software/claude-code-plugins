@@ -106,7 +106,7 @@ start=${EPOCHREALTIME:-}
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2" "${3:-[]}")" "$REPO_ROOT"
+  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2" "${3:-[]}" "${4:-}")" "$REPO_ROOT"
 }
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -214,12 +214,17 @@ FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED
 # lossy, so a dropped envelope is inside contract; one that arrives claiming a
 # heavily-rewritten file was untouched is not. TOOL and FILE_REL stay as
 # arguments: both are bounded by a path length.
+# $3 is the rewrite verdict for data.changed: "true" when typos applied at
+# least one correction to the file, "false" when it ran and applied none, and
+# empty on a skip arm, where the key is omitted rather than guessed.
 build_data_json() {
   printf '{"findings":%s,"applied":%s}' "$1" "${2:-[]}" |
     jq -c \
       --arg tool "$TOOL" \
       --arg file "$FILE_REL" \
-      '{tool:$tool,file:$file,findings:.findings,applied:.applied}' 2>/dev/null ||
+      --arg changed "${3:-}" \
+      '{tool:$tool,file:$file,findings:.findings,applied:.applied}
+       + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[],"applied":[]}'
 }
 
@@ -402,8 +407,9 @@ emit_tool_break() {
 
 if [[ $SCAN_RC -eq 0 ]]; then
   # Clean, or excluded by the repo's own typos config. Nothing was changed and
-  # there is nothing to disclose.
-  emit_tel "ok" '[]'
+  # there is nothing to disclose; typos ran, so the rewrite verdict is a
+  # known false rather than an omitted key.
+  emit_tel "ok" '[]' '[]' false
   exit 0
 fi
 
@@ -711,5 +717,7 @@ hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 # data.findings, applied rewrites in data.applied), mirroring the sibling
 # formatter plugins where status reflects whether the tool ran, not whether it
 # was clean.
-emit_tel "ok" "$FINDINGS_JSON" "$APPLIED_JSON"
+TYPOS_CHANGED="false"
+((APPLIED_COUNT > 0)) && TYPOS_CHANGED="true"
+emit_tel "ok" "$FINDINGS_JSON" "$APPLIED_JSON" "$TYPOS_CHANGED"
 exit 0

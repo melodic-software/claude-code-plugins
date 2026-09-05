@@ -37,17 +37,16 @@ off. The primary method is always: read the file, extract claims, verify each on
 
 ## Execution: fan out one subagent per file
 
-Discovery runs as a **parallel subagent fan-out — one agent per primary-source file**, NOT a single
+Discovery runs as a **parallel subagent fan-out, one agent per primary-source file**, NOT a single
 sequential pass. A single context cannot exhaustively verify many files at once: it skips claims as
-context fills (the #1 audit failure named above). One dedicated subagent per file keeps each file's
-verification in a fresh, focused context — empirically ~2× the claim coverage and ~4× the drift
-caught vs a single sequential agent.
+context fills, which is the most common way an audit misses drift. One dedicated subagent per file
+keeps each file's verification in a fresh, focused context.
 
 1. **Enumerate** — expand the active dimensions' `primary-sources` globs (from the resolved audit
    config) to a concrete file list. `verification-sources` are the read-only ground-truth set every
    agent may consult.
-2. **Scope first (MANDATORY — cost gate)** — a full unscoped run fans out across every doc/config/
-   source file (hundreds of thousands of tokens). REQUIRE a `[scope]` or dimension filter
+2. **Scope first (MANDATORY, cost gate).** An unscoped run fans out one subagent per doc, config,
+   and source file, a very large token cost. REQUIRE a `[scope]` or dimension filter
    (`--docs-only` etc.) for large targets. If the enumerated list exceeds ~20 files, confirm scope
    with the user before dispatching. Never fan out the whole repo unprompted.
 3. **Dispatch** — one subagent per file. Each agent's ALLOWED surface = its ONE assigned file
@@ -56,8 +55,8 @@ caught vs a single sequential agent.
    primary-source file (except those doubling as verification-sources, per the read-only exception),
    any write, any git op. Each agent applies the claim-extraction method above to its file and
    returns findings + a verified-count. Use repo-relative paths only (never absolute machine
-   paths — agents must audit the current worktree). Throttle in waves (≤~16 concurrent); lower-tier
-   worker models are sufficient and dodge burst overload.
+   paths, agents must audit the current worktree). Throttle in waves so a large enumeration does not
+   burst past the concurrency your environment allows.
 
    **Peer files a claim must be checked against are read via `verification-sources`, not the fence
    exception.** A cross-file claim — DRY duplication across N files, a dependency-direction rule, an
@@ -70,8 +69,8 @@ caught vs a single sequential agent.
    in by default.
 4. **Collect** — aggregate per-file findings + verified counts into the Phase 2 input.
 
-Because each agent owns one file, the "complete one dimension before the next" sequencing is moot —
-there is no shared context to thin out, so dimension order does not matter.
+Each agent owns one file, so there is no shared context to thin out and dimension order does not
+matter.
 
 **Background / unattended variant:** the same per-file fan-out can run as a saved workflow
 (background execution, same-session resume, rerunnable script) instead of in-session subagents —

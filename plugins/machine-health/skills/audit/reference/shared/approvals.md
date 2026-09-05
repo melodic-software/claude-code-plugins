@@ -8,17 +8,20 @@ Schema: [`catalog/schemas/approvals.schema.json`](../../catalog/schemas/approval
 
 `<StateBase>` (the plugin data directory, `${CLAUDE_PLUGIN_DATA}`) is the per-machine root for state and logs — it survives plugin updates, while the plugin install directory is replaced by them. Approvals are per-machine config, not policy — they belong next to other machine-local artifacts.
 
-The previous design put checkboxes in a tracked `TODO.md` inside the skill directory. That design had three problems:
+Three properties make this the right home:
 
-1. **Source control pollution.** Every approval was a commit. Multiple hosts sharing the same checkout collided.
-2. **No schema.** `[x]` boxes rely on regex parsing. A typo silently disables the approval with no error.
-3. **Global state.** Approvals applied to every host, every user, every workspace that checked out the repo.
+1. **No source-control pollution.** An approval is machine-local state, so it never becomes a
+   commit and two hosts sharing a checkout never collide.
+2. **Schema-validated.** `approvals.schema.json` catches a malformed entry. A checkbox parsed out
+   of markdown fails silently on a typo.
+3. **Scoped to this host.** Approvals apply to this machine's state root, not to every host that
+   checks out the repository.
 
-`approvals.json` solves all three. Outside the plugin, schema-validated, scoped to this machine's state root.
+## What the shipped `TODO.md` is
 
-## What `TODO.md` is now
-
-`TODO.md` shipped with the plugin is **policy documentation**, not state. It lists remediations available for approval, their risks, and how to enable them. Never contains checkboxes that drive behavior. Runtime proposals accumulate in `<StateBase>/TODO.md`.
+The `TODO.md` shipped with the plugin is **policy documentation**, not state. It lists
+remediations available for approval, their risks, and how to enable them. It contains no
+checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO.md`.
 
 ## Enabling a remediation
 
@@ -44,9 +47,10 @@ Default state: both shipped remediations start as `approved: false`. Enable by e
 
 The orchestrator reads this on every run. No restart, no cache invalidation — file is re-read per invocation.
 
-## Migration from `TODO.md` (one-time)
+## Migration from `TODO.md` checkboxes (one-time)
 
-On first run after upgrade from the legacy in-repo skill, if `approvals.json` is **missing or empty** and a `TODO.md` contains `[x]` checkboxes, the orchestrator:
+When `approvals.json` is **missing or empty** and a `TODO.md` in the skill directory contains
+`[x]` checkboxes, the orchestrator:
 
 1. Parses TODO.md for checked approvals (best-effort — only recognizes the two known remediation names).
 2. Writes `approvals.json` with migrated approvals and a `migration.migrated_from_todo_md: true` marker plus a checksum of the source TODO.md.
@@ -55,9 +59,10 @@ On first run after upgrade from the legacy in-repo skill, if `approvals.json` is
 
 On subsequent runs, TODO.md checkboxes are ignored entirely. The `migration` block is informational only.
 
-After the next major version of the plugin, TODO.md parsing is removed.
+This path exists only to carry a checkbox-era approval forward once. Retiring it is a plugin
+change recorded in `CHANGELOG.md`, not a condition this file predicts.
 
-## First-run behavior (unchanged from prior design)
+## First-run behavior
 
 `RunMode = first-run` still forces `DryRun = $true`. Approvals read normally but no remediation executes. First-run produces a baseline report the user can review before approving anything.
 
@@ -85,8 +90,8 @@ Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
 - Migration path: TODO.md `[x]` present, no approvals.json - migrates, writes file, logs
 - Revocation: edit file, re-read, respects new state
 
-## Open follow-ups
+## Known limits
 
-- Signed approvals (HMAC or signed JSON) - not in v1; approvals.json integrity relies on filesystem permissions.
-- Cross-host approvals (e.g., "approve on every workstation in this domain") - not in scope. This skill is single-host.
-- TODO.md removal timeline - after version 2.0 of the plugin.
+- Approvals are not signed. `approvals.json` integrity relies on filesystem permissions.
+- Cross-host approvals ("approve on every workstation in this domain") are out of scope. This
+  skill is single-host.

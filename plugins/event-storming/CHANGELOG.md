@@ -3,6 +3,25 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8]
+
+### Changed
+
+- **methodology: the Miro availability gate probes the tool name that actually resolves.** The gate
+  now probes the prefixed `mcp__plugin_miro_miro__` form instead of a bare `miro_*` name, which
+  never resolves for a plugin-bundled server, so board discovery is no longer skipped on every run.
+  Board reads pass an explicit `limit` rather than asking for repeated pagination calls. Guidance
+  that told the model to merge duplicate events now preserves divergent wording as the
+  bounded-context signal the rest of the plugin depends on, and the duplicated no-laptops and focus
+  subsections are one subsection.
+- **simulation: removed run-version pins and author run figures, and corrected stale capability
+  claims.** Connectors and overlap detection are documented as available tools, `parent_id` carries
+  its real coordinate hazard instead of an undated reliability claim, and both rubric maxima now
+  match the tables they score. The event-count diagnostic is stated once as a signal rather than
+  three times as a gate that other lines call blocking, the per-round content checks are one
+  mechanical pass, and screenshot verification is conditional on the live-board path.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.6.7]
 
 ### Changed

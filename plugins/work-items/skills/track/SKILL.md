@@ -1,5 +1,5 @@
 ---
-description: "Track development work items through the bound tracker (work-item-tracker seam), the backlog-CRUD multi-verb skill. Actions: stats, list, add, start, done, due, recheck, search, audit (default: stats dashboard). Use when: 'add a work item', 'add an issue', 'add a ticket', 'close a work item', 'close a ticket', 'close an issue', 'start a work item', 'start a ticket', 'start an issue', 'claim a work item', 'list work items', 'list tickets', 'list issues', 'what work items are open', 'what's due', 'work-item stats', 'work items dashboard', 'search work items', 'check overdue recurring items', 'recheck a recurring item', 'audit work items', 'audit stale claims'. Not for new bug reports, use /bugs:write first (read-only report), then chain to /work-items:track add via --context if filing is needed. Sibling skills own the other verbs: /work-items:work (auto-select + execute one), /work-items:triage (raw intake), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO/FIXME sweep)."
+description: "Track development work items through the bound tracker (work-item-tracker seam), the backlog-CRUD multi-verb skill. Actions: stats, list, add, start, done, due, recheck, search, audit (default: stats dashboard). Use when the user wants to add, claim (start), or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check or recheck what is due on the recurring schedule; or audit stale claims and label hygiene. Not for new bug reports, use /bugs:write first (read-only report), then chain to /work-items:track add via --context if filing is needed. Sibling skills own the other verbs: /work-items:work (auto-select + execute one), /work-items:triage (raw intake), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO/FIXME sweep)."
 argument-hint: "<action> [args]. Actions: stats, list, add, start, done, due, recheck, search, audit (default: stats)"
 user-invocable: true
 disable-model-invocation: false
@@ -27,13 +27,14 @@ actions below in particular:
 - **Role-label resolution is an action-entry invariant.** `add`, `due`, `recheck`, and `audit`
   query, create, or filter items by a canonical role. Resolve each role from
   `.work-item-tracker.json` `config.role_labels` at action entry and use the resolved strings in
-  every query. When a role defaults because the file or entry is absent, warn loudly rather than
-  substituting silently; a present malformed/empty/non-string value is a hard stop.
+  every query. An absent file or entry falls back to the documented default without a warning (a
+  conforming binding omits entries that keep their default); a present malformed, empty, or
+  non-string value is a hard stop.
 
 `add` and `recheck` also draw on reference files the seam doc above does not itself carry:
 
 - [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md):
-  the 8-group label structure `add` validates against and `list --category` filters by.
+  the label structure `add` validates against and `list --category` filters by.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md):
   the title convention `add` applies.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md):
@@ -44,7 +45,8 @@ actions below in particular:
 ## Scope
 
 `track` is the centralized, concurrent-safe backlog-CRUD surface: create, claim, close, list,
-search, dashboard, and the recurring-schedule checks. It keeps a sub-action router over nine verbs.
+search, dashboard, and the recurring-schedule checks. It keeps a sub-action router over the verbs
+in the table below.
 Auto-selecting and executing one item is the sibling `/work-items:work` skill; raw-intake
 evaluation is `/work-items:triage`; plan decomposition is `/work-items:decompose`; the codebase
 marker sweep is `/work-items:scan-todos`.
@@ -82,7 +84,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 If `$ARGUMENTS` is empty, run `stats` (the default dashboard). If the action is unknown, show the
 action table.
 
-**Verbs that moved to sibling skills.** `work`, `triage`, `decompose`, and `scan` are no longer
-`track` sub-actions. They are standalone skills. If `$ARGUMENTS` names one of them, point the user
+**Sibling-skill verbs.** `work`, `triage`, `decompose`, and `scan` are standalone skills, not
+`track` sub-actions. If `$ARGUMENTS` names one of them, point the user
 at the skill instead of erroring: `work` → `/work-items:work`, `triage` → `/work-items:triage`,
 `decompose` → `/work-items:decompose`, `scan` → `/work-items:scan-todos`.

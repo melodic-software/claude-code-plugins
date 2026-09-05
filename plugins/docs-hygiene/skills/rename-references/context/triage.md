@@ -130,7 +130,7 @@ the token in advance.
 
 **User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one — batched confirmation defeats the safety purpose.
 
-**Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. The incident that motivated this skill contained dozens of legitimate "confirm" verb uses (research vocabulary, user-confirmation prompts, domain logic) that MUST be preserved. Per-match confirmation lets the user catch each.
+**Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. In a codebase that renames a token which is also a common verb, most bare-token hits are ordinary prose: research vocabulary, user-confirmation prompts, domain logic. All of them must be preserved. Per-match confirmation lets the user catch each.
 
 ## Special case: Rename-documenting plan docs
 

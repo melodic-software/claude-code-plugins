@@ -3,34 +3,33 @@
 How candidates from every dimension compete in one ranked list. The output contract (row shape,
 highest value-to-effort first) lives in SKILL.md; this leaf is the scoring mechanics.
 
-## Value-to-effort: WSJF-style scoring
+## Value-to-effort: cost of delay against job size
 
-Score each candidate as **cost of delay divided by job size** (the WSJF shape:
-CoD = value + time criticality + risk reduction/opportunity enablement):
+Rank each candidate on its **cost of delay against its job size** (the WSJF shape: cost of delay
+= value + time criticality + risk reduction/opportunity enablement):
 
-| Component | Question | Scale |
-|---|---|---|
-| Value | What does fixing this win — for users, operators, or the team? | 1 / 2 / 3 / 5 / 8 (relative) |
-| Urgency (time criticality) | Does the cost grow while it waits? Is a window closing? | 1 / 2 / 3 / 5 / 8 (relative) |
-| Risk reduction | Does it retire a failure mode, flakiness, or a class of toil? | 1 / 2 / 3 / 5 / 8 (relative) |
-| Job size (denominator) | S / M / L | S = 1, M = 3, L = 8 |
+| Component | Question |
+|---|---|
+| Value | What does fixing this win — for users, operators, or the team? |
+| Urgency (time criticality) | Does the cost grow while it waits? Is a window closing? |
+| Risk reduction | Does it retire a failure mode, flakiness, or a class of toil? |
+| Job size | S / M / L — the same band the row publishes |
 
-```text
-score = (value + urgency + risk_reduction) / size
-```
+Weigh the three cost-of-delay components together against the size band and order the list by
+that judgment. A large candidate leads only when its cost of delay is correspondingly larger.
 
-Rules that keep the scoring honest:
+Rules that keep the ranking honest:
 
-- Scales are **relative within this run**, not absolute — score the candidate set against
-  itself, and re-score every run (a recurring sweep re-ranks; scores are not sticky).
+- Compare candidates against each other in this run, not against an absolute bar, and re-rank
+  every run (a recurring sweep re-ranks; rankings are not sticky).
 - The size band (S/M/L) is also the row's published size; when a size-band narrowing
   (`--small` / `--medium` / `--large`) is in effect, filter before ranking — with ONE
   exemption: the instrument-first candidate (below) is never filtered out by the band. When the
   target is unmeasured, that candidate is surfaced and top-ranked regardless of the requested
   band, marked `outside requested band` when it is — the hard rule wins over the filter, never
   silently the other way around.
-- The value-to-effort *rationale* in the row is the one-line justification of these components,
-  not the arithmetic.
+- The value-to-effort *rationale* in the row is the one-line justification naming which
+  components drive the placement.
 - Ties break toward the stronger evidence rung.
 
 ## Evidence strength → confidence (aligned to SKILL.md's ladder rungs)
@@ -52,21 +51,22 @@ gap lines so the reader knows what the ranking could not see.
 
 ## The instrument-first rule
 
-When a target — or the dimension a promising candidate lives in — has **no measurement above
-rung 4**, the top-ranked candidate becomes the instrumentation itself: a concrete proposal
+When the target has **no measurement above rung 4** anywhere (no telemetry, no usable repo or
+CI history), the top-ranked candidate becomes the instrumentation itself: a concrete proposal
 naming *what to measure*, *where the signal lands*, and *which rung it unlocks for future
 runs*. Examples: add a baseline CI workflow (unlocks rung 2 CI health per ci-health.md),
 unshallow the clone (unlocks rung 2 churn per hotspots.md), configure a Tier 2 telemetry
 source (unlocks rung 1).
 
-Precedent: the SRE error-budget posture — prioritization between feature and reliability work
-is *driven by a measurement* (SLO attainment), and when the budget measurement says stop,
-remediation outranks features. The corollary this skill encodes: with no measurement at all,
-the highest-value move is to create the measurement, because it unlocks every future ranking.
-The instrumentation candidate is handed to the pipeline like any other improvement — it is not
-a disclaimer, it is the recommendation.
+A single dimension missing its measurement is not this rule. That is an ordinary evidence gap:
+record the `gap:` line, rank the dimension's candidates on the rung they do have, and propose
+instrumentation for it as a normal candidate competing on value-to-effort like any other.
 
-Scoring it: value and risk-reduction inherit from what the missing measurement would rank
+With no measurement at all, creating the measurement is the highest-value move, because it
+unlocks every future ranking. The instrumentation candidate is handed to the pipeline like any
+other improvement: it is not a disclaimer, it is the recommendation.
+
+Ranking it: value and risk-reduction inherit from what the missing measurement would rank
 (usually high); size is typically S or M. That is why it genuinely rises to the top rather
 than being pinned there artificially.
 

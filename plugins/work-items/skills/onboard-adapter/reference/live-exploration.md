@@ -5,16 +5,11 @@ wrong, because they are per-instance rather than per-product.
 
 ## Why this step exists
 
-The bundled `jira` adapter is the standing evidence. Two facts could not be settled from
-the specification:
-
-- the exact `statusCategory` key meaning "done" — the official spec's own example
-  disagreed with real instances, so the adapter defaults to **both** known keys and takes
-  a config override;
-- the blocker link-type name, which is instance-configurable.
-
-Both became config keys with documented defaults. That is the pattern to reach for
-whenever a probe cannot be run: make the adapter *independent* of the fact rather than
+Some facts are per-instance rather than per-product, so the API documentation cannot settle them.
+The bundled `jira` adapter carries two: the `statusCategory` key that means "done" (it defaults
+to both known keys and takes a config override) and the blocker link-type name
+(instance-configurable). Both are config keys with documented defaults. That is the pattern to
+reach for whenever a probe cannot be run: make the adapter *independent* of the fact rather than
 confidently wrong about it.
 
 ## Three rules

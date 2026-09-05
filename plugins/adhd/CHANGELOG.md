@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Changed
+
+- **shape:** the Gotchas section keeps the compaction note and drops the dated audit header and the
+  two bullets that restated the conflicting-shaper check and the rule 5 boundary test; rule 10
+  states the no-preamble rule positively with one illustrative weak-versus-strong pair instead of
+  an exhaustive banned-phrase list.
+- **clarify:** the scratchpad rule states its reason without narrating upstream's decision.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.4.6]
 
 ### Changed

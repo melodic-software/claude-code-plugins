@@ -17,11 +17,6 @@ plugin's binding, how the discovery skills consume what this skill persists, and
 published convention that owns the schema, lives in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
-<!-- Maintainer note: the rules below restate the topic-docs and marketplace setup contracts as this
-     skill's own runtime instructions. Matching a sibling plugin's setup skill byte-for-byte is a
-     coincidence of scope, not a shared artifact, the topic-docs contract's "Implementers restate
-     the rules" section records why this is not extracted, and what would reopen that. -->
-
 Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
 re-running reads the current state and offers an update rather than overwriting blind.
 
@@ -49,8 +44,7 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    and source line. Resolving the rule is the consumer's edit.
 4. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
    enabled. Git remains the storage layer because GitBook offers no concurrency-safe,
-   lossless write path, so it is deferred and non-writable; durable writes still target `docs` until
-   a later reviewed decision enables it.
+   lossless write path, so it is deferred and non-writable; durable writes target `docs`.
 5. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
    default, and that posture degrades rather than breaks on a session that cannot support all of it.
    Report these as PASS/INFO rows. **Never FAIL, and never a blocker**:
@@ -61,14 +55,12 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      observed version and, when it is under the floor, name which of those the session does not have.
      The skills still run, inline is always available, so this is INFO, not FAIL.
    - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`**. Report the value, present or absent, and say what
-     the running harness does with it rather than assuming. This default has moved three times:
-     nesting shipped at a fixed five layers (2.1.172), went **off** by default (2.1.217), then
-     returned at **a configurable default of three** (2.1.219), so on 2.1.219 or later, absent
-     means nesting is *available*, and the variable now lowers the ceiling (`"1"` disables nesting)
-     as readily as it raises one. Read absent against the observed version, in four windows: below
-     **2.1.172** nesting does not exist at all and the variable buys nothing; 2.1.172–2.1.216 absent
-     meant available at a fixed five; 2.1.217–2.1.218 absent meant *off*, the only window where
-     setting it was the way to turn nesting on; 2.1.219 and later absent means available at three.
+     the running harness does with it rather than assuming. Read absent against the observed
+     version, in four windows: below **2.1.172** nesting does not exist and the variable buys
+     nothing; **2.1.172** to **2.1.216** absent means available at a fixed five; **2.1.217** to
+     **2.1.218** absent means *off*, and setting the variable is the only way to turn nesting on;
+     **2.1.219** and later absent means available at a configurable default of three, and the
+     variable lowers the ceiling (`"1"` disables nesting) as readily as it raises one.
      Report absent as INFO in every window: nesting buys
      **throughput**, not coverage, without it a dispatched agent fans out sequentially, slower for
      the same result. The variable is still only one of **two** conditions: it cannot add a tool an
@@ -96,11 +88,10 @@ reports "already configured".
    solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
    existing file carries, a re-run never drops one; do not invent options beyond the schema. `gitbook`
-   is reserved but not enabled as a `vault_backend` value. Git remains the storage layer because
-   GitBook offers no concurrency-safe, lossless write path. When offering or preserving it, report
-   that it is deferred and non-writable. Durable writes still target `docs`, and never configure or
-   test a GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user
-   chooses that change.
+   is reserved but not enabled as a `vault_backend` value (check step 4 states why). When offering or
+   preserving it, report that it is deferred and non-writable, never configure or test a GitBook API,
+   MCP, or Git Sync writer, and offer to replace the key with `docs` only if the user chooses that
+   change.
 2. **Guard, then persist.** Re-run the committed-tier guard from `check` for the chosen tier; if a
    consumer ignore rule matches, STOP and surface the exact rule and source line rather than
    configuring an uncommittable "committed" tier. Only then write the chosen values to the tracked
@@ -118,8 +109,9 @@ reports "already configured".
 
 A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line summary of what was
 written and how to re-run this setup to reconfigure. Note in the summary that the concern file governs
-where every discovery skill (`/discovery:explore`, `/discovery:research`, `/discovery:research-deep`, and the agents they dispatch)
-lands handoff artifacts.
+where every discovery skill that writes a memory-tier artifact (`/discovery:explore`,
+`/discovery:research`, `/discovery:research-deep`, `/discovery:trace-intent`) and the agents they
+dispatch land handoff artifacts.
 
 ## Gotchas
 
@@ -137,8 +129,8 @@ lands handoff artifacts.
 
 ## What this skill does NOT do
 
-- Run an exploration or research pass. That is the plugin's discovery skills (`/discovery:explore`,
-  `/discovery:research`, and `/discovery:research-deep`).
+- Run an exploration, research, or intent-tracing pass. Those are the plugin's discovery skills
+  (`/discovery:explore`, `/discovery:research`, `/discovery:research-deep`, `/discovery:trace-intent`).
 - Write machine-local state. Configuration lives in the consumer's tracked concern file, never in the
   plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
   state only).

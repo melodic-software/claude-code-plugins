@@ -86,7 +86,7 @@ long history and those rows carry names and branches only, no content).
 ### Windows — per-user Scheduled Task (no admin)
 
 The limited runtime user must first have the scoped `SERVICE_STOP | SERVICE_START` grant
-converged by machine provisioning ([provisioning#125](https://github.com/melodic-software/provisioning/issues/125)).
+converged by machine provisioning.
 The grant intentionally includes no service-configuration or ACL-writing rights.
 
 The registration carries machine-specific absolute paths, so it is **generated from your

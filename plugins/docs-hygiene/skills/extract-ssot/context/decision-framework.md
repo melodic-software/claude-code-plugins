@@ -17,11 +17,11 @@ Applies to any repeated text content — markdown (rules, skills, docs), code (c
 
 ## Reporting gate vs abstraction gate
 
-Two different questions were long collapsed into one threshold. They are separate:
+Two different questions ride on one threshold if they are not separated. They are separate:
 
 - **Reporting gate** — *should the user be told this duplication exists?* Always yes. Withholding a
   finding does not prevent an abstraction; it prevents a fix.
-- **Abstraction gate** — *may a NEW SSOT artifact be minted for it?* Rule of Three, unchanged, plus
+- **Abstraction gate** — *may a NEW SSOT artifact be minted for it?* Rule of Three, plus
   the full 6-test gate below.
 
 Rule of Three gates the second question only. The evidence it rests on — ~19% failure on curated
@@ -38,7 +38,7 @@ of files.
 **Lowering the reporting threshold does not lower the abstraction threshold.** The sub-three buckets
 offer only non-abstracting remedies — every one of them edits files that already exist and adds no
 new indirection hop, so none of them can produce the premature abstraction the Rule of Three exists
-to prevent. The guardrail is intact; only the silence is gone.
+to prevent. Reporting a sub-three candidate is what makes its in-place remedy available.
 
 Two constraints keep the rule-of-one default honest:
 

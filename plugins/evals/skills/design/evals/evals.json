@@ -71,7 +71,7 @@
       "id": 7,
       "name": "llm-grader-hygiene-recorded",
       "prompt": "/evals:design app — my criteria include 'responses stay professional in tone, target 4+ on a 5-point scale'. Set that up.",
-      "expected_output": "Scaffolds an LLM-graded Likert case with the tone anchors defined, a constrained numeric verdict, reasoning-then-discard instruction, a grader model different from the generator, and records the sample-check-the-grader-first step and re-run cost in the criteria doc.",
+      "expected_output": "Scaffolds an LLM-graded Likert case with the tone anchors defined, a constrained numeric verdict, a reasoning-then-discard instruction only where the grader model does not already think by default, a grader model different from the generator, and records the sample-check-the-grader-first step and re-run cost in the criteria doc.",
       "expectations": [
         "Likert rubric defines scale anchors and constrains the grader output to the number",
         "Grader model differs from the generator model, stated explicitly",

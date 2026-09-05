@@ -18,7 +18,7 @@
       "id": 2,
       "name": "scopes-a-missing-prerequisite-to-what-it-actually-blocks",
       "prompt": "/claude-config:setup check\n\ncurl is not installed on this machine.",
-      "expected_output": "FAILs on curl but scopes the impact to the plugin-drift check alone, stating that the rest of audit and the other three audit skills still run. Does not report the plugin as broken or generalize the failure.",
+      "expected_output": "FAILs on curl but scopes the impact to the plugin-drift check alone, stating that the rest of audit and every other skill still run. Does not report the plugin as broken or generalize the failure.",
       "files": [],
       "expectations": [
         "Names check-plugin-drift.sh as the only consumer of curl",

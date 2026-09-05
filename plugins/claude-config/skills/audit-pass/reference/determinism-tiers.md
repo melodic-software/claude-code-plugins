@@ -30,10 +30,9 @@ set.
 Every property below is conditioned on "tree unchanged". **A run cannot assume that precondition of
 itself.** The state key is computed once at Phase 0, and nothing re-validates the tree at Phase 6, so
 a checkout that moves *during a single run* — another session switching branches, pulling, or
-committing underneath it — yields a comparison whose basis silently stopped holding. This is not
-hypothetical: a pass over a shared checkout observed its target move mid-measurement, from one commit
-on one branch to a different commit on another, with a rename landing in between. Several concurrent
-sessions on one repository is the normal case for the operator who runs this first.
+committing underneath it — yields a comparison whose basis silently stopped holding. Several concurrent
+sessions on one repository is the normal case, so a branch switch, a pull, or a commit landing
+mid-run is ordinary rather than hypothetical.
 
 So the run **measures** its own precondition:
 
@@ -71,8 +70,8 @@ So the run **measures** its own precondition:
   not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
   cannot diverge. **The exclusion is keyed on containment, not on `--report-to`** — Class 4's predicate
   is `write_path ⊆ target_root`, so it covers the default `${CLAUDE_PLUGIN_DATA}` path just as well
-  whenever the target sits at or above `~`. Keying it on the flag was the defect that made every run
-  against such a target report `indeterminate` about itself. What is excluded is the pass's own class-4
+  whenever the target sits at or above `~`. Keyed on the flag instead, every run against such a
+  target would report `indeterminate` about itself. What is excluded is the pass's own class-4
   artifact set and nothing else: a *different* file appearing or changing is still a moved tree and
   still `indeterminate`.
 - If either capture differs, the determinism gate is reported **`indeterminate`**, never `passed` and
@@ -117,17 +116,15 @@ another plugin, and it has two forms per check:
 
 - **Qualified** — the invocation declared its catalog version and prompt digest. Those are the
   values compared, and a catalog edit is detected exactly.
-- **Unqualified** — it declared neither, the state of every delegated catalog today. The compared
+- **Unqualified** — it declared neither, which no delegated catalog declares. The compared
   value is then what is observable from outside: the delegate plugin's **semver from the marketplace
   manifest**, plus the harness version. The comparison is **coarse** and the report says so per
   check, because a catalog edit that ships without a version bump is invisible to it.
 
-**Defining it as "the catalog version and prompt digest" made every property vacuous, and that was
-the defect.** If the compared values cannot be established, no pair is ever comparable, so P1–P4
-assert nothing about any two real runs — the resume fallback stopped a *resumed* report from mixing
-configurations, and did nothing for the cross-run comparison, which is a different question with the
-same cause. An unknown sentinel compared equal to itself would have been worse: it reads as a clean
-comparison while missing exactly the catalog changes the input exists to catch.
+**Defining it as the catalog version and prompt digest alone would make every property vacuous.**
+If the compared values cannot be established, no pair is ever comparable, so P1–P4 assert nothing
+about any two real runs. An unknown sentinel compared equal to itself would be worse: it reads as a
+clean comparison while missing exactly the catalog changes the input exists to catch.
 
 Coarse-but-honest is the right trade here because the failure directions are not symmetric. A missed
 sub-semver catalog edit makes a property assert over a pair it should have abstained on — one wrong
@@ -136,20 +133,17 @@ forever. The report names each unqualified check so the coarseness is attributab
 assumed, and the exact comparison arrives for free the moment a delegate declares its detection
 version — the same declaration `claim` templates already ask of it.
 
-**Behavior-affecting arguments belong here too, not only in the resume digest.** Two completed runs
-differing only in `--opinion` were classified comparable while one deliberately ran additional
-checks, so the extra judged findings could fail P4 as audit instability — a false alarm produced by
-the operator using a documented flag.
+**Behavior-affecting arguments belong here too, not only in the resume digest.** Two completed
+runs differing only in `--opinion` are not comparable: one deliberately ran additional checks, so
+treating them as comparable would fail P4 as audit instability on a documented flag.
 
-**The first input is the state digest, not the target tree, and the difference is the whole point of
-widening the digest.** "Target tree" covers only the repository, so a changed `~/.claude/CLAUDE.md`
-or managed-policy file left two runs classified as comparable while their derived sets legitimately
-differed — reported as a determinism **defect**, the accusation-instead-of-abstention failure the
-widened digest was introduced to close, surviving in the cross-run definition after being fixed in
-the within-run one. Since the state digest already spans every inventoried scope and the target's
-dirty set, and the baseline is taken with the inventory frozen, comparing baselines compares exactly
-what the lanes were about to read. This is what makes eval 22's `indeterminate` the contract's answer
-rather than an assertion against it.
+**The first input is the state digest, not the target tree.** "Target tree" covers only the
+repository, so a changed `~/.claude/CLAUDE.md` or managed-policy file would leave two runs
+classified as comparable while their derived sets legitimately differed, reported as a
+determinism defect instead of an abstention. Since the state digest spans every inventoried scope
+and the target's dirty set, and the baseline is taken with the inventory frozen, comparing
+baselines compares exactly what the lanes were about to read. This is what makes eval 22's
+`indeterminate` the contract's answer rather than an assertion against it.
 
 A property asserts nothing about a non-comparable pair, which is reported as **non-comparable naming
 the input that moved** — never as a pass and never as a failure. This is not a hedge: each input
@@ -212,9 +206,8 @@ detection-behavior input not covered by the digest is a defect in the digest.
 - **P3 — no spontaneous growth.** `R1` and `R2` **comparable** ⇒ `D(R2) ⊆ D(R1)`. The set may grow
   only on a change to one of the comparability inputs — a detection or harness version bump, a moved
   liveness basis, a different behavior flag, or a change to the tree, and a skill authored between
-  runs is a change to the tree. P3 stated its own shorter list ("tree and catalog versions") until
-  the comparability predicate was introduced; the enumeration is exactly the negation of
-  comparability, so it is cited rather than restated — restating it is what let P1 and P4a drift.
+  runs is a change to the tree. The enumeration is exactly the negation of comparability, so it is
+  cited rather than restated; a restated copy would drift.
 - **P3a — the inventory is part of the gate.** A surface that silently drops out of scope between two
   runs **fails P1**. A silent scope regression is worse than a changed finding, because it looks like
   an improvement.

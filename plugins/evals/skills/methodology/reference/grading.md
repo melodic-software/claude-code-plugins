@@ -25,7 +25,10 @@ sources before treating any specific here as current.
   1–5 score. Purely qualitative open-ended judgments are hard to assess quickly at scale.
 - **Encourage reasoning, then discard it.** Have the grader think first (e.g. in `<thinking>`
   tags) before deciding, then extract only the verdict (e.g. from `<result>` or `<correctness>`
-  tags). Reasoning improves grading on complex judgment; only the verdict is kept.
+  tags). Reasoning improves grading on complex judgment; only the verdict is kept. On a grader
+  model that thinks by default, the scaffold is already satisfied: the model reasons before it
+  answers, so keep the constrained verdict and drop the tag instruction rather than paying for
+  the same reasoning twice in output tokens.
 - **Validate the grader's output format.** Extract the verdict tag with a strict pattern; treat a
   missing/non-conforming verdict as an error, not a silent pass or fail.
 - **Different model than the generator.** It is generally best practice to grade with a different
@@ -52,4 +55,6 @@ First, think through whether the answer is correct or incorrect based on the rub
 
 Extract `<result>` with a strict match; raise on absence. For scale grading, swap the final
 instruction for "output only the number" with the scale anchors defined (1: not at all X … 5:
-perfectly X).
+perfectly X). Against a grader model that thinks by default, drop the `<thinking>` sentence from
+the skeleton and keep the rest: the reasoning happens either way, and the verdict tag is the
+only part the extractor reads.

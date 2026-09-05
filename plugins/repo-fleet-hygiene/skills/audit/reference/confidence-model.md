@@ -18,14 +18,13 @@ response. The report gives it its own group for that reason.
 
 The collector emits exactly the kinds below. `scripts/audit-fleet.test.sh` asserts that this table's
 kind set and the collector's emitted kind set are equal, so a new kind cannot ship without a
-documented disposition — the drift that made this table cover half the finding set is now a test
-failure rather than a discovery.
+documented disposition.
 
 | Kind | Evidence | Confidence | Disposition |
 |---|---|---|---|
 | `merged-local-branch` | GitHub `MERGED` PR for this repository + branch and `headRefOid` equals local tip; branch is not current/default/worktree-attached | `HIGH` | Candidate handoff to `/repo-hygiene:clean git` |
 | `merged-worktree` | Same merged-PR/tip evidence, branch is attached to a non-main registered worktree | `HIGH` | Candidate handoff to `/source-control:worktree cleanup --dry-run` first |
-| `merged-protected-branch` | Same merged-PR/tip evidence as `merged-local-branch`, but the branch is attached to the main worktree or is the canonical checkout's current branch (the default branch never reaches this classification — it is excluded from merge-evidence collection) | `HIGH` | Informational only; protected branches are never branch-cleanup candidates. `HIGH` is the evidence tier, not a cleanup signal — the disposition carries the protection. Reported so exact-OID merge evidence is never computed and then silently discarded: absent this kind, a protected branch's strongest evidence produced no finding while the weaker `merged-pr-tip-drift` still emitted, so silence read as "nothing merged" |
+| `merged-protected-branch` | Same merged-PR/tip evidence as `merged-local-branch`, but the branch is attached to the main worktree or is the canonical checkout's current branch (the default branch never reaches this classification — it is excluded from merge-evidence collection) | `HIGH` | Informational only; protected branches are never branch-cleanup candidates. `HIGH` is the evidence tier, not a cleanup signal — the disposition carries the protection. Reported so exact-OID merge evidence is never computed and then silently discarded: without this kind a protected branch's strongest evidence produces no finding while the weaker `merged-pr-tip-drift` still emits, and the silence reads as "nothing merged" |
 | `merged-pr-tip-drift` | GitHub merged PR exists, but local tip differs from every returned `headRefOid` | `MEDIUM` | Manual review; never delete from this evidence |
 | `merged-remote-branch` | GitHub `MERGED` PR for this repository + branch and `headRefOid` equals the last-fetched remote-tracking tip, **and** `git ls-remote --heads` confirms the same tip still exists on the remote (so `delete_branch_on_merge` was not enabled or was blocked). When ls-remote fails, the same cached match is reported at `MEDIUM` as an unverified local remote-tracking observation. Empty ls-remote (head already deleted upstream) emits no finding. | `HIGH` when ls-remote confirms; `MEDIUM` when ls-remote fails | Optional `git push --delete --dry-run` preview handoff; separate from local cleanup. Enabling GitHub `delete_branch_on_merge` is complementary (stops the class accruing), not a substitute for this finding — never changed by this audit |
 | `local-ancestry-only` | Local tip is an ancestor of the remote-tracking default branch, with no matching GitHub merged PR evidence | `LOW` | Informational only |
@@ -71,8 +70,8 @@ a single report, so they are stated here rather than left to be rediscovered.
 
 **Merge strategy.** `local-ancestry-only` tests whether a branch tip is an ancestor of the
 remote-tracking default branch. A squash merge rewrites the branch's commits into one new commit, so
-the original tip is not an ancestor and the predicate is near-inert on a squash-merging fleet —
-observed holding for 27 of 506 branches on one such fleet. Related consequences of the same cause:
+the original tip is not an ancestor and the predicate is near-inert on a squash-merging fleet,
+where it holds for only a small fraction of merged branches. Related consequences of the same cause:
 `git rev-list --count <tip> --not --remotes` reads non-zero for a squashed-and-pruned branch even
 though it merged, and `git cherry` is one-directional, since `ALL-UPSTREAM` proves content landed
 while `NONE-UPSTREAM` proves nothing when a squash has collapsed N commits so no individual patch-id
@@ -99,4 +98,4 @@ Default report output aggregates per repository (kind counts + verdict). Detail 
 multiple findings that share a target into one entry. Across the fleet action plan, branch skill
 invocations are listed before worktree skill invocations so an approved batch never prunes a
 worktree before the branch that still anchors its reflog. The machine-readable action plan is the
-interchange format for fleet-scale handoff (#2608, #2609).
+interchange format for fleet-scale handoff.

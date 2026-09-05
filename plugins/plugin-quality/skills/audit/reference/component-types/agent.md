@@ -1,7 +1,5 @@
 # Auditing an agent / subagent
 
-Growable stub.
-
 ## Read first
 
 - The agent definition (`.md` with frontmatter): `name`, `description`, `model`, `tools`/allowed

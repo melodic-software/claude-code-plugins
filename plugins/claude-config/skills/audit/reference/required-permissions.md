@@ -194,7 +194,7 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
   under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
   severity. **Phase 1.0's `check-hook-coverage.sh` reports all three**, in every scope it could read,
   so the reading is available before Category B runs and on a scope-filtered `/audit permissions` run
-  as well — the ordering problem this bullet used to carry is gone. Where the reading was not taken at
+  as well. Where the reading was not taken at
   all, the narrowing is **unavailable** rather than assumed clear: an unread lever is not an unset one.
   Note the script reads the scopes it can open; a managed-settings layer it cannot read leaves
   `allowManagedHooksOnly` unknown, which is a partial reading, not a clear one.

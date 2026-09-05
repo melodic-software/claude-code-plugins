@@ -79,9 +79,8 @@ carries a worked example.
 ## Step 2. Explore the live instance
 
 Some facts are not in the API docs, only in the user's actual instance. The bundled `jira`
-adapter is the standing proof: its done-state category key and its blocker link-type name
-could not be settled from the specification, the official example disagreed with real
-instances, and both had to become config with defaults.
+adapter shows the shape: its done-state category key and its blocker link-type name vary per
+instance, so both are config keys with defaults.
 
 So: for each field the normalizer will read, have the **user** run a read-only probe
 against their instance and paste the response shape. Typical probes: fetch one item and
@@ -162,7 +161,7 @@ verb that does nothing.
 ## Security posture
 
 The skeleton is **template-driven, not re-derived per provider**. It is generated already
-carrying the guards the bundled `jira` adapter was hardened into, and the generated
+carrying the same guards the bundled `jira` adapter carries, and the generated
 `common.test.sh` proves them:
 
 - Credential read from the env var *named by* the binding, never stored in the tracked

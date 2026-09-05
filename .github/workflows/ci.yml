@@ -685,6 +685,21 @@ jobs:
         continue-on-error: true
         run: scripts/check-killswitch-hoist.sh
 
+      # A plugin hooks.json takes an optional top-level `description`, the one
+      # place a plugin labels its hooks as a set (the plugins reference, hooks
+      # component). The 2026-09-04 hooks-reference audit found it absent in 20
+      # of 20 plugins; #3727 and #3750 added it everywhere, and nothing else
+      # reads the field, so nothing else would notice a new plugin shipping
+      # without it (#3752). Self-test first so a broken detector cannot mask a
+      # regression.
+      - name: Test the hooks-description gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-hooks-description.test.sh
+      - name: Check every plugin hooks.json carries a top-level description
+        id: hooks_description
+        continue-on-error: true
+        run: scripts/check-hooks-description.sh
+
       # Three separate readers judge `metadata.summary`, and they can drift
       # apart: a malformed value reached CI twice in #3162, failing in opposite
       # directions, each time after clearing the local check meant to catch it.
@@ -1217,6 +1232,7 @@ jobs:
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
+            hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}

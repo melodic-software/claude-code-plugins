@@ -52,8 +52,7 @@ the tool set, not of model obedience. `Write` is kept, since run state and the r
 inside a target repository. It takes the data directory as an argument rather than discovering one,
 and validates both path segments it contributes: `lib/state-key.sh` refuses a remote URL that would
 become traversing directory components, and a `--run-id` outside `[A-Za-z0-9][A-Za-z0-9_.-]*` is
-refused here. The run-state writes were always sanctioned; what changed is that a script performs
-them.
+refused here.
 
 ## Scope boundary (route out)
 
@@ -100,8 +99,7 @@ bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data 
 ```
 
 `paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`,
-the library whose header records the keying scheme as *this skill's*, and which until now three
-other skills called and this one did not. Pass `--plugin-data` explicitly: `${CLAUDE_PLUGIN_DATA}`
+the library whose header records the keying scheme. Pass `--plugin-data` explicitly: `${CLAUDE_PLUGIN_DATA}`
 substitutes in this text but is **not** exported to the Bash tool's environment, so a shell cannot
 expand it. `acquire` takes it too, and refuses a `--run-dir` that is not under
 `<plugin-data>/runs/`. It is the only command that *creates* a directory, so it is where the write
@@ -120,15 +118,14 @@ a **live** lease means the run is still going, and resume exits non-zero naming 
 than attaching; a **stale** lease means the run was interrupted and its artifact is resumable; a
 `released` tombstone is resumable immediately; `missing` means there is nothing to attach to. The
 lease is not a lock: it excludes nothing, blocks no concurrent read-only run, and grants no
-exclusivity; it answers the one question resume has to ask and previously could not.
+exclusivity; it answers the one question resume has to ask.
 
 Refresh it at every lane's persistence point (`lease heartbeat`) and write the tombstone on a clean
 exit (`lease release`). The full specification, covering path, contents, the two-sided liveness window, and an
 explicit statement of **which clauses the script enforces and which remain the run's own discipline**,
 is in [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) §3. Read
-that split before relying on any of it: the section specified a refresh interval and a staleness
-threshold against no writer at all, which is the same shape as "on the same heartbeat the applying
-lock uses", a mechanism named rather than provided.
+that split before relying on any of it: a clause the script does not enforce is the run's own
+discipline, not a guarantee.
 
 **The scan baseline is captured after the inventory is frozen and before any lane reads.** The
 digest spans every inventoried scope, so it cannot be computed before Phase 1 has produced that
@@ -292,12 +289,8 @@ delegated catalogs spawn their own subagents, and this pass cannot reach inside 
 concurrency at 3–5 lanes and let incremental persistence carry the rest. It is what degrades a blown
 session ceiling into a resumed run.
 
-**That mitigation now names something that exists.** "Let incremental persistence carry the rest" was
-the load-bearing answer to the *one* cost dimension this passage declines to bound, and until
-`run-state.sh` shipped the persistence it named was prose, so an intra-lane overrun, the failure
-mode this paragraph is explicitly about, degraded into nothing resumable. The `partial append` call
-above **bounds nothing**, and the disclaimer stands unchanged; what it buys is that an overrun costs
-the lanes still running rather than the whole pass.
+The `partial append` call above bounds nothing inside a lane; what it buys is that an intra-lane
+overrun costs the lanes still running rather than the whole pass.
 
 ## Phase 4: The `/doctor` handoff
 
@@ -308,11 +301,10 @@ rather than assume, and its optional-capability absence classification are in
 [reference/doctor-handoff.md](reference/doctor-handoff.md). When absent, name it as the missing
 capability and state what goes unchecked.
 
-**Phase 4 records the handoff; it does not stop the pass.** Emitting the instruction and halting here
-meant a `--fix` run never reached Phase 5 and *no* run reached the Phase 6 report, so the presence
-of an optional collaborator cancelled the coordinated pass that is this skill's entire purpose,
-leaving the operator worse off than if `/doctor` had been absent. It also contradicted
-`reference/doctor-handoff.md`, which says to finish the pass's own phases first.
+**Phase 4 records the handoff; it does not stop the pass.** Halting here would mean a `--fix` run
+never reaches Phase 5 and no run reaches the Phase 6 report, so an optional collaborator would
+cancel the coordinated pass that is this skill's purpose. `reference/doctor-handoff.md` says to
+finish the pass's own phases first.
 
 So Phase 4 opens the `delegated` lane, records the instruction in the report, and continues. Phases 5
 and 6 run normally, and the assembled report carries the handoff as an outstanding item with its lane
@@ -353,8 +345,8 @@ When the Agent tool is blocked, unavailable, or the session cannot spawn subagen
 1. **Record per-lane verification mode** in the lane's terminating record and the assembled report (`verified` |
    `inline` | `skipped`) for every lane that mandates independent verification.
 2. **Mark unverified findings.** Proposals or applied fixes that did not receive an independent
-   verifier MUST carry an `(unverified)` marker and MUST NOT be presented as resolved.
-3. **Do not silently complete.** The `skipped` section and report header MUST name dispatch
+   verifier carry an `(unverified)` marker and are never presented as resolved.
+3. **Do not silently complete.** The `skipped` section and report header name dispatch
    unavailability when it prevented a mandated verification phase.
 
 ## Phase 6: Report

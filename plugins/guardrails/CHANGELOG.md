@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.5]
+
+### Changed
+
+- **The PostToolUse verifier dispatcher spawns only for a file one of its
+  verifiers scans.** The `Write|Edit` row in `hooks.json` now carries one
+  handler per extension the three verifiers accept (`.md`, `.sh`, `.bash`,
+  `.ps1`, `.psm1`), each with an `if: Edit(*.<ext>)` predicate that Claude Code
+  evaluates before spawning. A Write to any other file, which every verifier
+  early-exited on after paying the dispatcher's spawn, library load and payload
+  parse, now spawns nothing: 86.1 ms (26.9 S) to 0 processes on an in-repo
+  `.txt`, the matching `.md` row unchanged at 95.8 ms (N = 15, Linux CI host).
+  `run-guards.test.sh` pins the predicate set to the union of the verifiers'
+  own `case "$FILE"` gates in both directions. What each verifier checks is
+  unchanged. Closes #3751; the same issue's `typos-format` and `eol-normalizer`
+  rows take no predicate, for reasons recorded in this plugin's README budget
+  entry.
+
+## [0.32.4]
+
+### Changed
+
+- setup: the per-guard toggle probe reads each guard's effective value from the configured
+  option and the manifest default, and no longer claims that an unset toggle means `true`
+- setup: dropped the hardcoded guard count and the install-commit-msg rationale sentence
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.32.3]
 
 ### Changed

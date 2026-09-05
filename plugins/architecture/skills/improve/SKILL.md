@@ -1,5 +1,5 @@
 ---
-description: "Scan an existing codebase for module-level friction and architecture improvement opportunities (shallow modules, seam leaks, locality gaps), present candidates as an HTML report, interview on the selected candidate with a Design-It-Twice branch that designs the interface several radically different ways in parallel, and hand off the agreed shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension or evidence-driven improvement ask (a general 'what should we improve', 'highest-impact improvement', or 'find improvements' across code, product, process, or ops) routes to /improvement:find (this skill is the single-lens architecture-depth pass); also skip for mechanical code-level tidyings, reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
+description: "Scan an existing codebase for module-level friction and architecture improvement opportunities (shallow modules, seam leaks, locality gaps), present candidates as an HTML report, interview on the selected candidate with a Design-It-Twice branch that designs the interface several radically different ways in parallel, and hand off the agreed shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension or evidence-driven improvement ask (a general 'what should we improve', 'highest-impact improvement', or 'find improvements' across code, product, process, or ops) routes to /improvement:find (this skill is the single-lens architecture-depth pass); also skip for mechanical code-level tidyings, reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,11 +9,23 @@ metadata:
   summary: Scan the codebase for shallow modules and friction, then design the chosen fix several ways
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -20 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -20`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 
@@ -76,7 +88,7 @@ Graceful degradation: where a named step below is not available in the consuming
 
 ## Gotchas
 
-Observed failure history: patterns that have actually bitten. Add here when a new one surfaces.
+Failure modes this lens runs into, each stated as the rule it implies.
 
 - **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects, and uninstalling from the last remaining scope deletes the directory. The documented use is deps/caches/generated code, not per-project artifacts. The artifact resolves through the marketplace topic-docs convention (the plugin's topic-docs [binding](../../reference/topic-docs.md)): memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
-- **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Explore agents have a demonstrated error rate: a real run reported a service "registered but never composed — a bug in the seam" that one grep disproved (it *is* consumed, via a different consumer, with tests). Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report. The report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.
+- **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Exploration subagents infer from partial reads, so a claim that a service is unused or a call path is dead can be wrong in a way a single grep settles. Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report. The report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.

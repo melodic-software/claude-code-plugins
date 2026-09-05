@@ -1,4 +1,4 @@
-# YouTube watch — quality gates
+# Video digest watch — quality gates
 
 Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it *feels* done — it is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
 
@@ -74,13 +74,13 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | `manifest-audit-parity` | manifest + audit JSON rows match PNG count | Phase 6 — render from JSON SSOT |
 | `quality-audit-failures` | no `pass: false` in `key-frame-quality-audit.json` | Phase 6 — delete failures |
 | `quality-audit` | manifest + audit `.md` + `key-frame-quality-audit.json` | Phase 6 — post-promotion review |
-| `vision-metrics-honesty` (warn) | `watch.json` vision metrics ≈ triage log | Fix metrics drift; do not claim 48 triaged when log shows 6 |
+| `vision-metrics-honesty` (warn) | `watch.json` vision metrics ≈ triage log | Fix metrics drift; never report a triaged count the log does not carry |
 
 ### Structural vs vision fidelity
 
 Host verify scripts prove **traceability and shape** (JSON valid, batch files on disk, semantic filename policy, promotion-map parity). They do **not** prove subagents opened contact sheets or that filenames match on-screen content.
 
-**Vision fidelity spot-check (required before claiming A+):** In a separate pass (fresh context OK), spot-check ≥10 synthesis PNG images (name ↔ content) and ≥3 contact sheets (verdicts ↔ JPG). Record notes in `watch-checklist.md` or slice README. Verify script exit 0 without spot-check = structural complete only.
+**Vision fidelity spot-check (required before reporting the slice as vision-complete):** In a separate pass (fresh context OK), spot-check ≥10 synthesis PNG images (name ↔ content) and ≥3 contact sheets (verdicts ↔ JPG). Record notes in `watch-checklist.md` or slice README. Verify script exit 0 without spot-check = structural complete only.
 
 ## Research gate (host verify script)
 
