@@ -114,6 +114,44 @@
       "description": "Idle bound on reading the hook payload from stdin \u2014 how long the pipe may go silent before the hook gives up and fails open",
       "default": 2,
       "min": 1
+    },
+    "session_event_log_enabled": {
+      "type": "boolean",
+      "title": "session-event-log hook (per-session hook event log)",
+      "description": "Append one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every documented event the generated registry marks observable. Off by default: a consumer who has not turned it on pays the kill-switch read and nothing else. The same switch gates the SessionEnd retention hook.",
+      "default": false
+    },
+    "session_event_log_dir": {
+      "type": "string",
+      "title": "Hook log root (project-relative)",
+      "description": "Contained project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. Inside a checkout the directory carries a self-ignoring .gitignore, created on the first write. Leave unset to use .observability/claude.",
+      "default": ".observability/claude"
+    },
+    "session_event_log_categories": {
+      "type": "string",
+      "title": "session-event-log categories",
+      "description": "Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable.",
+      "default": ""
+    },
+    "session_log_keep_sessions": {
+      "type": "number",
+      "title": "Retention: sessions to keep",
+      "description": "At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days).",
+      "default": 30,
+      "min": 1
+    },
+    "session_log_keep_days": {
+      "type": "number",
+      "title": "Retention: days to keep",
+      "description": "At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions).",
+      "default": 14,
+      "min": 1
+    },
+    "session_log_pre_prune_command": {
+      "type": "string",
+      "title": "Retention: pre-prune command",
+      "description": "Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly.",
+      "default": ""
     }
   }
 }

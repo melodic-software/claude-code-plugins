@@ -385,7 +385,7 @@ Extend, never recreate: `scripts/check-killswitch-hoist.sh` is on `main`.
 - [ ] Measure one standalone formatter disabled, before and after, harness method; FINDINGS.md.
 - **Sanity Check:** `scripts/check-killswitch-hoist.sh` exit 0 with a count 15 higher than `main`'s; `bash scripts/check-killswitch-hoist.test.sh` exit 0; for each of the 15 scripts `grep -cE '^\[\[ "\$\{CLAUDE_PLUGIN_OPTION_[A-Z0-9_]+_ENABLED' <script>` prints 1 and `grep -c 'hook::check_enabled' <script>` prints 0; `scripts/affected-tests.sh --run` exit 0; `scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-#### Phase 3: Per-session producer, sink routing, ignore guard (PR C core) [TODO]
+#### Phase 3: Per-session producer, sink routing, ignore guard (PR C core) [DOING]
 
 Review: code-design
 
