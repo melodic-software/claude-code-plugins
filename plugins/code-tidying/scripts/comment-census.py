@@ -43,9 +43,32 @@ from collections import defaultdict
 from pathlib import Path
 
 CODE_EXT = {
-    ".cs", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyi", ".sh", ".bash",
-    ".ps1", ".psm1", ".go", ".rs", ".java", ".rb", ".lua", ".sql", ".c", ".h", ".cpp",
-    ".hpp", ".yaml", ".yml", ".toml",
+    ".cs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".pyi",
+    ".sh",
+    ".bash",
+    ".ps1",
+    ".psm1",
+    ".go",
+    ".rs",
+    ".java",
+    ".rb",
+    ".lua",
+    ".sql",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".yaml",
+    ".yml",
+    ".toml",
 }
 EXIT_NO_LAYER = 3
 EXIT_USAGE = 2
@@ -62,7 +85,9 @@ def tracked_files(roots: list[Path]) -> list[Path]:
         try:
             listing = subprocess.run(
                 ["git", "ls-files", "-z", "--", str(root)],
-                capture_output=True, check=True, cwd=str(root if root.is_dir() else root.parent),
+                capture_output=True,
+                check=True,
+                cwd=str(root if root.is_dir() else root.parent),
             ).stdout
             names = [n for n in listing.decode(errors="replace").split("\0") if n]
             base = root if root.is_dir() else root.parent
@@ -80,13 +105,31 @@ def tracked_files(roots: list[Path]) -> list[Path]:
     return sorted(uniq, key=lambda p: str(p))
 
 
+def argv_safe(path: Path) -> str:
+    """A path spelling no flag parser can mistake for an option."""
+    return str(path) if path.is_absolute() else os.path.join(".", str(path))
+
+
 def scc_counts(files: list[Path]) -> dict[str, dict] | None:
     exe = shutil.which("scc")
     if not exe or not files:
         return None
+    # The file list comes from `git ls-files`, so a tracked name such as
+    # `-o=evil.json` is attacker-chosen. `--` ends scc's flag parsing, and the
+    # `./` prefix keeps a bare relative name from ever reading as a flag.
     proc = subprocess.run(
-        [exe, "--by-file", "--format", "json", "--no-cocomo", *map(str, files)],
-        capture_output=True, text=True, check=False,
+        [
+            exe,
+            "--by-file",
+            "--format",
+            "json",
+            "--no-cocomo",
+            "--",
+            *map(argv_safe, files),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if proc.returncode != 0:
         return None
@@ -114,7 +157,13 @@ def pygments_counts(path: Path) -> dict | None:
     try:
         lexer = get_lexer_for_filename(str(path), stripnl=False)
     except ClassNotFound:
-        return {"language": "?", "comment_lines": 0, "comment_bytes": 0, "lines": 0, "lexed": False}
+        return {
+            "language": "?",
+            "comment_lines": 0,
+            "comment_bytes": 0,
+            "lines": 0,
+            "lexed": False,
+        }
     src = path.read_text(encoding="utf-8", errors="replace")
     line = 1
     comment_lines: set[int] = set()
@@ -157,8 +206,13 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
         if g is None and use_pygments and layer == "pygments":
             return [], {"error": "pygments is not installed (pip install pygments)"}
         if s:
-            rec.update(language=s["language"], comment_lines=s["comment_lines"],
-                       code_lines=s["code_lines"], lines=s["lines"], complexity=s["complexity"])
+            rec.update(
+                language=s["language"],
+                comment_lines=s["comment_lines"],
+                code_lines=s["code_lines"],
+                lines=s["lines"],
+                complexity=s["complexity"],
+            )
             sources["lines"] = sources["lines"] or "scc"
             sources["complexity"] = "scc"
         if g and g.get("lexed"):
@@ -169,12 +223,19 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
             sources["bytes"] = "pygments"
             sources["lines"] = sources["lines"] or "pygments"
         if "comment_lines" not in rec:
-            rec.update(language=(g or {}).get("language", "?"), comment_lines=0, lines=0, unread=True)
+            rec.update(
+                language=(g or {}).get("language", "?"),
+                comment_lines=0,
+                lines=0,
+                unread=True,
+            )
         records.append(rec)
     if not records:
         return [], sources
     if sources["lines"] is None:
-        return [], {"error": "neither scc nor pygments is available (install scc, or pip install pygments)"}
+        return [], {
+            "error": "neither scc nor pygments is available (install scc, or pip install pygments)"
+        }
     return records, sources
 
 
@@ -204,7 +265,9 @@ def totals(records: list[dict], dedupe: bool) -> dict:
 
 
 def by_language(records: list[dict]) -> list[dict]:
-    agg: dict[str, dict] = defaultdict(lambda: {"files": 0, "comment_lines": 0, "lines": 0, "comment_bytes": 0})
+    agg: dict[str, dict] = defaultdict(
+        lambda: {"files": 0, "comment_lines": 0, "lines": 0, "comment_bytes": 0}
+    )
     for r in records:
         a = agg[r.get("language", "?")]
         a["files"] += 1
@@ -213,7 +276,15 @@ def by_language(records: list[dict]) -> list[dict]:
         a["comment_bytes"] += r.get("comment_bytes", 0)
     rows = []
     for lang, a in agg.items():
-        rows.append({"language": lang, **a, "comment_ratio": round(a["comment_lines"] / a["lines"], 4) if a["lines"] else 0.0})
+        rows.append(
+            {
+                "language": lang,
+                **a,
+                "comment_ratio": round(a["comment_lines"] / a["lines"], 4)
+                if a["lines"]
+                else 0.0,
+            }
+        )
     return sorted(rows, key=lambda r: (-r["comment_lines"], r["language"]))
 
 
@@ -229,19 +300,27 @@ def render(report: dict, top: int) -> str:
         out.append(
             f"{label}: files={t['files']} comment_lines={t['comment_lines']} lines={t['lines']} "
             f"ratio={t['comment_ratio']:.1%} comment_bytes={t['comment_bytes']} approx_tokens={t['approx_tokens']}"
-            + (f" (collapsed {t['duplicate_copies_collapsed']} byte-identical copies)" if key == "deduped" else "")
+            + (
+                f" (collapsed {t['duplicate_copies_collapsed']} byte-identical copies)"
+                if key == "deduped"
+                else ""
+            )
         )
     out.append("tokens are an estimate: comment_bytes / 4")
     out.append("")
     out.append("language\tfiles\tcomment_lines\tlines\tratio\tcomment_bytes")
     for r in report["by_language"]:
-        out.append(f"{r['language']}\t{r['files']}\t{r['comment_lines']}\t{r['lines']}\t{r['comment_ratio']:.1%}\t{r['comment_bytes']}")
+        out.append(
+            f"{r['language']}\t{r['files']}\t{r['comment_lines']}\t{r['lines']}\t{r['comment_ratio']:.1%}\t{r['comment_bytes']}"
+        )
     if top:
         out.append("")
         out.append(f"top {top} files by comment_lines (deduplicated)")
         seen: set[str] = set()
         shown = 0
-        for r in sorted(report["files"], key=lambda r: (-r.get("comment_lines", 0), r["path"])):
+        for r in sorted(
+            report["files"], key=lambda r: (-r.get("comment_lines", 0), r["path"])
+        ):
             if r["sha256"] in seen:
                 continue
             seen.add(r["sha256"])
@@ -261,10 +340,25 @@ def render(report: dict, top: int) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("paths", nargs="*", type=Path, help="files or directories; default: the current directory")
-    ap.add_argument("--top", type=int, default=10, help="top-N files by comment lines (0 to omit)")
-    ap.add_argument("--json", action="store_true", help="emit the full report as JSON (usable as a later --baseline)")
-    ap.add_argument("--baseline", type=Path, help="a prior --json report to diff the deduplicated totals against")
+    ap.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="files or directories; default: the current directory",
+    )
+    ap.add_argument(
+        "--top", type=int, default=10, help="top-N files by comment lines (0 to omit)"
+    )
+    ap.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the full report as JSON (usable as a later --baseline)",
+    )
+    ap.add_argument(
+        "--baseline",
+        type=Path,
+        help="a prior --json report to diff the deduplicated totals against",
+    )
     ap.add_argument("--layer", choices=("auto", "scc", "pygments"), default="auto")
     args = ap.parse_args(argv)
 
@@ -293,7 +387,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"comment-census: baseline unreadable: {exc}", file=sys.stderr)
             return EXIT_USAGE
         cur = report["deduped"]
-        report["delta"] = {k: cur[k] - base.get(k, 0) for k in ("comment_lines", "comment_bytes", "approx_tokens")}
+        report["delta"] = {
+            k: cur[k] - base.get(k, 0)
+            for k in ("comment_lines", "comment_bytes", "approx_tokens")
+        }
     if args.json:
         print(json.dumps(report, indent=1, sort_keys=True))
     else:

@@ -43,10 +43,15 @@ def fixture(tmp: Path) -> None:
     (tmp / "README.md").write_text("# markdown heading, never counted\n")
 
 
-def run(*args: str, cwd: Path, python_flags: tuple[str, ...] = ()) -> subprocess.CompletedProcess:
+def run(
+    *args: str, cwd: Path, python_flags: tuple[str, ...] = ()
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, *python_flags, str(SCRIPT), *args],
-        capture_output=True, text=True, check=False, cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(cwd),
     )
 
 
@@ -94,11 +99,15 @@ class PygmentsLayer(unittest.TestCase):
         self.assertEqual(rep["raw"]["files"], 4)
         self.assertEqual(rep["deduped"]["files"], 2)
         self.assertEqual(rep["deduped"]["duplicate_copies_collapsed"], 2)
-        self.assertEqual(rep["raw"]["comment_lines"], rep["deduped"]["comment_lines"] + 2)
+        self.assertEqual(
+            rep["raw"]["comment_lines"], rep["deduped"]["comment_lines"] + 2
+        )
 
     def test_token_estimate_is_bytes_over_four_and_labelled(self):
         rep = self.report()
-        self.assertEqual(rep["deduped"]["approx_tokens"], rep["deduped"]["comment_bytes"] // 4)
+        self.assertEqual(
+            rep["deduped"]["approx_tokens"], rep["deduped"]["comment_bytes"] // 4
+        )
         self.assertEqual(rep["token_estimate"], "comment_bytes / 4")
         text = run(".", "--layer", "pygments", cwd=self.tmp).stdout
         self.assertIn("tokens are an estimate", text)
@@ -113,7 +122,9 @@ class PygmentsLayer(unittest.TestCase):
         after = self.report("--baseline", "base.json")
         self.assertEqual(after["delta"]["comment_lines"], -1, after["delta"])
         self.assertLess(after["delta"]["comment_bytes"], 0)
-        text = run(".", "--layer", "pygments", "--baseline", "base.json", cwd=self.tmp).stdout
+        text = run(
+            ".", "--layer", "pygments", "--baseline", "base.json", cwd=self.tmp
+        ).stdout
         self.assertIn("delta vs baseline", text)
 
     def test_output_is_deterministic(self):
@@ -122,8 +133,82 @@ class PygmentsLayer(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+FAKE_SCC = """#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ["FAKE_SCC_ARGV"], "w") as fh:
+    json.dump(sys.argv[1:], fh)
+files = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+print(json.dumps([{"Name": "Python", "Files": [
+    {"Location": f, "Comment": 1, "Code": 1, "Lines": 2, "Complexity": 0} for f in files
+]}]))
+"""
+
+
+class SccArgv(unittest.TestCase):
+    """The scc argv contract, checked against a recording shim so it runs without scc.
+
+    A tracked file named like a flag (`-o=evil.py`) must reach scc as a path,
+    never as an option (CWE-88): every file follows a `--` terminator and none
+    is spelled with a leading hyphen.
+    """
+
+    def test_flag_shaped_filename_is_passed_as_a_path(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            fixture(tmp)
+            (tmp / "-o=evil.py").write_text(MOD_PY)
+            shim_dir = tmp / "bin"
+            shim_dir.mkdir()
+            shim = shim_dir / "scc"
+            shim.write_text(FAKE_SCC)
+            shim.chmod(0o755)
+            argv_file = tmp / "argv.json"
+            env = {
+                **os.environ,
+                "PATH": f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+                "FAKE_SCC_ARGV": str(argv_file),
+            }
+            p = subprocess.run(
+                [sys.executable, str(SCRIPT), ".", "--json", "--layer", "scc"],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(tmp),
+                env=env,
+            )
+            self.assertEqual(p.returncode, 0, p.stderr)
+            argv = json.loads(argv_file.read_text())
+            self.assertIn("--", argv)
+            paths = argv[argv.index("--") + 1 :]
+            self.assertTrue(paths, "no files reached scc")
+            self.assertTrue(all(a.startswith(("./", "/")) for a in paths), paths)
+            self.assertIn("./-o=evil.py", paths)
+            self.assertNotIn("-o=evil.py", argv[: argv.index("--")])
+            self.assertFalse((tmp / "evil.py").exists())
+        finally:
+            shutil.rmtree(tmp)
+
+
 @unittest.skipUnless(shutil.which("scc"), "scc not on PATH")
 class SccLayer(unittest.TestCase):
+    def test_flag_shaped_filename_is_scanned_not_parsed(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            fixture(tmp)
+            (tmp / "-o=evil.py").write_text(MOD_PY)
+            p = run(".", "--json", "--layer", "scc", cwd=tmp)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            rep = json.loads(p.stdout)
+            self.assertFalse(
+                (tmp / "evil.py").exists(), "scc parsed a filename as its output flag"
+            )
+            self.assertTrue(
+                any(r["path"].endswith("-o=evil.py") for r in rep["files"]),
+                rep["files"],
+            )
+        finally:
+            shutil.rmtree(tmp)
+
     def test_scc_supplies_lines_and_complexity(self):
         tmp = Path(tempfile.mkdtemp())
         try:
@@ -147,7 +232,11 @@ class Degradation(unittest.TestCase):
             env = {**os.environ, "PATH": str(tmp), "PYTHONPATH": str(tmp)}
             p = subprocess.run(
                 [sys.executable, "-S", str(SCRIPT), ".", "--layer", "pygments"],
-                capture_output=True, text=True, check=False, cwd=str(tmp), env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(tmp),
+                env=env,
             )
             self.assertEqual(p.returncode, 3, p.stderr)
             self.assertIn("UNAVAILABLE", p.stderr)
