@@ -3,6 +3,29 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.31]
+
+### Changed
+
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `biome-format.sh` built `FINDINGS_JSON` with `printf | jq -R . | jq -s .` on
+  every findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. On the default unwired path
+  those two jq processes were pure cost. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for
+  `TOOL` and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 299/299/297 traced lines
+  become 281/282/282 and jq executions drop from 3 to 1. With the sink wired,
+  jq executions are unchanged at 5.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
+
 ## [0.6.30]
 
 ### Changed

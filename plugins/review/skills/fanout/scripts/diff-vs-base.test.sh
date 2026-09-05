@@ -44,6 +44,20 @@ assert_contains() {
 # Fixture repos must never inherit an outer hook chain's exported git env.
 git_env_reset() { unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG; }
 
+# init_work_repo <path>
+# An isolated work repo with the fixture's committer identity pinned locally. Every
+# case needs this much; only some need a remote on top of it.
+init_work_repo() {
+  git_env_reset
+  mkdir -p "$1"
+  git -C "$1" init -q
+  git -C "$1" config user.email "test@example.com"
+  git -C "$1" config user.name "test"
+  # Fixtures must not inherit a developer's global core.autocrlf: it makes git warn
+  # about LF->CRLF rewrites and would change the byte counts these cases assert on.
+  git -C "$1" config core.autocrlf false
+}
+
 # make_fixture <name> <branch> — bare origin whose HEAD is <branch>, plus a clone-ish
 # work repo one commit ahead of the pushed tip. Echoes the work-repo path.
 make_fixture() {
@@ -52,13 +66,7 @@ make_fixture() {
   git_env_reset
   git init -q --bare "$bare"
   git -C "$bare" symbolic-ref HEAD "refs/heads/$branch"
-  mkdir -p "$work"
-  git -C "$work" init -q
-  git -C "$work" config user.email "test@example.com"
-  git -C "$work" config user.name "test"
-  # Fixtures must not inherit a developer's global core.autocrlf: it makes git warn
-  # about LF->CRLF rewrites and would change the byte counts these cases assert on.
-  git -C "$work" config core.autocrlf false
+  init_work_repo "$work"
   git -C "$work" checkout -q -b "$branch"
   printf 'base\n' >"$work/base.txt"
   git -C "$work" add base.txt
@@ -127,12 +135,7 @@ assert_contains "origin/main path reports the changed file" "$OUT" "1 file chang
 
 # --- Case 6: nothing resolves -> "unavailable", still exit 0 ---
 W6="$TEST_TMPDIR/case6"
-git_env_reset
-mkdir -p "$W6"
-git -C "$W6" init -q
-git -C "$W6" config user.email "test@example.com"
-git -C "$W6" config user.name "test"
-git -C "$W6" config core.autocrlf false
+init_work_repo "$W6"
 git -C "$W6" commit -q --allow-empty -m init
 rc=0
 OUT=$(run_in "$W6") || rc=$?

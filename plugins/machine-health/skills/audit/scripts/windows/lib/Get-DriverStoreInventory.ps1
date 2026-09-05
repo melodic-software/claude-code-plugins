@@ -45,8 +45,8 @@ function Get-DriverStoreInventory {
             $entry = [ordered]@{}
             foreach ($line in $rec -split "`r?`n") {
                 if ($line -match '^\s*([^:]+?)\s*:\s*(.*)$') {
-                    $key = ($matches[1] -replace '\s+', '')
-                    $val = $matches[2].Trim()
+                    $key = ($Matches[1] -replace '\s+', '')
+                    $val = $Matches[2].Trim()
                     $entry[$key] = $val
                 }
             }

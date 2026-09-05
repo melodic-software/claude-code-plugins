@@ -124,8 +124,8 @@ Describe 'Assert-CatalogEntry' -Tag 'lib' {
 Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'integration' {
     BeforeAll {
         $script:CatalogPath = Join-Path $script:SkillRoot 'catalog\checks.jsonc'
-        $script:Raw = Get-Content -LiteralPath $script:CatalogPath -Raw
-        $script:Catalog = ConvertFrom-Jsonc -InputText $script:Raw
+        $script:Catalog = ConvertFrom-Jsonc -InputText (
+            Get-Content -LiteralPath $script:CatalogPath -Raw)
     }
 
     It 'parses the real catalog as JSONC' {

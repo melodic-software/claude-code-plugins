@@ -35,9 +35,6 @@ fi
 
 joined="$(printf '%s ' "$@" | tr '[:upper:]' '[:lower:]')"
 
-# Fold one token to lower case — resolve_one's tables are all lower-case.
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
 resolve_one() {
   case "$1" in
   scan | inventory | space | audit | report | show)
@@ -82,6 +79,13 @@ resolve_one() {
   esac
 }
 
+# resolve_token <token> — one raw argument to its canonical action name (empty
+# when unrecognized). Folds to lower case first: resolve_one's tables are all
+# lower-case.
+resolve_token() {
+  resolve_one "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+}
+
 # A whole-phrase fleet intent ("reset all my repos", "every repo", "ghq list").
 # Kept in one place so the token loop and the no-token fallback below agree on
 # what reads as a multi-repo reset.
@@ -123,8 +127,7 @@ has_reset_intent() {
 # falls through to the normal conflict path.
 sel=""
 for token in "$@"; do
-  lowered="$(lower "$token")"
-  t="$(resolve_one "$lowered")"
+  t="$(resolve_token "$token")"
   case "$t" in
   caches | build | git)
     if [[ -z "$sel" ]]; then
@@ -154,12 +157,10 @@ note=""
 # has_fleet_indicator (not just is_fleet_phrase) so a fleet request the phrase list
 # misses ("all across the fleet") routes to the batch tier below instead of being
 # preempted into a single-repo action with the fleet words demoted to a note.
-first_lower="$(lower "$1")"
-first_action="$(resolve_one "$first_lower")"
+first_action="$(resolve_token "$1")"
 second_action=""
 if [[ $# -ge 2 ]]; then
-  second_lower="$(lower "$2")"
-  second_action="$(resolve_one "$second_lower")"
+  second_action="$(resolve_token "$2")"
 fi
 if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! has_fleet_indicator "$joined"; then
   canonical="$first_action"
@@ -171,8 +172,7 @@ fi
 
 if [[ -z "$canonical" ]]; then
   for token in "$@"; do
-    lowered="$(lower "$token")"
-    hit="$(resolve_one "$lowered")"
+    hit="$(resolve_token "$token")"
     # A bare "all" token is the single-repo `all` tier, but inside a fleet phrase it
     # names a multi-repo sweep. Reset/fresh-pull phrasing ("reset all my repos") is
     # the DESTRUCTIVE tree-batch; a plain fleet cleanup ("clean all repos", "sweep

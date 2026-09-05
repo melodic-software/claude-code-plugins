@@ -89,16 +89,25 @@ else
   fail "bench-idle: smoke rc=$RC out=$OUT"
 fi
 
+# expect_render_abort LANE HOME SCRIPT [ARGS...] — a lane pointed at an entry
+# that exits nonzero must abort and say so, never fold the failure into its
+# numbers. Both lanes are checked the same way, against the same bad entry.
+expect_render_abort() {
+  local lane="$1" home="$2" out rc
+  shift 2
+  out="$(HOME="$home" STATUSLINE_ENTRY="$BAD" bash "$@" 2>&1)"
+  rc=$?
+  if [[ $rc -ne 0 && "$out" == *"render failed"* ]]; then
+    ok "$lane: failing render aborts instead of reporting numbers"
+  else
+    fail "$lane: failing render rc=$rc out=$out"
+  fi
+}
+
 # --- bench-idle: a failing render aborts the run, never becomes a sample -----
 BAD="$WORK/bad-entry.sh"
 printf '#!/usr/bin/env bash\nexit 7\n' >"$BAD"
-OUT="$(HOME="$HOME1" STATUSLINE_ENTRY="$BAD" bash "$BENCH_DIR/bench-idle.sh" 2 2>&1)"
-RC=$?
-if [[ $RC -ne 0 && "$OUT" == *"render failed"* ]]; then
-  ok "bench-idle: failing render aborts instead of reporting numbers"
-else
-  fail "bench-idle: failing render rc=$RC out=$OUT"
-fi
+expect_render_abort bench-idle "$HOME1" "$BENCH_DIR/bench-idle.sh" 2
 
 # --- bench-load: smoke run, 1 virtual session for 1 second -------------------
 HOME2="$WORK/home2"
@@ -113,13 +122,7 @@ else
 fi
 
 # --- bench-load: a failing render aborts the run -----------------------------
-OUT="$(HOME="$HOME2" STATUSLINE_ENTRY="$BAD" bash "$BENCH_DIR/bench-load.sh" 1 1 2>&1)"
-RC=$?
-if [[ $RC -ne 0 && "$OUT" == *"render failed"* ]]; then
-  ok "bench-load: failing render aborts instead of reporting numbers"
-else
-  fail "bench-load: failing render rc=$RC out=$OUT"
-fi
+expect_render_abort bench-load "$HOME2" "$BENCH_DIR/bench-load.sh" 1 1
 
 # --- trace-probe: prints the pre-passthrough trace of the repo tee -----------
 OUT="$(bash "$BENCH_DIR/trace-probe.sh" 2>&1)"

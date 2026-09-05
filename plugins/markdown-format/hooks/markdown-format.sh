@@ -721,7 +721,6 @@ format_probed_path() {
   fi
 }
 
-MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
 elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then

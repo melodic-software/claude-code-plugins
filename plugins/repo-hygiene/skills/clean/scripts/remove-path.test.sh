@@ -35,6 +35,18 @@ make_pushed_repo() {
   git_quiet -C "$path" push -u origin HEAD
 }
 
+# make_ignoring_repo <path> <bare> <pattern> — a fully pushed repo whose
+# committed .gitignore ignores <pattern>, so a file the caller then drops under
+# it reads as ignored (not dirty) and only the secret/skill-data scans see it.
+make_ignoring_repo() {
+  local path="$1" bare="$2" pattern="$3"
+  make_pushed_repo "$path" "$bare"
+  printf '%s\n' "$pattern" >"$path/.gitignore"
+  git_quiet -C "$path" add .gitignore
+  git_quiet -C "$path" commit -m gitignore
+  git_quiet -C "$path" push
+}
+
 rc=0
 bash "$REMOVE" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -122,11 +134,7 @@ rc=$?
 assert_exit "--allow-unpushed clears the block" 0 "$rc"
 assert_contains "--allow-unpushed plans removal" "$out" "Planned: rm -rf"
 
-make_pushed_repo "$ROOT/secret-repo" "$TEST_TMPDIR/secret-remote.git"
-printf '.env\n' >"$ROOT/secret-repo/.gitignore"
-git_quiet -C "$ROOT/secret-repo" add .gitignore
-git_quiet -C "$ROOT/secret-repo" commit -m gitignore
-git_quiet -C "$ROOT/secret-repo" push
+make_ignoring_repo "$ROOT/secret-repo" "$TEST_TMPDIR/secret-remote.git" '.env'
 printf 'TOKEN=x\n' >"$ROOT/secret-repo/.env"
 rc=0
 out="$(bash "$REMOVE" "$ROOT/secret-repo" --root "$ROOT")" || rc=$?
@@ -173,11 +181,7 @@ out="$(bash "$REMOVE" "$ROOT/bare-repo" --root "$ROOT" --allow-unpushed)" || rc=
 assert_exit "empty bare repo dry-run exits 0" 0 "$rc"
 assert_contains "bare repo kind detected" "$out" "Kind: bare-repo"
 
-make_pushed_repo "$ROOT/aws-repo" "$TEST_TMPDIR/aws-remote.git"
-printf '.aws/\n' >"$ROOT/aws-repo/.gitignore"
-git_quiet -C "$ROOT/aws-repo" add .gitignore
-git_quiet -C "$ROOT/aws-repo" commit -m gitignore
-git_quiet -C "$ROOT/aws-repo" push
+make_ignoring_repo "$ROOT/aws-repo" "$TEST_TMPDIR/aws-remote.git" '.aws/'
 mkdir -p "$ROOT/aws-repo/.aws"
 printf 'key\n' >"$ROOT/aws-repo/.aws/credentials"
 rc=0
@@ -243,11 +247,7 @@ assert_exit "--include-secrets does NOT clear skill-data block" 3 "$rc"
 
 # Gitignored skill data in an otherwise-clean pushed repo blocks: it is neither
 # dirty (ignored) nor secret-class, so only the skill-data scan catches it.
-make_pushed_repo "$ROOT/skill-repo" "$TEST_TMPDIR/skill-remote.git"
-printf '.claude/skills/*/data/\n' >"$ROOT/skill-repo/.gitignore"
-git_quiet -C "$ROOT/skill-repo" add .gitignore
-git_quiet -C "$ROOT/skill-repo" commit -m gitignore
-git_quiet -C "$ROOT/skill-repo" push
+make_ignoring_repo "$ROOT/skill-repo" "$TEST_TMPDIR/skill-remote.git" '.claude/skills/*/data/'
 mkdir -p "$ROOT/skill-repo/.claude/skills/notes/data"
 printf 'synthesis\n' >"$ROOT/skill-repo/.claude/skills/notes/data/corpus.md"
 rc=0

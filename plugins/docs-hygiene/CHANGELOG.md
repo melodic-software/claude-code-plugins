@@ -1,5 +1,28 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.35]
+
+### Changed
+
+- **`audit-encapsulation/detect.sh` merges three worktree filter arms into
+  one.** The `.worktrees/`, `.claude/worktrees/` and `.git/worktrees/` branches
+  each set `mech_filtered=1` and did nothing else, so the three `elif` arms
+  become one condition. Checked over 1,681 file and text pairs; the whole-repo
+  run in all four flag modes is byte-identical at 891 and 717 lines, and a
+  purpose-built `.worktrees/` fixture confirms the merged arm still filters.
+- **`compress/detect-caveman.sh` keeps its `head -1` truncation guard, now
+  placed after the CR strip rather than before it.** The sweep removed the
+  guard on the reasoning that the jq filter `.[0].id // empty` already emits at
+  most one line, then restored it when that reasoning was falsified: `jq -r`
+  prints a string containing a newline across several lines, so a plugin id
+  carrying a newline makes the script emit a third line and break the two-line
+  contract `compress/SKILL.md` Step A parses. The `\r\n` variant diverges too,
+  because the existing `tr -d '\r'` strips CR but not LF. No real plugin id
+  carries a newline and no fixture covers one, so the defect was latent rather
+  than operational, but the guard had been dropped on a proof that does not
+  hold. The new position is equivalent, since `tr` deletes characters without
+  touching line boundaries. Suite green at 14 cases.
+
 ## [0.21.34]
 
 ### Fixed

@@ -689,13 +689,6 @@ wit_linear_resolve_viewer() {
   fi
 }
 
-# wit_linear_lease_comments <issue-uuid> — every lease comment on that issue as a JSON
-# array of {handle, comment_id, lease}, ordered by handle then comment_id.
-#
-# That secondary sort is what keeps arbitration TOTAL: handles are millisecond
-# timestamps, so two comments created in the same millisecond tie, and a tie with no
-# tiebreak would let two racers each believe they won. The comment UUID is arbitrary but
-# identical for both observers, which is all arbitration needs.
 # wit_linear_activity_since <issue-id> <epoch> — did anyone comment after <epoch>?
 # Exit 0 = yes (the holder is demonstrably still working), 1 = no.
 #
@@ -741,6 +734,13 @@ wit_linear_activity_since() {
   return 1
 }
 
+# wit_linear_lease_comments <issue-uuid> — every lease comment on that issue as a JSON
+# array of {handle, comment_id, lease}, ordered by handle then comment_id.
+#
+# That secondary sort is what keeps arbitration TOTAL: handles are millisecond
+# timestamps, so two comments created in the same millisecond tie, and a tie with no
+# tiebreak would let two racers each believe they won. The comment UUID is arbitrary but
+# identical for both observers, which is all arbitration needs.
 wit_linear_lease_comments() {
   local issue_id="$1" cursor="" has_next="true" all='[]' q page
   q='query($id: String!, $first: Int!, $after: String) {

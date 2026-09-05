@@ -103,8 +103,7 @@ def grade(ledger_path: Path) -> int:
                 seen_head[h] = seen_head.get(h, 0) + 1
                 if h == "done":
                     done_col = i
-            ok = all(seen_head.get(req, 0) == 1 for req in REQUIRED)
-            if not ok:
+            if not all(seen_head.get(req, 0) == 1 for req in REQUIRED):
                 done_col = 0
                 continue
             header_cols = len(row_cells)

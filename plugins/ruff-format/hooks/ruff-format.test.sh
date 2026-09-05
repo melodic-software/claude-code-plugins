@@ -289,7 +289,6 @@ fi
 # often arrives on the next edit) yet must still surface as a finding.
 printf 'import os\n' >"$REPO/imp.py"
 OUT=$(run_hook "$REPO/imp.py")
-RC=$?
 if grep -q 'import os' "$REPO/imp.py"; then
   ok "unused import preserved (not auto-deleted mid-edit)"
 else

@@ -209,7 +209,6 @@ mkdir -p "$STUB"
 real_bash="$(command -v bash)"
 for tool in jq git tr find sort sed head grep cat mktemp rm; do
   src="$(command -v "$tool" 2>/dev/null)" || continue
-  [[ -n "$src" ]] || continue
   printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$STUB/$tool"
   chmod +x "$STUB/$tool"
 done

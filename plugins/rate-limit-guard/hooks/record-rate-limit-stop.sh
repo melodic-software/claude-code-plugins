@@ -80,15 +80,22 @@ hook::append_jsonl "$EVENTS" "$record"
 # Bound the file at ~200 records, keeping the newest 100.
 rotate_events() {
   local lines tmp
-  lines=$(wc -l <"$EVENTS" 2>/dev/null | tr -d ' \r') || return 0
+  lines=$(wc -l <"$EVENTS" 2>/dev/null) || return 0
+  # The blanks a BSD wc pads its count with, and a CR from a Windows toolchain,
+  # come off with a parameter expansion rather than a second process: this runs
+  # on every fire of the hook.
+  lines="${lines//[ $'\r']/}"
   [[ "$lines" =~ ^[0-9]+$ ]] || return 0
   ((lines > 200)) || return 0
   tmp="$EVENTS.tmp.$$"
-  if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null; then
-    mv -f "$tmp" "$EVENTS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-  else
-    rm -f "$tmp" 2>/dev/null
+  # One cleanup path for both failures: a tail that fails still leaves the
+  # redirection's empty temp behind, and a rename that fails leaves the
+  # written one. A rename that SUCCEEDS has already consumed the temp.
+  if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null &&
+    mv -f "$tmp" "$EVENTS" 2>/dev/null; then
+    return 0
   fi
+  rm -f "$tmp" 2>/dev/null
   return 0
 }
 

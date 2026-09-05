@@ -5,6 +5,21 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.39]
+
+### Changed
+
+- **The blocking gate's deny reason now names `/session-flow:handoff` and nothing else.** The
+  routing clause used to close by offering a second, free-hand route: a resume file the model
+  composes itself, at any path containing 'handoff'. That licensed a hand-written save-point at
+  exactly the moment the session is least able to write one well. The clause now reads "run
+  /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from
+  this gate". The `*handoff*` path-exemption LOGIC is untouched, and the gap that leaves is
+  recorded rather than closed: a consumer without `session-flow` installed is offered no free-hand
+  route in the reason text, while a hand-written file whose path contains `handoff` still passes
+  the gate. Reason text only, no behavior change; a new `zone-gate.test.sh` assertion pins the
+  deny reason against the old clause returning.
+
 ## [0.7.38]
 
 ### Changed

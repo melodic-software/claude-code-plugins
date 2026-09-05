@@ -115,24 +115,24 @@ if [[ $api_rc -ne 0 ]]; then
   exit 2
 fi
 
-CHECK_RUNS_JSON=$(printf '%s' "$CHECK_RUNS_RAW" |
-  jq -c '.check_runs[] | {id, name, conclusion, status}')
-
-if [[ -z "$CHECK_RUNS_JSON" ]]; then
-  # Empty is not an error — PR may have no check-runs yet.
-  exit 0
-fi
-
-# Filter to failed-only when requested. jq -c keeps each record on one line;
-# without the flag the records are already in the one-per-line form the walk
-# below reads.
-FILTERED="$CHECK_RUNS_JSON"
-if [[ "$FAILED_ONLY" -eq 1 ]]; then
-  FILTERED=$(printf '%s\n' "$CHECK_RUNS_JSON" |
-    jq -c 'select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required" or .conclusion == "cancelled")')
-fi
+# One jq pass both projects the records and applies --failed; a second pipe
+# would only buy another spawn. jq -c keeps each record on one line, the form
+# the walk below reads. The object uses the `{id, name, ...}` shorthand, which
+# jq expands to the same `{id: .id, ...}` construction.
+FILTERED=$(printf '%s' "$CHECK_RUNS_RAW" |
+  jq -c --argjson failed_only "$FAILED_ONLY" '
+      .check_runs[]
+      | {id, name, conclusion, status}
+      | select($failed_only == 0
+               or .conclusion == "failure"
+               or .conclusion == "timed_out"
+               or .conclusion == "action_required"
+               or .conclusion == "cancelled")
+    ')
 
 if [[ -z "$FILTERED" ]]; then
+  # Empty is not an error — the PR may have no check-runs yet, and --failed can
+  # legitimately match none.
   exit 0
 fi
 
