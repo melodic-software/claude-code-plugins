@@ -206,3 +206,40 @@ plus human oversight are the adversarial layers") and documents a detection hole
 formatting pass while a false positive costs a blocked tool call and rework.
 
 This hook is owned by the PreToolUse lane and is recorded here only as evidence.
+
+## Re-measurement 2026-09-05
+
+Taken after merging `origin/main` at `3ea592bb`, which carries PR #3732's library startup changes
+(the `buffer_stdin` subshells and the `repo_root` `tr` are gone), so the figures above and below are
+not the same code. Same harness, N = 15, same Linux host; the raw table is in the topic's memory
+slice under `baselines/`.
+
+| Row | Before (2026-09-04) | Now | Note |
+| --- | --- | --- | --- |
+| spawn floor S | 1.71 ms | 2.52 ms (bare `bash -c :` 1.9 ms) | host load differs; ratios below use today's S |
+| spawn + `source lib/hook-utils.sh` | 7.45 ms | 5.9 ms | #3732's saving is visible here |
+| `skill-reference-verify` (with refs) | 622.1 ms | 642.9 ms (334.8 S) | the index loop, isolated: 468.5 ms as written, 5.7 ms batched (74 manifests) |
+| `skill-reference-verify` (no refs) | 33.9 ms | 47.1 ms | |
+| `markdown-format` (.md) | 371.2 ms | 343.1 ms | work-dominated (Node startup) |
+| disabled formatter (switch after source) | 5.5 to 6.1 ms | 6.1 to 6.5 ms (3.3 S) | the hoist target |
+| guardrails trio on `.txt` | 79.3 ms | 81.1 ms | ungated, unchanged |
+
+`cli-flag-verify`, which the harness does not exercise on its real path, measured directly with a
+markdown Write citing `gh`, `claude`, `docker` and `kubectl` (three of the four present on this
+host; the hook requires the target to exist on disk, as it does after a real Write):
+
+| Probe | Result |
+| --- | --- |
+| Cold cache (directory cleared), first run | 980.5 ms; four `--help` cache files written |
+| Warm runs | 118.9, 123.2, 135.8 ms |
+| `execve` per warm run (strace) | 152 total: 49 successful, 88 `ENOENT` |
+| What the failures are | every one is `env` walking `PATH` for `bash` on behalf of a `#!/usr/bin/env bash` exec: five such execs per run (four `verify-cli-flag.sh` spawns plus the sink), each failing once per `PATH` entry ahead of `/usr/bin` |
+| Successful spawns per warm run | 6 bash, 5 mkdir, 5 grep, 4 verify-cli-flag.sh, 4 jq, 3 dirname, 2 sed, 2 git, 1 each tr, realpath, flock, cat, awk, sink |
+
+Two peer-reported figures resolve as follows. The 11,391 ms cold cache is not reproduced here; the
+Linux cold run is under one second because `gh`, `claude` and `docker` answer `--help` quickly, so
+the Windows figure is host-bound and stays a recheck item. The 126 failed `execve` is corroborated
+in kind (88 here, all the `env` PATH walk); the count is `PATH`-length-bound, and this host lists its
+73 plugin `bin/` directories after `/usr/bin`, which is why none of the failures land under them.
+Patch shape 3 (no verifier spawn on a cache hit) removes four of the five `env` walks and the
+`mkdir`, `find`, and `grep` those spawns carry.
