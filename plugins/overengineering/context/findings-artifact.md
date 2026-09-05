@@ -97,7 +97,9 @@ branch: <branch at audit time; never `HEAD`, and never written at all when the b
 | Key | Required | Contract |
 |---|---|---|
 | `type` | yes | Exactly `overengineering-findings`. The selector realign matches on. |
-| `schema` | yes | Integer contract version, currently `1`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
+| `schema` | yes | Integer contract version, currently `2`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
+| `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. |
+| `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run lists the layers those targets fall in, for ordering only, and asserts no exhaustive walk. |
 | `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
 | `branch` | yes | The branch at audit time, resolved with `git symbolic-ref` — **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
@@ -133,11 +135,18 @@ it.
 Fixed enum, in this order — the order is load-bearing for sorting (below):
 
 `agent-hooks` · `agent-instructions` · `repo-hooks` · `vcs-hooks` · `ci-lanes` · `gate-scripts` ·
-`satellite-workflows` · `branch-protection` · `forge-apps` · `external-integrations`
+`satellite-workflows` · `branch-protection` · `forge-apps` · `external-integrations` ·
+`decision-records` · `documents` · `components` · `dependencies` · `source`
 
 The vocabulary is deliberately forge-neutral and platform-neutral: a consumer whose forge, CI
-system, or agent harness differs still maps onto these ten. A lane that needs an eleventh adds it to
+system, or agent harness differs still maps onto these. A lane that needs a sixteenth adds it to
 this enum with a `schema` bump, never as a free-text value.
+
+**The first ten are the enforcement lane's**, walked by `overengineering:audit`. **The last five are
+the justification lane's**, examined one target at a time by `overengineering:justify`, and they
+never inventory an enforcement kind: a target whose whole content an enforcement layer's discovery
+probe would inventory routes to the enforcement lane and produces no row at all. The order remains
+load-bearing for sorting, so the five are appended rather than interleaved.
 
 ## Document shape
 
@@ -189,8 +198,8 @@ Constituents, and nothing else:
 
 | Constituent | Value for this producer |
 |---|---|
-| `check` | `overengineering/audit/rule-<layer>` — lowercase `[a-z0-9-]` per segment, the layer taken from the enum above. |
-| `claim` | `enforcement-item` for an ordinary finding; `enforcement-item(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
+| `check` | `overengineering/<producer>/rule-<layer>` — lowercase `[a-z0-9-]` per segment, `<producer>` one of `audit` or `justify`, the layer taken from the enum above. The producer segment is part of the identity: two lanes judging the same surface would otherwise derive one id, and each run would carry or close the other's finding. |
+| `claim` | `enforcement-item` for an ordinary finding of the enforcement lane; `artifact-item` for one of the justification lane; either with `(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
 | `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, `[<container>, <member>]` for a sub-member. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
 
 The id is `sha256` over the `US`-joined `[check, claim, *flattened canonically-sorted sites]`,
@@ -208,10 +217,21 @@ names **every** site in its body, saying what each one contributes, rather than 
 footnote.
 
 **Kind prefixes for items with no path in this repo.** `protection:<rule-name>`, `app:<name>`,
-`integration:<name>`, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
+`integration:<name>`, `package:<name>` for a declared dependency or pinned tool in the
+`dependencies` layer, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
 the repo tree, such as a user- or machine-scope settings file that registers a mechanism governing
 work here. The prefix set is closed here and is the same set a `sites` `surface` draws from; a new
 one is added to this list, never coined per run, or two runs derive two different ids for one item.
+
+**A heading is a member, not an ordinal.** Where a target names a section rather than a whole file
+(`path#heading`), its `anchor/v1` locator path is `[<file>, <heading>]`, exactly as any other
+aggregating-container member. A line number is **not** an admissible locator: the `sites` rule above
+forbids a positional ordinal, so a lane pointed at a line widens to the enclosing heading or file
+and says so in its report rather than coining an id no second run would reproduce.
+
+**A routed target produces no id and no row.** Where a lane hands a target to another lane rather
+than judging it, there is nothing to identify: the routing is reported inline by the lane that
+declined it, and the owning lane derives its own id when it runs.
 
 **Renames are honest, not smoothed.** Renaming an artifact changes its site and therefore its id:
 the old finding closes and a new one opens. Record the rename in `## Closed since last run`, naming
@@ -373,6 +393,7 @@ reader can never mistake a member count for a finding count.
 | `Delegation` | no | `DELEGATED-EXTERNAL` only | The pointer to the delegation artifact. |
 | `Ablation` | no | `ABLATION-*` only | Rung reached, window length, window end date, and the durable pointer. |
 | `Judgment` | no | when one was persisted | The suppression entry id and the layer it was written to. |
+| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: no tier was consulted, and this value is legal **only** with `Verdict: UNPROVEN`. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
 
 **The audit perturbs the telemetry it reads.** Writing this artifact fires the very recorders whose
 rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
@@ -436,6 +457,26 @@ would silently erase decisions a human made — the failure the durable judgment
 prevent, reintroduced by the producer itself.
 
 ## Re-run merge semantics
+
+**A targeted run merges narrowly, and this clause governs every rule below it.** Where
+`mode: targeted`, the run examined only what `targets` names, so:
+
+- Rules 1 and 2 apply to a finding whose every site is in `targets`.
+- **Rule 3 applies only to a prior id whose every site is in `targets`** and whose item is now
+  absent. A pointed run at one artifact must never close a finding about another.
+- Every other prior id **carries forward per rule 4**, regardless of `scope`. In a targeted run
+  `scope` records the layers the targets fall in, for ordering; it never asserts a walk.
+- The run-level sections `## Evidence availability`, `## Suppressed`, and `## Closed since last run`
+  are **not rewritten for anything outside `targets`**. A targeted run appends its own per-target
+  evidence-availability lines rather than replacing the walk's per-tier tokens, and computes
+  suppression dispositions only for entries whose ids have a site in `targets`, reporting the rest
+  as **not evaluated this run**. `## Summary` is still recomputed from the spine actually written,
+  as rule 6 requires.
+
+The reason is asymmetry: a walk that omits a layer says so in `scope` and rule 4 protects it, but a
+targeted run walks no layer at all, so without this clause rule 3 would read every un-examined
+finding in the target's layer as a deleted artifact and close it. That is the loss the section below
+exists to prevent, arriving through the other door.
 
 A re-audit **rewrites the artifact in place**, merging against the prior content by stable id. For
 each finding:

@@ -141,7 +141,10 @@ unchanged**:
    directory is not evidence, because the slug mapping is lossy. A `branch:` that does not match is
    no baseline, naming both. An **unrecognized `schema:`** is a **stop, with a visible message**,
    before invoking anything, the artifact contract makes an unrecognized `schema` a stop for every
-   consumer, and running the audit here would rewrite a file this lane cannot read.
+   consumer, and running the audit here would rewrite a file this lane cannot read. `1` and `2` are
+   both recognized. On a `schema: 2` artifact, `Basis` is prose outside the spine and **never enters
+   the diff**, so a row whose basis moved from `unexamined` to `measured` is not a delta this lane
+   can see; that limit is chosen, because widening the spine would make every prose pass a change.
 3. **Invoke `overengineering:audit` via the Skill tool**, passing the layer scope and `unattended`
    exactly as received. Let it run its own contract, home resolution, config resolution, evidence
    assessment, the walk, its own inline summary. **Do not re-derive any of it here.**
@@ -301,7 +304,9 @@ view and no third record.** In order:
 
 1. **The read-only line**, plus the span this comparison covers: `source-date` → this run's `date`,
    and whether it covers more than one cycle.
-2. **Coverage**: layers walked this run; layers not walked, with the count of findings held in them.
+2. **Coverage**: layers walked this run; layers not walked this run, with the count of findings held
+   in them; and, separately labelled, layers **not walkable by `audit`** (the justification lane's
+   five), whose findings no cycle of this lane ever compares.
 3. **Evidence availability**: `unchanged`, or the tiers that moved, first when it moved.
 4. **The counts table**: one row per delta class, listed / counted / omitted.
 5. **The listed rows**, in the cap's rank order.

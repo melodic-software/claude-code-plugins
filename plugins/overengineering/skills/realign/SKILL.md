@@ -78,7 +78,11 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    anything on your own**. This skill has no evidence and no verdict of its own, so an improvised
    pass would put a mutation behind a gate with nothing behind it.
 3. **Refuse a mismatched `branch:`**, naming both; **refuse an artifact whose `branch:` is absent,
-   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`**. Each with
+   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`**. `1` and
+   `2` are both recognized. A `schema: 2` artifact additionally carries `mode`, `targets` on a
+   targeted run, and `Basis` on every row a schema-2 run wrote; all three are **displayed with the
+   finding and change no gating decision**. A row carried forward from a schema-1 run has no
+   `Basis`, which is displayed as `not recorded (schema 1)` rather than inferred. Each with
    a visible message rather than guessing at the shape. The artifact's own frontmatter is what binds
    it to a branch; the directory it sits in is not evidence (the slug mapping is lossy). A `branch:`
    that carries no identity is not a match to be evaluated, it is the absence of the thing the check
@@ -107,7 +111,18 @@ stopping halfway is a normal end to a run.
 
 ## The queue
 
-Present findings in the artifact's order and dispose of each by its current status:
+**A finding this skill cannot execute is presented and never actioned.** Read each finding's `check`
+constituent: where its producer segment is not `audit`, this skill has no rollback ladder for it.
+The ladder in "Execution order" is enforcement-shaped, and its rung-1 fallback ("nothing registered
+or wired to disable" leaves deletion as the only remaining act) would turn a lane it does not
+understand into a deletion. So a `overengineering/justify/rule-<layer>` row is **displayed with its
+evidence, its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
+Say so in one line where the finding would otherwise be gated, so the operator sees the finding
+rather than losing it. This is the state `docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md`
+describes: a lane's findings become executable here once a rollback ladder exists for its layers,
+and not before.
+
+Present the remaining findings in the artifact's order and dispose of each by its current status:
 
 | Status | What this run does with it |
 |---|---|

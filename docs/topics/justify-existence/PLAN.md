@@ -158,7 +158,14 @@ Order: contract migration (1) → lane binding doc (2) → evals, red, plus the 
 
 Conventions in every Sanity Check: run from the repository root; every command is verbatim-executable; `grep -E` wherever alternation appears, so nothing depends on GNU-only `\|` or `\+`. Counting checks use `test "$(grep -c …)" -eq N` because `grep -c` exits 1 on a zero count and cannot be chained with `&&` on its own.
 
-### Phase 1: Extend the shared findings artifact to schema 2 [TODO]
+### Phase 1: Extend the shared findings artifact to schema 2 [DONE]
+
+**Executed 2026-09-05.** Pre-flight confirmed: no script parses the artifact; the only non-markdown
+hits are `evals/evals.json` files. All Sanity Checks green. One real gap the phase's own checks
+caught and fixed: `audit` merges into a prior artifact per layer, so it needed a schema-acceptance
+sentence of its own, not only the "writes schema 2" sentence the plan listed. Two Sanity Checks were
+corrected in place (em-dash scope, and whitespace normalization before matching); both corrections
+carry their reasons inline below.
 
 Contract migration. The pre-flight consumer check is the first work item.
 
@@ -196,11 +203,11 @@ Contract migration. The pre-flight consumer check is the first work item.
 - `test "$(grep -cE '^\| \`(Basis|mode|targets)\`' plugins/overengineering/context/findings-artifact.md)" -eq 3 && echo OK` prints `OK`.
 - `test "$(grep -cE 'overengineering/<producer>/rule-<layer>|artifact-item|package:<name>' plugins/overengineering/context/findings-artifact.md)" -ge 3 && echo OK` prints `OK`.
 - `test "$(grep -cE 'not rewritten|not evaluated this run' plugins/overengineering/context/findings-artifact.md)" -ge 2 && echo OK` prints `OK` (the targeted clause scopes the run-level sections and dispositions).
-- For each of `plugins/overengineering/skills/realign/SKILL.md`, `plugins/overengineering/skills/delta/SKILL.md`, `plugins/overengineering/skills/audit/SKILL.md`: `grep -qE 'schema.*(1 or 2|\`1\` or \`2\`)' <file> && echo OK` prints `OK`.
+- For each of `plugins/overengineering/skills/{realign,delta,audit}/SKILL.md`: normalize whitespace, then match. `tr '\n' ' ' < <file> | tr -s ' ' | grep -qE '`(schema: )?1` and `(schema: )?2`are both recognized' && echo OK` prints `OK`. **Normalize before matching; do not tighten the regex** (corrected twice on 2026-09-05 during Phase 1). A single-line `grep` reported the phrase absent in `realign`, where it wraps across a line break. A wrap-tolerant `grep -Pz` still reported it absent in `delta`, where the wrap falls mid-phrase, and in `audit`, which says `schema: 1` rather than `1`. All three texts were correct on every run. This is the lane's own absence rule landing three times on its own check, and it is the concrete reason the lane requires varying the query form before "not found" becomes a finding.
 - `grep -qE 'no rung' plugins/overengineering/skills/realign/SKILL.md && echo OK` prints `OK`; `jq -e '[.evals[].name] | index("justify-producer-row-is-presented-never-executed")' plugins/overengineering/skills/realign/evals/evals.json` exit 0.
 - `grep -qE 'not walkable by' plugins/overengineering/skills/delta/context/run-states.md && echo OK` prints `OK`.
 - `grep -qiE 'sanctioning' plugins/overengineering/skills/audit/context/surface-walk.md && echo OK` prints `OK`.
-- `git diff -U0 origin/main...HEAD -- plugins/overengineering | grep '^+' | grep -c $'\xe2\x80\x94'` prints `0`.
+- `bash scripts/check-purged-em-dashes.sh --check` exit 0. **Corrected 2026-09-05 during Phase 1**, from "no em dash on any added line under `plugins/overengineering`". That check was stricter than the repository's own rule and would have failed correct work: `scripts/em-dash-purged-paths.txt` covers `plugins/overengineering/README.md` and `plugins/overengineering/skills/*/SKILL.md` only, `.claude/rules/vendor-docs-are-not-style.md` binds instruction surfaces (SKILL.md, plugin READMEs, AGENTS.md, CLAUDE.md, `.claude/rules/**`) and not `context/` docs, and `findings-artifact.md` already carries 63 em dashes as its established style. Editing a table row there preserves the row's existing em dash; introducing an inconsistent dash-free row would be the defect. The created files (`justification-lane.md`, `skills/justify/SKILL.md`) stay dash-free, and the new SKILL.md is covered by the purged-paths glob automatically.
 
 ### Phase 2: Lane binding doc `context/justification-lane.md` [TODO]
 

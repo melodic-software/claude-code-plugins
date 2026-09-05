@@ -111,6 +111,22 @@
         "Does not infer the branch from the artifact's directory, since the slug mapping is lossy and the home is not evidence",
         "Executes no finding and writes no status field"
       ]
+    },
+    {
+      "id": 9,
+      "name": "justify-producer-row-is-presented-never-executed",
+      "prompt": "/overengineering:realign — work the queue. The artifact at the resolved home is a complete findings artifact whose frontmatter reads `type: overengineering-findings`, `schema: 2`, `mode: targeted`, and a `targets` list naming one documentation file. It holds two OPEN findings: one whose id was derived with `check: overengineering/audit/rule-gate-scripts`, and one with `check: overengineering/justify/rule-documents`, `Layer: documents`, `Verdict: RETIRE`, `Basis: measured`.",
+      "expected_output": "The run recognizes `schema: 2` and reads both findings. It displays `mode`, `targets`, and each finding's `Basis` alongside the finding, and lets none of them change a gating decision. The enforcement-lane finding is queued and gated normally. The justification-lane finding is PRESENTED with its evidence and its verdict and the owner named in that lane's boundary table, and NO rung of the rollback ladder is offered for it: this skill's ladder is enforcement-shaped, and its rung-1 fallback would leave deletion as the only remaining act for a lane it has no ladder for. The run says so in one line where that finding would otherwise be gated, so the operator sees the finding rather than losing it, and names that such findings become executable here once a rollback ladder exists for their layers.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes `schema: 2` and does not stop on it",
+        "Displays `mode`, `targets`, and `Basis` with the findings while letting none of them change gating",
+        "Presents the `overengineering/justify/rule-documents` finding with its evidence and verdict rather than dropping it",
+        "Offers NO rollback-ladder rung for the justify-producer finding, and does not fall through to deletion",
+        "Names the owner from the justification lane's boundary table, and says the finding becomes executable here only once a ladder exists for its layers",
+        "Still queues and gates the `overengineering/audit/rule-gate-scripts` finding normally"
+      ]
     }
   ]
 }

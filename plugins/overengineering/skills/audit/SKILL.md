@@ -206,6 +206,16 @@ findings artifact as the single source of truth, an inline terminal summary alwa
 HTML view only as a presence-gated extra. Field-level contents, ids, ordering, the spine/prose split,
 and merge semantics belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
 
+This lane writes `schema: 2` and `mode: walk`, and omits `targets`, which belongs to a pointed run.
+It merges into whatever artifact it finds, so it also **reads** one: `schema: 1` and `schema: 2` are
+both recognized, and anything else stops the run with a visible message. Merging into a schema-1
+artifact upgrades it, and a row carried forward untouched from that run keeps no `Basis`, displayed
+as `not recorded (schema 1)` until the row is re-evaluated rather than backfilled with a guess.
+Every finding carries `Basis`: `measured` where a tier-1–4 citation supports the verdict,
+`class-inferred` where it rests on §6's non-derivable-oracle clause or a §7 class match and every
+consult was silent or tier-5-only, and `unexamined` only alongside `UNPROVEN`. The `check`
+constituent of every id this lane derives carries `audit` as its producer segment.
+
 ## A detached checkout has no branch identity
 
 `git rev-parse --abbrev-ref HEAD` answers `HEAD` on a detached checkout. That is a string, not an

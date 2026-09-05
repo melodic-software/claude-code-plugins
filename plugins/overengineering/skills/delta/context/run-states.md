@@ -75,6 +75,20 @@ load-bearing:
   in them**. Never as findings. A layer-scoped cycle that read as a clean bill of health for the
   whole surface would be worse than no cycle at all.
 
+**Two kinds of absence, distinguished in that coverage line.** A layer this cycle could have walked
+and did not is *not walked this run*, and a later cycle with a wider `scope` will cover it. The
+justification lane's layers (`decision-records`, `documents`, `components`, `dependencies`,
+`source`) are *not walkable by `audit`* at all: this lane composes `overengineering:audit`, whose
+`scope` draws only on the ten enforcement layers, so no cycle at any scope will ever compare a
+finding produced by `overengineering:justify`. Report them under that second label with their held
+count, so an operator reads "outside this lane" rather than "pending next cycle". Those findings are
+re-judged by pointing that lane at the artifact again, never by a delta cycle.
+
+**An intervening targeted run is not an evidence-availability move.** A `mode: targeted` artifact
+appends its own per-target availability lines and does not rewrite the walk's per-tier tokens, so a
+token that differs because a pointed run ran in between has not moved. Compare against the most
+recent `mode: walk` assessment, and say so where a targeted run sits inside the span.
+
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
 `scope` carries baseline rows that are themselves stale carry-forwards. A verdict move there is
 genuine, but its "since" is the older run's stamped date, not the baseline artifact's `date`. Take
