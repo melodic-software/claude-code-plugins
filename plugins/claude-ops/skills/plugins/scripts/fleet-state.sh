@@ -525,8 +525,9 @@ if [[ -n "$FROM_REPORT" ]]; then
   # The verdict comes back on stdout as `ok:<name>` or `err:<detail>` rather
   # than through jq's `error()`: the detail has to reach the operator's terminal
   # naming the offending field, and a nonzero jq exit only distinguishes an
-  # unparseable file from a well-formed but wrong-shaped one.
+  # unparsable file from a well-formed but wrong-shaped one.
   FS_FROM_CHECK=""
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
         if type != "object" then "err:not a JSON object"
         elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
