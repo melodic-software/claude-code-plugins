@@ -419,13 +419,13 @@ declares_removal() {
   # The Conventional-Commits revert type, and the ONLY revert spelling that can
   # reach main here (#2837). This repo is squash-only with
   # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
-  # and .github/workflows/pr-title.yml gates every title through a required
-  # Conventional-Commits check whose default type list is all-lowercase and
-  # contains `revert` but nothing a `Revert "…"` subject could match. Measured
-  # over every first-parent commit of main: `Revert "` 0, `revert:` 1. The
-  # corpus is deliberately named as "every" rather than as a total, because a
-  # total is stale the next time anything merges while the 0-and-1 result is
-  # what the pin is actually about.
+  # and the pr-contract step of .github/workflows/ci.yml's ci-status job gates
+  # every title through a required Conventional-Commits check whose type list is
+  # all-lowercase and contains `revert` but nothing a `Revert "…"` subject could
+  # match. Measured over every first-parent commit of main: `Revert "` 0,
+  # `revert:` 1. The corpus is deliberately named as "every" rather than as a
+  # total, because a total is stale the next time anything merges while the
+  # 0-and-1 result is what the pin is actually about.
   #
   # Kept exactly as constrained as the three forms around it: anchored at the
   # start of the SUBJECT, the literal lowercase type token, its optional
