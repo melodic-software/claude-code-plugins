@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.24]
+## [0.22.25]
 
 ### Added
 
@@ -11,6 +11,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   documents the field as optional, and every hook set in this marketplace omitted
   it; it is the surface an operator reads when deciding what a plugin does to
   their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.22.24]
+
+### Changed
+
+- **`loadBinding`'s absent-binding result drops a `reason` field nothing read.**
+  Consumers take only `present`, `path`, `declarations` and `surfaces`, and the
+  field never reached the script's stdout JSON, so no output shape changes. The
+  rest of this group was reviewed and deliberately left alone: the lane hooks
+  and `check-security-binding.mjs` carry fail-open and fail-closed choices,
+  trust anchors and rulings that are pinned rather than incidental. Fixtures
+  ran 22 of 22 including the byte-identical reproducibility case, and the slice
+  suite 4 of 4.
 
 ## [0.22.23]
 

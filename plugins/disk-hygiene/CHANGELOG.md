@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.6]
+## [0.21.7]
 
 ### Added
 
@@ -15,6 +15,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **`hooks/hooks.json` carries a top-level `description`.** One line naming what
   this plugin's hook set does, on a field the hooks reference documents as
   optional and every hook set here omitted. (#3719)
+
+## [0.21.6]
+
+### Changed
+
+- **`hook_telemetry.py` drops `telemetry_enabled()`, which had no caller.** The
+  search was repo-wide rather than plugin-local: the only live spelling is the
+  bash `hook::telemetry_enabled` elsewhere, the telemetry contract doc never
+  names the Python function, no test touches it, and `emit()` already
+  self-guards on an unset sink. The guard imports the module but never calls
+  it. Nothing else in this group moved, because the remaining files are
+  allow/deny and fail-closed surface that the sweep's safety boundary keeps out
+  of scope. The pinned ruff wrapper is clean and the telemetry suite ran 3 of 3.
 
 ## [0.21.5]
 

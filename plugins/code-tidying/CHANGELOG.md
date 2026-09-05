@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6]
+
+### Changed
+
+- **`detect.test.sh`'s parity loop iterates the array `mapfile` already
+  captured.** The forward loop re-ran the identical `printf | sed` pipeline
+  that had just filled `audited_paths`, extracting the audited-path list twice
+  from one `detect.sh` run. It now reads the array, guarded for the empty case,
+  keeping the same items in the same order and the same in-shell mutation of
+  `parity_ok` that a process-substitution loop was already careful to preserve.
+  Suites ran 162 and 53.
+
 ## [0.15.5]
 
 ### Changed

@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.31]
+## [0.7.32]
 
 ### Added
 
@@ -11,6 +11,29 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   documents the field as optional, and every hook set in this marketplace omitted
   it; it is the surface an operator reads when deciding what a plugin does to
   their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.7.31]
+
+### Changed
+
+- **The statusline tee's five copies of the stamp-read idiom became one
+  `_rlg_read_stamp` helper.** Every one of the five sites is on a render path,
+  so the helper is builtins throughout and no call site pays a process. The
+  validation is the load-bearing half and is now spelled once: bash evaluates
+  the TEXT of an arithmetic operand, so an unvalidated stamp shaped like
+  `a[$(cmd)]` would run `cmd` on every render. Spawn counts were measured with
+  `strace` on every path rather than assumed, and no path increased.
+- **The Stop hook's rotation drops a fork and merges two cleanup paths.**
+  `rotate_events` piped `wc -l` through `tr -d ' \r'` to strip BSD padding and a
+  Windows CR; a parameter expansion does the same on a hook that fires on every
+  stop. The `tail`-then-`mv` pair had one cleanup arm per failure; a failing
+  `tail` leaves the redirection's empty temp and a failing `mv` leaves the
+  written one, while a successful `mv` has already consumed it, so one `rm -f`
+  after the combined success test covers both. Rotation threshold, retained
+  record count and exit status are unchanged.
+- **`bench.test.sh` folds two failing-render cases into `expect_render_abort`.**
+  Both lanes are now checked the same way against the same bad entry, which is
+  what the pair was asserting.
 
 ## [0.7.30]
 

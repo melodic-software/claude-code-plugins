@@ -134,16 +134,15 @@ export function validateTriageSheet(sheet, expectedCellCount = 16) {
  * @returns {string[]}
  */
 export function validateTriageManifest(manifest, expectedCounts = new Map()) {
-  /** @type {string[]} */
-  const errors = [];
   const m = asRecord(manifest);
   if (!m) {
     return ["manifest must be an object"];
   }
   if (!Array.isArray(m.sheets) || m.sheets.length === 0) {
-    errors.push("sheets array required");
-    return errors;
+    return ["sheets array required"];
   }
+  /** @type {string[]} */
+  const errors = [];
   const seenIds = new Set();
 
   for (const sheet of m.sheets) {

@@ -575,10 +575,13 @@ def extract_chain_from_handoff(
         # Resolve the pointer relative to the handoff file's own directory
         # (flat layout: a sibling filename); fall back to the directory's
         # parent for layouts whose pointers keep a subdir prefix
-        # (e.g. journal/<file>).
+        # (e.g. journal/<file>); finally fall back to the basename in the file's
+        # own directory, for repo-relative handoffs/-prefixed pointers.
         candidate = cursor.parent / prev_handoff_rel
         if not candidate.is_file():
             candidate = cursor.parent.parent / prev_handoff_rel
+        if not candidate.is_file():
+            candidate = cursor.parent / Path(prev_handoff_rel).name
         cursor = candidate
         depth += 1
 

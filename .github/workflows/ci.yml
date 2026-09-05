@@ -8,7 +8,24 @@ on:
     # heavy lanes reporting not-applicable while a pull request is a draft, and
     # without this type a draft flipped to ready triggers no run at all, so the
     # lanes would never get their real answer.
-    types: [opened, synchronize, reopened, ready_for_review]
+    #
+    # `edited`, `labeled` and `unlabeled` can change the pr-title /
+    # do-not-merge / issue-linkage answers without a new commit, so the required
+    # check has to re-evaluate. Whether such an event is CONTRACT-ONLY (lanes
+    # gated off, ci-status carrying the recorded `ci-lanes` verdict forward) is
+    # decided by one predicate, repeated verbatim in `cancel-in-progress` and in
+    # every job's `if:` except `ci-status`:
+    #
+    #   github.event.pull_request.head.repo.full_name == github.repository &&
+    #   (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
+    #    (github.event.action == 'edited' && !github.event.changes.base))
+    #
+    # An `edited` event carrying `changes.base` is a BASE-BRANCH change: the
+    # merge commit the lanes test changes with it, so that runs in full. A fork
+    # pull request is never contract-only — its token is read-only on
+    # `pull_request` whatever `permissions:` requests, so it cannot record lane
+    # state — and runs the full workflow on every event exactly as before.
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -16,16 +33,26 @@ permissions:
 # The PR number scopes cancellation to exactly one PR (head_ref would collide
 # across same-named fork branches); push runs fall back to the unique run_id,
 # so default-branch runs are never cancelled.
+#
+# A contract-only event never cancels: it must queue behind an in-flight full
+# run so the `ci-lanes` status it reads is already written. GitHub keeps one
+# running and one pending run per group and the newest pending wins, so the
+# carry-forward always executes after the full run it depends on. A
+# `synchronize` still cancels everything on the old SHA. The value carries no
+# event guard because the group key already gives every push run a group of its
+# own.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
 # materializations. Tool configs live at their tool-native root paths;
-# comment-hygiene's default policy is bundled with its action. The local
-# ci-status gateway aggregates every lane into the single required check the
-# org ci-gate ruleset keys on.
+# comment-hygiene's default policy is bundled with its action. The `ci-status`
+# gateway aggregates every lane into the single required check the org ci-gate
+# ruleset keys on, through the ci-workflows composite of the same name, and
+# carries the pull-request contract (title, do-not-merge label, issue linkage)
+# as steps of that one check.
 #
 # SIX JOBS, NOT FIFTY-FIVE. Each of the fifty-odd lanes this file used to carry
 # paid a fresh runner, a fresh checkout and a fresh toolchain install to run a
@@ -77,6 +104,13 @@ jobs:
   # broken detector turns this job red rather than resolving a scope nobody
   # verified.
   changes:
+    # The contract-only gate, verbatim on every job but `ci-status` (see the
+    # predicate spelled out under `on.pull_request.types`). It carries no
+    # status-check function, so on every job that has `needs` those edges still
+    # govern exactly as before: the gate only subtracts the label-flip and
+    # body-edit events, where the lanes would re-run a SHA a full run already
+    # answered and `ci-status` carries that answer forward instead.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # The change-detection action lists the pull request's files through the
@@ -251,6 +285,8 @@ jobs:
   # against.
   lint:
     needs: [changes]
+    # The contract-only gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -1139,6 +1175,8 @@ jobs:
   # `--check-bump` below still resolves `origin/$BASE_REF` from it.
   test-linux:
     needs: [changes]
+    # The contract-only gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -1685,7 +1723,9 @@ jobs:
   test-windows:
     needs:
       - changes
-    if: needs.changes.outputs.run_windows == 'true'
+    # The contract-only gate ANDed with the existing resolver gate. This lane is
+    # outside the ci-status aggregate, so it may gate at job level.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -1722,6 +1762,8 @@ jobs:
   hook-utils:
     needs:
       - changes
+    # The contract-only gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1758,25 +1800,48 @@ jobs:
       - test-linux
       - hook-utils
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
-    # lane failure still runs this required aggregate and the result join below
+    # lane failure still runs this required aggregate and the aggregation below
     # turns it red. A success-guard would skip the job, and a skipped required
     # check reports success to branch protection. This condition is safe where
     # a consumer's would not be: this job reads no resolver output, so there is
     # no empty-string state for it to misread.
+    #
+    # This is the ONE job that carries no contract-only gate: on a label flip or
+    # a body edit it is the only job that runs, and it answers from the
+    # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # pr-contract upserts the advisory linkage comment and moves the linkage
+      # label; ci-status records the `ci-lanes` commit status the carry-forward
+      # branch reads back on the next contract-only event.
+      pull-requests: write
+      statuses: write
     steps:
+      - name: Check the pull-request contract
+        uses: melodic-software/ci-workflows/.github/actions/pr-contract@449157aaa8e30f7b1457305d8048ebe6168e174a # v0.20.0
+        with:
+          token: ${{ github.token }}
+          # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
+          # step replaces: dependabot PR bodies cannot carry the closing keyword
+          # and the four contract sections, so its login is exempt from the
+          # linkage check and its pull requests stay mergeable. An exact-login
+          # match, never a `*[bot]` pattern.
+          exempt-authors: 'dependabot[bot]'
       - name: Aggregate lane results
-        # Derived from the needs graph above — the single source of truth for the
-        # lane list. Adding a lane to needs automatically extends this check.
-        env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for r in $RESULTS; do
-            case "$r" in
-              success) ;;
-              *) echo "A required lane did not pass (result: $r)."; exit 1 ;;
-            esac
-          done
-          echo "All required lanes passed."
+        # `!cancelled()` so a failing pr-contract step does not skip the
+        # aggregation: the job still fails on the contract step's exit code, and
+        # the `ci-lanes` status is on the SHA for the next contract-only run.
+        if: ${{ !cancelled() }}
+        uses: melodic-software/ci-workflows/.github/actions/ci-status@449157aaa8e30f7b1457305d8048ebe6168e174a # v0.20.0
+        with:
+          # Derived from the needs graph above — the single source of truth for
+          # the lane list. Adding a lane to needs automatically extends this
+          # check.
+          results: ${{ join(needs.*.result, ' ') }}
+          # The replaced inline aggregator passed only `success`, so a `skipped`
+          # lane was already red here.
+          treat-skipped-as: fail
+          token: ${{ github.token }}

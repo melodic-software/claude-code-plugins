@@ -48,7 +48,7 @@ plugin_id="$(
     [.[] | select(.enabled == true) | select(.id | startswith("caveman@"))]
     | (map(select(.id == "caveman@caveman")) + .)
     | .[0].id // empty
-  ' 2>/dev/null | head -1 | tr -d '\r'
+  ' 2>/dev/null | tr -d '\r' | head -1
 )"
 
 if [[ -n "$plugin_id" ]]; then

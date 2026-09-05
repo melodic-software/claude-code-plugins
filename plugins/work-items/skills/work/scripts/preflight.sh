@@ -382,13 +382,10 @@ if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
   distinct_project_root="yes"
 fi
 local_excluded=""
+cov_local="with-local"
 if [[ -n "$worktree_root" && -z "$distinct_project_root" ]]; then
   local_excluded="yes"
-fi
-if [[ -n "$local_excluded" ]]; then
   cov_local="no-local"
-else
-  cov_local="with-local"
 fi
 ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
 ALL_DENY="$(collect '.permissions.deny' "with-local")"

@@ -38,11 +38,8 @@ trap 'rm -rf "$TMP"' EXIT
 run() {
   local ostype="$1" root="$2"
   shift 2
-  if [[ "$root" == "-" ]]; then
-    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT='' DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
-  else
-    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
-  fi
+  [[ "$root" == "-" ]] && root=''
+  OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
   RC=$?
 }
 

@@ -244,8 +244,6 @@ if [[ ! -f "$index" ]]; then
   exit 1
 fi
 
-index_dir="$slice"
-
 if [[ ! -s "$index" ]]; then
   echo "unusable: index is empty: $index" >&2
   verdict "$index" 0 0 unusable
@@ -282,7 +280,7 @@ fi
 
 missing=0
 for name in "${referenced[@]}"; do
-  sidecar="$index_dir/$name"
+  sidecar="$slice/$name"
   if [[ ! -f "$sidecar" ]]; then
     echo "unusable: index names a sidecar that was never written: $sidecar" >&2
     missing=$((missing + 1))

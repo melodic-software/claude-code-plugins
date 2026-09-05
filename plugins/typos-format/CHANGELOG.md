@@ -3,7 +3,7 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.39]
+## [0.6.40]
 
 ### Added
 
@@ -11,6 +11,29 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   documents the field as optional, and every hook set in this marketplace omitted
   it; it is the surface an operator reads when deciding what a plugin does to
   their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.39]
+
+### Changed
+
+- **`build_data_json` states why its fallback exists, matching its three sibling
+  formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
+  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  one deliberate word changed: the siblings say the fallback fires only if
+  `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
+  the sentence names `jq -c`. Copying it verbatim would have stated something
+  false about this file.
+  No gate was added here. Unlike its siblings, this hook's `FINDINGS_JSON` comes
+  from `hook::jq_fields` over classifier output it produces regardless of
+  telemetry, so nothing is spent on the unwired path and there is nothing to
+  guard.
+- **The `RUN_DIR` fallback reuses the precomputed `FILE_DIR`.** It read
+  `${root:-$(dirname "$FILE")}`, forking `dirname` on the branch where no repo
+  root was resolved, to recompute a directory the hook had already derived
+  seventy-odd lines earlier with `${FILE%/*}` and its two special cases. That
+  earlier value is what the hook passes to `hook::repo_root`, so the two answers
+  were already required to name the same directory; they are now one expression
+  instead of two. Single line, one fewer process on the no-repo-root path.
 
 ## [0.6.38]
 

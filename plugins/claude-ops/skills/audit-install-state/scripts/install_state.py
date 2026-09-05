@@ -1157,9 +1157,9 @@ def scan(
 
     rows, errors = walk_tree(root, denied, probe=probe, exclude=exclude)
 
-    counts: dict[str, Sampled] = {}
-    for name, value in count_by_entry(rows).items():
-        counts.setdefault(name, Sampled()).add(value)
+    counts: dict[str, Sampled] = {
+        name: Sampled([value]) for name, value in count_by_entry(rows).items()
+    }
 
     for _ in range(max(0, samples - 1)):
         time.sleep(interval)

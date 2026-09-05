@@ -376,7 +376,6 @@ suite INTENT.md
 # ============================================================================
 
 INDEX_NAME="RESEARCH.md"
-PREFIX="RESEARCH"
 WORK="$WORKROOT/flag"
 mkdir -p "$WORK"
 

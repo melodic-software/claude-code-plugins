@@ -3,7 +3,7 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.35]
+## [0.3.36]
 
 ### Added
 
@@ -11,6 +11,27 @@ All notable changes to the `go-format` plugin are documented here. Format follow
   documents the field as optional, and every hook set in this marketplace omitted
   it; it is the surface an operator reads when deciding what a plugin does to
   their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.3.35]
+
+### Changed
+
+- **The generated-file scan breaks at the marker instead of one iteration
+  later.** Setting `GENERATED=1` was followed by a separate
+  `[[ $GENERATED -eq 1 ]] && break` on the next line; the flag is assigned at
+  exactly one place, so that test could never be false and the marker match now
+  breaks directly.
+- **`build_data_json`'s rationale comment is completed to the formatter
+  family's canonical text,** following the actionlint precedent. The truncated
+  version stopped where the jq fallback drops the tool and path values; it now
+  also says why losing them is harmless, since the fallback fires only when
+  `jq -n` fails and the envelope is discarded anyway when jq is absent.
+  Comment-only.
+
+  Spawn count is unchanged and no jq pipeline was swapped for a helper. The
+  suite was run for real rather than accepted as a skip: it no-ops entirely
+  when `goimports` is absent from PATH, so the sweep installed the binary and
+  ran all 54 assertions, with the baseline byte-identical.
 
 ## [0.3.34]
 

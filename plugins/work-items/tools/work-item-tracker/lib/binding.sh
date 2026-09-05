@@ -175,7 +175,7 @@ wit_read_binding() {
   container_type="$(jq -r '.config.container_label | type' "$path")"
   [[ "$container_type" == "null" || "$container_type" == "string" ]] || return 1
   container="$(jq -r '.config.container_label // empty' "$path")"
-  [[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"
+  container="${container:-$WIT_DEFAULT_CONTAINER_LABEL}"
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_LEASE_TTL_MINUTES="$minutes"

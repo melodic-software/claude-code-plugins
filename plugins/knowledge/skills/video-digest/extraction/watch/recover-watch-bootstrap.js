@@ -159,10 +159,11 @@ export function downsampleSelectedFrames(selected, targetFrameCount) {
   for (let i = 0; i < targetFrameCount; i++) {
     downsampled.push(selected[Math.floor(i * step)]);
   }
+  const droppedCount = beforeCount - downsampled.length;
   return {
     selected: downsampled,
-    droppedCount: beforeCount - downsampled.length,
-    warning: `WARN: downsampled ${beforeCount} → ${downsampled.length} frames (stratified, ${beforeCount - downsampled.length} dropped)`,
+    droppedCount,
+    warning: `WARN: downsampled ${beforeCount} → ${downsampled.length} frames (stratified, ${droppedCount} dropped)`,
   };
 }
 
@@ -216,10 +217,9 @@ export async function recoverWatchBootstrapCli(argv) {
     sceneCandidateCount: merged.length,
   });
 
-  const scored = merged.map((frame, index) => {
-    const priority = scoreFramePriority(frame, index, windows);
-    return toSelectedFrame(frame, priority, windows);
-  });
+  const scored = merged.map((frame, index) =>
+    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
+  );
 
   let selection = summarizeFrameSelection(scored, {
     targetMinFrames: coveragePlan.targetMinFrames,

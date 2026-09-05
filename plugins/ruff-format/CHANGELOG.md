@@ -3,7 +3,7 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.32]
+## [0.6.33]
 
 ### Added
 
@@ -11,6 +11,14 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   documents the field as optional, and every hook set in this marketplace omitted
   it; it is the surface an operator reads when deciding what a plugin does to
   their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.32]
+
+### Changed
+
+- **`ruff-format.test.sh`: a dead RC capture removed.** The unused-import case captured `$?` into
+  `RC` after `OUT=$(run_hook ...)` and then asserted only on the file's contents, so the capture
+  was never read. Test-only; the hook is unchanged.
 
 ## [0.6.31]
 

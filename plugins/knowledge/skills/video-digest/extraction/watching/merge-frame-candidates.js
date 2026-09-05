@@ -14,14 +14,7 @@ export function mergeFrameCandidates(frames) {
 
   for (const frame of frames) {
     const existing = byFile.get(frame.file);
-    if (!existing) {
-      byFile.set(frame.file, frame);
-      continue;
-    }
-
-    const existingTs = existing.timestampSec ?? -1;
-    const nextTs = frame.timestampSec ?? -1;
-    if (nextTs >= existingTs) {
+    if (!existing || (frame.timestampSec ?? -1) >= (existing.timestampSec ?? -1)) {
       byFile.set(frame.file, frame);
     }
   }
