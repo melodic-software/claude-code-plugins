@@ -23,7 +23,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   arrives byte-identical (no backslash escaping). The suite's spawn-count case
   now asserts one invocation handed every manifest, and five new cases pin
   declared `skills` paths (array, string, an undeclared sibling directory, a
-  nameless manifest, a backslash in a path) through the batched read.
+  nameless manifest, a backslash in a path) through the batched read. The
+  batch keys its bookkeeping on the plugin directory the hook rebuilds from its
+  own plugins root, not on the path jq echoes back: on Windows Git Bash a
+  native jq echoes the MSYS-converted argument, which would have marked no
+  manifest as read and sent every one through the per-manifest fallback. A
+  case simulates that echo and pins one invocation.
 - **`cli-flag-verify` answers cache hits in-process and gates on a bin name
   before scanning.** On a warm 24 h cache the verifier's whole job was to read
   one file and match one pattern, and spawning it for that cost a bash
