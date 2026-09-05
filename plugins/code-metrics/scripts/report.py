@@ -162,10 +162,14 @@ def assemble(
             for threshold in threshold_entries
             if _over(threshold, values.get(threshold["value_key"]))
         ]
+    # A `not-applicable` row implies nothing to run (the measure does not
+    # exist for that lane), so it never withholds `complete`; `unavailable`
+    # and `deferred` rows do, because something implied was not measured.
     ok_rows = [row for row in run if row.get("status") == "ok"]
+    settled = [row for row in run if row.get("status") in ("ok", "not-applicable")]
     if not ok_rows or not measures:
         status = "empty"
-    elif len(ok_rows) == len(run):
+    elif len(settled) == len(run):
         status = "complete"
     else:
         status = "partial"

@@ -53,7 +53,7 @@ chmod +x "$STUBS/scc"
 # EMPTY_PATH is the caller's PATH with every collector removed: a directory of
 # symlinks to each executable on PATH except the tools the ladder names, so
 # the coreutils, git, and the interpreter stay reachable while `scc` does not.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics type-coverage mypy pmd "
+COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics type-coverage mypy pmd eslint "
 IFS=':' read -r -a path_dirs <<<"$PATH"
 for dir in "${path_dirs[@]}"; do
   [[ -d "$dir" ]] || continue
@@ -75,12 +75,13 @@ assert_doc "schema, skill, and status complete" "$out" \
 assert_doc "every lane row is ok on line-counter" "$out" \
   'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==5'
 assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
-  'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==5'
+  'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==7'
 assert_doc "markdown fixture is outside every lane" "$out" 'not any(r["file"].endswith("cm-notes.md") for r in d["measures"])'
 # The five lane fixtures by name (cm-sample.ts, cm_sample.py, cm-sample.sh, cm-sample.go,
-# CmSample.cs): the assertion is also what maps them to this suite.
+# CmSample.cs) plus the two byte-identical bash copies of the duplication cluster fixture
+# (cluster/{alpha,beta}/shared/shared-utils.sh): the assertion is also what maps them to this suite.
 assert_doc "every lane fixture is measured exactly once" "$out" \
-  'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py"]'
+  'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
   'd["thresholds"][0]["measure"]=="file_lines" and d["thresholds"][0]["reference"]==1000 and "not normative" in d["thresholds"][0]["provenance"]'
 
@@ -99,7 +100,7 @@ assert_eq "exit 0 when nothing could be measured" 0 "$rc"
 assert_doc "status empty and every row unavailable with a reason" "$out" \
   'd["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"]) and len(d["unavailable"])==5 and d["measures"]==[]'
 assert_doc "the reason names both rungs and the install hint" "$out" \
-  '"scc: not found" in d["run"][0]["reason"] and "line-counter: not found" in d["run"][0]["reason"] and "boyter/scc" in d["run"][0]["reason"]'
+  '"scc: scc not on PATH" in d["run"][0]["reason"] and "line-counter: disabled by CODE_METRICS_DISABLE_BUNDLED" in d["run"][0]["reason"] and "boyter/scc" in d["run"][0]["reason"]'
 
 # 4. A ladder row whose adapter does not exist is reported, not skipped.
 ladder="$(mktemp)"
@@ -117,8 +118,8 @@ assert_doc "dotnet cyclomatic is deferred with the research tag" "$out" \
   'any(r["lane"]=="dotnet" and r["measure"]=="cyclomatic" and r["status"]=="deferred" and "probe:dotnet-metrics-linux" in r["reason"] for r in d["run"])'
 assert_doc "python cognitive is unavailable with the validated-date reason" "$out" \
   'any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and "2026-09-04" in r["reason"] for r in d["run"])'
-assert_doc "typescript cyclomatic lists both rungs as not shipped" "$out" \
-  'any(r["lane"]=="typescript" and r["measure"]=="cyclomatic" and "lizard: adapter not shipped" in r["reason"] and "eslint-complexity: adapter not shipped" in r["reason"] for r in d["run"])'
+assert_doc "typescript cyclomatic lists both rungs with their probe reasons and hints" "$out" \
+  'any(r["lane"]=="typescript" and r["measure"]=="cyclomatic" and r["status"]=="unavailable" and r["reason"].startswith("lizard: ") and "; eslint-complexity: " in r["reason"] and r["reason"].count("(")>=2 for r in d["run"])'
 
 # 6. Explicit missing path is a usage error.
 PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines "$SOURCES/missing.py" >/dev/null 2>&1
@@ -213,7 +214,7 @@ resolved="$(mktemp)"
 "$PY" "$SCRIPT_DIR/resolve-config.py" "$SCRIPT_DIR/fixtures/config/user.yaml" "$SCRIPT_DIR/fixtures/config/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$resolved"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --config "$resolved" "$SOURCES/cm-sample.ts")"
 assert_doc "ladder override lists lizard only for typescript cyclomatic" "$out" \
-  'd["run"][0]["lane"]=="typescript" and d["run"][0]["reason"]=="lizard: adapter not shipped"'
+  'd["run"][0]["lane"]=="typescript" and d["run"][0]["reason"].startswith("lizard: ") and "eslint-complexity" not in d["run"][0]["reason"]'
 assert_doc "pre-resolved thresholds carry their layer" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["reference"]==15 and next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["layer"]=="team"'
 rm -f "$resolved"

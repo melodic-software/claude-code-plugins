@@ -114,3 +114,14 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   output to `json.load`. Found: the default output is markdown (as for `audit-size`), so both
   pipelines fail by construction. Chose: the sanity lines gain `--json`, the form the Phase 1
   check already uses. Revisit: none.
+- **plan-confirmed.** (main session, after Wave B returned) The frozen dispatcher and assembler
+  needed four reconciliations, all in the orchestrator's territory and pinned by their suites:
+  the dispatcher suite's "adapter not shipped" cases assumed no complexity adapter existed and
+  its tool filter lacked `eslint` (five cases rewritten; the `--all` fixture scope now includes
+  the duplication cluster's two bash copies, so counts are 7); a failed `probe`'s stderr is now
+  relayed into the `unavailable` reason (Phase 6's finding; "not found" stays the fallback);
+  `status: complete` no longer withheld by `not-applicable` rows (Phase 6's finding; `unavailable`
+  and `deferred` still make a run `partial`; contracts.md §2 and report-schema.md updated); and
+  `cpd` gained ladder rungs after `jscpd` for typescript, python, go, and dotnet so the
+  documented collector override can reach it (Phase 5's finding; the override validates names
+  against the ladder). Every plugin suite green afterwards (8 shell suites, 183 pytest cases).

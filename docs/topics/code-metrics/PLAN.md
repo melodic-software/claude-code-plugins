@@ -353,7 +353,7 @@ Files:
 
 **Sanity Check:**
 
-- with the suite's runtime stub directory first on `PATH`, `bash plugins/code-metrics/skills/audit-complexity/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); t=[x for x in d["thresholds"] if x["measure"]=="cyclomatic"][0]; assert t["reference"]==20 and "8.2.117" in t["provenance"]; assert any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" for r in d["run"])'` exits 0
+- with the suite's runtime stub directory first on `PATH`, `bash plugins/code-metrics/skills/audit-complexity/scripts/<skill>.sh --json --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); t=[x for x in d["thresholds"] if x["measure"]=="cyclomatic"][0]; assert t["reference"]==20 and "8.2.117" in t["provenance"]; assert any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" for r in d["run"])'` exits 0
 - `grep -c 'scc' plugins/code-metrics/skills/audit-complexity/SKILL.md` prints 0 (scc never named as a complexity source)
 - the phase gate
 
@@ -397,7 +397,7 @@ Files:
 
 **Sanity Check:**
 
-- with the runtime `jscpd` stub on PATH, `bash plugins/code-metrics/skills/audit-duplication/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources/cluster --registry plugins/code-metrics/scripts/fixtures/registry/cluster.txt | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"]==0 and len(d["excluded"])>=1'` exits 0
+- with the runtime `jscpd` stub on PATH, `bash plugins/code-metrics/skills/audit-duplication/scripts/<skill>.sh --json --all plugins/code-metrics/scripts/fixtures/sources/cluster --registry plugins/code-metrics/scripts/fixtures/registry/cluster.txt | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"]==0 and len(d["excluded"])>=1'` exits 0
 - the same command without `--registry` reports `duplicated_lines` greater than 0
 - `bash plugins/code-metrics/skills/audit-duplication/scripts/run.test.sh | grep -c 'hook-utils'` prints at least 1 (the real-cluster case ran or printed its `SKIP`)
 - the phase gate
@@ -435,7 +435,7 @@ Files:
 - `grep -c 'Change Risk Analysis and Predictions' plugins/code-metrics/skills/principles/reference/crap.md` prints at least 1 and `grep -c 'Change Risk Anti-Patterns' ...` prints at least 1
 - `grep -c 'not a validated' plugins/code-metrics/skills/principles/reference/crap.md` prints at least 1
 - `grep -c 'Lewis' plugins/code-metrics/skills/principles/reference/literature.md` prints at least 1
-- `grep -o 'if that plugin is installed\|when the `\?[a-z-]*`\? plugin is installed' plugins/code-metrics/skills/principles/SKILL.md | wc -l` prints at least 5
+- `grep -o 'if that plugin is installed\|when the [^ ]* plugin is installed' plugins/code-metrics/skills/principles/SKILL.md | wc -l` prints at least 5
 - the phase gate; the SKILL.md is under 200 lines
 
 ### Phase 8: README, evals quality, house style [TODO]

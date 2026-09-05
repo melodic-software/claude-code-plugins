@@ -125,7 +125,8 @@ Field rules:
 - `values.<measure>` is a number or `null`; `null` means "not measured for this row", never zero.
 - `excluded[]` (duplication only) lists clone groups dropped by a registry, each with the registry
   path and line that sanctioned it.
-- `status` is `complete` (every implied lane and measure ran), `partial` (at least one did not),
+- `status` is `complete` (every implied lane and measure ran; a `not-applicable` row implies
+  nothing and never withholds it), `partial` (at least one `unavailable` or `deferred` row),
   or `empty` (nothing was measured; the markdown headline reads "Measured nothing"). A consumer
   comparing two reports treats `empty` on either side as INCONCLUSIVE.
 - `scope.files` of `0` (a docs-only change) yields `status: empty` with one `run[]` row

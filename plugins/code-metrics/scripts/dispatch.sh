@@ -351,9 +351,14 @@ for lane in "${LANES[@]}"; do
         reasons+="${reasons:+; }$tool: adapter not shipped"
         continue
       fi
-      if ! version="$("${PY[@]}" "$adapter" probe 2>/dev/null)"; then
+      # A failed probe's stderr is the specific reason (a binary present but a
+      # dependency it needs absent); "not found" is the fallback wording.
+      probe_err="$WORK/probe.$lane.$measure.$tool"
+      if ! version="$("${PY[@]}" "$adapter" probe 2>"$probe_err")"; then
         hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
-        reasons+="${reasons:+; }$tool: not found${hint:+ ($hint)}"
+        why="$(tr '\n' ' ' <"$probe_err" | cut -c1-200)"
+        why="${why% }"
+        reasons+="${reasons:+; }$tool: ${why:-not found}${hint:+ ($hint)}"
         continue
       fi
       errf="$WORK/err.$lane.$measure.$tool"

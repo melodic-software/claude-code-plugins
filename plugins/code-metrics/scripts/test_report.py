@@ -267,6 +267,50 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(run_rows[1:], [], [])
         self.assertEqual(doc["status"], "empty")
 
+    def test_not_applicable_rows_do_not_withhold_complete(self) -> None:
+        doc = self.assemble(
+            [
+                {
+                    "lane": "python",
+                    "measure": "type_coverage",
+                    "collector": "mypy-report 1.19.1",
+                    "status": "ok",
+                    "reason": None,
+                },
+                {
+                    "lane": "bash",
+                    "measure": "type_coverage",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "not applicable to shell",
+                },
+            ],
+            [{"file": None, "function": None, "lane": "python", "values": {"x": 1}}],
+            [],
+        )
+        self.assertEqual(doc["status"], "complete")
+        doc = self.assemble(
+            [
+                {
+                    "lane": "python",
+                    "measure": "cyclomatic",
+                    "collector": "radon 6.0.1",
+                    "status": "ok",
+                    "reason": None,
+                },
+                {
+                    "lane": "dotnet",
+                    "measure": "cyclomatic",
+                    "collector": None,
+                    "status": "deferred",
+                    "reason": "C# lane deferred",
+                },
+            ],
+            [{"file": "a.py", "function": "f", "lane": "python", "values": {"x": 1}}],
+            [],
+        )
+        self.assertEqual(doc["status"], "partial")
+
     def test_non_ok_row_without_reason_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)

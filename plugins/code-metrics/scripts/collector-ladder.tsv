@@ -18,6 +18,7 @@ typescript	halstead	multimetric
 typescript	file_lines	scc
 typescript	file_lines	line-counter
 typescript	duplication	jscpd
+typescript	duplication	cpd
 typescript	type_coverage	type-coverage
 typescript	function_lines	lizard
 python	cyclomatic	lizard
@@ -28,6 +29,7 @@ python	halstead	multimetric
 python	file_lines	scc
 python	file_lines	line-counter
 python	duplication	jscpd
+python	duplication	cpd
 python	type_coverage	mypy-report
 python	function_lines	lizard
 python	function_lines	radon
@@ -48,10 +50,12 @@ go	file_lines	scc
 go	file_lines	line-counter
 go	duplication	jscpd
 go	duplication	dupl
+go	duplication	cpd
 go	type_coverage	n/a	not applicable to Go
 go	function_lines	lizard
 dotnet	file_lines	scc
 dotnet	file_lines	line-counter
 dotnet	duplication	jscpd
+dotnet	duplication	cpd
 dotnet	type_coverage	n/a	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
 dotnet	*	deferred	C# lane deferred; research tag probe:dotnet-metrics-linux

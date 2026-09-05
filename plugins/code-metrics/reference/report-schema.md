@@ -11,7 +11,7 @@ read, so its shape is stable within the `v1` schema string.
 | `schema` | string | `code-metrics/v1` |
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
-| `status` | string | `complete` (every implied lane and measure ran), `partial` (at least one did not), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
+| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable` or `deferred` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
 | `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count), `excluded` (count dropped by scope exclusions) |
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`) |
