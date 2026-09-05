@@ -8,8 +8,6 @@
 # (advisory, exit 0), and emits a schema-valid telemetry envelope. No policy of its own — the fixture repo's
 # .gitattributes is the sole authority.
 #
-# Temporary probe line, reverted in the same change set.
-#
 # Self-contained: builds throwaway git repos with runtime-generated fixtures and
 # .gitattributes. The hook is invoked as a subprocess from an UNRELATED cwd so
 # any reliance on the caller's working directory would surface (the tools are
