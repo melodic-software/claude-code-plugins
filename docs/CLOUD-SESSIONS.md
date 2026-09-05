@@ -220,7 +220,7 @@ enables; the cloud bootstrap installs (see
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) of the context window,
   default `0.01`. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring
   skills first, so a skill that is never invoked loses the keywords a request would have matched
-  and goes on not being invoked. Measured on this branch's base (`main` at 3ea592bb) with
+  and goes on not being invoked. Measured at `main` 3ea592bb with
   `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`: **182 listing-eligible
   skills, 135,596 characters**. The budget is `window_tokens x 4 chars/token x fraction`, so at
   `0.05` the listing fits **only on a context window of 677,980 tokens or larger**. Read the
@@ -235,11 +235,14 @@ enables; the cloud bootstrap installs (see
 
   On a 200k-window machine this setting does not clear the fleet; it moves the starved count from
   177 to 135. It reaches 0 starved only on the large-window models this marketplace is actually
-  driven on.
+  driven on. Re-measured after merging `main` 8dd38b81: 182 skills, 135,572 characters — every
+  row above reproduces unchanged, so treat the table as accurate to within a few dozen characters
+  of whatever `main` you read it on, not as a live reading.
 
   **The repo did not previously run `0.03` or a 90,000-character budget.**
-  `git log -S skillListingBudgetFraction -- .claude/settings.json` shows 57db0238 is the first
-  commit to set the key at all, so before it this repo inherited the harness default `0.01`,
+  `git log -S skillListingBudgetFraction -- .claude/settings.json` returns exactly one commit on
+  this branch, 57db0238, the commit in this change that adds the key, so before it this repo
+  inherited the harness default `0.01`,
   which is the documented 8,000-character fallback on a 200k window and leaves **177 of 182
   skills starved**. The `0.03` / 90,000-character pair belongs to one contributor's machine in
   [#3505](https://github.com/melodic-software/claude-code-plugins/issues/3505)'s debug log, where
