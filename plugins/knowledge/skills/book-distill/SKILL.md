@@ -186,6 +186,6 @@ These are hard-won lessons from real distillation sessions:
 
 6. **Concept-primary, not chapter-primary.** Name files by what they teach, not which chapter they came from. This produces "one question = one Read" for the consuming skill
 
-7. **One skill per discipline.** Testing knowledge goes in a testing skill, domain design in a domain-design skill. Don't create a mega catch-all skill. It confuses routing (97.4% vs 83.8% precision in research)
+7. **One skill per discipline.** Testing knowledge goes in a testing skill, domain design in a domain-design skill. Don't create a mega catch-all skill. A catch-all skill's routing table has to disambiguate across unrelated disciplines, so it routes worse than a per-discipline table
 
 8. **Reference files one level deep.** SKILL.md → reference/*.md. No deeper nesting. Claude partially reads nested references, so keep the hierarchy flat

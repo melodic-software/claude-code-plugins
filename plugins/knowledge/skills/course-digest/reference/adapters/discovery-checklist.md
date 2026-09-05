@@ -192,9 +192,9 @@ const buttons = await playerFrame.evaluate(() =>
 
 ### 3.3 Intercept subtitle network requests (HLS subtitles)
 
-**Proven technique for Hotmart/HLS platforms**: subtitle text is delivered as chunked WebVTT segments alongside the video stream.
+A candidate technique for HLS platforms: subtitle text is delivered as chunked WebVTT segments alongside the video stream, and `page.on("response")` can sometimes read them from a cross-origin iframe where `page.on("request")` and JavaScript `fetch()` cannot cross the origin boundary.
 
-**Key insight**: Playwright's `page.on("response")` captures cross-origin iframe network traffic even though `page.on("request")` and JavaScript `fetch()` cannot cross the origin boundary. Critical discovery.
+Verify it on the platform in front of you before designing around it: on Hotmart the interceptor does not fire reliably for cross-origin iframe sub-resources, so the shipped Teachable adapter reads the player API directly instead ([reference/adapters/teachable.md](teachable.md), "Transcript extraction" and gotcha 1). Prefer 3.2's direct player-API path when the player exposes one.
 
 Steps:
 
@@ -267,7 +267,7 @@ ffmpeg -y -headers "Referer: https://player.example.com/\r\n" \
 
 - Some platforms require `Referer` header, others don't (Hotmart works without it)
 - Some platforms use AES-128 encryption — ffmpeg handles this automatically if key URL is in manifest
-- Token expiry varies: Mux (Dometrain) ~150 min, Hotmart tokens are in manifest body
+- Token expiry varies by platform: read the lifetime from the token or manifest rather than assuming a window (Mux tokens carry `custom_expiration_minutes`; Hotmart tokens are in the manifest body)
 
 ### 4.3 Verify frame quality
 

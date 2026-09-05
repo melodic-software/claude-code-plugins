@@ -1,4 +1,4 @@
-# YouTube watch queue
+# Video digest watch queue
 
 Epic-level batch list for `/knowledge:video-digest queue` and `/knowledge:video-digest watch` (no URL). Live file: `.work/<watch-epic>/QUEUE.md`. Claim stubs: `.work/<watch-epic>/claims/<n>.json`.
 
