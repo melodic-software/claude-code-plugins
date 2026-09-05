@@ -67,3 +67,19 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   repository's ruff-format hook is advisory; CI runs `ruff check`). Phase verifier: 14 of 14
   criteria PASS; its six observations (the table rows, a fixture comment, an alias test case, an
   EXIT-trap gap in `setup-check.sh`, a test name) were applied before the phase commit.
+
+## Wave B (2026-09-05)
+
+- **plan-confirmed.** The plan says the report assembler grows every row shape before Wave B.
+  Found: `report.py` counted `files`/`functions` only, so a clone-group row had no
+  `summary.duplicated_lines` (the Phase 5 sanity check reads it) and a skill that drops rows
+  after assembly had no way to recompute the summary. Added main-side before dispatch, in the
+  orchestrator's territory: `summarize()` (clone-group rows add `duplicated_lines` and
+  `clone_groups`; instance files count toward `files`), the `resummarize` verb, and instance
+  rendering; `test_report.py` covers each. Commit: the one preceding the Wave B worker commits.
+- **deviation.** Plan said (the dispatch skill's default): each worker provisions a worktree,
+  commits, and pushes early. Found: the operator's "one branch, one PR" decision and the plan's
+  fence ("FORBIDDEN: staging, commit, or push") put every worker on the shared checkout of
+  `claude/code-quality-metrics-plugins-p99tkz`, file-disjoint by the scope-fencing table. Chose:
+  workers edit in place and never touch git; the orchestrator verifies each return, runs the
+  whole-plugin gate, and commits per return. Revisit: none; the plan's fence is the approved form.

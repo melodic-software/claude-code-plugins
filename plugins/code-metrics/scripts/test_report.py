@@ -381,5 +381,93 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Over reference: file_lines 1.", result.stdout)
 
 
+CLONE_ROW = {
+    "file": None,
+    "function": None,
+    "lane": "bash",
+    "instances": [
+        {"file": "alpha/shared/u.sh", "start_line": 1, "end_line": 20},
+        {"file": "beta/shared/u.sh", "start_line": 1, "end_line": 20},
+    ],
+    "values": {"lines": 20, "tokens": 90},
+    "over_reference": [],
+}
+
+
+class CloneGroupRowTests(unittest.TestCase):
+    def test_assemble_sums_duplicated_lines_and_counts_instance_files(self) -> None:
+        doc = AssembleTests().assemble(
+            [
+                {
+                    "lane": "bash",
+                    "measure": "duplication",
+                    "collector": "jscpd 5.1.2",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            [CLONE_ROW, dict(CLONE_ROW, values={"lines": 7, "tokens": 30})],
+            [],
+        )
+        self.assertEqual(doc["summary"]["duplicated_lines"], 27)
+        self.assertEqual(doc["summary"]["clone_groups"], 2)
+        self.assertEqual(doc["summary"]["files"], 2)
+
+    def test_summary_has_no_duplication_keys_without_clone_rows(self) -> None:
+        doc = AssembleTests().assemble([], [], [])
+        self.assertNotIn("duplicated_lines", doc["summary"])
+
+    def test_render_shows_instances_and_the_duplicated_total(self) -> None:
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-duplication",
+            "status": "complete",
+            "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
+            "run": [],
+            "thresholds": [],
+            "measures": [CLONE_ROW],
+            "summary": {
+                "files": 2,
+                "functions": 0,
+                "over_reference": {},
+                "duplicated_lines": 20,
+                "clone_groups": 1,
+            },
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertIn(
+            "| alpha/shared/u.sh:1-20, beta/shared/u.sh:1-20 |  | bash | 20 | 90 |",
+            result.stdout,
+        )
+        self.assertIn("Duplicated lines: 20 in 1 clone group(s).", result.stdout)
+
+    def test_resummarize_recomputes_the_summary_after_rows_are_dropped(self) -> None:
+        doc = AssembleTests().assemble(
+            [
+                {
+                    "lane": "bash",
+                    "measure": "duplication",
+                    "collector": "jscpd 5.1.2",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            [CLONE_ROW, dict(CLONE_ROW, values={"lines": 7, "tokens": 30})],
+            [],
+        )
+        doc["measures"] = doc["measures"][1:]
+        doc["excluded"] = [{"registry": "r.txt", "line": 3, "path": "shared/u.sh"}]
+        result = run("resummarize", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual(out["summary"]["duplicated_lines"], 7)
+        self.assertEqual(out["summary"]["clone_groups"], 1)
+        self.assertEqual(out["excluded"], doc["excluded"])
+        self.assertEqual(out["status"], "complete")
+        self.assertEqual(out["run"], doc["run"])
+
+
 if __name__ == "__main__":
     unittest.main()

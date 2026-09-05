@@ -16,7 +16,7 @@ read, so its shape is stable within the `v1` schema string.
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`) |
 | `measures` | array | The rows, see below |
-| `summary` | object | `files`, `functions`, `over_reference` (measure name to count) |
+| `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions) and `clone_groups` |
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry, each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
 

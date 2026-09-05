@@ -19,6 +19,12 @@ Three subcommands, all standard library:
   report.py render [< report.json]
       Print the markdown rendering of a report document read from stdin.
 
+  report.py resummarize [< report.json]
+      Recompute `summary` from `measures[]` and print the document; for a
+      skill that drops rows after assembly (a duplication registry moving
+      clone groups into `excluded[]`). Clone-group rows (`instances[]`) add
+      `summary.duplicated_lines` and `summary.clone_groups`.
+
 Exit 0 on success, 2 on a usage error or unreadable input.
 """
 
@@ -97,6 +103,45 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
     return value >= reference
 
 
+def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
+    """The `summary` block, derived from `measures[]` alone so a skill that
+    drops rows after assembly (a duplication registry exclusion) can recompute
+    it through the `resummarize` verb. Counts use each row's `over_reference`
+    list as assembled; clone-group rows (those carrying `instances[]`) add
+    `duplicated_lines` (sum of `values.lines`, each group counted once) and
+    `clone_groups`, and their instance files count toward `files`."""
+    files: set[str] = set()
+    functions = 0
+    over_counts: dict[str, int] = {}
+    duplicated_lines = 0
+    clone_groups = 0
+    for row in measures:
+        if row.get("file"):
+            files.add(row["file"])
+        if row.get("function"):
+            functions += 1
+        for measure in row.get("over_reference", []):
+            over_counts[measure] = over_counts.get(measure, 0) + 1
+        instances = row.get("instances")
+        if instances:
+            clone_groups += 1
+            lines = (row.get("values") or {}).get("lines")
+            if isinstance(lines, (int, float)) and not isinstance(lines, bool):
+                duplicated_lines += int(lines)
+            for instance in instances:
+                if instance.get("file"):
+                    files.add(instance["file"])
+    summary: dict[str, Any] = {
+        "files": len(files),
+        "functions": functions,
+        "over_reference": over_counts,
+    }
+    if clone_groups:
+        summary["duplicated_lines"] = duplicated_lines
+        summary["clone_groups"] = clone_groups
+    return summary
+
+
 def assemble(
     skill: str,
     scope: dict[str, Any],
@@ -110,17 +155,13 @@ def assemble(
             raise SystemExit(f"run row has an unknown status: {row!r}")
         if row.get("status") != "ok" and not row.get("reason"):
             raise SystemExit(f"non-ok run row without a reason: {row!r}")
-    over_counts: dict[str, int] = {}
     for row in measures:
         values = row.setdefault("values", {})
-        over: list[str] = []
-        for threshold in threshold_entries:
-            if _over(threshold, values.get(threshold["value_key"])):
-                over.append(threshold["measure"])
-                over_counts[threshold["measure"]] = (
-                    over_counts.get(threshold["measure"], 0) + 1
-                )
-        row["over_reference"] = over
+        row["over_reference"] = [
+            threshold["measure"]
+            for threshold in threshold_entries
+            if _over(threshold, values.get(threshold["value_key"]))
+        ]
     ok_rows = [row for row in run if row.get("status") == "ok"]
     if not ok_rows or not measures:
         status = "empty"
@@ -128,8 +169,6 @@ def assemble(
         status = "complete"
     else:
         status = "partial"
-    files = {row["file"] for row in measures if row.get("file")}
-    functions = sum(1 for row in measures if row.get("function"))
     return {
         "schema": SCHEMA,
         "skill": skill,
@@ -144,11 +183,7 @@ def assemble(
             for entry in threshold_entries
         ],
         "measures": measures,
-        "summary": {
-            "files": len(files),
-            "functions": functions,
-            "over_reference": over_counts,
-        },
+        "summary": summarize(measures),
         "excluded": excluded,
         "unavailable": [
             f"{row.get('lane', '*')}/{row.get('measure', '*')}"
@@ -238,8 +273,14 @@ def render(doc: dict[str, Any]) -> str:
                 )
                 break
             values = row.get("values", {})
+            where = row.get("file") or ""
+            if row.get("instances"):
+                where = ", ".join(
+                    f"{i.get('file', '')}:{i.get('start_line', '?')}-{i.get('end_line', '?')}"
+                    for i in row["instances"]
+                )
             lines.append(
-                f"| {row.get('file', '')} | {row.get('function') or ''} | {row.get('lane', '')} | "
+                f"| {where} | {row.get('function') or ''} | {row.get('lane', '')} | "
                 + " | ".join(_fmt(values.get(k)) for k in keys)
                 + f" | {', '.join(row.get('over_reference', [])) or ''} |"
             )
@@ -257,6 +298,11 @@ def render(doc: dict[str, Any]) -> str:
         )
         + "."
     )
+    if "duplicated_lines" in summary:
+        lines.append(
+            f"Duplicated lines: {summary['duplicated_lines']} in "
+            f"{summary.get('clone_groups', 0)} clone group(s)."
+        )
     if doc.get("excluded"):
         lines.append(
             f"Excluded by a sanctioned-replication registry: {len(doc['excluded'])}."
@@ -280,6 +326,7 @@ def main(argv: list[str]) -> int:
     p_asm.add_argument("--thresholds", required=True)
     p_asm.add_argument("--excluded")
     sub.add_parser("render")
+    sub.add_parser("resummarize")
     args = parser.parse_args(argv)
     if args.command == "thresholds":
         config = _read_json(args.config)
@@ -297,6 +344,10 @@ def main(argv: list[str]) -> int:
         print(json.dumps(doc, indent=2))
         return 0
     doc = json.load(sys.stdin)
+    if args.command == "resummarize":
+        doc["summary"] = summarize(doc.get("measures", []))
+        print(json.dumps(doc, indent=2))
+        return 0
     sys.stdout.write(render(doc))
     return 0
 
