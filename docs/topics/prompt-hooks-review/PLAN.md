@@ -57,6 +57,28 @@ only `plugins/context-guard/hooks/` plus the committed audit record.
 - Adding `description` to one `hooks.json` while the other 19 lack it is
   acceptable; the fleet-wide pass needs a single owner and is out of scope.
 
+### Measured baseline (audit evidence, Linux container, spawn floor S interleaved)
+
+Timings the audit stands behind. Interpretive findings that peer review
+overturned are omitted here on purpose; the narrative lives in #3685.
+
+| Surface | Wall | S | Note |
+|---|---|---|---|
+| PostToolUse verifier trio, `.md` citing a skill + 4 CLI commands | 825 ms | 421 | realistic marketplace payload |
+| same, `.md` prose only | 101 ms | 51 | |
+| `skill-reference-verify` alone on that path | 630-690 ms | ~330 | 2 `jq` + 2 `tr` per manifest, 74 manifests; PostTool corroborated at 601-622 ms |
+| `skill-reference-verify` index, one batched `jq` | 7.9 ms | 4.2 | PostTool corroborated at 5.7 ms |
+| `cli-flag-verify` cold cache, first run | 11,391 ms | | 24 h TTL, so cold keys recur daily |
+| PreToolUse Bash lane, 8 guards, one process | 104 ms | 44 | ~32 ms spawn, ~70 ms bash-internal |
+| Disabled hook (kill switch false) | 7.1-8.7 ms | 3.8-4.6 | switch read after the 2,766-line library parse, 43/43 sites |
+| `lib/hook-utils.sh` source alone | 5.1 ms | 2.3 | |
+| `zone-crossing-inject` steady zone | ~30 ms | ~15 | this lane |
+
+Method caveat recorded for the budget convention: spawn-equivalents only
+survive a host change for spawn-dominated hooks; work-dominated ones
+(`markdown-format` ~35 ms/exec, `context-budget` ~39 ms/exec) are
+overstated by roughly 40x in the doc's reference-host column.
+
 ### Out-of-scope
 
 - The PostToolUse verifier lane (`skill-reference-verify`, `cli-flag-verify`,

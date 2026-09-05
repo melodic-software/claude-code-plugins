@@ -5,6 +5,30 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.39]
+
+### Changed
+
+- **`zone-crossing-inject.sh` no longer rewrites a state marker that already
+  holds the value.** The hook fires once per `UserPromptSubmit` and once per
+  `PostToolBatch`, so a three-batch turn that stayed in one zone fired four
+  times and rewrote both `.zone` and `.armed` four times to the values they
+  already held. Each marker is now written only when its on-disk value differs
+  from the new one. The comparison uses the raw `.armed` read, not the value
+  seeded from `.zone` when `.armed` is absent, so a missing marker still
+  latches on the first fire. Write ordering, the fail-open posture, and the
+  `.zone` rollback on a failed `.armed` write are unchanged; the rollback now
+  fires only when this call was the one that moved `.zone`. No change to when
+  the notice is emitted: the armed-rank gate already suppressed the extra
+  fires, so this removes wasted I/O rather than duplicate injection.
+- **All four `hooks.json` rows drop `timeout` from 60 to 10.** The hooks
+  reference lowers the command-hook default to 30 on `UserPromptSubmit`, so the
+  explicit 60 was above the event default. The scripts measure at roughly 30 ms
+  on a quiet host; a stalled advisory hook should fail fast rather than hold a
+  turn for a minute.
+- **`hooks.json` carries a top-level `description`.** A documented field the
+  plugin omitted.
+
 ## [0.7.38]
 
 ### Changed
