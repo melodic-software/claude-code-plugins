@@ -51,12 +51,15 @@
 #      any top-level key whose name contains "account", so when the harness
 #      itself supplies identity the writer injects nothing and the shapes
 #      cannot contradict each other.
-#   2. A state file NEWER than the chosen record's spool file means a switch
-#      may have happened between the observation and this drain, so the
-#      identity is omitted rather than attached to windows it may not
-#      describe. Mislabeling is worse than absence: absence is already a
-#      state every reader handles.
-#   3. A value that is absent, unreadable, or not email-shaped is dropped.
+#   2. The state file must be STRICTLY OLDER than the chosen record's spool
+#      file. Anything else — newer, or the SAME timestamp, which coarse mtime
+#      resolution makes indistinguishable from newer — means a switch may have
+#      happened between the observation and this drain, so the identity is
+#      omitted rather than attached to windows it may not describe.
+#      Mislabeling is worse than absence: absence is already a state every
+#      reader handles.
+#   3. A value that is absent, unreadable, or not email-shaped is dropped,
+#      judged on its codepoints inside jq so no shell layer can launder it.
 #
 # WHY THIS COSTS ONE PROCESS AND ONLY ON THE DRAIN. Reading the state file
 # with bash (`$(<file)`) plus parameter-expansion extraction was measured at
@@ -976,16 +979,32 @@ acquire_drain_lock() {
 # Every rejection leaves the variable empty, so the caller has exactly one thing
 # to test and no rejection path can partially attribute a snapshot.
 #
-# THE STALENESS TEST IS A BUILTIN, and `-nt` is also true when the state file
-# exists and the spool file does not — the fail-closed direction, and the one an
-# empty shard name lands on too.
+# THE STALENESS TEST IS A BUILTIN, and it demands that the SPOOL RECORD be
+# STRICTLY NEWER than the state file. Equal timestamps are treated as a possible
+# switch and omit, because equality here is ambiguous rather than safe: mtime
+# resolution is coarse on several filesystems this runs on, so a login that
+# rewrites the state file inside the same tick as the observation is
+# indistinguishable from one that happened well before it, and admitting the
+# equal case would attach the new account's address to the old account's
+# windows. Asking the question in this direction also keeps every degenerate
+# input on the omitting side: `-nt` is false when the spool file is absent, and
+# an empty shard name never reaches the test at all.
 #
-# VALIDATION is a whitelist of shape, not a parser: the value crosses into a
-# JSON string this script builds with parameter expansion, so a double quote or
-# a backslash would let it terminate or escape out of that string. Control
-# characters are rejected for the same reason (a raw newline cannot appear in a
-# JSON string, and would also split the one-line snapshot record). The `@` and
-# the 3-254 length bound are what make it an email rather than arbitrary text.
+# VALIDATION HAPPENS INSIDE jq, before the value leaves it, and that placement
+# is the fix rather than an implementation detail. Bash command substitution
+# strips embedded null bytes and trailing newlines, so an address carrying a
+# JSON-escaped control character reached a bash-side check as a clean string and
+# was injected: a snapshot attributed to an address the state file never held,
+# which is the same misattribution the staleness guard exists to refuse. The
+# filter therefore tests CODEPOINTS (`explode`), which no shell layer can
+# rewrite underneath it: 3 to 254 of them, none below 32 and none equal to 34
+# (a double quote), 92 (a backslash) or 127, and at least one `@`. The quote and
+# backslash bans are what keep the value from terminating or escaping out of the
+# JSON string this script builds with parameter expansion.
+#
+# The bash checks below are kept as a second line of defense. They are cheap
+# builtins, and they are the layer that still holds if the filter is ever edited
+# into something weaker.
 _RLG_ACCOUNT_EMAIL=""
 _rlg_account_email() {
   local spool="$1" shard="$2" state email
@@ -994,11 +1013,19 @@ _rlg_account_email() {
   command -v jq >/dev/null 2>&1 || return 0
   state="${CLAUDE_CONFIG_DIR:-${HOME:-}}/.claude.json"
   [[ -r "$state" ]] || return 0
-  [[ "$state" -nt "$spool/$shard.json" ]] && return 0
+  [[ "$spool/$shard.json" -nt "$state" ]] || return 0
   # Bash opens the file; jq reads stdin. Same rule as every other file this
   # script hands jq: a native jq on Windows cannot open an MSYS-style path, and
   # argv is world-readable while .claude.json holds account state.
-  email="$(jq -r '.oauthAccount.emailAddress // empty' <"$state" 2>/dev/null)" || return 0
+  #
+  # A non-object `.oauthAccount` makes jq exit non-zero rather than short-circuit,
+  # which lands on the `|| return 0` and omits, exactly as a rejected value does.
+  email="$(jq -r '.oauthAccount.emailAddress
+    | if type == "string"
+         and (explode | length >= 3 and length <= 254)
+         and (explode | all(. > 31 and . != 34 and . != 92 and . != 127))
+         and (index("@") != null)
+      then . else empty end' <"$state" 2>/dev/null)" || return 0
   email="${email%$'\r'}"
   [[ -n "$email" ]] || return 0
   [[ "$email" == *@* ]] || return 0

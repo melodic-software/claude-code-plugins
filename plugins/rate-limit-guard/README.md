@@ -56,9 +56,12 @@ resume on their own after the reset. Four parts:
   account whose windows it carries in an `account.email` field, so a machine switching accounts
   mid-drain is now visible to a reader that checks it. Two things keep it a gap. The field is
   **absent** whenever the writer could not attribute the observation — no state file, no
-  email-shaped value, a stdin `account*` key that wins instead, or a state file modified after the
-  chosen record, which means a switch may have happened in between — and no consuming lane acts on
-  the field yet. The loop-lane convention §6 owns that framing; the reader contract states the four
+  email-shaped value, a stdin `account*` key that wins instead, or a state file that is not
+  strictly older than the chosen record's spool file, which means a switch may have happened in
+  between — and no consuming lane acts on the field yet. An **equal** timestamp counts as "not
+  strictly older": mtime resolution is coarse on several filesystems the writer runs on, so a
+  same-tick login is indistinguishable there from a later one, and the writer omits rather than
+  guess. The loop-lane convention §6 owns that framing; the reader contract states the four
   absence cases and the untrusted-value rule (`reference/reader-contract.md`, "Tee file shape").
   The wrapper still forwards a harness-supplied identity automatically when its own top-level key
   name contains `account`, and that value always wins over the writer's.

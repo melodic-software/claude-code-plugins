@@ -1215,6 +1215,18 @@ fi
 # fixture below is checked twice: the account key must be absent, AND the
 # wrapped statusline's stdout must still be the payload byte-for-byte, which is
 # the invariant no tee outcome may ever break.
+#
+# The last two fixtures are why the validation moved inside jq. Bash command
+# substitution strips embedded null bytes and trailing newlines, so both of them
+# reach a bash-side check as the clean string `a@b` and would be injected — a
+# snapshot attributed to an address the state file never held. Judged on
+# codepoints inside jq, neither survives.
+#
+# The escape is ASSEMBLED from a printf'd backslash rather than typed, so this
+# file carries neither a literal control byte nor a sequence a later sweep might
+# mistake for one; the fixture on disk is ordinary JSON either way.
+ACCT_BSLASH="$(printf '\134')"
+ACCT_ESC_CTRL="${ACCT_BSLASH}u0000"
 ACCT_BAD_N=0
 ACCT_BAD_FAILS=0
 ACCT_INPUT="$(build_input)"
@@ -1224,7 +1236,9 @@ for bad in \
   '{"oauthAccount":{"emailAddress":"a@b\\c"}}' \
   '{"oauthAccount":{"emailAddress":"a@"}}' \
   '{"oauthAccount":{"emailAddress":null}}' \
-  '{"oauthAccount":{}}'; do
+  '{"oauthAccount":{}}' \
+  "{\"oauthAccount\":{\"emailAddress\":\"a@${ACCT_ESC_CTRL}b\"}}" \
+  '{"oauthAccount":{"emailAddress":"a@b\n"}}'; do
   ACCT_BAD_N=$((ACCT_BAD_N + 1))
   HOME_BAD="$WORK/home-account-bad-$ACCT_BAD_N"
   mkdir -p "$HOME_BAD"
@@ -1317,6 +1331,49 @@ if [[ "$(jq -r '.account.email' <"$STALE_FILE")" == "lane@example.com" ]]; then
   ok "account: backdating the state file alone restores account.email"
 else
   fail "account: inverted ordering did not attribute: $(jq -c '.account' <"$STALE_FILE" 2>/dev/null)"
+fi
+
+# --- Case 41: an EQUAL mtime is treated as a possible switch ------------------
+# The guard demands the spool record be STRICTLY newer. Equality is the case a
+# coarse-mtime filesystem produces when a login rewrites the state file inside
+# the same tick as the observation, and it is indistinguishable from a state
+# file that is genuinely newer — so it omits. Same scaffolding as the case
+# above, with `touch -r` copying the record's timestamp onto the state file so
+# the two are bit-identical rather than merely close.
+HOME_EQ="$WORK/home-account-equal"
+mkdir -p "$HOME_EQ/$SPOOL_REL"
+EQ_NOW="$(date +%s)"
+write_settings "$HOME_EQ/$SPOOL_REL/sess-old.json" \
+  "{\"e\":$((EQ_NOW + 1000)),\"p\":{\"session_id\":\"sess-old\",\"rate_limits\":{\"five_hour\":{\"used_percentage\":31,\"resets_at\":1738425600}}}}"
+touch -d "@$((EQ_NOW - 300))" "$HOME_EQ/$SPOOL_REL/sess-old.json"
+write_settings "$HOME_EQ/.claude.json" "$STATE_EMAIL"
+touch -r "$HOME_EQ/$SPOOL_REL/sess-old.json" "$HOME_EQ/.claude.json"
+if [[ ! "$HOME_EQ/.claude.json" -nt "$HOME_EQ/$SPOOL_REL/sess-old.json" ]] &&
+  [[ ! "$HOME_EQ/$SPOOL_REL/sess-old.json" -nt "$HOME_EQ/.claude.json" ]]; then
+  ok "account: the fixture really is an equal mtime (neither file is newer)"
+else
+  fail "account: touch -r did not equalize the mtimes, so the equal case is vacuous"
+fi
+printf '{"session_id":"sess-drainer"}' | HOME="$HOME_EQ" bash "$TEE" cat >/dev/null
+EQ_FILE="$HOME_EQ/$TEE_REL"
+if [[ "$(jq -r '.session_id' <"$EQ_FILE")" == "sess-old" ]]; then
+  ok "account: the equal-mtime case ran against the pre-seeded record"
+else
+  fail "account: drain chose $(jq -r '.session_id' <"$EQ_FILE"), so the equal case is vacuous"
+fi
+if jq -e 'has("account") | not' <"$EQ_FILE" >/dev/null 2>&1; then
+  ok "account: an equal mtime omits account.email (equality is ambiguous)"
+else
+  fail "account: an equal mtime attributed anyway: $(jq -c '.account' <"$EQ_FILE")"
+fi
+# Same fixtures, one second of separation added to the record: it must attribute.
+# Without this the case above could pass for any reason the key goes missing.
+touch -d "@$((EQ_NOW - 299))" "$HOME_EQ/$SPOOL_REL/sess-old.json"
+printf '{"session_id":"sess-drainer"}' | HOME="$HOME_EQ" bash "$TEE" cat >/dev/null
+if [[ "$(jq -r '.account.email' <"$EQ_FILE")" == "lane@example.com" ]]; then
+  ok "account: one second of separation alone restores account.email"
+else
+  fail "account: a strictly newer record did not attribute: $(jq -c '.account' <"$EQ_FILE" 2>/dev/null)"
 fi
 
 echo

@@ -16,11 +16,18 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
   **Mislabeling is worse than absence, so the field is omitted in four cases:** the state file is
   missing, unreadable, or holds no email-shaped value; the stdin payload already carried a top-level
-  `account*` key (that one wins, and the writer adds nothing beside it); the state file was modified
-  **after** the chosen record's spool file, which means a switch may have happened between the
-  observation and the flush; or the writer ran on a path with no spool to date that comparison
-  against (`RLG_TEE_ASYNC=1`, or bash below 4.2). Statusline output and exit codes are unchanged in
-  every case, as they are for every other tee outcome.
+  `account*` key (that one wins, and the writer adds nothing beside it); the state file is not
+  **strictly older** than the chosen record's spool file, which means a switch may have happened
+  between the observation and the flush; or the writer ran on a path with no spool to date that
+  comparison against (`RLG_TEE_ASYNC=1`, or bash below 4.2). Statusline output and exit codes are
+  unchanged in every case, as they are for every other tee outcome.
+
+  **Strictly older, so an equal timestamp omits.** Mtime resolution is coarse on several
+  filesystems this writer runs on, and there a login that rewrites the state file inside the same
+  tick as the observation is indistinguishable from one that happened later. Admitting the equal
+  case would attach the new account's address to the old account's windows, which is exactly the
+  misattribution the guard exists to refuse, so equality is treated as a possible switch. A missing
+  spool file still omits, so the degenerate inputs stay on the same side.
 
   **Cost is one process per 30-second drain, and the render path stays fork-free** (the zero-fork
   trace case still passes). Mechanism measured on the target desktop, 2026-09-04, against an 88 KB
@@ -34,9 +41,13 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
   `.oauthAccount.emailAddress` is **internal CLI state**, not a documented surface: the reader
   contract carries it as a recheck trigger, and the untrusted-value rule applies to the field
-  unchanged. The writer's validation (an `@`, no double quote, backslash, or control character,
-  3–254 characters) is a shape whitelist that keeps its own JSON well-formed, not an assertion that
-  the address is real. (Refs #1218)
+  unchanged. **The value is judged on its codepoints inside jq, before it leaves the parser** —
+  3 to 254 of them, none below 32 and none equal to 34, 92, or 127, and at least one `@`. Judging
+  it after the value crossed into bash would not hold: command substitution strips embedded null
+  bytes and trailing newlines, so an address carrying a JSON-escaped control character would arrive
+  clean and be injected, and the snapshot would name an address the state file never held. The
+  equivalent bash tests are kept as a second line of defense. Either way this is a shape whitelist,
+  not an assertion that the address is real. (Refs #1218)
 
 ### Fixed
 
