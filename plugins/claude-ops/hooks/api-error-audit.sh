@@ -21,9 +21,16 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+# A bash match over the buffered payload, no extra process; empty when the
+# payload carries none, and the key is then left out of data.
+SESSION_ID=""
+[[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] && SESSION_ID="${BASH_REMATCH[1]}"
+
 ERROR_TYPE=$(hook::jq_field "$INPUT" '.error') || exit 0
 
-DATA=$(jq -nc --arg subject "$ERROR_TYPE" '{subject: $subject}')
+DATA=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "$ERROR_TYPE" '{subject: $subject} + (if $session_id == "" then {} else {session_id: $session_id} end)')
 
 hook::emit_telemetry "api-error-audit" "StopFailure" "error" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"

@@ -64,6 +64,10 @@ hook::require_jq Stop claude-ops "$INPUT"
 TRANSCRIPT=$(hook::jq_field "$INPUT" '.transcript_path') || exit 0
 [[ -f "$TRANSCRIPT" ]] || exit 0
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || SESSION="no-session"
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+SESSION_ID=""
+[[ "$SESSION" != "no-session" && "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]] && SESSION_ID="$SESSION"
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 
 # Bounded tail read: cost stays O(cap) regardless of transcript growth. When
@@ -255,8 +259,8 @@ fi
 
 # Telemetry subjects stay hookName-only (privacy-safe); the command detail is
 # user-facing message content, not envelope data.
-DATA=$(jq -cn --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
-  '{subjects: ([$new[].hookName] | unique), total: $total}')
+DATA=$(jq -cn --arg session_id "$SESSION_ID" --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
+  '{subjects: ([$new[].hookName] | unique), total: $total} + (if $session_id == "" then {} else {session_id: $session_id} end)')
 hook::emit_telemetry "hook-failure-audit" "Stop" "error" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 

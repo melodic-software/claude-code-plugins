@@ -60,6 +60,126 @@
         "Does not silently destroy the narrative text",
         "Recommends handing the staged block to /source-control:commit when committing"
       ]
+    },
+    {
+      "id": 6,
+      "name": "applies-local-move-without-test-net",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a TypeScript file where '// milliseconds since epoch' sits above 'const t = Date.now();' and 't' is used three times in the same function and nowhere else. The repository has no discoverable test command. The tooling probe reports tree-sitter present for typescript.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the comment as class B with Rename Variable as the named move",
+        "APPLIES the rename (to a name such as 'millisecondsSinceEpoch') and deletes the comment despite the absence of a test net, because Rename Variable on a function-local identifier creates no interface",
+        "Runs the change-shape check on the edit and cites its RENAME-ONLY verdict with the identifier mapping in the report",
+        "Reports the item as applied, not proposed, and does not ask for a test suite it already knows is absent"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "reverts-when-ast-proof-fails",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighbouring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
+      "narration": true,
+      "expectations": [
+        "Runs the change-shape check after applying the move, before deleting the comment",
+        "On CODE-CHANGED, reverts the move so the file matches its pre-edit content, and restores the comment",
+        "Demotes the item to a proposal and quotes the change-shape verdict, including which token kinds differed",
+        "Leaves no partially applied edit in the working tree"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "never-deletes-discovered-machine-marker",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The repository ships scripts/check-quiet-exits.sh, a CI gate that greps hook scripts for the annotation '# quiet-exit-ok: <reason>'. The uncommitted diff contains a hook script with the line 'command -v jq >/dev/null 2>&1 || exit 0 # quiet-exit-ok: sink is fire-and-forget' and, elsewhere in the same file, '# increment the counter' above 'count=$((count + 1))'. The marker is not in any universal pragma list.)",
+      "narration": true,
+      "expectations": [
+        "Runs marker discovery before triage and locates the gate's matcher in scripts/check-quiet-exits.sh rather than guessing the marker's spelling",
+        "Treats 'quiet-exit-ok' as a repo-local machine-read marker: exempt, never classified, never deleted",
+        "Deletes only the restating '# increment the counter' comment",
+        "The report names the discovered marker family and the file that consumes it, so the reader can see what was protected and why"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "does-not-treat-heredoc-body-as-comments",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell test script that writes a fixture with cat >\"$F\" <<'EOF' whose body includes the lines '# used to buffer; now flushes' and '# as you asked, retry three times', followed by EOF. Above a later command the script has a real restating comment '# print the result' over 'echo \"$result\"'. The tooling probe reports pygments present.)",
+      "narration": true,
+      "expectations": [
+        "Does not classify, count, or delete any line inside the heredoc body, because those lines are string data the script writes, not comments",
+        "Deletes the restating '# print the result' comment",
+        "The per-file count in the report excludes the heredoc lines",
+        "The report states which tooling layer read the file (pygments or tree-sitter), not a line-prefix grep"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "reports-degraded-tooling-layer",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The tooling probe reports pygments absent, tree-sitter absent, and scc absent. The uncommitted diff contains a shell script with two heredocs and a Python module with a docstring and one restating comment.)",
+      "narration": true,
+      "expectations": [
+        "Runs the tooling probe at scope time and reports the layer the run is operating at",
+        "Refuses the apply path on the shell file at grep precision and says why: a line-prefix read cannot distinguish heredoc bodies from comments",
+        "For each absent layer, names the specific capability lost in install-hint shape rather than a generic 'consider installing'",
+        "Does not silently proceed as if it had parser-level precision"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "keeps-rejected-alternative-rationale",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
+      "narration": true,
+      "expectations": [
+        "Classifies both header sentences as class C negative information (what the code deliberately does not do, and why an alternative was rejected) and keeps them",
+        "Does not treat 'no referent in the adjacent code' as evidence of class A; recognizes that an absence claim cannot be restated by code that is not there",
+        "Deletes the '# increment counter' restatement",
+        "The report explains the negative-information reasoning for the keeps in one line each"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "repository-rung-is-ranked-and-censused",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The tree is clean on the default branch, so scope-code-files.sh reports rung=repository with 400 code files. The tooling probe reports pygments present and scc absent. The repository's most-churned paths are CHANGELOG.md, plugin.json and .github/workflows/ci.yml; one shell library is byte-identical in 18 locations.)",
+      "narration": true,
+      "expectations": [
+        "States the resolved rung and asks for confirmation before widening to the whole repository in an interactive session",
+        "Runs rank-comment-targets.py and triages in its order, and says the ranking is a reading order, not evidence",
+        "The ranking excludes the changelog, manifest and CI workflow as administrative paths and shows the 18-copy library once with instances=18",
+        "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labelled as an estimate"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "over-budget-class-c-is-rewritten-under-strict",
+      "prompt": "/code-tidying:dissolve-comments\n\n(comment_posture is unset. The uncommitted diff contains a 14-line comment above a retry loop: two lines state the durable constraint that the backoff must stay under the upstream's 30-second timeout, the remaining twelve narrate how three alternatives were tried and why each was rejected.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the comment as class C (a constraint plus rationale) and keeps the constraint",
+        "Rewrites the comment to within the two-line budget, keeping the 30-second constraint verbatim in substance",
+        "Stages the twelve lines of rejected-alternative narrative as a proposed commit-message block before the deletion is final, and does not silently destroy them",
+        "Runs change-shape.py on the rewrite and cites COMMENT-ONLY"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "balanced-posture-reports-instead-of-rewriting",
+      "prompt": "/code-tidying:dissolve-comments\n\n(comment_posture is balanced. The uncommitted diff contains the same 14-line constraint-plus-rationale comment as the strict case, and one '// increment counter' restatement.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the restatement with a COMMENT-ONLY verdict",
+        "Keeps the 14-line comment unrewritten and reports it as over budget with the line count and the budget",
+        "Does not treat balanced as permission to delete an uncertain comment",
+        "Names the posture in the report so the reader can see why no rewrite was applied"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "commented-out-code-detector-feeds-class-a",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell script with '# rm -rf \"$TMP\"' followed by '# if [[ -n \"$x\" ]]; then echo yes; fi' as two adjacent comment lines, and a prose comment '# cd into the dir and print the result'. The tooling probe reports tree-sitter present for bash and ruff absent.)",
+      "narration": true,
+      "expectations": [
+        "Runs commented-out-code.py and takes its finding for the two-line block as class-A input",
+        "Does not flag the prose comment even though it parses as a command in Bash, because the reparse shows no structure prose cannot produce",
+        "Deletes the two-line block with a COMMENT-ONLY verdict and keeps the prose comment for ordinary triage",
+        "Notes ruff as absent with the capability lost, rather than failing"
+      ]
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Records session observability telemetry across nine events: API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures and unsurfaced hook failures.",
+  "description": "Records session observability telemetry: nine audit hooks (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, plus the default-off per-session hook event log on every observable documented event and its SessionEnd retention.",
   "hooks": {
     "StopFailure": [
       {
@@ -9,6 +9,16 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/api-error-audit.sh",
             "timeout": 5,
             "statusMessage": "Recording API-error telemetry..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the StopFailure event..."
           }
         ]
       }
@@ -24,6 +34,16 @@
             "statusMessage": "Recording config-change telemetry..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the ConfigChange event..."
+          }
+        ]
       }
     ],
     "InstructionsLoaded": [
@@ -34,6 +54,16 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/instructions-loaded-audit.sh",
             "timeout": 5,
             "statusMessage": "Recording instructions-loaded telemetry..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the InstructionsLoaded event..."
           }
         ]
       }
@@ -48,6 +78,16 @@
             "statusMessage": "Recording permission-denied telemetry..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PermissionDenied event..."
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -58,6 +98,16 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-compact-audit.sh",
             "timeout": 5,
             "statusMessage": "Recording pre-compact telemetry..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PreCompact event..."
           }
         ]
       }
@@ -73,6 +123,16 @@
             "statusMessage": "Recording skill-usage telemetry..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PostToolUse event..."
+          }
+        ]
       }
     ],
     "UserPromptExpansion": [
@@ -83,6 +143,16 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-expansion-audit.sh",
             "timeout": 5,
             "statusMessage": "Recording skill-usage-expansion telemetry..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the UserPromptExpansion event..."
           }
         ]
       }
@@ -98,6 +168,16 @@
             "statusMessage": "Recording tool-failure telemetry..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PostToolUseFailure event..."
+          }
+        ]
       }
     ],
     "Stop": [
@@ -108,6 +188,277 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/hook-failure-audit.sh",
             "timeout": 10,
             "statusMessage": "Checking for unsurfaced hook failures..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the Stop event..."
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the CwdChanged event..."
+          }
+        ]
+      }
+    ],
+    "DirectoryAdded": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the DirectoryAdded event..."
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the Elicitation event..."
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the ElicitationResult event..."
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the Notification event..."
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PermissionRequest event..."
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PostCompact event..."
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PostModelSwitch event..."
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PostToolBatch event..."
+          }
+        ]
+      }
+    ],
+    "PreModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PreModelSwitch event..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the PreToolUse event..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the SessionEnd event..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-retention.sh",
+            "statusMessage": "Pruning the session event log..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the SessionStart event..."
+          }
+        ]
+      }
+    ],
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the Setup event..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the SubagentStart event..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the SubagentStop event..."
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the TaskCompleted event..."
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the TaskCreated event..."
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the TeammateIdle event..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the UserPromptSubmit event..."
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "timeout": 5,
+            "statusMessage": "Logging the WorktreeRemove event..."
           }
         ]
       }
