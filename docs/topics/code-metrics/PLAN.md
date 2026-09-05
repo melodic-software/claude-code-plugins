@@ -677,7 +677,28 @@ Agent teams are not routed: the workers do not need to message each other.
 - `[EXEC-SHAPE]` Plugin version `0.1.0`; `MIN_PYTHON = (3, 9)`; stdlib-only Python.
 - `[EXEC-SHAPE]` Size default `1000` labelled as the plugin's own number, `500` documented as
   selectable, `iso-8.2.115` mode selectable (design T10).
+- `[EXEC-SHAPE]` A bundled YAML-subset parser instead of a YAML dependency (design T22).
 - `[EXEC-SHAPE]` Sanity-check criteria per phase as written above.
+
+### Decisions made (gate-passed)
+
+Every row is a decision the Brief did not make; each passed the confidence gate on evidence read
+this session and is cheap to reverse. Briefed decisions carry no row.
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| Walking skeleton first on `audit-size` with the bundled counter | Phase 1 is one skill, one measure, no external tool, proven end to end before any collector | The plan skill's integration-first rule; the bundled counter is the only collector with no prerequisite |
+| Four parallel workers in Wave B (Phases 3, 5, 6, 7), Phase 4 after Phase 3 | The execution-shape section, the fences, the fragment files under `reference/collectors/` | File-overlap matrix shows zero shared files once the dispatcher and report assembler are frozen in Phases 1 and 2 |
+| Shared plugin code under `plugins/code-metrics/scripts/`, never `lib/` | Every phase's file paths; the encapsulation audit treats `scripts/` as an entry surface | Design T21; the Brief's ban on `lib/`; the encapsulation detector's `scripts/` carve-out (verified by the reviewer) |
+| Bundled YAML-subset parser, block-style config contract | Phase 2 adds `yaml_subset.py` and a flow-mapping error fixture; `contracts.md` rewritten in block style | Reviewer finding 1: stdlib has no YAML parser, the fleet has no shared reader, T20 forbids third-party Python |
+| Runtime-generated collector stubs, no committed executables | Every phase's fixture rows; Phase 1 sanity check for no executable under fixtures | Reviewer finding 5: no committed stub anywhere in the repo; `affected-tests.sh` cannot map extensionless files |
+| Size default `1000`, labelled the plugin's own, `500` and `iso-8.2.115` selectable | Phase 1 `audit-size` description and `reference/config.md` | Q20 ruled the figure is the plugin's own; 1000 was the interview's settled figure before the ISO refutation; the honest label is what the refutation demanded (design T10) |
+| C# type debt omitted rather than an occurrence count | Phase 6 `dotnet` row `not-applicable` with the T9 sentence | Brief allows either; a count beside two true percentages invites a comparison it cannot support (design T9) |
+| `lizard` first in the cyclomatic ladder, native tools ahead only when the repo wires them | Phase 3 collector order | Tooling corpus: lizard current (2026-08-19), per function, four lanes from one dependency; native numbers are what a team already reads (design T1) |
+| Function-level coverage by line-range join, `null` when no executable lines | Phase 4 parsers and `crap.py` | The one method identical across lcov, Cobertura, coverage.py JSON; sidesteps the lcov 2.2 `FNL`/`FNA` change (design T7) |
+| Synthetic duplication cluster renamed away from `hook-utils.sh`, real-cluster case behind a visible `SKIP` | Phase 5 fixtures and suite | Reviewer finding 11: the hub basename selects most of the shell corpus under `affected-tests.sh` R3; T8 keys on path-within-plugin |
+| One shared phase gate written once | Every phase's Sanity Check ends with "the phase gate" | Reviewer findings 2 and 3: the same two commands were wrong in every phase |
+| Plugin version `0.1.0`, `MIN_PYTHON = (3, 9)`, interpreter candidate loop | Phase 1 manifest and every shell entry point | Fleet precedent for a first release and for the Python floor; the candidate loop is the repo idiom (`scripts/validate-plugins.sh`) |
 
 ### Mechanical work
 
