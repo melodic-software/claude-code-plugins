@@ -15,8 +15,19 @@
 # Returns 1 on an empty payload; callers fail open on that. On a stalled
 # pipe the caller sees a truncated payload whose regex/jq extraction then
 # fails its own validation — never a fabricated value.
+#
+# TWO ENTRY POINTS, ONE DRAIN LOOP. `cg::read_payload_to <varname>` assigns the
+# payload to the named variable in the CALLER's process; `cg::read_payload`
+# prints it, which every caller then has to wrap in `$(...)` — a command
+# substitution, and so a forked subshell paid on the critical path of every
+# fire. On a host where process creation costs hundreds of milliseconds (#3508)
+# that fork is the entire cost of reading stdin, because the drain loop itself
+# is nothing but `read` builtins. New callers take the `_to` form; the printing
+# form stays for the callers that still use it and delegates to `_to` rather
+# than duplicating the loop, so there is one drain implementation to change.
 
-cg::read_payload() {
+cg::read_payload_to() {
+  local __cg_dest="$1"
   local input="" chunk=""
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
     while IFS= read -r -N 1048576 -t 5 chunk; do
@@ -29,5 +40,14 @@ cg::read_payload() {
   fi
   input=${input//$'\r'/}
   [[ -n "$input" ]] || return 1
-  printf '%s' "$input"
+  # `printf -v`, not a `local -n` nameref: namerefs arrived in bash 4.3 and
+  # these scripts support the 3.2 macOS ships — the same support floor the -N
+  # fallback above exists for.
+  printf -v "$__cg_dest" '%s' "$input"
+}
+
+cg::read_payload() {
+  local __cg_buf=""
+  cg::read_payload_to __cg_buf || return 1
+  printf '%s' "$__cg_buf"
 }

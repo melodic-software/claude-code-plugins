@@ -659,6 +659,124 @@ else
   fail "trace: $TRACE_GONE dirname/tr/head process(es) returned: $TRACE_DETAIL"
 fi
 
+# --- The per-batch PROCESS-CREATION budget, proven by strace -------------------
+# The xtrace budget above counts commands in COMMAND POSITION, which is a count
+# of jq/bash INVOCATIONS — not a count of processes. The two diverge, and #3520
+# is the divergence: bash elides the extra fork inside `$(...)` and execs the
+# command in the substitution's own subshell ONLY when that command carries no
+# redirection of its own. A `2>/dev/null`, a `<<<`, or a pipeline written INSIDE
+# the substitution defeats the elision and silently doubles that call site's
+# process cost. A fork that never execs never reaches a command position, so
+# xtrace reports the invocation and misses the process — which is how this hook
+# came to cost eight process creations while the budget test above read 2 and
+# passed.
+#
+# On the hosts in #3508 a process creation is the unit of cost (180-2,841 ms,
+# median 1,108 ms, against ~1% user CPU), so the count that binds is this one.
+# Asserted as an EXACT count, not a ceiling, so a regression back to an inner
+# redirect fails here rather than showing up as a timed-out session.
+#
+# Budget on the steady non-crossing path, one process creation each:
+#   1  jq   : the payload pass, both envelope fields
+#   1  bash : scripts/context-zone.sh, the band authority
+#   1  jq   : the resolver's snapshot pass, inside that bash
+# The hook's own shell is execve'd by the harness, not forked by the hook, so it
+# is not in this count. Skipped where strace is unavailable (it needs ptrace,
+# which containers and macOS commonly withhold) — the xtrace budget above still
+# runs there, and CI keeps a Linux lane that does not skip.
+if command -v strace >/dev/null 2>&1; then
+  STRACE_LOG="$WORK/inject-strace.log"
+  printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+    HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+      strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$STRACE_LOG" \
+      bash "$HOOK" >/dev/null 2>&1
+  if [[ -s "$STRACE_LOG" ]]; then
+    ok "strace: the steady non-crossing path was traced"
+    S_FORKS=$(grep -cE '(clone|clone3|fork|vfork)\(' "$STRACE_LOG" 2>/dev/null | tr -cd '0-9')
+    if [[ "$S_FORKS" == "3" ]]; then
+      ok "strace: the steady path creates exactly 3 processes"
+    else
+      S_DETAIL=$(grep -oE 'execve\("[^"]+"' "$STRACE_LOG" 2>/dev/null |
+        sed 's/execve("//' | sort | uniq -c | tr -d '\n')
+      fail "strace: steady path creates $S_FORKS processes, budget is 3 (execs: $S_DETAIL)"
+    fi
+    # The programs actually launched must not change with the fork count: this
+    # is a latency fix, so the same work must still run. One jq for the payload,
+    # one bash for the resolver, one jq inside it, plus the hook's own shell.
+    S_EXECS=$(grep -cE 'execve\(' "$STRACE_LOG" 2>/dev/null | tr -cd '0-9')
+    if [[ "$S_EXECS" == "4" ]]; then
+      ok "strace: the same 4 program launches as before the fork reduction"
+    else
+      fail "strace: $S_EXECS program launches on the steady path, expected 4"
+    fi
+  else
+    fail "strace: no usable trace captured"
+  fi
+else
+  ok "SKIP: strace unavailable — process-creation budget not asserted here"
+fi
+
+# --- Redirection placement must not change what the hook emits ----------------
+# The fork reduction moved `2>/dev/null` off three command substitutions and
+# onto their enclosing groups. A group redirect covers everything in the group,
+# so the risk it introduces is the opposite of the one it removes: a stream that
+# used to be suppressed narrowly could now be over-suppressed, or a resolver
+# notice could reach the hook's STDOUT and corrupt the single JSON document the
+# harness parses. A malformed zones.json is the one input that makes the
+# resolver write to stderr on the path this hook drives, so it is the probe.
+ZH="$WORK/home-zones"
+ZD="$WORK/data-zones"
+mkdir -p "$ZD" "$ZH/.claude/context-guard"
+write_snapshot "$ZH" szone 90
+printf '{"smart_max_used_percentage":"nonsense"}' >"$ZH/.claude/context-guard/zones.json"
+Z_ERR="$WORK/zones-stderr.log"
+Z_OUT=$(printf '{"session_id":"szone","hook_event_name":"PostToolBatch"}' |
+  HOME="$ZH" CLAUDE_PLUGIN_DATA="$ZD" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>"$Z_ERR")
+Z_RC=$?
+if [[ $Z_RC -eq 0 ]]; then
+  ok "zones.json malformed: the hook still exits 0"
+else
+  fail "zones.json malformed: rc=$Z_RC"
+fi
+# Shipped default bands still apply, so 90% still resolves dumb and still injects.
+if [[ "$Z_OUT" == *additionalContext* && "$Z_OUT" == *dumb* ]]; then
+  ok "zones.json malformed: shipped default bands still resolve and inject"
+else
+  fail "zones.json malformed: no injection, out=$Z_OUT"
+fi
+if jq -e . >/dev/null 2>&1 <<<"$Z_OUT"; then
+  ok "zones.json malformed: stdout is still one parseable JSON document"
+else
+  fail "zones.json malformed: stdout is not valid JSON: $Z_OUT"
+fi
+# The resolver's notice is stderr-only and this caller suppresses it, exactly as
+# it did when the redirect sat inside the substitution. It must appear on
+# neither of the hook's streams.
+if [[ "$Z_OUT" != *malformed* ]]; then
+  ok "zones.json malformed: the resolver notice never reaches stdout"
+else
+  fail "zones.json malformed: resolver notice leaked into stdout: $Z_OUT"
+fi
+if [[ ! -s "$Z_ERR" ]]; then
+  ok "zones.json malformed: the resolver notice stays suppressed on stderr"
+else
+  fail "zones.json malformed: resolver notice leaked to stderr: $(cat "$Z_ERR")"
+fi
+
+# A payload jq cannot parse must still fail open silently. The payload pass now
+# takes its here-string from the group rather than from inside the
+# substitution, so this pins that jq's nonzero status still propagates out of
+# the group instead of being absorbed by it.
+B_ERR="$WORK/badpayload-stderr.log"
+B_OUT=$(printf 'not json at all' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>"$B_ERR")
+B_RC=$?
+if [[ $B_RC -eq 0 && -z "$B_OUT" && ! -s "$B_ERR" ]]; then
+  ok "unparseable payload: silent on both channels, exit 0"
+else
+  fail "unparseable payload: rc=$B_RC out=[$B_OUT] err=[$(cat "$B_ERR")]"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
