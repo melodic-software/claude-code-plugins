@@ -3,6 +3,15 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.35]
+
+### Changed
+
+- **setup:** the `stdin_read_timeout` gotcha states the declare-it rule without naming the plugin
+  that declared it first.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.8.27]
 
 ### Changed
