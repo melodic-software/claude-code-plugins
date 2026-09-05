@@ -90,10 +90,16 @@ esac
 # Bundled verifier missing (install corruption, not a consumer-facing
 # prerequisite) — fail open, don't block, but make it visible once per
 # session rather than a fully silent skip (docs/conventions/hook-observability/).
-if [[ ! -x "$VERIFIER" ]]; then
+CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
+if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
+    if [[ ! -x "$VERIFIER" ]]; then
+      cfv_missing="bundled verifier missing at $VERIFIER"
+    else
+      cfv_missing="bundled verifier library missing at $CFV_SHARED"
+    fi
     hook::emit_skip_notice "PostToolUse" \
-      "guardrails/cli-flag-verify: bundled verifier missing at $VERIFIER — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
+      "guardrails/cli-flag-verify: $cfv_missing — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
   fi
   exit 0
 fi
@@ -299,7 +305,23 @@ extract_candidates() {
 HAS_FLAG_SHAPE=0
 [[ "$SCAN_CONTENT" == *-* ]] && HAS_FLAG_SHAPE=1
 
-((HAS_FLAG_SHAPE)) && extract_candidates
+# SECOND PRE-GATE, same cost class. A candidate also names one of the scanned
+# bins, and ordinary prose is full of hyphens ("well-known", "re-run") that pass
+# the `-` test alone, so on a markdown Write the scan ran for nothing on nearly
+# every paragraph. Substring, not word-bounded: a superset of every real
+# candidate (extract_candidates matches the whole token), so it skips only
+# content that could not have yielded one, and it spawns nothing. The Edit
+# reconstruction below keeps its own gate: a bare-flag hunk names no bin by
+# definition, and the bin it belongs to is on disk.
+HAS_BIN=0
+for cfv_bin in $BINS; do
+  if [[ "$SCAN_CONTENT" == *"$cfv_bin"* ]]; then
+    HAS_BIN=1
+    break
+  fi
+done
+
+((HAS_FLAG_SHAPE && HAS_BIN)) && extract_candidates
 
 # Partial-replacement context reconstruction (Edit only). When an Edit's hunk is
 # a bare flag fragment — a flag token swapped in with no binary/subcommand in the
@@ -364,6 +386,61 @@ split_candidate_key() {
   KEY_FLAG="${rest##*|}"
 }
 
+# CACHE HITS ARE ANSWERED IN THIS PROCESS. The verifier keeps each
+# `<bin> [<subcmd>...] --help` output under a 24 h cache, and on a hit its whole
+# job is to read that file and match one pattern. Spawning it for that cost more
+# than the work: a bash process, the `#!/usr/bin/env` PATH walk for bash (one
+# failed execve per PATH entry ahead of it), then mkdir, find, grep. Measured on
+# a warm cache: 88 failed execve per run on this host, 4 of the 5 env walks
+# being these spawns. The cache location, key, freshness window and match
+# pattern are ONE definition, sourced from lib/verification/cli-flag-cache.sh
+# by this hook and by the verifier, so the two paths cannot drift; a miss still
+# goes through the verifier, which populates the cache, and every exit code
+# keeps its meaning.
+CFV_CACHE_DIR=""
+declare -A CFV_FRESH=()
+CFV_FRESH_INDEXED=0
+# Runs once, on the first candidate whose bin is installed: sources the shared
+# definitions, resolves the cache directory, and indexes with one find every
+# cache file inside the freshness window. A write that yields no candidate, or
+# only cites bins this machine lacks, never pays any of it.
+cfv_index_fresh_cache() {
+  local f
+  ((CFV_FRESH_INDEXED)) && return 0
+  CFV_FRESH_INDEXED=1
+  # shellcheck source=../lib/verification/cli-flag-cache.sh
+  source "$CFV_SHARED"
+  cfv_cache_dir_to CFV_CACHE_DIR
+  [[ -d "$CFV_CACHE_DIR" ]] || return 0
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && CFV_FRESH["$f"]=1
+  done < <(find "$CFV_CACHE_DIR" -maxdepth 1 -name '*.help' -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null)
+}
+# verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
+# (the verifier's contract, answered here on a hit and by the verifier on a miss).
+verify_candidate() {
+  local bin="$1" chainstr="$2" flag="$3" key cache_file help rc
+  local -a chainarr=()
+  read -ra chainarr <<<"$chainstr"
+  cfv_index_fresh_cache
+  cfv_cache_key_to key "$bin" "${chainarr[@]}"
+  cache_file="$CFV_CACHE_DIR/$key.help"
+  if [[ -n "${CFV_FRESH[$cache_file]:-}" && -s "$cache_file" ]]; then
+    help=$(<"$cache_file")
+    cfv_flag_in_help "$help" "$flag" && return 0
+    return 1
+  fi
+  "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
+  rc=$?
+  # A miss the verifier could answer (0 or 1) has just written the cache file,
+  # so every later candidate sharing this (bin, chain) is answered here rather
+  # than spawning the verifier again for the same --help text.
+  if ((rc == 0 || rc == 1)) && [[ -s "$cache_file" ]]; then
+    CFV_FRESH["$cache_file"]=1
+  fi
+  return "$rc"
+}
+
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
 for key in "${!CANDIDATES[@]}"; do
@@ -371,8 +448,7 @@ for key in "${!CANDIDATES[@]}"; do
   # Skip if binary not on PATH (verifier exit 2). Avoids spurious failures on
   # systems missing tools the file references for documentation purposes.
   command -v "$KEY_BIN" >/dev/null 2>&1 || continue
-  read -ra chainarr <<<"$KEY_CHAIN"
-  "$VERIFIER" --quiet "$KEY_BIN" "${chainarr[@]}" "$KEY_FLAG" 2>/dev/null
+  verify_candidate "$KEY_BIN" "$KEY_CHAIN" "$KEY_FLAG"
   rc=$?
   # Exit 1 = flag absent (likely hallucinated); 2 = unverifiable, treat as
   # neutral (don't flag — could be tool not on this machine, transient
