@@ -106,6 +106,42 @@ expect "job absent from needs fails and names the job" 1 "UNGATED LANE: job 'bet
 write_workflow "$scratch/covered.yml" "" "$(needs_of alpha beta)"
 expect "every job in needs passes" 0 "all 2 lane(s) reachable" --check "$scratch/covered.yml"
 
+# --- a lane that fans out across a matrix -----------------------------------
+#
+# Sharding a lane leaves the LANE LIST alone: the job key is unchanged, so one
+# `needs` entry still covers every leg. What is new is the `strategy:` block,
+# whose 6- and 8-space lines this structural parser must fall through rather
+# than read as job keys or as needs entries. It is pinned here because
+# check-lane-coverage.sh exits 2 on any shape it does not model, and an
+# inconclusive gate on the real ci.yml would block every pull request.
+write_workflow "$scratch/sharded.yml" "  gamma:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: \${{ github.event_name == 'pull_request' && fromJSON('{\"leg\":[0,1,2,3]}') || fromJSON('{\"leg\":[0]}') }}
+    steps:
+      - name: Run this leg
+        env:
+          LEG: \${{ strategy.job-index }}
+          LEGS: \${{ strategy.job-total }}
+        run: echo \"leg \$LEG of \$LEGS\"
+" "$(needs_of alpha beta gamma)"
+expect "a lane carrying a strategy matrix parses and stays covered" 0 "all 3 lane(s) reachable" \
+  --check "$scratch/sharded.yml"
+
+write_workflow "$scratch/sharded-static.yml" "  gamma:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [0, 1, 2, 3]
+    steps:
+      - name: Run this leg
+        run: echo leg
+" "$(needs_of alpha beta gamma)"
+expect "a literal matrix block parses too" 0 "all 3 lane(s) reachable" \
+  --check "$scratch/sharded-static.yml"
+
 # --- the opt-out path -------------------------------------------------------
 
 write_workflow "$scratch/optout.yml" "" "$(needs_of alpha)"
