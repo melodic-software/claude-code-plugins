@@ -10,10 +10,12 @@ plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the cl
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
 The 2026-09-05 pass re-ran the plugin-CLI write matrix, the project-scope cwd keying, the
 merged-effective `enable` gate, and the reap-by-path survey live on **Claude Code 2.1.261**; those
-claims carry that version. Three claims were **not re-run on 2.1.261** and keep their older stamps:
-the `/reload-plugins` bare-versus-`--force` warning and the mid-session path-resolution behaviour,
-both of which need an interactive session, and the `claude plugin prune` `≥ 2.1.121` gate, which the
-current docs no longer state.
+claims carry that version. These claims were **not re-run on 2.1.261** and keep their older stamps:
+the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
+and the mid-session path-resolution behaviour, all of which need an interactive session and were
+confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
+`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
+render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -234,10 +236,12 @@ Two consequences this skill must not get wrong:
   list, so a headless `sync` launched that way silently loses `install_new` the same way. See
   [sync-install-enable.md](sync-install-enable.md) Step 4 — the fallback is correct, the silence is not.
 
-## `userConfig` has no `enum` field
+## `userConfig` has no `enum` type
 
 **Re-verified 2026-09-05 against the published plugin-manifest JSON Schema**: allowed `type` values
-are `string`, `number`, `boolean`, `directory`, `file` — no `enum`. The schema's `required` array for
+are `string`, `number`, `boolean`, `directory`, `file` — there is no `enum` *type*. The schema does
+use an `enum` keyword, but only to constrain `type` itself to that list; an option cannot declare its
+own allowed values. The schema's `required` array for
 a `userConfig` option is `type`, `title`, `description`, and `claude plugin validate` on 2.1.261
 rejects an option that omits `title`. `install_new` ships as `type: string` with its
 valid values (`ask`/`all`/`none`) documented in `description` and validated in prose by this skill,

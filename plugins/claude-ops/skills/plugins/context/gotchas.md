@@ -10,9 +10,12 @@ Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin 
 loading/caching, or `userConfig` substitution — a date alone is not a trigger.
 
 A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
-rather than the pass date: the CLI-behaviour sections below were re-run and carry 2.1.261, the
-bare-name `update` section **changed** and says how, and the mid-session self-update section was
-**not re-run on 2.1.261** because observing it needs an interactive session.
+rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
+subdirectory-install section and the outlived-`projectPath` section. **Changed**, and saying how:
+the bare-name `update` section. **Not re-run on 2.1.261**: the mid-session self-update section,
+because observing it needs an interactive session, and the spoke-substitution section, for the
+reason it now states. The `plugin list` / `plugin details` section was not part of this pass and
+carries no version of its own.
 
 ## Always pass the full id to `claude plugin update` — bare-name resolution is version-dependent
 
@@ -147,6 +150,15 @@ rather than on its own prose. Verified empirically: `context/sync-install-enable
 `${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
 configured value. Nothing enforces this — a future spoke that inlines such a token fails silently,
 so it is a review-time rule, not a checkable one.
+
+**Not re-run on 2.1.261, and the 2026-09-05 pass weakened rather than confirmed the contrast this
+section rests on.** That pass loaded a throwaway plugin and found `${CLAUDE_PLUGIN_ROOT}`
+substituting in a rendered `SKILL.md` body while a `userConfig` token in the same body stayed
+literal even with a value supplied through `--settings` `pluginConfigs`. So the SKILL.md half of the
+contrast — that a skill body *does* receive `${user_config.*}` substitution — was not demonstrable
+on that path, and the spoke half was never separately probed. The rule below is still the safe way
+to write a spoke either way: keep the render in `SKILL.md` and branch on that line. See `SKILL.md`'s
+`install_new` section for the full account of the failed control.
 
 ## `sync` updates the plugin that provides `sync`
 
