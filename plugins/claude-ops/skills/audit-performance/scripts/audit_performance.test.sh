@@ -72,7 +72,7 @@ census = report.get("kernel_objects")
 assert census is not None and "supported" in census, (
     "the report ships no kernel_objects section; the host-level floor is invisible"
 )
-assert census["supported"] is False or census["state_label"] in {"nominal", "leak-suspected"}, census
+assert census["supported"] is False or census["state_label"] in {"nominal", "paged-pool-high", "token-leak"}, census
 assert "kernel_objects" in report["timings_seconds"], report["timings_seconds"]
 print("OK: kernel-object census is present in the shipped report")
 PY

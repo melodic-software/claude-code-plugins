@@ -135,7 +135,9 @@ KERNEL_OBJECT_TYPES = (
 #: seconds. Calibrated on one host's two states; see known-performance-issues.md for the basis.
 TOKEN_LEAK_OBJECTS = 250_000
 #: Paged pool at or above which the census reports it as high. The leaking host sat near
-#: 10 GB; the same host after reboot near 1 GB.
+#: 10 GB; the same host after reboot near 1 GB. The figure is aggregate and unattributed
+#: (GetPerformanceInfo cannot say what charged it), so this finding never carries the
+#: Token-leak verdict on its own; `poolmon` is what attributes pool to a tag.
 PAGED_POOL_HIGH_MB = 4096
 
 # NtQueryObject(NULL, ObjectTypesInformation) block layout on x64. The information class is
@@ -449,23 +451,37 @@ def _windows_performance_info() -> dict:
 def summarize_kernel_objects(types: dict[str, dict], perf: dict) -> dict:
     """Turn the raw census into the report section, with its findings and label.
 
-    The mint rate is `objects / uptime`, not a short two-sample window: on the audited host a
-    3 s window read 0/s while a 60 s window read 15/s, so minting is bursty and a short window
-    under-reads it. The since-boot average needs no sleep and cannot be gamed by a quiet moment.
+    The rate reported is live Token objects divided by uptime, a population ratio rather
+    than a measured mint rate: it includes whatever population the boot started with (so it
+    overstates the rate early in a boot, and the projection errs short) and it cannot see
+    tokens created and destroyed in between. It is still the signal this engine reports
+    because it needs no sleep and cannot be gamed by a quiet moment: on the audited host a
+    3 s in-run window read 0/s while a 60 s window read 15/s, so any delta short enough for
+    an engine pass under-reads bursty minting. The 60 s manual sample in the reference is the
+    mint-rate measurement; this ratio's error shrinks as uptime grows.
+
+    The Token-leak verdict rests on the object count alone. Paged pool is aggregate and
+    unattributed, so `paged-pool-high` by itself is a separate finding with its own label.
     """
     token = types.get("Token") or {}
     objects = int(token.get("objects", 0))
     handles = int(token.get("handles", 0))
     uptime_s = float(perf.get("uptime_s") or 0)
-    per_second = objects / uptime_s if uptime_s > 0 else None
+    ratio = objects / uptime_s if uptime_s > 0 else None
     findings = []
     if objects >= TOKEN_LEAK_OBJECTS:
         findings.append("token-objects-leaked")
     if perf.get("paged_pool_mb", 0) >= PAGED_POOL_HIGH_MB:
         findings.append("paged-pool-high")
     hours_to_threshold = None
-    if per_second and objects < TOKEN_LEAK_OBJECTS:
-        hours_to_threshold = round((TOKEN_LEAK_OBJECTS - objects) / per_second / 3600, 1)
+    if ratio and objects < TOKEN_LEAK_OBJECTS:
+        hours_to_threshold = round((TOKEN_LEAK_OBJECTS - objects) / ratio / 3600, 1)
+    if "token-objects-leaked" in findings:
+        state_label = "token-leak"
+    elif "paged-pool-high" in findings:
+        state_label = "paged-pool-high"
+    else:
+        state_label = "nominal"
     return {
         "supported": True,
         "source": "NtQueryObject(ObjectTypesInformation) + GetPerformanceInfo",
@@ -485,15 +501,20 @@ def summarize_kernel_objects(types: dict[str, dict], perf: dict) -> dict:
             "handles": handles,
             "handleless_objects": objects - handles,
             "high_water_objects": token.get("high_water_objects"),
-            "per_second_since_boot": round(per_second, 2) if per_second is not None else None,
-            "hours_to_leak_threshold_at_boot_average": hours_to_threshold,
+            "objects_per_uptime_second": round(ratio, 2) if ratio is not None else None,
+            "hours_to_leak_threshold_at_uptime_ratio": hours_to_threshold,
+            "basis": (
+                "live objects / uptime: includes the boot population (overstates early in a "
+                "boot, so the projection errs short) and cannot see destroyed tokens; the 60 s "
+                "manual sample in known-performance-issues.md is the mint-rate measurement"
+            ),
         },
         "thresholds": {
             "token_leak_objects": TOKEN_LEAK_OBJECTS,
             "paged_pool_high_mb": PAGED_POOL_HIGH_MB,
         },
         "findings": findings,
-        "state_label": "leak-suspected" if findings else "nominal",
+        "state_label": state_label,
     }
 
 

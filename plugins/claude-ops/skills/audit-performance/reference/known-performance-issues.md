@@ -145,7 +145,7 @@ leaked kernel reference to Token objects. Measured once, on a 24-core Windows 11
 (Intel Core Ultra 9 285K, 64 GB) at two days' uptime with 6 to 7% CPU and 26 to 30 GB free, then
 again two hours after a reboot (capture record: melodic-software/claude-code-plugins#3715):
 
-| probe | leaking (2 d uptime) | after reboot (2 h uptime) |
+| probe | leaking (2 d uptime) | after reboot (1 h 57 min uptime) |
 |---|---|---|
 | `cmd /c exit 0`, absolute path, no window | 1,339 to 1,573 ms | 14 ms |
 | `bash -c true` (Git Bash) | 3,555 to 4,347 ms | not re-sampled |
@@ -171,19 +171,29 @@ The shape, not the numbers, is the transferable part:
   path that takes a token reference per call. The host runs three raw-I/O drivers (`AsIO3.sys`,
   `IOMap64.sys`, `MsIo64.sys`) polled continuously by Armoury Crate and lighting services, which
   is the profile that fits. That is a hypothesis, not a measurement.
-- **Reboot restores the floor; the leak re-arms immediately.** Two hours after the reboot the
-  count was 37,144 and climbing at 5.1/s averaged since boot, with a 60 s window reading 15/s and
-  a 3 s window reading 0/s (minting is bursty, so a short window under-reads it). At that average
-  the count re-crosses the engine's 250,000 threshold in about 12 hours and the two-day level in
-  days, not weeks. A reboot buys time; only attribution ends it.
+- **Reboot restores the floor; the leak re-arms immediately.** The table's sample is the
+  calibration basis (25,623 live Token objects at 1 h 57 min, 3.65 per uptime second). Four
+  minutes later, at 2 h 01 min, the count was 37,144, 11,500 more, and the ratio 5.1/s; at 2 h
+  10 min it was 70,380 at 8.9/s. A 60 s window in the same span read 15/s and a 3 s window read
+  0/s: minting is bursty, so a short window under-reads it. At those ratios the count re-crosses
+  the engine's 250,000 threshold in well under a day and the two-day level returns in days, not
+  weeks. A reboot buys time; only attribution ends it.
 
 The engine reports this as `kernel_objects`: live and high-water counts per type, paged and
-nonpaged pool, system handle/process/thread totals, `token.per_second_since_boot` (the since-boot
-average, for the reason above), `token.hours_to_leak_threshold_at_boot_average`, and the findings
-`token-objects-leaked` (at or above 250,000 live Token objects) and `paged-pool-high` (at or above
-4,096 MB). Both thresholds are calibrated on this one host's two states, ten times its clean-boot
-count and a fifteenth of its leaking count. A second host's readings, healthy or leaking, are the
-recheck trigger for them.
+nonpaged pool, system handle/process/thread totals, `token.objects_per_uptime_second`,
+`token.hours_to_leak_threshold_at_uptime_ratio`, and the findings `token-objects-leaked` (at or
+above 250,000 live Token objects) and `paged-pool-high` (at or above 4,096 MB). The ratio is live
+objects divided by uptime, not a measured mint rate: it includes whatever population the boot
+started with, so it overstates the rate early in a boot and the projection errs short, and it
+cannot see tokens created and destroyed in between; it is reported anyway because it needs no
+sleep and, per the bullet above, any in-run delta short enough for an engine pass under-reads.
+Its error shrinks as uptime grows, and the 60 s sample in the runbook below is the mint-rate
+measurement. The two findings are not one verdict: `token-objects-leaked` alone carries
+`state_label: token-leak`, while `paged-pool-high` alone labels `paged-pool-high`, because
+`GetPerformanceInfo` reports aggregate pool with no attribution and only `poolmon` can say what
+charged it. Both thresholds are calibrated on this one host's two states, ten times its
+clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
+leaking, are the recheck trigger for them.
 
 **Attribution runbook (elevated shell; the engine never does this).** Sample the Token count over
 60 s, then stop one candidate service at a time and re-sample; the one that drops the rate to

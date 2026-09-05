@@ -511,12 +511,22 @@ class TestKernelObjectCensus(unittest.TestCase):
                 "uptime_s": 2 * 86_400 + 55 * 60,
             },
         )
-        self.assertEqual(summary["state_label"], "leak-suspected")
+        self.assertEqual(summary["state_label"], "token-leak")
         self.assertEqual(summary["findings"], ["token-objects-leaked", "paged-pool-high"])
         self.assertEqual(summary["token"]["handleless_objects"], 3_811_482 - 1_739)
-        self.assertAlmostEqual(summary["token"]["per_second_since_boot"], 21.64, places=2)
-        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_boot_average"])
+        self.assertAlmostEqual(summary["token"]["objects_per_uptime_second"], 21.64, places=2)
+        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"])
         self.assertEqual(summary["pool"], {"paged_mb": 9_894, "nonpaged_mb": 2_452})
+
+    def test_high_pool_alone_is_reported_but_is_not_a_token_leak_verdict(self):
+        """GetPerformanceInfo cannot say what charged the pool, so pool alone never convicts Token."""
+        summary = engine.summarize_kernel_objects(
+            {"Token": {"objects": 12_000, "handles": 1_100, "high_water_objects": 12_050, "high_water_handles": 1_400}},
+            {"paged_pool_mb": 6_144, "nonpaged_pool_mb": 1_500, "uptime_s": 36_000},
+        )
+        self.assertEqual(summary["findings"], ["paged-pool-high"])
+        self.assertEqual(summary["state_label"], "paged-pool-high")
+        self.assertNotIn("token-objects-leaked", summary["findings"])
 
     def test_a_fresh_boot_is_nominal_but_projects_the_threshold(self):
         summary = engine.summarize_kernel_objects(
@@ -532,15 +542,16 @@ class TestKernelObjectCensus(unittest.TestCase):
         )
         self.assertEqual(summary["state_label"], "nominal")
         self.assertEqual(summary["findings"], [])
-        self.assertAlmostEqual(summary["token"]["per_second_since_boot"], 3.65, places=2)
-        self.assertAlmostEqual(summary["token"]["hours_to_leak_threshold_at_boot_average"], 17.1, places=1)
+        self.assertAlmostEqual(summary["token"]["objects_per_uptime_second"], 3.65, places=2)
+        self.assertAlmostEqual(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"], 17.1, places=1)
+        self.assertIn("boot population", summary["token"]["basis"], "the ratio names its own bias")
         self.assertEqual(list(summary["types"]), ["Token", "Process"], "only the catalogued types ship")
         self.assertEqual(summary["thresholds"]["token_leak_objects"], engine.TOKEN_LEAK_OBJECTS)
 
     def test_zero_uptime_reports_no_rate_rather_than_dividing(self):
         summary = engine.summarize_kernel_objects({"Token": {"objects": 5, "handles": 5}}, {"uptime_s": 0})
-        self.assertIsNone(summary["token"]["per_second_since_boot"])
-        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_boot_average"])
+        self.assertIsNone(summary["token"]["objects_per_uptime_second"])
+        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"])
         self.assertEqual(summary["state_label"], "nominal")
 
     def test_off_windows_the_census_says_why_rather_than_vanishing(self):
@@ -554,7 +565,7 @@ class TestKernelObjectCensus(unittest.TestCase):
         self.assertIn("supported", result)
         if result["supported"]:
             self.assertIn("Token", result["types"])
-            self.assertIn(result["state_label"], {"nominal", "leak-suspected"})
+            self.assertIn(result["state_label"], {"nominal", "paged-pool-high", "token-leak"})
             self.assertGreater(result["uptime_hours"], 0)
         else:
             self.assertIn("reason", result)

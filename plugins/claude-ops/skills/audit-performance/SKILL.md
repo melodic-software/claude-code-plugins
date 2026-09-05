@@ -99,14 +99,18 @@ most often has to reach.
 
 **On Windows, read `kernel_objects` before any of them.** It is the floor the host imposes on every
 process creation, and one mechanism moves it by an order of magnitude with CPU idle and memory
-free: a leaked kernel reference to Token objects. `state_label: leak-suspected` with
-`token-objects-leaked` or `paged-pool-high` means every spawn-denominated number below is a
-multiple of a broken host, and the remediation is a reboot followed by the elevated attribution
-runbook in [reference/known-performance-issues.md](reference/known-performance-issues.md), neither
-of which is this skill's to run. `token.per_second_since_boot` is the mint rate (the since-boot
-average; minting is bursty and a short window under-reads it) and
-`hours_to_leak_threshold_at_boot_average` says how long a clean boot lasts. `supported: false`
-names why the census could not run; it is never silently absent.
+free: a leaked kernel reference to Token objects. `state_label: token-leak` (the finding
+`token-objects-leaked`) means every spawn-denominated number below is a multiple of a broken host,
+and the remediation is a reboot followed by the elevated attribution runbook in
+[reference/known-performance-issues.md](reference/known-performance-issues.md), neither of which
+is this skill's to run. `paged-pool-high` on its own is a different, weaker signal: the pool
+figure is aggregate and unattributed, so route it to `poolmon` (elevated, operator-run) to name
+the tag before anyone calls it a Token leak or a reboot. `token.objects_per_uptime_second` is a
+population ratio, not a measured mint rate: it includes the boot population (so it overstates
+early in a boot and the projection errs short) and cannot see churn, and it is reported because
+a short in-run window under-reads bursty minting; `hours_to_leak_threshold_at_uptime_ratio` says
+how long a clean boot lasts on that basis. `supported: false` names why the census could not
+run; it is never silently absent.
 
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
 `total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
