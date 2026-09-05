@@ -16,7 +16,7 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 | `all` | "Sweep caches, build artifacts, and git hygiene" | `build` + `git` (not `tree`) | Medium | **Never** |
 | `caches-batch` / `build-batch` / `git-batch` / `all-batch` | "…across all my repos" | the matching selective tier across a repo set, behind one gate ([clean-batch.md](clean-batch.md)) | Low–Medium | **Never** |
 
-**Neither `tree` nor `tree-batch` is part of `all`.** The `*-batch` forms are the fleet siblings of the selective tiers; `tree-batch` is the fleet form of the destructive `tree` tier (separate, with a dirty guard). One mistaken sweep must not run a `reset --hard`. (`tree` itself now preserves `.env`, `node_modules/`, `.venv/` by default — see `reference/cleanup-config.md` "tree".)
+**Neither `tree` nor `tree-batch` is part of `all`.** The `*-batch` forms are the fleet siblings of the selective tiers; `tree-batch` is the fleet form of the destructive `tree` tier (separate, with a dirty guard). One mistaken sweep must not run a `reset --hard`. (`tree` preserves `.env`, `node_modules/`, `.venv/` by default; see `reference/cleanup-config.md` "tree".)
 
 ## Token resolution (script)
 

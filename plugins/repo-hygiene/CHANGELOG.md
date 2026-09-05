@@ -3,6 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.31]
+
+### Changed
+
+- clean: `reference/invocation-forms.md` states the two-form rule without the issue references, the decide-lane verdict, or the Related list; the SKILL.md pointer to it drops "decide-lane verdict"; the description names five intent categories with five exact phrases instead of fourteen near-synonyms.
+- clean: `context/git-tree-reset-batch.md` no longer narrates the incident behind the guards, says the selective tiers have their own batch form instead of calling it unbuilt, and names the consequence of `--include-dirty` (uncommitted work discarded unrecoverably) at both gate sites; `context/action-router.md` drops "now" from the `tree` preserve note; the two roadmap asides in `context/clean-batch.md` and `reference/cleanup-config.md` are removed.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.10.27]
 
 ### Fixed
