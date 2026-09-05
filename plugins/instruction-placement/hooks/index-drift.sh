@@ -22,8 +22,8 @@
 
 set -uo pipefail
 
-hook_dir="$(dirname "${BASH_SOURCE[0]}")"
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# Kill switch FIRST, before any library is sourced and before the one command
+# substitution below (a fork on Windows Git Bash): a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 # The variable is the userConfig key `index_drift_hook_enabled` upper-cased
@@ -34,6 +34,7 @@ hook_dir="$(dirname "${BASH_SOURCE[0]}")"
 # would notice.
 [[ "${CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED:-true}" == "true" ]] || exit 0
 
+hook_dir="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=hook-utils.sh
 source "$hook_dir/hook-utils.sh"
 
