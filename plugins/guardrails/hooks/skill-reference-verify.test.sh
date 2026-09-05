@@ -938,6 +938,53 @@ assert_eq "lazy index: one jq invocation builds the whole index" 1 "$INVOKE_COUN
 assert_eq "lazy index: that invocation is handed every manifest once" \
   "$FIXTURE_MANIFESTS" "$MANIFEST_ARGS"
 
+# On Windows Git Bash a native jq is handed the MSYS-converted argument, so
+# `input_filename` echoes `C:\...\plugin.json` rather than the string the hook
+# globbed. The index must key on the plugin directory it can rebuild itself,
+# not on the echo: keyed on the echo, no manifest is ever "seen" and every one
+# is re-read through the per-manifest fallback (two more invocations each).
+# Simulated here by a second shim that rewrites the echoed field of every batch
+# row into that converted form before handing it back; the manifest arguments
+# and the parse are the real jq's.
+CONV_SHIM_DIR="$TEST_TMPDIR/jq-shim-conv"
+mkdir -p "$CONV_SHIM_DIR"
+export SRV_TEST_REAL_JQ="$REAL_JQ" SRV_TEST_JQ_LOG="$JQ_LOG"
+cat >"$CONV_SHIM_DIR/jq" <<'SHIM'
+#!/usr/bin/env bash
+hit=0
+for a in "$@"; do case "$a" in *plugin.json) hit=1 ;; esac; done
+((hit)) || exec "$SRV_TEST_REAL_JQ" "$@"
+printf 'INVOKE\n' >>"$SRV_TEST_JQ_LOG"
+"$SRV_TEST_REAL_JQ" "$@" | while IFS= read -r line; do
+  if [[ "$line" == /*$'\x1e'* ]]; then
+    first="${line%%$'\x1e'*}"
+    first="C:${first//\//\\}"
+    printf '%s\x1e%s\n' "$first" "${line#*$'\x1e'}"
+  else
+    printf '%s\n' "$line"
+  fi
+done
+exit "${PIPESTATUS[0]}"
+SHIM
+chmod +x "$CONV_SHIM_DIR/jq"
+
+: >"$JQ_LOG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$CONV_SHIM_DIR:$PATH" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/beta:check`.')" 2>&1)
+assert_exit "converted echo: exits 0" 0 "$?"
+assert_eq "converted echo: still one jq invocation, no per-manifest fallback" \
+  1 "$(grep -c 'INVOKE' "$JQ_LOG")"
+assert_contains "converted echo: the unresolved reference still reports" "$OUT" "/alpha:nonexistent"
+assert_contains "converted echo: the index directory is the hook's own, not the echo" "$OUT" \
+  "plugins/alpha/"
+assert_absent "converted echo: no converted path leaks into the report" "$OUT" "C:\\"
+if [[ "$OUT" == *"/beta:check"* ]]; then
+  bad "converted echo: a resolvable reference was reported unresolved"
+else
+  ok "converted echo: a resolvable reference resolves through the rebuilt index"
+fi
+unset SRV_TEST_REAL_JQ SRV_TEST_JQ_LOG
+
 # ============ DECLARED SKILL PATHS (batched index equivalence) ==============
 # The batched jq must carry each manifest's `skills` key exactly as the
 # per-manifest reads did: an array of paths, a single string path, and none.

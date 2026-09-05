@@ -216,13 +216,24 @@ build_plugin_index() {
   while IFS=$'\x1e' read -r m pname paths; do
     m="${m//$'\r'/}"
     [[ -n "$m" ]] || continue
-    pdir="${m%/.claude-plugin/plugin.json}"
+    # `input_filename` echoes the argument as jq received it, and on Windows
+    # Git Bash a native jq receives the MSYS-converted form (`C:/…` or
+    # `C:\…`), not the string in manifests[]. Only the plugin directory NAME
+    # is taken from the echo; the directory itself is rebuilt from
+    # PLUGINS_DIR, so neither the index nor the seen[] check below depends on
+    # the echoed form (a mismatch there would re-read every manifest through
+    # the fallback, four processes each, on every reference-bearing write).
+    m="${m%/.claude-plugin/plugin.json}"
+    m="${m%\\.claude-plugin\\plugin.json}"
+    m="${m##*/}"
+    m="${m##*\\}"
+    pdir="$PLUGINS_DIR/$m"
     pname="${pname//$'\r'/}"
     [[ -n "$pname" ]] || pname="${pdir##*/}"
     PLUGIN_DIR["$pname"]="$pdir"
     paths="${paths//$'\r'/}"
     PLUGIN_SKILL_PATHS["$pname"]="${paths//$'\x1f'/$'\n'}"
-    seen["$m"]=1
+    seen["$pdir"]=1
   done < <(
     jq -r '[input_filename, (.name // "" | tostring),
             ((.skills // null) | if . == null then ""
@@ -235,8 +246,8 @@ build_plugin_index() {
   # the directory name for the broken one. On a tree where every manifest
   # parses (this one, gated by CI) the residue is empty and this spawns nothing.
   for m in "${manifests[@]}"; do
-    [[ -n "${seen[$m]:-}" ]] && continue
     pdir="${m%/.claude-plugin/plugin.json}"
+    [[ -n "${seen[$pdir]:-}" ]] && continue
     pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
     [[ -n "$pname" ]] || pname="${pdir##*/}"
     PLUGIN_DIR["$pname"]="$pdir"

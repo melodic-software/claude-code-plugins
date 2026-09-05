@@ -1,4 +1,5 @@
 {
+  "description": "Context-zone crossing notices, the pre-edit zone gate, and the post-compaction marker",
   "hooks": {
     "PostToolBatch": [
       {
