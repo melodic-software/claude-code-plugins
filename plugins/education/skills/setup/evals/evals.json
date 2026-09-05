@@ -5,7 +5,7 @@
       "id": 1,
       "name": "validates-rendered-quiz-policy-without-settings-edits",
       "prompt": "/education:setup",
-      "expected_output": "Reports the rendered quiz_policy and report_library_dir (or their defaults), explains quiz offer cadence, and never reads or edits settings files or pluginConfigs.",
+      "expected_output": "Reports the rendered quiz_policy, report_library_dir, and workspace_root (or their defaults), explains quiz offer cadence, and never reads or edits settings files or pluginConfigs.",
       "files": [],
       "expectations": [
         "Reads only the rendered user_config values supplied to the skill",
