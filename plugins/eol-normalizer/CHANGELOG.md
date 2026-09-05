@@ -3,6 +3,18 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.37]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
 ## [0.6.36]
 
 ### Added

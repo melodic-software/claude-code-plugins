@@ -1947,6 +1947,119 @@ hook::emit_telemetry() {
   TZ=UTC printf -v timestamp '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || timestamp=""
   [[ -n "$timestamp" ]] || timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || timestamp=""
 
+  # Correlation keys (contract 1.1): session_id, prompt_id, tool_use_id and
+  # agent_id, read from the hook payload and placed on the envelope spine so a
+  # sink can file the row per session without every producer repeating the
+  # extraction. The payload is whatever the caller buffered: HOOK_TELEMETRY_PAYLOAD
+  # when set, else INPUT, the variable every fleet hook assigns from
+  # hook::buffer_stdin (that call runs in a command substitution, so the
+  # library cannot cache the buffer itself). A caller that buffered under
+  # another name sets HOOK_TELEMETRY_PAYLOAD before emitting. Each key is the
+  # first `"<key>":"<value>"` pair AT THE PAYLOAD ROOT whose value is a plain
+  # id ([A-Za-z0-9._-]); absent or malformed keys are omitted, never guessed,
+  # and the values need no JSON escaping by construction. No jq, no subprocess.
+  #
+  # ROOT ONLY, AND EVERY ROOT KEY. Searching the raw payload takes the leftmost
+  # match anywhere in it, which reads `tool_input.options.prompt_id` as the
+  # envelope's prompt_id and lets a nested `session_id` ahead of the real one
+  # file the row under the WRONG session. Truncating at the first nested
+  # container fixes that but loses `tool_use_id`, which the documented payload
+  # places AFTER `tool_input` (session-event-log.sh says so in its own early-stop
+  # note: "tool_input closed, tool_use_id still to come"), so the keys are
+  # instead selected by depth.
+  #
+  # The payload is rendered down to its root level first, then searched. Escaped
+  # backslashes and quotes are neutralized so that splitting on `"` cannot land
+  # inside an escape, and the split alternates: even fields are structure
+  # (braces, commas, colons, numbers), odd fields are string bodies. Walking
+  # them costs one step per string, not one per byte, and the bulk of a payload
+  # is a handful of huge string bodies that are skipped whole. A string body is
+  # kept only at depth 1; deeper ones are dropped, which leaves nested objects
+  # as brace-and-colon rubble carrying no quotes, so no nested key can match.
+  # What remains is small, so the four searches run over a short string however
+  # large the payload was — the reason this stays inside the latency budget that
+  # keeps jq off this path.
+  local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
+  if [[ -n "$corr_payload" ]]; then
+    # `[[{]` is a bracket expression holding `[` and `{`; the brace is safe
+    # there only because it is a regex bracket expression, not a `${...}`
+    # pattern, where a literal `}` would end the expansion. Used by the size
+    # gate fallback below.
+    local corr_cut=':[[:space:]]*[[{]'
+    # Only a payload within the size gate is walked; see the fallback below for
+    # what the gate costs and why. The two neutralizing passes are what make
+    # splitting on `"` safe, and each copies the payload, so a payload with no
+    # backslash in it skips both; that test short-circuits at the first one.
+    local corr_t=""
+    if ((${#corr_payload} <= 65536)); then
+      corr_t=$corr_payload
+      if [[ $corr_t == *\\* ]]; then
+        corr_t=${corr_t//"\\\\"/@@}
+        corr_t=${corr_t//"\\\""/@@}
+      fi
+    fi
+    local corr_parts corr_i corr_n corr_depth=0 corr_root="" corr_seg corr_x
+    local corr_o corr_c
+    # Brace characters come from variables: a literal `}` inside a `${...}`
+    # pattern ends the expansion before the pattern is read. Each one is
+    # counted by deleting it and taking the length difference — a negated
+    # bracket class is not usable here, because `[!]}]` does not parse as the
+    # "neither ] nor }" class it looks like (it counted `{` as a closer).
+    local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+    local corr_glob=0
+    [[ $- == *f* ]] || corr_glob=1
+    set -f
+    local IFS='"'
+    # shellcheck disable=SC2206 # splitting on IFS='"' is the whole point
+    corr_parts=($corr_t)
+    ((corr_glob)) && set +f
+    IFS=$' \t\n'
+    corr_n=${#corr_parts[@]}
+    # An even field count means an unbalanced quote: the payload is malformed,
+    # so no key is guessed from it. A payload past the size gate never got
+    # split (corr_n is 1 there), so it falls through to the head cut below.
+    if ((corr_n % 2 == 1 && corr_n > 1)); then
+      for ((corr_i = 0; corr_i < corr_n; corr_i++)); do
+        if ((corr_i % 2 == 0)); then
+          corr_seg=${corr_parts[corr_i]}
+          corr_root+=$corr_seg
+          corr_x=${corr_seg//"$corr_ob"/}
+          corr_o=$((${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_osb"/}
+          corr_o=$((corr_o + ${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_cb"/}
+          corr_c=$((${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_csb"/}
+          corr_c=$((corr_c + ${#corr_seg} - ${#corr_x}))
+          corr_depth=$((corr_depth + corr_o - corr_c))
+        elif ((corr_depth == 1)); then
+          corr_root+='"'${corr_parts[corr_i]}'"'
+        fi
+      done
+    else
+      # SIZE GATE FALLBACK. Above the gate the walk is not affordable: the
+      # neutralizing passes are superlinear in the number of escapes, measured
+      # here at 4 / 13 / 38 / 486 ms per emit for a 16 KiB / 64 KiB / 128 KiB /
+      # 512 KiB escape-bearing payload, and this runs on every telemetry-
+      # emitting hook. So a large payload is cut at its first nested container
+      # instead. That is still safe — nothing inside tool_input or
+      # tool_response is reachable — but it is not complete: a root key placed
+      # after the first container, which is where tool_use_id sits, is omitted
+      # rather than guessed. session_id and prompt_id lead the payload, so
+      # routing is unaffected. #3784 tracks a cheaper exact tail scan that
+      # would close the gap without paying the neutralizing passes.
+      corr_root=$corr_payload
+      if [[ "$corr_root" =~ $corr_cut ]]; then
+        corr_root=${corr_root%%"${BASH_REMATCH[0]}"*}
+      fi
+    fi
+    for corr_key in session_id prompt_id tool_use_id agent_id; do
+      if [[ "$corr_root" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
+        corr+='"'"$corr_key"'":"'"${BASH_REMATCH[1]}"'",'
+      fi
+    done
+  fi
+
   # Trailing whitespace after the object (a newline a caller left on the
   # value) does not change what jq parses, so it does not block the builtin
   # path either.
@@ -1962,7 +2075,7 @@ hook::emit_telemetry() {
     hook::json_escape_jq_to e_hook "$hook_id"
     hook::json_escape_jq_to e_event "$hook_event"
     hook::json_escape_jq_to e_status "$status"
-    envelope='{"schema_version":"1.0","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"',"data":'"$data"'}'
+    envelope='{"schema_version":"1.1","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"','"$corr"'"data":'"$data"'}'
   else
     # jq path, for a data object the builtin compactor cannot prove. Fail-open:
     # jq absent → return 0. The `data` object is written to a temp file, not
@@ -1978,14 +2091,15 @@ hook::emit_telemetry() {
       return 0
     }
     envelope=$(jq -nc \
-      --arg schema_version "1.0" \
+      --arg schema_version "1.1" \
       --arg timestamp "$timestamp" \
       --arg hook "$hook_id" \
       --arg hook_event "$hook_event" \
       --arg status "$status" \
       --argjson duration_ms "$duration_ms" \
+      --argjson corr "{${corr%,}}" \
       --slurpfile data "$data_file" \
-      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms} + $corr + {data:($data[0] // {})}' \
       2>/dev/null) || {
       rm -f "$data_file"
       return 0
