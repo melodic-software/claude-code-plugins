@@ -461,10 +461,74 @@ else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
 
+# --- --shard is a partition, not a filter -----------------------------------
+# The claim CI makes when it fans one selection across four runners is that the
+# legs together ARE the selection and no suite ran twice. Proved on the fixture
+# repo rather than the live tree on purpose: each live derivation walks the
+# whole corpus, and this suite is itself one of the suites a leg runs, so a
+# handful of live derivations here would cost back part of what the shard
+# saves and would unbalance whichever leg drew this file.
+shard_paths=(lib/widget.sh plugins/alpha/hooks/alpha-hook.sh plugins/beta/hooks/beta-hook.sh)
+select_shard() {
+  local spec="$1"
+  local -a argv=(bash scripts/affected-tests.sh)
+  [[ -n "$spec" ]] && argv+=(--shard "$spec")
+  (cd "$repo" && "${argv[@]}" -- "${shard_paths[@]}" 2>/dev/null)
+}
+
+shard_rc=0
+shard_full="$(select_shard "")" || shard_rc=$?
+full_sorted="$(printf '%s\n' "$shard_full" | grep . | sort)"
+full_count="$(printf '%s\n' "$full_sorted" | grep -c . || true)"
+shard_union=""
+shard_sum=0
+for legix in 0 1 2; do
+  leg_out="$(select_shard "$legix/3")" || shard_rc=$?
+  shard_sum=$((shard_sum + $(printf '%s\n' "$leg_out" | grep -c . || true)))
+  shard_union+="$leg_out"$'\n'
+done
+union_sorted="$(printf '%s' "$shard_union" | grep . | sort)"
+if [[ "$shard_rc" -eq 0 ]] && [[ "$full_count" -ge 3 ]] &&
+  [[ "$union_sorted" == "$full_sorted" ]] && [[ "$shard_sum" -eq "$full_count" ]]; then
+  ok "--shard legs union to the whole selection with no suite on two legs"
+else
+  fail "--shard is not a partition (rc=$shard_rc, full=$full_count, sum=$shard_sum)"
+fi
+
+out="$(select_shard 0/1)"
+if [[ "$(printf '%s\n' "$out" | grep . | sort)" == "$full_sorted" ]]; then
+  ok "--shard 0/1 is the unsharded selection"
+else
+  fail "--shard 0/1 changed the selection"
+fi
+
+# The empty leg. It is the short-circuit CI depends on: a leg that draws
+# nothing must EXIT 0, because a leg that skipped would make the matrix result
+# `skipped` and ci-status is fail-closed on that.
+out="$(select_shard 999/1000)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && [[ -z "$(printf '%s' "$out" | grep . || true)" ]]; then
+  ok "a leg with no suites exits 0 and prints no selection"
+else
+  fail "empty leg should exit 0 with nothing selected (rc=$RC): $out"
+fi
+
+# A spec this script cannot read must never become leg 0 of 1, which runs
+# everything and would report a full pass from a typo'd fan-out. These exit
+# before any derivation, so they cost nothing.
+for badspec in 4/4 bogus 0/0 1/ /4 "1/4/4" "-1/4"; do
+  select_shard "$badspec" >/dev/null
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--shard '$badspec' is a usage error, not a silent full run"
+  else
+    fail "--shard '$badspec' should exit 2, got rc=$RC"
+  fi
+done
+
 # --- --run --shard executes each suite on exactly one leg -------------------
-# CI fans this selection across four runners and calls the change tested, so
-# "the legs together ran everything, and nothing twice" is the property that
-# claim rests on. Two legs are enough to prove it and keep the fixture small.
+# The partition above is about selection; this is about execution. Two legs are
+# enough to prove each selected suite ran, on exactly one of them.
 : >"$marker"
 shard_rc=0
 for legix in 0 1; do
@@ -1080,73 +1144,6 @@ else
   fail "co-located suite lost or unrelated suite still borrowed (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
-
-# --- LIVE repo: --shard is a partition, not a filter -------------------------
-# The claim CI makes when it fans one selection across four runners is that the
-# legs together are the selection and no suite ran twice. Asserted against the
-# live tree and against INVARIANTS rather than counts, so it keeps holding as
-# the corpus grows. The three paths are picked to select broadly.
-shard_paths=(scripts/check-lane-coverage.sh scripts/affected-tests.sh scripts/check-docs-only-gate.sh)
-# Every call keeps its stderr so a failure below names the reason instead of
-# reporting an empty selection with no explanation.
-select_shard() {
-  local spec="$1"
-  local -a argv=(bash "$REPO_ROOT/scripts/affected-tests.sh")
-  [[ -n "$spec" ]] && argv+=(--shard "$spec")
-  argv+=(--)
-  (cd "$REPO_ROOT" && "${argv[@]}" "${shard_paths[@]}" 2>"$shard_err_file")
-}
-shard_err_file="$(mktemp "${TMPDIR:-/tmp}/affected-tests-shard-err.XXXXXX")"
-shard_rc=0
-shard_full="$(select_shard "")" || shard_rc=$?
-full_err="$(cat "$shard_err_file")"
-shard_union=""
-shard_sum=0
-for legix in 0 1 2 3; do
-  leg_out="$(select_shard "$legix/4")" || shard_rc=$?
-  shard_sum=$((shard_sum + $(printf '%s\n' "$leg_out" | grep -c . || true)))
-  shard_union+="$leg_out"$'\n'
-done
-full_count="$(printf '%s\n' "$shard_full" | grep -c . || true)"
-union_sorted="$(printf '%s' "$shard_union" | grep . | sort)"
-full_sorted="$(printf '%s\n' "$shard_full" | grep . | sort)"
-if [[ "$shard_rc" -eq 0 ]] && [[ "$full_count" -gt 4 ]] &&
-  [[ "$union_sorted" == "$full_sorted" ]] && [[ "$shard_sum" -eq "$full_count" ]]; then
-  ok "--shard legs union to the whole selection with no suite on two legs"
-else
-  fail "--shard is not a partition (rc=$shard_rc, full=$full_count, sum=$shard_sum): $full_err"
-fi
-
-out="$(select_shard 0/1)"
-if [[ "$(printf '%s\n' "$out" | grep . | sort)" == "$full_sorted" ]]; then
-  ok "--shard 0/1 is the unsharded selection"
-else
-  fail "--shard 0/1 changed the selection"
-fi
-
-# The empty leg. It is the short-circuit CI depends on: a leg that draws nothing
-# must EXIT 0, because a leg that skipped would make the matrix result `skipped`
-# and ci-status is fail-closed on that.
-out="$(select_shard 999/1000)"
-RC=$?
-if [[ "$RC" -eq 0 ]] && [[ -z "$(printf '%s' "$out" | grep . || true)" ]]; then
-  ok "a leg with no suites exits 0 and prints no selection"
-else
-  fail "empty leg should exit 0 with nothing selected (rc=$RC): $out"
-fi
-
-# A spec this script cannot read must never become leg 0 of 1, which runs
-# everything and would report a full pass from a typo'd fan-out.
-for badspec in 4/4 bogus 0/0 1/ /4 "1/4/4" "-1/4"; do
-  select_shard "$badspec" >/dev/null
-  RC=$?
-  if [[ "$RC" -eq 2 ]]; then
-    ok "--shard '$badspec' is a usage error, not a silent full run"
-  else
-    fail "--shard '$badspec' should exit 2, got rc=$RC"
-  fi
-done
-rm -f "$shard_err_file"
 
 # --- LIVE repo: ci.yml actually fans the selection out -----------------------
 # `--shard` only buys anything if the workflow both PASSES it and creates more
