@@ -114,6 +114,12 @@ INPUT=$(hook::buffer_stdin) || {
   if ((rc == 3)); then
     hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
     if [[ -n "$start" ]] && hook::telemetry_enabled; then
+      # Declared before the call because hook::json_str_object_to assigns
+      # through a nameref; without this, shellcheck reads the variable at the
+      # next line as never assigned (SC2154). The sibling emit_tel below gets
+      # the same effect from its `local data`, which this site cannot use: it
+      # runs at top level, inside hook::buffer_stdin's failure block.
+      _bbh_tel=""
       hook::json_str_object_to _bbh_tel tool "" subject "" form "" reason "stdin-cut-short"
       hook::emit_telemetry "block-hook-bypass" "PreToolUse" "skipped" "$start" "$_bbh_tel" "${CLAUDE_PROJECT_DIR:-}"
     fi

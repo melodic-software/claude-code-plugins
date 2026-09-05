@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 # /observability clean — prune local observability data by age.
-# Three layers, each with its own retention:
-#   1. JSONL metadata (.claude/observability/hook-events.jsonl) —
-#      path-only, pruned in place to the --keep-days window (default 30).
+# Four layers, each with its own retention:
+#   1. JSONL metadata — the hook log root's hook-events.jsonl (the reference
+#      sink's shared file, default root .observability/claude, --hook-root moves
+#      it) and, while a consumer still carries it, the retired
+#      .claude/observability/hook-events.jsonl — path-only, pruned in place to
+#      the --keep-days window (default 30). The root's per-session files
+#      (sessions/<id>.jsonl) are removed whole once older than the same window,
+#      and any prune-pending/<set> the SessionEnd retention hook moved aside for
+#      an archiver more than 24 h ago is swept regardless of the plugin's
+#      logging switch, so disabling the hooks leaves no orphan.
 #   2. OTEL file store (.claude/observability/otel/{cc-logs,cc-metrics}.json) — holds full
 #      prompt + raw API bodies, so TIGHTER windows: CC_OTEL_RETENTION_DAYS (default 7) for
 #      structure events, CC_OTEL_BODY_RETENTION_DAYS (default 2) for api_*_body records.
@@ -16,7 +23,7 @@
 #      unrelated plugin's data directory — so `data-dir` demands an explicit --skill-usage-dir.
 #
 # Usage:
-#   bash clean.sh [--keep-days N] [--dry-run] [--quiet]
+#   bash clean.sh [--keep-days N] [--dry-run] [--quiet] [--hook-root REL]
 #                 [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL]
 #                 [--keep-skill-usage-days N]
 #
@@ -24,6 +31,9 @@
 #   --keep-days N   JSONL retention window in days (default: 30). The OTEL store uses its own
 #                   CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS env windows
 #                   (defaults 7 / 2), NOT this flag.
+#   --hook-root REL The hook log root, project-relative (the plugin's session_event_log_dir
+#                   option; default .observability/claude). A FLAG, never the environment, for
+#                   the same reason as the skill-usage flags below.
 #   --dry-run       Report would-prune counts for BOTH layers; modify nothing
 #   --quiet         Suppress progress output (still prints final summary)
 #
@@ -43,6 +53,9 @@ set -uo pipefail
 KEEP_DAYS=30
 DRY_RUN=0
 QUIET=0
+# The hook log root: sessions/<id>.jsonl, the sink's shared hook-events.jsonl
+# and prune-pending/ live here. Same default as the hooks' session-log-lib.sh.
+HOOK_ROOT_REL=".observability/claude"
 # Skill-usage pruning is INERT unless --skill-usage-scope is passed. That is the
 # rollback story: with the flag absent this script's behavior is byte-for-byte
 # what it was, so reverting the feature is dropping one branch.
@@ -64,6 +77,15 @@ while [[ $# -gt 0 ]]; do
     ;;
   --keep-days=*)
     KEEP_DAYS="${1#*=}"
+    shift
+    ;;
+  --hook-root)
+    shift
+    HOOK_ROOT_REL="${1:-}"
+    shift
+    ;;
+  --hook-root=*)
+    HOOK_ROOT_REL="${1#*=}"
     shift
     ;;
   --skill-usage-scope)
@@ -116,7 +138,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   *)
     echo "ERROR: unknown flag: $1" >&2
-    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--keep-skill-usage-days N]" >&2
+    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--keep-skill-usage-days N]" >&2
     exit 2
     ;;
   esac
@@ -130,6 +152,17 @@ case "$KEEP_DAYS" in
 *) ;;
 esac
 
+# A contained relative path is the only accepted root shape: the hooks refuse
+# anything else, so a prune there would touch a tree nothing writes to.
+case "$HOOK_ROOT_REL" in
+"" | . | ./ | /* | [A-Za-z]:* | ~* | *..* | *\\*)
+  echo "ERROR: --hook-root must be a contained relative path below the project root (got: $HOOK_ROOT_REL)" >&2
+  exit 2
+  ;;
+*) ;;
+esac
+HOOK_ROOT_REL="${HOOK_ROOT_REL%/}"
+
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')}"
 if [[ -z "$REPO_ROOT" ]]; then
   echo "ERROR: not in a git repo (and CLAUDE_PROJECT_DIR is unset)" >&2
@@ -137,7 +170,10 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 
 OBS_DIR="${REPO_ROOT}/.claude/observability"
+# The retired shared-file location (claude-ops-r001): pruned while a consumer
+# still carries it, so the old rows keep aging out until setup migrates them.
 HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
+HOOK_ROOT="${REPO_ROOT}/${HOOK_ROOT_REL}"
 
 # Cutoff timestamp for N days ago — ISO-8601 UTC. GNU date (Linux/Git Bash) and
 # BSD date (macOS) require different flags for relative time and epoch-to-ISO
@@ -254,6 +290,48 @@ prune_file() {
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 prune_file "$HOOK_LOG" "ts"
+
+# --- the hook log root: shared file, per-session files, moved-aside prune sets ---
+# The shared file is pruned line by line like the retired one. Session files are
+# one session each and carry no `ts` worth scanning for a whole-file decision:
+# a file untouched for the whole window is removed whole (the SessionEnd
+# retention hook keeps the newest N regardless of age; `clean` is the
+# operator's explicit ask and applies the window alone). prune-pending/<set>
+# directories are what that hook moved aside for a detached archiver; it deletes
+# them itself after 24 h, but only while the plugin's logging switch is on, so
+# `clean` sweeps the stale ones whether or not the hooks still run.
+log "clean: hook log root $HOOK_ROOT"
+prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
+if [[ -d "$HOOK_ROOT/sessions" ]]; then
+  OLD_SESSIONS=()
+  while IFS= read -r f; do OLD_SESSIONS+=("$f"); done < <(
+    find "$HOOK_ROOT/sessions" -mindepth 1 -maxdepth 1 -type f -name '*.jsonl' -mmin +"$((KEEP_DAYS * 1440))" 2>/dev/null
+  )
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '  sessions/: %d file(s) untouched for %d days → would remove\n' "${#OLD_SESSIONS[@]}" "$KEEP_DAYS"
+  elif ((${#OLD_SESSIONS[@]} == 0)); then
+    log "  sessions/: no file untouched for $KEEP_DAYS days — no change"
+  else
+    rm -f -- "${OLD_SESSIONS[@]}"
+    printf '  sessions/: removed %d file(s) untouched for %d days\n' "${#OLD_SESSIONS[@]}" "$KEEP_DAYS"
+  fi
+else
+  log "  sessions/: missing — skip"
+fi
+if [[ -d "$HOOK_ROOT/prune-pending" ]]; then
+  STALE_PENDING=()
+  while IFS= read -r d; do STALE_PENDING+=("$d"); done < <(
+    find "$HOOK_ROOT/prune-pending" -mindepth 1 -maxdepth 1 -type d -mmin +1440 2>/dev/null
+  )
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '  prune-pending/: %d set(s) older than 24 h → would sweep\n' "${#STALE_PENDING[@]}"
+  elif ((${#STALE_PENDING[@]} == 0)); then
+    log "  prune-pending/: nothing older than 24 h — no change"
+  else
+    rm -rf -- "${STALE_PENDING[@]}"
+    printf '  prune-pending/: swept %d set(s) older than 24 h\n' "${#STALE_PENDING[@]}"
+  fi
+fi
 
 # --- skill-usage.jsonl (opt-in, its own window, its own resolved location) ---
 # Inert unless --skill-usage-scope is passed, so the default run is unchanged.

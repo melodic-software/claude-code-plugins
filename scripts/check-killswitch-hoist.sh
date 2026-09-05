@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Gate: a PreToolUse guard reads its kill switch BEFORE it sources any library.
+# Gate: a PreToolUse or PostToolUse hook reads its kill switch BEFORE it
+# sources any library.
 #
-#   scripts/check-killswitch-hoist.sh   fail on any PreToolUse guard whose
-#                                       kill switch sits below a `source` line
+#   scripts/check-killswitch-hoist.sh   fail on any PreToolUse or PostToolUse
+#                                       hook script whose kill switch sits
+#                                       below a `source` line
 #
 # Why: every guard ships a `<name>_enabled` userConfig boolean, and an operator
 # who turns one off is entitled to stop paying for it. Until #3719 all of them
@@ -42,11 +44,14 @@
 # fifteen copies get revisited rather than silently diverging. That pin is the
 # price of inlining, and it is why inlining is acceptable here at all.
 #
-# Scope: guards registered on PreToolUse in `plugins/*/hooks/hooks.json` and
-# implemented as shell scripts. A guard implemented in another language sources
-# no shell library, has no `source` line to sit above, and is reported as NOT
-# SCANNED rather than passed silently — today that is disk-hygiene's
-# destructive_guard.py and context-budget's node handler.
+# Scope: hooks registered on PreToolUse or PostToolUse in
+# `plugins/*/hooks/hooks.json` and implemented as shell scripts. PostToolUse
+# joined the scope with the formatter, normalizer and verifier hoist (the
+# per-tool-call rows the hook budget counts): the same shape, the same pin, one
+# gate. A hook implemented in another language sources no shell library, has no
+# `source` line to sit above, and is reported as NOT SCANNED rather than passed
+# silently — today that is disk-hygiene's destructive_guard.py and
+# context-budget's node handler.
 #
 # Exit 0 = clean; 1 = one or more violations; 1 also for an environment problem
 # (fail closed — never a silent skip).
@@ -87,8 +92,10 @@ if ((pin_ok == 0)); then
   exit 1
 fi
 
-# --- discover the PreToolUse guards -----------------------------------------
-# Every token ending in `.sh` inside a PreToolUse command names a guard, except
+# --- discover the PreToolUse and PostToolUse hooks ---------------------------
+# Every token ending in `.sh` inside a PreToolUse or PostToolUse command names a
+# guard (the word is kept for every scanned script; a formatter is held to the
+# same rule as a guard and the rule does not care what the script does), except
 # a LAUNCHER (below) and a `--lib` value (a bundled classifier, not a guard).
 # Bare names are launcher arguments and resolve under the same plugin's hooks/
 # directory.
@@ -142,15 +149,15 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       saw_guard=1
       guards+=("$hooks_dir/$base")
     done
-    # A PreToolUse row that named no shell guard is a guard this gate's rule does
+    # A scanned row that named no shell script is a hook this gate's rule does
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
     ((saw_guard)) || unscanned+=("$hooks_json")
-  done < <(jq -r '.hooks.PreToolUse[]?.hooks[]?.command // empty' "$hooks_json")
+  done < <(jq -r '(.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?.command // empty' "$hooks_json")
 done
 
 if ((${#guards[@]} == 0)); then
-  echo "check-killswitch-hoist: no PreToolUse shell guards found — refusing to report clean" >&2
+  echo "check-killswitch-hoist: no PreToolUse or PostToolUse shell hooks found — refusing to report clean" >&2
   exit 1
 fi
 
@@ -168,7 +175,7 @@ SOURCE_RE='^[[:space:]]*(source|\.)[[:space:]]+'
 violations=0
 for guard in "${guards[@]}"; do
   if [[ ! -f "$guard" ]]; then
-    echo "VIOLATION: $guard — registered on PreToolUse but missing from the tree" >&2
+    echo "VIOLATION: $guard — registered on PreToolUse or PostToolUse but missing from the tree" >&2
     violations=$((violations + 1))
     continue
   fi
@@ -229,7 +236,7 @@ done
 
 if ((${#unscanned[@]} > 0)); then
   mapfile -t unscanned < <(printf '%s\n' "${unscanned[@]}" | sort -u)
-  printf 'check-killswitch-hoist: NOT SCANNED (PreToolUse guard is not a shell script): %s\n' "${unscanned[@]}"
+  printf 'check-killswitch-hoist: NOT SCANNED (PreToolUse/PostToolUse hook is not a shell script): %s\n' "${unscanned[@]}"
 fi
 
 if ((violations > 0)); then
@@ -237,4 +244,4 @@ if ((violations > 0)); then
   exit 1
 fi
 
-printf 'check-killswitch-hoist: %d PreToolUse guard(s) read their kill switch before any source\n' "${#guards[@]}"
+printf 'check-killswitch-hoist: %d PreToolUse and PostToolUse hook script(s) read their kill switch before any source\n' "${#guards[@]}"

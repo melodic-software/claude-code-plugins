@@ -151,6 +151,18 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
+**Sink routing by session (reference sink, claude-ops 0.42.6).** The envelope's common fields carry
+no session identity, and hooks receive none from their environment (only the payload's
+`session_id`), so a producer that wants its rows filed per session adds `data.session_id` (the
+payload value, verbatim) under the additive rule above. The claude-ops reference sink routes on it:
+an envelope carrying a well-formed `data.session_id` is appended to
+`<root>/sessions/<session_id>.jsonl` beside the per-session event log, and an envelope without one
+goes to the shared `<root>/hook-events.jsonl` in the legacy shape. Today the nine claude-ops audit
+hooks send it. The fleet-wide addition to every producer, and promoting the key into the envelope
+spine as `schema_version` 1.1, are the follow-up tracked in #3758 (#930, which first raised it, is
+closed); until then a whole-root report covers every producer and a per-session report covers the
+producers that send the key.
+
 ## Implementers
 
 | Producer | `hook` value | Data schema |
