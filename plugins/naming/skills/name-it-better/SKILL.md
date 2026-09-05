@@ -1,5 +1,5 @@
 ---
-description: "Generate and evaluate fresh name candidates for anything: a variable, function, file, module, skill, repo, or domain term. Then let the human pick. Use when the target name is still UNDECIDED: 'name it better', 'better name', 'that name is wrong', 'suggest names', 'what should I call this', 'need a name for', 'come up with a name', 'help me rename this to something better'. Not for an already-decided rename ('rename X to Y', 'I renamed X'). That routes to the rename-references sweep. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
+description: "Generate and evaluate fresh name candidates for anything: a variable, function, file, module, skill, repo, or domain term. Then let the human pick. Use when the target name is still UNDECIDED, whether the ask is a fresh name ('suggest names', 'what should I call this') or a retry on one just rejected ('name it better', 'that name is wrong', 'help me rename this to something better'). Not for an already-decided rename ('rename X to Y', 'I renamed X'). That routes to the rename-references sweep. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
 argument-hint: "[tournament]"
 user-invocable: true
 disable-model-invocation: false
@@ -197,8 +197,7 @@ the widened candidates, fail contentless idioms and
 completed-work-presupposing names early, and disqualify any that match the rejected incumbent, contain
 a user-stated blocklisted word, or collide with the existing vocabulary
 (agent-inferred blocklist matches enter the bracket flagged, not
-disqualified). A rejected, blocklisted, or colliding name must never enter
-the bracket, let alone reach the finalist.
+disqualified).
 
 **Settle the scoring criteria before the generators return, and write them
 down.** The criteria are still resolved from the consuming project's own

@@ -87,6 +87,11 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 - No `gh` native subcommand that writes (create/edit/delete/enable/disable verbs).
 - No browser automation fires from this skill on a bare invocation.
 
+Verified 2026-09-05 against `gh api --help` on gh 2.97.0: the write-capable surfaces of `gh api`
+are the field flags (`-f`/`--raw-field`, `-F`/`--field`), `--input`, and a non-GET `--method`/`-X`.
+Recheck when a `gh` release note names a new `gh api` request-body or request-method flag, or when
+a read from this skill returns a non-GET method the list above does not explain.
+
 Requests to "just set it up for me" do not override this: emit the exact proposed change and point
 to `--apply`, which routes through the consumer's declared change routing.
 

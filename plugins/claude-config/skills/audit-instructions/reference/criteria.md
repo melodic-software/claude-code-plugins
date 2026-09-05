@@ -87,9 +87,7 @@ is refused is the **unanchored** form — an obligation that a surface *should s
 the finding points at no passage at all and the population is every file lacking the pattern. A
 proposed Detect clause reading "a surface that does not …", with no passage to cite, is refused on
 shape before its source is weighed, however well sourced. Such guidance routes to doctrine or to a mechanism instead, and an audit that
-declines a row on this ground says where it routed, so "no row" never reads as "not covered". In this
-monorepo the rule and its reasoning are `docs/adr/0008-admit-only-present-text-defects-to-the-instruction-audit-catalog.md`;
-in a standalone install the rule, not the path, is the requirement.
+declines a row on this ground says where it routed, so "no row" never reads as "not covered".
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -97,12 +95,15 @@ in a standalone install the rule, not the path, is the requirement.
   truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
   loop, never confident removals).
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
-  (a practitioner's stated practice). A closed three-value set.
+  (a practitioner's stated practice), or `HOUSE` (a session-knowledge defect this catalog defines
+  itself; it has no external page to cite, and it is on by default because its ground truth is the
+  surface's own text rather than a model-era claim). A closed four-value set.
 - **Severity** — `error` / `warning` / `info`.
 
 **Model scoping.** A check or row sourced from a SINGLE model's guide is annotated
-`Model scope: <version>` and FIRES only when the run's resolved target model (the skill body owns
-`--target-model` resolution) matches that scope; otherwise it is inert and the report lists it as
+`Model scope: <version>[, <version> ...]` and FIRES only when the run's resolved target
+model (the skill body owns `--target-model` resolution) exactly matches one of the listed tokens;
+otherwise it is inert and the report lists it as
 `skipped-for-target`. **The match is exact string equality of the normalized version token**
 (e.g. `opus-5`): a point release or a dated full model ID does NOT auto-match a base-version scope
 — model guides are calibrated per version, and successive guides have reversed each other, so a
@@ -146,6 +147,10 @@ I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Prompting Claude Opus 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
+- The bundled `claude-api` skill's model-migration reference (Claude Code 2.1.258), sections
+  Migrating to Claude Fable 5.1 and Migrating to Claude Fable 5.1 from Claude Fable 5. This is the
+  basis for every `fable-5-1` scope widening in this catalog. **Recheck trigger:** publication of a
+  Fable 5.1 prompting guide, which replaces this basis and joins this list in its place.
 - Prompting Claude Sonnet 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Prompting Claude Opus 4.8 —
@@ -154,7 +159,7 @@ I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their
   2026-07-24 — corroborates I6 from the model-delta side and I15 from the reasoning-cost side; a
   dated post, static once published, so a recheck is expected to find it unchanged; it corroborates
   rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of their primary
-  documentation sources and the closed three-value Authority set above is unchanged) —
+  documentation sources and the closed four-value Authority set above is unchanged) —
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
@@ -365,14 +370,14 @@ worked instance keeps a `fable-5` scope of its own.
 states the claim under its all-current-models framing — "Prefer general instructions over
 prescriptive steps. A prompt like 'think thoroughly' often produces better reasoning than a
 hand-written step-by-step plan. Claude's reasoning frequently exceeds what a human would
-prescribe." (Previously scoped `fable-5` on that guide's statement alone.) **The worked instance
+prescribe." **The worked instance
 below keeps a `fable-5` scope of its own** — its basis is Fable-specific and the Opus guides run
 the other way.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists — instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
   **One named worked instance, offered for recognition rather than as a separate rule, and fired
-  only on a `fable-5` resolved target: a delegation throttle** — a cap on concurrent workers, a
+  only on a `fable-5` or `fable-5-1` resolved target: a delegation throttle** — a cap on concurrent workers, a
   one-at-a-time rule, or an instruction to block until each subagent returns before dispatching the
   next — where the surface's own ground for it is that subagent handling is unreliable. The Fable 5
   guide runs the other way, asking for readier dispatch and asynchronous orchestrator-to-worker
@@ -509,7 +514,7 @@ choice, on the same reasoning I10 applies to a declined widening.
   enumerates the models that do *not* leak, so those two sections are the whole of what there is
   to re-read.
 
-**Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
+**Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5, fable-5-1`.
 
 - **Detect:** instruction text resting on the premise that a turn is short — a directive to answer
   quickly or keep turns brief, or any required progress rhythm pinned to a turn rather than to the
@@ -543,19 +548,18 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Source:** Fable 5 guide, "Longer turns by default" — "Individual requests on hard tasks can run
   for many minutes at higher effort settings … and autonomous runs can extend for hours. This is one
   of the largest shifts teams encounter when adjusting to Claude Fable 5."
+- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
+  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
+  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
+  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
+  whose statement of this claim replaces this basis and joins `## Sources`.
 
 **Row I8-e: forced interim-status cadence** · Tier `behavioral`. Unscoped — promotion gate MET:
 two model guides state the claim (see Source).
 
-**Why unscoped, and when that changed.** This row shipped scoped `sonnet-5`, because only the
-Sonnet 5 guide *stated* the claim — that the model already reports well, so the scaffolding is
-redundant — while I8-d reached the same shape on a Fable 5 target only by inference from that
-guide's turn-duration premise, and an inference is not a second statement. The row's own recheck
-trigger — "any second model guide stating the claim" — fired: the Opus 4.8 guide's "User-facing
-progress updates" section states the same claim, with the same worked example and the same
-removal advice, near-verbatim. Gate met, row unscoped (2026-08-08). The Fable 5 guide's verified
-negative below still stands as a reading of that guide; it is no longer load-bearing for scope.
-**This row now owns the cadence shape on every target** — I8-d cedes it (see that row) so the two
+Unscoped: two model guides state the claim (see Source), which meets the promotion gate. The Fable
+5 guide's verified negative below is a reading of that guide and is not load-bearing for scope.
+**This row owns the cadence shape on every target**; I8-d cedes it (see that row) so the two
 report one finding per line rather than two.
 
 - **Detect:** an instruction requiring interim status output on a fixed mechanical interval. The
@@ -598,7 +602,7 @@ report one finding per line rather than two.
   `6b9db5b784ad6a7b2e6307c1481b8be9`). The 2026-08-04 **verified negative** on the Fable 5 guide —
   "Longer turns by default" prescribes only client-side adjustments, no section prescribes removing
   instructed status cadence, and "Create a send-to-user tool" runs the other way — was re-verified
-  2026-08-08 against that guide's raw `.md` and is retained as a reading of that guide, no longer
+  2026-08-08 against that guide's raw `.md` and is retained as a reading of that guide, not
   load-bearing for scope. **Recheck trigger:** either gate source ceasing to prescribe removal of
   forced status scaffolding, which re-opens the scoping question.
 
@@ -622,7 +626,8 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 ### I10: Reasoning-echo directives
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`fable-5` (the cited refusal category is documented for that model only; promotion gate unmet).
+`fable-5, fable-5-1` (the cited refusal category is documented for that model only; promotion gate
+unmet).
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
   reasoning as response text. The deterministic pre-scan marks show-your-thinking phrasing.
@@ -640,18 +645,23 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces:
   raw-chain-of-thought property, then names Fable 5 alone for the refusal — a sentence-adjacent
   chance to widen, declined, so the narrower scope is deliberate.
 
-  **`Model scope: fable-5` is now positively sourced rather than held by that declined widening**,
+  **`Model scope: fable-5` is positively sourced**,
   in two statements each taken from the page that owns its half. The page that owns Mythos 5 states
   the exclusion at the level of the whole classifier set: "Claude Fable 5 includes safety
   classifiers that can decline certain requests. Claude Mythos 5 does not include these classifiers,
   so this section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
   5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
   fetched 2026-08-03). Refusals and fallback places this row's category inside that set, listing
-  `reasoning_extraction` among the classifier categories a refusal reports. The scope conclusion is
-  unchanged — what changed is that a reader no longer has to reconstruct it from an omission. Which
+  `reasoning_extraction` among the classifier categories a refusal reports. Which
   models carry the classifier set is a per-model fact and moves, so the introducing page joins
   `## Sources`: the catalog-wide trigger then fires this row whenever that page changes, and no
   narrower per-row trigger is owed.
+
+- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
+  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
+  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
+  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
+  whose statement of this claim replaces this basis and joins `## Sources`.
 
 ### I11: CLI over MCP where equivalent
 
@@ -1410,7 +1420,7 @@ by `--opinion`.
 ### I23: Context-budget directive to stop, summarize, or hand off
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
-`fable-5` (sourced from that guide alone; promotion gate unmet).
+`fable-5, fable-5-1` (sourced from that guide alone; promotion gate unmet).
 
 **The tier keys on the ground truth of the defect, not of the detection.** The phrasing is statically
 readable, which tempts a `mechanical` tag — but I8-b's Detect is a literal three-phrase match and is
@@ -1484,10 +1494,9 @@ confident removals.
   model-side invocation the skill has — including the ones a user asks for in the words its
   description exists to match — to remove one clause. Removing the clause costs only the behavior
   the source counsels against.
-- **Pre-scan seeded (`I23`).** The blast-radius argument that deferred the seeding — a continuation
-  skill can barely be model-invocable without naming a context trigger somewhere — was an argument
-  about a population whose disposition was unsettled. Under the licensing rule above that population
-  resolves: its members are true positives, not noise. **The pattern marks budget phrasing alone and
+- **Pre-scan seeded (`I23`).** A continuation skill can barely be model-invocable without naming a
+  context trigger somewhere, and under the licensing rule above those triggers are true positives,
+  not noise. **The pattern marks budget phrasing alone and
   never the verb it governs**, because the trigger and the action it licenses routinely sit in
   different sentences; the counter-steer text that forbids the behavior therefore matches too
   (inverted polarity, exempt), as do documents about the pattern and operator-facing budgets. That
@@ -1507,6 +1516,11 @@ confident removals.
   against it. **Recheck trigger:** a second model guide stating the claim — which would meet the
   promotion gate and unscope this row — or that section ceasing to name the remaining-token
   countdown as the trigger, which is what joins the disclosure arm to the directive arm.
+- **Widened to `fable-5-1` on 2026-09-03:** the bundled `claude-api` skill's model-migration
+  reference (Claude Code 2.1.258), sections Migrating to Claude Fable 5.1 and Migrating to Claude
+  Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
+  prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
+  whose statement of this claim replaces this basis and joins `## Sources`.
 
 ### I24: Instruction relying on silent generalization
 
@@ -1715,20 +1729,19 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   the directive's wording means the remediation overreached.
 - **Body-scoped when it routes to the relay.** No emitted finding may carry a remediation that
   edits a `description`, a `when_to_use`, or a quoted `'trigger phrase'`:
-  `plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
-  trigger phrase versus the base ref, so such an edit is an auto-invocation regression rather than a
-  debatable suggestion. A
+  those fields are routing text, so such an edit is an auto-invocation regression rather than a
+  debatable suggestion (the `skill-quality` plugin's `check-skill.sh` gate, where it runs, warns on
+  a dropped trigger phrase against the base ref). A
   coercive phrase inside a description is still a real observation — it is reported to the human
   and never routed to the relay.
-- **V1 selection scope, deliberately narrower than the Detect prose.** Two forms the class covers
-  are **not** mechanically selected in V1, recorded here rather than left as a silent gap: a
+- **Scanner selection scope, deliberately narrower than the Detect prose.** Two forms the class
+  covers are **not** mechanically selected, recorded here rather than left as a silent gap: a
   **whole bolded sentence** used as a shout, and a **general all-caps imperative run** beyond the
   fixed marker list. Both are too common in ordinary technical prose to select without a false-
   positive rate that would swamp the relay — bold lead-ins are this repo's house style, and
   all-caps runs collide with acronyms, file names, and env vars. The model lane still judges them
   under this row; only the deterministic scanner withholds. Widening either is a calibration
-  change that lands in the scanner with fixtures, the same way `ai-slop` deferred its third
-  negative-parallelism pattern.
+  change that lands in the scanner with fixtures.
 
 ### I29: Body prose that restates the always-in-context description, or a sibling section
 
@@ -1749,9 +1762,8 @@ the defect is session knowledge, not a model-era scar.
 - **Must NOT flag: inline fencing.** A bolded `What tidy is NOT` sub-block inside `## Purpose`
   is the upstream inline pattern, not a standalone heading, and is not a section.
 - **Must NOT flag: short orientation.** A section whose normalized text is under the scanner's
-  length/token floor is the "deliberate short restatement in a genuinely short skill" case
-  #3186 parks for the model-graded lane. The mechanical scanner stays silent; the lane may
-  still judge it.
+  length/token floor is a deliberate short restatement in a genuinely short skill, left to the
+  model-graded lane. The mechanical scanner stays silent; the lane may still judge it.
 - **Must NOT flag: footer / index headings as findings.** `## Cross-references`, `## Sources`,
   `## History`, `## External authority`, `## Recheck triggers` are sources for sibling
   comparison and are never themselves a restatement finding.

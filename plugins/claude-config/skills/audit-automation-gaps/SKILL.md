@@ -122,8 +122,8 @@ disqualified by performance or existing enforcement). Group related queries to m
 Verify Claude Code mechanisms against official docs
 ([code.claude.com/docs/en/hooks](https://code.claude.com/docs/en/hooks),
 [code.claude.com/docs/en/mcp](https://code.claude.com/docs/en/mcp)); use web search for tool
-performance and community practices. Prefer direct research in main context over agent delegation
-when capacity allows.
+performance and community practices. Delegate the fetches and keep the verdicts: agents gather
+evidence, and the gate decisions in 2.3 stay in the main context.
 
 ### 2.3 Vet / Validate (Quality Gates)
 
@@ -199,7 +199,7 @@ steps stand on their own otherwise.
 
 ## Quality Principles
 
-Lessons from evaluation sessions:
+Principles that govern every verdict:
 
 1. **The enforcement hierarchy is your first check.** Most "gaps" are covered by the compiler-through-git-hooks levels
 2. **Measure, don't assume.** Time every tool before recommending it as a hook. A formatter looks perfect until you measure 15+ seconds per file

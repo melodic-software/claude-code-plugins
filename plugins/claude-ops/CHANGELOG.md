@@ -3,6 +3,48 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.9]
+
+### Changed
+
+- **audit-install-state:** the deny-listed subtree, IDE lock, cross-review, and dedupe rules state
+  the mechanism instead of retelling the audit that motivated them; the evidence-discipline,
+  name-scheme, and scope-and-handoff references do the same, and the stale zero-byte
+  `AGENTS.md`/`CLAUDE.md` worked example is gone.
+- **audit-performance:** the read allowlist explains what the last two entries buy rather than
+  which ones are new.
+- **audit-skill-visibility:** the fleet-count, scope-entry, and skill-set-divergence rules state
+  the mechanism instead of one machine's measured counts.
+- **changelog:** the plan phase states the goal instead of four generic planning steps, and the
+  classification rubric uses a model placeholder instead of a pinned model name.
+- **inventory:** the runtime-resolution rationale describes how a regex-only pass fails instead of
+  narrating earlier drafts.
+- **known-issues:** the GitHub search step takes whatever authentication the consumer already has,
+  and the maintainer to-do list of unintegrated sources is dropped.
+- **lanes:** every tracker reference is out of the body, the description, and the reference files;
+  the prompt-storage contract is stated in the present tense with `prompt_dir` as its seam; and the
+  telemetry-upsert summary points at the script's `--help` header instead of copying it.
+- **morning-brief:** the stranded-findings rationale drops its tracker reference.
+- **observability:** the compute/privacy/render step names its three references, the Collector
+  duplicate-mechanism rule is stated positively, the provisioning issue links are gone, and three
+  roadmap notes are replaced by the current boundary.
+- **plugins:** the `fleet-state.sh` project-root citation names the resolution rather than a line
+  range, the pin-confirmation and marketplace-refresh rules drop their brief citations, and the
+  Windows CRLF and `--ids current-project` notes drop their incident tallies and version diffs.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.42.8]
+
+### Fixed
+
+- **`lanes`, `observability`:** the git pre-compute lines moved out of `## Pre-computed context`
+  into a "Repository context. Gather first" body section of individual Bash calls, one command per
+  call, each `head` bound kept inside its command and a failure read as an unknown value. The
+  harness composes a skill's whole pre-compute block into one shell invocation, and a
+  worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
+  loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
+  lines stay where they were.
+
 ## [0.42.7]
 
 ### Changed

@@ -8,8 +8,8 @@ race converges.
 The upsert is inlined in this plugin rather than invoked from `claude-ops` because an installed
 plugin cannot invoke a sibling plugin's scripts.
 
-Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane type
-(#1295): a marker naming only the lane makes two concurrent instances resolve one comment and
+Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane
+type: a marker naming only the lane makes two concurrent instances resolve one comment and
 clobber each other's durable state. The id is `${user_config.lane_instance}`; a surviving literal
 `${user_config.…}` placeholder means the key is unset, so fall back to the sanitized lowercased
 hostname (headless-config floor: log the assumption). It is operator-supplied text about to be
@@ -78,7 +78,7 @@ below it. The lookup matches on that prefix, so a body composed without it is no
 here. It would never be found again, and the next cycle would post a second comment. Compose the
 sentinel into the file; do not rely on anything downstream to add it.
 
-**Body gate, write check, and read-back (encoded above, #943).** Three checks, because they catch
+**Body gate, write check, and read-back (encoded above).** Three checks, because they catch
 different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
 that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
 below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes
@@ -88,9 +88,8 @@ line ends in LF or CRLF. The **write's own exit status** is checked next: a PATC
 the previous cycle's body in place, which a read-back running regardless would happily accept. The
 **post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
 reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
-comment. It is also the half that would have caught #943 itself, where the composed file was correct
-and the defect was the invocation (`-f body=@FILE` transmits the literal path; this block only ever
-uses `-F body=@`).
+comment. It is also the only check that catches a defect in the invocation rather than the body:
+`-f body=@FILE` transmits the literal path, so this block only ever uses `-F body=@`.
 
 Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
 cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that

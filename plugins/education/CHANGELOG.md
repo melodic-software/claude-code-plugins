@@ -3,6 +3,23 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Changed
+
+- **quiz-me:** the literal-path note states the fallback when a guardrail blocks a write, without
+  the cross-plugin issue reference.
+- **teach:** the workspace-root ladder states its value grammar and its plugin-data rung without
+  the precedent credit or the pre-ladder aside; the gather-call note drops its issue number;
+  `context/lessons.md` states the workspace-HTML classification without the deviation note.
+- **eli5:** the Examples section agrees with Gotchas that a bare `/eli5` may reach the upstream
+  skill; the officialization gotcha states its trigger without narrating the upstream author's
+  plans; the description keeps four example phrases.
+- **setup:** the Output section reports the teach workspace root alongside the other two keys;
+  the matching eval case asserts all three.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.10.3]
 
 ### Changed

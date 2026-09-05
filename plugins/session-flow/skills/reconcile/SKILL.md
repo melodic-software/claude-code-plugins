@@ -126,11 +126,11 @@ outcome. Do not manufacture retirements or ledger edits to look thorough.
   harness control reaches only this session's own work.
 - **Does not read a subagent's internal task list**. It reconciles only this
   session's own ledger.
-- **Does not enumerate MCP / browser / playwright tool state.** Cut from V1:
-  no generic tool-state enumeration surface exists, and closing user-owned
-  state (a browser tab) would be destructive-against-user. Deferred with a
-  trigger. Revisit when a generic tool-state surface appears in the harness,
-  or a per-tool seam convention is established for it.
+- **Does not enumerate MCP / browser / playwright tool state.** No generic
+  tool-state enumeration surface exists in the harness, and closing
+  user-owned state (a browser tab) would be destructive against the user.
+  Revisit when a generic tool-state surface appears in the harness, or a
+  per-tool seam convention is established for it.
 - **Does not deep-parse transcripts**. Sibling-session liveness is mtime plus
   a coarse tail read only; the JSONL format is officially unstable.
 

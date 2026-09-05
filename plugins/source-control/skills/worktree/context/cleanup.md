@@ -106,10 +106,8 @@ file may simply never have been carried). Removal without this pass loses the ed
 **3. Reap the worktree's project-scope plugin install records.** Claude Code records a project-scope
 plugin install in `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`, and
 nothing reaps that record when the path goes away. A worktree therefore leaves one record per
-installed plugin behind, permanently — measured on this convention's own author machine: 108
-project-scope records, across 8 marketplaces, every one of them naming a single worktree directory
-that no longer exists. Removing the directory is the last moment at which those records are both
-identifiable and provably dead, so removal is where they are removed too:
+installed plugin behind, permanently. Removing the directory is the last moment at which those
+records are both identifiable and provably dead, so removal is where they are removed too:
 
 ```bash
 # Run FROM INSIDE the candidate, after both guards above have cleared.

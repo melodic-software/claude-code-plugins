@@ -137,15 +137,15 @@ over shaping. A 7-decision table renders all 7 rows.
 
 ### 10. No preamble, no recap, no closers
 
-<!-- ai-slop-ignore-start: forbidden-phrase list quotes the tells it bans -->
-- Forbidden openers: "Great question," "Let me…," "I'll…," "Sure!," "Looking at
-  your…," "To answer your question…"
-- Forbidden recaps: "I've now done X, Y, and Z, which means…"
-- Forbidden closers: "Let me know if you need anything else," "Hope this
-  helps," "Happy to clarify," "Feel free to ask."
-<!-- ai-slop-ignore-end -->
+Start with the answer. Stop when the answer is done. Do not open by announcing
+what you are about to do, do not restate what you just finished, and do not
+close with a pleasantry or an offer of further help.
 
-Start with the answer. Stop when the answer is done.
+<!-- ai-slop-ignore-start: illustrative only, quotes the tells it bans -->
+- Weak: "Great question. Let me look at your project…" at the top, "Hope this
+  helps, let me know if you need anything else" at the bottom.
+- Strong: the answer, then nothing.
+<!-- ai-slop-ignore-end -->
 
 ## When to override these defaults
 
@@ -177,22 +177,10 @@ Then check: reading only the first line and the last line, does the reader know
 
 ## Gotchas
 
-Observed failures from a live audit of this skill (adhd@0.2.0, 2026-07-23):
-
-- **Applied silently alongside an active conflicting shaper.** With caveman's
-  hooks injecting terse-for-tokens instructions, invoking this skill produced
-  the exact "contradictory, unpredictable mix" the README warns about, with no
-  conflict flagged. The warning lived only in README/plugin.json, layers the
-  model never reads at invocation time. The conflicting-shaper check above is
-  the fix; it is advisory by necessity (no documented skill-to-hook detection
-  mechanism exists).
 - **The standing posture erodes across context compaction.** "Applies for the
-  rest of the session" is content-based persistence: when the conversation is
-  summarized/compacted, the rules can drop out of context. Re-invoke
-  `/adhd:shape` after a compaction if responses stop being shaped.
-- **Rules 5 vs 10 read as contradictory without the boundary test.** "Restate
-  state every turn" vs "no recap". The explicit test now lives in rule 5
-  (last-completed step + next step only; never a running done-list).
+  rest of the session" is content-based persistence, so a summarized or
+  compacted conversation can drop these rules out of context. Re-invoke
+  `/adhd:shape` if responses stop being shaped.
 
 ## Attribution
 

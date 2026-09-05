@@ -15,8 +15,7 @@ Parse `$ARGUMENTS`:
   substituted inline in skill content before this file reaches you, so the literal token is never
   visible and the test is not yours to make. You would be deciding "is it set?" about a value that
   has already been resolved. Work from what you can observe: the resolved path, or a command you run.
-  The sibling `audit-prompting-postures` states this same rule where it derives its report path, and
-  the two skills contradicted each other on it until this was fixed.
+  The sibling `audit-prompting-postures` states this same rule where it derives its report path.
 
   **`target` must resolve to the active project root, and a path that does not is refused.** The
   delegated interfaces accept no target: `audit-instructions` takes a surface scope and inventories
@@ -43,8 +42,8 @@ Parse `$ARGUMENTS`:
   So for the diagnostic only, fall back to the current directory and name **that**. A refusal that
   cannot say which path it refused is barely better than a silent one. The fallback is for the message;
   it never becomes a target.
-  Requiring only "the active project root" let a non-git directory through into a contract with no
-  branch for it, and the run then went quiet in four places rather than one:
+  A non-git directory has no branch in this contract, and a run over one goes quiet in four places
+  rather than one:
 
   - the scan baseline is *the target's HEAD commit and the run's state digest*, and HEAD does not
     exist;
@@ -59,8 +58,8 @@ Parse `$ARGUMENTS`:
 
   **The refusal says that cost out loud** rather than reading as an arbitrary restriction, and it names
   the suppression consequence in particular. Refusing closes a target class deliberately; it is not a
-  side effect. The alternative, specifying all four branches, was considered and rejected, because
-  the last of them obliges the contract to promise a capability it can never deliver on that class.
+  side effect. Specifying all four branches is not an alternative: the last of them obliges the
+  contract to promise a capability it can never deliver on that class.
   A non-git directory is audited by opening it as a repository, or by the delegated skills directly.
 - **`--fix`**: the explicit mutation override. Absent, the pass writes nothing into the target.
 - **`--opinion`**: run the `OPINION`-tier checks the delegated catalogs declare default-off.

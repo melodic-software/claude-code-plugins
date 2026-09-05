@@ -7,14 +7,14 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form, matching hooks/hooks.json (#2568). Exec form resolves
-        # `command` on PATH with no shell, and the bare `python3` this used to
-        # name is the zero-length WindowsApps App Execution Alias stub on stock
+        # Shell form, matching hooks/hooks.json. Exec form resolves
+        # `command` on PATH with no shell, and a bare `python3` there is
+        # the zero-length WindowsApps App Execution Alias stub on stock
         # Windows, the hook cannot launch, and a failed launch is non-blocking,
         # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
         # rejects that stub and falls through to `python`, then `py -3`.
-        # `${CLAUDE_PLUGIN_ROOT}` is the ONLY substitution a skill-frontmatter
-        # hook receives (#1014). Never ${CLAUDE_PLUGIN_DATA} or
+        # `${CLAUDE_PLUGIN_ROOT}` is the only substitution a skill-frontmatter
+        # hook receives. Never ${CLAUDE_PLUGIN_DATA} or
         # ${user_config.*}, either of which makes Claude Code refuse the launch.
         # The single-quoted YAML scalar is the same value hooks.json spells with
         # \" escapes; every path placeholder must stay double-quoted, because the
@@ -44,9 +44,7 @@ engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, 
 `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
 subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform, the gated engine lane where the
-platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
-unification, not a restatement: the flag previously read as engine-lane-only, which left the
-manual lane's gate ambiguous, consumer sessions read it both ways.) `--max-depth <N>` bounds a
+platform supports it, the manual handoff elsewhere; it is not approval. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
@@ -58,7 +56,7 @@ root-children row, it audits only those admitted children into one snapshot. A g
 everything" is not selection. With no target, ask once. Reject an
 OS-managed root (unless `--root-children`), a non-root mount target, a protected shell-folder root
 or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
-is not OS-managed (a Windows Dev Drive) is no longer rejected outright, it is a valid target, but
+is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
 `--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
@@ -350,8 +348,8 @@ outlives the cleanup. Do not improvise a manual deletion lane from the engine st
 
 ## Gotchas
 
-Harness mechanics are not restated here, one copy only, because two is how a stale claim survived
-a fix to the reference (#2618). Load [the safety model](reference/safety-model.md) when you need
+Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale
+restatement behind here. Load [the safety model](reference/safety-model.md) when you need
 them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
 what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
 and the residual fail-open → "Hook launch form".

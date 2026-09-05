@@ -39,6 +39,19 @@
         "States that fable-5 has no vendored upstream self-update path",
         "Names the sanctioned update route if any update is needed"
       ]
+    },
+    {
+      "id": 4,
+      "name": "trigger-fable-5-1-adaptation-chapter",
+      "prompt": "fable 5.1 adaptation",
+      "expected_output": "Loads the Fable 5.1 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Routes to the Fable 5.1 adaptation chapter, fable-5-1.md, not a generic 'read every adaptation file' dump",
+        "Does not apply an Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
+        "Does not treat the request as a /playbooks:update drift check"
+      ]
     }
   ]
 }

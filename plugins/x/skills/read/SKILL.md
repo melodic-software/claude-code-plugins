@@ -1,5 +1,5 @@
 ---
-description: "Read an X (formerly Twitter) post, note tweet, or X Article as Markdown without an X API key, by routing the URL through third-party converters — xtomd.com for a single post or article, Thread Reader App for an unrolled reply chain. Use when: 'read this X link', 'read this tweet', 'what does this X post say', 'convert this X article to markdown', 'unroll this thread', 'I pasted an X link', 'WebFetch returned a login wall on x.com', or research turns up an x.com or twitter.com status URL whose text you need. Skip for non-X URLs (WebFetch suffices) and for private, protected, or deleted posts, which no converter can reach."
+description: "Read an X (formerly Twitter) post, note tweet, or X Article as Markdown without an X API key, by routing the URL through third-party converters: xtomd.com for a single post or article, Thread Reader App for an unrolled reply chain. Use when: an x.com or twitter.com status or article URL needs its text read, whether the user pasted it or research turned it up, 'read this X link', 'unroll this thread', 'convert this X article to markdown', or 'WebFetch returned a login wall on x.com'. Skip for non-X URLs (WebFetch suffices) and for private, protected, or deleted posts, which no converter can reach."
 argument-hint: "<x-url>, an x.com or twitter.com status or article URL"
 user-invocable: true
 disable-model-invocation: false
@@ -112,10 +112,9 @@ request can be issued in the first place. A scheme that is neither `http` nor `h
 at all.
 
 **Honest limit:** this gate is instruction-level, model-honored, and not runtime-enforced. It is the
-primary defense, not a guarantee. The plugin therefore also ships **no** Bash or PowerShell
-pre-approval, so the network call surfaces a permission prompt showing the exact command, the one
-runtime-enforced layer available without a `PreToolUse` hook. A validating hook is the stronger
-control and is deferred, with re-approving this grant as its trigger.
+primary defense, not a guarantee. The plugin therefore ships **no** Bash or PowerShell pre-approval,
+so the network call surfaces a permission prompt showing the exact command. That prompt is the
+runtime-enforced layer this plugin relies on.
 
 ## The ladder
 

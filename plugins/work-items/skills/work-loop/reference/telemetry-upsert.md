@@ -8,7 +8,7 @@ and how a creation race converges.
 The upsert is inlined in this plugin rather than invoked from `claude-ops` because an installed
 plugin cannot invoke a sibling plugin's scripts.
 
-**Resolve the lane instance first (#1295).** The marker names the *writer*, not the lane type, per
+**Resolve the lane instance first.** The marker names the *writer*, not the lane type, per
 the convention's lane-instance identity rule. Resolution order matches
 `SKILL.md`'s invocation surface (cited from [invocation-argv.md](invocation-argv.md)): a supplied
 `--instance` token wins, else persisted `lane_instance` from the durable state block, else
@@ -84,7 +84,7 @@ below it. The lookup matches on that prefix, so a body composed without it is no
 here. It would never be found again, and the next cycle would post a second comment. Compose the
 sentinel into the file; do not rely on anything downstream to add it.
 
-**Body gate, write check, and read-back (encoded above, #943).** Three checks, because they catch
+**Body gate, write check, and read-back (encoded above).** Three checks, because they catch
 different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
 that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
 below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes
@@ -94,9 +94,8 @@ line ends in LF or CRLF. The **write's own exit status** is checked next: a PATC
 the previous cycle's body in place, which a read-back running regardless would happily accept. The
 **post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
 reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
-comment. It is also the half that would have caught #943 itself, where the composed file was correct
-and the defect was the invocation (`-f body=@FILE` transmits the literal path; this block only ever
-uses `-F body=@`).
+comment. It is also the only check that catches a correct body sent with the wrong flag:
+`-f body=@FILE` transmits the literal path, which is why this block only ever uses `-F body=@`.
 
 Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
 cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that

@@ -1,30 +1,9 @@
 # Plugin-acceptance security review
 
-Reviewed 2026-07-16 against the repository migration playbook and current official Claude Code plugin,
-skills, Git, GitHub CLI, and GitHub REST documentation. Re-checked 2026-07-31 for #1795 (historical:
-on the then-REST `gh pr list` path, the merged-PR batch limit was raised from hardcoded 100 to 200 and
-the probe allowlist was keyed to those batch/head limits rather than hardcoded 200/100 literals;
-truncation at the cap emitted `UNKNOWN` and did not widen network egress). Superseded by the
-2026-08-14 re-check below — those REST batch/head limit names no longer exist after the GraphQL
-migration.
-Re-checked 2026-08-11 for the `allowed-tools` pairing fix: the grant is now a narrow, skill-anchored
-`Bash(${CLAUDE_SKILL_DIR}/scripts/audit-fleet.sh:*)` matching the body's direct invocation. No new
-execution, network, or config surface — the previous rule never matched, so this makes an already
-user-invoked script prompt-free rather than admitting anything new.
-Re-checked 2026-08-14 for #2604: merge evidence moves from REST `gh pr list` (window + privacy-gated
-`--head` fallback) to one aliased `gh api graphql` query per page of local branches
-(`MERGED_PR_GRAPHQL_ALIAS_PAGE` aliases per call). The allowlist admits only `query` documents with
-exact `headRefName` / `first:1` / `states:[MERGED]` shape and a fixed `--jq` flatten
-(`MERGED_PR_GRAPHQL_JQ`); `mutation`/`subscription` and REST `pr list` are rejected. Branch names
-transmitted are exactly the non-default local branches under audit for the operator's own resolved
-repository identity — not a silent gate that leaves branches unverdicted.
-Re-checked 2026-08-15 for #2607 (`merged-remote-branch`): reuses the same aliased GraphQL
-merged-PR evidence, also querying remote-only head names from the local remote-tracking inventory.
-Live HIGH confidence additionally requires allowlisted `git ls-remote --heads <remote>
-refs/heads/<branch>` (read-only; empty result suppresses the finding; probe failure demotes to
-MEDIUM). No new API endpoints, no mutation allowlist entries (`git push` remains rejected), and no
-org-admin repository-settings writes — `delete_branch_on_merge` is named in evidence/handoff prose
-only.
+Reviewed 2026-07-16 against the repository migration playbook and the official Claude Code plugin,
+skills, Git, GitHub CLI, and GitHub REST documentation. Recheck trigger: any change to the
+collector's Git/gh allowlist, to the GraphQL query shape, or to the set of values transmitted off
+the machine.
 
 ## Decision
 
@@ -52,8 +31,9 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
    documented invocation resolve to the same install-local path. The plugin writes no cache or
    persistent state and has no sibling-plugin reach-outs.
 5. **Data egress:** `git` reads local metadata. `gh api` (REST identity GET and aliased GraphQL
-   merged-PR queries) contacts only `github.com` and transmits repository identity plus the
-   non-default local branch names under audit for that repository. No file content, report, commit
+   merged-PR queries) contacts only `github.com` and transmits repository identity, the non-default local branch names
+   under audit for that repository, and any remote-only head names read from the local
+   remote-tracking inventory. No file content, report, commit
    content, diff, environment value, or absolute local path is sent. Non-GitHub hosts are not
    contacted, and every `gh` call has a `GH_TIMEOUT_SECONDS` deadline plus a
    `GH_KILL_AFTER_SECONDS` KILL grace. Compatible coreutils is feature-detected; a finite Bash
@@ -90,6 +70,9 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
 - A same-named branch in another repository cannot inherit PR status because every PR query includes
   the resolved repository identity.
 - GraphQL `headRefName` is exact; a merged `feature/auth-v2` cannot satisfy `feature/auth`.
+- The GraphQL allowlist admits only `query` documents in the collector's exact
+  `headRefName` / `first:1` / `states:[MERGED]` shape with the fixed `MERGED_PR_GRAPHQL_JQ` flatten,
+  and `git ls-remote --heads <remote> refs/heads/<branch>` as the only remote probe.
 - A canonical override cannot contribute local evidence until its GitHub remote is present and proven
   identical to the discovered repository (direct normalized identity or matching canonical API result).
 - A failed worktree porcelain query cannot be mistaken for an empty attachment set; the repository's

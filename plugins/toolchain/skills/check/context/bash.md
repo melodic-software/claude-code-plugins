@@ -6,7 +6,7 @@ Bash has no build step — shell tests, static analysis, and formatting.
 
 Use the consuming project's documented shell-test runner when it has one (a `*.test.sh` discovery script, bats, or similar). When none is documented, there is no default — report `—` for the test column.
 
-**CI-environment caveat:** shell tests can pass locally and fail in CI when they depend on environment differences (installed SDKs, tool output formatting, pruned packages). When local pass + CI fail, suspect a CI-environment-specific assumption before assuming a real bug.
+**CI-environment caveat:** shell tests can pass locally and fail in CI when they depend on environment differences (installed SDKs, tool output formatting, pruned packages).
 
 ## Lint (ShellCheck)
 

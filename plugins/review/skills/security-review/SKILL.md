@@ -11,7 +11,7 @@ metadata:
 # CI security review (`/review:security-review`)
 
 Org-owned security review logic for the `claude-security-review` reusable
-workflow (ci-workflows#258). Built-in `/security-review` is unusable in CI
+workflow. Built-in `/security-review` is unusable in CI
 (origin/HEAD unresolvable under the Actions checkout action; cannot post). This org-authored skill is the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
@@ -20,8 +20,6 @@ workflow (ci-workflows#258). Built-in `/security-review` is unusable in CI
 
 - Skill frontmatter cannot install the inline-comment MCP server. Only the
   action's `claude_args` can. Rely on the wrapper grant.
-- Do not use a stale 0–100 confidence-score tuning line. Prefer adversarial
-  validation (producer ≠ verifier) for candidate findings.
 - Report **security issues only**. No style, naming, test-coverage, or general
   code-quality commentary (that is `/review:code-review`).
 
@@ -41,20 +39,19 @@ in this PR: use `gh pr diff` to see what changed, then read those files. Do not
 audit unrelated parts of the codebase.
 
 Hunt for vulnerabilities that static analysis misses: logic flaws, authorization
-and access-control gaps, injection surfaces (command, SQL, path, template),
-unsafe handling of tokens / secrets / credentials, and dangerous GitHub Actions
-patterns. `pull_request_target` or `workflow_run` used with secrets over
-untrusted code, script injection through the `github` context inside `run:`
-blocks, permission-widening changes to a workflow's `permissions:` or to
-settings / config, and supply-chain risk from loosened or unpinned action /
-dependency pins.
+and access-control gaps, injection surfaces (command, SQL, path, template), and
+unsafe handling of tokens / secrets / credentials. Tag each finding with a
+severity (CRITICAL / IMPORTANT / SUGGESTION).
 
-Tag each finding with a severity (CRITICAL / IMPORTANT / SUGGESTION). Defer to
-zizmor's advisory lane for what it already covers statically. Supply-chain /
-unpinned-action risk, dangerous trigger patterns, excessive permissions, and
-template injection: do not re-report those findings here. This lane's value is
-the logic, architecture, data-flow, and trust-boundary security reasoning static
-analysis cannot reach. If you find no security issues, say so plainly.
+GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
+`pull_request_target` or `workflow_run` running untrusted code with secrets,
+expression injection through the `github` context inside `run:` blocks,
+permission-widening changes to a workflow's `permissions:` or to settings /
+config, and supply-chain risk from loosened or unpinned action / dependency
+pins. Defer to it and do not re-report those findings here. This lane's value
+is the logic, architecture, data-flow, and trust-boundary security reasoning
+static analysis cannot reach, so report an Actions finding only when it needs
+that reasoning. If you find no security issues, say so plainly.
 
 ## High-signal bar
 
@@ -63,7 +60,7 @@ without a concrete exploitable path in this diff. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
 anchored finding.
 
-## Adversarial validation (V2 target)
+## Adversarial validation
 
 When fanning out hunters, validate each surviving candidate with a separate
 verifier subagent (producer ≠ verifier). Drop rejected candidates.

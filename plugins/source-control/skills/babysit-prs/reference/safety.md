@@ -223,7 +223,7 @@ loop's own escalation contract is not outside it.
 
 ## Two Gates, One Merge-Ready Authority
 
-Two different scripts produce a verdict this skill's prose has historically called "readiness".
+Two different scripts produce a verdict that is easy to call "readiness".
 They answer different questions and are not interchangeable:
 
 | Script | Question it answers | What it never checks |
@@ -247,8 +247,7 @@ merge-gate run whose `ready` is `true`, never `READINESS_OK` from the finding-cl
 gate and never an agent's own reading of the PR. A PR can pass the classification gate and still
 be unmergeable: the classification gate is blind to, for example, a `required_review_thread_resolution`
 ruleset plus deliberately-open review threads, which blocks merge mechanically regardless of
-severity or whether a human already replied. Reporting `MERGE-READY` off the classification gate
-alone has produced a false human-facing report (`#601`).
+severity or whether a human already replied.
 
 The classification gate is a **pre-gate**, not a weaker merge gate: it must pass before an
 iteration reports at all, and passing it says only that the findings were decomposed. Both gates
@@ -285,10 +284,8 @@ reports merge-readiness as **unchecked** — an unavailable merge gate is never 
 `mergeStateStatus == CLEAN` is a statement about the *present*, and a reviewer that re-reviews on
 push contradicts it for the few minutes its next round takes. GitHub reports the PR mergeable that
 whole time — the review does not exist yet, so there is no unresolved thread to block on — and a
-gate reading only mergeability merges past findings that land seconds later. That is not
-hypothetical: `#1594` merged 4m40s after its final commit and the reviewer's round posted 26
-seconds afterward, carrying two valid findings, one of them a regression that PR introduced
-(`#1629`, `#1613`).
+gate reading only mergeability merges past findings that land seconds later. A reviewer round can
+land within a minute of the final commit and carry a regression the PR itself introduced.
 
 The hold closes that window and is **dormant unless configured**: with
 `babysit_review_bot_logins` and `babysit_review_settle_minutes` both set, the gate adds a policy
@@ -301,10 +298,10 @@ than the window. Its shape, and why each part is that way:
   configured login **that GitHub types as a `Bot`**: the same current-head test
   `review-trigger.md` specifies, reused rather than restated. A review of an earlier head is not
   evidence about this one. That shared test also admits a login the operator declared in
-  `--extra-bot-logins` (#1642), but the merge gate does not pass that declaration through, so at
-  *this* call site the `Bot`-type requirement still holds and is a real limitation — a configured
-  reviewer GitHub reports as a `User` never clears the hold early, so every merge waits the full
-  window. Fail-closed, but permanently slower until the gate threads the declaration through.
+  `--extra-bot-logins`, but the merge gate does not pass that declaration through, so at *this*
+  call site the `Bot`-type requirement still holds: a configured reviewer GitHub reports as a
+  `User` never clears the hold early, so every merge waits the full window. Fail-closed, but
+  slower.
 - **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires
   rather than waiting forever. Past the window the gate stops waiting and merges on its ordinary
   criteria. The window is therefore a latency budget, not a review requirement: it buys the
@@ -464,7 +461,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - **The review-settle pair rides on every merge form** when `babysit_review_bot_logins` and
   `babysit_review_settle_minutes` are both configured: `--review-bot-logins <review-bot-logins>
   --review-settle-minutes <review-settle-minutes>`. Dropping it from a merge command silently
-  restores the pre-`#1629` behavior of merging inside a re-review's latency window, and supplying
+  merges inside a re-review's latency window, and supplying
   one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
   only when **both** keys are unset — see §Review-Settle Hold.
 - **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
@@ -507,7 +504,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   configured (non-empty, not a literal unexpanded token), the logins appended via
   `--extra-dependency-manager-logins <extra-dependency-manager-logins>` — supply it on every merge
   command below, exactly as `--method` is, or those extra bots are not held.
-- The merge wrapper's `--autopilot-merge-tier` flag layers the #476 tier criteria (issue-linked,
+- The merge wrapper's `--autopilot-merge-tier` flag layers the tier criteria (issue-linked,
   lane-authored, no blocking label, a distinct-bot approval on the live head, no human blocking
   comment) onto the base gate. It is **fail-closed**: the umbrella flag refuses (exit `3`) unless
   `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all non-empty, and supplying
@@ -521,8 +518,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   additionally confine its resolves to threads already outdated in the PRE-push snapshot; that
   pre-push-outdated rule is agent discipline, not machine-enforced, so a thread a worker's own push
   merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
-  the script. The machine-enforced fix for that displacement bypass is tracked in #571. Under
-  `--resolve --include-human` the script still cannot merge, post replies, or dismiss reviews.
+  the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
+  dismiss reviews.
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED — so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
@@ -660,10 +657,10 @@ that path is this narrow:
 ## Autopilot Merge Tier: Enabled-Path Mechanics
 
 Reachable only while `babysit_autopilot_merge_tier` is enabled; absent that flag none of this
-section applies and autopilot's merge path is byte-for-byte its prior self. This is the single
-home for the enabled-path merge command that autopilot's step 3 in `SKILL.md` points at, so the
-base and enabled-tier merge paths never drift apart. The tier still ships **DISABLED**; enabling
-it, and any later gate-off flip, is a separate announced operator step.
+section applies and autopilot merges through the base path. This is the single home for the
+enabled-path merge command that autopilot's step 3 in `SKILL.md` points at, so the base and
+enabled-tier merge paths never drift apart. The tier is off by default; enabling it is a separate
+announced operator step.
 
 - **Enabled-path merge command.** After the worker's final push and a fresh post-push snapshot
   (or the exact pushed commit, vetted), merge on that post-push head by layering the tier flags
@@ -758,14 +755,13 @@ gate which guard, and where each refusal is enforced. Those facts are in
 a row cannot silently outlive the guard it cites. Cite a row ID; do not restate the behavior in
 the consuming configuration.
 
-**The never-retry rule is disputed for the classifier case, and nothing below settles it.**
-[claude-code-plugins#455](https://github.com/melodic-software/claude-code-plugins/issues/455) is
-open against the first bullet above: it records an auto-mode *classifier* denial that was retried,
-where the retry succeeded — evidence that a classifier verdict may not carry the same finality as a
-rules-layer denial. The Lane-Script Reachability section that follows is about whether the lane's
-own scripts are reachable at all, not about what to do after a denial; read its restatement of the
-denial contract as inherited from the bullet above, not as fresh confirmation of it. Until #455 is
-resolved, treat the retry semantics of a classifier denial specifically as an open question.
+**Classifier denials are not settled.** A classifier verdict may not carry the same finality as a
+rules-layer denial: a retried classifier denial can succeed. Nothing in this file resolves whether
+that makes a retry appropriate, so follow the never-retry bullet above for classifier denials too,
+and report the denial rather than reasoning about the classifier. The Lane-Script Reachability
+section that follows is about whether the lane's own scripts are reachable at all, not about what
+to do after a denial; read its restatement of the denial contract as inherited from the bullet
+above, not as fresh confirmation of it.
 
 ### Lane-Script Reachability (operator prerequisite)
 
@@ -786,19 +782,12 @@ Pinned-Command Degradation below degrades it to a ready-to-execute operator hand
 prerequisite covers reachability of every bundled script; the no-degrade rule covers the check
 paths only.
 
-**What this prerequisite rests on — and what it does not.** The denial recorded in
-[claude-code-plugins#787](https://github.com/melodic-software/claude-code-plugins/issues/787) was
-of a raw wildcarded-interpreter invocation (`python …/babysit_merge.py …`) — a form auto mode drops
-by design, and a form this file already forbids. #787's own body says the orchestrator reached for
-it *because* the bare `bin/` wrapper was not on PATH; the commit that made the `bin/`-path form the
-mandated spelling landed after that report. So #787 does **not** demonstrate that the sanctioned
-form gets denied, and this section is a generalization from other evidence rather than a
-reproduction of that ticket. The evidence that does hold is
-[dotfiles#315](https://github.com/melodic-software/dotfiles/issues/315): with
-`autoMode.classifyAllShell` enabled, every narrow Bash allow rule is suspended — including twelve
-grants purpose-built for this lane's scripts — so under that configuration even the compliant
-`bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier like any other command.
-Reachability is therefore a property of the operator's configuration, never of the path form alone.
+**What this prerequisite rests on.** With `autoMode.classifyAllShell` enabled, every narrow Bash
+allow rule is suspended, including grants purpose-built for this lane's scripts, so under that
+configuration even the compliant `bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier
+like any other command. Reachability is therefore a property of the operator's configuration, never
+of the path form alone. A denial of a raw interpreter invocation (`python …/babysit_merge.py …`)
+says nothing about the sanctioned form; that spelling is forbidden by this file regardless.
 
 The grant is the operator's, never the plugin's — a plugin cannot ship permission rules, and an
 agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
@@ -815,7 +804,7 @@ a configuration under which this plugin's bundled scripts, invoked in the path f
 mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
 configuration with `claude auto-mode config`.
 
-**A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
+**A denied gate is never downgraded to weaker evidence, and the gate says so itself.**
 `babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run that
 attempts a check, failure paths included — the sole exception is the help form (`--help` or its
 `-h` alias, which share one branch), which prints usage and
@@ -892,11 +881,11 @@ as done and re-running the gate.
 - Merge in default (safe) mode, or merge through any path other than the pinned merge wrapper's
   gate. Worker and autopilot merge only a PR that gate proves 100% ready.
 - Generate an approving review to satisfy a required-review ruleset, or merge on a review the
-  fleet produced itself — **except** under the autopilot merge tier (#476), a deliberate,
-  config-gated opt-in that ships **DISABLED**. It engages only when the operator sets
-  `babysit_autopilot_merge_tier`; enabling that flag, and any later gate-off flip, is a
-  separate, loudly-announced operator step, never a default and never a side effect of another
-  change. When the tier is enabled, a second bot account (author ≠ approver) runs a **genuine**
+  fleet produced itself — **except** under the autopilot merge tier, a deliberate, config-gated
+  opt-in that is off by default. It engages only when the operator sets
+  `babysit_autopilot_merge_tier`; enabling that flag is a separate, announced operator step,
+  never a default and never a side effect of another change. When the tier is enabled, a second
+  bot account (author ≠ approver) runs a **genuine**
   review pass and submits an approving review **only when it is clean**, and the pinned merge
   wrapper's `--autopilot-merge-tier` gate then merges **only when every criterion holds**, each
   enforced deterministically:
@@ -923,7 +912,7 @@ as done and re-running the gate.
     submitted against the **live head** (head SHA unchanged since review), pinned as always by
     `--expected-head`.
 
-  Any criterion failing falls back to today's behavior — the PR is reported on the human
+  Any criterion failing falls back to the base behavior: the PR is reported on the human
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
   review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
   tier does not exist and the first bullet governs unchanged.

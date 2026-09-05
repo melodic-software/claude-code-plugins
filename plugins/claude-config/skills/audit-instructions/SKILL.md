@@ -1,5 +1,5 @@
 ---
-description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
@@ -38,8 +38,7 @@ a file this skill has already read, so this is an instruction-held contract with
 surface, not an enforced one. Never describe it to an operator as a guarantee. The restriction clears
 on their next message (<https://code.claude.com/docs/en/skills>, frontmatter reference, fetched
 2026-08-12), so whoever accepts a diff can apply it. `audit-prompting-postures` carries the identical
-declaration and the identical caveat, because the two state the same contract and drifting on it is
-the shape of defect this pair keeps producing.
+declaration and the identical caveat, because the two state the same contract.
 
 ## Scope boundary (route out)
 
@@ -119,11 +118,11 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
 - **Fail loud on ambiguity:** a value may carry no version at all, such as a family alias like `opus`
   (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
-  Normalization MUST stop in that case by ABORTING the run with an error that names the exact
+  Normalization stops in that case by aborting the run with an error that names the exact
   argument to pass (`--target-model <version>`), a non-interactive abort, never a mid-run prompt,
   and never a silent guess that a family alias means its newest version, which would misfire the
   exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
-  family alias, the abort message ALSO names the normalized token of the version that alias
+  family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
   user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5`;
   re-run with `--target-model opus-5` to confirm"). Suggesting is not guessing: the user's
@@ -242,12 +241,12 @@ Phases B and C **require** fresh-context, non-fork subagent dispatch. When the A
 blocked, unavailable, or the session cannot spawn subagents:
 
 1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
-   was unavailable. A run that skipped verification MUST be structurally distinguishable from a
+   was unavailable. A run that skipped verification is structurally distinguishable from a
    fully verified one.
 2. **Mark unverified proposals.** Every removal or rewrite that did not receive an independent
-   verifier MUST carry an `(unverified)` marker in the findings table and MUST NOT be surfaced as a
+   verifier carries an `(unverified)` marker in the findings table and is never surfaced as a
    confident removal.
-3. **Extend the cost line.** The Phase D cost line MUST list phases that did not run and name the
+3. **Extend the cost line.** The Phase D cost line lists phases that did not run and names the
    verification mode per surface (`verified` | `inline` | `skipped`).
 
 ## Phase D: Report

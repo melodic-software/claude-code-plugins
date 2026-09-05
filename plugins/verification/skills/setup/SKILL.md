@@ -21,11 +21,6 @@ This skill offers the shared consumer-side concern file, independent of whether 
 plugins `discovery` and `planning` are installed today; each of those offers the same file from its
 own setup, and re-running any of them reads the current state rather than overwriting.
 
-<!-- Maintainer note: the rules below restate the topic-docs and marketplace setup contracts as this
-     skill's own runtime instructions. Matching a sibling plugin's setup skill byte-for-byte is a
-     coincidence of scope, not a shared artifact, the topic-docs contract's "Implementers restate
-     the rules" section records why this is not extracted, and what would reopen that. -->
-
 Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
 re-running reads the current state and offers an update rather than overwriting blind.
 
@@ -53,8 +48,7 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    and source line. Resolving the rule is the consumer's edit.
 4. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
    enabled. Git remains the storage layer because GitBook offers no concurrency-safe,
-   lossless write path, so it is deferred and non-writable; durable writes still target `docs` until
-   a later reviewed decision enables it.
+   lossless write path, so it is deferred and non-writable; durable writes target `docs`.
 
 ## `apply` (idempotent)
 

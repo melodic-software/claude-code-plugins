@@ -1,19 +1,34 @@
 ---
-description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when: 'does this state machine handle X then Y', 'sanity-check this data model', 'feel out the API', 'prototype this logic', 'does this reducer handle the edge case', 'is this data shape right'. Any question answered by driving state by hand and watching it change. Produces a portable pure logic module (liftable into production) behind a disposable shell, a terminal app by default, or a self-contained HTML demo a non-developer can drive by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions. Use /prototype:explore-directions for those."
+description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when the question is whether a state model, reducer, or data shape holds up under real cases: 'does this state machine handle X then Y', 'sanity-check this data model', 'feel out the API'. Any question answered by driving state by hand and watching it change. Produces a portable pure logic module (liftable into production) behind a disposable shell, a terminal app by default, or a self-contained HTML demo a non-developer can drive by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions. Use /prototype:explore-directions for those."
 argument-hint: "[scope] (e.g., /prototype:pressure-test scheduling state machine)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash({ git status --porcelain 2>/dev/null || echo \"(git status unavailable)\"; } | head -10)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
 metadata:
   workflow-stage: plan
   summary: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
 Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/null || echo "none detected"`
 
 ## Variables

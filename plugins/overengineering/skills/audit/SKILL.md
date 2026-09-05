@@ -1,5 +1,5 @@
 ---
-description: "Audit an existing enforcement surface (agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations) under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'what automation can we retire', 'too many guards', 'process cruft', 'do we still need this gate', 'enforcement clutter', 'retire dead automation', 'why does this check exist'. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
+description: "Audit an existing enforcement surface. Agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations. Under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when the ask is to assess the enforcement surface ('audit our enforcement surface', 'is our CI overengineered'), to find which incumbents can be retired ('are these hooks still earning their keep', 'do we still need this gate'), to name enforcement clutter or process cruft, or to reconstruct why a check exists. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,10 +9,18 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
-- Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown (no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+- Shallow clone, `git rev-parse --is-shallow-repository`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -97,13 +105,11 @@ Parse `$ARGUMENTS`:
 
 ## Before the walk
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
-   all, which is exactly the `unattended` context where a detached checkout is most likely, so where
-   the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read its exit status
-   rather than assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is
-   the sentinel. "A detached checkout has no branch identity" below governs what an unresolved
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output (detached HEAD or no checkout). Read its exit status rather than
+   assuming an identity; the `unattended` context is exactly where a detached checkout is most
+   likely. **`HEAD` is never accepted as a branch identity**, and neither is a failed call.
+   "A detached checkout has no branch identity" below governs what an unresolved
    identity declines, and it is decided here, before a home is composed. With an identity in hand,
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
@@ -213,7 +219,7 @@ identity, and writing it into the artifact breaks the seam in two places at once
 the same `<branch-slug>` home, so unrelated refs share one `findings.md`; and `realign`'s
 branch-match refusal compares `HEAD` to `HEAD`, passes, and executes another ref's findings against
 this one. Scheduled runners very commonly check out detached, so this is an ordinary case rather
-than an exotic one, which is why the precompute uses `git symbolic-ref` and refuses to invent a
+than an exotic one, which is why the branch call uses `git symbolic-ref` and refuses to invent a
 name. The sibling `delta` lane resolves identity the same way, on the same reasoning.
 
 When the branch identity does not resolve:
@@ -244,7 +250,7 @@ When the branch identity does not resolve:
   `realign` must refuse anyway, so writing it only moves the failure later and leaves a file behind
   that the next run merges into.
 
-**Detached-in-a-repo vs no checkout are different stops.** The precompute sentinel covers both,
+**Detached-in-a-repo vs no checkout are different stops.** A failed branch call covers both,
 but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
 fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
 the run does not walk an arbitrary working directory and report it as the repository. A

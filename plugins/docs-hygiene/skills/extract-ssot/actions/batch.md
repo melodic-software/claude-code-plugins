@@ -38,7 +38,7 @@ This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` is polyglot
 
 ```text
 /docs-hygiene:extract-ssot batch <candidate-1> [<candidate-2> ... <candidate-N>]
-  [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes]
+  [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves]
 ```
 
 OR resume from working notes if a `batch` phase is mid-flight.
@@ -255,7 +255,7 @@ The log doubles as the batch retrospective and as source material for the PR des
 
 ## Side observations
 
-Hard limit ≤2 side notes per response:
+Keep side notes to the ones a reader must act on now:
 
 - If multiple candidates surface the SAME refuse-pattern (e.g. 3 candidates REFUSE-already-cites-canonical for the same canonical file), surface ONE side observation suggesting the canonical file document a stable heading for its audience; batch the rest into the log
 - If all candidates in a wave PROCEED but the wave's parallel-vs-sequential choice was nontrivial, surface the rationale (so the user can adjust `--parallel-waves` next time)

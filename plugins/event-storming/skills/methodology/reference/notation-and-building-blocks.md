@@ -28,7 +28,9 @@ The fundamental building block of EventStorming. A Domain Event represents **som
 
 - Writing a phase or process name instead of a specific event (turn the sticky 45° to signal "not an event")
 - Searching for the "perfect wording" too early — keep moving, refine later
-- Duplicates are fine initially — they surface different perspectives and will be merged later
+- Duplicates are fine initially — they surface different perspectives. Stack genuinely identical
+  stickies later if you like, but keep differently worded stickies for the same moment visible side
+  by side: that divergence is a bounded-context signal, not a defect to resolve
 
 **Where do Domain Events come from?** (The four sources)
 

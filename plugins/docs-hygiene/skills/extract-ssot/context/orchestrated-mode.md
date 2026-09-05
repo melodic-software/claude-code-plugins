@@ -38,14 +38,11 @@ Private surface — external consumers invoke
 
 ## Worker tiering
 
-Verify and execute are judgment stages (gate rulings, wrong-abstraction
-calls, prose rewrites), so workers there run a strong general-purpose
-tier — as of 2026-08 that means an Opus-class model (example, not a
-pin; resolve the current tier names from the platform's model docs at
-run time). Mechanical stages — phrase sweeps, lint passes, count
-scripts — run cheaper tiers or plain scripts. Never let the whole fleet
-silently inherit the orchestrator's tier: at fleet volume, every notch
-of over-provisioning multiplies.
+Verify and execute are judgment stages (gate rulings, wrong-abstraction calls, prose rewrites), so
+workers there run a strong general-purpose tier; resolve the current tier names from the platform's
+model docs at run time. Mechanical stages — phrase sweeps, lint passes, count scripts — run cheaper
+tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
+volume, every notch of over-provisioning multiplies.
 
 ## Concurrency — static, conservative, capped
 

@@ -29,8 +29,9 @@ boundaries are missing.
 /plugin install domain-driven-design@melodic-software
 ```
 
-The `planning` plugin declares a dependency on this plugin, so installing `planning`
-installs it automatically.
+The `planning` plugin invokes `/domain-driven-design:curate-language` when it is installed, and
+records resolved terms in its own artifacts when it is not. Install this plugin alongside
+`planning` to get glossary stewardship inside the planning workflow.
 
 ## License
 
