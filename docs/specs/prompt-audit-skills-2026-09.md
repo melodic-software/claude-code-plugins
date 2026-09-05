@@ -126,11 +126,16 @@ One row per applied plugin. "Applied" and "Withheld" name finding ids from `.wor
 | 4a | repo-fleet-hygiene | 946fa0cac | 0.23.18 (above main's 0.23.17; the branch CHANGELOG lacks main's 0.23.16 and 0.23.17 entries until the merge) | F1 to F12, setup-lane F1 and F4 (applied by the lead; audit eval case 14 retargeted to the shipped apply consumer) | F13 to F15 |
 | 4a | provenance | d5a24e57b | 0.5.5 (above main's 0.5.4; the branch CHANGELOG lacks main's 0.5.3 and 0.5.4 entries until the merge) | F1 to F13 (applied by the lead; F1 and F11 create `plugins/provenance/skills/audit/AGENTS.md`, indexed in the root `AGENTS.md` in the same commit; setup-lane T1 site 4 was already applied on the branch) | F14 (follow-up F20), F15 |
 | 4a | disk-hygiene | fab3fe5f3 | 0.21.7 (above main's 0.21.6; the branch CHANGELOG lacks main's 0.21.3 to 0.21.6 entries until the merge) | F1 to F14, setup-lane T1 sites 2 and 3 (applied by the lead) | F15 (follow-up F6), F16 |
+| 4b | wizard | none | unchanged | clean (one skill; the auditor verified every `template.sh` claim against the current file) | F1, F2 |
+| 5 | actionlint | bba869139 | 0.8.35 (above main's 0.8.34; the branch CHANGELOG lacks main's 0.8.28 to 0.8.34 entries until the merge) | setup-lane F10 (applied by the lead; the plugin's only in-scope file is `skills/setup/SKILL.md`, audited in full by the setup lane) | setup-lane F25, T9 |
+| 5 | bash-format | none | unchanged | clean (only in-scope file is `skills/setup/SKILL.md`, audited in full by the setup lane) | setup-lane T8 |
+| 5 | miro | none | unchanged | clean (only in-scope file is `skills/setup/SKILL.md`, audited in full by the setup lane) | setup-lane F22 |
+| 5 | biome-format, desktop-notification, eol-normalizer, go-format, markdown-format, powershell-format, ruff-format, typos-format | none | unchanged | clean (each plugin's only in-scope file is `skills/setup/SKILL.md`, listed under the setup lane's clean files) | none |
 
 Notes on the wave-1 and wave-2 commits:
 
 - source-control: `babysit-prs/scripts/tests/test_skill_contract.py` asserts the replacement prose for F2, F23, F35, F36, and F38 instead of the removed markers; no behavior assertion changed. F26 edited `guard_contract.py` claim strings and regenerated `reference/guard-contract.md`.
-- session-flow: `keep-going/context/continuation.md` retargets one pointer to the renamed section.
+- session-flow: `keep-going/context/continuation.md` retargets one pointer to the renamed section. The setup-lane items the wave-1 commits left open on paper (session-flow T4 site 1 and F11, source-control T2 at `setup/SKILL.md:119-121`) were checked on 2026-09-05 and are already applied; no second commit was needed.
 - work-items: every gate green except `onboard-adapter/scripts/generate-adapter.test.sh` case 116, which fails on this host with unchanged files (follow-up F10).
 - claude-memory: audit eval case 10 reworded to the new text.
 - planning: `tests/interview-defenses.test.sh` refreshes four section digests the accepted edits changed (Stance, Step 4, the open-question register, the unattended path); every pinned defense line inside them still matches. Nine eval-case digest assertions in that suite fail on this host with `interview/evals/evals.json` unchanged (follow-up F10). `interview/SKILL.md:217` retargets one pointer to the handoff discipline after F19 emptied the flush section. L1 landed on the check flow's step 3 (the `vault_backend` wording), which is where planning carries it.
@@ -147,7 +152,7 @@ Each phrase below was a single-quoted trigger in the skill's description at `ori
 - **mutation-testing** audit (4): 'are my tests actually checking this', 'audit test quality', 'mutation score for this change', 'persist the surviving mutants for the fix pass'. principles (6): 'is mutation testing worth it', 'killed vs survived mutant', 'should we gate on mutation score', 'what is mutation testing', 'which mutation operators', 'why is my mutation score low'.
 - **architecture** improve (2): 'architecture improvement', 'architecture scan'.
 - **repo-fleet-hygiene** audit (6): 'audit repositories', 'cross-repo git cleanup report', 'merged remote branches', 'moved repos', 'renamed GitHub owner', 'repo fleet hygiene'.
-- **provenance**, **disk-hygiene**: none.
+- **provenance**, **disk-hygiene**, **actionlint**: none. The clean plugins (wizard and the setup-only wave-5 plugins) have no commit and dropped nothing.
 - **plugin-quality** audit (4): 'find bugs/gaps in this plugin', 'find gaps in this plugin', 'is this hook well-designed', 'is this plugin well-designed'.
 - **repo-hygiene** clean (9): 'clean caches across all repos', 'clean up my stashes', 'clear build artifacts across all my repos', 'clear build artifacts', 'fresh clone state', 'prune git across the fleet', 'remove caches', 'reset all my repos', 'reset to origin'.
 - **overengineering** audit (6): 'enforcement clutter', 'process cruft', 'retire dead automation', 'too many guards', 'what automation can we retire', 'why does this check exist'. delta (4): 'delta since the last run', 'only show me what is new', 'recurring overengineering check', 'weekly automation-cruft check'. realign (5): 'act on the audit findings', 'execute the overengineering findings', 'peel back these hooks', 'retire the automation we agreed to retire', 'start the ablation window'.
