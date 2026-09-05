@@ -328,5 +328,5 @@ cross-platform, escape hatches, observability).
 | `references/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
 | `references/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `references/component-types/agent.md` | Auditing an agent/subagent definition. |
-| `references/component-types/command.md` | Auditing a slash command (merged into skills). |
+| `references/component-types/command.md` | Auditing a slash command. |
 | `references/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
