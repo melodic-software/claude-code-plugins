@@ -3,6 +3,144 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
+
+## [0.32.0]
+
+### Added
+
+- **`secret-pattern-detection` and `hardcoded-path-check` now inspect content written
+  through the GitHub MCP write tools.** Both guards matched `Write|Edit|NotebookEdit`
+  only, so a session could be cleared by them and still push the same secret to a
+  repository through `mcp__github__push_files` or
+  `mcp__github__create_or_update_file` — a route with no local file to fix afterwards
+  and no `pre-commit` content-invariants layer on it. `push_files` is scanned per
+  entry of its `files` array, not just the first.
+
+  `mcp__github__delete_file` is deliberately not covered. Its schema carries `owner`,
+  `repo`, `path`, `message` and `branch`, and no content: there is nothing for a
+  content guard to scan, and a delete cannot introduce a secret or a hardcoded path.
+  Naming it would claim coverage that consists of skipping every call.
+
+  Registered as a NEW `hooks.json` row rather than by widening the
+  `Write|Edit|MultiEdit|NotebookEdit` matcher, so the always-on write path pays
+  nothing for tools it will never see. Three local-only gates are not applied on the
+  new lane — the project-scope guard, the git-working-tree requirement, and `git
+  check-ignore` — because each is a statement about a local file and an MCP write has
+  none; applying the scope guard in particular would have skipped every MCP write,
+  which is a silent hole rather than a scope. The path allowlist is reused unchanged.
+  `hardcoded-path-check` still resolves its scan root, which is what catches this
+  machine's own checkout path appearing verbatim in pushed content.
+
+### Fixed
+
+- **`run-guards.sh` primes `.tool_input.path`, which a guard asking for it would
+  otherwise have paid two `jq` spawns per Write/Edit for.** The dispatcher's cached
+  `hook::jq_fields` is all-or-nothing per call: one filter it cannot serve sends the
+  whole call to an uncached `jq`. Adding the MCP lane's field to the two content
+  guards without adding it here cost 50 ms to 60 ms on every authored write — measured,
+  then fixed, before it shipped. The primed program is now nine filters instead of
+  eight: 51 ms before, 52 ms after, median of three 30-run batches per tree.
+
+### Changed
+
+- **`block-hook-bypass` now ships one scratch root exempt instead of none.** The
+  `block_hook_bypass_scratch_roots` option was opt-in and shipped empty, which left a
+  write target blocked that no `Write|Edit` gate would ever have processed: the host
+  temp trees, which the harness's own per-session scratchpad sits under. The measured
+  cost of that emptiness was five blocks in one day across four sessions with zero true
+  positives. Per ADR 0003 clause 4 that is a wrong SCOPE rather than a wrong oracle, so
+  the oracle is untouched and the scope is narrowed.
+
+  **The memory tier is deliberately not a second default.** `<memory_dir>/` (default
+  `.work/`) was exempted here and removed again during review, because the
+  "gives up no protection" argument does not carry to it: `hook::read_file_path` has no
+  `.work/` decline, so `secret-pattern-detection` scans a `Write` to `.work/notes.md`
+  today. Exempting Bash redirects there would have let
+  `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical `Write`
+  stayed blocked — the same content-guard bypass this release closes for the GitHub MCP
+  write tools. `docs/conventions/topic-docs/` states as normative that raw output
+  including credentials belongs in the memory tier, which reads as an argument for
+  exempting it from secret scanning too; making the two guards symmetric that way is a
+  widening of a default-on security guard, and ADR 0003 wants firing evidence before one
+  of those moves, so it is filed rather than decided. The consequence is that
+  `printf '*' >> .work/.gitignore` still blocks: that is `session-flow`'s own documented
+  procedure, so the conflict routes to the skill (use `Write`, which is scanned) rather
+  than to this guard.
+
+  Exempting these gives up no protection, which is the only reason a default is
+  defensible here. `hook::read_file_path`, the library entry every `Write|Edit` content
+  guard reads its file through, already declines a temp-tree file when the project root
+  lies outside that tree, so such a target was never reachable by the gates this guard
+  exists to protect. The exemption's width is exactly the width of the protection it is
+  scoped out of.
+
+  The default is gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the
+  temp tree. With no project root it does not fire (without it `hook::read_file_path`
+  falls back to git-working-tree membership, under which a temp file inside a fixture
+  checkout IS processed). When the project root is itself temp-rooted — the shape this
+  repo's own hook fixtures take, via `mktemp -d` — a temp file is project content and the
+  default stands down. It is not spelled as a static `plugin.json` default, because it
+  has no fixed spelling: the scratchpad path carries a session id. It resolves at run
+  time.
+
+  The option's own list is still empty by default and now **adds to** the shipped root
+  rather than being the only source of one. The kill switch remains the whole-guard
+  lever; the shipped root is not removable through the option.
+
+  **A shipped default confirms through symlink resolution before it grants.** The
+  lexical compare alone exempts a redirect on its spelling, so a symlink under an
+  exempt root pointing into the repository (`/tmp/to-repo -> <repo>`) let
+  `echo <secret> > /tmp/to-repo/tracked.py` through while the identical direct path
+  blocked. The configured roots document that as a residual on the ground that "an
+  operator naming a root is accepting that root's contents" — a ground a shipped
+  default does not have. The defaults now resolve the target, or its nearest existing
+  ancestor, and re-check containment before exempting. Reported as a P1 by an automated
+  reviewer on the pull request and reproduced before the fix was written.
+
+  Cost stays on the grant path: the lexical test runs first, so a command that was
+  going to block spends no resolver process. A path with no existing component holds
+  no symlink, so it is exempted on its spelling — the same answer resolution would
+  give, and failing closed there would make the verdict depend on whether a directory
+  happens to exist on the host rather than on the command. Residual, recorded rather
+  than papered over: the check inherits the axis's case-folding, so on a case-sensitive
+  filesystem a symlink whose real spelling carries capitals is not resolved and stays
+  exempt; closing it needs the target in its original case, which the folded segment
+  scan does not carry.
+
+- **`block-hook-bypass` resolves a relative redirect target against the tool call's own
+  `cwd`.** The axis previously refused every relative target outright, on the grounds
+  that the directory a redirect resolves against is not knowable from the payload. It is
+  knowable in the common case: the payload's `.cwd` is where the tool call runs, and it
+  is already in `run-guards.sh`'s `PRIME_FILTERS`, so reading it costs a cache lookup
+  rather than a `jq` process. A relative target is still refused when the command carries
+  a `cd`/`pushd`/`popd` — which moves that directory, and whose target this guard
+  deliberately does not evaluate — or when the payload names no absolute cwd. The
+  refusal set therefore only shrinks, by targets proven placeable. This is what lets
+  `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
+  `cd /etc && echo x > .work/f` still block.
+
 ## [0.31.8]
 
 ### Changed

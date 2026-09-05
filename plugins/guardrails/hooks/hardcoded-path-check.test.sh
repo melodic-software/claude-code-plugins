@@ -639,4 +639,108 @@ printf '%s' "$(sized_write_json 0)" |
   CLAUDE_PROJECT_DIR="$TEST_TMPDIR" timeout 30 bash "$HOOK" >/dev/null 2>&1 || RC=$?
 assert_exit "boundary: empty content → exit 0" 0 "$RC"
 
+# ==================== GitHub MCP write lane (#3719) ==========================
+# A Write|Edit matcher does not see a write issued through an MCP tool, so this
+# guard could be cleared on a session that pushed the same machine-specific path
+# to GitHub by another route. One case per PAYLOAD SHAPE, because the two tools
+# carry content differently and a scanner that only understood one would
+# silently pass the other.
+#
+#   mcp__github__create_or_update_file — .tool_input.path + .tool_input.content
+#   mcp__github__push_files            — .tool_input.files[] of {path, content}
+#   mcp__github__delete_file           — NO content field at all
+mcp_single_json() {
+  jq -n --arg p "$1" --arg c "$2" \
+    '{tool_name:"mcp__github__create_or_update_file",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",path:$p,content:$c}}'
+}
+# mcp_push_json <path> <content> [<path> <content> ...]
+mcp_push_json() {
+  local args=() n=0
+  while (($#)); do
+    args+=(--arg "p$n" "$1" --arg "c$n" "$2")
+    shift 2
+    n=$((n + 1))
+  done
+  # One --arg pair per file, and an index-built object list, so the payload's
+  # shape is the tool schema's rather than a string-interpolated approximation.
+  local filter='{tool_name:"mcp__github__push_files",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",files:['
+  local i
+  for ((i = 0; i < n; i++)); do
+    ((i)) && filter+=','
+    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
+    filter+='{path:$p'"$i"',content:$c'"$i"'}'
+  done
+  filter+=']}}'
+  jq -n "${args[@]}" "$filter"
+}
+
+# --- create_or_update_file: the single-file shape
+RC=0
+bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "import os")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP create_or_update_file: clean content → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME} && ls")" 2>&1)
+RC=$?
+assert_exit "MCP create_or_update_file: Linux user path → exit 2" 2 "$RC"
+assert_contains "MCP create_or_update_file: names the label" "$OUT" "Linux user path detected"
+assert_contains "MCP create_or_update_file: names the repo path" "$OUT" "src/app.py"
+assert_contains "MCP create_or_update_file: says there is no local file to fix" "$OUT" "goes straight to a repository"
+
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "p = '${MAC_HOME}'")" 2>&1)
+RC=$?
+assert_exit "MCP create_or_update_file: macOS user path → exit 2" 2 "$RC"
+
+# --- push_files: the multi-file shape, and the LAST file must be reached
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "y = 2")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: all clean → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "cd ${LINUX_HOME}" "b.py" "y = 2")" 2>&1)
+RC=$?
+assert_exit "MCP push_files: bad path in the FIRST file → exit 2" 2 "$RC"
+assert_contains "MCP push_files: first-file block names its path" "$OUT" "a.py"
+
+# The loop must not stop at the first clean file: a guard that checked only
+# files[0] would pass this and read as covered.
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "cd ${LINUX_HOME}")" 2>&1)
+RC=$?
+assert_exit "MCP push_files: bad path in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP push_files: last-file block names its path" "$OUT" "b.py"
+
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","files":[]}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: empty files array → exit 0" 0 "$RC"
+
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m"}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: absent files array → exit 0" 0 "$RC"
+
+# --- delete_file carries no content, so there is nothing to scan
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
+
+# --- the allowlist is the SAME list, asked of a repo-relative path
+RC=0
+bash "$HOOK" <<<"$(mcp_single_json ".claude/hooks/guard.sh" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: allowlisted .claude/hooks path is exempt" 0 "$RC"
+
+# --- the local-only gates must NOT be applied to a remote write
+# The scope guard, the git-working-tree requirement and `git check-ignore` are
+# all statements about a LOCAL file. Reusing any of them here would skip every
+# MCP write. Pinned in both project states, since each gate fails a different way.
+RC=0
+bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: an UNSET CLAUDE_PROJECT_DIR does not skip the remote write" 2 "$RC"
+RC=0
+CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" \
+  <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: a SET CLAUDE_PROJECT_DIR does not skip the remote write" 2 "$RC"
+
+# --- the kill switch still governs the whole guard, MCP lane included
+RC=0
+CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" \
+  <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: disabled guard allows the write" 0 "$RC"
+
 report

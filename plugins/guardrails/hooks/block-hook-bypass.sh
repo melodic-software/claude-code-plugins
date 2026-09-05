@@ -25,14 +25,30 @@
 # (`echo "$(python3 -c 'import pathlib ...')"`) is NOT caught — catching it needs
 # a shell parser, and neutralizing quotes re-blocks inert prose. An LLM never
 # emits this form; the deny-list plus human oversight are the adversarial layers.
-# The supported deliberate bypasses are both operator-configured and both
-# default to no effect: the kill switch (block_hook_bypass_enabled set to false)
-# and the scratch-root exemption (block_hook_bypass_scratch_roots, empty by
-# default — see the block above scratch_target_exempt).
+# The supported deliberate bypasses are the kill switch
+# (block_hook_bypass_enabled set to false) and the scratch-root exemption
+# (block_hook_bypass_scratch_roots). The option's own list is still empty by
+# default; since #3719 it composes with ONE root the guard ships exempt — the
+# host temp trees, which the harness scratchpad sits under — gated on a project
+# root outside the temp tree and confirmed through symlink resolution. See the
+# block above scratch_target_exempt for why exempting that gives up no
+# protection, and why the memory tier is deliberately not a second one.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
 set -uo pipefail
+
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off.
+#
+# Only the DISABLED arm is hoisted, and that split is the whole point. This
+# guard's switch is strict-and-loud (#3130 F7): a value that is neither `true`
+# nor `false` keeps the guard on and SAYS so, through hook::emit_channels — a
+# library function, so that arm cannot run before the library exists. An exact
+# `false` needs nothing from the library, so it exits here; every other value
+# falls through to the unchanged strict-and-loud block below, which the library
+# is loaded in time for. scripts/check-killswitch-hoist.sh knows this shape.
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}" == "false" ]] && exit 0
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
@@ -94,14 +110,14 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
+# All three payload fields in ONE jq process (hook::jq_fields), not three. A jq spawn is
 # fork() emulation on Windows Git Bash and this guard runs on every Bash/PowerShell
 # call. Failure semantics are unchanged: a missing jq or an unparsable payload
 # yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
 # hook::require_jq above has already made the degraded state visible once per
 # session. The `// "Bash"` default moves to the bash-side expansion, matching
 # block-dangerous-git.
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 
 # A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
 # bytes before matching, so a clean verdict would not reflect the bytes carried.
@@ -115,6 +131,13 @@ fi
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+# The directory the TOOL CALL runs in, which is not this hook process's own —
+# the hook starts at the session root and the tool call routinely does not. It is
+# read for ONE purpose: resolving a relative redirect target against it in the
+# scratch-root axis below, which can only ever GRANT an exemption. `.cwd` is
+# already in run-guards.sh's PRIME_FILTERS, so under the dispatcher this field
+# costs a cache lookup rather than a jq process.
+HOOK_CWD="${HOOK_JQ_FIELDS[2]:-}"
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -445,6 +468,23 @@ EXECUTABLE=$(strip_literals "$COMMAND")
 EXEC_LC="${EXECUTABLE,,}"
 COMMAND_LC="${COMMAND,,}"
 
+# 1 when this command carries a directory change, which moves the directory a
+# RELATIVE redirect target resolves against. Only the scratch-root axis reads it,
+# and only to REFUSE a relative target it can no longer place (see
+# _scratch_abs_target) — so an over-eager match costs an exemption, never a
+# missed block, and the failure direction is the guard's shipped behaviour.
+#
+# Matched on the literal-stripped, lowercased stream so a `cd` inside quoted
+# prose is inert, and anchored at a command-word position (start of the command
+# or just past a separator) so `git checkout -- cd` and a `--cd-to` flag do not
+# trip it. The cd TARGET is deliberately not evaluated: resolving it would mean
+# evaluating arbitrary shell word expansion, which this guard does not do (see
+# block-dangerous-git.sh's treatment of the same relocation).
+_BBH_CWD_MOVED=0
+if [[ $'\n'"${EXEC_LC//[;|&()]/$'\n'}" =~ $'\n'[[:blank:]]*(cd|pushd|popd|chdir)([[:blank:]]|$) ]]; then
+  _BBH_CWD_MOVED=1
+fi
+
 # `cat` immediately before a redirect, with or without a space (`cat>file`).
 # Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
 # leading class is kept for the pre-segmentation shape and costs nothing.
@@ -761,6 +801,65 @@ devnull_target_exempt() {
 # well-defined target to exempt there; its `$null` discard is unchanged.
 _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 
+# --- Shipped default, in ADDITION to the configured list (#3719) -------------
+#
+# The paragraph above shipped this axis empty, and the emptiness is what the
+# ablation measured: five blocks in one day across four sessions, zero true
+# positives. ADR 0003 clause 4 calls that a WRONG SCOPE, remedied by rescoping
+# rather than by deleting a sound oracle, so the oracle is untouched and one
+# default root is added under it.
+#
+# The default names a target that NO Write|Edit gate would have processed, so
+# exempting it removes no protection — which is the only reason a default is
+# defensible here at all. The guard exists to stop a Bash write from reaching a
+# file that Write|Edit would have run a content gate over; a target those gates
+# decline is not a bypass of anything. That argument is load-bearing, and it is
+# what disqualified the second default this block originally carried.
+#
+#   TEMP TREE — hook::read_file_path, the library entry every Write|Edit content
+#   guard reads its file through, DECLINES a file under a host temp root when the
+#   project root lies outside that tree. The harness's own per-session scratchpad
+#   lives there. The exemption's width is therefore exactly the width of the
+#   protection it is scoped out of, and hook::under_temp_root is the same
+#   candidate set (TMPDIR/TMP/TEMP plus the POSIX defaults, never a hardcoded
+#   platform assumption) that the decline is decided on.
+#
+# THE MEMORY TIER IS DELIBERATELY NOT A DEFAULT, and the reason is worth keeping
+# because it is the obvious second entry. `<memory_dir>/` (default `.work/`) was
+# exempted here in review and removed again: the "gives up no protection"
+# argument above does NOT carry to it. hook::read_file_path has no `.work/`
+# decline, so `secret-pattern-detection` scans a Write to `.work/notes.md` today
+# (verified — the tier is not in its allowlist). Exempting Bash redirects there
+# would have let `printf '<secret>' >> .work/notes.md` reach disk unscanned while
+# the identical Write stayed blocked, which is the same content-guard bypass this
+# plugin's MCP lane exists to close.
+#
+# The tension is real and is NOT resolved here: docs/conventions/topic-docs/
+# states as normative that raw output — explicitly including credentials — stays
+# in the memory tier, which reads as an argument for exempting it from secret
+# scanning too. Making the two guards symmetric that way is a widening of a
+# default-on security guard, and ADR 0003 wants firing evidence before one of
+# those moves. Filed rather than decided.
+#
+# The consequence is that `printf '*' >> .work/.gitignore` still blocks. That
+# command is session-flow's own documented procedure, so the conflict routes back
+# to the skill (fix the procedure to use Write, which is scanned) rather than to
+# the guard, which is where the filed issue puts it.
+#
+# THE TEMP DEFAULT is not spelled as a static plugin.json default, because it has
+# no fixed spelling: the scratchpad path carries a session id. It resolves at run
+# time instead, and the option's own default stays empty — it configures
+# ADDITIONAL roots, and the temp default is not removable through it (the kill
+# switch is the whole-guard lever, as it was).
+#
+# GATED ON A KNOWN PROJECT ROOT. With CLAUDE_PROJECT_DIR unset the default does
+# not fire: without it hook::read_file_path falls back to git-working-tree
+# membership, under which a temp file inside a fixture checkout IS processed.
+# Unknown project, no exemption.
+# The pieces that implement this sit below _norm_path, which they resolve
+# through: _bbh_temp_default_applies and _scratch_abs_target.
+_BBH_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
+
 # Lexically normalize an absolute path into `/`-joined canonical form in
 # _NORM_PATH. Returns 1 for every shape the compare must not be trusted with
 # (see "WHAT FAILS CLOSED" above); returns 0 with _NORM_PATH empty only for `/`
@@ -799,13 +898,145 @@ _norm_path() {
   return 0
 }
 
+# --- the pieces of the shipped default (see the block above) -----------------
+
+# The project root, normalized, or empty when there is no usable one. Kept in its
+# ORIGINAL case: hook::under_temp_root compares against this host's real temp
+# directories, whose own case it preserves, so lowercasing would miss a temp root
+# spelled with capitals and wrongly conclude a temp-rooted project was not one.
+_BBH_PROJECT_NORM=""
+if [[ -n "$_BBH_PROJECT_DIR" ]] && _norm_path "$_BBH_PROJECT_DIR" && [[ -n "$_NORM_PATH" ]]; then
+  _BBH_PROJECT_NORM="$_NORM_PATH"
+fi
+
+# 0 when the temp-tree default applies to this session: a project root that is
+# known and does NOT itself sit under a temp tree. When the project root IS
+# temp-rooted, a temp file is project content and the Write|Edit gates do process
+# it — the shape this repo's own hook fixtures take (`mktemp -d` checkouts) — so
+# the default must not fire. Evaluated once, lazily, on the first matched target,
+# because hook::under_temp_root can spend a resolver process.
+_BBH_TEMP_DEFAULT=-1
+_bbh_temp_default_applies() {
+  ((_BBH_TEMP_DEFAULT >= 0)) && return "$_BBH_TEMP_DEFAULT"
+  _BBH_TEMP_DEFAULT=1
+  if [[ -n "$_BBH_PROJECT_NORM" ]]; then
+    hook::under_temp_root "$_BBH_PROJECT_NORM" || _BBH_TEMP_DEFAULT=0
+  fi
+  return "$_BBH_TEMP_DEFAULT"
+}
+
+# Echo the ABSOLUTE spelling of a redirect target, or nothing when it cannot be
+# placed. An already-absolute target (POSIX `/x` or the Windows `C:/x` drive
+# form, both of which _norm_path folds to one spelling) is returned unchanged; a
+# RELATIVE one is joined onto the payload cwd, which is the directory the tool
+# call runs in.
+#
+# A relative target is refused outright when the command carries a directory
+# change (_BBH_CWD_MOVED) or the payload names no absolute cwd: in both cases the
+# directory the redirect actually resolves against is not the one this guard can
+# see, and an exemption granted from the wrong origin is a bypass. That refusal
+# is why every existing relative-target assertion still blocks — the payloads
+# they are built from carry no `.cwd` at all.
+# Physically resolve <absolute path> in _BBH_PHYS, following symlinks. The target
+# of a redirect usually does not exist yet, so this walks up to the NEAREST
+# EXISTING ancestor, resolves that, and re-appends the components below it —
+# those cannot be symlinks, because they do not exist.
+#
+# A path with NO existing component resolves to itself, and that is sound rather
+# than a shortcut: a symlink is a filesystem object, so a path where nothing
+# exists holds none, and the lexical answer is already the physical one. Failing
+# closed there would refuse on ambient facts about the host (whether `/srv`
+# happens to exist) rather than on the command, which is not a property a guard's
+# verdict should have.
+#
+# Returns 1 only when a component exists but the resolver could not read it.
+_BBH_PHYS=""
+_bbh_physical_path() {
+  local p="$1" suffix="" phys
+  _BBH_PHYS=""
+  while [[ -n "$p" && "$p" != "/" ]]; do
+    if [[ -e "$p" || -L "$p" ]]; then
+      hook::physical_path_to phys "$p" || return 1
+      _BBH_PHYS="${phys%/}$suffix"
+      return 0
+    fi
+    suffix="/${p##*/}$suffix"
+    p="${p%/*}"
+  done
+  _BBH_PHYS="$1"
+  return 0
+}
+
+# 0 when <lexically-matched target> really lands under the shipped default named
+# by $2 ("memory" or "temp"), resolved through symlinks.
+#
+# WHY THIS EXISTS, and why only the SHIPPED defaults pay for it. The compare
+# above is lexical, which the configured-root axis documents as a residual on an
+# explicit ground: "an operator naming a root is accepting that root's contents".
+# A shipped default has no operator to accept anything, so that ground does not
+# carry it — and without this, a symlink under a temp root pointing INTO the
+# repository (`/tmp/to-repo -> /home/<user>/repo`) exempts
+# `echo <secret> > /tmp/to-repo/tracked.py` while the identical direct path
+# blocks. Reported as a P1 on #3727 and reproduced before this was written.
+#
+# The configured-root axis keeps its documented lexical residual: an operator who
+# names a root still accepts that root's contents, which is the ground this
+# function exists because the defaults lack.
+#
+# Cost is confined to the GRANT path. Callers run the lexical test first and only
+# reach here when they are about to exempt, so a command that was going to block
+# spends no resolver process — and a hook that resolved every target would pay a
+# subprocess on the hottest guard in the fleet for nothing.
+#
+# SCOPE (documented residual): this inherits the axis's case-folding. The target
+# arrives from the LOWERCASED segment scan, so on a case-sensitive filesystem a
+# path whose real spelling carries capitals does not exist under the folded name,
+# the walk stops at the deepest ancestor that does, and a symlink below that
+# point is never examined. `/tmp/ToRepo -> <repo>` is therefore still exempt
+# where `/tmp/torepo -> <repo>` is not. Closing it needs the target in its
+# original case, which this guard does not carry — the whole producer/redirect
+# scan runs on the folded stream — so it is recorded here rather than papered
+# over. The residual predates this function and is the same one the configured
+# roots document; what this function removes is the far commoner all-lowercase
+# case, which was live by default.
+_bbh_default_confirmed() {
+  local target="$1" phys
+  _bbh_physical_path "$target" || return 1
+  phys="${_BBH_PHYS,,}"
+  # hook::under_temp_root resolves its own candidates, so both sides are physical
+  # here and a symlinked temp root (macOS /tmp) still matches.
+  hook::under_temp_root "$phys"
+}
+
+_scratch_abs_target() {
+  local t="$1"
+  case "$t" in
+  /* | [A-Za-z]:/* | [A-Za-z]:)
+    printf '%s' "$t"
+    return 0
+    ;;
+  *) ;; # relative — placeable only against a cwd this guard can trust
+  esac
+  ((_BBH_CWD_MOVED)) && return 1
+  # The joined path is case-folded by the caller, along with the already-absolute
+  # spelling, so a cwd carrying capitals still matches the lowercased roots.
+  case "$HOOK_CWD" in
+  /* | [A-Za-z]:/*) printf '%s/%s' "${HOOK_CWD%/}" "$t" ;;
+  *) return 1 ;;
+  esac
+}
+
 # 0 when the EFFECTIVE stdout target lies strictly under a configured scratch
 # root. Called only after a segment has already matched a producer + real-file
 # redirect, so it adds no work to the per-call hot path, and it returns on the
 # first line when no root is configured.
 scratch_target_exempt() {
-  local target="$1" norm_target root roots
-  [[ -n "$_SCRATCH_ROOTS" ]] || return 1
+  local target="$1" norm_target root roots abs
+  # Nothing to compare against: no configured root AND no usable project root,
+  # which is the only state in which the shipped default cannot fire either.
+  # Keeps the unconfigured, project-less path returning on the first line as it
+  # always did.
+  [[ -n "$_SCRATCH_ROOTS" || -n "$_BBH_PROJECT_NORM" ]] || return 1
   # FAIL CLOSED on an operand whose pathname is not dependably what reaches the
   # compare, before anything else. All three tests are keyed on the OPERAND, via
   # the marks strip_literals attached to it (see the marking block above
@@ -838,9 +1069,32 @@ scratch_target_exempt() {
   ((TARGET_OPAQUE)) && return 1
   ((TARGET_QUOTED)) && return 1
   [[ "$target" == *\\* ]] && return 1
-  _norm_path "$target" || return 1
+  # Place the target absolutely before normalizing. Until #3719 this axis refused
+  # every relative target outright; it now resolves one against the payload cwd
+  # when — and only when — that cwd is the directory the redirect demonstrably
+  # runs in. _scratch_abs_target owns that judgement and still refuses everything
+  # it cannot place, so the fail-closed set only ever shrinks by targets proven
+  # placeable.
+  abs=$(_scratch_abs_target "$target") || return 1
+  [[ -n "$abs" ]] || return 1
+  _norm_path "$abs" || return 1
   [[ -n "$_NORM_PATH" ]] || return 1
-  norm_target="$_NORM_PATH"
+  # Case-folded once here rather than at each comparison: the configured roots are
+  # lowercased below, the memory-tier default is lowercased at its assignment, and
+  # a target that arrived absolute came off the lowercased command stream already.
+  norm_target="${_NORM_PATH,,}"
+  # THE SHIPPED DEFAULT — the host temp trees, including the harness scratchpad,
+  # once this session is one the default applies to.
+  #
+  # LEXICALLY matched first and then CONFIRMED through symlink resolution, so a
+  # lexical near-miss costs no resolver process and a lexical match cannot exempt
+  # a path that really lands elsewhere. See _bbh_default_confirmed for why the
+  # shipped default carries this and the configured roots keep their documented
+  # lexical residual.
+  if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_temp_default_applies &&
+    hook::under_temp_root "$norm_target"; then
+    _bbh_default_confirmed "$norm_target" && return 0
+  fi
   roots="$_SCRATCH_ROOTS"
   while [[ -n "$roots" ]]; do
     root="${roots%%,*}"

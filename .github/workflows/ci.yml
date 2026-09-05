@@ -601,6 +601,22 @@ jobs:
         continue-on-error: true
         run: scripts/check-hook-exec-form.sh
 
+      # Every guard ships a `<name>_enabled` switch, and an operator who turns
+      # one off is entitled to stop paying for it. Reading that switch through
+      # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
+      # first — ~3.5 ms of a disabled standalone guard's ~5.3 ms on this runner.
+      # The audit that prompted #3712 found the switch below the source in 43 of
+      # 43 hooks, and scripts/sync-hook-utils.sh covers the vendored library
+      # copies but NOT the entry scripts, so nothing else here would notice the
+      # ordering drifting back. Self-test first so a broken detector cannot mask
+      # a regression.
+      - name: Test the kill-switch hoist gate
+        run: bash scripts/check-killswitch-hoist.test.sh
+      - name: Check that PreToolUse guards read their kill switch before sourcing
+        id: killswitch_hoist
+        continue-on-error: true
+        run: scripts/check-killswitch-hoist.sh
+
       # Three separate readers judge `metadata.summary`, and they can drift
       # apart: a malformed value reached CI twice in #3162, failing in opposite
       # directions, each time after clearing the local check meant to catch it.
@@ -1110,6 +1126,7 @@ jobs:
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}

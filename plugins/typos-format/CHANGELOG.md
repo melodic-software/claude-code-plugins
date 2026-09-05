@@ -3,7 +3,7 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.40]
+## [0.6.41]
 
 ### Changed
 
@@ -16,6 +16,15 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   builds compact string-field objects without jq, for telemetry data builders
   that only carry strings. Same verdicts; the copy is bumped because
   `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.40]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
 
 ## [0.6.39]
 
