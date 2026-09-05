@@ -35,7 +35,7 @@ Resolve the gate:
   be wrong` — and, when repo-history evidence matters for this run, propose an instrument-first
   candidate per ranking.md ("fetch full history / unshallow the clone so future runs can rank on
   churn").
-- **Not shallow, but the oldest commit date falls after the requested `--since` window start**
+- **Not shallow, but the oldest commit is dated after the requested `--since` window start**
   (ISO dates compare lexically, so the agent can compare the two strings directly) → the window
   is not covered. If the repository is simply younger than the window, shrink the window to the
   span history actually covers and cite the shrunk window explicitly in every hotspot citation
