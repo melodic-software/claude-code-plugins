@@ -859,7 +859,7 @@ fi
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
   wait
 )
-if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then
+if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then # portability-ok: grep -q quiet match, not grep -P
   ok "envelope: unprovable data falls back to jq (and fails open when jq fails)"
 else
   fail "envelope fallback: marker=$(cat "$SINK3B.err" 2>/dev/null) sink=$(cat "$SINK3B")"
@@ -1483,7 +1483,7 @@ bs_err_file="$(mktemp)"
   bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
   ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
 else
   fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
@@ -3191,7 +3191,7 @@ hook::resolve_read_slice_to() {
 }
 hook::resolve_read_timeout() {
   printf 'PRINT_TIMEOUT\n' >>"$pin_file"
-  __pin_timeout_print "$@"
+  __pin_timeout_print
 }
 hook::resolve_read_slice() {
   printf 'PRINT_SLICE\n' >>"$pin_file"
@@ -3203,12 +3203,12 @@ hook::resolve_read_slice() {
 hook::buffer_stdin >/dev/null <<'PIN_PAYLOAD'
 {"ok":true}
 PIN_PAYLOAD
-if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; then
+if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
   ok "buffer_stdin: resolve_*_to run in-process (no wrapper subshell)"
 else
   fail "buffer_stdin resolve_*_to not in-process: $(tr '\n' ';' <"$pin_file")"
 fi
-if grep -q 'PRINT_' "$pin_file"; then
+if grep -q 'PRINT_' "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
   fail "buffer_stdin reached the print-form resolve_* (regression to \$( )): $(tr '\n' ';' <"$pin_file")"
 else
   ok "buffer_stdin: does not call the print-form resolve_* wrappers"
@@ -3224,6 +3224,7 @@ rm -rf "$pin_dir"
 jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \
   '{tool:$tool,subject:$subject,form:$form}')
 jso_want="${jso_want//$'\r'/}"
+jso_got=""
 hook::json_str_object_to jso_got tool Bash subject "git status --short" form ""
 if [[ "$jso_got" == "$jso_want" ]]; then
   ok "json_str_object_to: matches jq -nc for {tool,subject,form}"
@@ -3233,6 +3234,7 @@ fi
 jso_esc_want=$(jq -nc --arg tool Bash --arg subject 'a"b\c' --arg form $'x\ny' \
   '{tool:$tool,subject:$subject,form:$form}')
 jso_esc_want="${jso_esc_want//$'\r'/}"
+jso_esc_got=""
 hook::json_str_object_to jso_esc_got tool Bash subject 'a"b\c' form $'x\ny'
 if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
   ok "json_str_object_to: matches jq escapes for quote, backslash, newline"
