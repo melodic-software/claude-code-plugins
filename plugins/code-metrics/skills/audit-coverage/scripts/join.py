@@ -151,6 +151,10 @@ def merge_artifacts(
     unmatched: list[str] = []
     for artifact in artifacts:
         fmt = artifact.get("format") or "unknown"
+        # Which accumulated records this one artifact has already folded into,
+        # per file. One artifact never lists a function twice, so a record it
+        # has claimed belongs to a different function and is not a fold target.
+        claimed: dict[str, set[int]] = {}
         for raw_path, section in (artifact.get("files") or {}).items():
             target = resolve(raw_path, scope, root, prefixes)
             if target is None:
@@ -175,11 +179,14 @@ def merge_artifacts(
                         if function.get("lines")
                         else None,
                     },
+                    claimed.setdefault(target, set()),
                 )
     return merged, unmatched
 
 
-def _fold_function(functions: list[dict[str, Any]], incoming: dict[str, Any]) -> None:
+def _fold_function(
+    functions: list[dict[str, Any]], incoming: dict[str, Any], claimed: set[int]
+) -> None:
     """Merge one artifact's record for a function into the accumulated list.
 
     Two artifacts covering the same function (two suites, two shards) each
@@ -190,27 +197,47 @@ def _fold_function(functions: list[dict[str, Any]], incoming: dict[str, Any]) ->
     folded the same way the line table is: the hit flag is the larger, the
     per-line counts are the larger of the two, and a line range missing from
     one record is taken from the other.
+
+    What identifies a function here is its name plus the artifact it came
+    from, never its start line. Formats disagree about where a function
+    starts: lcov reports the `FN:` declaration line while Cobertura and the
+    coverage.py JSON report take the first body line, so the same function
+    carries two different starts across two artifacts, and one function's
+    declaration line can equal a neighbour's first body line. Folding on the
+    start line therefore merges two different functions, and refusing to fold
+    when the starts differ splits one function in two. `claimed` is what keeps
+    two `render` methods in one file apart instead: an artifact lists each
+    function once, so a record this artifact has already folded into is a
+    different function. Among the records it has not claimed, the name
+    decides; a start-line-only match is accepted only when one of the two
+    records is nameless, and when several candidates remain the one whose
+    start line matches wins.
     """
-    for existing in functions:
+    candidates = []
+    for index, existing in enumerate(functions):
+        if index in claimed:
+            continue
         same_name = (
-            incoming["name"] is not None and existing["name"] == incoming["name"]
+            incoming["name"] is not None
+            and existing["name"] is not None
+            and existing["name"] == incoming["name"]
         )
+        nameless = existing["name"] is None or incoming["name"] is None
         same_span = (
             incoming["start_line"] is not None
             and existing["start_line"] == incoming["start_line"]
         )
-        # A name alone is not an identity: one file can hold two `render`
-        # methods in different classes, and a Cobertura report may name both
-        # unqualified. When both records say where they start and the starts
-        # differ, they are different functions, and folding them would let one
-        # method's coverage stand in for the other's.
-        different_span = (
-            existing["start_line"] is not None
-            and incoming["start_line"] is not None
-            and existing["start_line"] != incoming["start_line"]
-        )
-        if different_span or not (same_name or same_span):
-            continue
+        if same_name or (nameless and same_span):
+            candidates.append(index)
+    if candidates:
+        positioned = [
+            index
+            for index in candidates
+            if incoming["start_line"] is not None
+            and functions[index]["start_line"] == incoming["start_line"]
+        ]
+        index = positioned[0] if positioned else candidates[0]
+        existing = functions[index]
         if existing["name"] is None:
             existing["name"] = incoming["name"]
         if existing["start_line"] is None:
@@ -224,8 +251,10 @@ def _fold_function(functions: list[dict[str, Any]], incoming: dict[str, Any]) ->
             for number, count in incoming["lines"].items():
                 folded[number] = max(folded.get(number, 0), count)
             existing["lines"] = folded
+        claimed.add(index)
         return
     functions.append(incoming)
+    claimed.add(len(functions) - 1)
 
 
 def _coverage(lines: dict[int, int]) -> tuple[int, int, float | None]:

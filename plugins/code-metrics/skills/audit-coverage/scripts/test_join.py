@@ -218,6 +218,148 @@ class ArtifactMergeTests(unittest.TestCase):
         self.assertEqual(by_start[1]["values"]["coverage_pct"], 100.0)
         self.assertEqual(by_start[10]["values"]["coverage_pct"], 0.0)
 
+    def test_one_functions_start_is_not_a_neighbours_start(self) -> None:
+        # The two formats mean different things by "start": lcov reports the
+        # `FN:` declaration line while the coverage.py JSON report gives the
+        # first body line. In `cm_sample.py` that makes lcov's start for
+        # `classify` (line 9, the `def`) equal coverage.py's start for the
+        # nested `classify.inner` (line 12, its first body line). Folding on a
+        # start line alone therefore hands the nested helper the outer
+        # function's region, leaves `classify` holding only lcov's `FNDA:0`,
+        # and reports it at 0 percent and maximal CRAP beside a file row that
+        # says 62.5. A Python repository that emits both artifacts hits this
+        # with no configuration, because both names are discovered by default.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row("src/a.py", "classify", 9, 20, "python", 4),
+                    complexity_row("src/a.py", "classify.inner", 12, 14, "python", 2),
+                ]
+            )
+            case.artifact(
+                "lcov",
+                {
+                    "src/a.py": {
+                        "lines": {},
+                        "functions": [
+                            {
+                                "name": "classify",
+                                "start_line": 9,
+                                "end_line": None,
+                                "hit": 0,
+                                "lines": None,
+                            },
+                            {
+                                "name": "classify.inner",
+                                "start_line": 12,
+                                "end_line": None,
+                                "hit": 0,
+                                "lines": None,
+                            },
+                        ],
+                    }
+                },
+            )
+            case.artifact(
+                "coverage_py_json",
+                {
+                    "src/a.py": {
+                        "lines": {
+                            "9": 1,
+                            "12": 1,
+                            "14": 1,
+                            "16": 1,
+                            "17": 1,
+                            "18": 0,
+                            "19": 0,
+                            "20": 0,
+                        },
+                        "functions": [
+                            {
+                                "name": "classify",
+                                "start_line": 12,
+                                "end_line": 20,
+                                "hit": 1,
+                                "lines": {
+                                    "12": 1,
+                                    "16": 1,
+                                    "17": 1,
+                                    "18": 0,
+                                    "19": 0,
+                                    "20": 0,
+                                },
+                            },
+                            {
+                                "name": "classify.inner",
+                                "start_line": 14,
+                                "end_line": 14,
+                                "hit": 1,
+                                "lines": {"14": 1},
+                            },
+                        ],
+                    }
+                },
+            )
+            document = case.join()
+        rows = {row["function"]: row for row in document["measures"]}
+        self.assertEqual(rows[None]["values"]["coverage_pct"], 62.5)
+        self.assertEqual(rows["classify"]["values"]["coverage_pct"], 50.0)
+        self.assertEqual(rows["classify"]["values"]["crap"], 6.0)
+        self.assertEqual(rows["classify"]["hit"], 1)
+        self.assertEqual(rows["classify.inner"]["values"]["coverage_pct"], 100.0)
+        self.assertEqual(rows["classify.inner"]["values"]["lines_executable"], 1)
+
+    def test_two_formats_disagreeing_on_a_start_line_still_fold(self) -> None:
+        # The same disagreement seen from the other side: one function, named
+        # the same by both artifacts, whose start lcov reports as the `def`
+        # line and Cobertura as the first body line. Refusing to fold two
+        # records whose starts differ splits one function in two, and the
+        # lookup then binds the complexity row to the record carrying the
+        # declaration line and its `FNDA:0`, reporting a fully covered
+        # function at 0 percent. The values must not depend on which artifact
+        # discovery happened to read first either.
+        lcov = {
+            "src/a.py": {
+                "lines": {},
+                "functions": [
+                    {
+                        "name": "process",
+                        "start_line": 10,
+                        "end_line": None,
+                        "hit": 0,
+                        "lines": None,
+                    }
+                ],
+            }
+        }
+        cobertura = {
+            "src/a.py": {
+                "lines": {"11": 4, "12": 4, "13": 4},
+                "functions": [
+                    {
+                        "name": "process",
+                        "start_line": 11,
+                        "end_line": 13,
+                        "hit": 4,
+                        "lines": {"11": 4, "12": 4, "13": 4},
+                    }
+                ],
+            }
+        }
+        for order in (("lcov", "cobertura"), ("cobertura", "lcov")):
+            with self.subTest(order=order), tempfile.TemporaryDirectory() as tmp:
+                case = JoinCase(tmp).complexity(
+                    [complexity_row("src/a.py", "process", 10, 13, "python", 5)]
+                )
+                for fmt in order:
+                    case.artifact(fmt, lcov if fmt == "lcov" else cobertura)
+                document = case.join()
+                row = next(
+                    r for r in document["measures"] if r["function"] == "process"
+                )
+                self.assertEqual(row["values"]["coverage_pct"], 100.0)
+                self.assertEqual(row["values"]["crap"], 5.0)
+
     def test_a_function_only_one_artifact_knows_the_end_of_keeps_that_range(
         self,
     ) -> None:

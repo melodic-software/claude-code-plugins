@@ -23,8 +23,11 @@ the three MC/DC records MCDC, MCF and MCH.  # spellchecker:disable-line
 
 Why both function forms: LCOV 2.2 replaced the `FN`/`FNDA` name pairing with
 the index-based `FNL`/`FNA` pair, so a parser written against the older shape
-reports zero function coverage on a modern tracefile. Both are read and merged
-by name here, and `FNL` is where a function end line can come from at all.
+reports zero function coverage on a modern tracefile. Both are read here and
+merged on the name together with the start line, because one file can declare
+the same name at two lines; `FNL` is where a function end line can come from at
+all. A `FNDA` record carries only a name, so where a name is declared more than
+once the nth count belongs to the nth `FN` declaration of it.
 
 The `.info` format has no comment syntax, so the fixtures under
 `../fixtures/coverage/lcov-1x.info`, `lcov-2.2.info` and `lcov-absolute-sf.info`
@@ -67,21 +70,21 @@ def _section() -> dict[str, Any]:
 
 def _finish(
     section: dict[str, Any],
-    starts: dict[str, int],
-    ends: dict[str, int | None],
-    hits: dict[str, int],
-    order: list[str],
+    starts: dict[tuple, int | None],
+    ends: dict[tuple, int | None],
+    hits: dict[tuple, int],
+    order: list[tuple],
 ) -> None:
     if not order:
         return
     functions = []
-    for name in order:
+    for key in order:
         functions.append(
             {
-                "name": name,
-                "start_line": starts.get(name),
-                "end_line": ends.get(name),
-                "hit": hits.get(name),
+                "name": key[0],
+                "start_line": starts.get(key, key[1]),
+                "end_line": ends.get(key),
+                "hit": hits.get(key),
                 "lines": None,
             }
         )
@@ -90,16 +93,18 @@ def _finish(
     # `max` into the shared section, so the function records must fold the
     # same way: replacing them would let a later block's `FNDA:0` erase an
     # earlier hit and report the function at 0 percent, at maximal CRAP, in a
-    # file the line table shows as covered.
-    existing = {f["name"]: f for f in section["functions"] or []}
+    # file the line table shows as covered. The fold key is the name with the
+    # start line, the same identity the accumulators carry, because one file
+    # can hold two functions of the same name at different lines.
+    existing = {(f["name"], f["start_line"]): f for f in section["functions"] or []}
     for function in functions:
-        previous = existing.get(function["name"])
+        key = (function["name"], function["start_line"])
+        previous = existing.get(key)
         if previous is None:
-            existing[function["name"]] = function
+            existing[key] = function
             continue
-        for key in ("start_line", "end_line"):
-            if previous[key] is None:
-                previous[key] = function[key]
+        if previous["end_line"] is None:
+            previous["end_line"] = function["end_line"]
         counts = [h for h in (previous["hit"], function["hit"]) if h is not None]
         previous["hit"] = max(counts) if counts else None
     folded = list(existing.values())
@@ -111,11 +116,20 @@ def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
     files: dict[str, dict] = {}
     section: dict[str, Any] | None = None
-    starts: dict[str, int] = {}
-    ends: dict[str, int | None] = {}
-    hits: dict[str, int] = {}
-    order: list[str] = []
+    # Keyed by (name, start line): one `SF` section can declare two functions
+    # of the same name at different lines (two `render` methods in two
+    # classes). Keyed by name alone they collapse into one record, and the
+    # survivor wears the other's execution count.
+    starts: dict[tuple, int | None] = {}
+    ends: dict[tuple, int | None] = {}
+    hits: dict[tuple, int] = {}
+    order: list[tuple] = []
     leaders: dict[str, list] = {}
+    # `FN` declarations per name, in file order, and how many `FNDA` counts
+    # each name has consumed. `FNDA` carries only the name, so the nth count
+    # for a name belongs to the nth declaration of it.
+    declared: dict[str, list[tuple]] = {}
+    counted: dict[str, int] = {}
     with open(path, encoding="utf-8", errors="replace") as handle:
         for raw in handle:
             line = raw.strip()
@@ -130,9 +144,10 @@ def parse(path: str) -> dict[str, dict]:
             if record == "SF":
                 if section is not None:
                     _finish(section, starts, ends, hits, order)
-                key = _norm(rest)
-                section = files.setdefault(key, _section())
+                path_key = _norm(rest)
+                section = files.setdefault(path_key, _section())
                 starts, ends, hits, order, leaders = {}, {}, {}, [], {}
+                declared, counted = {}, {}
                 continue
             if section is None:
                 continue
@@ -156,18 +171,28 @@ def parse(path: str) -> dict[str, dict]:
                 name = name.strip()
                 if not name:
                     continue
-                if name not in order:
-                    order.append(name)
-                starts[name] = start if start is not None else starts.get(name)
-                ends[name] = end
+                key = (name, start)
+                if key not in order:
+                    order.append(key)
+                    declared.setdefault(name, []).append(key)
+                starts[key] = start
+                ends[key] = end
             elif record == "FNDA":
                 count, _, name = rest.partition(",")
                 name = name.strip()
                 value = _int(count)
                 if name and value is not None:
-                    if name not in order:
-                        order.append(name)
-                    hits[name] = max(hits.get(name, 0), value)
+                    seen = declared.get(name) or []
+                    if seen:
+                        index = min(counted.get(name, 0), len(seen) - 1)
+                        counted[name] = counted.get(name, 0) + 1
+                        key = seen[index]
+                    else:
+                        key = (name, None)
+                        if key not in order:
+                            order.append(key)
+                            declared.setdefault(name, []).append(key)
+                    hits[key] = max(hits.get(key, 0), value)
             elif record == "FNL":
                 fields = rest.split(",")
                 if len(fields) < 2:
@@ -188,14 +213,18 @@ def parse(path: str) -> dict[str, dict]:
                 )
                 if not name:
                     continue
-                if name not in order:
-                    order.append(name)
-                if count is not None:
-                    hits[name] = max(hits.get(name, 0), count)
                 leader = leaders.get(index)
+                # `FNA` carries its own count, so the leader it points at is
+                # the start line: no positional pairing is needed here.
+                key = (name, leader[0] if leader else None)
+                if key not in order:
+                    order.append(key)
+                    declared.setdefault(name, []).append(key)
+                if count is not None:
+                    hits[key] = max(hits.get(key, 0), count)
                 if leader:
-                    starts[name] = leader[0]
-                    ends[name] = leader[1]
+                    starts[key] = leader[0]
+                    ends[key] = leader[1]
     if section is not None:
         _finish(section, starts, ends, hits, order)
     return files
