@@ -53,6 +53,35 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Edit(*.md)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
+          },
+          {
+            "type": "command",
+            "if": "Edit(*.sh)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
+          },
+          {
+            "type": "command",
+            "if": "Edit(*.bash)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
+          },
+          {
+            "type": "command",
+            "if": "Edit(*.ps1)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
+          },
+          {
+            "type": "command",
+            "if": "Edit(*.psm1)",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
