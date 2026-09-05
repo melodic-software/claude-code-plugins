@@ -9,8 +9,6 @@ The catalog states what happens when a prerequisite is missing
 ([Access to prerequisites](routines.md#access-to-prerequisites)): missing surface or entitlement
 routes to the advisory path, never a silent degrade. This contract owns the question that
 precedes that consequence: which identities resolve as eligible against this repository at all.
-Decisions are recorded in
-[ADR 0011](../../../docs/adr/0011-resolve-routine-prerequisites-per-identity-declared-over-detected.md).
 
 ## Output grain
 
@@ -114,9 +112,9 @@ declared narrows and fills where no contradicting fact exists; intent never outr
   asserts a prerequisite and the current per-surface probe shows it missing, the identity
   resolves to `unsupported`. A positive verdict never survives the capability's disappearance on
   evidence of intent alone. The contradiction is simultaneously emitted as a **finding** and
-  routed per the
-  [liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) Core contract's
-  two limbs (fail loud, or publish to a channel an agent reads): in a gate context the
+  routed per the marketplace's liveness-assertion convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md>)
+  Core contract's two limbs (fail loud, or publish to a channel an agent reads): in a gate context the
   resolver's non-zero exit is the loud limb; in a report context the divergence finding in the
   emitted resolution is the agent-readable one; the interactive `apply` path additionally
   proposes correcting the declaration.
@@ -139,8 +137,8 @@ axes accept no repo-local value at all (this plugin's ratified cascade deviation
 ## Composition seams
 
 Resolution composes convention-owned consumer surfaces. Every cross-plugin reference is
-presence-gated with a documented fallback per
-[seam phrasing](../../../docs/conventions/seam-phrasing/README.md):
+presence-gated with a documented fallback per the marketplace's seam-phrasing convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/seam-phrasing/README.md>):
 
 | Concern | Seam | Fallback when absent |
 |---|---|---|
@@ -170,8 +168,7 @@ classification obligation forbids.
 ## Configured is not working
 
 Presence establishes configured, never health. The verdict vocabulary is non-health-asserting by
-construction. The
-[liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) on-touch obligation
+construction. The liveness-assertion convention's on-touch obligation (same URL as above)
 still binds every implementing engine surface (the setup `check`, the resolver): each states its
 taxonomy row and how it satisfies fail-loud or agent-readable routing. A consumer that treats
 configured as working is itself the false-green defect. Execution evidence belongs to the
@@ -191,12 +188,12 @@ capability claim sourced from one operator's machine is false in every other exe
 
 ## Landing and implementation boundary
 
-This contract lands as one document under `reference/` per the
-[binding-seam layout rule](binding-seam.md#layout-convention). Implementation phases extend the
-autonomy setup skill as a slice: per-class facts in `v1` leaves, a generated drift-gated
-machine-readable emission derived from those leaves (leaves stay the authored home; the resolver
-reads structure, never prose), the deterministic resolver, and the setup slice. No new plugin,
-no new skill, no new catalog, no new config-file family.
+This contract is one document under `reference/` per the
+[binding-seam layout rule](binding-seam.md#layout-convention). Its implementation is the autonomy
+setup skill's prerequisite-resolution slice: per-class facts in `v1` leaves, a generated
+drift-gated machine-readable emission derived from those leaves (leaves stay the authored home;
+the resolver reads structure, never prose), the deterministic resolver, and the setup slice. No
+separate plugin, skill, catalog, or config-file family carries it.
 
 ## Disambiguation — five incumbents this term is not
 

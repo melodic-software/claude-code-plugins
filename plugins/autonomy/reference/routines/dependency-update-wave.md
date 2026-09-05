@@ -106,5 +106,4 @@ escalation rules.
 
 The proven manual pattern: recurring hand-run dependency sweeps batched into review
 waves. Productized precedent makes this class THE guardrail-matrix archetype: scheduled
-dependency-update bots with test-gated, policy-controlled automerge matrices. Precedent
-record: routine-catalog research, row 16.
+dependency-update bots with test-gated, policy-controlled automerge matrices.

@@ -7,8 +7,8 @@ declared scheduling surface, and why.
 
 ## Liveness
 
-This slice's `check` is an **engine health-check** surface under
-[`liveness-assertion`](../../../../../docs/conventions/liveness-assertion/README.md): it
+This slice's `check` is an **engine health-check** surface under the marketplace's liveness-assertion
+convention (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md>): it
 invokes the deterministic resolver end-to-end and fails loud on internal failure. It never
 reports "healthy" from configuration alone, and never invents a verdict-shaped fallback.
 
@@ -32,8 +32,7 @@ Wrapper:
 1. **Detect-diff-reconcile.** Run the same resolution as `check`. An existing
    `prerequisite_resolution` declaration is authoritative input: divergence from probe
    results is a **finding**, never a silent overwrite. A ran-negative probe caps a positive
-   declaration (ADR 0011 Decision 2) — the identity stays `unsupported` while the finding
-   is open.
+   declaration; the identity stays `unsupported` while the finding is open.
 2. **Prose-context pass (proposal only).** Read host instruction files (`CLAUDE.md`),
    secondary agent-instruction files (`AGENTS.md` — reaches a session only through a
    reference), and `README` for *proposed* declarations into **non-security keys only**.
