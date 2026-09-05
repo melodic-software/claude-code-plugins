@@ -150,6 +150,9 @@ MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
 # tokens still to come: fewer than two means the flag arrived last, with nothing
 # to consume. Without it `shift 2` on a lone trailing flag consumes nothing and
 # the parse loop spins forever.
+# Deliberately an argc check and NOT a `-*` value rejection: `-` is a real value
+# here, since SKILL.md documents `--body-file -` for reading the body from stdin.
+# Hardening this into "reject values that look like flags" would break that.
 require_value() {
   (($# >= 2)) && return 0
   err "$1 requires a value"

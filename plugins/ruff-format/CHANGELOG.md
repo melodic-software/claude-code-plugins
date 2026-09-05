@@ -3,7 +3,7 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.32]
+## [0.6.33]
 
 ### Changed
 
@@ -16,6 +16,14 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   builds compact string-field objects without jq, for telemetry data builders
   that only carry strings. Same verdicts; the copy is bumped because
   `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.32]
+
+### Changed
+
+- **`ruff-format.test.sh`: a dead RC capture removed.** The unused-import case captured `$?` into
+  `RC` after `OUT=$(run_hook ...)` and then asserted only on the file's contents, so the capture
+  was never read. Test-only; the hook is unchanged.
 
 ## [0.6.31]
 

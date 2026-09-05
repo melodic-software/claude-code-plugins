@@ -136,8 +136,7 @@ export function cueAnchorTimestamps(cues, patterns = DEFAULT_CUE_ANCHOR_PATTERNS
   const timestamps = [];
   for (const cue of cues) {
     if (!patterns.some((pattern) => pattern.test(cue.text))) continue;
-    const midpoint = (cue.startSec + cue.endSec) / 2;
-    timestamps.push(Number(midpoint.toFixed(3)));
+    timestamps.push(Number(((cue.startSec + cue.endSec) / 2).toFixed(3)));
   }
   return timestamps;
 }

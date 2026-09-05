@@ -188,7 +188,6 @@ emit_tel() {
 # --- High-confidence secret patterns (shared lib) ---------------------------
 # Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
 # pre-commit content-invariants hook enforces the same set (#2731).
-VIOLATIONS=""
 LABELS=()
 
 # Capture stdout; empty means clean (secrets::scan_text's exit status is lost

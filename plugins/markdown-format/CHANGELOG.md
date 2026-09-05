@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.41]
+## [0.11.42]
 
 ### Changed
 
@@ -16,6 +16,18 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   builds compact string-field objects without jq, for telemetry data builders
   that only carry strings. Same verdicts; the copy is bumped because
   `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.11.41]
+
+### Changed
+
+- **A dead `MDLINT=()` default removed from the hook.** All three arms of the linter-resolution
+  chain either assign the array or exit, so the empty initializer was never read. No probe order,
+  notice, remediation string or exit code changed.
+- **What was reverted, and why it is worth recording**: a `DIGEST_FILE=""` default removed in the
+  same pass was put back. With the digest write forced to fail, the status leaving the block goes
+  0 to 1 and the variable is left unset rather than empty, so the default is load-bearing. The
+  same file already treats a structurally identical defensive default that way.
 
 ## [0.11.40]
 

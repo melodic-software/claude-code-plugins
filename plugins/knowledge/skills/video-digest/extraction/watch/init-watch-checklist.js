@@ -59,13 +59,11 @@ export function buildFloorsLine(contentClass, durationHours, sessionCount, durat
     durationSec,
     typeof sessionCount === "number" ? sessionCount : 1,
   );
-  const synthesis = floors.minSynthesisFrames;
-  const perHour = floors.minPerHour;
   const sheetTriagePct = Math.round(floors.minSheetTriageRatio * 100);
   const densificationPct = Math.round(floors.minDensificationRatio * 100);
   return (
     `**Floors for this slice** (from \`vision-plan\` class \`${contentClass}\`, ${durationHours}h, ` +
-    `${sessionCount} sessions): ≥${synthesis} synthesis frames, ≥${perHour}/h, ` +
+    `${sessionCount} sessions): ≥${floors.minSynthesisFrames} synthesis frames, ≥${floors.minPerHour}/h, ` +
     `≥${sheetTriagePct}% sheet triage, ≥${densificationPct}% densification alignment.`
   );
 }

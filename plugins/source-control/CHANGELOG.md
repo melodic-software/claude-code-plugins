@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.48]
+## [0.55.49]
 
 ### Changed
 
@@ -16,6 +16,68 @@ All notable changes to the `source-control` plugin are documented here. Format f
   builds compact string-field objects without jq, for telemetry data builders
   that only carry strings. Same verdicts; the copy is bumped because
   `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.55.48]
+
+### Changed
+
+- **The babysit-prs prune suite folds 42 temp-dir fixtures into one context
+  manager.** `test_prune_babysit_worktrees.py` opened
+  `tempfile.TemporaryDirectory(ignore_cleanup_errors=True)` and converted to a
+  `Path` at 42 sites; a `scratch_dir()` helper does it once. Test count is
+  unchanged at 650 for the suite and 45 for the module, and the fold was proven
+  to still catch its bugs by mutation rather than by passing: four mutations to
+  the module under test (a removal check forced true, the root-containment guard
+  disabled, an unrecognized-worktree append dropped, an orphan comparison forced
+  false) produce the SAME failing set at both revisions, 3 failures in the first
+  round and 8 in the second, spanning both branches of the rename.
+  The whole-file ruff-format reflow that the edit triggered was separated at the
+  AST level: baseline against formatted-baseline is AST-identical across 37
+  changed lines, and replaying the three mechanical edits onto that reproduces
+  the committed file exactly. All comments are byte-identical.
+- **`babysit_resolve_thread.py` emits its refusals through one helper.** Six
+  refusal sites each built and printed their own envelope. A single `_refuse`
+  now does it, matching the helper `babysit_merge.py` already defines. The
+  delicate part is that this module resolves review threads, so every refusal
+  is an authority boundary: each message text is unchanged, the missing
+  allowlist still exits 3 rather than the usage-error 2, and the emitted key
+  order stays `pr`, `inScope`, `error` because the extra fields expand ahead of
+  the error text, which is what consumers branch on. The engine suite still
+  passes, including the case asserting the resolve wrapper reaches a
+  fail-closed CLI with no allowlist.
+- **`fetch-annotations.sh` projects and filters in one jq pass.** The records were
+  projected in one pass and `--failed` applied in a second, with a separate "no
+  records" exit on each side. One pass now does both, driven by an `--argjson
+  failed_only`, and the empty check lives once, on the filtered result. That drops
+  a variable, a branch and a spawn. Neither script's `usage()` is touched here.
+- **`fetch-failed-logs.sh` parses `--max-bytes` straight into `MAX_BYTES`.** The
+  default sits at the declaration instead of being relayed through a
+  `MAX_BYTES_ARG` string.
+
+  Worth its length because it nearly went the other way. `MAX_BYTES_ARG=""` looks
+  exactly like a dead store, and a positive control disproved that: replacing it
+  with a sentinel in the parent revision produced 18 mismatches across a 722-case
+  differential, so it was a live default carrier. The change therefore re-plumbs
+  the default rather than deleting it, and a negative control confirms a wrong
+  default would be caught.
+- **`test-helpers.sh` routes six `assert_*` helpers through `pass()`.** The PASS
+  line was spelled out in seven places and now lives in one. The subtle part is
+  the case counter: the increment moves out of each helper's top and into
+  `pass()`, with the failure branches incrementing explicitly, so the numbering in
+  `PASS: [N]` and `FAIL: [N]` had to come out identical. Confirmed by running a
+  consuming suite at both revisions and byte-comparing: stdout and stderr both
+  identical, rc 0 each.
+- **`landed-work.sh`'s `patch_ids()` cleans its temp file once.** Three exit paths
+  each removed it; a single `rm` before one return now covers every path, with the
+  status carried in `rc`. The empty-stream case stays a legitimate empty range
+  rather than an error, and `$out` is left truncated either way.
+- **`worktree-claim.test.sh` folds five copies of the porcelain-stanza awk
+  lookup** into one `stanza_for()` helper, whose comment records why paragraph
+  mode is what keeps a record's `locked` line attached to its `worktree` line.
+- **`nesting-invariant-ssot.test.sh` folds two expiry arms.** The two patterns had
+  identical capture bodies and are now two alternatives of one condition, with the
+  shared read of `BASH_REMATCH` written once. No assertion was touched, and the
+  suite still passes 18 of 18.
 
 ## [0.55.47]
 

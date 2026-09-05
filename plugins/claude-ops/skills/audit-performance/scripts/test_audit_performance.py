@@ -14,11 +14,14 @@ probe's mere presence.
 
 from __future__ import annotations
 
+import ctypes
 import json
+import struct
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_performance as engine  # noqa: E402
@@ -449,6 +452,123 @@ class TestEtimeParsing(unittest.TestCase):
     def test_an_unparsable_field_raises_rather_than_returning_a_wrong_age(self):
         with self.assertRaises(ValueError):
             engine.parse_etime("not-a-time")
+
+
+class TestKernelObjectCensus(unittest.TestCase):
+    """The host-level floor: a Token-object leak none of the four suspects can see."""
+
+    @staticmethod
+    def build_block(entries: list[tuple[str, int, int, int, int]]):
+        """Lay out an x64 OBJECT_TYPES_INFORMATION block the way the kernel does: a count,
+        then per entry the 0x68-byte struct followed by its UTF-16LE name buffer padded to 8."""
+        block = ctypes.create_string_buffer(4096)
+        base = ctypes.addressof(block)
+        struct.pack_into("<I", block, 0, len(entries))
+        offset = engine._OBJECT_TYPES_HEADER_BYTES
+        for name, objects, handles, high_water_objects, high_water_handles in entries:
+            encoded = name.encode("utf-16-le")
+            maximum = len(encoded) + 2
+            name_offset = offset + engine._OBJECT_TYPE_INFORMATION_BYTES
+            struct.pack_into("<HH", block, offset + engine._OTI_NAME_LENGTH, len(encoded), maximum)
+            struct.pack_into("<Q", block, offset + engine._OTI_NAME_BUFFER, base + name_offset)
+            struct.pack_into("<II", block, offset + engine._OTI_TOTAL_OBJECTS, objects, handles)
+            struct.pack_into(
+                "<II", block, offset + engine._OTI_HIGH_WATER_OBJECTS,
+                high_water_objects, high_water_handles,
+            )
+            block[name_offset:name_offset + len(encoded)] = encoded
+            offset = name_offset + ((maximum + 7) & ~7)
+        return block
+
+    def test_parser_walks_the_x64_layout_with_padded_names(self):
+        block = self.build_block(
+            [
+                ("Token", 3_811_482, 1_739, 3_811_482, 2_000),  # 10-byte name, padded to 16
+                ("Key", 189_005, 189_011, 189_595, 190_000),  # 6-byte name, padded to 8
+                ("EtwRegistration", 50_926, 50_926, 50_926, 50_926),
+            ]
+        )
+        table = engine.parse_object_types(ctypes.addressof(block))
+        self.assertEqual(list(table), ["Token", "Key", "EtwRegistration"])
+        self.assertEqual(
+            table["Token"],
+            {
+                "objects": 3_811_482,
+                "handles": 1_739,
+                "high_water_objects": 3_811_482,
+                "high_water_handles": 2_000,
+            },
+        )
+        self.assertEqual(table["Key"]["objects"], 189_005)
+        self.assertEqual(table["EtwRegistration"]["high_water_handles"], 50_926)
+
+    def test_a_leaking_host_is_labelled_from_count_and_pool(self):
+        summary = engine.summarize_kernel_objects(
+            {"Token": {"objects": 3_811_482, "handles": 1_739, "high_water_objects": 3_811_482, "high_water_handles": 2_000}},
+            {
+                "paged_pool_mb": 9_894, "nonpaged_pool_mb": 2_452,
+                "handles": 400_000, "processes": 900, "threads": 12_000,
+                "uptime_s": 2 * 86_400 + 55 * 60,
+            },
+        )
+        self.assertEqual(summary["state_label"], "token-leak")
+        self.assertEqual(summary["findings"], ["token-objects-leaked", "paged-pool-high"])
+        self.assertEqual(summary["token"]["handleless_objects"], 3_811_482 - 1_739)
+        self.assertAlmostEqual(summary["token"]["objects_per_uptime_second"], 21.64, places=2)
+        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"])
+        self.assertEqual(summary["pool"], {"paged_mb": 9_894, "nonpaged_mb": 2_452})
+
+    def test_high_pool_alone_is_reported_but_is_not_a_token_leak_verdict(self):
+        """GetPerformanceInfo cannot say what charged the pool, so pool alone never convicts Token."""
+        summary = engine.summarize_kernel_objects(
+            {"Token": {"objects": 12_000, "handles": 1_100, "high_water_objects": 12_050, "high_water_handles": 1_400}},
+            {"paged_pool_mb": 6_144, "nonpaged_pool_mb": 1_500, "uptime_s": 36_000},
+        )
+        self.assertEqual(summary["findings"], ["paged-pool-high"])
+        self.assertEqual(summary["state_label"], "paged-pool-high")
+        self.assertNotIn("token-objects-leaked", summary["findings"])
+
+    def test_a_fresh_boot_is_nominal_but_projects_the_threshold(self):
+        summary = engine.summarize_kernel_objects(
+            {
+                "Token": {"objects": 25_623, "handles": 1_373, "high_water_objects": 25_674, "high_water_handles": 1_809},
+                "Process": {"objects": 391, "handles": 3_915, "high_water_objects": 499, "high_water_handles": 4_442},
+                "Mutant": {"objects": 1, "handles": 1, "high_water_objects": 1, "high_water_handles": 1},
+            },
+            {
+                "paged_pool_mb": 1_092, "nonpaged_pool_mb": 1_532,
+                "handles": 164_058, "processes": 367, "threads": 7_181, "uptime_s": 7_016,
+            },
+        )
+        self.assertEqual(summary["state_label"], "nominal")
+        self.assertEqual(summary["findings"], [])
+        self.assertAlmostEqual(summary["token"]["objects_per_uptime_second"], 3.65, places=2)
+        self.assertAlmostEqual(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"], 17.1, places=1)
+        self.assertIn("boot population", summary["token"]["basis"], "the ratio names its own bias")
+        self.assertEqual(list(summary["types"]), ["Token", "Process"], "only the catalogued types ship")
+        self.assertEqual(summary["thresholds"]["token_leak_objects"], engine.TOKEN_LEAK_OBJECTS)
+
+    def test_zero_uptime_reports_no_rate_rather_than_dividing(self):
+        summary = engine.summarize_kernel_objects({"Token": {"objects": 5, "handles": 5}}, {"uptime_s": 0})
+        self.assertIsNone(summary["token"]["objects_per_uptime_second"])
+        self.assertIsNone(summary["token"]["hours_to_leak_threshold_at_uptime_ratio"])
+        self.assertEqual(summary["state_label"], "nominal")
+
+    def test_off_windows_the_census_says_why_rather_than_vanishing(self):
+        with mock.patch.object(engine.sys, "platform", "linux"):
+            result = engine.kernel_objects()
+        self.assertFalse(result["supported"])
+        self.assertIn("Windows-only", result["reason"])
+
+    def test_a_live_census_carries_the_contract_keys(self):
+        result = engine.kernel_objects()
+        self.assertIn("supported", result)
+        if result["supported"]:
+            self.assertIn("Token", result["types"])
+            self.assertIn(result["state_label"], {"nominal", "paged-pool-high", "token-leak"})
+            self.assertGreater(result["uptime_hours"], 0)
+        else:
+            self.assertIn("reason", result)
 
 
 class TestFanOutIsWiredIntoTheReport(unittest.TestCase):

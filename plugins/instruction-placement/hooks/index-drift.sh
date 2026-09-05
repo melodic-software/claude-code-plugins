@@ -22,8 +22,9 @@
 
 set -uo pipefail
 
+hook_dir="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$hook_dir/hook-utils.sh"
 
 # The argument is the userConfig key MINUS its `_enabled` suffix, upper-cased:
 # `index_drift_hook_enabled` -> INDEX_DRIFT_HOOK, which hook::is_enabled turns
@@ -59,7 +60,7 @@ esac
 repo_root="$(hook::repo_root "$(dirname "$file_path")" 2>/dev/null || true)"
 [[ -n "$repo_root" && -d "$repo_root" ]] || exit 0
 
-renderer="$(dirname "${BASH_SOURCE[0]}")/../scripts/render-index.sh"
+renderer="$hook_dir/../scripts/render-index.sh"
 [[ -x "$renderer" ]] || exit 0
 
 # Resolve the index target the same way the check skill documents: an explicit

@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.7]
+## [0.31.8]
 
 ### Changed
 
@@ -25,6 +25,36 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
   item in this plugin's hook-budget accounting (~1 jq per guard). The
   unwired default path is unchanged (still zero telemetry spawns).
+
+## [0.31.7]
+
+### Changed
+
+- **Two hook suites route their command-level runners through the payload-level
+  helpers already sitting in the same file.** `block-dangerous-git.test.sh`'s
+  `run_in` is now a call to `run_split` with the fixture directory passed as both
+  the payload cwd and the process cwd, the case `run_split` was written to
+  generalise. `block-windows-drive-tmp.test.sh`'s `run_win` and `run_posix_host`
+  become one-line calls to `run_win_payload` and `run_posix_host_payload`. The
+  bodies they drop were re-spellings of those helpers, down to the two message
+  assertions `run_win` made whenever the expected exit was 2.
+- **Four dead initializers dropped.** `secret-pattern-detection.sh` set
+  `VIOLATIONS=""` and `stale-path-verify.sh` set `ls_tag=""`, and each is assigned
+  again before its first read: `VIOLATIONS` from `_secret_out` past the clean-scan
+  early exit, `ls_tag` from `git ls-files -v` on the line above the only test of
+  it. The `RC=0` in `skill-reference-verify.test.sh` and `stale-path-verify.test.sh`
+  sits above reads that each carry their own `RC=$?`.
+- **`lib/secret-detection/secret-patterns.sh` stops writing a global no caller can
+  observe.** `secrets::scan_text` reset `SECRETS_LABELS` and appended each matched
+  label to it, but both callers run the function inside a command substitution, so
+  that array died with the subshell; the name is now referenced nowhere in the
+  repository. Telemetry never read it anyway: `secret-pattern-detection.sh` parses
+  the labels back off the function's stdout lines into its own `LABELS` array, and
+  still does. The header comment now says stdout is the only channel rather than
+  advertising the array.
+
+  Two hook files and one shared lib are in this diff. What is unchanged is
+  behavior: no matcher, allowlist, exit code, decision or message differs.
 
 ## [0.31.6]
 

@@ -31,6 +31,31 @@ async function countOccupiedSlots(dir) {
   return names.filter((name) => /^slot-\d+$/.test(name)).length;
 }
 
+/**
+ * Race eight reclaimers on one stale slot; each winner immediately re-occupies
+ * it, so an over-eager second reclaim would evict a live holder.
+ *
+ * @param {string} slotPath
+ * @returns {Promise<boolean[]>} one entry per racer: whether it removed the slot
+ */
+async function raceReclaimers(slotPath) {
+  /** @type {boolean[]} */
+  const removed = [];
+  await Promise.all(
+    Array.from({ length: 8 }, () =>
+      (async () => {
+        const won = await reclaimStaleSlot(slotPath);
+        removed.push(won);
+        if (won) {
+          await fs.mkdir(slotPath);
+          await fs.writeFile(path.join(slotPath, "pid"), "live\n");
+        }
+      })(),
+    ),
+  );
+  return removed;
+}
+
 /** @type {string} */
 let baseDir;
 
@@ -147,20 +172,7 @@ describe("reclaimStaleSlot", () => {
     const reclaim = `${slot}.reclaim`;
     await makeStale(reclaim);
 
-    /** @type {boolean[]} */
-    const removed = [];
-    await Promise.all(
-      Array.from({ length: 8 }, () =>
-        (async () => {
-          const won = await reclaimStaleSlot(slot);
-          removed.push(won);
-          if (won) {
-            await fs.mkdir(slot);
-            await fs.writeFile(path.join(slot, "pid"), "live\n");
-          }
-        })(),
-      ),
-    );
+    const removed = await raceReclaimers(slot);
 
     expect(removed.filter(Boolean)).toHaveLength(1);
     expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");
@@ -171,20 +183,7 @@ describe("reclaimStaleSlot", () => {
     const slot = path.join(baseDir, "slot-0");
     await makeStale(slot);
 
-    /** @type {boolean[]} */
-    const removed = [];
-    await Promise.all(
-      Array.from({ length: 8 }, () =>
-        (async () => {
-          const won = await reclaimStaleSlot(slot);
-          removed.push(won);
-          if (won) {
-            await fs.mkdir(slot);
-            await fs.writeFile(path.join(slot, "pid"), "live\n");
-          }
-        })(),
-      ),
-    );
+    const removed = await raceReclaimers(slot);
 
     expect(removed.filter(Boolean)).toHaveLength(1);
     expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");

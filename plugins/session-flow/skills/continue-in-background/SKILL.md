@@ -62,7 +62,12 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps. The launched agent receives
 exactly the resume prompt that sits between the rails (full path: it follows the prompt's Read
-directive to the handoff file; prompt-only: the remaining-work bullets travel inline).
+directive to the handoff file; prompt-only: the remaining-work bullets travel inline). On the full
+path the file is shape 2: `save_point.py validate <file>` must exit 0 before anything launches
+(an unfinished skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched
+from), and the launch payload is the between-rails text of `save_point.py emit <file>`, the lines
+from the `Read @` directive through the last `Next:` headline, taken from that output and never
+retyped. The same bytes the file's `## Resume prompt` section stores are what the agent gets.
 
 ## Delivery: background-agent launch
 
@@ -117,10 +122,11 @@ fallback), then:
    runs inside a linked git worktree, where isolation is skipped per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt, exactly as emitted between the rails, to a temporary file with the
-   Write tool (never inline it in the command: prompt content is untrusted session text, and any
-   inline embedding, a heredoc, an escaped string, hands crafted content a path out of the
-   quoting and into the shell). `<topic>` = the resolved, sanitized topic slug (argument or
-   inferred); when none resolves, use `resume`:
+   Write tool (full path: the between-rails lines of the `save_point.py emit <file>` output;
+   prompt-only: the block as emitted; never inline it in the command: prompt content is
+   untrusted session text, and any inline embedding, a heredoc, an escaped string, hands crafted
+   content a path out of the quoting and into the shell). `<topic>` = the resolved, sanitized
+   topic slug (argument or inferred); when none resolves, use `resume`:
 
    ```bash
    cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
@@ -186,9 +192,11 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
-- [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
-  result reported (including any non-inherited flags mirrored or worth flagging), OR the
-  non-zero exit reported with fallback to `/clear`-then-paste
+- [ ] Background agent launched with the rails prompt (`claude --bg --name …`), the payload being
+  the between-rails text of `save_point.py emit <file>` on the full path (validated first, exit 0
+  quoted) or the emitted block on prompt-only, and the launch result reported (including any
+  non-inherited flags mirrored or worth flagging), OR the non-zero exit reported with fallback to
+  `/clear`-then-paste
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Gotchas

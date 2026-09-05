@@ -381,17 +381,10 @@ export function primaryEntry(envelope) {
 
 /** @typedef {SourceAdapter} SourceAdapterSpec */
 
-export const REQUIRED_METHODS = Object.freeze([
-  "matchUrl",
-  "extractSliceKey",
-  "acquire",
-  "harvestLinks",
-  "acceptForEnqueue",
-]);
-
 /**
- * Declared parameter counts, enforced at runtime because the type lane accepts
- * too-few-parameters silently (`checkJs` with `strict: false`).
+ * The required methods and their declared parameter counts. Arity is enforced
+ * at runtime because the type lane accepts too-few-parameters silently
+ * (`checkJs` with `strict: false`).
  */
 export const REQUIRED_METHOD_ARITY = Object.freeze({
   matchUrl: 1,
@@ -400,6 +393,18 @@ export const REQUIRED_METHOD_ARITY = Object.freeze({
   harvestLinks: 1,
   acceptForEnqueue: 1,
 });
+
+/**
+ * The required-method list: exactly {@link REQUIRED_METHOD_ARITY}'s keys, in
+ * declaration order. Derived so a method can never be declared in one of the
+ * two tables and silently unchecked in the other.
+ *
+ * That derivation makes key order load-bearing: `validateAdapter` reports
+ * violations in this order, so reordering the entries of REQUIRED_METHOD_ARITY
+ * reorders its output too. Callers that assert on the whole violations array,
+ * rather than on membership, will see that reordering.
+ */
+export const REQUIRED_METHODS = Object.freeze(Object.keys(REQUIRED_METHOD_ARITY));
 
 /** The transcript-strategy vocabulary ({@link TranscriptStrategy}). */
 export const TRANSCRIPT_STRATEGIES = Object.freeze(

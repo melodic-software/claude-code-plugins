@@ -31,6 +31,22 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   anything about the panel is uncertain, the answer is an abbreviated panel or a single line saying
   the units would not resolve — never a delayed or dropped rails prompt (engine doc, "The panel
   NEVER gates the rails prompt").
+- **The handoff written free-hand, with no rails at all** — the dominant failure in the transcript
+  audit (10 of 25 handoff writes on this machine): a session wrote a `*-handoff-*.md` file through
+  `Write` or `Edit` without ever invoking `/session-flow:handoff`, so nothing in it had read the
+  engine, and no resume prompt reached the screen. The file looked complete; the operator had
+  nothing to paste. The resume directive now carries the rule into every successor session
+  ("For the next save-point invoke /session-flow:handoff via the Skill tool; never write a
+  handoff file free-hand"), and any other surface that still licenses a free-hand write (a hook
+  reason, another skill's fallback note) is a defect to close, not a route to take. A handoff
+  file that a session did not produce through the skill is a defect to raise, not a save-point
+  to resume from.
+- **ASCII rails** — a `-----` or `=====` line typed in place of the U+2500 `─` rail (2 of the 15
+  skill-produced prompts in the audit). It reads as a rail to a human and is invisible to
+  `find-handoff`, which keys on the U+2500 glyph, so the prompt is unrecoverable after `/clear`.
+  On the full path the script writes the rails and the validator refuses any other glyph; on
+  screen, paste the `emit` output rather than retyping it, and never let a terminal or editor
+  "normalize" the glyph.
 - **Prompt-only when durability is required** — prompt-only fits small, self-contained follow-ups;
   when a plan artifact, dead-ends, or load-bearing decisions back the work, write the durable
   handoff file. Any doubt → full handoff.

@@ -151,6 +151,12 @@ async function processLesson(module, lesson, ctx) {
     tracker,
   } = ctx;
 
+  // These two joins run BEFORE the skip guard on purpose: they are what makes a
+  // malformed course.json fail loudly. lessonDirName throws on a non-string
+  // title and join throws on a non-string module.slug, so a hand-edited entry
+  // aborts the run instead of being silently counted as skipped. Hoisting the
+  // guard above them saves two allocation-free calls and converts that abort
+  // into stats.skipped++ with exit 0 -- the failure mode C4 exists to prevent.
   const lessonDir = join(modulesDir, module.slug, lessonDirName(lesson.position, lesson.title));
   const transcriptPath = join(lessonDir, "transcript.md");
 

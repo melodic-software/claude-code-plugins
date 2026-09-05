@@ -235,8 +235,8 @@ try {
     foreach ($row in $allVars) {
         if ($row.name -ne 'DISABLE_AUTOUPDATER') { continue }
         $disableFindings.Add([pscustomobject]@{
-                scope           = $row.scope
-                set             = $true
+                scope            = $row.scope
+                set              = $true
                 disables_updates = Test-TruthyEnvValue $row.value
             })
     }

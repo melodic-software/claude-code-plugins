@@ -3,6 +3,28 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.12]
+
+### Changed
+
+- **Three hashtable literals aligned and `$matches` given its canonical casing.** The `detail`
+  literal in `Test-Reliability.ps1`, the finding literal in `Test-EnvironmentHealth.ps1` and the
+  correlation-rule literals in `Invoke-FindingCorrelation.ps1` had assignment operators at
+  inconsistent columns; `Get-DriverStoreInventory.ps1` reads the automatic variable as `$Matches`,
+  the spelling the rest of the tree uses. Whitespace and casing only: PowerShell resolves variable
+  names case-insensitively, so no key, value or emitted record changed. Three agents read all 67
+  files across the audit skill and changed six lines between them; almost everything here is
+  load-bearing, including guards that only look redundant, because `@($false)` unrolls falsy and a
+  companion `-and $x.Count -gt 0` clause is therefore not a duplicate test.
+
+### Notes for maintainers
+
+- **`Restart-StoppedService.ps1`'s `ShouldProcess` gate is untested.** Replacing it with
+  `if ($true)` breaks no test, and under `-WhatIf` the original skips `Start-Service` while the
+  mutant actually restarts the service. No test anywhere passes `-WhatIf` or `-Confirm`.
+- `detail` is a plain hashtable, so its JSON key order varies per process; anything comparing that
+  order across runs is relying on nondeterminism.
+
 ## [0.12.11]
 
 ### Fixed

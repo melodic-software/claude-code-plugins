@@ -210,6 +210,11 @@ PREAMBLE
     # "these exist, go read them" contract at a bounded cost. What was collapsed
     # is stated rather than silently dropped: a truncated index that reads as
     # complete is the failure mode here.
+    # One ordering, reused by all three uses below. The listed head and the
+    # grouped tail are two halves of the SAME sort, so they read it from one
+    # place. Spawn effect, measured rather than assumed: this removes one `sort`
+    # from the grouped-tail path (which sorted the same rows twice) and costs a
+    # subshell on the <=MAX_ROWS path, where one sort already sufficed.
     local sorted
     sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
@@ -255,7 +260,6 @@ normalize_drive_path() {
   exit 2
 }
 
-SUBCOMMAND=""
 case "${1:-}" in
 -h | --help)
   usage

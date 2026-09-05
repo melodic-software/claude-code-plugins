@@ -3,6 +3,28 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.34]
+
+### Changed
+
+- **`emit-findings.sh` composes its `## Surfaces` zero-result list through `rule_id()`**
+  instead of retyping the four rule-id strings that function already owns. Hand-copied
+  ids are the drift class `conflict-scan.sh`'s own `COORD_ERE` comment records a shipped
+  bug from, so a `split()` loop over the four ids now routes each one through the
+  accessor. Differential runs are byte-identical.
+- **`conflict-scan.sh` drops a guard that could never be false.** The `in` test before
+  `entities[ent] = 1` was redundant twice over: awk's `in` does not autovivify, and the
+  assigned value is always 1, so the guarded assignment is idempotent either way.
+- **`fix-plugin-drift.sh` builds its four action-plan lists through one `findings()`
+  helper.** The auto-remove, manual-orphan, auto-add and rename extractions repeated an
+  identical `select(.status == "ok")` and `sort -u` frame over `$INPUT_JSON`. The file's
+  injection posture is preserved on purpose: the composed suffix is always a static
+  literal from this file, never data, and plugin names stay `--argjson`-bound.
+- **`permission-state.test.sh` loses a guard dominated by the line above it.** After
+  `src="$(command -v "$tool")" || continue`, success already implies a non-empty `src`,
+  so the emptiness test beneath it could not fire. The suite's zero-writes proof is
+  untouched and still ran 12 of 12.
+
 ## [0.40.33]
 
 ### Changed

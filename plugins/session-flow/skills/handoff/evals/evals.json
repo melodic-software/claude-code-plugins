@@ -11,7 +11,8 @@
         "A durable handoff file is written (default location .work/handoffs/, or <memory_dir>/handoffs/ per the consuming repo's declared working-docs convention)",
         "A copy-paste resume prompt is emitted between two dashed U+2500 rails, not a markdown --- fence, and it @-references the handoff file rather than inlining its detail",
         "A plain '/clear, then copy everything between the dashed lines' instruction sits above the top rail",
-        "The skill STOPS after emitting the save-point — it does not continue executing the underlying refactor task in this session"
+        "The skill STOPS after emitting the save-point — it does not continue executing the underlying refactor task in this session",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section rather than regenerated"
       ]
     },
     {
@@ -35,7 +36,8 @@
       "expectations": [
         "The skill does NOT continue on to run tests or open a PR in this session",
         "The save-point / resume prompt is produced, pointing at the next unfinished stage",
-        "The skill STOPS — a multi-step pipeline naming /handoff names a /clear boundary, not authorization to keep executing"
+        "The skill STOPS — a multi-step pipeline naming /handoff names a /clear boundary, not authorization to keep executing",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section; the next stage's skill rides on the `Then:` line, not in a rewritten directive"
       ]
     },
     {
@@ -47,9 +49,10 @@
       "expectations": [
         "The Read directive in the rails carries an absolute path, not a repo-relative one, because the resuming session's cwd is not the root of the repository the file was written into",
         "The absolute path is rendered with forward slashes rather than backslashes",
-        "A Handoff origin: line inside the rails names the repository identity and the repo-relative path, computed at emit time rather than read from a frontmatter field",
+        "A Handoff origin: line inside the rails names the repository identity and the repo-relative path in the two-slot form `<remote URL> <repo-relative path>`, computed at write time by the script from the repository the file was written into and stored only inside the file's `## Resume prompt` section, never in a frontmatter field",
         "The directive remains actionable if the @ mention does not expand — the same line states the full absolute path, which the resuming session can read directly",
-        "The emitted path is the location the write step actually used, never a default the file was not written to"
+        "The emitted path is the location the write step actually used, never a default the file was not written to — it is the path `save_point.py new` printed, reused verbatim rather than recomputed",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -61,10 +64,11 @@
       "expectations": [
         "The emitted Handoff origin: line contains no token or password — the credential-bearing userinfo, everything from :// through the @ inclusive, is removed",
         "The URL is reduced to its bare scheme-and-host form, NOT replaced with a <REDACTED: …> shape marker — the git-URL rule is a deliberate exception to the general redaction rule, because the host and path are non-secret and are what recovery re-resolves from",
-        "The sanitization happens at emit time in the producer, not left to the redaction pass to catch afterwards",
+        "The sanitization happens at write time in the producer's script (`save_point.py new` strips the userinfo before it stores the line), not left to the redaction pass to catch afterwards",
         "The reasoning names why it matters that the line is INSIDE the rails: the copy region is what travels to other sessions and machines",
         "A URL whose userinfo boundary cannot be determined falls back to the repository's root directory name rather than being emitted as-is or guessed at",
-        "The line still names the repository well enough to re-resolve the repo-relative path on another machine — sanitizing does not drop the identity"
+        "The line still names the repository well enough to re-resolve the repo-relative path on another machine — sanitizing does not drop the identity",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -78,7 +82,8 @@
         "The SCP-style `git@host:<owner>/<repo>.git` form is recognized as having no `://` to anchor on, so the userinfo boundary is undeterminable",
         "That undeterminable case falls back to the root directory name rather than stripping at a guessed boundary or emitting the URL unchanged",
         "The distinction drawn is credential-bearing versus non-credential userinfo, not ssh-versus-https as such",
-        "Neither case is emitted as a <REDACTED: …> shape marker"
+        "Neither case is emitted as a <REDACTED: …> shape marker",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -89,11 +94,12 @@
       "files": [],
       "expectations": [
         "An Original goal section is present and quotes the user's goal in their own words — a paraphrase, a condensation, or the process framing ('finish phase 3') does not satisfy it",
-        "Because this continues a prior handoff, that prior file is READ FROM DISK this turn and its goal quote copied unchanged rather than reconstructed from the conversation",
+        "Because this continues a prior handoff, `save_point.py new` is run with `--previous <that file>` (never `--no-previous`, never an auto-picked newest file), so the prior file is READ FROM DISK this turn and its goal quote, amendments, cumulative `[hN]` entries, and Prior sessions rows are copied unchanged rather than reconstructed from the conversation",
         "The goal is not amended — an amendment requires an explicit statement from whoever set the goal, recorded with its date",
         "Completion criteria are stated as goal-states that each still name the command or diff that settles them, rather than solely as process steps",
         "Milestones like 'phase 3 done' or 'the bundles merged' appear under the subordinate Process milestones sub-heading, not as completion criteria",
-        "The drift-check sentence tying the next action back to the goal is answered"
+        "The drift-check sentence tying the next action back to the goal is answered",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -120,7 +126,8 @@
         "The Resumption brief leads with the stated purpose — the framing opens from what the next session is for",
         "Suggested skills are selected for the review purpose, each still tied to a concrete remaining item",
         "No mandatory body section is dropped, renamed, or reordered — the full structure-doc section set is present in order",
-        "The resume prompt between the dashed rails keeps the standard shape; the purpose does not alter the directive, rails, or origin line"
+        "The resume prompt between the dashed rails keeps the standard shape; the purpose does not alter the directive, rails, or origin line",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -160,7 +167,8 @@
         "The rails block is the FINAL text of the response, after the ticked checklist; nothing follows it except below-the-rails /loop re-arm notes when a loop is active",
         "The response does not end on the post-write checklist, on 'EXECUTION STOPS HERE', or on any summary that displaces the prompt",
         "The reasoning treats STOP as ending the underlying refactor, not as licence to end the response once the file is written",
-        "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for"
+        "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section — heavy context is not a reason to retype the block from memory"
       ]
     },
     {
@@ -175,7 +183,8 @@
         "The current phase is marked in the gutter and labelled as the current position; earlier phases read as complete and later ones as pending",
         "The panel carries a completeness read (how many of the five phases are done) and the three one-line blocks: what was done this session, where we are, what is next",
         "The rail's phases come from the plan artifact read this turn — the panel restates established state rather than discovering new state, and runs no durable-state sweep of its own",
-        "The rails resume prompt is still the FINAL text of the response — the panel is emitted in addition to it, never instead of or after it"
+        "The rails resume prompt is still the FINAL text of the response — the panel is emitted in addition to it, never instead of or after it",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -189,7 +198,8 @@
         "The elision keeps the ends of the chain and the current position, with a '… N more' style line standing in for each dropped run",
         "The current sub-issue (#400.7) is present and marked as the current position",
         "The unit kind is named — the operator can tell the rail is counting sub-issues of epic #400, not phases or tasks",
-        "The completeness line reports progress across the full fourteen, not just the units the rail happened to print"
+        "The completeness line reports progress across the full fourteen, not just the units the rail happened to print",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
     {
@@ -205,6 +215,74 @@
         "No durable handoff file is written; the remaining-work bullets travel inline between the rails",
         "The reasoning treats the panel as most valuable here, not least: prompt-only writes no file, so the panel is the only place the operator sees where the work stands",
         "The self-contained rails resume prompt is still the FINAL text of the response"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "skeleton-comes-from-new-and-only-fill-slots-are-edited",
+      "prompt": "Handoff. This is the first save-point of this task; python3 is on PATH.",
+      "expected_output": "The full path runs the shape-2 procedure: memory_dir resolved through parse-concern-value.sh, the guards run, then `save_point.py new --topic <slug> --memory-dir <root> --no-previous` invoked through the interpreter ladder with `-X utf8`. The path `new` prints is reused for every later step. The model edits only the `<!-- FILL: … -->` slots, deleting the optional ones (goal-rearm, below-rail, <section>-new) that do not apply, and leaves every deterministic field (frontmatter, chain, the 17 headings, the rails block minus `Next:`) exactly as written. `save_point.py validate` exits 0, the outcome is quoted in the checklist, and the rails block on screen is the `save_point.py emit` output pasted verbatim.",
+      "files": [],
+      "expectations": [
+        "`save_point.py new` is invoked (with `--no-previous`, since no prior handoff of this task exists) rather than the file being written from scratch by Write or Edit",
+        "The absolute path `new` printed is the one path used for the Edit calls, `validate`, `emit`, and the directive — never recomputed or re-derived in bash",
+        "Only `<!-- FILL: … -->` slots are edited; deterministic fields such as `handoff_shape`, `session_id`, `transcript`, `chain:`, the heading scaffold, `Prior session:`, and `Handoff origin:` are left as the script wrote them",
+        "Optional slots that do not apply are deleted so no `FILL` text remains, and `validate` is run and reported as `validate: exit 0` before the rails are printed",
+        "The on-screen rails block is the `emit` output pasted verbatim, and the `Next:` line carries one to five plain headline lines with no bullets"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "validator-failure-is-fixed-then-loud-never-silent",
+      "prompt": "Handoff. (Note: after you fill the skeleton, `save_point.py validate` exits 1 reporting a leftover FILL slot in Open questions and six lines under Next:; suppose that after three fix attempts it is still failing on something you cannot resolve.)",
+      "expected_output": "The first failure is fixed, not ignored: the named slot is filled, `Next:` is cut to five headlines, and `validate` is re-run. When the file still fails after three attempts, the skill neither withholds the resume prompt nor claims success: it prints an `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region), marks the checklist box `validate: FAILED`, and still emits the rails from the file's `## Resume prompt` section verbatim. It never regenerates a prompt by hand to route around the validator, and never presents the file as validated.",
+      "files": [],
+      "expectations": [
+        "A non-zero `validate` exit is treated as a defect to fix: the slots the FAIL lines name are corrected and `validate` is re-run, up to three attempts, rather than the failure being ignored or the rails printed immediately",
+        "After three failed attempts the rails are STILL emitted (a resume prompt is always emitted), taken from the file's `## Resume prompt` section, not retyped from memory",
+        "An `UNVALIDATED: <validator output>` banner appears above the copy instruction, outside the region between the rails, and the checklist box reads `validate: FAILED` rather than a ticked pass",
+        "The skill does not claim the handoff validated, does not silently drop the failure, and does not write a second free-hand file to work around the script"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "shape-1-predecessor-is-copied-forward-not-rewritten",
+      "prompt": "Handoff. This continues the handoff I resumed from this morning, which an older version of the skill wrote: its frontmatter has no handoff_shape key and it has no This session line.",
+      "expected_output": "`save_point.py new` is run with `--previous <that file>`. The predecessor is read, never rewritten: the chain becomes [predecessor, self], its Original goal quote and amendments are copied off disk, cumulative sections it has are carried with `[h1]` tags while any section it lacks reads `None. (shape-1 predecessor had no <section>)`, the `Opening ask:` line is the pointer with `(shape-1 root, no verbatim ask recorded)`, and its `## Prior sessions` row carries `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)` as the did/left cell. `validate` passes with the shape-1 predecessor WARN noted, and the rails are the `emit` output.",
+      "files": [],
+      "expectations": [
+        "`new` is invoked with `--previous` naming the shape-1 file, and that file is left byte-unchanged on disk",
+        "The successor's `chain:` is exactly the predecessor's filename followed by its own, and `previous_handoff` is the bare filename with no directory prefix",
+        "Cumulative entries carried from the predecessor are tagged `[h1]`; a section the predecessor did not have reads `None. (shape-1 predecessor had no <section>)` rather than being invented",
+        "The `Opening ask:` line is the pointer to the root file with the `(shape-1 root, no verbatim ask recorded)` suffix, and the Prior sessions row's did/left cell is the `UNVERIFIED (shape-1 predecessor; brief: …)` form",
+        "If the predecessor recorded no Original goal, the RECONSTRUCTED goal slot is settled with the user before `validate` is expected to pass, never filled with a paraphrase of the process"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "then-line-only-at-a-stage-boundary",
+      "prompt": "Handoff. We just finished the implement stage of the plan; the review stage is next and it starts with /review:quality-gate.",
+      "expected_output": "Between the rails, `Next:` is followed by one to five plain headline lines taken from Remaining actions, in order, and because the next action is a stage boundary the last line is `Then: /review:quality-gate`. The directive itself keeps its fixed text (no `then execute /<skill>` swap on the full path); the skill routing lives on the `Then:` line. Had the session stopped mid-stage, no `Then:` line would appear at all.",
+      "files": [],
+      "expectations": [
+        "The `Next:` block holds between one and five plain headline lines, no bullets, no blank lines, each a headline from Remaining actions, in order rather than the detail itself",
+        "`Then: /review:quality-gate` is the LAST line between the rails, present because the next action begins a new stage",
+        "The reasoning states that `Then:` is emitted only at a stage boundary and would be omitted for a mid-stage handoff",
+        "The directive line keeps its fixed shape (`…then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.`) rather than being rewritten to `then execute /review:quality-gate`",
+        "The validator ran and exited 0 (it refuses a `Then:` that is not last and a sixth `Next:` line) and the rails on screen are the `emit` output"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "python-absent-fallback-is-explicit-never-silent",
+      "prompt": "Handoff. (Note: this machine has neither python3 nor python on PATH.)",
+      "expected_output": "The interpreter ladder finds nothing, so the skill says so in one line (`validator unavailable: no python3/python on PATH`), writes the shape-2 file by hand from the structure doc (frontmatter with handoff_shape: 2, the 17 headings in order, the `## Resume prompt` section in the engine doc's full-path form), marks the checklist box `validate: SKIPPED (no interpreter)`, and still emits the rails from the file's `## Resume prompt` section verbatim. It does not fall back to a shape-1 file, does not skip the save-point, and does not claim the file was validated.",
+      "files": [],
+      "expectations": [
+        "The absence of a Python 3.10+ interpreter is stated explicitly with the `validator unavailable: no python3/python on PATH` line, not silently worked around",
+        "A shape-2 file is still written, by hand from the structure doc, with `handoff_shape: 2` and the full 17-section scaffold including the final `## Resume prompt` section — never a shape-1 file",
+        "The checklist box reads `validate: SKIPPED (no interpreter)`; the skill does not claim `validate: exit 0`",
+        "The rails resume prompt is still emitted as the response's final text, taken from the file's `## Resume prompt` section, with the invoke-the-skill sentence in the directive and the `claude --resume` line below the bottom rail"
       ]
     }
   ]

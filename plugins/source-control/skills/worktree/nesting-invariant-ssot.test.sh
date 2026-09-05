@@ -104,13 +104,13 @@ fi
 #   **Unconditional expiry.** **2.1.244, or 2026-11-07 — whichever comes first.**
 # Match the complete bold arm (not an arbitrary substring) so malformed tokens
 # such as `2.1.244.1`, `v2.1.244`, or overlong dates cannot pass shape checks.
+# The second alternative is the same whole-arm capture with slightly looser
+# heading markup tolerance; whichever alternative matches leaves its captures in
+# BASH_REMATCH for the shared read.
 expiry_version=""
 expiry_date=""
-if [[ "$owner_text" =~ Unconditional[[:space:]]+expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+[—-] ]]; then
-  expiry_version="${BASH_REMATCH[1]}"
-  expiry_date="${BASH_REMATCH[2]}"
-elif [[ "$owner_text" =~ Unconditional[[:space:]]+expiry[^\n]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
-  # Same whole-arm capture with slightly looser heading markup tolerance.
+if [[ "$owner_text" =~ Unconditional[[:space:]]+expiry\.\*\*[[:space:]]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+[—-] ]] ||
+  [[ "$owner_text" =~ Unconditional[[:space:]]+expiry[^\n]*\*\*([0-9]+\.[0-9]+\.[0-9]+),[[:space:]]+or[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2}) ]]; then
   expiry_version="${BASH_REMATCH[1]}"
   expiry_date="${BASH_REMATCH[2]}"
 fi

@@ -3,6 +3,18 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **`check-drift.sh`: three identical curl probes folded into one `http_status` helper.** The
+  installer URL, the Kindle_Key_Finder zip and the tutorial article each spelled out the same
+  `curl -sI -o /dev/null -w "%{http_code}" ... || echo "000"`. A comment written in the same pass
+  was corrected against the tool rather than by reading: an unreachable host prints `000000`, not
+  `000`, because curl's own `%{http_code}` emits `000` and the fallback appends another. A bare
+  `000` means curl is absent. Both land in the callers' catch-all arm, which is why the doubled
+  form has never mattered. No pinned URL, status arm, message or exit code changed.
+
 ## [0.7.13]
 
 ### Changed
