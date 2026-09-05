@@ -1,5 +1,5 @@
 ---
-description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when: 'what changed since the last audit', 'delta since the last run', 'run the enforcement audit on a schedule', 'recurring overengineering check', 'only show me what is new', 'did any verdict move', 'weekly automation-cruft check'. Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
+description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when the ask is for what moved since the last enforcement audit ('what changed since the last audit', 'did any verdict move') or for a recurring, scheduled enforcement check ('run the enforcement audit on a schedule'). Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -275,7 +275,7 @@ intent. … An explicit user `/work-items:track add ...` invocation IS the autho
 model-initiated filing is not"*, so an unattended scheduled cycle, which is the mode this lane
 exists for, has no authorization to file anything and a conforming tracker must refuse it. Setting
 the key **is** the explicit, recorded authorization the gate asks for, given once by a human in a
-file. **Do not flip this default back to `auto`**: a default-on route makes the lane's ordinary
+file. **`inline` is the default for that reason**: a default-on route would make the lane's ordinary
 unattended path a request the tracker is contractually obliged to decline.
 
 | `queue_route` | Condition | What the lane does |

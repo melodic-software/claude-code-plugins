@@ -3,6 +3,16 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.7]
+
+### Changed
+
+- audit, delta, realign: each description names its intent categories with a few exact phrases instead of listing seven to ten near-synonyms.
+- delta: the baseline-model reference drops "that reason is unchanged"; the `queue_route` default is stated as the current rule rather than a warning against flipping it back; the recurring-wiring pointer to the scrutiny method resolves through `${CLAUDE_PLUGIN_ROOT}` instead of a relative path that lands on nothing; the run-states and recurring-wiring references require the audit's normalize-then-validate steps before a logical ref may key a home, so both lanes derive the same home from the same value.
+- realign: the no-identity refusal no longer attributes a `HEAD` artifact to an older audit.
+- evals: audit cases 10 and 11 and realign case 7 assert the body's failed branch call and its exit status instead of the pre-compute sentinel the bodies no longer carry; realign case 8 matches the reworded refusal.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.6]
 
 ### Fixed

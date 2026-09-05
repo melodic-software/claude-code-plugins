@@ -22,12 +22,19 @@ ordinary case for the mode this lane was built for, which is why the branch call
 
 When the branch identity does not resolve:
 
-- **Prefer a logical ref where the environment supplies one.** Some execution environments hand the
-  run the ref it was launched for even though the checkout is detached. Where such a value is present
-  and names a branch, use it as the branch identity for both the home key and the match check, and
-  name in the report where it came from. **No vendor's variables are named here or assumed**. This
-  plugin is consumer-agnostic, and hardcoding one CI system's environment would be a claim about the
-  consumer's toolchain that the rest of this plugin refuses to make.
+- **Prefer a logical ref where the environment supplies one, after the same normalize-then-validate
+  steps `audit` applies.** Some execution environments hand the run the ref it was launched for even
+  though the checkout is detached. Before such a value may key a home or feed the match check, strip
+  a leading `refs/heads/` (and only that prefix), then refuse it if it is empty, if any path segment
+  is `.` or `..`, or if `git check-ref-format --branch -- <value>` exits non-zero. A value that
+  passes is the branch identity for both the home key and the match check, and the report names
+  where it came from; a value that fails is treated as absent and falls through to the refusal
+  below. The two lanes must derive the same home from the same value: the composed audit normalizes
+  before it keys its home, so a raw `refs/heads/main` here would key one home while the audit writes
+  to another, and the run would report a resolution defect instead of a delta. **No vendor's
+  variables are named here or assumed**. This plugin is consumer-agnostic, and hardcoding one CI
+  system's environment would be a claim about the consumer's toolchain that the rest of this plugin
+  refuses to make.
 - **Otherwise, treat the run as no baseline and say why**. "detached checkout, no logical ref
   supplied; no branch identity, so nothing is compared". Do not fall back to `HEAD`, to the commit
   sha, or to whatever home the slug happens to produce, and do not compare.
