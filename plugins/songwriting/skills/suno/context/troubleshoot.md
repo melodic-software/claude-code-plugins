@@ -10,7 +10,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 | 5+ stacked genres | Muddy mix, incoherent style | Conflicting feature signals | Pick 1-2 max, or use a clear hybrid (`nu-metal dubstep`) |
 | 9+ mood words | Conflicting emotional signals | Model can't reconcile contradictions | 2-3 related moods (`nostalgic, hopeful` not `happy sad triumphant melancholic dreamy`) |
 | `amazing`, `epic`, `beautiful` | Zero effect on output | Value judgments aren't acoustic descriptors | Replace with `raspy`, `breathy`, `intimate`, `belted` |
-| BPM as descriptor (`fast`) | ±20 BPM drift from intent | Descriptor → wide range | Use numeric (`128 BPM`) — ~90% adherence in v5.5 |
+| BPM as descriptor (`fast`) | ±20 BPM drift from intent | Descriptor → wide range | Use numeric (`128 BPM`); numeric adherence is reported as high, with no published rate |
 | Long sentences with internal rhymes | Hallucinated / garbled lyrics | Model confused by complex structure | Break into shorter lines, simpler rhyme scheme |
 | `(x2)` after a lyric line | Repeat is ignored | Notation not parsed | Write the line twice with minor variation |
 | Tag-only section as repeat shorthand (bare `[Chorus]`, no lyrics under it) | Adjacent section absorbed — its lyrics sang in the empty slot, and that section is missing | Observed once; adjacency is the correlate, mechanism not established | Write full lyrics under every repeated section — see "My bridge is missing / another section sang its lyrics" |

@@ -60,7 +60,9 @@ Bad (zero effect): `amazing`, `epic`, `beautiful`, `incredible`, `perfect`, `stu
 
 ### Layer 5 — BPM (numeric)
 
-**Numbers beat descriptors.** Suno v5.5 hits ~90% accuracy on numeric BPM (vs ~70% in v4). Descriptors like "fast" drift ±20 BPM.
+**Numbers beat descriptors.** Numeric BPM adherence is reported as high on v5.5 and better than on v4, but **no adherence rate is stated here**: no source states one, and this skill does not restore a percentage without a citation. Descriptors like "fast" drift ±20 BPM.
+
+**Recheck trigger:** a first-party Suno page or a community source states a measured BPM adherence rate together with its method. Not a date.
 
 Syntax: `128 BPM`, `95 BPM`, `174 BPM`. Place after instrumentation/vocals, before production.
 

@@ -39,7 +39,7 @@ so those confirm first rather than clobber.
 An override **freezes** that template: once `songwriting/templates/pat-pattison/<name>.md` exists, the
 craft skills load it instead of the bundled default forever, so later plugin improvements to that
 template stop reaching this repo. Scaffold an override **only** for a template the consumer actually
-wants to change. Copying all sixteen defaults verbatim is an anti-pattern. Sixteen files that opt out
+wants to change. Copying every default verbatim is an anti-pattern: a full set of files that opt out
 of updates while customizing nothing.
 
 ## `check` (read-only)
@@ -51,7 +51,7 @@ no override → the bundled default stays in force (the safe default).
    `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/`, and list the bundled defaults in
    `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/templates/` (each `<name>.md` is loaded by the craft
    skill that references it, e.g. `co-write-session-opener` by `/songwriting:co-write`,
-   `metaphor-recipe-prompt` by `/songwriting:object-writing`). Report: templates available to override,
+   `metaphor-recipe-prompt` by `/songwriting:metaphor`). Report: templates available to override,
    templates already overridden, and, for each existing override, whether it is byte-identical to the
    current bundled default (INFO: a byte-identical override customizes nothing and only opts the repo
    out of future improvements; `apply remove <name>` clears it).
