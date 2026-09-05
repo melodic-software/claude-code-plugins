@@ -200,9 +200,9 @@ reading of "no standard sets a threshold" (Halstead 1977 sets none).
 ## T13. Test-seam posture. RESOLVED
 
 **Decision.** One seam: each script's command line. Tests run the script against fixtures under the
-skill's `fixtures/` directory and assert on the JSON it prints (shape, values, `unavailable` rows)
-through the repository's shell-test harness (see `module-boundary.md` for the runner and file
-naming the harness dictates). Collector presence is stubbed by prepending a fixture `bin/` to
+plugin's `scripts/fixtures/` directory and assert on the JSON it prints (shape, values,
+`unavailable` rows) through co-located `*.test.sh` and `test_*.py` suites (see
+`module-boundary.md` for the file naming the repository's test discovery dictates). Collector presence is stubbed by prepending a fixture `bin/` to
 `PATH`, so the presence gate and the fallback order are tested without the real tools. No seam on
 SKILL.md prose beyond `skill-quality:check` and the skill's `evals/` file.
 
