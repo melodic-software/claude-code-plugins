@@ -10,7 +10,7 @@ argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]
 Verify and manage the audit's optional Git-format configuration. Setup owns only this file; it never
 edits Claude Code settings, `pluginConfigs`, Git remotes, branches, worktrees, or the installed plugin.
 
-The config file itself is optional to *create*, but a no-argument `/repo-fleet-hygiene:audit` now
+The config file itself is optional to *create*, but a no-argument `/repo-fleet-hygiene:audit`
 requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.root` / `fleet.repo`
 entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
 (nothing to validate yet) and a hard failure for a subsequent no-argument audit, not a silent
@@ -39,11 +39,9 @@ check | apply [--config <path>] [--root <dir>]... [--repo <dir>]...
 ```
 
 `--max-depth` writes `[fleet] maxDepth`; `--skip` writes repeatable `[fleet] skip` entries. This
-skill owns the config file that carries both. Explicit `fleet.skip` entries **replace** the audit's
-default discovery skip list (they do not append). Say that when writing them, because "extend" is
-the naive reading. To extend without shrinking, write the three replaceable defaults
-(`node_modules`, `vendor`, `.venv`) plus the extra names. `.`, `..`, and `.git` stay skipped
-unconditionally and do not need to be written.
+skill owns the config file that carries both. See "Configuration grammar" below for the `skip`
+replace semantics, and state them whenever you write a `skip` entry, because "extend" is the
+naive reading.
 
 ## `check` (read-only)
 
@@ -54,7 +52,8 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
 
 1. **Config presence**. Resolve the config path (`--config` or the default). Absent → INFO naming
    the full ladder: the audit next probes the user-global `~/.claude/repo-fleet-hygiene.conf` (report
-   whether one exists there) and otherwise defaults to the current project; `apply` scaffolds a
+   whether one exists there); with no config on the ladder and no scope argument, a bare
+   `/repo-fleet-hygiene:audit` fails rather than auditing the current project. `apply` scaffolds a
    config only if the user wants bounded roots or overrides.
 2. **Parse validity**. Present config: `git config --file "<path>" --list >/dev/null`. A non-zero exit
    is FAIL with the parse error in the remediation line. Never `source` the file.
@@ -97,10 +96,8 @@ Run `check`, then create or update the config from the supplied arguments.
    the consumer's own config file.
    Validate each `--skip` value as a bare directory name (reject empty and any path separator);
    write it as a repeatable `[fleet] skip` entry, deduplicating exact matches against entries
-   already present. State the replace semantics when writing: any `fleet.skip` present replaces the
-   audit's default skip list (`node_modules`, `vendor`, `.venv`) rather than appending. To
-   extend, include those three defaults plus the new names. `.`, `..`, and `.git` stay skipped
-   unconditionally. Removing a skip entry is a manual edit.
+   already present. State the replace semantics from "Configuration grammar" when writing.
+   Removing a skip entry is a manual edit.
 2. If the config exists, read it with `git config --file <path> --list --show-origin`. Preserve every
    unrelated entry. Never source it.
 3. State the proposed additions/updates before writing. With complete arguments, proceed
@@ -221,5 +218,5 @@ GitHub remote identity on both sides first.
   user-global path the only one that can be consumed.
 - **Config-supplied scope is additive to the audit's CLI scope.** A configured root is walked even
   when the audit is invoked with an explicit `--repo`, so a persisted fleet config widens every later
-  run. The audit's `Scope:` header line names each contributing rung; there is currently no way to
-  suppress a config for a single run.
+  run. The audit's `Scope:` header line names each contributing rung; a consumed config cannot be
+  suppressed for a single run.

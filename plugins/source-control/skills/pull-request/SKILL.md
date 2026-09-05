@@ -19,9 +19,9 @@ invocation:
 - Working tree status, `git status --porcelain`
 - Changed files (staged+unstaged), `git diff --name-only HEAD`
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
-out of pre-compute in #1619, the harness composes the block into one shell invocation and a
-worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body calls rather than pre-compute: the harness composes a pre-computed block into one
+shell invocation, and a worktree-isolated agent refuses a git-bearing compound command.
 
 ## Purpose
 
@@ -139,9 +139,9 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 
 ---
 
-## Monitor entry checklist (MANDATORY. Execute in order before ANY monitoring work)
+## Monitor entry checklist (in order, before any monitoring work)
 
-When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete EVERY step below. Do NOT skip to CI polling or comment evaluation.
+When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete the steps below in order before any CI polling or comment evaluation; the event-delivery choice depends on the environment and is decided first.
 
 - [ ] **Step 0, Checkout the PR source branch (DEFAULT):** monitoring a PR means working ON its head branch, exploration, research, and any fix must run against the PR's actual code, not whatever branch you happen to be on. Check it out with `gh pr checkout <N>` (fork-safe, a fork's head branch is not fetchable from `origin` by name, and a bare `git checkout <headRefName>` can select a stale same-named local branch). This is the default, not an exception.
   - **Pre-check `git worktree list`:** if the branch is already checked out in another worktree, work there (or process read-only, no fix, if you can't). If you're already on the PR branch, no-op.
@@ -154,11 +154,11 @@ When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), compl
 - [ ] **Step 3, Arm event delivery:** channel healthy → arm its PR filter for `<N>`; channel absent/unhealthy → arm the §3.0.1 Monitor tool watch
 - [ ] **Step 4, Proceed to §3.1 monitoring loop**
 
-**Why this exists:** event-delivery setup gets skipped in practice, the model reads the action table and jumps straight to `gh` polling. The checklist in this always-loaded surface prevents the skip.
+**Why the order matters:** each step's fallback depends on the previous step's answer, so a session that starts polling before arming delivery pays a request per interval it did not need to.
 
-## Per-iteration monitoring checklist (MANDATORY, on every CI/comment event)
+## Per-iteration monitoring checklist (on every CI or comment event)
 
-When a channel event, Monitor notification, or poll iteration fires, complete ALL applicable steps before declaring readiness or reporting status.
+When a channel event, Monitor notification, or poll iteration fires, complete every applicable step before declaring readiness or reporting status.
 
 - [ ] **A, Terminal state:** `gh pr view <N> --json state -q .state`. MERGED/CLOSED → self-terminate
 - [ ] **B, CI checks:** `gh pr checks <N>`. Classify EVERY non-pending check (pass/fail/skipped). Read logs for ANY failure per §3.1 fetch chain
@@ -185,7 +185,7 @@ When a channel event, Monitor notification, or poll iteration fires, complete AL
 - [ ] **E, Readiness gate:** ALL checks terminal + ALL comments addressed + 2-min cooldown since last activity per [readiness.md](reference/readiness.md)
 - [ ] **F, Report:** present the full readiness table OR list remaining blockers
 
-**Receiving an event is NOT processing it.** Each event must drive at LEAST steps A-C. New comment events must drive D1-D7 for that comment. Declaring "ready to merge" without completing E is a checklist violation.
+**Receiving an event is not processing it.** Each event drives at least steps A-C, and a new comment event drives D1-D7 for that comment. Readiness is declared only after E.
 
 ---
 
@@ -234,9 +234,7 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 
 ## Gotchas
 
-Failure patterns encountered in real sessions. Add to this section when new gotchas are discovered.
-
-- **Agent review findings are wrong by default.** Validation of one review batch found 0/5 specific fixes were correct. Every finding MUST be verified against current docs and actual code before presenting. Never skip the 1.3 verification step
+- **Verify every agent review finding before presenting it.** Automated reviewers produce incorrect findings often enough that an unverified finding is not evidence; check each against current docs and actual code (step 1.3) before it reaches the user
 - **Never guess at CI failure causes.** Use monitor.md §3.2's prioritized fetch chain: annotations → full ZIP via REST API → `gh run view --log-failed` as last resort. The configured CI-log size cap is `${user_config.fetch_logs_max_bytes}`, when that value is a number other than the 52428800 default (not empty, not a literal unexpanded token), pass it to the ZIP fetch as `--max-bytes <value>`. `gh run view --log-failed` truncates at the CLI display layer (~4MB cap, cli/cli #11059 #10551 #7771); the script-based paths return complete data. Do NOT use broad keyword grep (`error|fail|...`). False matches from cleanup steps, variable names, and incidental output
 - **OIDC-based workflows fail when the PR modifies the workflow file.** The workflow file must match the default branch for OIDC token exchange to succeed. GitHub limitation, classify as informational when it applies
 - **`gh pr view` without a PR number is fragile.** Branch-based resolution fails when: the worktree is cleaned up, multiple PRs exist for the branch, or returning days later. Resolve `<pr_number>` once at phase entry (per "PR identity resolution" above) and pass it explicitly to every subsequent `gh` call. No state file, `gh` is authoritative

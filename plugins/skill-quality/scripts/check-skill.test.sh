@@ -141,8 +141,10 @@ else
 fi
 [[ -e "$TMP/pwn" ]] && fail "escaping test must not create a file"
 
-# 5. Dropping a committed single-quoted trigger phrase fails (check 3, the
-#    regression-critical path — exercises the git-backed SKILL_REL resolution).
+# 5. Dropping a committed single-quoted trigger phrase WARNS and passes (check 3
+#    is advisory: the warning names the phrase and asks the reviewer to confirm
+#    the intent is still named or restore it; exercises the git-backed
+#    SKILL_REL resolution).
 trig_head='---
 name: trig-skill
 description: "Trigger fixture. Use when: '"'"'alpha trigger'"'"', '"'"'beta trigger'"'"'."
@@ -167,10 +169,13 @@ Working-tree version with one trigger phrase dropped.
 '
 out="$(run trig-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'dropped trigger keyword' <<<"$out"; then
-  pass "dropped committed trigger phrase fails"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q 'beta trigger' <<<"$out" &&
+  grep -q 'Confirm the description still names each intent' <<<"$out" &&
+  ! grep -q 'FAIL: dropped trigger keyword' <<<"$out"; then
+  pass "dropped committed trigger phrase warns and passes (check 3 advisory)"
 else
-  fail "dropped trigger phrase should fail with a trigger-drop message (rc=$rc): $out"
+  fail "dropped trigger phrase should warn, name the phrase, and pass (rc=$rc): $out"
 fi
 
 # 5b. A dropped trigger phrase that reappears verbatim in a SIBLING skill's
@@ -220,7 +225,8 @@ fi
 
 # 5c. Coincidental overlap is NOT a move: when the sibling already carried the
 #     phrase at the base ref, dropping it here is a real trigger loss for this
-#     skill's routing and still fails (the move exception's base-ref condition).
+#     skill's routing and reports as a dropped phrase (advisory warn, exit 0),
+#     never as a move (the move exception's base-ref condition).
 make_skill coinc-src '---
 name: coinc-src
 description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"', '"'"'shared trigger'"'"'."
@@ -256,10 +262,11 @@ Working tree drops the shared phrase; the peer had it at base already.
 '
 out="$(run coinc-src 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'dropped trigger keyword' <<<"$out" && ! grep -q 'moved to sibling skill' <<<"$out"; then
-  pass "phrase the sibling carried at base is coincidental overlap — still fails"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -q 'shared trigger' <<<"$out" && ! grep -q 'moved to sibling skill' <<<"$out"; then
+  pass "phrase the sibling carried at base is coincidental overlap: warns as dropped, not as a move"
 else
-  fail "pre-existing sibling overlap should not count as a move (rc=$rc): $out"
+  fail "pre-existing sibling overlap should warn as dropped, not count as a move (rc=$rc): $out"
 fi
 
 # 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
@@ -295,7 +302,7 @@ else
 fi
 
 # 8. A block-scalar `description: |` is unfolded, so a trigger phrase dropped
-#    from inside the block is still caught by check 3.
+#    from inside the block is still surfaced by check 3 (advisory warn).
 make_skill blk-skill '---
 name: blk-skill
 description: |
@@ -320,10 +327,10 @@ Working tree drops the block beta trigger.
 '
 out="$(run blk-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'block beta' <<<"$out"; then
-  pass "block-scalar description is unfolded (trigger drop caught inside |)"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" && grep -q 'block beta' <<<"$out"; then
+  pass "block-scalar description is unfolded (trigger drop surfaced inside |, advisory)"
 else
-  fail "block-scalar trigger drop should be caught (rc=$rc): $out"
+  fail "block-scalar trigger drop should warn without failing (rc=$rc): $out"
 fi
 
 # 9. An unquoted `Use when:` list warns (drop-protection gap surfaced) but passes.
@@ -371,8 +378,9 @@ else
   fail "when_to_use triggers should satisfy check 12 (rc=$rc): $out"
 fi
 
-# 10. CHECK_SKILL_BASE_REF catches an ALREADY-COMMITTED trigger drop that the
-#     default working-tree-vs-HEAD comparison misses (HEAD == tree).
+# 10. CHECK_SKILL_BASE_REF surfaces an ALREADY-COMMITTED trigger drop that the
+#     default working-tree-vs-HEAD comparison misses (HEAD == tree). Both runs
+#     exit 0 (check 3 is advisory); only the base-ref run carries the warning.
 make_skill baseref-skill '---
 name: baseref-skill
 description: "Thing. Use when: '"'"'ref alpha'"'"', '"'"'ref beta'"'"'."
@@ -395,16 +403,18 @@ Second commit drops ref beta — now committed, so HEAD == tree.
 '
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'baseref v2 drops beta'
-run baseref-skill >/dev/null 2>&1
+out_head="$(run baseref-skill 2>&1)"
 rc_head=$?
 out_base="$(cd "$TMP" &&
   CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
     bash "$SUT" baseref-skill 2>&1)"
 rc_base=$?
-if [[ $rc_head -eq 0 ]] && [[ $rc_base -eq 1 ]] && grep -q 'ref beta' <<<"$out_base"; then
-  pass "post-commit base ref catches a committed trigger drop that HEAD misses"
+if [[ $rc_head -eq 0 ]] && ! grep -q 'dropped trigger keyword' <<<"$out_head" &&
+  [[ $rc_base -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out_base" &&
+  grep -q 'ref beta' <<<"$out_base"; then
+  pass "post-commit base ref surfaces a committed trigger drop that HEAD misses (advisory)"
 else
-  fail "base-ref audit should catch a committed drop HEAD misses (rc_head=$rc_head rc_base=$rc_base): $out_base"
+  fail "base-ref audit should warn on a committed drop HEAD misses, without failing (rc_head=$rc_head rc_base=$rc_base): head=$out_head base=$out_base"
 fi
 
 # 11. A block header with the chomp indicator BEFORE the indent indicator
@@ -433,10 +443,10 @@ Working tree drops order beta.
 '
 out="$(run blkord-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'order beta' <<<"$out"; then
-  pass "sign-first block header (|-2) is recognized and unfolded"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" && grep -q 'order beta' <<<"$out"; then
+  pass "sign-first block header (|-2) is recognized and unfolded (drop warns, advisory)"
 else
-  fail "sign-first block header should be unfolded (rc=$rc): $out"
+  fail "sign-first block header should be unfolded and the drop should warn without failing (rc=$rc): $out"
 fi
 
 # 12. A block header with a trailing `# comment` (legal YAML) is still
@@ -465,10 +475,10 @@ Working tree drops comment beta.
 '
 out="$(run blkcmt-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'comment beta' <<<"$out"; then
-  pass "commented block header (| # ...) is recognized and unfolded"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" && grep -q 'comment beta' <<<"$out"; then
+  pass "commented block header (| # ...) is recognized and unfolded (drop warns, advisory)"
 else
-  fail "commented block header should be unfolded (rc=$rc): $out"
+  fail "commented block header should be unfolded and the drop should warn without failing (rc=$rc): $out"
 fi
 
 # 13. A block whose first content line is MORE indented than a later line
@@ -499,10 +509,10 @@ Working tree drops the shallower line carrying indent beta.
 '
 out="$(run blkindent-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'indent beta' <<<"$out"; then
-  pass "block content past a more-indented first line is captured (indent indicator honored)"
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" && grep -q 'indent beta' <<<"$out"; then
+  pass "block content past a more-indented first line is captured (indent indicator honored, drop warns)"
 else
-  fail "trigger on a less-indented block line should be tracked (rc=$rc): $out"
+  fail "trigger on a less-indented block line should be tracked and warn without failing (rc=$rc): $out"
 fi
 
 # 14. Frontmatter name diverging from the skill directory fails (check 1). The

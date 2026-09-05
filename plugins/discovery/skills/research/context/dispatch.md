@@ -94,12 +94,10 @@ agent definition, the same class as a missing `topic_as_received`.
 
 `SKILL.md` carries the gate's three steps. This is why each is shaped the way it is.
 
-The failure it was built from is a real one, observed on the sibling `/discovery:explore` path: a
-dispatched agent returned `status: completed` carrying a mid-stream narration line as its whole
-payload — no `preload_token`, no summary, no artifact path — and the parent proceeded as though the
-work had finished. Nothing in that shape is explore-specific. A researcher that dies mid-Phase-2
-returns the same way, and the sections above already say the parent must discard such a run; what was
-missing on this side was any mechanical way to *notice*.
+The failure it catches is a dispatched agent returning `status: complete` with a mid-stream narration
+line as its whole payload: no `preload_token`, no summary, no artifact path. Nothing in that shape is
+explore-specific. A researcher that dies mid-Phase-2 returns the same way, and the sections above
+already say the parent must discard such a run; the gate is the mechanical way to notice.
 
 A check that resolves its input from `artifact:` cannot see that failure, because the payload it would
 read the path from is the thing that is broken. The parent already holds the answer: it resolved the
@@ -172,9 +170,9 @@ environment refused every write. Neither of the rungs below helps: a resume asks
 one thing it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the
 same refusal — the most expensive way to learn nothing.
 
-So the parent does the writing, which it can — this is the checkout-not-process boundary
+So the parent does the writing, which it can: this is the checkout-not-process boundary
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
-already draws, finally reachable from the failure that needs it:
+draws:
 
 1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
    sidecar with its machine-readable header, and — when the run wrote one — `research-checklist.md`,

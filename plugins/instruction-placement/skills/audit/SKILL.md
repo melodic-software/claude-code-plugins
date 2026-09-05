@@ -33,12 +33,12 @@ everything on the most expensive one. A convention that only matters when someon
 is paid for in every session, in every conversation, whether or not any C# is touched.
 
 **The saving is context, not obedience.** Official guidance warns that bloated instruction files
-cause Claude to ignore the instructions inside them, but this plugin measured that specific claim
-and did not reproduce it: 32 trials at two bloat levels, up to 1,927 lines, found 100% compliance
-whether the convention was always-loaded or path-scoped
-([`../../evals/adherence-results.md`](../../evals/adherence-results.md)). So propose moves on
-context cost and on reaching content Claude never loads, never by promising the operator their
-instructions will be followed better afterwards.
+cause Claude to ignore the instructions inside them. This plugin's own adherence measurement
+([`../../evals/adherence-results.md`](../../evals/adherence-results.md)) does not reproduce that
+effect for a clear, non-conflicting convention; the figures live in that file, and it is re-run
+when the model tier changes. So propose moves on context cost and on reaching content Claude
+never loads, never by promising the operator their instructions will be followed better
+afterwards.
 
 This skill finds content whose scope is narrower than the surface carrying it, and content whose
 surface Claude never reads at all, and proposes where each should go.
@@ -175,7 +175,7 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Gotchas
 
-Ten observed failure modes, each producing a finding that survives review by eye: the saving that is
+Observed failure modes, each producing a finding that survives review by eye: the saving that is
 not a saving, globs that look right and match nothing, safety rails that look path-local, and line
 ranges that were read rather than measured. Read [`context/gotchas.md`](context/gotchas.md) before
 finalizing a finding set.

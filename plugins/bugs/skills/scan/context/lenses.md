@@ -103,18 +103,16 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   mutated inside a retry so the second attempt starts dirty; an `await` between reading and writing a
   shared value.
 
-## Lens 5 — git-hotspot guided read
+## Hotspot reading order (computed in Step 1, not a lens)
 
-- **Objective**: read where defects historically cluster. Rank the scope by change frequency and by
-  fix-shaped commits, then read the top files with all four lenses above in mind.
-- **Tool guidance**: `git log --format='%H' --since='<window>' -- <scope>` for churn;
-  `git log --oneline --grep='fix\|bug\|revert\|hotfix' -- <path>` for fix density; read the two or
-  three highest-ranked files closely rather than skimming ten.
-- **Boundaries**: the ranking is a *reading order*, not evidence. A file being hot is never itself a
-  candidate — every candidate still needs its own quote and trigger.
-- **Degradation**: on a **shallow clone or a repository with no history**, this lens cannot rank. Skip
-  it and print one notice — `lens 5 (git-hotspot) skipped: no usable history` — rather than guessing a
-  ranking. The other four lenses run unchanged.
+Defects cluster where code churns and where fixes land. Before dispatch, the scan ranks the resolved
+scope by change frequency (`git log --format='%H' --since='<window>' -- <scope>`) and by fix-shaped
+commits (`git log --oneline --grep='fix\|bug\|revert\|hotfix' -- <path>`), and passes the two or
+three highest-ranked files to every hunter as "read these first and most closely". The ranking is a
+reading order, not evidence: a file being hot is never itself a candidate, and every candidate still
+needs its own quote and trigger. On a shallow clone or a repository with no history the ranking is
+skipped with one notice, `hotspot ranking skipped: no usable history`, and the hunters read the scope
+unranked.
 
 ## Bundled generic default lanes
 

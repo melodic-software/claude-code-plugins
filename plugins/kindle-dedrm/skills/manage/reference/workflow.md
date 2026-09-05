@@ -50,9 +50,8 @@ curl -L -o "DeDRM_tools-${LATEST_TAG}.zip" \
   "https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip"
 
 # Kindle_Key_Finder zip: use the pinned direct URL from reference/versions.md.
-# The former article-body discovery is dead — the tutorial is subscriber-gated
-# as of 2026-07 (see reference/sources.md), so a new build's URL can only be
-# obtained by a subscriber reading the current article and re-pinning by hand.
+# A new build's URL cannot be discovered automatically; a maintainer re-pins it
+# by hand. See reference/sources.md for why and for the recheck trigger.
 # This block runs from ~/Downloads, so no relative path can reach the plugin's
 # reference directory. Before running, substitute the absolute path of the
 # versions.md that sits next to this workflow file (the same file the DeDRM
@@ -89,7 +88,7 @@ unzip -o ~/Downloads/Kindle_Key_Finder_*.JH.zip -d ~/Tools/Kindle_Key_Finder
 Expected after extract:
 
 ```text
-~/Downloads/DeDRM_tools-v10.0.20/
+~/Downloads/DeDRM_tools-<tag>/
   DeDRM_plugin.zip          (load this into Calibre)
   KFXKeyExtractor28.exe
   KFXArchiver291.exe
@@ -223,7 +222,7 @@ Plugin 2 — DeDRM:
 1. After restart: Preferences → Plugins
 2. Click "Load plugin from file"
 3. Yes (security warning)
-4. Navigate to ~/Downloads/DeDRM_tools-v10.0.20/
+4. Navigate to the ~/Downloads/DeDRM_tools-<tag>/ directory you extracted in step 2
 5. Select DeDRM_plugin.zip → Open
 6. Yes (install)
 7. Restart Calibre
@@ -276,7 +275,7 @@ State checklist after successful setup:
 - Firewall rule `Block Kindle for PC (lock 2.8.0)` exists, enabled, blocks outbound
 - ICACLS deny applied to `%LOCALAPPDATA%\Amazon\Kindle\updates`
 - `~/Tools/Kindle_Key_Finder/` populated with phase scripts + tools + saved config
-- `~/Downloads/{KindleForPC-installer-2.8.70980.exe, DeDRM_tools-v10.0.20*, Kindle_Key_Finder_*.JH.zip}` retained for re-runs
+- `~/Downloads/{KindleForPC-installer-2.8.70980.exe, DeDRM_tools-*, Kindle_Key_Finder_*.JH.zip}` retained for re-runs
 - Calibre has KFX Input + DeDRM plugins loaded
 - Calibre `dedrm.json` populated with extracted keys
 - `%USERPROFILE%\Calibre Library\` has DRM-stripped EPUBs of every synced book

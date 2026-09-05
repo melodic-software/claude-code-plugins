@@ -88,7 +88,10 @@ The `VAR=value <command>` prefix shown here is POSIX shell syntax (Git Bash, WSL
 PowerShell has no inline env prefix — set `$env:PLAYWRIGHT_MCP_VIEWPORT_SIZE = '<W>x<H>'` on its own
 line before the `open`, then clear it afterwards if later sessions should use the default.
 
-Measured outcomes (ffprobe on the resulting `.webm`, `@playwright/cli` 0.1.14):
+Measured outcomes. Claim: the sizes below are what each combination actually produces.
+Basis: ffprobe on the resulting `.webm` for each row. As of 2026-07-26, on
+`@playwright/cli` 0.1.14. Recheck when the frontmatter `upstream-version` moves, or when a
+recording comes back at a size this table does not predict.
 
 | What you do | What you get |
 |---|---|
@@ -118,17 +121,13 @@ For polished recordings (demos, PR evidence), build a single `run-code` script w
 
 **Overlay invariant:** overlays are `pointer-events: none` — safe to layer over the page without blocking clicks.
 
-## Workflow checklist
+## Capturing for a PR or bug report
 
-When capturing for a PR or bug report:
-
-1. **Plan the flow first** — know exactly which commands and element refs you'll hit
-2. **Open browser, take initial snapshot** to get refs
-3. **Start capture** — `tracing-start`, or `video-start <name>.webm --size "<W>x<H>"` with the
-   viewport already set on `open` (see [Frame size](#frame-size-two-levers-not-one))
-4. **Perform the flow** using refs from snapshot
-5. **Stop capture** (`tracing-stop` or `video-stop`)
-6. **Move output to a meaningful location** — don't leave artifacts named `page-<timestamp>.png` in `.playwright-cli/`; use `--filename=` or `mv` to something like `<artifact-dir>/<descriptive-name>.webm`
+Two mechanics the flow does not make obvious. Set `PLAYWRIGHT_MCP_VIEWPORT_SIZE` on the
+`open` command before `video-start --size`, because the recorder derives its geometry when
+the browser context is created; see [Frame size](#frame-size-two-levers-not-one). Then give
+the output a descriptive name with `--filename=` or `mv`, so evidence does not sit in
+`.playwright-cli/` as `page-<timestamp>.png`.
 
 ## Known costs
 

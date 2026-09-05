@@ -12,8 +12,8 @@ metadata:
 ## Context. Gather first
 
 Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
-one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale, which bit
-this skill hardest, failing it at load in exactly the isolated sessions that most need a save-point:
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale, which
+matters most here because an isolated session is exactly the one that needs a save-point:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
@@ -54,22 +54,22 @@ save-point engine, different delivery.
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
-## Hard rule. Handoff ALWAYS terminates current execution
+## Hard rule. Handoff terminates the current execution
 
-**The whole point of `/session-flow:handoff` is `/clear` + fresh-session resume.** The skill produces the
-save-point, THEN STOPS. It does NOT keep executing the underlying task in the current session; that
-defeats the purpose. STOP is the default and near-universal outcome, NEVER unlocked by the user
-having listed multiple steps, nor by the remaining work being "small".
+The point of `/session-flow:handoff` is `/clear` plus a fresh-session resume. The skill produces
+the save-point, then stops. It does not keep executing the underlying task in the current session,
+because that defeats the purpose. Stopping is the default outcome, and the user having listed
+multiple steps, or the remaining work being small, does not unlock continuing.
 
-**What STOP means, and the one thing it never means.** STOP ends the UNDERLYING TASK. It never ends
-the response before the resume prompt is on screen, because emitting that prompt is not work that
-follows the save-point. It IS the save-point. The engine is explicit that the prompt is the
-mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only decision
-is whether to ALSO write a durable handoff file." So a turn that writes the file and stops has
-delivered the optional half and dropped the required one; the operator is left holding a `/clear`
-they cannot resume from, which is strictly worse than never having run the skill, since the skill
-reports success. This is an observed failure, not a hypothetical (`context/gotchas.md`). Until the
-rails prompt is in the response, the save-point does not exist and STOP has not been reached.
+**What STOP means, and the one thing it never means.** STOP ends the underlying task. It never
+ends the response before the resume prompt is on screen, because emitting that prompt is not work
+that follows the save-point. It is the save-point. The engine is explicit that the prompt is the
+mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only
+decision is whether to ALSO write a durable handoff file." A turn that writes the file and stops
+has delivered the optional half and dropped the required one; the operator is left holding a
+`/clear` they cannot resume from, which is worse than never having run the skill, since the skill
+reports success. The failure shape is in `context/gotchas.md`. Until the rails prompt is in the
+response, the save-point does not exist and STOP has not been reached.
 
 **Mandatory STOP gate (walk every box):**
 
@@ -81,13 +81,16 @@ rails prompt is in the response, the save-point does not exist and STOP has not 
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it
 
-**NOT authorization to continue (these all STOP):**
+**Not authorization to continue (these all stop):**
 
-- A multi-step pipeline naming `/session-flow:handoff` (e.g. "handoff, then verify, then PR") → the listed steps
-  run in the FRESH session AFTER `/clear`. Naming `/session-flow:handoff` names a `/clear` boundary, not a waiver
-- "do all of it" → authorizes executing the phases across the session chain, but each `/session-flow:handoff`
-  between them still enforces its `/clear` boundary (that is WHY the handoffs get written)
-- A standalone user-invoked `/session-flow:handoff` → always STOP, regardless of surrounding instructions
+- A multi-step pipeline naming `/session-flow:handoff` (e.g. "handoff, then verify, then PR"): the
+  listed steps run in the fresh session after `/clear`. Naming `/session-flow:handoff` names a
+  `/clear` boundary, not a waiver
+- "do all of it": authorizes executing the phases across the session chain, but each
+  `/session-flow:handoff` between them still enforces its `/clear` boundary (that is why the
+  handoffs get written)
+- A standalone user-invoked `/session-flow:handoff`: always stop, regardless of surrounding
+  instructions
 
 The only exception: the user's prior turn used explicit stay-in-session language about handoffs
 specifically (e.g. "don't `/clear` between phases, keep going").
@@ -189,11 +192,11 @@ is what the operator actually reads (engine doc, "Emit the position panel"), so 
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
 The rails resume prompt, the copy instruction, the two dashed rails, and every below-the-rails
 `/loop` re-arm note, is the FINAL text of the response, with nothing after it. This order exists
-because the rails prompt is the deliverable the operator copies, and a turn that ends on anything
-else has been observed to end *without the rails prompt at all* under heavy context: the
-save-point file exists, but the operator has nothing to paste after `/clear`. A response whose
-last text is not the rails block (plus its below-rail notes) is a FAILED handoff even when every
-box above is ticked. Emit the rails block before ending the turn, always.
+because the rails prompt is the deliverable the operator copies, and under heavy context a turn
+that ends on anything else can run out of room before the rails prompt appears: the save-point
+file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
+not the rails block (plus its below-rail notes) is a FAILED handoff even when every box above is
+ticked. Emit the rails block before ending the turn, always.
 
 **Full path:**
 

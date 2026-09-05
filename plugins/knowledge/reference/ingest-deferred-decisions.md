@@ -72,6 +72,23 @@ sibling pipeline.
 **Trigger:** the ingest-slice contract is authored web-scoped first; routing
 waits for it.
 
+## 6. video-digest queue evolutions
+
+The epic queue is V1: a markdown table plus filesystem claim stubs, no JSON queue
+schema. Four evolutions are recorded and deliberately not pre-implemented:
+
+| Trigger | Next step |
+| --- | --- |
+| Claim races despite `queue-claim.js` | Single `watch-queue.json` + temp-file rename (compare-and-set) |
+| Queue > ~50 rows; table parse errors | `watch-queue.js` CLI: `add`, `list`, `claim` |
+| Team concurrent enqueue without discipline | SQLite or JSON queue lib with leases |
+| Unattended overnight drain | an agent-loop / unattended-runner prompt per row, one video per iteration |
+| Cross-machine workers | External queue, out of repo scope |
+
+**Trigger:** per row above. Until one fires, keep the `claims/<n>.json` shape
+stable so a later implementation can ingest or replace the stubs without changing
+per-video slices.
+
 ## Disposition
 
 No trigger has fired as of the filing of #2707. This document is preservation,

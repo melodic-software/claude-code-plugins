@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-five-check static contract gate (frontmatter, invocation mode, verb-contract polarity, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, and more) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-five-check static contract gate (frontmatter, invocation mode, verb-contract polarity, per-skill listing-entry cap, advisory trigger-phrase check vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, and more) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -18,8 +18,7 @@ JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eva
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
-limit from `check`'s per-skill entry cap). Catches the failure that static analysis catches best: a
-rewrite silently dropping a `description` trigger phrase, which degrades auto-invocation.
+limit from `check`'s per-skill entry cap).
 
 ## Skills-directory resolution
 
@@ -41,12 +40,14 @@ CHECK_SKILL_SKILLS_ROOT="${user_config.skills_root}" \
 When it is unset, invoke the script plain. It falls back to `${CLAUDE_PROJECT_DIR}/.claude/skills`.
 
 **Gating a marketplace-installed skill.** A `plugin:skill` name (e.g. `source-control:setup`) is
-NOT auto-resolved: the checker resolves a bare skill name under one root and deliberately does not
-reverse-engineer Claude Code's plugin-cache layout to locate an install. That layout is internal.
-Only the cache's existence is documented, the `<marketplace>/<plugin>/<version>` nesting is not, and
-the version dir changes on every update
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference)). To gate an installed skill,
-point the root at its installed skills dir explicitly:
+not auto-resolved: the checker resolves a bare skill name under one root and does not walk Claude
+Code's plugin cache to locate an install. The cache keeps each installed version of a copied plugin
+in its own directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, and the previous
+version stays on disk for a grace period after an update
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-09-02; recheck
+when that page's plugin-cache section changes), so more than one candidate can exist and the checker
+will not guess which one you mean. To gate an installed skill, point the root at its installed
+skills dir explicitly:
 
 ```shell
 CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
@@ -54,8 +55,9 @@ CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>
 ```
 
 The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
-vendor byte-identity, 9 stale-metadata) no-op against it. A "new skill / skipped" result is
-expected there, not a defect. Passing a `plugin:skill` name unresolved prints this exact guidance.
+vendor byte-identity, 9 stale-metadata, 13 committed-artifact scan) no-op against it. A "new skill /
+skipped" result is expected there, not a defect. Passing a `plugin:skill` name unresolved prints
+this exact guidance.
 
 ## Arguments
 
@@ -86,11 +88,13 @@ Parse `$ARGUMENTS`:
 3. Report per skill:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines).
    - The `FAIL:` lines verbatim (each is an actionable defect).
-   - `WARN:` lines grouped after failures (advisory: soft line target, missing gotchas surface,
-     action-router without evals, orphan spokes, an injection with no `shell:` whose commands
-     only *look* portable, an injected command carrying no `|| <fallback>`, same-context
-     judgment language with no fresh-eyes declaration or a stale exemption directive, and a
-     description/verb-contract polarity mismatch).
+   - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
+     base ref, soft line target, missing gotchas surface, action-router without evals, orphan
+     spokes, an injection with no `shell:` whose commands only *look* portable, an injected
+     command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
+     declaration or a stale exemption directive, and a description/verb-contract polarity
+     mismatch). A dropped-trigger warning is a review item: confirm the description still names
+     the intent each dropped phrase carried, or restore the phrase.
 4. For a multi-skill run, end with a one-line rollup: `N passed, M failed`.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
@@ -147,7 +151,7 @@ This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`
 <https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
 trigger: that page or the settings page moving either default re-derives this sentence and the
 scripts' constants): the shared budget every loaded skill draws from together
-(`skillListingBudgetFraction`, default 1% of the model's context window). It is always advisory.
+(`skillListingBudgetFraction`, default 1% of the model's context window).
 The script exits 0 regardless of overflow, because the live budget depends on the model's context window and a
 consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live
 session for the authoritative resolved cost.
@@ -176,7 +180,7 @@ and review against the invariant.
   skills root; without either and without a git toplevel, the script exits 2 naming the
   missing root.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
-  to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
+  to a WARN rather than failing, so a run on a machine without Node still gates on every other check.
 - **Check 6 defers to the repo's markdownlint config. Run it from inside that repo.** `markdownlint-cli2`
   discovers the nearest `.markdownlint-cli2.jsonc` from its working directory. Run the checker from
   *outside* the target repo (or against a marketplace-installed skill in the plugin cache, which has no
@@ -194,12 +198,16 @@ and review against the invariant.
   (no committed version) skips check 3. That is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
-- Trigger-drop protection tracks single-quoted `'phrase'` triggers. An unquoted `Use when:` list is not
-  tracked by check 3; check 12 warns so those phrases get quoted and covered. A dropped phrase found
-  verbatim in a sibling skill's description/when_to_use under the same skills root, where the
-  sibling did NOT already carry it at the base ref, is a trigger MOVE: it WARNs instead of failing,
-  because the listing still routes the phrase. Phrases absent everywhere, and phrases the sibling
-  carried all along (coincidental overlap, not a move), still fail.
+- Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
+  the run. It tracks single-quoted `'phrase'` triggers; an unquoted `Use when:` list is not tracked,
+  and check 12 warns so those phrases get quoted and covered. A dropped phrase found verbatim in a
+  sibling skill's description/when_to_use under the same skills root, where the sibling did NOT
+  already carry it at the base ref, is a trigger MOVE and warns naming the host, because the listing
+  still routes the phrase. A phrase absent everywhere, or one the sibling carried all along
+  (coincidental overlap, not a move), warns as dropped and asks the reviewer to confirm the
+  description still names the intent the phrase carried (a deliberate consolidation of near-synonym
+  triggers into an intent category) or to restore it. Treat that warning as a review item, not
+  noise.
 - Check 19 (injection shell-declaration) FAILs only when a `!` injection carries *detectable*
   bash-only syntax (`/dev/null`, `command -v`, a pipe into a Unix text tool) AND no `shell:` is
   declared; portable-looking commands downgrade to a WARN, since static analysis cannot prove
@@ -250,17 +258,15 @@ and review against the invariant.
   `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:
   Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case
   phrases the prohibition unusually can WARN despite covering it. Read the set before adding a
-  case. It deliberately does NOT flag low case count: the marketplace's low volume is a recorded
-  divergence from the evaluation guidance, revisited when the deferred eval runner lands.
+  case. It deliberately does not flag low case count: the marketplace's low eval volume is a recorded
+  divergence from the evaluation guidance.
 - `check-evals-quality.sh` resolves each case's `files` entries relative to the skill directory
   first, then the evals directory. An entry that is prose (environment description) rather than a
   real path FAILs Q4. Describe environment state in the case's `prompt` parenthetical instead,
   or ship a fixture. When `files` is empty/absent, path-shaped tokens in `prompt`/`expected_output`
   that resolve nowhere WARN under the same Q4 roots unless the case sets `narration: true`.
-- `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
-  are both consumer settings this static check cannot observe). It reports against a documented,
-  overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`
-  in a live session, not a guarantee nothing is dropped there. In this marketplace's own repo, each
-  plugin owns its own `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling
-  every plugin's root into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it
-  once per plugin in isolation. The repo's `check-changed-skills.sh` CI gate does this on every run.
+- A clean `listing-budget` report is a signal to investigate against `/doctor` in a live session,
+  not a guarantee nothing is dropped there. In this marketplace's own repo, each plugin owns its own
+  `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling every plugin's root
+  into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it once per plugin
+  in isolation. The marketplace's CI workflow runs that pooled call as a dedicated step on every run.

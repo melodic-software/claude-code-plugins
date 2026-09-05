@@ -59,12 +59,9 @@ established way *should* be replaced when:
 - **it is stale or outdated**. Newer developments may have superseded it;
   a challenge on this ground requires *fresh* research, not recall.
 
-Blind trust in the status quo is explicitly bad: don't reuse the established
-way just because it is the established way. The discipline is not "never
-diverge". It is "**never diverge silently**." When you replace, do it in the
-open and carry it through. Migrate the old uses. When you reuse, reuse because
-the way holds up, not merely because it is there. That interrogation is
-`/discipline:reason-dont-recite`'s axis (below).
+When you replace, do it in the open and carry it through: migrate the old uses.
+When you reuse, reuse because the way holds up, not merely because it is there;
+that interrogation is `/discipline:reason-dont-recite`'s axis (below).
 
 ### The burden rule. Divergence is priced by blast radius
 

@@ -21,12 +21,10 @@ invocation:
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 4 lines")
 bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about. These are ordinary body Bash calls, not pre-compute, the shape #1619 is
-about is the harness composing the whole pre-compute block into one shell invocation.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
-out of pre-compute in #1619, the harness composes the block into one shell invocation and a
-worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
+anything to decide about. Treat a failure (not a repository, git unavailable) as an unknown value
+and carry on. Keep these as separate body calls rather than pre-compute: the harness composes a
+pre-computed block into one shell invocation, and a worktree-isolated agent refuses a git-bearing
+compound command.
 
 ## Purpose
 

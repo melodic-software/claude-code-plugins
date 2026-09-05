@@ -36,13 +36,14 @@ by [`check-security-binding.mjs`](../../../../autonomy/skills/setup/scripts/chec
 evaluation mode (`--evidence`). The loop lane invokes that resolution **through the trusted seam
 only**, never by re-deriving a subset in prose.
 
-**Phase note (#1695).** The full three-arm resolver (gh-native evidence arms, epoch pinned to the
-run-level raising commit) is not yet wired on this seam. Until the seam returns a qualified,
-non-forgeable evidence read, **every promotable cell resolves effective-unpromoted** — autonomous
-merge stays off for C2/C3 classes regardless of tracked rung. Operators keep `--merge human-only` on
-launch lines until both this seam qualifies and the repository's suggested evidence predicates are
-met ([`loop-lane-prompts.md`](../../../../../prompts/loops/loop-lane-prompts.md) merge-lane
-copy-blocks).
+**Current seam state.** This seam does not yet return a qualified, non-forgeable evidence read, so
+**every promotable cell resolves effective-unpromoted**: autonomous merge stays off for C2/C3
+classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. Recheck
+trigger: `check-security-binding.mjs --evidence` returning a qualified read through the trusted
+seam, and the repository's evidence predicates being met
+([`loop-lane-prompts.md`](../../../../../prompts/loops/loop-lane-prompts.md) merge-lane
+copy-blocks); until then this paragraph is the rule, and the fail-closed table below is how it is
+applied.
 
 ## Fail-closed rules
 

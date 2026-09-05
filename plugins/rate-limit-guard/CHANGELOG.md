@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.34]
+## [0.7.35]
 
 ### Changed
 
@@ -19,6 +19,21 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   status the read returned, so their behavior is unchanged; the copy is bumped
   because `scripts/sync-hook-utils.sh` keeps every carrying plugin
   byte-identical.
+
+## [0.7.34]
+
+### Changed
+
+- setup: dropped the ADR rationale for the bespoke legacy detection, restated the compose warning
+  as the present-tense failure it prevents, and lowercased the all-caps emphasis.
+- setup: the shared `legacy-statusline-detect.md` and `unwrap-before-compose.md` spokes drop the
+  wrong `< 0.2.0` shim boundary, the ADR rationale, the incident narration, and the all-caps
+  emphasis; edited at the context-guard source and re-synced.
+- reference/reader-contract.md: replaced the `TODO(#1218)` tracker pointer with a present-tense
+  statement of the account-identity gap, and replaced the hardcoded consumer counts with a pointer
+  to the drift-check registry that owns the roster.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
 ## [0.7.33]
 

@@ -191,13 +191,13 @@ Based on the problem space, identify which stakeholder perspectives are needed. 
 
 Examples: For IDD: Individual receiving services + Family/Guardian. For healthcare: Patient. For commerce: Customer. For education: Student.
 
-Prior runs that omitted the beneficiary persona caught the gap only via facilitator step-back mid-run. The gap-fill was inconsistent with how other personas were executed. This is now a hard rule to prevent recurrence.
-
 ### Agent Execution Rule: One Persona Per Agent Invocation
 
 **NEVER combine two personas in a single Agent invocation.** Each persona = one Agent call. When two personas share one agent, vocabulary converges and the output sounds like one voice wearing two hats. This defeats the core value of multi-persona simulation.
 
-Combining personas (e.g., "SupportCoord reactor + ProgDir reactor" in one agent) consistently produces degraded output. Prompt quality audits show later-round combined prompts ~40% shorter than early-round individual prompts, scoring 6.2/10 vs 9/10 for individual prompts.
+Combining personas in one agent degrades the output in two specific ways: the shared prompt has to
+serve two identities, so each gets less of it, and the single agent's voice flattens the vocabulary
+difference that made the two personas worth simulating separately.
 
 ### Standard Persona Catalog
 
@@ -495,15 +495,19 @@ The simulation produces:
 
 ## Integration with Miro
 
-When the Miro MCP server is configured (`mcp-servers/miro/node/`), simulated agents can place stickies directly on a Miro board. See `@./reference/miro-integration.md` for color mapping, spacing values, and board setup.
+When the `miro` plugin is enabled (see SKILL.md "Miro availability & graceful degradation"),
+simulated agents can place stickies directly on a Miro board. See `@./reference/miro-integration.md`
+for the tool namespace, colour mapping, spacing values, and board setup.
 
 ### Round-Based Orchestration — Following Brandolini's Incremental Phases
 
 Agents can't subscribe to live board changes — MCP is request/response, not streaming. The realistic pattern is **round-based orchestration**, which maps to Brandolini's Big Picture phases exactly. **Critical: follow the incremental notation — don't dump all building blocks at once.**
 
-**Agent Execution Pattern (MANDATORY — the facilitator NEVER generates events)**
+**Agent Execution Pattern**
 
-Each persona is a SEPARATE Agent tool invocation. The facilitator orchestrates rounds but agents generate ALL content (events, reactions, disagreements). This is non-negotiable — centralized event generation by the facilitator produces events that all sound like the same voice with different labels, defeating the entire purpose of simulation.
+One Agent tool call per persona, per "Agent Execution Rule: One Persona Per Agent Invocation" above.
+The facilitator orchestrates rounds; the agents generate all content — events, reactions,
+disagreements.
 
 **Per-agent prompt must include:**
 
@@ -527,15 +531,19 @@ Each persona is a SEPARATE Agent tool invocation. The facilitator orchestrates r
 1. Spawn agent(s) for the current micro-round — use parallel Agent tool calls where simultaneous work is appropriate
 2. Wait for all agents to complete
 3. **Post-placement quality gate (facilitator validates EVERY round):**
-   a. Read the board via `miro_list_board_items` (full pagination)
-   b. **Brevity check:** scan all new stickies — flag any with >5 words for decomposition or simplification
-   c. **Emoji check:** scan for emoji Unicode characters in sticky content — if found, update the sticky via `miro_update_sticky_note` to remove emojis
-   d. **Type prefix check:** scan for stickies with prefixes like "COMMAND:", "EVENT:", "🔵" — update to remove prefix, the color IS the type
-   e. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs — flag as `[PHASE? Decompose this]`
-   f. **Visual checkpoint:** on the live-board path with a browser MCP connected, take a screenshot at every phase transition (a strong quality gate for board runs); in structured-markdown mode or with no browser MCP, skip it and verify against the markdown artifact instead
-   g. **Legend overflow check:** verify legend stickies are within frame bounds visually
+   a. Read the board via `miro_list_board_items` (`limit=1000`)
+   b. **Mechanical content scan:** run one pass over the new stickies' content strings and collect
+      three lists rather than judging them by eye — content over 5 words, content containing emoji
+      codepoints, and content starting with a type prefix such as `COMMAND:`, `EVENT:` or `POLICY:`.
+      Repair every hit via `miro_update_sticky_note`: split or simplify the long ones, strip the
+      emoji, drop the prefix (the colour is the type indicator)
+   c. **Overlap check:** call `miro_detect_overlaps` and reposition every reported pair. Raise the
+      threshold above its 195px default on rectangle-heavy boards
+   d. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs — flag as `[PHASE? Decompose this]`
+   e. **Visual checkpoint:** on the live-board path with a browser MCP connected, take a screenshot at every phase transition (a strong quality gate for board runs); in structured-markdown mode or with no browser MCP, skip it and verify against the markdown artifact instead
+   f. **Legend overflow check:** verify legend stickies are within frame bounds visually
 4. Next round's agents read the board themselves via MCP — they don't need a facilitator summary
-5. Repeat until cool down + 100-event gate
+5. Repeat until cool down (see the event-count diagnostic below)
 6. If persona persistence is enabled, update the persona profile files with what each agent produced in this round
 
 **Board Setup (Facilitator)**
@@ -568,7 +576,8 @@ The simulation approximates this with parallel agent rounds, but must NOT impose
 
    **Anti-Spoiler protection (critical for LLM agents):** LLM agents naturally want to be comprehensive and correct — they'll dump complete, consistent process flows instead of partial, perspective-limited views. This is the Spoiler anti-pattern (Ch. 29). Every agent prompt MUST include: "You are NOT trying to be comprehensive. Place 10-15 events from YOUR perspective only. Leave gaps — your incomplete view is the POINT. Events you don't know about are someone else's job. If you're writing events that feel outside your expertise, stop."
 
-   Do NOT use a single orchestrator agent to generate events for all personas — that defeats persona differentiation. One Agent tool call per persona in a single message.
+   Spawn one Agent tool call per persona in a single message, never one orchestrator agent writing
+   for all of them.
 
    **Seeding overlap (the "same moment, different eyes" principle):**
    In real workshops, overlap happens because everyone writes about the same visible business moments from their own perspective — Brandolini's `Schedule Ready` vs `Schedule Completed` vs `Schedule Published` example (Ch. 6). In simulation, agents writing about completely different domain areas produces complementary coverage but zero overlap. To force natural overlap, include 3-5 **shared focal moments** in every agent's prompt: "Your domain includes these key moments that everyone encounters: [list pivotal transitions, e.g., 'a customer first engages', 'money changes hands', 'the product/service is delivered', 'something goes wrong']. Write events for these moments FROM YOUR PERSPECTIVE using YOUR vocabulary, AND write events for the parts of the domain only you know about." Each persona will name the same moment differently — that divergence is the signal we want.
@@ -581,8 +590,11 @@ The simulation approximates this with parallel agent rounds, but must NOT impose
 3. **Cool-down — recognize the natural stopping point:**
    "Eventually, the crowd will stop adding stickies to the wall and will take a more contemplative position, looking at the big picture more than to their own stickies, and walking a few steps back" (Ch. 4). In simulation, cool-down = when the last round of agents adds only 1-3 events each, or when agents start producing events that feel like stretches rather than natural expertise. The facilitator praises the result and takes a break.
 
-4. **Event count diagnostic (NOT a hard gate):**
-   Check event count. Per Brandolini's post-workshop visual check (Ch. 9), 100-200 is a healthy range for a 2-hour workshop. Below 100 suggests surface-level exploration — spawn agents again targeting under-explored areas. This is a diagnostic signal, not a blocking gate — Brandolini uses it as a retrospective assessment, not a pre-condition.
+4. **Event count diagnostic (a signal, never a blocking gate):**
+   Per Brandolini's post-workshop visual check (Ch. 9), 100-200 events is a healthy range for a Big
+   Picture workshop. He uses it as a retrospective assessment, not a pre-condition, and so do we: a
+   low count directs the next round, it never blocks the next phase. Read the count at the
+   checkpoints below.
 
 **Asymmetric information flow:**
 Some agents will naturally produce more events than others — a Domain Expert might dump 15 events while a New Hire adds 5 curious questions disguised as events. This asymmetry is realistic. Brandolini observes: "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes, ignoring the surrounding world." Don't force equal output across agents.
@@ -590,16 +602,21 @@ Some agents will naturally produce more events than others — a Domain Expert m
 **Phase name detection (facilitator validation):**
 After each micro-round, the facilitator scans for stickies that look like phase/process names rather than events — no past-tense verb, reads like a category ("Registration", "Payment Processing", "Onboarding"). In a real workshop, the facilitator turns these 45° to signal "not an event." In the simulation, flag them with `[PHASE? Decompose this]` and prompt the generating agent to break them into specific events. Heuristic: if the sticky has no past-tense verb, or reads as a noun/gerund phrase, it's likely a phase name hiding 5-10 events.
 
-**Event count diagnostic (post-exploration check):**
-After Chaotic Exploration, check the event count against Brandolini's retrospective visual check (Ch. 9): 100-200 is a healthy range for a Big Picture workshop. Below 100 suggests the exploration only scratched the surface — run additional waves targeting specific under-explored areas (failure modes, edge cases, time-triggered events, financial flows, system interactions). This is a quality signal, not a blocking gate.
+**Checkpoints (facilitator action at each):**
 
-**Event count decision tree (facilitator action at each checkpoint):**
+- After the initial dump, fewer than 10 events per persona: the persona prompts are too narrow.
+  Widen the domain context and run those personas again
+- After the initial dump, three or more personas using identical phrasing for the same moment:
+  convergence. Break the committee circles in the next round's prompts
+- After cool-down, under 100: exploration only scratched the surface. Run targeted rounds for the
+  areas that are thin — failure modes, financial flows, time-triggered events, system interactions,
+  edge cases. If the count is still under 100 after that, the persona mix likely lacks diversity;
+  consider adding a domain-specific persona
+- After cool-down, 100-200: healthy, proceed
+- After cool-down, over 200: consider the Chapters Sorting strategy for Enforce Timeline
 
-- After initial dump: `count < 10 per persona?` → persona prompts are too narrow; widen domain context and re-run
-- After initial dump: `3+ personas used identical phrasing for same moment?` → convergence detected; break committee circles in next round prompts
-- After cool-down: `count < 100?` → run targeted additional rounds for under-explored areas (failure modes, financial flows, time-triggered events, system interactions, edge cases)
-- After cool-down: `count 100-200` → healthy, proceed. `count > 200` → consider Chapters Sorting strategy for Enforce Timeline. `count < 100 still` → persona mix may lack diversity; consider adding a domain-specific persona
-- This is a diagnostic signal, not a blocking gate — but treat sub-100 as a quality warning requiring action
+Treat a sub-100 count as a quality warning that requires action, not as a condition that blocks the
+next phase.
 
 **Legend completeness requirements (facilitator responsibility):**
 The legend MUST be incrementally updated as each phase introduces new building blocks. A missing legend entry = a building block viewers can't decode. After each phase, verify the legend contains ALL building block types currently on the board:
@@ -731,8 +748,14 @@ Within each zone, events from different personas keep their original y-offsets (
 
 **Inter-round communication:** Agents read the board directly via `miro_list_board_items` at the start of each round — they see all events from all personas and react accordingly. The facilitator does NOT need to summarize board state. When boards exceed 100 items, the facilitator should provide agents with a structured summary organized by timeline position alongside the raw MCP read. Each persona agent sees the FULL event list (not just their own) so they can react to other perspectives.
 
-**Board reading — full pagination required:**
-The Miro API paginates results (typically 50 items per call). Agents and facilitators MUST read ALL pages when using `miro_list_board_items` — call multiple times until all items are retrieved. A partial board read is equivalent to a participant who can only see half the wall — they'll miss critical context and produce bad analysis. Brandolini's physical wall is always fully visible ("People will need to see the forest and the trees" — Ch. 4); our digital equivalent must be too.
+**Board reading — read the whole board in one call:**
+`miro_list_board_items` paginates internally and returns at most `limit` items, which defaults to
+20 and accepts up to 1000. Agents and facilitators pass an explicit `limit` large enough for the
+whole board (use `limit=1000`); calling the tool again without raising `limit` returns the same
+first items, not the next page. A partial board read is equivalent to a participant who can only
+see half the wall — they'll miss critical context and produce bad analysis. Brandolini's physical
+wall is always fully visible ("People will need to see the forest and the trees" — Ch. 4); our
+digital equivalent must be too.
 
 **Facilitator step-back after Round 2:**
 Run a facilitator step-back after Round 2 (not just after Round 4). Early step-backs catch persona gaps and thin zones before most rounds have executed, allowing targeted corrections while there's still time. The step-back after Round 2 checks: (1) Are all expected personas represented? (2) Are there obvious thin zones? (3) Is the board starting to look like process documentation instead of chaos? If any check fails, address it before proceeding — inject a missing persona, re-prompt thin-zone personas with stronger corrective instructions, or invoke the "I don't trust the official version" principle on suspiciously clean areas.
@@ -745,7 +768,7 @@ Run a facilitator step-back after Round 2 (not just after Round 4). Early step-b
 - Facilitator provides each persona with the sorted timeline, then prompts: "Looking at this timeline, who are the KEY PEOPLE involved in your area? What EXTERNAL SYSTEMS do you depend on or blame?"
 - Place people on the People/Actors row and external systems on the External Systems row — both ABOVE the persona event rows, per the Big Picture Y-Coordinate Table in `miro-integration.md` (external systems sit at the top of the board, not below the flow)
 - **Trigger the "Is this a person or a system?" conversation** — Brandolini highlights this as an interesting question that reveals ownership attitudes (Ch. 4). Prompt agents: "Is [thing X] a person or a system? Who owns it?"
-- This triggers MORE events — "mundane activities that occur on the boundaries" (Ch. 4). Target: significantly more new events than v7's 14
+- This triggers MORE events — "mundane activities that occur on the boundaries" (Ch. 4)
 - **Be alert for sarcastic complaints** — "I am usually alert for spontaneous comments (usually sarcastic complaints) that we should capture with Hot Spots" (Ch. 4). Prompt agents: "Any complaints about working with these systems?"
 - **Adding systems triggers new events.** Per Brandolini Ch. 4: "Adding new systems usually triggers the need for more events." When personas place external systems on the board, the facilitator should prompt them: "What events happen BECAUSE of this system? What breaks when this system is down?" Expect 5-10 new events triggered by adding people and systems
 - Update the legend with People and External Systems

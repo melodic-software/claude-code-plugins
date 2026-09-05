@@ -10,7 +10,7 @@ disable-model-invocation: true
 Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. Every
-tunable is a native `userConfig` option (fourteen per-guard toggles plus the
+tunable is a native `userConfig` option (one enable toggle per guard plus the
 `cli_flag_verify_bins`, `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow`
 scalars), so `apply` is pure guidance and writes nothing.
 
@@ -35,9 +35,11 @@ restores the FAIL semantics.
 2. **`jq`.** `command -v jq`. FAIL if absent: per the README, every guard then fails
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
    exactly what this check exists to surface.
-3. **Per-guard toggles.** Report each guard's effective value from its
-   `${user_config.<guard>_enabled}` rendering (unexpanded or empty means default `true`),
-   one row per guard, so the user sees the live guard surface at a glance.
+3. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per
+   guard, so the user sees the live guard surface at a glance. The effective value is the
+   configured option, else that guard's `default` in `plugin.json`; the guards read it as the
+   `CLAUDE_PLUGIN_OPTION_<GUARD>_ENABLED` export. Defaults differ per guard (the advisory
+   opt-in guards ship `false`), so take each default from the manifest and never assume `true`.
 4. **`cli-flag-verify` scan surface.** Report the effective `cli_flag_verify_bins` /
    `cli_flag_verify_skip_bins` values and INFO-note the guard's own behavior for scanned
    binaries missing from `PATH` (skipped, never flagged, per the guard source).
@@ -77,9 +79,7 @@ The DEPTH layer of commit-convention enforcement: a git `commit-msg` hook valida
 commit on this machine in this repo: editor commits, `git commit -F <file>`, IDE
 integrations, humans outside Claude, against the same team-tracked pattern the CC-layer
 `block-convention-violation` guard reads, through a copy of the same resolver. Never runs
-from bare `apply`; only the explicit `install-commit-msg` argument installs anything. This flow
-stays bespoke rather than becoming a retirement-manifest record: it is provisioning — chaining and
-wiring live hook executables — not retirement detection of a repo artifact.
+from bare `apply`; only the explicit `install-commit-msg` argument installs anything.
 
 Read [context/install-commit-msg.md](context/install-commit-msg.md) when invoked with
 `apply install-commit-msg`: the personal-lane contract, the refuse-rather-than-surprise

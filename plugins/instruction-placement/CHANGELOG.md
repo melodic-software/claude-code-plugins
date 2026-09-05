@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.27]
+## [0.11.28]
 
 ### Changed
 
@@ -19,6 +19,16 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   status the read returned, so their behavior is unchanged; the copy is bumped
   because `scripts/sync-hook-utils.sh` keeps every carrying plugin
   byte-identical.
+
+## [0.11.27]
+
+### Changed
+
+- setup: no longer claims to be the only surface that verifies index reachability; `check` gates both sync and reachability on every run, and setup asks the reachability question once before the first audit.
+- audit: the gotchas pointer drops its drifted "ten" count; the adherence paragraph points at the measurement file instead of restating its trial count and percentage; the empty-detector gotcha states the awk-panic cause in the present tense.
+- check: the reachability row is introduced without "newest".
+- delta: the quiet-run report states the window and the suppressed count instead of a one-line ceiling; eval case 1 renamed and reworded to match.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
 ## [0.11.26]
 

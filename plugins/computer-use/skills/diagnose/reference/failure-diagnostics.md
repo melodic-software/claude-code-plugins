@@ -85,16 +85,16 @@ ladder. It is still worth reporting, because it predicts when the session will d
 
 **A locked-looking failure that reports "not locked" is the screensaver.** With
 `ScreenSaverIsSecure = 0` the screensaver takes the screen without locking the session, so a
-`LogonUI` check correctly says unlocked while capture is dead and input is refused. Observed
-exactly this way; it is the most misleading signal in the set.
+`LogonUI` check correctly says unlocked while capture is dead and input is refused. It is the
+most misleading signal in the set.
 
-Note that display/sleep timeouts of `0` (never) do **not** imply the screensaver is off — that
-is a separate setting with its own timeout, and it was the actual culprit in the observed case.
+Note that display/sleep timeouts of `0` (never) do **not** imply the screensaver is off; that
+is a separate setting with its own timeout, and the more common culprit.
 
 ### macOS probes
 
-**None ship, and that is a declared gap rather than an oversight.** No macOS machine was available
-to verify a probe set, and this plugin does not ship platform specifics it has not run.
+**No macOS probe commands ship.** This plugin does not ship platform specifics it has not
+verified, and no macOS probe set has been verified.
 
 On macOS, say so explicitly rather than skipping the step silently: report that the equivalent
 settings — screensaver idle delay, display sleep, and whether a lock is required on wake — must be

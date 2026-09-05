@@ -10,8 +10,8 @@ metadata:
 
 # CI code review (`/review:code-review`)
 
-Org-owned review logic for the `claude-review` reusable workflow
-(ci-workflows#258). The lane's workflow wrapper supplies `REPO` / `PR NUMBER` /
+Org-owned review logic for the `claude-review` reusable workflow. The lane's
+workflow wrapper supplies `REPO` / `PR NUMBER` /
 `HEAD SHA` and the event-class reporting mechanics (inline-comment MCP on
 `pull_request`, `gh pr review`/`gh pr comment` on `workflow_dispatch`). This
 skill owns **what to look for**; the wrapper owns **how to post**.
@@ -23,8 +23,6 @@ skill owns **what to look for**; the wrapper owns **how to post**.
   in the action's `claude_args` (`--allowedTools
   mcp__github_inline_comment__create_inline_comment`). Rely on the lane
   wrapper's grant; do not assume this frontmatter installed it.
-- Do not invent a 0–100 confidence-score gate. Prefer adversarial validation
-  (producer ≠ verifier) when spawning subagents.
 - Scope security findings **out** of this lane wherever the consumer carries a
   `claude-security-review` workflow file. Leave those to `/review:security-review`.
 
@@ -65,7 +63,7 @@ Report only findings a careful senior reviewer would block or flag. Exclude:
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
 - Security findings that belong on the security lane (see "Gotchas" above)
 
-## Adversarial validation (V2 target)
+## Adversarial validation
 
 When you fan out subagents for candidate findings, the producer of a finding
 must not be the verifier. Drop candidates the verifier rejects. Committable

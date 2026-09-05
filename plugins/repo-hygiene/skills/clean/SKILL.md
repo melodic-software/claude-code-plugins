@@ -1,5 +1,5 @@
 ---
-description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), stash (stash audit/triage), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all, and fleet batch forms of the selective tiers (caches-batch / build-batch / git-batch / all-batch over many repos behind one gate). Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: 'clean', 'free up disk space', 'remove caches', 'clear build artifacts', 'fresh pull', 'fresh clone state', 'reset to origin', 'reset all my repos', 'clean caches across all repos', 'clear build artifacts across all my repos', 'prune git across the fleet', 'stale branches', 'clean up my stashes', 'repo hygiene'. Skip: removing git worktree directories (a worktree-management tool handles those)."
+description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), stash (stash audit/triage), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all, and fleet batch forms of the selective tiers (caches-batch / build-batch / git-batch / all-batch over many repos behind one gate). Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when reclaiming disk space in a repo, clearing tool caches or build artifacts, pruning git metadata, auditing stale branches or stashes, or resetting a working tree to match origin, in one repository or across a fleet: 'clean', 'free up disk space', 'fresh pull', 'stale branches', 'repo hygiene'. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)"
@@ -31,10 +31,22 @@ metadata:
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Uncommitted changes (empty = none): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -5`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Uncommitted changes (empty = none), `git status --porcelain | head -5`
+- Current branch, `git branch --show-current`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -42,7 +54,7 @@ Return the repo toward a known-good state. **Selective tiers** (`scan`, `caches`
 
 Bare invocation never mutates silently: resolve intent → dry-run → user confirmation → `--apply`. Full menu, aliases, and confirmation matrix: [context/action-router.md](context/action-router.md).
 
-Bundled-script invocation uses two deliberate forms. Paired `${CLAUDE_SKILL_DIR}` in this file (matches `allowed-tools`) and interpreter-led `${CLAUDE_PLUGIN_ROOT}` in routed `context/*.md` detail files. Rationale and decide-lane verdict: [reference/invocation-forms.md](reference/invocation-forms.md).
+Bundled-script invocation uses two deliberate forms. Paired `${CLAUDE_SKILL_DIR}` in this file (matches `allowed-tools`) and interpreter-led `${CLAUDE_PLUGIN_ROOT}` in routed `context/*.md` detail files. Rationale: [reference/invocation-forms.md](reference/invocation-forms.md).
 
 ## Arguments
 
@@ -163,7 +175,7 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p` output). Skip list: `--skip ENTRY` / `--skip-from FILE` (absolute path, `owner/repo`, or bare `repo`; separator-agnostic). Passthrough to the child: `--force-default-branch` / `--include-deps` / `--include-secrets`.
 
-**Mandatory gate (single, batch-wide):** show the `--dry-run` whole-batch plan (per-repo `Outcome`/`Reason`, the `Summary` totals, and any `UnmatchedSkip:` warnings) → [confirmation gate](#confirmation-gate) **once** → only then `--apply` **once**. Do not gate per repo. A fresh-clone fleet is typically all on the default branch, so expect an all-blocked dry-run unless `--force-default-branch`. Surface that in the confirmation. `--include-dirty` re-enables the exact data-loss vector (resets repos with uncommitted/untracked changes or unpushed commits); it needs its own explicit confirmation naming the dirty repos, exactly like `--include-secrets`. Autonomous sessions: abort.
+**Mandatory gate (single, batch-wide):** show the `--dry-run` whole-batch plan (per-repo `Outcome`/`Reason`, the `Summary` totals, and any `UnmatchedSkip:` warnings) → [confirmation gate](#confirmation-gate) **once** → only then `--apply` **once**. Do not gate per repo. A fresh-clone fleet is typically all on the default branch, so expect an all-blocked dry-run unless `--force-default-branch`. Surface that in the confirmation. `--include-dirty` resets repos with uncommitted or untracked changes or unpushed commits, discarding that work unrecoverably; it needs its own explicit confirmation naming the dirty repos, exactly like `--include-secrets`. Autonomous sessions: abort.
 
 ### 7. Orphaned path removal (destructive, on explicit request only)
 

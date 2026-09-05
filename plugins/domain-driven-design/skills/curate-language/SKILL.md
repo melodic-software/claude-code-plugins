@@ -21,8 +21,9 @@ the same model language can be used consistently in conversation, documentation,
 This skill owns **changing** that record. Merely reading the nearest glossary so another skill uses
 the right words is a one-line habit and does not require this workflow.
 
-Detailed entry, discovery, and multi-context rules live in
-[context/glossary-contract.md](context/glossary-contract.md). Read that file before any glossary write.
+Entry discipline, the convention-resolution ladder, and the multi-context rules live in
+[context/glossary-contract.md](context/glossary-contract.md). Read that file before resolving a
+convention or writing an entry.
 
 ## Workflow
 
@@ -45,19 +46,15 @@ writing; do not silently treat either source as authoritative.
 
 ### 2. Resolve the consumer's convention
 
-Discover before choosing:
+Gather the evidence the ladder in `context/glossary-contract.md` ranks: the consuming project's
+`AGENTS.md`, `CLAUDE.md`, `.claude/rules`, and declared documentation conventions, then, from the
+files and domain area in scope, walk toward the repository root looking for an existing
+domain-vocabulary file or context map. Work the ladder in order and stop at the first rung that
+resolves both format and location.
 
-1. Read the consuming project's `AGENTS.md`, `CLAUDE.md`, `.claude/rules`, and declared documentation
-   conventions.
-2. From the files and domain area in scope, walk toward the repository root looking for an existing
-   domain-vocabulary file or context map.
-3. Prefer the nearest applicable existing convention; preserve its filename, location, headings,
-   ordering, and entry syntax.
-4. If no glossary exists, create one only after the first term resolves. Infer its location and shape
-   from the repository's documentation layout and already-declared context artifacts. When more than
-   one placement is plausible, ask. Do not impose a fixed filename.
-
-Re-read the target file immediately before editing it. Another turn or agent may have changed it.
+Preserve whatever the winning convention already fixes: filename, location, headings, ordering, and
+entry syntax. Do not impose a fixed filename of your own. Re-read the target file immediately
+before editing it. Another turn or agent may have changed it.
 
 ### 3. Route to a known language context
 
@@ -96,15 +93,9 @@ Return:
 
 ## Invocation by consuming workflows
 
-`/planning:interview` and `/planning:design` invoke this skill the moment an engineering discussion
-resolves project vocabulary (the `planning` plugin declares a dependency on this plugin). They
-continue their own workflow after the glossary update; this skill does not take ownership of the
-Brief or design artifacts.
-
-Other plugins may invoke `/domain-driven-design:curate-language` when it is available in the
-current session. When it is unavailable, they may preserve their existing minimal fallback: update
-an already-declared glossary in its own shape, or offer a discovery-first lazy creation without
-inventing a filename.
+`/planning:interview` and `/planning:design` invoke this skill when an engineering discussion
+resolves project vocabulary. Update the glossary and hand back. This skill does not take ownership
+of the caller's Brief or design artifacts.
 
 ## Boundaries
 

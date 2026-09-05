@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.4]
+## [0.32.5]
 
 ### Fixed
 
@@ -43,6 +43,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `stdin_read_timeout` option text say the same. New
   `hook::stdin_cut_short_notice` in the vendored `hook-utils.sh` carries the
   notice text.
+
+## [0.32.4]
+
+### Changed
+
+- setup: the per-guard toggle probe reads each guard's effective value from the configured
+  option and the manifest default, and no longer claims that an unset toggle means `true`
+- setup: dropped the hardcoded guard count and the install-commit-msg rationale sentence
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
 ## [0.32.3]
 

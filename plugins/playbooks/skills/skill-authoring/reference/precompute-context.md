@@ -25,24 +25,35 @@ Convert a context-gathering step to `!` injection when **all** hold:
 - **Independent of Claude's judgement.** The command doesn't depend on a decision Claude makes
   first. Injection is a single pass — output is not re-scanned, so one placeholder cannot feed
   another (see the docs); anything requiring a computed argument stays a normal tool call.
-- **Cheap and bounded.** It returns fast and small. A slow or large-output command taxes every
-  load; `!` timeout/output-size behavior is undocumented (see below), so don't lean on it.
+- **Cheap and bounded.** It returns fast and small. Every injected command runs under the Bash
+  tool's default two-minute timeout, and output past the inline ceiling arrives as a file path plus
+  a short preview rather than as text, so a slow or large-output command either delays every load
+  or hands Claude a path instead of the data
+  ([How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
 
 Leave it as a body instruction when the step mutates state, is conditional on what Claude finds,
 needs an argument Claude derives, or is expensive.
 
 ## Conventions we pin
 
-These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** revisit these
-conventions when the skills docs begin documenting `!` failure/timeout/stderr semantics, or the
-shell options injections run under.
+These are Melodic Software conventions, not upstream doctrine. They rest on the failure, timeout,
+stderr, and output-size semantics the skills page documents under
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
+[When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
+read 2026-09-02. **Recheck trigger:** a re-read of either section no longer matching the claims
+below, or the page documenting the shell options injections run under.
 
 ### Defensive fallback is mandatory
 
-The skills docs (verified 2026-07-20) do **not** document what happens when an injected command
-fails, times out, or writes to stderr — so we assume the worst: a failure could inline an error
-string, partial output, or nothing into the prompt. Every injected command must therefore carry
-an explicit fallback so the rendered skill degrades to a known string rather than a surprise:
+A failed injected command aborts the whole skill invocation: Claude never sees the skill content for
+that invocation. With the default `bash` shell any non-zero exit counts as a failure, except exit code
+1 from the search and comparison commands the docs list. A command the Bash tool cannot background is
+killed at the two-minute timeout and aborts the same way. stderr merges into stdout and lands in the
+injected text
+([When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
+read 2026-09-02). Every injected command must therefore carry an explicit fallback, so a probe that
+cannot run degrades the rendered skill to a known string instead of preventing the skill from loading
+at all:
 
 ```
 - Working tree: !`git status --short || echo "(git status unavailable)"`
@@ -74,10 +85,10 @@ Two rules follow from the same reasoning:
 - **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
   produced nothing.
 
-Keep the brace group free of `$`. An expansion other than bare `$HOME` leaves the composed
-pre-compute block unverifiable to the worktree-isolation guard, and the skill then fails to load
-from an isolated agent. The fleet holds two competing accounts of that guard's trigger, recorded in
-`session-flow` 0.17.16 and `source-control` 0.51.6; avoiding `$` satisfies both.
+Keep the brace group free of `$`. The worktree-isolation guard cannot verify a composed pre-compute
+block that expands anything other than bare `$HOME`, and the skill then fails to load from an
+isolated agent. The guard's exact trigger is not pinned down, so leaving `$` out of the group is the
+form that is safe under every reading.
 
 ### `pipefail` is an open question; the brace group is correct either way
 
@@ -114,9 +125,10 @@ explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host 
 
 - **Single pass.** Substitution runs once over the file; injected output is inserted as plain
   text and never re-scanned. A command cannot emit a placeholder for a later pass.
-- **Renders on every invocation path** — user `/name`, the Skill tool, and auto-invocation all
-  preprocess. When injected output changes between invocations, Claude Code re-appends the full
-  rendered content (v2.1.202+), so keep injected output stable and small.
+- **Renders on every invocation path**: user `/name`, the Skill tool, and auto-invocation all
+  preprocess. When injected output changes between invocations, Claude Code appends the full
+  rendered content again ([Skills](https://code.claude.com/docs/en/skills), read 2026-09-02), so
+  keep injected output stable and small.
 - **Kill switch.** `disableSkillShellExecution` replaces each command with
   `[shell command execution disabled by policy]`. The skill must still make sense when that
   string appears in place of the output — never make correctness depend on injection succeeding.

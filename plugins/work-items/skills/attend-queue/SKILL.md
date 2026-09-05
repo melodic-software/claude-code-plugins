@@ -20,7 +20,7 @@ topic-docs binding that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Label edits, comments, and
 closes route through the bound adapter's write mechanics; the core inlines no provider commands,
-with one deliberate exception below: the `#502` telemetry upsert is an inlined `gh api` call,
+with one deliberate exception below: the telemetry upsert is an inlined `gh api` call,
 mandated by the loop-lane convention because an installed plugin cannot invoke a sibling plugin's
 script.
 

@@ -1,5 +1,5 @@
 ---
-description: "Report the Claude Code permission state actually in effect. Discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy), merges them into the effective allow/ask/deny set with each rule's source and precedence mechanic named, and classifies which allow rules auto mode drops on entry. Use when: 'what permissions are actually in effect', 'which settings file is my rule coming from', 'why is my allow rule ignored', 'show me my effective permissions', 'what does auto mode drop', 'which of my rules survive auto mode', 'is my managed policy being read', 'what scopes did you check', or before changing a permission rule you cannot locate. Report-only, never writes any settings file."
+description: "Report the Claude Code permission state actually in effect. Discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy), merges them into the effective allow/ask/deny set with each rule's source and precedence mechanic named, and classifies which allow rules auto mode drops on entry. Use when: 'what permissions are actually in effect' or 'show me my effective permissions' (including which settings file a rule comes from and what scopes were checked); 'which of my rules survive auto mode' (the entry diff); 'is my managed policy being read'; or before changing a permission rule you cannot locate. An allow rule ignored because of its shape is `audit-permission-grants`. Report-only, never writes any settings file."
 argument-hint: "[--scopes] surfaces only | [--entry-diff] what auto mode drops"
 user-invocable: true
 disable-model-invocation: false
@@ -279,7 +279,7 @@ not its contents: the reader names the domain and does not yet inventory its rul
 
 ## Gotchas
 
-Observed failures, each of which produced a confidently wrong answer before it was found:
+Failure modes that produce a confidently wrong answer:
 
 - **A registry read that silently reports "no policy."** On Git Bash, MSYS rewrites any argument
   containing backslashes as though it were a POSIX path, so a registry key reaches `reg.exe` mangled
@@ -287,18 +287,17 @@ Observed failures, each of which produced a confidently wrong answer before it w
   that as "no managed policy deployed" on a machine that has one. The reader disables the rewrite for
   those calls; if you invoke `reg` yourself while debugging, do the same or you will reproduce the
   wrong answer by hand.
-- **A missing shared library used to look like a clean machine.** If the plugin's
-  `lib/managed-scope.sh` could not be sourced, every managed surface reported `absent`. It is now a
-  hard `exit 2`. A reader that cannot load its own location list must not answer the question.
+- **A missing shared library must not look like a clean machine.** If the plugin's
+  `lib/managed-scope.sh` cannot be sourced, the reader exits 2 rather than reporting every managed
+  surface `absent`. A reader that cannot load its own location list must not answer the question.
 - **The local file is not under the worktree you are standing in.** `settings.local.json` resolves
   through worktrees to the main checkout, so a reader anchored on `git rev-parse --show-toplevel`
   looks where the file is not and reports `absent`. Three documented exceptions keep it in the start
   directory: outside a git repository, when the repository root is the home directory, and in Agent
   SDK sessions. The reader detects the first two and states that it cannot detect the third.
-- **An empty merge is not an empty machine.** Piping a reader that died into the merge would have
-  produced a clean "nothing in effect" on a machine full of rules. The merge now exits 2 when the
-  input carries no scope records at all; if you build your own pipeline around these scripts, check
-  the status rather than the output.
+- **An empty merge is not an empty machine.** The merge exits 2 when the input carries no scope
+  records at all, so a reader that died cannot feed it a clean "nothing in effect"; if you build your
+  own pipeline around these scripts, check the status rather than the output.
 - **Two live copies of `settings.local.json` are normal, not a bug.** When a pre-v2.1.211 copy sits in
   the start directory, the repository-root copy wins on a shared key but permission rules from both
   stay in effect. Reporting only one of them under-reports what is live.

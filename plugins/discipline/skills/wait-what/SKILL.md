@@ -21,9 +21,8 @@ exists; with none, plain technical English alone.
 Every sibling corrector re-anchors a standing discipline through the
 re-anchor/audit/correct loop. This skill is a one-shot, user-fired
 communication repair: the human, the only party who can detect that a message
-did not land, fires it, and the re-pitch IS the repair. It deliberately stays
-this small: a skill that fights unclear output fails by growing, because the
-model reads the volume, not the plea. Nearest siblings, for routing:
+did not land, fires it, and the re-pitch IS the repair. Nearest siblings, for
+routing:
 `/discipline:tighten-your-output` when the problem is too many words, and
 `/discipline:mind-your-maxims` when the standing cooperative-communication
 discipline itself needs re-anchoring; this skill repairs the one message that

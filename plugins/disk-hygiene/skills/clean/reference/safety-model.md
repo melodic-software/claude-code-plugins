@@ -74,9 +74,9 @@ it structurally rather than by heuristic:
   authority, tooling, timeout, or unverifiable condition is `handle-state-unverified` — both keep the
   entry. This is the primary defense and it fails closed.
 - **VCS markers re-discovered from live state.** Agent scratchpads routinely hold clones and
-  worktrees; observed first-hand, a registered worktree of a real repository living at
-  `<temp-root>/<project-key>/<session-id>/scratchpad/`, alongside two full clones whose pack files
-  were 4.2 GB of a 7.9 GB tree. Repository markers are re-discovered and `git ls-files` re-queried at
+  registered worktrees of real repositories, at paths such as
+  `<temp-root>/<project-key>/<session-id>/scratchpad/`, and their pack files can dominate the
+  tree's size. Repository markers are re-discovered and `git ls-files` re-queried at
   preview and at apply — snapshot annotations are never trusted — so a repository checked out after
   the snapshot still refuses.
 - **Identity and descendant-set equality since snapshot.** A live session writes continuously, so its
@@ -111,12 +111,10 @@ device/inode/type identity, proves it empty through that descriptor, rechecks th
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
 
-That decline was re-examined and AFFIRMED by the maintainer on 2026-07-23 (issue #1116), against
-the framing "new-trust-surface risk of a Windows deletion lane vs the residual approval-to-execution
-window the decline leaves in the manual lane": with the manual lane's per-item revalidation rules
-and the `handoff-verify` revalidation (#1109, landed), the residual window is small, while a
-descriptor-anchored Windows apply is a large new surface. Recorded reversal trigger: a post-#1109
-near-miss recurrence in the manual lane reopens this as a design issue with full security review.
+Windows and macOS execution stays declined by design. A descriptor-anchored Windows apply would
+be a large new trust surface, while the manual lane's per-item revalidation rules and the
+`handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
+recurrence in the manual lane reopens this as a design question with full security review.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
@@ -211,8 +209,8 @@ destructive-action guard stays fully active. The plugins reference documents all
 variables (`CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR`) as exported to hook
 processes as environment variables, so the guard's `CLAUDE_PLUGIN_DATA` env fallback should carry the
 authority wherever the runtime honors that for skill hooks — the derivation is then a redundant belt.
-An earlier Claude Code build was observed not to export it to a skill hook, which is why both
-channels exist.
+Not every Claude Code build exports it to a skill hook, so both channels exist and the
+derivation is the one that has to hold when the variable is absent.
 
 A `claude --plugin-dir <checkout>` development session is the one shape with no derivable authority: a
 bare checkout has no `<plugins>/cache/<marketplace>` structure and no stable marketplace-keyed data
@@ -230,14 +228,13 @@ switch. When the guard sees execution enabled they are downgraded to a hook-issu
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-The flagged set is no longer deletion-shaped only. Since #2470 it also covers destructive
+The flagged set is not deletion-shaped only. It also covers destructive
 **non-deletion** spellings: `Move-Item`/`mv`/`move`, `Rename-Item`/`ren`/`rename`, the overwriting
 writers (`Set-Content`, `Out-File`, `Add-Content`, `New-Item -Force`, and both `>` file redirection
 and `>>` append — with PowerShell's stream merges and `$null` discards excluded),
 and the volume operations (`Format-Volume`, `Clear-Disk`, `Initialize-Disk`), alongside `robocopy`
 mirror/purge/move and .NET `Delete`. Each resolves against the kill switch on the same terms as a
-deletion spelling: `ask` when execution is enabled, denied outright in audit-only. Issue #387, which
-recorded the move/rename/overwrite/format gap, is closed.
+deletion spelling: `ask` when execution is enabled, denied outright in audit-only.
 
 Because the lane still **enumerates** spellings rather than denying unknown commands, its coverage
 remains knowingly partial — a raised bar, not a fail-closed lane. Concrete residuals: the
@@ -251,11 +248,11 @@ collaterally destroys: a `Move-Item -Force` destination, a truncated `Out-File` 
 volume. The engine's own containment, revalidation, and platform gates remain the deletion
 authority.
 
-**Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
+**Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
 `hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher
-since 0.17.9) — and both
+**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher)
+— and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
@@ -279,7 +276,7 @@ the **skill-frontmatter belt** (`powershell_decision`) — denied outright in au
 the session after the skill is invoked**. Claude Code registers a skill's frontmatter `PreToolUse` hooks
 when the skill is invoked and keeps them registered session-wide; the skills reference states it plainly
 ("Hooks that Claude Code registers when the skill is invoked and keeps running for the rest of the
-session"). There is no harness-level "while the skill is active" window for hooks (#2618). The asymmetry
+session"). There is no harness-level "while the skill is active" window for hooks. The asymmetry
 is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowed-tools` grants DO clear
 on the user's next message, but its `hooks` do not — so "skill-scoped" is true of the tool grants and
 false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
@@ -292,7 +289,7 @@ guard.
 
 **The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing
 file that is not the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for
-this engine (#1640, #1611). Claude Code keeps a replaced version's directory on disk after an update,
+this engine. Claude Code keeps a replaced version's directory on disk after an update,
 so that escape also covered every previous version of *this* engine sitting beside the current one —
 each a genuinely different file, each deletion-capable, and each answering to nothing but its own
 containment once the always-on gate defers. The gate now refuses that escape to any path resolving
@@ -304,13 +301,12 @@ narrowing on it would gate a contributor's work on their own tree. **Residual:**
 cache-resident — engine remains outside the prefix, as it is outside every identity check the gate
 makes.
 
-This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
-argument. Because the declared userConfig `default` is not implemented upstream
-(#46477 / #39455 / #39827), an unset-but-defaulted token was neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and
-its presence **dropped the whole engine-gate hook** — so on a default install the gate never ran at all,
-the real shape of the "PowerShell bypass" originally reported. Reading settings directly needs no
-`default` substitution, so that inert-by-default failure is gone. **Recheck** the tamper and scoping
-premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
+The gate must never carry a bare `${user_config.disk_hygiene_enabled}` argument. The declared
+userConfig `default` is not implemented upstream (#46477 / #39455 / #39827), so an
+unset-but-defaulted token is neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*`, and
+its presence **drops the whole engine-gate hook**: on a default install the gate would never run
+at all. Reading settings directly needs no `default` substitution. **Recheck** the tamper and
+scoping premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
 
 PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool on 2.1.218 (payload
 `tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
@@ -325,8 +321,7 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
-**Hook launch form, and what it does and does not bound (0.17.8 #1416; extended to the belt in
-0.17.9, #2568).** All three registrations — the engine gate on `PreToolUse`, its detector on `Stop`,
+**Hook launch form, and what it does and does not bound.** All three registrations — the engine gate on `PreToolUse`, its detector on `Stop`,
 and the skill-frontmatter belt in the clean skill's frontmatter — use **shell form**: the `command` string
 names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was not viable: it is
 a bare `PATH` lookup, and on Windows `"command": "bash"` resolves to the WSL relay
@@ -341,7 +336,7 @@ substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_P
 placeholders, each double-quoted, so the shell's re-tokenization reproduces the exec-form argument
 vector byte-for-byte — verified for all three against roots containing spaces and backslashes.
 The belt's bound is the **tighter** of the two: a skill-frontmatter hook receives only
-`${CLAUDE_PLUGIN_ROOT}` (#1014), so that is the sole placeholder its command string carries and the
+`${CLAUDE_PLUGIN_ROOT}`, so that is the sole placeholder its command string carries and the
 `--authorized-data-root` channel stays out of it by construction, not by convention. The limit of
 that quoting is part of the model too: the runtime substitutes those placeholders *textually* before
 bash parses the result, so the double quotes bound whitespace and backslashes but would not
@@ -353,13 +348,13 @@ asserts the same four properties for the frontmatter belt (that suite is jq-base
 YAML) and reads either launch form throughout, so a shell-form entry cannot make an assertion
 vacuously green.
 
-**Guard launch/runtime failures are now surfaced, not silently indistinguishable from approval (since
-0.9.5, #1416).** A `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
+**Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
+`PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
 nothing — Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
 it approved" and "the guard denied nothing because it never ran, or ran and silently died" looked
 identical from outside the harness. `skills/clean/scripts/guard_launch_monitor.py` closes that gap with a
-second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, to
-avoid taxing every guarded tool call the way `docs/adr/0004-...`'s D-12 did): it scans the session
+second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, so
+it does not tax every guarded tool call): it scans the session
 transcript's tail for `hook_non_blocking_error` records whose command string names
 `destructive_guard.py`, and if it finds any, emits a `systemMessage` — never a block, never a
 `permissionDecision` — naming the guard, the total failure count, and the most recent failure's exit
@@ -372,8 +367,8 @@ independently and out of scope here; the detector's command-substring filter mat
 `destructive_guard.py` invocations, so a renamed or unrelated guard script is invisible to it the same
 way it is invisible to the engine gate's own coverage marker (see above); and it never retroactively
 scans a prior session's transcript — only the transcript named by the current `Stop` event's own
-`transcript_path`. Interpreter resolution is no longer one of those gaps: since #1504 the wired hooks
-— and since #2568 the skill-frontmatter belt — launch through the shared `hooks/run-python-hook.sh`, which
+`transcript_path`. Interpreter resolution is not one of those gaps: every surface, the wired hooks and the
+skill-frontmatter belt alike, launches through the shared `hooks/run-python-hook.sh`, which
 tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsApps` alias stub, and —
 in monitor mode — emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
@@ -438,12 +433,10 @@ reclaimable figure and state the qualified bytes separately with their reasons �
 the link itself, whatever the target holds.
 
 The roll-up is assembled from what the walk already recorded: it opens no directory and stats no
-path, so it cannot turn a bounded pass into an unbounded one. That is measured, not asserted —
-`test_bounded_rollup_opens_no_directory_the_bounded_walk_did_not` counts `os.scandir`, the engine's
-only directory-enumeration route, and on a 740-path fixture the `--max-depth 1` pass opens 8
-directories, stats 41 paths and inventories 8 entries both with the roll-up and without it, against
-20 opens, 4,427 stats and 740 entries for the unbounded walk. The cost of that guarantee is the
-honest limit an operator has to read the block with: under `--max-depth 1` a recursive total for a
+path, so it cannot turn a bounded pass into an unbounded one. The engine's test suite holds that
+line by counting `os.scandir`, its only directory-enumeration route, on a bounded pass with and
+without the roll-up. The cost of that guarantee is the honest limit an operator has to read the
+block with: under `--max-depth 1` a recursive total for a
 NON-EMPTY child is not knowable without walking it, so every such child reads `depth-cut` and
 `null`. The bounded pass delivers the complete frontier, per-child coverage, and exact numbers for
 loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
@@ -454,8 +447,8 @@ The `scan-complete` summary reports hint coverage in three terms — `entries`, 
 readable: without a denominator for what no hint judged, a run that annotated 7 of 40,247 entries is
 indistinguishable from a thorough one.
 
-A scan of a known-large root — the user home directory, or a non-OS volume root (a Windows Dev
-Drive) now that reasoned classification admits it as a valid target — is gated before it walks.
+A scan of a known-large root, the user home directory or a non-OS volume root (a Windows Dev
+Drive), is gated before it walks.
 Absent an explicit `--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine
 performs a cheap top-level probe and returns `large-target-confirmation-required` instead of the
 unbounded traversal, so an unauthenticated whole-volume walk cannot begin by omission. This is

@@ -1,12 +1,10 @@
 # Legacy statusline detection — shared classification
 
-The shared, plugin-name-free half of the two statusline guard plugins' legacy detection, synced
-byte-identical between them by `scripts/sync-legacy-statusline-detect.sh` and registered in
-`scripts/cross-plugin-source-registry.txt`. The hub SKILL.md supplies every concrete path: the
-DURABLE SHIM COPY (the `bin/statusline-shim.sh` under this plugin's own operator-home directory)
-and the SHIPPED SOURCE (`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). These surfaces live
-under `~/.claude/`, machine scope, outside the repo-scope retirement-manifest schema (ADR 0018,
-decision 6), so their detection stays prose and is deduplicated here instead.
+The shared, plugin-name-free half of the two statusline guard plugins' legacy detection. The hub
+SKILL.md supplies every concrete path: the DURABLE SHIM COPY (the `bin/statusline-shim.sh` under
+this plugin's own operator-home directory) and the SHIPPED SOURCE
+(`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). These surfaces live under `~/.claude/`,
+machine scope; the shared classification below is deduplicated here.
 
 ## Installed shim state
 
@@ -36,7 +34,7 @@ contract, so `cmp -s` is the test):
     remaining way to reach the remediation. Say that in the finding, so the reason to act now is
     on screen.
 - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). INFO,
-  and skip the comparison entirely: this installed plugin version predates the shim (< 0.2.0).
+  and skip the comparison entirely: this installed plugin version predates the shim.
   Never report the operator's installed copy as drifted on this branch. Remediation: update this
   plugin (`/plugin update`), then re-run `check`. Until then the legacy version-pinned wiring
   below is the only wiring this version can offer.

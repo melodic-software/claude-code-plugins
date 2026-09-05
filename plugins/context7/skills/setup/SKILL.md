@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure Context7 for this plugin's lookups. Check the ctx7 CLI, CONTEXT7_API_KEY auth, and the Context7 MCP server, then install/upgrade the CLI on request. Use when: 'set up context7', 'configure context7', 'is context7 working', 'context7 setup', 'install ctx7', 'context7 auth', 'add the Context7 MCP server'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-cli (also install/upgrade the ctx7 CLI)."
+description: "Verify or configure Context7 for this plugin's lookups. Check the ctx7 CLI, CONTEXT7_API_KEY auth, and the Context7 MCP server, then install/upgrade the CLI on request. Use when the user wants Context7 set up, verified, or repaired on this machine, covering CLI installation, API-key auth, and MCP server wiring: 'set up context7', 'is context7 working', 'install ctx7'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-cli (also install/upgrade the ctx7 CLI)."
 argument-hint: "check | apply [install-cli]"
 user-invocable: true
 disable-model-invocation: true
@@ -26,9 +26,7 @@ by the consuming project). An optional `CONTEXT7_API_KEY` raises rate limits for
 Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
 `apply` resolves what `check` found, and the CLI install is a distinct opt-in subaction.
-Idempotent and transparent: safe to rerun. Report what is already in place before touching
-anything, and when both paths are already working, confirm the verified state and make no
-changes.
+Idempotent and transparent: safe to rerun.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then the
 guidance-only remediations (auth, MCP routing); `apply install-cli` additionally authorizes the
@@ -88,7 +86,8 @@ claiming it.
    Rationale and the `ctx7 login` caveat: `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/cli.md`.
 
 3. **MCP path (optional). Guidance only.** If the user wants the MCP interface (cleaner output,
-   ~1.8× more content per call, no Windows ceremony), route them to add a `context7` server entry
+   more content per call with the measured ratio in
+   `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/mcp.md`, no Windows ceremony), route them to add a `context7` server entry
    to *their own* MCP configuration. The exact JSON, covering anonymous and API-key forms plus the
    "unset env var breaks config parsing" caveat, lives in
    `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/mcp.md`. Do not edit their `.mcp.json` for them.
@@ -99,7 +98,7 @@ claiming it.
 ## Output
 
 Report what was already in place, what changed, what was skipped, and which lookup path(s) are now
-available (CLI, MCP, or both). If nothing needed changing, say the environment was already ready.
+available (CLI, MCP, or both).
 
 ## Boundaries
 
@@ -109,5 +108,7 @@ available (CLI, MCP, or both). If nothing needed changing, say the environment w
   configuration is theirs to curate.
 - Do not write `CONTEXT7_API_KEY` into the repository, Claude Code settings, or any config file, and
   never print its value; the key belongs in the environment or a secret store.
-- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`. This skill brings the
+  local environment to a working state for lookups; machine-wide Claude Code state belongs to the user
+  and the harness, and the installed plugin cache is overwritten on the next plugin update.
 - Do not perform library lookups. That is `/context7:lookup`.

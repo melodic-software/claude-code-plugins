@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Setup for the `audit` skill's two external seams (`gh`, `context-guard`) and its team
 configuration, which lives as a convention doc at the consumer's convention home per the
-consuming marketplace's config-cascade expression doctrine (this plugin is the doctrine's pilot).
+consuming marketplace's config-cascade expression doctrine.
 `check` inspects and reports PASS/FAIL/WARN/INFO with one remediation line per finding; `apply`
 converges exactly TWO consumer artifacts, the marked pointer-line region in the root instruction
 file and the topic doc `<home>/plugin-quality/README.md`, and nothing else.
@@ -55,14 +55,13 @@ against that contract rather than restating it.
    WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash
    unavailable → report the step UNKNOWN with remediation, never green.
    In this plugin's manifest that yields: `plugin-quality-r001` FAIL while the retired tracked
-   `.claude/plugin-quality.md` persists (the dual-read window, the file is still read as
-   authority), and `plugin-quality-r002` WARN while the retired overlay
-   `.claude/plugin-quality.local.md` exists (it no longer has any effect; the WARN is the point,
+   `.claude/plugin-quality.md` persists (the dual-read window: the file is read as authority while
+   it exists), and `plugin-quality-r002` WARN while the retired overlay
+   `.claude/plugin-quality.local.md` exists (it has no effect; the WARN is the point,
    never silence).
-5. **Retired user-global layer (machine scope, prose-only)**. The audit no longer reads
+5. **Retired user-global layer (machine scope, prose-only)**. The audit does not read
    `~/.claude/plugin-quality.md`. When that file exists, WARN that it is inert: anything the
-   operator still wants from it belongs in the team topic doc. Machine-scope files are outside
-   the retirement manifest by contract, so this WARN lives here as prose rather than as a record.
+   operator still wants from it belongs in the team topic doc.
 6. **Sink reachability**. For the effective sink: `gh-issues` → covered by step 1;
    `markdown-dir` → the directory exists and is writable; `local-fallback` → nothing to check.
 

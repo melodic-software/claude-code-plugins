@@ -1,7 +1,7 @@
 # Recurring concerns — the reusable plugin-audit checklist
 
 These are design failure modes that recur across Claude Code plugin components. Walk every one each
-audit; each has bitten a real plugin. Grow this list as new patterns surface.
+audit.
 
 ## 1. Silent bypass surfaces (highest value)
 

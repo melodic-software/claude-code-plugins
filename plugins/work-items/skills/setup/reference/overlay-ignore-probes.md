@@ -64,7 +64,8 @@ fi
   catch. When both conditions hold, name the tracked one as the finding.
 - **Untracked and not covered** is the ordinary case `apply` fixes: append
   `.work-item-tracker.local.json` to the consumer's `.gitignore` and **announce the edit**
-  (the ADR 0015 declared exception; touch nothing else in that file). This is also the correct
+  (the one declared exception to leaving the consumer's `.gitignore` alone; touch nothing else in
+  that file). This is also the correct
   remediation when a negation rule is what left the path exposed, since the last matching rule
   wins. `check` reports the same condition as a FAIL rather than editing.
 - **Untracked and covered** needs no action from either surface.

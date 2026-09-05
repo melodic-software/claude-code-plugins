@@ -57,14 +57,13 @@ disk holds what *happened*; it does not hold the acting agent's present read of 
 only signal the analysis subagent cannot get for itself. It seeds the analysis.
 
 **Ground the note in the instrument when one is present.** When the `context-guard` plugin is
-installed, resolve this session's zone word per its reader contract (the contract owns the snapshot
-path, staleness rule, and bands, read them there; this note carries only the resulting word, no
-band values) and include it in the note. A self-impression of the window is a guess, sessions have
-reported "around 40%" while the instrument read 15%, and the analysis subagent judging degradation
-deserves the measured word next to the subjective read. Absent plugin, absent snapshot, or
-`unknown`: say so in the note rather than substituting an estimate. If context-guard's
-evidence-degraded marker exists for this session, record that too. It outranks a healthy-feeling
-self-read.
+installed, resolve this session's zone word per its reader contract (the contract owns the
+snapshot path, staleness rule, and bands, read them there; this note carries only the resulting
+word, no band values) and include it in the note. A self-impression of the window is a guess and
+can sit far from the instrument's reading, and the analysis subagent judging degradation deserves
+the measured word next to the subjective read. Absent plugin, absent snapshot, or `unknown`: say
+so in the note rather than substituting an estimate. If context-guard's evidence-degraded marker
+exists for this session, record that too. It outranks a healthy-feeling self-read.
 
 ### 2. Resolve inputs for the subagent
 

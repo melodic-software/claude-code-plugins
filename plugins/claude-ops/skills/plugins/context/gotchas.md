@@ -205,8 +205,8 @@ crash the script."
 
 ## Captured values on Windows carry `\r` — strip it before embedding in any command or JSON
 
-Discovered empirically while implementing `fleet-state.sh`: the native-Windows `jq` binary opens
-stdout in **text mode**, so every `\n` it writes becomes `\r\n`. This is **not a `jq`-only
+The native-Windows `jq` binary opens stdout in **text mode**, so every `\n` it writes becomes
+`\r\n`. This is **not a `jq`-only
 hazard** — *any* value produced on Windows/MSYS (a native `python` `print(...)`, a PowerShell
 interop line, `git config` output, a CRLF-terminated file read) can arrive with a trailing `\r`.
 
@@ -233,10 +233,9 @@ A surviving `\r` corrupts the value once it is either:
 - **embedded in a constructed `claude plugin` id.** A `<name>@<marketplace>\r` id is passed with the
   full id present, yet the CLI reports `Plugin "<name>" not found` — the marketplace suffix is
   silently corrupted. The symptom is byte-identical to the bare-name gotcha above and actively
-  misdirects diagnosis (the full id *was* passed). Observed live twice, both with the all-but-last
-  signature: extracting ids via `python -c "print(...)"` on Windows failed 57/58 `claude plugin
-  update` calls, and a hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON failed
-  64/65 (#2578).
+  misdirects diagnosis (the full id *was* passed). Both a `python -c "print(...)"` extraction and a
+  hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON produce it, with the all-but-last
+  signature.
 
 **Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the id list for each
 `sync` step directly — one fully-qualified id per line, CR-free by construction — so the loop that

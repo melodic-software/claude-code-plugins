@@ -1,5 +1,5 @@
 ---
-description: "Escalate research discipline to a heavy verification fan-out over a TYPED FULL INVENTORY of the session's claims, assumptions, asserted facts, concrete specifics (paths, defaults, flags, signatures), and load-bearing premises, verifying each against a primary source at a configurable depth (tiered by default, or full), then report a per-item ledger with verdict, source, source tier, consensus count, and recency. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'fact-check all these claims', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or when your own judgement is the suspected bias across many claims. For a single or small inline fact-check ('fact-check that'), use the sibling do-your-research."
+description: "Escalate research discipline to a heavy verification fan-out over a TYPED FULL INVENTORY of the session's claims, assumptions, asserted facts, concrete specifics (paths, defaults, flags, signatures), and load-bearing premises, verifying each against a primary source at a configurable depth (tiered by default, or full), then report a per-item ledger with verdict, source, source tier, consensus count, and recency. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or when your own judgement is the suspected bias across many claims. For a single or small inline fact-check ('fact-check that'), use the sibling do-your-research."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
@@ -72,7 +72,7 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    - **load-bearing premises**, the conclusions the rest of the work now
      depends on.
    The typing makes the inventory auditable: each item carries its type, and
-   step 6's ledger has exactly one row per item. Do not spot-check one, and do
+   step 5's ledger has exactly one row per item. Do not spot-check one, and do
    not silently drop an item as "obvious", an obvious item is a `verified`
    ledger row, not an omission.
 2. **Fan out, throttled. Scope set by the resolved depth.** Dispatch
@@ -80,11 +80,9 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    verify each against a PRIMARY source, not the same recall that produced it.
    Under **tiered**, the fan-out covers the load-bearing items while the
    trivial / non-load-bearing ones are resolved inline (and still get a ledger
-   row); under **full**, every item goes through the fan-out. Throttle the
-   dispatch in bounded waves rather than launching one agent per item at once, since a sustained wide fan-out trips server-side burst overload (529s) and loses
-   agents mid-run. Cap concurrency to a modest wave (roughly a dozen or fewer
-   at a time); lower-tier worker models are sufficient for per-item
-   verification and dodge burst overload. Process the inventory wave by wave.
+   row); under **full**, every item goes through the fan-out. Dispatch per
+   [`${CLAUDE_PLUGIN_ROOT}/context/fan-out.md`](../../context/fan-out.md):
+   blind fresh-context subagents, bounded waves, failed-subset retry.
 3. **Match the method to the item type.** An externally-verifiable item (an
    asserted fact, a concrete specific) resolves against a source or the live
    environment. An INTERNAL item (an assumption, or a load-bearing premise with
@@ -92,14 +90,10 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    fresh-context re-derivation or a flag for the user to confirm, never a
    manufactured source. The 100%-coverage rule is coverage of the checklist,
    not a demand that every row name a URL.
-4. **Retry the failed subset only.** If an agent errors or times out, retry
-   that item once; on a second failure mark it unverifiable. Never
-   blind-re-run the whole fan-out to recover a few stragglers. Re-dispatch
-   only the items that failed.
-5. **Merge and correct.** Fold the returns together, correct every falsified
+4. **Merge and correct.** Fold the returns together, correct every falsified
    or unbacked item THIS turn, and surface anything that stays unverifiable
    rather than smoothing over it.
-6. **Report a per-item ledger. 100% of the inventory.** One row per checklist
+5. **Report a per-item ledger. 100% of the inventory.** One row per checklist
    item (no silent drops), keyed by claim, each carrying:
    - **verdict**. Verified / corrected / unverifiable;
    - **source**. What resolved it: a fetched primary source, the live
@@ -133,10 +127,3 @@ Run this in place of the base skill's inline audit and correct-forward steps:
 - **Depth is resolved once, up front.** Argument beats the configured default
   beats `tiered`; empty, an unexpanded token, and an unrecognized value all
   mean `tiered`. Never error on a bad value.
-- **Throttle is not optional at scale.** The failure mode is a claim-heavy
-  session firing one agent per item simultaneously; the wave cap and
-  failed-subset retry above are what keep the fan-out reliable, not nice-to-
-  haves.
-- **Blind subagents, or it is not fresh context.** An agent handed the
-  reasoning that produced a claim re-derives the same error. Verify against the
-  primary source, not the argument for the claim.

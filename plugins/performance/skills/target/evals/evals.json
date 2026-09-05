@@ -30,7 +30,7 @@
       "id": 3,
       "name": "attributes-layers-before-choosing-one",
       "prompt": "/performance:target plugins/guard: the hook is a 125-line shell wrapper that execs a 1903-line Python guard body. The Python file is obviously where the time goes, so plan the optimization there.",
-      "expected_output": "Declines to select the Python body on size alone: line count is not a cost model. Requires cost attribution across the wrapper layer and the body layer before choosing either, naming a concrete per-layer measurement. Notes the shape of the known failure: in the source run the 125-line wrapper was roughly 88% of the cost and the 1903-line body was not the bottleneck.",
+      "expected_output": "Declines to select the Python body on size alone: line count is not a cost model. Requires cost attribution across the wrapper layer and the body layer before choosing either, naming a concrete per-layer measurement. Notes the shape of the known failure: a 125-line wrapper can carry roughly 88% of the cost while the 1903-line body it wraps is not the bottleneck.",
       "files": [],
       "expectations": [
         "Does not accept the 1903-line Python body as the target on file size alone",
