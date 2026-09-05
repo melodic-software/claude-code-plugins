@@ -19,9 +19,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   enclosing `{ ...; }` group, and the stdin payload is now assigned in-process instead of captured
   through a command substitution. Program launches are unchanged at four: the same `jq`, `bash` and
   `jq` still run over the same inputs. Affects `hooks/zone-crossing-inject.sh`, `hooks/payload.sh`
-  and `scripts/context-zone.sh`, so the `PreToolUse` zone gate and the `PostCompact` marker inherit
-  the resolver's share. No decision, emitted text, exit code or state file changes.
+  and `scripts/context-zone.sh`. Two hooks benefit: the zone-crossing hook itself, on both its
+  `PostToolBatch` and its `UserPromptSubmit` route, and the `PreToolUse` zone gate
+  (`hooks/zone-gate.sh`), which calls the same resolver and so inherits its share. The
+  `PostCompact` marker does **not**: `hooks/post-compact-mark.sh` never calls the resolver, and it
+  still reads its payload through `cg::read_payload` inside a command substitution, so its process
+  count is unchanged. No decision, emitted text, exit code or state file changes.
   ([#3520](https://github.com/melodic-software/claude-code-plugins/issues/3520))
+- **The payload pass reads its input from a here-string, which spills to a temp file above 64KiB.**
+  Replacing `printf '%s' "$INPUT" | jq` with `jq` fed by `<<<"$INPUT"` is what removes two of the
+  eight process creations, but `<<<` is not a pipe: bash 5.1+ delivers a here-string through the
+  pipe buffer only while it fits, and at or above 64KiB writes it to `/tmp/sh-thd.*` instead
+  (measured: 60,000 bytes stays in the pipe, 65,536 opens the file). The old pipeline never touched
+  disk at any size. Output is byte-identical, but a `PostToolBatch` payload carrying every
+  serialized tool result routinely clears 64KiB, so large fires now write and read a temp file.
+  This is a real cost on the target platform, whose Defender real-time protection scans temp-file
+  writes — the trade is one guaranteed process creation per fire against disk I/O on the oversized
+  fires only. Recorded in the README's hook-cost accounting.
 - **`payload.sh` grows `cg::read_payload_to`.** Assigns the drained payload to a caller-named
   variable via `printf -v` rather than printing it for the caller to capture, which cost a
   subshell per fire to move a string between two copies of the same shell. `cg::read_payload`
