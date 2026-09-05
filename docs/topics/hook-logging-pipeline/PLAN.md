@@ -325,6 +325,12 @@ path after the handoff figures were taken, so every number is re-captured.
 
 #### Phase 1: Verifier-lane fix (PR A) [DOING]
 
+PR A is [#3747](https://github.com/melodic-software/claude-code-plugins/pull/3747), opened as a
+draft 2026-09-05 from `0a1237c1`; a fresh-context review of the first cut produced six findings,
+all reproduced and fixed (one shared `lib/verification/cli-flag-cache.sh` for the cache rules;
+raw non-whitespace separators in the batched read). PR B's branch is cut from the pre-prune head
+so it carries this slice; A's prune commit follows.
+
 Review: code-design
 
 Four patch shapes, each with a repro-first test per `hook-precision`. Timing assertions live in
