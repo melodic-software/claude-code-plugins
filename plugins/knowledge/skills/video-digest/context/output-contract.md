@@ -56,9 +56,8 @@ once per process, and the new name wins when both are set.
 **Scope of the seam.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
 material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that
-shape from this skill today — land under `library_dir` as-written and re-lay-out by hand, or fork
-the sub-path in your own automation. Templating the sub-path shape is a tracked follow-up, not yet
-built; this skill's contract is root relocation only.
+shape from this skill: land under `library_dir` as-written and re-lay-out by hand, or fork
+the sub-path in your own automation. This skill's contract is root relocation only.
 
 ## Agent-written artifacts share the same root
 
@@ -105,8 +104,7 @@ but gitignored, so it is never committed. `snapshot-bootstrap.js` writes a per-d
 That never-committed handling is a fixed, non-configurable part of this contract: a consumer that
 wants the source video, bulk frames, or contact sheets retained as a **committed**, re-runnable
 substrate (rather than regenerable temp state or a gitignored local snapshot) does not get that
-from this skill today — a documented, LFS-aware retention path is a tracked follow-up, not yet
-built.
+from this skill.
 
 ## Output contract
 

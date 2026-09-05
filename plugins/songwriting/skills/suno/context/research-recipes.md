@@ -27,7 +27,11 @@ Tools (in priority order):
    - Wikipedia — for artist / genre / song basic facts (BPM, key, year, genre tags)
    - Genius / SecondHandSongs — for song lyrics + structural metadata
    - AllMusic — for genre lineage + influences
-2. **Perplexity** (`mcp__perplexity__perplexity_search` or `perplexity_ask`) — for synthesis across recent sources, recency-filtered queries
+2. **A web-search capability, when one is available.** Use whichever the session offers, preferring
+   one that returns citations and accepts a recency filter. Where the `firecrawl` plugin is
+   installed, `/firecrawl:firecrawl search` is the bundled route. With no search capability
+   available, say so and fall back to the WebFetch sources above plus the clarifying questions in
+   "When research finds nothing useful".
 3. **Context7** — only if user references a specific tool/SDK/library (rarely applicable for Suno prompting)
 
 For artist sonic profile, the canonical query shape:
@@ -41,7 +45,7 @@ preferences, mix philosophy, era/influences. Cite primary sources."
 For current-trend research:
 
 ```
-perplexity_search with recency_filter='month' or 'year':
+Search restricted to the past month or year:
 "Current trends in <genre> production 2026 — instrumentation,
 BPM ranges, vocal styles, common signature elements"
 ```
@@ -148,14 +152,15 @@ If Phase 1 + Phase 2 return nothing actionable (rare — genre's too obscure or 
 
 ## Tools available
 
-| Tool | Use for |
-|------|---------|
-| WebFetch | help.suno.com pages, Wikipedia, AllMusic, Genius — direct URL fetches |
-| `mcp__perplexity__perplexity_search` | Web search with citations |
-| `mcp__perplexity__perplexity_ask` | Quick Q&A with grounded synthesis |
-| `mcp__perplexity__perplexity_research` | Slow deep-research mode (only for genuinely complex queries) |
-| `mcp__ref__ref_search_documentation` | Documentation search if Suno-internal |
-| Firecrawl | Fallback if WebFetch hits Cloudflare 403 / rate limits |
+| Capability | Use for | Route |
+|------|---------|-------|
+| Direct URL fetch | help.suno.com pages, Wikipedia, AllMusic, Genius | WebFetch |
+| Web search with citations | trends, niche genres, artist profiles | whatever search capability the session offers; `/firecrawl:firecrawl search` when the `firecrawl` plugin is installed |
+| Scrape a page WebFetch cannot reach | a 403, a rate limit, or a JS-rendered page | `/firecrawl:firecrawl scrape` when the `firecrawl` plugin is installed; otherwise report the page as unreachable |
+| Library or SDK documentation | rarely applicable to Suno prompting | `/context7:lookup` when the `context7` plugin is installed |
+
+Name the capability you actually used in the Phase 3 confidence note. A capability that is not
+installed is reported as missing, never worked around silently.
 
 ## Output format
 

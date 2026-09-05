@@ -9,11 +9,11 @@ deliberately out of contract.
 ## Pillar 1 — standard OTLP, pinned semantic conventions
 
 Every execution context emits OTLP pinned to the OpenTelemetry CI/CD and VCS semantic
-conventions, release **v1.43.0**. Every CONTRACT-AUTHORED emission (the writers and adapters
+conventions, release **v1.43.0**. Every contract-authored emission (the writers and adapters
 an adoption wires) declares `schema_url: https://opentelemetry.io/schemas/1.43.0`; a native
 tool's own emission is consumed as-is — its schema declaration is whatever the tool emits
 (empirically, native agent-session output declares none), and the native-surface principle
-forbids rewriting it. A declared schema URL anywhere in a conforming output set MUST match
+forbids rewriting it. A declared schema URL anywhere in a conforming output set must match
 the pin. Attribute vocabulary is cited by that registry reference, never copied into this
 contract or any conforming document — the registry owns the names (illustrative citation
 only: `cicd.pipeline.run.id` and its sibling pipeline/task attributes, the `vcs.*` change
@@ -33,19 +33,19 @@ One custom attribute joins machine telemetry to the work item that caused it:
 - **Value:** the work item's canonical web URL in normalized form — https scheme,
   no trailing slash, no query string, no fragment. String equality is the join operation,
   so this normalization rule is normative.
-- **Selection:** the key is always the WORK ITEM's URL, never a change/PR URL. A change that
+- **Selection:** the key is always the work item's URL, never a change/PR URL. A change that
   closes N items yields N per-item associations. An agent session keys on the single item it
   was dispatched to work.
-- **Scope:** RESOURCE-scope on agent-session emission, so session cost and token metrics and
+- **Scope:** resource-scope on agent-session emission, so session cost and token metrics and
   session spans all carry it; span-scope on CI pipeline and task spans.
 
-Granularity guarantee: conforming autonomous dispatch runs ONE leased work item per emitting
+Granularity guarantee: conforming autonomous dispatch runs one leased work item per emitting
 session/process — the trigger layer's lease contract is the guarantor. A multi-item batch
 session gets session-granular cost only; that limitation is stated, never silently
 misattributed.
 
 Known join-epoch limitations: a repository rename or transfer, or a tracker migration,
-changes the canonical URL. The join is query-time, so a sink MAY remap historical values
+changes the canonical URL. The join is query-time, so a sink may remap historical values
 across such an epoch. A secondary immutable-ID attribute is deferred with a trigger: rename
 churn proving material in practice.
 
@@ -54,7 +54,7 @@ tracker it references. Any sink, artifact, or export carrying it must enforce ac
 at least as strict as the item's home.
 
 Namespace governance: this contract defines no other custom attribute. A sibling capability
-contract in this home MAY define its own additions under the same `autonomy.*` prefix and
+contract in this home may define its own additions under the same `autonomy.*` prefix and
 governance — reviewed contract changes, no parallel schema for upstream-named concepts.
 Minimality binds this contract; it does not forbid governed extension. If the upstream
 conventions ever ship a work-item/tracker namespace, this attribute migrates to it under the
@@ -63,13 +63,13 @@ same reviewed-migration rule.
 ## Pillar 3 — one causal tree
 
 W3C `traceparent` context propagates trigger → CI → agent session, forming one causal tree
-per triggered chain. This is a headless/CI/runner property carried by CONTRACT-AUTHORED
+per triggered chain. This is a headless/CI/runner property carried by contract-authored
 emissions: each chain leg's wrapper emission (the writers and adapters an adoption wires)
 reads inbound trace context from its environment and parents its span accordingly. A native
 agent surface that ignores inbound context — empirically, a default native agent-session
 surface can start a fresh root trace, honoring inbound context only behind an opt-in — does
 not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
-the session's own native emissions ATTACH query-side through the Pillar 2 attribute, which
+the session's own native emissions attach query-side through the Pillar 2 attribute, which
 both surfaces carry. Where a native surface honors inbound context its spans join the tree
 directly; relying on that is a recorded migration trigger, not an assumption. Interactive contexts are explicitly excluded — the
 contract does not promise inbound trace joining for an interactive session, which
@@ -77,7 +77,7 @@ deliberately ignores ambient context.
 
 ## Sink binding — out of contract
 
-Where telemetry lands is deployment-owned. The contract names sink CLASSES only:
+Where telemetry lands is deployment-owned. The contract names sink classes only:
 
 1. **Existing observability stack** — the org already runs one; emission points at it.
 2. **File-artifact free default** — no stack exists: emissions land as OTLP JSON-lines
@@ -86,7 +86,7 @@ Where telemetry lands is deployment-owned. The contract names sink CLASSES only:
 3. **Opt-in network backend** — self-hosted or paid; always explicit opt-in with cost
    surfaced first, never a default.
 
-An adapter for any class MUST preserve the emitted signals unmodified (schema, attributes,
+An adapter for any class must preserve the emitted signals unmodified (schema, attributes,
 `schema_url`); class choice, endpoints, and storage are the adopting deployment's. No vendor
 is named or privileged by this contract.
 

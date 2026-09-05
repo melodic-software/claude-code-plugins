@@ -78,8 +78,7 @@ Both are sibling skills in this plugin, so these are direct routes.
 The paper's other augmented maxim, Benevolence, is deliberately NOT audited
 here: it is platform / safety-layer territory (the model's alignment
 posture), not an auditable communication-drift axis a mid-session corrector
-can meaningfully score. Recorded as an explicit exclusion, citing the paper
-above, not an oversight.
+can meaningfully score.
 
 ## Audit targets and the dual moment
 

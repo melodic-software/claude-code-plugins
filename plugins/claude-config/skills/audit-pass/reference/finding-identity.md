@@ -30,7 +30,7 @@ sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise
   never reads inside one, so a template set it could learn only by opening another plugin's catalog
   is one it can never learn, and requiring one would make every finding unemittable. An invocation
   that declares its templates is validated against what it declared. An invocation that declares
-  none — the state of every delegated catalog today — is **claim-unqualified**: the pass binds
+  none — which no delegated catalog declares — is **claim-unqualified**: the pass binds
   `claim` to the check's own id with no parameters, and names that catalog in the report's coverage
   notes as owing a declaration. The fallback is coarse deliberately. It merges the distinct claims
   one check can make at one site onto a single identity, which is a precision loss the coverage note
@@ -119,7 +119,7 @@ churning suppressions on edits that touch nothing relevant, which is the failure
 anchoring exists to avoid. The heading path is invariant under insertion, deletion, and reordering of
 *content*, and changes only when the document's structure around the excerpt changes, which is a
 re-judging event on its own terms. It is also invariant under deleting a duplicate elsewhere in the
-surface, which is the defect this replaces.
+surface.
 
 **Two duplicates under one heading path are genuinely indistinguishable, and the contract fails
 closed rather than guessing.** No positional scheme can separate them without reintroducing the

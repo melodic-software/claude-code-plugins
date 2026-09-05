@@ -74,8 +74,7 @@ what it shares with `audit-instructions` Phase A is the *resolution* procedure, 
 upstream-ownership exclusions. The set, one entry per scope token above: skill bodies (and the
 context/reference files a skill instructs the model to read), agent definition markdown, hook
 instruction text of both kinds, output-style markdown, CLAUDE.md / CLAUDE.local.md, `.claude/rules/`.
-Inheriting it by reference from a sibling that versions independently is how `output-styles` came to
-be inventoried here and unnameable by this skill's own filter. **The inventory bounds what may produce
+**The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
 PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on an excluded surface.
 
@@ -119,7 +118,7 @@ unavailable, or the session cannot spawn subagents:
 
 1. **Disclose in the report header** that Phase D did not run and why.
 2. **Mark unverified proposals.** Every proposed addition that did not receive an independent
-   verifier MUST carry an `(unverified)` marker and MUST NOT be presented as a confident finding.
+   verifier carries an `(unverified)` marker and is never presented as a confident finding.
 3. **Add a verifier attestation line** to the report tail, naming components verified, verified
    inline, or skipped, alongside the existing coverage and Sources lines.
 
@@ -142,14 +141,6 @@ when the report should say which rung produced the key. **The key stops overwrit
 `${CLAUDE_PLUGIN_DATA}` directory. Use `--keep-data` to preserve it."
 (<https://code.claude.com/docs/en/plugins-reference>, `plugin uninstall`, fetched 2026-08-12), so when
 a report must outlive the plugin the closing line says to copy it out of the data directory.
-
-What that suite pins, so this file does not have to restate the derivation to be trusted: an https
-remote and its scp-style ssh equivalent normalize to the same `github.com/<owner>/<repo>`; a repo whose
-only remote is `upstream` keys by that remote rather than dropping to the local rung; a repo with no
-remote gives `local/<12>`; a non-repo root gives `nonrepo/<12>`; and relative (`../central.git`),
-absolute-local, and Windows-path remotes all key by hash, with no `..` and no backslash surviving into
-a path segment, since the identity becomes directory components, so that is a security property, not a
-cosmetic one. Two worktrees of one repository differ in the discriminator, which is what it exists for.
 
 Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": that placeholder is substituted inline before this file reaches you, so the literal token

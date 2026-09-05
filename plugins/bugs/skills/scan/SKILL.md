@@ -10,11 +10,22 @@ metadata:
   cadence: daily
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -10`
+- Shallow clone, `git rev-parse --is-shallow-repository`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -10 2>/dev/null || echo "no history (shallow or fresh clone)"`
-Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown"`
 Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
 ## Variables
@@ -97,7 +108,7 @@ to rung 3, which is a valid state, not an error. `<project-slug>` is the kebab-c
 project root, so two checkouts sharing a basename (`~/work/api` and `~/oss/api`) share one cursor
 directory. Name the absolute project root in the report so a reader can spot the collision. Two
 sessions started the same day on a zero-state checkout will select the **same** lane; that is accepted
-for V1 (the dedupe steps below absorb the duplicate findings) rather than jittered, because a
+(the dedupe steps below absorb the duplicate findings) rather than jittered, because a
 deterministic floor is what makes daily coverage predictable.
 
 ## Budget
@@ -107,7 +118,7 @@ deterministic floor is what makes daily coverage predictable.
   evidence strength and drop the tail rather than widening the wave.
 - **Refill cap:** if a whole wave is refuted, at most **2** refill waves. Then report the refuted set
   and stop. An unbounded refill loop is a token sink against a ~1:50 signal-to-noise base rate.
-- **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** V1 is
+- **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** The scan is
   budget-bounded sampling; never claim exhaustive coverage of a lane in the report.
 
 Zero verified findings is a clean, successful outcome. Do **not** invent a finding to justify the run.
@@ -122,16 +133,18 @@ then does the cursor advance.
 
 Resolve the mode, the lane globs, and `filing_posture` from the config cascade. Enumerate the concrete
 file list. If the enumeration exceeds ~40 files, narrow to the highest-signal subset (recently
-changed, highest fan-in, most branch-dense) and say in the report that you sampled.
+changed, highest fan-in, most branch-dense) and say in the report that you sampled. Then compute the
+hotspot reading order described in [`context/lenses.md`](context/lenses.md), one git command per Bash
+call; on a shallow clone, print the skip notice and continue unranked.
 
-**Done when** you can name the exact file list the hunters will read.
+**Done when** you can name the exact file list the hunters will read, and the order they read it in.
 
 ### Step 2. Dispatch hunters (recall stage)
 
 Dispatch **one subagent per lens** over the resolved scope, each with the four-part contract:
 objective, output format, tool/source guidance, and task boundaries, spelled out in
 [`context/lenses.md`](context/lenses.md). Size the fan-out to the surface: a single small file may
-warrant one or two lenses; a full lane warrants all five. Every hunter is read-only, must attach a
+warrant one or two lenses; a full lane warrants all four. Every hunter is read-only, must attach a
 verbatim evidence quote to every candidate, and is explicitly told that **returning no candidate is a
 valid and expected outcome**.
 
@@ -229,8 +242,8 @@ Recommend, do not auto-invoke:
   on the next real run.
 - **`--track` is not `--file`.** `--file` is `/bugs:write`'s flag for persisting a report to
   disk; the same token here would mean tracker mutation. This skill uses `--track` for filing.
-- **Shallow clones degrade, they do not fail.** The git-hotspot lens skips with a printed notice when
-  history is absent; the other four lenses are unaffected.
+- **Shallow clones degrade, they do not fail.** The hotspot ranking is skipped with a printed notice
+  when history is absent; the four lenses read the scope unranked.
 - **A lane with no verified findings is a result.** Report it, advance the cursor, do not refill past
   the cap looking for something to say.
 

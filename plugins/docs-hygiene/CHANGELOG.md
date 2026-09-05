@@ -1,5 +1,47 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.37]
+
+### Changed
+
+- **`audit-noise`:** the body-scope fence now states what `check-skill.sh` actually does. It warns
+  on a dropped trigger phrase rather than hard-failing, and the reason is the auto-invocation
+  regression itself. The same correction lands in the `emit-findings.sh` header comment and in the
+  eval case that asserted the old claim. The `negation` scope gates state their principle instead
+  of a past sample count, the shape-count sentence points at the function that owns the number, and
+  the action router says there is one action instead of naming unbuilt ones.
+- **`audit-derivability`:** the spot-test rule states that an Agent-tool fork inherits the parent
+  conversation, in all three places, instead of hedging that rule against an internal tracker issue.
+- **`audit-progressive-disclosure`:** the action router says there is one action instead of naming
+  an unbuilt `split` action.
+- **`compress`:** removed the frontmatter justification citing guidance that does not exist and the
+  gotchas provenance preamble; the scope default and the circuit breaker now state their mechanism,
+  with the dated calibration record moved to the `## History` section; the request budget states a
+  per-file rate rather than one past corpus size; the fixture gate keeps only its reason.
+- **`extract-ssot`:** the bucket rules read as the current rules rather than a diff against an
+  earlier version, in seven places across five files; the lesson Source fields are genericized;
+  side-note guidance names the reader's need instead of a numeric ceiling; the survey sanity check
+  no longer sets a findings floor; the worker-tiering rule drops the pinned model example; and
+  `--parallel-waves` is declared in the inputs block, the flag table, and the argument hint.
+- **`rename-references`:** the sweep and triage rules state their present-tense mechanism instead of
+  narrating the founding incident, three bare issue numbers are gone, and the audit default is
+  described by what it does rather than by compatibility with an older behavior.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.21.36]
+
+### Fixed
+
+- **`audit-derivability`, `audit-noise`, `audit-progressive-disclosure`, `compress`,
+  `rename-references`:** the git pre-compute lines moved out of `## Pre-computed context` into a
+  "Repository context. Gather first" body section of individual Bash calls, one command per call,
+  each `head` bound kept inside its command and a failure read as an unknown value. The harness
+  composes a skill's whole pre-compute block into one shell invocation, and a worktree-isolated
+  session refuses a git-bearing compound command, which blocked these skills from loading inside a
+  worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
+  they were. rename-references gathers rename pairs as two calls, unstaged and staged, each bounded
+  to 15. audit-progressive-disclosure names the gathered sample.
+
 ## [0.21.35]
 
 ### Changed

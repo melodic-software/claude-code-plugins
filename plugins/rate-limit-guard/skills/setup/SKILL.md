@@ -25,7 +25,7 @@ conformingly write:
   project's directory for a `project`/`local` scope, or the write lands at a scope that does not
   load. Afterwards rerun `check` in a **fresh session** — the rendered `${user_config.*}` is
   injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a
-  same-session `check` still reports the OLD value; report the observed effective value, never an
+  same-session `check` still reports the old value; report the observed effective value, never an
   unobserved change.
 - **The statusline wiring**, which lives in the **user's own** `settings.json`, neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
@@ -46,7 +46,7 @@ names. `apply` writes that one file and nothing else.
 changes on every plugin update, and the old version directory is pruned about 14 days later
 (plugins reference, "Plugin cache and file access"). A statusline wired straight to
 `<plugin-root>/scripts/statusline-tee.sh` therefore stops teeing at the next version bump and, once
-the old directory is pruned, `bash <missing-path>` exits 127 and takes the operator's WHOLE
+the old directory is pruned, `bash <missing-path>` exits 127 and takes the operator's whole
 statusline down with it. So the operator wires the **shim**, never the tee: the shim lives at a
 path that never changes, resolves the newest installed tee at run time, and degrades to running the
 wrapped command alone when no tee is installed.
@@ -67,24 +67,22 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    `~/.claude/rate-limit-guard/bin/statusline-shim.sh` (the durable shim copy) against
    `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and classify per
    [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Installed shim
-   state", shared with the sibling guard plugin and synced byte-identical. This legacy detection
-   stays bespoke prose because it targets machine-scope surfaces under `~/.claude/`, outside the
-   repo-scope retirement-manifest schema (ADR 0018, decision 6).
+   state", shared with the sibling guard plugin and synced byte-identical.
 3. **Statusline wiring state.** Read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
-   `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
+   `.claude/settings.local.json`) and determine which one owns the effective command (the most
    specific scope wins). All wiring states below are evaluated against that effective command,
-   and the printed edit in step 6 targets THAT scope's file. Wiring the user file while a
+   and the printed edit in step 6 targets that scope's file. Wiring the user file while a
    project-level `statusLine` shadows it would apply cleanly and never run; when a shadow
    exists, say so explicitly and print the edit for the shadowing file (or note that removing
-   the override is the alternative). Distinguish FOUR states:
+   the override is the alternative). Distinguish four states:
    - **No `statusLine` configured.** The wrapper is not running because nothing is. Print the
      standalone wiring from the template below (the shim is then the whole statusline).
    - **`statusLine` present, command references neither the shim nor `statusline-tee.sh`.**
      wrapper missing. Print the wrapped wiring below with the user's current command preserved as
      the wrapped command.
    - **`statusLine` references a `rate-limit-guard` `statusline-tee.sh` under the plugin cache.**
-     LEGACY VERSION-PINNED WIRING: classify, report, and remediate per
+     Legacy version-pinned wiring: classify, report, and remediate per
      [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Legacy
      version-pinned wiring" (the fix's `apply` is step 2's).
    - **`statusLine` invokes `~/.claude/rate-limit-guard/bin/statusline-shim.sh`.** PASS. No path
@@ -107,14 +105,14 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    default `true`). Report whether `~/.claude/rate-limit-guard/stop-events.jsonl` exists. Absent
    just means no rate-limit stop has been recorded yet.
 6. **Print the operator edit.** Always print the applicable `settings.json` statusline edit,
-   marked clearly as the operator's to apply. The wiring target is the SHIM's fixed path, never
+   marked clearly as the operator's to apply. The wiring target is the shim's fixed path, never
    `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file:
 
    Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) now, before
    composing: it owns the peel rules and the shell-syntax guard, shared byte-identical with
    context-guard. Bare quoting is never a wrap trigger; `type -P` / `type -t` is how a builtin
-   renderer is detected. Composing without it is what produced `context -> rate -> rate ->
-   renderer` and the compounding `sh -c` wrap.
+   renderer is detected. Composing without those rules double-wraps a sibling tee and stacks
+   another `sh -c` layer on every re-run.
 
    Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
    trailing arguments):
@@ -157,9 +155,9 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    `printf '%s\n' '<escaped original command>'` and confirm the output matches the original
    command.
 
-   Sibling tees compose by nesting, each through its OWN shim. The tees are transparent wrappers,
+   Sibling tees compose by nesting, each through its own shim. The tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form (its tee outermost,
-   matching that plugin's setup skill) only when `context-guard` is installed AND its shim is
+   matching that plugin's setup skill) only when `context-guard` is installed and its shim is
    already present at `~/.claude/context-guard/bin/statusline-shim.sh`. The sibling shim is written
    by `/context-guard:setup apply`, which the operator may not have run yet. Naming a path that
    does not exist reintroduces exactly the failure this wiring exists to remove, because `bash
@@ -177,7 +175,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    ```
 
    The shell-syntax guard in [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md)
-   applies UNCHANGED to this form: `<current statusline command>` is the innermost ARGV here too,
+   applies unchanged to this form: `<current statusline command>` is the innermost ARGV here too,
    so run that test on the same unwrapped renderer and substitute whichever of the two forms it
    selects, never raw. Substituting `THEME=dark my-statusline` raw
    makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
@@ -202,7 +200,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    Windows note: the command must run under Git Bash. `bash` is invoked explicitly for exactly
    that reason (the script's stated shell requirement); with Git Bash absent Claude Code routes
    statusline commands through PowerShell and this wiring does not apply (statusline reference,
-   "Windows configuration"). State this with the printed edit: the wiring is applied ONCE and
+   "Windows configuration"). State this with the printed edit: the wiring is applied once and
    survives every later plugin update, because the shim, not the version-pinned cache path, is
    what the settings file names.
 7. **Dotfiles tracking proposal.** The printed edit changes a durable user-scope file the operator
@@ -226,7 +224,7 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
   `settings.json` edit, step 6 of `check`, which this skill never applies, puts it on the
   statusline path. Say that explicitly when reporting the write.
 - After installing, print the wiring edit (`check` step 6) so the operator's next action is in
-  front of them, and note that a statusline already wired to the shim needs NO change now or on
+  front of them, and note that a statusline already wired to the shim needs no change now or on
   any future plugin update.
 
 `apply` never touches `settings.json`, `rate-limits.json`, `stop-events.jsonl`, or anything outside
@@ -236,15 +234,15 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
 
 Uninstalling the plugin removes the cache directory, not the operator's files. Nothing breaks: the
 shim finds no tee and passes the wrapped statusline through unchanged (a wired-standalone shim
-prints one notice line instead). Two operator cleanup steps remain, and their ORDER matters.
-report both together, in this order, when asked how to back this out:
+prints one notice line instead). Two operator cleanup steps remain, and their order matters.
+Report both together, in this order, when asked how to back this out:
 
 1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
    the field entirely if the shim was the whole statusline).
 2. **Then remove `~/.claude/rate-limit-guard/`.**
 
 Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
-missing file: `bash <missing-path>` exits 127 and takes the WHOLE statusline down, the exact
+missing file: `bash <missing-path>` exits 127 and takes the whole statusline down, the exact
 failure the shim exists to prevent. The shim's own no-tee fallback cannot cover this, because the
 fallback lives in the file that was just deleted.
 

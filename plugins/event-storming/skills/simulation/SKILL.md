@@ -121,7 +121,7 @@ When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (C
 
 **Execution sequence:**
 
-1. **Read ALL board items** via `miro_list_board_items` (full pagination) for a live board, or by parsing the supplied board export when one was provided instead of a URL. Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
+1. **Read ALL board items** via `miro_list_board_items` (`limit=1000`) for a live board, or by parsing the supplied board export when one was provided instead of a URL. Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
 
 2. **Apply Brandolini's 6 boundary heuristics mechanically** against the parsed data. Canonical definitions in `/event-storming:methodology --big-picture` "Heuristics for Discovering Boundaries". Board-data signals: pivotal-event stickies (`dark_blue` / `--- PIVOTAL ---`) mark business-phase boundaries (H1); persona y-offset rows reveal parallel swimlanes (H2); per-persona event density per timeline zone assigns ownership (H3/H4); `[DIVERGENCE]` / hot-spot markers and same-noun-different-meaning phrasings signal boundaries (H5/H6). Use short BC names (2-3 words).
 

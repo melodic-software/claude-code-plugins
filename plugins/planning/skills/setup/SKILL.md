@@ -37,9 +37,9 @@ nothing, and do NOT run a planning stage. Those are the pipeline skills.
    contract root (e.g. `<contract_dir>/probe/PLAN.md`. A bare directory misses `**` patterns). A
    consumer ignore rule that matches is FAIL: a "committed" tier that git ignores is the failure the
    guard exists to catch; surface the exact rule and source line.
-3. **vault_backend**. INFO when the effective `vault_backend` is `gitbook`: GitBook is deferred and
-   non-writable; the effective writable promotion target remains `docs` until a later reviewed decision
-   enables the backend.
+3. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
+   enabled. Git remains the storage layer because GitBook offers no concurrency-safe, lossless write
+   path, so it is deferred and non-writable; durable writes target `docs`.
 4. **Standards index**. The index presence test at the resolved `<standards_dir>/README.md`
    (`.claude/standards.yaml` may relocate the root from the documented default). Absent → INFO: the
    standards concern is not bootstrapped; `apply` offers to scaffold it. A present index whose
@@ -121,9 +121,9 @@ implement it by reference, do not restate it. Plugin-side notes only:
 - **Optional offers, never demands:** pointer-rule generation for indexed ecosystem surfaces
   (interactive only), and reorganizing mixed or spread standards content toward the SRP + index
   shape.
-- **Migration is this skill re-run**. No separate action; direction and messaging per the
-  binding. It stays bespoke rather than becoming a retirement-manifest record: it is a
-  versioned-contract upgrade under `apply`, the sanctioned schema-evolution path, not a retirement.
+- **Migration is this skill re-run.** No separate action; direction and messaging per the
+  binding. It is a versioned-contract upgrade under `apply`, the schema-evolution path the
+  binding sanctions.
 
 ### Interview-rendering toggle
 

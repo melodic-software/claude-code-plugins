@@ -44,8 +44,8 @@ phases and tick each as it completes. Phase 2 may run subagent fan-out for ≥5 
 
 ### Phase 1: Discover servers and tools
 
-1. `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover.sh"` (or `--path <dir>` when `$ARGUMENTS` supplies a directory).
-2. **Optional scope filter.** If a path was given as `$ARGUMENTS`, pass it to `discover.sh --path <dir>`.
+Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover.sh"`, adding `--path <dir>` when
+`$ARGUMENTS` supplies a directory, to scope the scan to that directory.
 
 ### Phase 2: Evaluate against checklist
 

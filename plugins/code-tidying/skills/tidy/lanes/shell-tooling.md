@@ -1,6 +1,6 @@
 # Lane: shell-tooling
 
-Bash and PowerShell scripts in the project's tooling directories. **The single most important rule of this lane: agent-hook and git-hook script directories are HARD-EXCLUDED for mutation.** Those directories are recursive infrastructure — a tidying that breaks a hook silently degrades every future session.
+Bash and PowerShell scripts in the project's tooling directories. **Agent-hook and git-hook script directories are HARD-EXCLUDED for mutation.** Those directories are recursive infrastructure: a tidying that breaks a hook silently degrades every future session.
 
 ## Scope
 

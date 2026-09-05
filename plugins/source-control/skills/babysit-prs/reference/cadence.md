@@ -146,7 +146,7 @@ close the hour gap the mandatory rule relies on to force a retry. Update the per
 when `complete_queue` is true; otherwise keep the last complete sweep's `generated_at` so both
 thresholds keep signaling a retry until discovery actually succeeds.
 
-Because the counters are persisted rather than in-memory-only, a fresh session no longer forces
+Because the counters are persisted rather than in-memory-only, a fresh session does not force
 an immediate full sweep by default: when the persisted counters are present, well-formed, and
 pass the staleness check (the persisted last-complete-sweep `generated_at` is still within the
 hour-gap threshold of Real-Elapsed-Time Detection), the session trusts them and continues the

@@ -30,7 +30,7 @@ boxes are cycled inside
 candidate before it is shown. Auditing a line the writer already HAS is the other direction. That
 stays [audit-checklist](../../context/pat-pattison/research/audit-checklist.md) (pre-lock). Line
 emission is `/songwriting:co-write`'s, and its input gate travels with the lines: same gate,
-checked here. *(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+checked here. *(Plugin-authored, not Pat Pattison's.)*
 
 ## Purpose
 
@@ -69,8 +69,8 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   the concept back per `/songwriting:co-write` Handlers.
 - `variations` output reaches the writer as full section blocks IN CONTEXT. Changed lines marked
   `►`, one labeled block per variation, 3-4 per chat menu; scansion maps and per-candidate craft
-  notes go to the `variations/` file. Never a bare one-line candidate in a table. Writer-requested,
-  2026-08-12. See [variations](../../context/pat-pattison/research/variations.md) "Presenting the
+  notes go to the `variations/` file. Never a bare one-line candidate in a table. See
+  [variations](../../context/pat-pattison/research/variations.md) "Presenting the
   candidates. Chat vs file".
 - `variations` and `audit` judge candidates against the WRITER's register, not genre and not
   taste. Load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,

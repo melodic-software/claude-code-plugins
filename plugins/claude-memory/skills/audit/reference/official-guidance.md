@@ -33,11 +33,6 @@ Refresh this file from current official docs via the skill's `update` action.
 > "Less than 300 lines is best, and shorter is even better."
 > — humanlayer.dev/blog/writing-a-good-claude-md
 
-<!-- -->
-
-> "Frontier thinking LLMs can follow ~150-200 instructions with reasonable consistency."
-> — humanlayer.dev/blog/writing-a-good-claude-md
-
 ## Context injection clarification
 
 > "CLAUDE.md content is delivered as a user message after the system prompt, not as part of the system prompt itself. Claude reads it and tries to follow it, but there's no guarantee of strict compliance, especially for vague or conflicting instructions."
@@ -160,14 +155,14 @@ Additional features:
 - User-level rules in `~/.claude/rules/` apply to every project (loaded before project rules)
 - Path-specific rules use `paths:` YAML frontmatter with glob patterns
 
-**Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as documented — a path-scoped rule is not in context at session start and loads when Claude reads a matching file. A first-party repro on 2.1.219 with `paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching `.tsx` file, and absent again after reading a non-matching one: deferral works in both directions. No version can be cited for when this began working — no changelog entry or maintainer comment pins one, so do not assume a floor. This supersedes an earlier claim here (dated 2026-04-01) that rules load unconditionally regardless of `paths:`; that claim's cited evidence does not support it either — #38487 and #32906 are closed NOT_PLANNED (#38487 asks that Write/Edit *also* trigger injection, which presupposes deferral works; #32906 is a docs issue about subagents), and the two still-open issues assert opposite failure modes, so they cannot jointly support one conclusion.
+**Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as documented. A path-scoped rule is not in context at session start and loads when Claude reads a matching file. A first-party repro on 2.1.219 with `paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching `.tsx` file, and absent again after reading a non-matching one: deferral works in both directions. No changelog entry or maintainer comment pins the version where this began working, so do not claim a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule loading, or any session in which a path-scoped rule is present at session start.
 
 Caveats that do survive, each verified:
 
 - An `@import` **inside** a path-scoped rule defeats the scoping: the imported content inlines at session start whether or not a matching file is ever read. Per the docs, "Imported files are expanded and loaded into context at launch" — code.claude.com/docs/en/memory.
 - Path-scoped content is invisible to subagents, teammates, and skill-forked contexts. Issue #32906 covers this and is closed NOT_PLANNED — accepted behavior, not a pending fix.
 - Writing a NEW file does not trigger the rule. The trigger is a read: "Path-scoped rules trigger when Claude reads files matching the pattern, not on every tool use" — code.claude.com/docs/en/memory.
-- Before v2.1.211, on-demand rules — path-scoped rules and rules in nested `.claude/rules/` directories — loaded even when `project` was excluded from `--setting-sources` (code.claude.com/docs/en/memory).
+- Excluding `project` from `--setting-sources` also excludes on-demand rules, both path-scoped rules and rules in nested `.claude/rules/` directories (code.claude.com/docs/en/memory).
 
 ## Auto-memory limits
 
@@ -182,7 +177,7 @@ Caveats that do survive, each verified:
 <!-- -->
 
 > "The check measures only the content that loads: YAML frontmatter and block-level HTML comments are stripped before the index is loaded, so they don't count toward the limits."
-> — code.claude.com/docs/en/memory (limit check on writes to MEMORY.md; before v2.1.211, the raw file was measured)
+> — code.claude.com/docs/en/memory (limit check on writes to MEMORY.md)
 
 ## Auto-memory storage
 

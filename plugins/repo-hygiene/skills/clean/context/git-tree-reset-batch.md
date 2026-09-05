@@ -21,9 +21,9 @@ rather than reset.
 confirmation gate, with a skip list and a dirty guard, then report a per-repo
 outcome summary.
 
-**Out:** the other tiers (`caches` / `build` / `git` / `all`) — `tree` is the
-destructive tier that caused the incident and the only one whose batch form needs
-these guards; a multi-tier batch is a possible future extension, not built here.
+**Out:** the other tiers (`caches` / `build` / `git` / `all`). `tree` is the destructive
+tier, and the only one whose batch form needs the dirty guard. The selective tiers have their
+own batch form, `clean-batch.sh` ([clean-batch.md](clean-batch.md)).
 Also out (delegated to the single-repo `tree`, unchanged): the actual reset /
 clean / upstream resolution / reparse-point restore. The batch layer runs no
 destructive git command itself.
@@ -61,15 +61,15 @@ each skip entry is normalized to a separator-agnostic key before comparison, so 
 skip written with `\` matches a repo path enumerated with `/` and vice versa. An
 entry may be an absolute path, an `owner/repo` suffix, or a bare `repo` name;
 matching is anchored on segment boundaries (`repo` never matches `other-repo`). A
-skip entry that matches **no** enumerated repo is reported as `UnmatchedSkip:` —
-the silent skip-failure that caused the data loss is now a visible warning.
+skip entry that matches **no** enumerated repo is reported as `UnmatchedSkip:`, so
+a skip that matches nothing is visible in the dry-run instead of passing silently.
 
 ### Dirty guard (skip dirty by default)
 
 A repo with uncommitted or untracked changes, OR unpushed commits, is **skipped**
 by default with the reason reported. `--include-dirty` opts in and passes
-`--allow-unpushed` through so unpushed repos actually reset. This re-enables the
-exact data-loss vector, so it is gated like `--include-secrets`: its own explicit
+`--allow-unpushed` through so unpushed repos actually reset. It discards uncommitted
+work unrecoverably, so it is gated like `--include-secrets`: its own explicit
 confirmation, naming which repos' uncommitted changes will be discarded.
 
 ### Per-repo outcome

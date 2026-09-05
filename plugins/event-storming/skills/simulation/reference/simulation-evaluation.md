@@ -48,7 +48,7 @@ point the tooling at wherever your copy lives (any path you choose):
 | chap16 | **Ch. 13** | **PM cooperative game — win conditions** | **100%** | **98%** | 4 win conditions, System/User Happy, color grammar |
 | chap17 | Ch. 14 | PM Building Blocks — Speak Out Loud | 90% | 95% | 3-pass technique, Magic Keywords, 4 event sources, policies |
 | chap18 | Ch. 15 | PM game strategies — Rush to Goal | 50% | 85%* | Opening strategies, rabbit hole, split & merge captured |
-| chap21 | Ch. 17 | Running Design-Level ES | 10% | **400%+** | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
+| chap21 | Ch. 17 | Running Design-Level ES | 10% | beyond the book | `[SUPPLEMENTED]` with Bourgau 11-step agenda |
 | chap22 | Ch. 18 | DL Modeling Tips | 20% | 90%* | Alternatives, rewrite, symmetry, hide complexity |
 | chap23 | Ch. 19 | Building Blocks — why events are special | 20% | 80%* | Events as state transitions, triggers for consequences |
 | chap24 | Ch. 20 | Modeling Aggregates | 30% | **95%+** | `[SUPPLEMENTED]` with Bourgau + Vernon invariant/sizing |
@@ -64,7 +64,10 @@ point the tooling at wherever your copy lives (any path you choose):
 | chap41 | Glossary | Terms — fuzzy by design | 80% | 85% | Theory of Constraints, Blink Modelling, Model Storming added |
 | chap42 | Tools | Paper rolls, markers, stickies | 90% | 90% | Physical + digital tools in glossary-and-tools.md |
 
-**Overall: ~92% coverage of available book content.** Remaining gaps are philosophical/narrative (Ch. 2-3, 12) or unwritten by Brandolini (Ch. 23, 25 at 5%). Design-Level and Aggregates chapters significantly supplemented beyond book content with verified Bourgau/Vernon sources.
+Coverage of any given chapter is judged per run against the copy you own, since the book is
+published on Leanpub and continues to change. The known gaps are philosophical or narrative (Ch. 2-3
+and 12) or barely written by Brandolini (Ch. 23 and 25). Design-Level and Aggregates go beyond the
+book, using the Bourgau and Vernon sources marked in Notes.
 
 **Secondary sources (for cross-reference):**
 
@@ -95,14 +98,17 @@ Run these checks BEFORE starting any simulation:
 |-----------|----------------|----------|--------------|--------|
 | Events-only notation | Ch. 4, Ch. 7 | Only orange stickies during this phase | Board color audit: `count(non-orange) == 0` | Critical |
 | Event brevity | Ch. 1 examples | 2-5 words per event, past tense | Word count analysis on all stickies | Critical |
-| Event count | Ch. 9 visual check | 100-200 after all waves | `miro_list_board_items` count | High |
+| Event count | Ch. 9 visual check | 100-200 after cool-down | `miro_list_board_items` count | High |
 | Persona differentiation | Ch. 2-3 (siloed knowledge) | Remove [PersonaName] prefix — can you tell who wrote it? | Manual vocabulary analysis | High |
 | Natural duplicates | Ch. 6 (divergence = BC signal) | 3+ events where different personas name same moment differently | Scan for overlapping events across y-rows | High |
 | Phase names detected | Ch. 1, Ch. 7 | 0-3 stickies flagged as "not an event" | Scan for stickies without past-tense verbs | Medium |
-| Convergence broken | Ch. 4 (committee circles) | No 3+ identical phrasings across personas after Wave 2 | Pairwise event name comparison | Medium |
+| Convergence broken | Ch. 4 (committee circles) | No 3+ identical phrasings across personas after the committee-breaking round | Pairwise event name comparison | Medium |
 | Legend updated | Ch. 8 (visible legend) | Legend shows Domain Event at minimum | Visual check | Critical |
 
-**Scoring:** Each criterion is Pass/Partial/Fail. Critical items must Pass. Weighted score: Critical=3pts, High=2pts, Medium=1pt. Max=19. Healthy=15+.
+**Scoring:** Each criterion is Pass/Partial/Fail — that judgment is yours. Critical items must Pass.
+Weight the verdicts Critical=3, High=2, Medium=1. This table's eight rows give a maximum of 17;
+healthy is 15 or more. If you add or remove a row, recompute the maximum from the rows rather than
+trusting this line.
 
 ### Big Picture: Enforce Timeline
 
@@ -200,7 +206,10 @@ Run these checks BEFORE starting any simulation:
 | Asymmetric output | #10 Balanced | Domain Expert produced 2x+ events compared to New Hire | Count events per persona | Medium |
 | Grey-zone wrong events | #9 Gap-filling | At least 2-3 events that are plausible but wrong (from grey/pretend zones) | Manual check — do any events contradict expert knowledge? | High |
 
-**Scoring:** Critical=3pts, High=2pts, Medium=1pt. Max=23. Healthy=18+. Any Critical failure = behavioral corrections need tightening for next run.
+**Scoring:** Weight the verdicts Critical=3, High=2, Medium=1. This table's nine rows give a maximum
+of 19; healthy is 18 or more. If you add or remove a row, recompute the maximum from the rows rather
+than trusting this line. Any Critical failure means the behavioral corrections need tightening for
+the next run.
 
 ---
 
@@ -259,10 +268,8 @@ Conference), shipped to show the *shape* of a version-progression record. Do NOT
 (or any other domain) against them, or the evaluator will report bogus regressions/progress; use them
 solely as a format template until your own history accumulates.
 
-- v3: 77 BP events (scripted), 5 DL aggregates — baseline, no agent simulation
-- v4: 103 BP events (partial) — first agent attempt
-- v5: 169 BP events, 68 PM stickies, 60 DL stickies, 8 aggregates — full agent-driven
-- v6: 182 BP events, 88 PM stickies, 60 DL stickies, 4 aggregates — source-validated, 7 fixes applied
+- v{N-1}: 169 BP events, 68 PM stickies, 60 DL stickies, 8 aggregates — full agent-driven
+- v{N}: 182 BP events, 88 PM stickies, 60 DL stickies, 4 aggregates — source-validated
 
 ---
 
@@ -343,9 +350,11 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 ## How to Run an Evaluation
 
 1. **Complete the simulation** — all 3 formats (BP, PM, DL) or the subset being evaluated
-2. **Read ALL boards** — full pagination. Export item lists with colors, positions, and content
+2. **Read ALL boards** — one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
 3. **Score each rubric section** — Pass/Partial/Fail for each criterion
-4. **Take screenshots** — visual verification at EVERY phase transition via chrome-devtools MCP (see checklist above)
+4. **Take screenshots (live-board path with a browser MCP only)** — visual verification at every
+   phase transition per the checklist above. Without a browser MCP, or in structured-markdown mode,
+   skip this step and verify against the markdown artifact instead
 5. **Compare against prior version** — use the version comparison framework
 6. **Run the retrospective protocol** — answer all 26 questions
 7. **Update the run-state store** — record findings in `${CLAUDE_PLUGIN_DATA}/history.jsonl`

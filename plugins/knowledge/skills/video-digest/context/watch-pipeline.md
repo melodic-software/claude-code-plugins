@@ -235,12 +235,6 @@ resume state. An explicit `--target` passed at CLI bootstrap is separately recor
 prompt's "Synthesis target" section first — when set, reuse it and skip this resolution entirely;
 when unset, run the rungs above.
 
-This aligns with (but does not depend on) the `/knowledge:apply` design
-(`docs/knowledge-integration-design.md`), which will eventually take over repo-fitting via its own
-`--target` argument from a corpus session (auto-cloning the resolved repo); when that skill is
-installed and built, prefer it for cross-repo fitting and treat this skill's menu as its input, not
-a replacement.
-
 Outputs:
 
 - Materialize `recommendations/` from `templates/recommendations/` (hub README links all docs)
@@ -255,8 +249,7 @@ Outputs:
   one exists
 - **No auto-implement** — `/planning:interview` → `/planning:plan` → `/implementation:implement`
 - **Ephemeral, target-bound deliverable** — `recommendations/**` is this skill's own terminal output
-  for the resolved target, not a corpus-wide durable record; it is written fresh per watch and is
-  expected to be superseded by `/knowledge:apply`'s report→diff→PR flow once that skill ships
+  for the resolved target, not a corpus-wide durable record; it is written fresh per watch
 
 ## Phase 8 — interview handoff
 

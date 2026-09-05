@@ -108,20 +108,17 @@ a different file, failed at launch, or is unverified/ambiguous → keep the cand
 the provenance at the confirm gate when ambiguous). **This four-way resolution governs every
 screening site in this skill, prompt-only included.**
 
-**v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
-other repo roots from transcript `cwd` fields) is deferred. Step 2's transcript scan already
-recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
+**This rung searches the current repo only.** Step 2's transcript scan already recovers handoffs
+written in other repos, since transcripts are indexed by session, not repo.
 
-**OPEN, this rung cannot correlate a candidate to the repository the work was in.** Run from a
-directory that is not the worked-in repo but has its own handoffs dir, the glob returns conforming
-`type: handoff` files from unrelated sessions and the target is not among them; nothing here can
-reject a same-cwd, different-repo candidate, because a handoff file records no durable repository
-identity. `structure.md`'s frontmatter carries `type`, `date`, `topic`, `session_id`, and
-`previous_handoff`, and none of those names a repo. Closing it needs a new frontmatter field, a
-cross-cutting schema change every existing handoff on disk would lack, decided on its own merits
-rather than inside a path fix (#1778). Until then: prefer the transcript scan whenever this rung's
-candidates are merely recent rather than clearly this work's, and never present a glob candidate
-as repo-verified. Reading the repository off the producer transcript is deliberately NOT used as
-a substitute. It depends on a transcript that may be absent, which this skill's own Gotchas say
-is the reason transcripts are the reliable index over the filesystem, and it returns nothing for
-every rootless legacy handoff, i.e. exactly where a correlation check is needed.
+**Known limit: this rung cannot correlate a candidate to the repository the work was in.** Run
+from a directory that is not the worked-in repo but has its own handoffs dir, the glob returns
+conforming `type: handoff` files from unrelated sessions and the target is not among them. Nothing
+here can reject a same-cwd, different-repo candidate, because a handoff file records no repository
+identity: the frontmatter `structure.md` defines carries `type`, `date`, `topic`, `session_id`,
+and `previous_handoff`, and none of those names a repo. So prefer the transcript scan whenever this
+rung's candidates are merely recent rather than clearly this work's, and never present a glob
+candidate as repo-verified. Do not read the repository off the producer transcript as a
+substitute: that transcript may be absent, which is why transcripts are the reliable index over
+the filesystem, and it returns nothing for a rootless handoff, exactly where a correlation check
+is needed.

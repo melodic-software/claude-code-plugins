@@ -16,12 +16,14 @@ untracked scratch output is not tracked source and does not trip it.
 tool that Phase 0 resolves from the project's config, never from the tool's reputation.** One axis,
 three regimes:
 
-- **Out-of-tree**. Every established tool in its default configuration: the mutant goes to a
-  sandbox, a temporary file, or memory, and tracked source is only ever read. There is no revert to
-  verify because there was no write. The gate is a **Phase 0 precondition that the out-of-tree mode
-  is actually in effect**, the setting is user-changeable, so read it, plus **one end-of-run
-  comparison** as a backstop against crash paths no tool documents. Where a tool has no in-place
-  option at all, that precondition is a constant rather than a check.
+- **Out-of-tree**. Where the `principles` skill's
+  [`tooling.md`](../../principles/reference/tooling.md) table resolves the configured tool to this
+  regime: the mutant goes to a sandbox, a temporary file, or memory, and tracked source is only ever
+  read. There is no revert to verify because there was no write. The gate is a **Phase 0
+  precondition that the out-of-tree mode is actually in effect**, where the regime is a setting or
+  an installed version rather than a constant, read it, plus **one end-of-run comparison** as a
+  backstop against crash paths no tool documents. Where a tool has no in-place option at all, that
+  precondition is a constant rather than a check.
 - **In-tree, whole-file**, a tool that rewrites the working file once and restores it itself. One
   write and one tool-owned restore, so an **end-of-run comparison** is right and sufficient. Run it
   in a `finally`, not on the return path: "end of run" here means **however the run ends**, including

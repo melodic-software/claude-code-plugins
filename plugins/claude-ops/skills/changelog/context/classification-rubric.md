@@ -54,7 +54,7 @@ UI/cosmetic fix, internal refactoring, or feature entirely irrelevant to repo.
 | New feature behind experimental flag | P2 | Worth tracking even if not adoptable yet |
 | Deprecation of something we don't use | P3 | Unless we planned to adopt it |
 | Security fix | P1 always | Security fixes affect trust posture regardless of direct usage |
-| Model-specific change (e.g., "Opus 4.8 now...") | P1 if we use that model | Check any model-routing/tiering docs the repo keeps |
+| Model-specific change (e.g., "<model> now...") | P1 if we use that model | Check any model-routing/tiering docs the repo keeps |
 | Plugin-system change | P1 if we use plugins | Check `enabledPlugins` in settings.json |
 
 ## Item categories

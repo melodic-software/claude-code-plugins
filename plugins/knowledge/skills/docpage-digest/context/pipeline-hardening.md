@@ -18,10 +18,9 @@ Why fencing is the only remedy that held:
 
 - A *blockquote* quote is rewritten by the markdownlint-cli2 PostToolUse hook
   (`*` list markers become `-`; ordered lists renumber).
-- A *bare inline code span* cannot hold a trailing space through that hook
-  (three attested sites).
-- `check-quotes.py`'s per-line `.strip()` then hid indented-fence corruption
-  introduced by a REPAIR pass.
+- A *bare inline code span* cannot hold a trailing space through that hook.
+- A per-line `.strip()` in a quote gate hides indented-fence corruption
+  introduced by a repair pass.
 
 Shape (Key claims):
 
@@ -70,12 +69,11 @@ suite is green — the ordering is the one `SKILL.md` already states.
 ## Freeze / pin
 
 Pin the tree on **agent-REPORTED completion**, never on file presence. A digest
-file appearing on disk does not mean its agent is done (a unit's agent rewrote
-its file seven minutes after a presence-based pin).
+file appearing on disk does not mean its agent is done.
 
 After every dispatched digest agent has *returned*:
 
-1. Hash each frozen path (digests, SOURCES.md, source.\*). A pre-0.13.30 pin-manifest whose
+1. Hash each frozen path (digests, SOURCES.md, source.\*). An older pin-manifest whose
    `files` list an `INDEX.md` path refers to the same artifact under its old name: re-pin it
    under `SOURCES.md` after the resume-time rename rather than treating the missing path as
    BLOCKED.

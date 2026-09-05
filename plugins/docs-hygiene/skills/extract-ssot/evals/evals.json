@@ -104,11 +104,11 @@
       "id": 9,
       "name": "min-instances-3-regression-guard",
       "prompt": "Run /docs-hygiene:extract-ssot identify --min-instances=3 over this repo. Some clusters have one or two instances.",
-      "expected_output": "Reproduces the pre-bucket behavior exactly: --min-instances=3 sets the lowest bucket to roster at three, so the N=1 and N=2 buckets are not rostered at all and only N>=3 clusters reach the roster. The suppressed buckets are named as suppressed by the flag rather than silently omitted, so an empty section does not read as 'nothing found'. Read-only — no flags beyond --min-instances means no edits are applied.",
+      "expected_output": "Rosters only N>=3 clusters: --min-instances=3 sets the lowest bucket to roster at three, so the N=1 and N=2 buckets are not rostered at all and only N>=3 clusters reach the roster. The suppressed buckets are named as suppressed by the flag rather than silently omitted, so an empty section does not read as 'nothing found'. Read-only — no flags beyond --min-instances means no edits are applied.",
       "files": [],
       "expectations": [
         "Output rosters only clusters with 3 or more instances under --min-instances=3",
-        "Output does NOT roster the one- and two-instance candidates, matching the legacy pre-bucket behavior",
+        "Output does NOT roster the one- and two-instance candidates",
         "Output distinguishes 'suppressed by --min-instances' from 'no candidates found' for the omitted buckets",
         "Output applies no edits (bare identify with only --min-instances stays read-only)"
       ]

@@ -29,17 +29,15 @@ staged mode is `100644`.
     `core.filemode=false` platform produces on `mv` plus `git add`; a sourced library or template
     with a shebang and no exec bit is not a defect and is never touched.
 
-    **The rename arm's accepted trade (#2141).** That gate is the one place the check's answer
-    still depends on `diff.renames`, and it splits on the *default* setting rather than an opt-in
-    one: `git mv` of a `100644` shebang file reads as `D`+`A` under `diff.renames=false` and **is**
-    reported through the `A` branch, while the same index and the same HEAD read as `R100` under
-    the default `diff.renames=true` and are **not**. Only the config differs. This is decided, not
-    overlooked — #2141 weighed keeping the gate, dropping it for renames too, and making the `A`
-    branch skip a rename-as-add, and kept the gate with no behaviour change. Dropping it would ship
-    the `repo19` false positive (a deliberately non-executable sourced library flipped to `100755`
-    because someone moved it) to every consumer; making the `A` branch match would buy agreement by
-    reporting *less*, at the risk of silencing genuinely new files. So **content-determinism is a
-    property of the `A` and `C` classes, not of the whole tool** — do not restate it unqualified.
+    **The rename arm is the one place the check's answer still depends on `diff.renames`,** and it
+    splits on the *default* setting rather than an opt-in one: `git mv` of a `100644` shebang file
+    reads as `D`+`A` under `diff.renames=false` and **is** reported through the `A` branch, while
+    the same index and the same HEAD read as `R100` under the default `diff.renames=true` and are
+    **not**. Only the config differs. The gate stays because dropping it would flip a deliberately
+    non-executable sourced library to `100755` whenever someone moves it, and making the `A` branch
+    match would buy agreement by reporting *less*, at the risk of silencing genuinely new files. So
+    **content-determinism is a property of the `A` and `C` classes, not of the whole tool**; do not
+    restate it unqualified.
   - A **copy** destination is a path that did **not** previously exist, so it is newly added no
     matter what the source's mode was — squarely inside the newly-added-only scope. It is a
     candidate unconditionally, exactly as an `A` is. Gating it on the source mode is what made the
@@ -77,8 +75,7 @@ So the worktree bit is set first, then the index — that order is the one that 
 **And the index write is never optional.** Under `core.filemode=false` — the default on
 Windows/NTFS — git ignores worktree permission bits entirely and stages everything `100644`. On
 such a repository `chmod +x` alone **never** reaches the index, and `git update-index --chmod=+x`
-is the only thing that can produce a `100755` entry. This is exactly the platform where the
-advisory prose version of this check was most likely to look like it had worked and not have.
+is the only thing that can produce a `100755` entry.
 `exec-bit-check.test.sh` pins the behavior with `core.filemode` set explicitly, so the case tests
 the same thing on every platform.
 

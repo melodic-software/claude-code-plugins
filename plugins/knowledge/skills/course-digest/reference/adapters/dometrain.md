@@ -6,7 +6,7 @@ Platform-specific extraction logic for Dometrain (dometrain.com) courses.
 
 ## Video player
 
-Dometrain uses **Mux Player** (`<mux-player>` custom element) loaded from `cdn.jsdelivr.net/npm/@mux/mux-player`. Videos are HLS streams with JWT-protected access tokens (playback-restricted, user-scoped, ~150 min expiry).
+Dometrain uses **Mux Player** (`<mux-player>` custom element) loaded from `cdn.jsdelivr.net/npm/@mux/mux-player`. Videos are HLS streams with JWT-protected access tokens (playback-restricted, user-scoped, and short-lived). Read the remaining lifetime from the token itself rather than assuming a window; the check is under "Getting the HLS URL" below.
 
 Video player is NOT a standard `<video>` element — it's a web component with a shadow DOM. Do not try to interact with `<video>` directly.
 
@@ -101,7 +101,7 @@ const player = document.querySelector('mux-player');
 const hlsUrl = player?.src; // Full URL with ?token=eyJ...
 ```
 
-URL includes a JWT token with ~14 minute expiry (`custom_expiration_minutes`). Extract and use promptly. To check remaining time:
+URL includes a JWT token whose lifetime the token itself carries (`custom_expiration_minutes`). Extract and use it promptly, and read the remaining time before a long extraction:
 
 ```javascript
 const token = player?.src?.split('token=')[1];
@@ -203,7 +203,7 @@ These features are platform-level and not course-specific. They don't contain ex
 1. **Auto-play:** Videos may start playing when you navigate to a lesson. Doesn't affect transcript extraction (transcripts load independently of playback)
 2. **Trial limits:** If user's subscription lapses, "Upgrade to Dometrain Pro" modal appears. Check for "Trial Limit Reached" or "Sign in to watch" text in page — if found, stop and inform user
 3. **Rate limiting:** Don't navigate to lessons faster than ~2 seconds apart. Rapid navigation may trigger platform protections
-4. **Session expiry:** Mux JWT tokens expire after ~150 minutes. For long extraction sessions, user's Dometrain session may expire — watch for login redirects
+4. **Session expiry:** Mux JWT tokens expire; re-read the remaining time from the token before a long extraction rather than assuming a window. For long extraction sessions, user's Dometrain session may expire — watch for login redirects
 5. **Course IDs:** Course URL contains numeric course ID (e.g., `2732006`); lesson URL contains numeric lesson ID (e.g., `54128298`). Stable identifiers
 6. **Windows convert.exe conflict:** On Windows, `convert` resolves to FAT/NTFS converter (`C:\Windows\system32\convert.exe`), not ImageMagick. Always use `magick` (ImageMagick 7) — never `convert`
 7. **Never guess the instructor.** Course author is NOT inferable from platform or course URL. ALWAYS extract from landing page JSON-LD (`@graph` → `Course` → `author[].name`) or "Meet Your Instructor" section. Do not assume based on Dometrain association — Dometrain hosts courses from many instructors

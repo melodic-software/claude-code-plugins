@@ -89,7 +89,7 @@ its routing obligation.
 ## Precedent
 
 The proven manual pattern is the human duplicate hunt: a maintainer recognizes a familiar
-report and searches for the original before triaging the copy. Precedents from the
-routine-catalog research (row 11): tracker-native inline duplicate detection at
+report and searches for the original before triaging the copy. Precedents:
+tracker-native inline duplicate detection at
 issue-compose time, tracker triage-intelligence features that surface similar issues, and
 narrow ML duplicate classifiers.

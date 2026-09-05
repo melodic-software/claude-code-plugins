@@ -123,8 +123,8 @@ minimal change" for quoted material (quotations are not the repo's own prose to 
 detector implements it mechanically. Each rule carries a class:
 
 - **wording** — the rule judges prose the repo AUTHORS. It never scans quoted material:
-  blockquote lines and double-quoted spans are removed from its input, and inline code spans
-  were already exempt. Quote-exempt candidates are counted as declined, never silently dropped.
+  blockquote lines, double-quoted spans, and inline code spans are removed from its input.
+  Quote-exempt candidates are counted as declined, never silently dropped.
   This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
   guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
   not using, and backticking or double-quoting the mention is the marker-free suppression.
@@ -137,16 +137,16 @@ Known limitation: the double-quoted-span exemption is per-line. A quotation wrap
 line break escapes it; the closures are rewrapping the quote onto one line, the blockquote
 form, or the fenced marker.
 
-The class assignments live in the detector's rule registry; the crosswalk rows are unchanged by
-the exemption (it moves candidates from findings to declines, not between tiers).
+The class assignments live in the detector's rule registry. The exemption moves candidates from
+findings to declines and never changes a rule's crosswalk tier.
 
 ## Calibration record (V1)
 
 Calibrated 2026-08-17 against this marketplace's tracked markdown (1161 files) with neutral
 defaults. Outcomes:
 
-- All 12 `v1: script` rules ship as of this pass; none demoted. (The roster is 15 after the
-  second pass below adds three, and 14 after the third pass demotes `rule-rule-of-three`.)
+- All 12 `v1: script` rules measured in this pass ship; none demoted. `detect.sh` is the
+  authoritative list of shipped script rules.
 - Density rules gained a minimum-hits floor (3) after short files fired on a single
   normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
 - `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
@@ -178,8 +178,8 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
   (3.0/1000 words, minimum 3 hits per file) kept the rule quiet on every file, so the shipped
   default stays neutral while saturated files still flag.
 
-Third pass, 2026-08-25, from a full repo-wide `fix` dogfood of PR 3359 (82 findings across 45
-files) plus a plugin-quality audit and a verified prior-art survey:
+Third pass, 2026-08-25, over a full repo-wide `fix` run (82 findings across 45 files), a
+plugin-quality audit, and a verified prior-art survey:
 
 - `rule-rule-of-three` demoted to rubric per its own calibration clause: 18 of 18 residual
   findings after the fix pass sat on load-bearing enumerations, the ERE matched only
@@ -391,10 +391,10 @@ then-current 1,361-file tracked-markdown corpus:
 - detectability: mechanical
 - applicability: general-prose
 - v1: script
-- The `—` character (`\xE2\x80\x94`) in prose. **Zero-tolerance by default** (user decision at
-  plan approval): any occurrence outside code fences and inline code flags. Documents that
-  require em dashes opt out per-document via config path-lists or the in-file marker; the rule is
-  never threshold-calibrated and is excluded from the `recorded-only` demotion path.
+- The `—` character (`\xE2\x80\x94`) in prose. **Zero-tolerance by default**: any occurrence
+  outside code fences and inline code flags. Documents that require em dashes opt out
+  per-document via config path-lists or the in-file marker; the rule is never
+  threshold-calibrated and is excluded from the `recorded-only` demotion path.
 - The source page's Style section (catalog pin and the 2026-08-21 recheck) treats this as a
   **valid sign**, not an ineffective one. The same section carries the qualifier *"This sign
   is most useful when taken in combination with other indicators, not by itself."* That is a

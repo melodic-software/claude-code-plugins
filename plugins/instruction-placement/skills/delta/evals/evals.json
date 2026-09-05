@@ -3,12 +3,12 @@
   "evals": [
     {
       "id": 1,
-      "name": "quiet-run-is-one-line",
+      "name": "quiet-run-is-short-and-complete",
       "prompt": "/instruction-placement:delta",
       "narration": true,
-      "expected_output": "Diffs the current detector output against the prior artifact, finds nothing moved, and says so in one line with the window it covered. It does not re-list standing findings, does not restate the previous run's candidate set, and does not pad the response to look useful. A delta run whose honest answer is 'nothing changed' costs one line to read.",
+      "expected_output": "Diffs the current detector output against the prior artifact, finds nothing moved, and says so briefly, with the window it covered and the suppressed count. It does not re-list standing findings, does not restate the previous run's candidate set, and does not pad the response to look useful. A delta run whose honest answer is 'nothing changed' is short and complete.",
       "expectations": [
-        "Reports 'nothing moved' in one line with the window",
+        "Reports 'nothing moved' briefly, with the window and the suppressed count",
         "Does not re-list standing or previously reported findings",
         "Does not pad a quiet run"
       ]

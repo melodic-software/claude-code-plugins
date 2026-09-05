@@ -1,5 +1,5 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Check-only: verifies, reports, and offers each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe; only the observer substrate has prerequisites, the other thirteen skills are zero-config."
+description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Check-only: verifies, reports, and offers each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe; only the observer substrate has prerequisites, the other skills are zero-config."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -78,9 +78,8 @@ observed effective value, never an unobserved change.
 
 ## Gotchas
 
-- **Setup covers only the observer.** The other session-flow skills need no setup; this skill exists
-  because the observer added an external prerequisite and a `userConfig` surface (the setup contract's
-  trigger).
+- **Setup covers only the observer.** The other session-flow skills need no setup; only the observer
+  has external prerequisites and a `userConfig` surface.
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login
   installs. Leave it off unless auth is an env-var API key. Full detail in
   `${CLAUDE_PLUGIN_ROOT}/reference/observer.md`.

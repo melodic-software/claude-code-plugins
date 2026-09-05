@@ -9,12 +9,23 @@ metadata:
   summary: Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -15 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
-Shallow repository: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -15`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+- Shallow repository, `git rev-parse --is-shallow-repository`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
+worktree-isolated session refuses a compound command that contains git, which is why each call
+above stays on its own.
 
 ## Variables
 
@@ -27,8 +38,7 @@ question is its identity. Review evaluates a diff; planning designs already-chos
 specialized finders each hunt one lens. This skill forms its own cross-dimension judgment about
 what is worth improving in a target: code, product behavior, process surfaces, operational setup, and grounds every proposal in cited evidence, so ranking reflects measurement, not taste. It
 discovers and deliberates only: execution always flows through the repo's normal pipeline
-(interview → discovery → planning → implementation → verification), and this skill edits nothing in
-any mode.
+(interview → discovery → planning → implementation → verification).
 
 ## Prompt interpretation
 
@@ -46,7 +56,7 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
   directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
   EVERY probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
   and file reads under that root, so the evidence never silently comes from the invoking repo.
-  The precomputed branch/log lines above describe the session's cwd, not the target; re-run them
+  The branch/log calls above describe the session's cwd, not the target; re-run them
   with `-C <root>` in that case. Fleet-wide sweeps are out of scope. Compose with
   `repo-fleet-hygiene` externally, one invocation per repo.
 - **Mode.** Interactive is the default. Unattended is entered ONLY when the caller declares it (see
@@ -175,12 +185,15 @@ declared-by-the-caller convention. In unattended mode:
   shape and keying: context/unattended.md).
 - **Top candidates are filed** via `work-items:track` when installed (absent tracker = report
   only, noted in the report). Filing behavior:
-  - *Dedupe against open work items first*. Baseline behavior, not a tuning knob; filing a
-    duplicate is a bug.
+  - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
+    dismissed are suppressed before ranking, so they never consume a cap slot or a tracker query.
+    A soft default the invocation prompt can override.
+  - *Dedupe against open work items, at filing time*. Search before creating each item. Baseline
+    behavior, not a tuning knob; filing a duplicate is a bug.
   - *Adaptive filing cap*, a soft default bounding how many items one run files (following
     `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
-  - *Dismissed-candidate memory*. Candidates an operator previously dismissed are suppressed by
-    default; also prompt-overridable. The routine prompt wrapping this skill is the tuning surface.
+
+  Consultation order and its rationale: context/ranking.md.
 - **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report
   and the filed items; it never picks a candidate, never prioritizes the queue, never starts
   implementation. Prioritization of filed items is human-gated always, the autonomy catalog's
@@ -191,8 +204,8 @@ declared-by-the-caller convention. In unattended mode:
 "Go implement this", interactively or as a follow-up, routes through the pipeline, never through
 this skill's own hands: interview the pick → `/discovery:explore` / `/discovery:research` →
 `/planning:plan` → `/implementation:implement` → `/verification:confirm`, each delegated to its
-skill by invoking it via the Skill tool. This skill performs no code edits in any mode; an execution request changes where the
-handoff goes, not what this skill is allowed to touch.
+skill by invoking it via the Skill tool. An execution request changes where the handoff goes,
+not what this skill is allowed to touch.
 
 ## What this skill does NOT do / Skip when
 

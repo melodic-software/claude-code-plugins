@@ -42,13 +42,11 @@ stale when the source moves.
 
 ### This skill's own pins. Beyond what the conventions state
 
-- **Threshold two, not three.** The reference-don't-duplicate smell signals
-  fire at "three or more" occurrences; this skill pins the trigger at **two**,
-  the second copy is already duplication to resolve by pointing, not
-  something to tolerate until a third appears. A deliberate, tighter
-  refinement (and a candidate change to that convention). Weigh a genuine
-  case for local divergence on its merits, but the default at two copies is
-  to consolidate to one source and point at it.
+- **Threshold two.** Whatever count the resolved convention's smell signals fire
+  at, this skill pins the trigger at **two**: the second copy is already
+  duplication to resolve by pointing, not something to tolerate until a third
+  appears. Weigh a genuine case for local divergence on its merits, but the
+  default at two copies is to consolidate to one source and point at it.
 - **Point at public contracts, not internals.** Reference the stable public
   contract, a tool's invocation surface, the command and its arguments, never the internal script or file names behind it, which are rename blast
   radius that breaks every citation the moment they move. (The conventions

@@ -5,6 +5,16 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.9]
+
+### Changed
+
+- audit: dropped the plan caveat and issue number from the step 2 dispatch rule, repointed four "above" references at `references/evidence-packet.md`, restated the slug and packet-count narration as current mechanism, replaced the "v1 value of interactivity" marker, rewrote the rung-4 and verb-contract notes as current rules, deleted the maintainer-addressed "Extending this skill" section, merged two near-synonym description triggers, lowered all-caps emphasis, and added a parallel-dispatch instruction for multi-target runs.
+- audit references: dated the formatter-scope claim in `evidence-packet.md` with a recheck trigger, restated the `findings.md` fallback and the escape list as current facts, and removed the "Growable stub" maintainer lines from the five component-type lenses and the recurring-concerns preamble.
+- auditor agent: dropped the hardcoded formatter count, stated the two-field citation rule once instead of four times, and lowered all-caps emphasis.
+- setup: removed the doctrine-pilot aside and the retirement-manifest justification, and restated the retired-layer and dual-read sentences without "no longer" or "still".
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.8]
 
 ### Changed
