@@ -799,6 +799,35 @@ def test_chain_from_walks_flat_layout_pointers(tmp_path):
     assert "sid-oldest" in sids
 
 
+def test_chain_from_resolves_prefixed_pointer_by_basename(tmp_path):
+    """--chain-from resolves a handoffs/-prefixed repo-relative pointer by basename
+    in a flat dir."""
+    handoffs_dir = tmp_path / ".work" / "handoffs"
+    handoffs_dir.mkdir(parents=True)
+
+    (handoffs_dir / "20260520T100000Z-handoff-alpha.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-oldest\n---\nbody\n"
+    )
+    (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-middle\n"
+        "previous_handoff: .work/handoffs/20260520T100000Z-handoff-alpha.md\n"
+        "---\nbody\n"
+    )
+
+    base = tmp_path / "session-data"
+    base.mkdir()
+    _write_assistant_event(base, "sid-middle")
+    _write_assistant_event(base, "sid-oldest")
+
+    handoff_file = handoffs_dir / "20260521T110000Z-handoff-beta.md"
+    result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    sids = [s["id"] for s in output["sessions"]]
+    assert "sid-middle" in sids
+    assert "sid-oldest" in sids
+
+
 def test_chain_from_with_current_session_prepend(tmp_path):
     """--current-session prepends as first SID when not already in chain."""
     slug = "test-slug"

@@ -1,5 +1,111 @@
 # Changelog — session-flow plugin
 
+## [0.35.0]
+
+### Added
+
+- **`scripts/save_point.py`, the engine behind handoff shape 2.** Three
+  subcommands: `new` writes a skeleton whose FILL slots the skill fills in,
+  `validate` checks a finished file against the shape contract, and `emit`
+  prints the resume prompt the file already carries. Its fixture suite lives in
+  `scripts/tests/` and runs through the `scripts/save_point.test.sh` wrapper.
+- **`scripts/harness/hop_chain.py` and `scripts/harness/hop_chain.test.sh`, a
+  headless multi-hop harness.** It drives a chain of handoff hops end to end;
+  the dry-run suite swaps only the `claude` subprocess for a fake runner, so CI
+  exercises the real driver without spending, and a `--budget` generator sizes
+  the live runs.
+
+### Changed
+
+- **`reference/structure.md` and `reference/save-point.md` document handoff
+  shape 2.** The file carries a `## Resume prompt` section whose between-rails
+  text byte-equals the prompt shown on screen, and frontmatter carrying the
+  session id and the `previous_handoff` chain pointer.
+- **The `handoff` skill runs its deterministic tier through the script.** What
+  the shape fixes is produced by `save_point.py` instead of composed by hand
+  each time.
+- **`find-handoff` rung 1 and `continue-in-background` source the prompt via
+  `emit`.** Neither re-derives the prompt text; both read it from the file that
+  holds it.
+- **The three `evals.json` suites, the README, and
+  `workflow/context/continuation.md` follow the new shape.** The eval suites for
+  `handoff`, `find-handoff` and `continue-in-background` cover it, the README
+  describes it, and the continuation doc's free-hand fallback clause is
+  reworded to route through the skill.
+- **Legacy shape-1 save-points are never rewritten and still validate.** The
+  bump is minor rather than patch for the new file shape and the new script
+  surface, not for anything that stops working.
+
+### Fixed
+
+- **`save_point.py new` places the cumulative `-new` FILL slot above a carried
+  `Superseded:` marker.** The slot was appended to the end of the section, so
+  when the predecessor's section ended with a `Superseded:` block the hop's new
+  entries landed below the marker and `parse_entries` read them as superseded.
+  The slot now splices in immediately above a top-level marker line (it still
+  appends when there is none), and its instruction says "above any
+  `Superseded:` marker" instead of "below the carried ones".
+- **A multi-paragraph verbatim `Opening ask:` no longer leaks into the
+  successor's goal block.** Both the `new` carry-forward and the `validate`
+  goal check ended the ask's skip at the first blank line, so paragraph 2 and
+  beyond was copied into the successor's immutable goal quote instead of being
+  replaced by the `Opening ask: see <root> § Original goal` pointer. The skip
+  now ends at the next structural marker (a line starting with `**`, or the
+  section end), and the `OPENING_ASK_CAP` counter counts the whole ask block to
+  that same marker rather than stopping at the first blank line.
+- **`validate` refuses a `previous_handoff` pointer that reaches outside the
+  handoffs directory.** `HANDOFF_NAME_RE` used `.+`, which matches `/` and
+  `\`, so a pointer such as `<TS>-handoff-x/../../../outside.md` passed the
+  bare-filename check and the named file was joined, opened and parsed, with
+  its entries echoed back in cumulative findings. The pattern tightens to
+  `[^/\\]+`, and `validate_doc` now applies the realpath containment check
+  `cmd_new` already makes for `--previous`, before `is_file()`, so a symlinked
+  predecessor is rejected too. The `handoffs/`-prefixed pointer keeps failing
+  with the same bare-filename message it always did.
+- **`hop_chain.py`'s `skill_order` check matches the Skill tool's `skill`
+  key.** `skill_evidence` tested `SKILL_NAME in json.dumps(input)`, a substring
+  match over the whole serialized input, so a `Skill` call to some other skill
+  whose `args` merely mentioned `session-flow:handoff` satisfied the check. It
+  now tests `input["skill"] == SKILL_NAME`. The dry-run suite gains a case
+  covering exactly that transcript, going from 18 to 19 cases.
+- **The retro chain walker resolves a `handoffs/`-prefixed `previous_handoff`
+  pointer by basename.** `skills/retro/scripts/parse_transcript.py` truncated
+  the chain to a single id when the pointer carried its directory prefix; it now
+  falls back to the pointer's basename beside the current file.
+- **`validate` refuses a bulleted `Next:` headline.** `_check_rails_block`
+  counted the headlines, held `Then:` last and capped them at five, but never
+  applied `BULLET_RE`, so a headline written as `- do the thing` validated
+  clean and `emit` published it. The contract has always refused a bullet
+  there; the check now names the offending line.
+- **`validate` refuses a required section whose body is empty.** The heading
+  walk checked the 17 section names and their order only, so `## Completion
+  criteria`, `## Environment to re-establish` or `## Remaining actions, in
+  order` could carry nothing at all and the file still exited 0. Every section
+  is always present and says something: a section with nothing to report reads
+  `None.` plus a reason, which is what tells a cold reader "nothing to report"
+  apart from "the author forgot".
+- **`validate` refuses a `handoff_shape` below 1, and stops mislabelling a
+  literal `-1`.** `Doc.shape` returned `-1` as its unparsable marker, so
+  `handoff_shape: -1` was reported as "not an integer", while `0` and `-3` fell
+  through every branch and validated as shape 2 with `validate: PASS`. The
+  marker is now a distinct sentinel object, a genuinely unparsable value keeps
+  the "not an integer" FAIL, and any integer shape below 1 fails with its own
+  message. A shape above the known one still exits 3.
+- **`hop_chain.py`'s `skill_order` check orders two tool calls made in the same
+  assistant message.** `_tool_uses` keyed every block by its record index, so a
+  `[Write(handoffs/x.md), Skill(session-flow:handoff)]` pair in one message
+  compared equal and passed, and the disk fallback could not catch it either
+  because the file is created after the record is logged. The key is now
+  `(record index, block ordinal)` and the comparison is on the tuple.
+- **`hop_chain.py` no longer scores a pre-skill `save_point.py validate` as a
+  free-hand write.** `is_write_indicator` fired on any `python …` command, so
+  the predecessor check a resuming hop legitimately runs (which also names
+  `handoffs/`) failed `skill_order`, against what the comments beside both
+  regexes claimed. The read-only `validate` and `emit` forms are now exempted
+  before the interpreter rule when the command carries no redirect or write
+  verb, and the two comments say what the code does. The dry-run suite gains
+  the three cases these two defects need, going from 19 to 22.
+
 ## [0.34.24]
 
 ### Changed
