@@ -25,7 +25,7 @@ plugins/writing/
   .claude-plugin/plugin.json     name: writing, version 0.1.0, category presentation
   README.md                       what it is, the four properties, the NN/g attribution note
   CHANGELOG.md                    0.1.0 initial
-  skills/concise/
+  skills/be-concise/
     SKILL.md                      the dual-mode skill
     reference/doctrine.md         the four properties, rules, thresholds
     reference/sources.md          per-source drift stamps, no vendored text
@@ -52,8 +52,33 @@ with credit.
 `reference/` rather than `context/`, following the marketplace's own split: `context/` holds
 procedure a skill loads mid-run, `reference/` holds material a skill cites. The doctrine is cited.
 
-Both files live under `skills/concise/`, not at the plugin root, because a single-skill plugin has
+Both files live under `skills/be-concise/`, not at the plugin root, because a single-skill plugin has
 no second consumer and the encapsulation rule lets an intra-plugin path cite work.
+
+## Thread 3 (resolved 2026-09-05, after the plan-reviewer pass): the name
+
+`docs/PLUGIN-PHILOSOPHY.md` "Naming" requires an imperative verb phrase. Its noun carve-out covers
+knowledge routers (`principles`, `methodology`) and lifecycle-object routers (`worktree`,
+`pull-request`); the seven further exceptions each rest on upstream parity, craft vocabulary, or a
+phrase the user literally types. An adjective is in none of them, and the section closes "a name
+class is never blanket-sanctioned."
+
+`be-concise` is an imperative verb phrase, so it satisfies the rule with no exception entry and
+keeps the head word the interview chose. The alternative, arguing a new exception for bare
+`concise`, would have rested on preferring the word, which is the blanket sanction the rule refuses.
+
+## Thread 4 (resolved 2026-09-05, after the plan-reviewer pass): the standing-posture collision
+
+`discipline:tighten-your-output` already claims "be more concise", "too verbose", "say it in fewer
+words" and "cut the wordiness", and carries `discipline-batch: core` with rank 110, so it loads as
+a standing discipline in every session. The new skill's bare mode would be a second standing
+brevity posture over the same vocabulary, and Boundary prose cannot resolve a same-phrase collision.
+
+Resolved by migrating the vocabulary rather than duplicating it, using the trigger-migration table
+the repo's migration playbook defines. Reader-facing prose phrases go to `writing:be-concise`;
+in-flight chat and code terseness stays with `tighten-your-output`. Both modes of the new skill
+survive. Phase 4 of the plan carries the work and a sanity check asserting the two descriptions are
+disjoint.
 
 ## Design defaults audited
 

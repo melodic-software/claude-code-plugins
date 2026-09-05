@@ -7,10 +7,18 @@ after three interview rounds (18 questions, all resolved, user-confirmed). Ready
 
 ## Brief
 
+> **Amendment 2026-09-05, after the plan-reviewer pass.** Two decisions changed, both confirmed by
+> the user. (1) The skill is `writing:be-concise`, not `writing:concise`: the marketplace's naming
+> rule requires an imperative verb phrase, and its noun carve-out covers knowledge routers and
+> lifecycle-object routers only, neither of which this is. (2) `discipline:tighten-your-output`
+> already owns the phrases "be more concise", "too verbose", "say it in fewer words" and "cut the
+> wordiness", and auto-loads as `discipline-batch: core`, so the two skills' trigger vocabularies
+> are migrated rather than duplicated. The acceptance criteria below carry both.
+
 ### TLDR
 
 - A new small plugin (`writing`, category `presentation`) with one dual-mode skill,
-  `writing:concise`: invoked bare it sets a standing posture for the session; given any target it
+  `writing:be-concise`: invoked bare it sets a standing posture for the session; given any target it
   reshapes that text for a scanning human reader. Plus one doctrine reference file.
 - Doctrine derived from NN/g (concise, scannable, objective), GOV.UK, US plain language, Google,
   Microsoft, and BLUF, paraphrased with drift stamps; NN/g is never vendored.
@@ -57,7 +65,7 @@ been posted, on request.
 
 ### Acceptance criteria
 
-- A `plugins/writing/` directory with `plugin.json`, README, CHANGELOG, `skills/concise/SKILL.md`,
+- A `plugins/writing/` directory with `plugin.json`, README, CHANGELOG, `skills/be-concise/SKILL.md`,
   a `reference/` doctrine file, and `evals/evals.json`; `skill-quality:check` and
   `scripts/check-skill-leaf-names.sh --check` pass. The skill's description names all four
   properties in its first line, so the one-word name never has to carry them alone, and routes
@@ -94,7 +102,13 @@ been posted, on request.
   2.4.1; `bugs:write`; `planning:prd`.
 - Each NN/g-derived rule carries a drift stamp and a `reference/sources.md` entry; no article text
   is vendored.
-- `scripts/affected-tests.sh --run` passes for the change set.
+- `bash scripts/validate-plugins.sh` passes for the change set. It is the headline gate: it checks
+  plugin contracts, catalog sync, cheat-sheet sync, identity prerequisites and native surfaces.
+  `scripts/affected-tests.sh --run` also passes but selects almost nothing here, because `*.md` and
+  `*.json` are both on the no-suite list.
+- A trigger-migration table records which brevity phrase each of `writing:be-concise` and
+  `discipline:tighten-your-output` owns, and neither description claims a phrase the table assigns
+  to the other.
 
 ### Captured assumptions
 
@@ -126,7 +140,7 @@ not here.
 
 ## Plan
 
-**Goal.** Ship the `writing` plugin and its one skill, `writing:concise`, wire the four plugins
+**Goal.** Ship the `writing` plugin and its one skill, `writing:be-concise`, wire the four plugins
 whose Boundaries currently exclude reader-facing prose to route at it, and add pointers at the
 eight places this marketplace composes prose a person will read. One branch, one draft PR.
 
@@ -154,11 +168,22 @@ The integration slice. Nothing else can point at a skill that does not resolve.
 
 | File | Action | Rationale |
 |---|---|---|
-| `plugins/writing/.claude-plugin/plugin.json` | CREATE | name `writing`, version `0.1.0`, MIT, keywords |
+| `plugins/writing/.claude-plugin/plugin.json` | CREATE | name `writing`, version `0.1.0`, MIT, keywords, **and a `description`**, which `generate-catalog.mjs` requires |
 | `plugins/writing/README.md` | CREATE | what it is, the four properties, the NN/g attribution note |
 | `plugins/writing/CHANGELOG.md` | CREATE | `0.1.0` initial entry |
-| `plugins/writing/skills/concise/SKILL.md` | CREATE | the dual-mode skill body |
+| `plugins/writing/skills/be-concise/SKILL.md` | CREATE | the dual-mode skill body |
 | `.claude-plugin/marketplace.json` | MODIFY | one entry, `category: presentation` |
+| `.claude/settings.json` | MODIFY | `enabledPlugins` key, which `check-plugin-catalog-enablement.sh` requires for every catalogued plugin |
+
+The SKILL.md frontmatter carries `metadata.workflow-stage` and `metadata.summary` (a plain scalar
+at most 100 codepoints), which `generate-cheatsheet.mjs` requires of any skill not listed in
+`scripts/cheatsheet-config.mjs`.
+
+The body states four behaviors the Brief requires and the earlier draft left unnamed: output leads
+with the bottom line and details follow; before and after word counts are reported on every
+rewrite; a record already posted is never edited in place unless the user says so; and an input
+longer than a few paragraphs goes through the fresh-context semantic-diff guard with the added
+"dropped decision, number, or ask" class, while a short comment gets an inline diff instead.
 
 The description's first line names all four properties (point first, no excess words, scannable
 structure, factual tone) so the one-word name never carries them alone. It routes away by name
@@ -174,15 +199,26 @@ only names deliberately carried by more than one.
 
 - `bash scripts/check-skill-leaf-names.sh --check` exits 0.
 - `check-jsonschema --schemafile` against the plugin-manifest schema on `plugins/writing/.claude-plugin/plugin.json` exits 0.
-- `python3 -c "import json;json.load(open('.claude-plugin/marketplace.json'))"` exits 0 and the `writing` entry is present with `category` equal to `presentation`.
-- `/skill-quality:check concise` reports PASS.
+- `bash scripts/check-plugin-catalog-enablement.sh` exits 0, proving the `enabledPlugins` key landed.
+- `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/writing/skills" bash plugins/skill-quality/scripts/check-skill.sh be-concise` reports PASS. A bare `/skill-quality:check be-concise` cannot resolve here: the checker looks under `${CLAUDE_PROJECT_DIR}/.claude/skills`, which this repo does not have.
+- The four behaviors are present in the body: `grep -c "word count" SKILL.md`, `grep -ci "in place" SKILL.md`, and `grep -ci "semantic.diff" SKILL.md` are each at least 1.
 
 ### Phase 2: Doctrine and sources [TODO]
 
 | File | Action | Rationale |
 |---|---|---|
-| `plugins/writing/skills/concise/reference/doctrine.md` | CREATE | four properties, rules, thresholds |
-| `plugins/writing/skills/concise/reference/sources.md` | CREATE | one drift-stamped entry per source |
+| `plugins/writing/skills/be-concise/reference/doctrine.md` | CREATE | four properties, rules, thresholds |
+| `plugins/writing/skills/be-concise/reference/sources.md` | CREATE | one drift-stamped entry per source |
+| `scripts/em-dash-purged-paths.txt` | MODIFY | add the new plugin's prose paths so the ratchet enforces them |
+
+The doctrine also carries the formatting-by-purpose rule the Brief requires and the earlier draft
+left unnamed: lists for facts a reader scans, prose for reasoning a reader follows, bold limited to
+a few keywords per screen and never restating the line, citing the `rule-bold-overuse` carve-out
+wording so a later promotion of that catalog rule does not fire on it. It names no model
+generation.
+
+A drift stamp here is the four **prose parts** the convention defines (the claim, the basis with
+its URL, the as-of date, and the recheck trigger), not keyed YAML fields.
 
 Sectioned by property, not by source. Universal brevity rules are marked as such, because
 `write-for-agents` points at exactly those and must not drag headings and bullets into agent-facing
@@ -195,17 +231,17 @@ or warning is ever dropped, and a destination's own structural contract survives
 
 **Sanity Check:**
 
-- Every source entry carries all four drift-stamp fields: `grep -c "^upstream:" reference/sources.md` equals the entry count, and the same for the other three field names in `docs/conventions/upstream-drift/README.md`.
-- No vendored article text: the longest single quoted run attributed to nngroup.com is under 25 words (`grep -n 'nngroup' reference/sources.md` then read each quote).
-- `markdownlint-cli2 plugins/writing/**/*.md` reports 0 issues.
-- `bash scripts/check-purged-em-dashes.sh` exits 0 for the new paths.
+- Every source entry carries the four prose parts. Each `###` entry in `reference/sources.md` is followed by all four labelled lines (`Claim:`, `Basis:`, `As of:`, `Recheck when:`); `grep -c '^### ' reference/sources.md` equals `grep -c '^Claim:' reference/sources.md` and equals the count for each of the other three labels.
+- No vendored article text: read every quoted run attributed to nngroup.com in `reference/sources.md` and confirm each is under 25 words.
+- `markdownlint-cli2 "plugins/writing/**/*.md"` reports 0 issues. The glob is quoted so the tool expands it rather than the shell, which has globstar off by default in bash and Git Bash.
+- `bash scripts/check-purged-em-dashes.sh --check` exits 0, **and** the new paths are actually enforced: `grep -c 'plugins/writing' scripts/em-dash-purged-paths.txt` is at least 1. Without the allowlist entry the gate passes vacuously.
 
 ### Phase 3: Evals [TODO]
 
 | File | Action | Rationale |
 |---|---|---|
-| `plugins/writing/skills/concise/evals/evals.json` | CREATE | six cases |
-| `plugins/writing/skills/concise/evals/fixtures/` | CREATE | one fixture per case that needs input |
+| `plugins/writing/skills/be-concise/evals/evals.json` | CREATE | six cases |
+| `plugins/writing/skills/be-concise/evals/fixtures/` | CREATE | one fixture per case that needs input |
 
 Six cases, one per acceptance criterion that can be graded: a long tracker comment reduced to a
 bottom line with every decision and number intact; a PR body whose closing keyword line and four
@@ -215,8 +251,8 @@ that routes skill-body prose to `write-for-agents`; a route-away of "this is a w
 
 **Sanity Check:**
 
-- `/skill-quality:check validate-evals concise` exits 0.
-- `evals.json` holds exactly 6 cases and every `files` entry resolves: `python3 -c` over the JSON asserting each path exists.
+- `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/writing/skills" bash plugins/skill-quality/scripts/check-skill.sh be-concise` reports PASS with evals present.
+- `evals.json` uses the repo's shape and holds exactly 6 cases: `python3 -c` over the JSON asserting the top-level keys are `skill_name` and `evals` (not `cases`), that `len(evals)` is 6, and that every `files` entry resolves on disk.
 
 ### Phase 4: Reciprocal routing [TODO]
 
@@ -224,20 +260,40 @@ The four skills that currently exclude this prose, plus the one that needs the b
 
 | File | Action | Rationale |
 |---|---|---|
-| `plugins/ai-slop/skills/audit/SKILL.md` | MODIFY | Boundary routes reader-facing prose to `writing:concise` |
+| `plugins/ai-slop/skills/audit/SKILL.md` | MODIFY | Boundary routes reader-facing prose to `writing:be-concise` |
 | `plugins/docs-hygiene/skills/write-for-humans/SKILL.md` | MODIFY | description and Boundary route existing prose and PR bodies |
 | `plugins/docs-hygiene/skills/write-for-humans/evals/evals.json` | MODIFY | case 5 asserts the route, not just the decline |
 | `plugins/docs-hygiene/skills/write-for-agents/SKILL.md` | MODIFY | pointer at the universal brevity rules only |
 | `plugins/discipline/skills/tighten-your-output/SKILL.md` | MODIFY | the flagged markdown-terseness gap now names its owner |
 
 Every pointer is presence-gated ("when the `writing` plugin is installed") and cites
-`/writing:concise` by name, never a path into the plugin, per the encapsulation rule.
+`/writing:be-concise` by name, never a path into the plugin, per the encapsulation rule. That
+includes the `write-for-agents` pointer: it names the skill and describes the universal brevity
+rules in prose, and never links `reference/doctrine.md`.
+
+**The edited surface is the `description` frontmatter and the body prose, not a `## Boundary`
+heading.** None of these four files has such a heading; the exclusions live in the description and
+in the body.
+
+**Pre-flight consumer check, the first work item.** Nothing consumes these exclusion texts
+programmatically: no script or eval greps them, and the native-overlap store's
+`baked.boundary_section` holds zero rows. Re-confirm with one grep before editing, then proceed.
+
+**Trigger migration (Q20).** `discipline:tighten-your-output` currently claims "be more concise",
+"too verbose", "say it in fewer words" and "cut the wordiness", and auto-loads every session as
+`discipline-batch: core`. Build the trigger-migration table the repo's migration playbook defines,
+assigning each phrase one owner: reader-facing prose phrases move to `writing:be-concise`, and
+in-flight chat and code terseness stays with `tighten-your-output`. Neither description may claim a
+phrase the table gives the other.
 
 **Sanity Check:**
 
-- `grep -rl "writing:concise" plugins/ai-slop plugins/docs-hygiene plugins/discipline` lists exactly the 5 files above.
+- `grep -rl "writing:be-concise" plugins/ai-slop plugins/docs-hygiene plugins/discipline` lists exactly the 5 files above.
 - Each of the 5 hits is presence-gated: `grep -c "writing.*installed" <file>` is at least 1 per file.
-- `/skill-quality:check` reports PASS for each modified skill.
+- `bash scripts/check-changed-skills.sh` exits 0. It runs the per-skill checker over exactly the changed skills, which is the invocation that resolves in this repo.
+- No trigger keyword was dropped: the per-skill checker's trigger-preservation check (single-quoted phrases against HEAD) passes for all four edited skills. Phrases deliberately moved by the migration table are the expected exception and are named in the commit body.
+- Description length did not regress past the 1024-codepoint warning: for each edited skill, `python3 -c` measuring the description's codepoint count reports a number no larger than before the edit. `write-for-humans` already sits near 1110, so its edit must not lengthen it.
+- The trigger-migration table exists and is disjoint: no phrase appears in both `writing:be-concise` and `discipline:tighten-your-output` descriptions.
 
 ### Phase 5: Composition-site pointers [TODO]
 
@@ -257,27 +313,35 @@ the file. Nothing changes shape or template; the pointer says which skill shapes
 
 **Sanity Check:**
 
-- `grep -rl "writing:concise" plugins/work-items plugins/source-control plugins/bugs plugins/planning` lists exactly the 8 files above.
+- `grep -rl "writing:be-concise" plugins/work-items plugins/source-control plugins/bugs plugins/planning` lists exactly the 8 files above.
 - No template or required-section list changed: `git diff --stat` for these 8 files shows additions only, no deletions beyond reflow.
-- `/skill-quality:check` reports PASS for each modified skill.
+- `bash scripts/check-changed-skills.sh` exits 0.
 
 ### Phase 6: Registration, versions, changelogs, validation [TODO]
 
 | File | Action | Rationale |
 |---|---|---|
-| `docs/CATALOG.md` | MODIFY | new plugin row |
-| `docs/SKILL-CHEAT-SHEET.md` | MODIFY | new skill row |
+| `docs/CATALOG.md` | REGENERATE | generated between markers by `scripts/generate-catalog.mjs`; never hand-edited |
+| `docs/SKILL-CHEAT-SHEET.md` | REGENERATE | generated by `scripts/generate-cheatsheet.mjs` from skill frontmatter |
 | `plugins/{ai-slop,docs-hygiene,discipline,work-items,source-control,bugs,planning}/.claude-plugin/plugin.json` | MODIFY | patch bump each |
 | same seven `CHANGELOG.md` | MODIFY | one entry each naming the routing change |
 | `docs/topics/web-writing-conciseness/PLAN.md` | MODIFY | phase tags to `[DONE]` |
 
-Version numbers are the next patch above `origin/main` at cut time, renumbered above PR #3766 if
-it merged first.
+Both docs are generated, so this phase runs the two generators rather than editing the files. Their
+inputs are the manifest `description` and the skill `metadata` added in Phase 1; without those the
+generators throw. Both ship `--check` gates in CI, so a hand edit would fail the build.
+
+Version numbers are the next patch above `origin/main` at cut time. PR #3766 bumps verification,
+testing, mutation-testing and claude-ops, which is disjoint from this change's seven plugins, so
+there is no version collision to renumber.
 
 **Sanity Check:**
 
-- `bash scripts/affected-tests.sh --run` exits 0.
+- `bash scripts/validate-plugins.sh` exits 0. This is the headline gate: plugin contracts, catalog sync, cheat-sheet sync, identity prerequisites and native surfaces.
+- `bash scripts/check-plugin-catalog-enablement.sh` exits 0.
 - `bash scripts/check-changed-skills.sh` exits 0 with `--require-evals` in force.
+- `bash scripts/affected-tests.sh --run` exits 0. Recorded for completeness; it selects almost nothing here because `*.md` and `*.json` are on the no-suite list, so it is not evidence this change is sound.
+- Both generated docs are in sync, proven by `validate-plugins.sh` above rather than by reading them.
 - Every touched plugin has both a version bump and a changelog entry: for each, `git diff origin/main -- <plugin>/.claude-plugin/plugin.json <plugin>/CHANGELOG.md` is non-empty on both paths.
 - `bash scripts/check-purged-em-dashes.sh` exits 0.
 
@@ -289,6 +353,8 @@ it merged first.
 | Extend `ai-slop`'s rewrite guide | ai-slop detects tells, not length or structure, and its catalog is a closed CC BY-SA corpus | If the doctrine collapses to a word list with no reader model |
 | Two PRs (plugin, then pointers) | User chose one branch and one PR | If review latency on the combined diff blocks the plugin from landing |
 | Ship a detector script in V1 | Every rule needs a crosswalk row and a co-located test; word-count delta is the best-evidenced measure and needs no script | If judgment-only V1 produces inconsistent rewrites across sessions |
+| Keep the bare name `concise` and argue a naming exception | The rule admits exceptions per name, but every existing one rests on upstream parity, craft vocabulary, or a user-typed phrase. Ours would rest on preferring the word, which the closing rule refuses as a blanket sanction | If the marketplace later admits an adjective class for output-register skills |
+| Drop the standing-posture mode instead of migrating triggers | The user asked for both modes, and the posture is what reaches the Jira case proactively | If the migration table cannot make the two vocabularies disjoint without stranding a phrase |
 | A PreToolUse hook on `gh pr create` | The hook budget is over ceiling and rule 2 never relaxes | If the budget is re-measured with headroom and demand is demonstrated |
 
 ### Test strategy
@@ -314,7 +380,9 @@ marketplace already uses.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Merge conflict with PR #3766 in `marketplace.json`, `CATALOG.md`, `SKILL-CHEAT-SHEET.md` | High | Low | Rebase after it merges; these are append-only list files |
+| Conflict with PR #3766 in `marketplace.json`, `CATALOG.md`, `SKILL-CHEAT-SHEET.md` | High | Low | Rebase after it merges, then re-run both generators. The two docs are generated, so they are resolved by regeneration rather than by merging hunks; `marketplace.json` is order-sensitive JSON and is resolved by hand |
+| The naming rule rejects the skill name at review | Resolved | High | Settled before implementation: `be-concise` is an imperative verb phrase, so no exception entry is needed |
+| Two standing brevity postures compete on the same trigger phrases | Resolved | High | Settled before implementation: Phase 4 migrates the vocabulary and the sanity check asserts the two descriptions are disjoint |
 | The doctrine reads as a second `write-for-humans` and nobody routes correctly | Medium | High | Descriptions state the split explicitly; eval cases 4 and 5 assert the routes |
 | A pointer edit changes a required-section template by accident | Low | High | Phase 5 sanity check asserts additions only |
 | NN/g attribution drifts or over-quotes | Low | Medium | Phase 2 sanity check bounds quote length and asserts drift stamps |
@@ -333,8 +401,24 @@ matches a docs-only change with no runtime and no data migration.
 
 ## Stress-test summary
 
-Step 3 plan-reviewer sub-agent: dispatched, findings applied (recorded below at approval time).
-Step 4 formal stress-test: skipped, blast radius MEDIUM with no matching trigger.
+**Step 3 plan-reviewer sub-agent: dispatched 2026-09-05.** Returned 3 CRITICAL, 8 IMPORTANT, 5
+SUGGESTION. Every finding was verified against the actual files before acting; none was rejected.
+
+The three critical ones each found a real defect. The skill name violated the marketplace's
+imperative-verb-phrase naming rule, and the noun carve-out the draft leaned on covers knowledge and
+lifecycle-object routers only; the name is now `be-concise`. `.claude/settings.json` `enabledPlugins`
+was in no file table, though a dedicated gate exists because three plugins previously shipped
+without it. And `CATALOG.md` and `SKILL-CHEAT-SHEET.md` are generated between markers with
+`--check` CI gates, while the draft listed them as hand edits and omitted the two frontmatter
+fields their generators require.
+
+The important findings corrected four sanity checks written with flags their scripts do not accept,
+replaced `affected-tests.sh` as the headline gate (it selects almost nothing for markdown), named
+the surface Phase 4 actually edits, recorded the pre-flight consumer result, and surfaced the
+trigger collision with `discipline:tighten-your-output` that became Q20.
+
+**Step 4 formal stress-test: skipped.** Blast radius MEDIUM with no matching trigger, and the
+reviewer pass plus verified upstream artifacts cover it.
 
 ## Execution shape
 
@@ -372,14 +456,15 @@ it merges.
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
-Sequential, six phases, all main-session, commit per phase. Phase 1 is the integration slice. No
-scope-fencing tables are needed because no parallel agents run. The sequential path is the only
-path, so there is no fallback to document.
+Sequential, six phases, all main-session, commit per phase. Phase 1 is the
+integration slice. No scope-fencing tables are needed because no parallel
+agents run, and the sequential path is the only path, so there is no fallback
+to document.
 
 ### Mechanical work
 
-- One commit per phase, subject shaped per the resolved Conventional Commits convention, with the
-  attribution trailers.
+- One commit per phase, subject shaped per the resolved Conventional Commits
+  convention, with the attribution trailers.
 - Push after each phase so the branch never holds unpushed work.
 - Open the PR as a draft and flip it to ready when Phase 6 is green, per `AGENTS.md`.
 - Validate with `scripts/affected-tests.sh --run`, never the full suite.
