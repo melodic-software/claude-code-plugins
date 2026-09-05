@@ -150,15 +150,23 @@ def is_graphql_unavailable(failure: BaseException | str) -> bool:
     """Whether a failed GraphQL-backed `gh` call was refused the API itself.
 
     Two signals, either sufficient: the pinned-operation refusal text, and a
-    403. Applied ONLY to GraphQL-backed calls, where both readings lead
-    somewhere safe -- a REST re-source that either answers or fails loudly on
-    its own, or a fail-closed verdict. It is never used to decide a fact, so a
-    false positive costs an extra REST round trip and never a wrong answer.
+    PARSED 403 status. Applied ONLY to GraphQL-backed calls, where both
+    readings lead somewhere safe -- a REST re-source that either answers or
+    fails loudly on its own, or a fail-closed verdict.
+
+    Neither signal may be a bare substring scan of the failure text. That text
+    is `run_command`'s, which embeds the whole argv, and every GraphQL call
+    here passes the PR number as `-F n=<number>`: a scan for "403" reports the
+    session refusal for any failure whatsoever on PR #403, including a timeout,
+    which would substitute REST for a call that never reached GitHub. Only the
+    status `gh` itself reported, and the refusal wording, name the condition.
+    The status regex is case-sensitive on `(HTTP nnn)`, so it reads the
+    original text while the marker match casefolds its own copy.
     """
-    text = (str(failure) or "").casefold()
-    if any(marker in text for marker in GRAPHQL_UNAVAILABLE_MARKERS):
+    text = str(failure) or ""
+    if any(marker in text.casefold() for marker in GRAPHQL_UNAVAILABLE_MARKERS):
         return True
-    return gh_http_status(text) == 403 or "403" in text
+    return gh_http_status(text) == 403
 
 
 def gh_json_graphql(args: list[str], *, label: str) -> Any:
@@ -230,20 +238,59 @@ def parse_repo(value: str) -> str:
     return f"{match.group(1)}/{match.group(2)}".casefold()
 
 
+def rest_list_repos_for_owner(owner: str) -> list[str]:
+    """`gh repo list` rebuilt from REST, for a session served no GraphQL.
+
+    `gh repo list --json` is a GraphQL `RepositoryList` query, so it 403s
+    alongside `gh pr view` and takes owner-mode discovery with it. REST spells
+    the same listing two ways and nothing upstream knows which kind of account
+    an owner is, so the organization endpoint is tried first and its 404 -- the
+    answer for a user account -- falls through to the user endpoint. Any other
+    failure is re-raised: a listing that failed for another reason must not
+    read as an owner with no repositories.
+
+    Pagination walks every page, so unlike the GraphQL path there is no result
+    cap to detect and no truncation to warn about.
+    """
+    if not GITHUB_OWNER_RE.fullmatch(owner):
+        raise ValueError(f"Expected a GitHub owner, got: {owner}")
+    try:
+        rows = fetch_paginated_api(
+            f"orgs/{owner}/repos?per_page=100", f"{owner} repositories"
+        )
+    except RuntimeError as exc:
+        if gh_http_status(str(exc)) != 404:
+            raise
+        rows = fetch_paginated_api(
+            f"users/{owner}/repos?per_page=100", f"{owner} repositories"
+        )
+    repos: list[str] = []
+    for row in rows:
+        name = str(row.get("full_name") or "").strip().casefold()
+        if name:
+            repos.append(name)
+    return repos
+
+
 def list_repos_for_owner(owner: str) -> list[str]:
-    text = run_gh(
-        [
-            "repo",
-            "list",
-            owner,
-            "--limit",
-            str(REPOSITORY_LIST_LIMIT),
-            "--json",
-            "nameWithOwner",
-            "--jq",
-            ".[].nameWithOwner",
-        ]
-    )
+    try:
+        text = run_gh(
+            [
+                "repo",
+                "list",
+                owner,
+                "--limit",
+                str(REPOSITORY_LIST_LIMIT),
+                "--json",
+                "nameWithOwner",
+                "--jq",
+                ".[].nameWithOwner",
+            ]
+        )
+    except RuntimeError as exc:
+        if not is_graphql_unavailable(exc):
+            raise
+        return rest_list_repos_for_owner(owner)
     repos = [line.strip().casefold() for line in text.splitlines() if line.strip()]
     if len(repos) >= REPOSITORY_LIST_LIMIT:
         raise RuntimeError(
@@ -333,6 +380,49 @@ def _search_prs_for_owners(
     return found, errors
 
 
+def rest_list_prs_for_repo(
+    repo: str, per_repo_limit: int, author: str | None
+) -> list[dict[str, Any]]:
+    """`gh pr list --json` rebuilt from REST, in the shape discovery reads.
+
+    `gh pr list --json` is a GraphQL `PullRequestList` query -- confirmed
+    against a restricted session, which answers it with the same pinned-
+    operation 403 that takes out `gh pr view`. Queue discovery is the FIRST
+    call in the fleet loop, so without this substitution the loop finds no PRs
+    and every REST hydration path downstream is never reached.
+
+    Only the two members discovery actually reads are rebuilt --
+    `repository.nameWithOwner` and `number`. The rest of `RECONCILE_FIELDS`
+    (`url`, `title`, `updatedAt`, `isDraft`) is read by nobody here: each PR is
+    hydrated field for field by `view_pr`, which has its own REST path.
+
+    `--author` filters server-side over GraphQL and `GET /pulls` has no author
+    parameter, so the filter is applied here, and truncation to
+    `per_repo_limit` happens after it -- keeping the caller's "result limit
+    reached" warning meaning exactly what it means on the GraphQL path.
+    """
+    rows = fetch_paginated_api(
+        f"repos/{repo}/pulls?state=open&per_page=100",
+        f"{repo} open pull requests",
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        number = row.get("number")
+        if not isinstance(number, int):
+            continue
+        login = str(json_object(row.get("user")).get("login") or "")
+        if author and login.casefold() != author.casefold():
+            continue
+        base_repo = str(
+            json_object(json_object(row.get("base")).get("repo")).get("full_name")
+            or repo
+        )
+        out.append({"number": number, "repository": {"nameWithOwner": base_repo}})
+        if len(out) >= per_repo_limit:
+            break
+    return out
+
+
 def _list_prs_for_repo(
     repo: str,
     per_repo_limit: int,
@@ -357,8 +447,14 @@ def _list_prs_for_repo(
             ]
         )
     except RuntimeError as exc:
-        errors.append(f"repository reconcile {repo}: {exc}")
-        return
+        if not is_graphql_unavailable(exc):
+            errors.append(f"repository reconcile {repo}: {exc}")
+            return
+        try:
+            rows = rest_list_prs_for_repo(repo, per_repo_limit, author)
+        except RuntimeError as rest_exc:
+            errors.append(f"repository reconcile {repo}: {rest_exc}")
+            return
     if len(rows or []) >= per_repo_limit:
         errors.append(
             f"repository reconcile {repo}: result limit {per_repo_limit} reached; queue may be incomplete"
@@ -412,6 +508,15 @@ def discover_prs(
     one at a time and their results unioned; an empty author list discovers
     every author under the axis. Errors are deduplicated across author passes
     since they are keyed by owner/repo, not author.
+
+    Which of the three underlying `gh` commands are GraphQL matters here,
+    because discovery runs before any hydration: a queue that cannot be built
+    never reaches the REST substitutions downstream. `gh repo list` and
+    `gh pr list --json` are GraphQL (`RepositoryList`, `PullRequestList`) and
+    each has a REST substitute (`rest_list_repos_for_owner`,
+    `rest_list_prs_for_repo`) wired in behind `is_graphql_unavailable`.
+    `gh search prs` is NOT: it calls the REST search API (`GET /search/issues`)
+    and needs no substitute, so leave it alone.
     """
     owner_list = [owner for owner in (owners or []) if owner]
     repo_list = [repo for repo in (repos or []) if repo]
@@ -551,9 +656,12 @@ def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
             workflow_names[suite_id] = str(run.get("name") or "")
 
     rollup: list[dict[str, Any]] = []
+    # An object endpoint: each page is `{total_count, check_runs: [...]}`, so
+    # the items live under `check_runs` rather than being the page itself.
     for run in fetch_paginated_api(
         f"repos/{repo}/commits/{head_sha}/check-runs?per_page=100",
         f"{repo}@{head_sha} check runs",
+        items_key="check_runs",
     ):
         suite_id = json_object(run.get("check_suite")).get("id")
         rollup.append(
@@ -728,8 +836,33 @@ def fetch_blocked_base_compare(
     return {"status": status, "ahead_by": ahead_by, "behind_by": behind_by}
 
 
-def flatten_paginated_items(value: Any, label: str) -> list[dict[str, Any]]:
-    """Flatten `gh api --paginate --slurp` output and reject unknown shapes."""
+def flatten_paginated_items(
+    value: Any, label: str, *, items_key: str | None = None
+) -> list[dict[str, Any]]:
+    """Flatten `gh api --paginate --slurp` output and reject unknown shapes.
+
+    `--slurp` collects one entry per page and each entry keeps the endpoint's
+    own shape: an ARRAY endpoint (`/pulls`, `/issues/{n}/comments`) yields an
+    array per page, and an OBJECT endpoint yields an object per page. Most of
+    this module's endpoints are the first kind, which the default handles.
+
+    `items_key` names the member carrying the items on the second kind. It is
+    required there, because an object page is indistinguishable from a single
+    item by shape alone: without it, the check-runs payload
+    `{total_count, check_runs: [...]}` is returned AS a check run, one per
+    page, each with no name, no status and no conclusion, and every real check
+    run on the commit disappears behind it.
+    """
+    if items_key is not None:
+        pages = value if is_json_array(value) else [value]
+        items: list[Any] = []
+        for page in pages:
+            if not is_json_object(page) or not is_json_array(page.get(items_key)):
+                raise RuntimeError(f"Unexpected paginated response for {label}")
+            items.extend(page[items_key])
+        if not all(is_json_object(item) for item in items):
+            raise RuntimeError(f"Unexpected paginated response items for {label}")
+        return items
     if not is_json_array(value):
         raise RuntimeError(f"Unexpected paginated response for {label}")
     if value and all(is_json_array(page) for page in value):
@@ -742,9 +875,11 @@ def flatten_paginated_items(value: Any, label: str) -> list[dict[str, Any]]:
     raise RuntimeError(f"Unexpected paginated response items for {label}")
 
 
-def fetch_paginated_api(endpoint: str, label: str) -> list[dict[str, Any]]:
+def fetch_paginated_api(
+    endpoint: str, label: str, *, items_key: str | None = None
+) -> list[dict[str, Any]]:
     return flatten_paginated_items(
-        gh_json(["api", endpoint, "--paginate", "--slurp"]), label
+        gh_json(["api", endpoint, "--paginate", "--slurp"]), label, items_key=items_key
     )
 
 
@@ -863,7 +998,16 @@ def rest_hydrate_reviews(pr: dict[str, Any], repo: str, number: int) -> None:
     the REST `reviews` list is complete and paginated, so
     `latest_reviews_by_author` already derives the latest review per author
     from it alone.
+
+    When the bundle already came from REST (`_graphql_available` False), its
+    `reviews` list IS this function's output: `rest_view_pr` builds it with the
+    same `fetch_pull_request_reviews` call, to derive `reviewDecision`. Fetching
+    it again would repeat an identical paginated request per PR per pass, so
+    the drop of `latestReviews` still runs and the refetch does not.
     """
+    if pr.get("_graphql_available") is False and is_json_array(pr.get("reviews")):
+        pr.pop("latestReviews", None)
+        return
     pr["reviews"] = fetch_pull_request_reviews(repo, number)
     pr.pop("latestReviews", None)
 

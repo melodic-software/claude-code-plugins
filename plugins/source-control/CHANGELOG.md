@@ -45,6 +45,31 @@ All notable changes to the `source-control` plugin are documented here. Format f
   written into a `base_sha` snapshot field that nothing ever read. The freshness check has
   deliberately compared against the base ref NAME since the cached OID was found to lag the live
   base tip (`reference/freshness.md`), so the field had no reader left. Behaviour-neutral.
+- **Queue discovery re-sources over REST too, so the lane reaches its own hydration.** Discovery
+  runs before any of the above, and two of its three `gh` commands are GraphQL: `gh repo list`
+  (`query RepositoryList`) and `gh pr list --json` (`query PullRequestList`) both draw the same
+  pinned-operation 403, which left the fleet loop finding no PRs and never reaching a single REST
+  substitution. `rest_list_repos_for_owner` reads `GET /orgs/{owner}/repos`, falling through the
+  organization endpoint's 404 to `GET /users/{owner}/repos`, and `rest_list_prs_for_repo` reads
+  `GET /repos/{owner}/{repo}/pulls`, rebuilding only the two members discovery consumes and
+  applying the author filter client-side because that endpoint carries no author parameter.
+  `gh search prs` is left alone: it calls the REST search API, not GraphQL.
+- **Every page of REST check runs is unwrapped.** `…/commits/{sha}/check-runs` answers with an
+  OBJECT, `{total_count, check_runs}`, so `gh api --paginate --slurp` yields one page WRAPPER per
+  page rather than one check run. The flattener read each wrapper as a check run, which has no
+  name, no status and no conclusion, inventing a nameless pending check per page and hiding every
+  real run behind it. `flatten_paginated_items` now takes the member name for object endpoints.
+- **The GraphQL-refusal classifier reads the status, never a substring.** `is_graphql_unavailable`
+  also scanned the failure text for `403`, and that text is `run_command`'s, which embeds the
+  whole argv: on PR #403 the `-F n=403` argument made any failure, a timeout included, read as
+  the session refusal and sent the caller to REST over a call that never reached GitHub. Only the
+  status `gh` itself reported and the refusal wording classify now. (The status parse was also
+  being applied to a casefolded copy, which its `(HTTP nnn)` pattern never matched, so the
+  substring was in practice the only signal firing.)
+- **One REST reviews fetch per hydration instead of two.** `rest_view_pr` already fetches
+  `…/pulls/{n}/reviews` to derive `reviewDecision`, and its result IS what `rest_hydrate_reviews`
+  refetched immediately afterwards at every call site. The hydrator now recognizes a REST-sourced
+  bundle and keeps the list it already has, still dropping the stale `latestReviews`.
 
 ### Changed
 
