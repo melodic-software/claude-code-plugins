@@ -120,6 +120,41 @@ Whole steady PostToolBatch fire, end to end: 15 processes before this pass (17 w
 carries the token fields), 3 after. Those three are one `jq` in the hook, the resolver's own
 process, and one `jq` inside it.
 
+#### Counting invocations is not counting processes
+
+The figures above count commands in command position, which counts `jq` and `bash` *invocations*.
+That is not the number of processes the operating system creates, and the two came apart here.
+Bash normally elides the extra fork inside `$(...)` and execs the command in the substitution's own
+subshell, but only when that command carries no redirection of its own. A `2>/dev/null`, a `<<<`,
+or a pipeline written *inside* the substitution defeats the elision, so bash forks the subshell and
+then forks again to run the command. A fork that never execs never reaches a command position, so
+the invocation count sees one process where the kernel made two.
+
+Re-measured under `strace -f` (counting `clone`/`fork`/`vfork`), the steady fire that this section
+reported as 3 was creating **8** processes. Each of the three call sites carried its redirection
+inside the substitution and so cost double, and the payload pass cost triple because it was fed by
+a `printf | jq` pipeline. Moving every redirection onto an enclosing `{ ...; }` group, and reading
+the payload into a variable in-process rather than through a command substitution, brings the real
+count to 3 — the figure this section always claimed:
+
+| Steady PostToolBatch fire | Process creations | Program launches (`execve`) |
+|---|---|---|
+| Before ([#3520](https://github.com/melodic-software/claude-code-plugins/issues/3520)) | 8 | 4 |
+| After | 3 | 4 |
+
+The program launches are unchanged, which is the point: the same `jq`, `bash` and `jq` still run
+over the same inputs, and only the fork overhead around them is gone. On the hosts in
+[#3508](https://github.com/melodic-software/claude-code-plugins/issues/3508) a process creation
+costs 180 to 2,841 ms (median 1,108 ms at 501 concurrent processes) against about 1% user CPU, so
+removing five of eight is the whole of the available saving on that class of host. This hook draws
+on the per-turn ceiling as well as the per-tool-call one, because it fires on `UserPromptSubmit`
+too.
+
+The contract test asserts the process-creation count under `strace` as an exact figure, alongside
+the older command-position budget, so a redirection moved back inside a substitution fails a test
+rather than quietly doubling a call site. Where `strace` is unavailable that assertion skips and
+the command-position budget still runs.
+
 What went: every `dirname` call, replaced by parameter expansion (three in the zone-crossing hook,
 two in each of the others); a second `jq`, by reading both envelope fields in one pass;
 `tr -cd | head -c` on each of the two state markers, by `$(<file)` plus parameter expansion; and
@@ -210,6 +245,12 @@ interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
 | PreToolUse `Write`/`Edit`, advisory mode (`zone-gate.sh`) | 1 | 2.5 before, 1.4 after (0.7.34) | no process spawned in the default posture |
 | PostCompact (`post-compact-mark.sh`) | 1 | 9.4 before, 5.7 after (0.7.34) | 9 processes to 4: `date` replaced by printf's clock with a `date` fallback; `mkdir` and `rm` behind existence guards |
 | Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
+
+The spawn-equivalents above are command-position counts. Re-measured as process creations under
+`strace -f` (0.7.44), the steady PostToolBatch and UserPromptSubmit fire was creating 8 processes
+where those rows report 3; moving every redirection off the inside of a command substitution
+brings it to 3 with the program launches unchanged. See "Counting invocations is not counting
+processes" above for why the two counts differ and what it costs on a slow-spawn host.
 
 The two advisory rows keep their 60-second timeout: the 0.4.8 measurement put this script at
 22.0 s on Windows with Defender real-time protection, and a timeout caps a stalled hook without

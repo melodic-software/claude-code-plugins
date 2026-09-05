@@ -5,6 +5,41 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.44]
+
+### Changed
+
+- **zone-crossing hook and zone resolver: 8 process creations per fire down to 3, with no change
+  to what runs.** The plugin's own accounting reported a 3-process steady fire, but it counted
+  commands in command position, which counts invocations rather than processes. Bash elides the
+  extra fork inside `$(...)` only when the command carries no redirection of its own, so a
+  `2>/dev/null`, a `<<<`, or a pipeline written inside a substitution forks twice for one program;
+  a fork that never execs never reaches a command position, so the old count could not see it.
+  Under `strace -f` the fire was creating 8 processes. Every redirection on this path moved onto an
+  enclosing `{ ...; }` group, and the stdin payload is now assigned in-process instead of captured
+  through a command substitution. Program launches are unchanged at four: the same `jq`, `bash` and
+  `jq` still run over the same inputs. Affects `hooks/zone-crossing-inject.sh`, `hooks/payload.sh`
+  and `scripts/context-zone.sh`, so the `PreToolUse` zone gate and the `PostCompact` marker inherit
+  the resolver's share. No decision, emitted text, exit code or state file changes.
+  ([#3520](https://github.com/melodic-software/claude-code-plugins/issues/3520))
+- **`payload.sh` grows `cg::read_payload_to`.** Assigns the drained payload to a caller-named
+  variable via `printf -v` rather than printing it for the caller to capture, which cost a
+  subshell per fire to move a string between two copies of the same shell. `cg::read_payload`
+  stays for existing callers and delegates to the new form, so there is one drain loop.
+
+### Added
+
+- **A process-creation budget in the contract test, asserted under `strace`.** `strace -f` counts
+  `clone`/`fork`/`vfork` on the steady non-crossing path and pins it at exactly 3, with the program
+  launches pinned at 4 so a fork saving cannot be confused with work removed. The pre-existing
+  command-position budget stays; it cannot see these forks, which is how the regression went
+  unnoticed. Skipped where `strace` is unavailable.
+- **Redirection-placement behaviour tests.** A malformed `zones.json` drives the resolver's only
+  stderr path on this hook's route and pins that the notice reaches neither of the hook's streams,
+  that stdout stays one parseable JSON document, and that the shipped default bands still resolve
+  and inject; an unparseable payload pins that the payload pass's nonzero status still propagates
+  out of its new enclosing group rather than being absorbed by it.
+
 ## [0.7.43]
 
 ### Changed
