@@ -83,10 +83,10 @@ held_ms=$(
     sleep 3
   } |
     {
-      t0=$EPOCHREALTIME
+      h0=$EPOCHREALTIME
       env CLAUDE_PROJECT_DIR="$P2" PATH="$SHIM:$PATH" "$ON" bash "$HOOK" >/dev/null 2>&1
-      t1=$EPOCHREALTIME
-      awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%d", (b - a) * 1000 }'
+      h1=$EPOCHREALTIME
+      awk -v a="$h0" -v b="$h1" 'BEGIN { printf "%d", (b - a) * 1000 }'
     }
 )
 if ((held_ms < 500)); then

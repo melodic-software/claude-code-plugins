@@ -458,7 +458,7 @@ The integration slice: one event in, one line in the right file, or nothing at a
   README budget paragraph including the per-event spawn count a consumer pays when on.
 - **Sanity Check:** `grep -L 'hook-utils.sh' plugins/claude-ops/hooks/session-event-log.sh` prints the path; `bash plugins/claude-ops/hooks/session-event-log.test.sh` exit 0; harness disabled row at or below 1.5 S; `python3 scripts/sync-plugin-options-docs.py --check` exit 0; `scripts/check-silent-skips.sh` exit 0; for each of the nine audit hooks `grep -c 'session_id' <hook>` is at least 1.
 
-#### Phase 4: Generated event registry and hooks.json rows [TODO]
+#### Phase 4: Generated event registry and hooks.json rows [DONE]
 
 Runs before retention so every producer row, including the one `session-retention.sh` needs on
 `SessionEnd`, comes from one generator.
@@ -487,7 +487,7 @@ Runs before retention so every producer row, including the one `session-retentio
   `--check` clean and drifted; the nine handlers survive the merge byte-for-byte under `jq -S`.
 - **Sanity Check:** `jq '[.[] | select(has("recheck") and has("basis") and has("as_of") and has("producer"))] | length == length' <registry>` prints true and `jq length` at least 30; `jq -r '.hooks | keys[]' plugins/claude-ops/hooks/hooks.json | grep -c -E '^(WorktreeCreate|MessageDisplay|FileChanged)$'` prints 0; `scripts/gen-hook-event-registry.sh --check` exit 0; `bash scripts/gen-hook-event-registry.test.sh` exit 0.
 
-#### Phase 5: SessionEnd retention with detached pre-prune [TODO]
+#### Phase 5: SessionEnd retention with detached pre-prune [DOING]
 
 - [ ] `plugins/claude-ops/hooks/session-retention.sh`, sourcing nothing, same kill switch as the
   producer, **reads no stdin** (the late-EOF stall would spend the whole 1.5 s budget before any
