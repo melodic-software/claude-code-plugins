@@ -207,4 +207,32 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
+# --- PostToolUse rows carry an `if` per extension the verifiers accept --------
+# Claude Code evaluates a handler's `if` before spawning it, so a Write to a file
+# no verifier would scan spawns nothing. That saving holds only while the set of
+# `if` extensions in hooks.json equals the set the three verifiers' own
+# `case "$FILE"` gates accept: an extension added to a gate without an `if` row
+# is a verifier that silently never fires on it, and an `if` row with no gate
+# is a spawn that always early-exits. Both directions are pinned here, against
+# the scripts' source rather than a second hand-kept list.
+post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOK_DIR/hooks.json")
+post_n=$(jq 'length' <<<"$post_rows")
+if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
+ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
+assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated"
+distinct_cmds=$(jq -r '[.[] | [.command, .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
+assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
+gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
+  sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
+}
+if_exts=$(jq -r '.[] | .if | capture("^Edit\\(\\*\\.(?<e>[a-z0-9]+)\\)$") | .e' <<<"$post_rows" | sort -u | tr '\n' ' ')
+gate_exts=$(for v in cli-flag-verify skill-reference-verify stale-path-verify; do gate_exts_of "$v"; done | sort -u | tr '\n' ' ')
+assert_eq "if extensions equal the union of the verifiers' case gates" "$gate_exts" "$if_exts"
+for v in cli-flag-verify skill-reference-verify stale-path-verify; do
+  v_exts=$(gate_exts_of "$v" | tr '\n' ' ')
+  for e in $v_exts; do
+    if [[ " $if_exts " == *" $e "* ]]; then ok "$v gate *.$e has an if row"; else bad "$v gate *.$e has no if row"; fi
+  done
+done
+
 report

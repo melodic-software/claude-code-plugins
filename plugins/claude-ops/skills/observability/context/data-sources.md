@@ -169,9 +169,13 @@ jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked")
   | {ts, hook, event, subject}' "${HOOK_FILES[0]}"
 ```
 
-**Rewrote:** what a formatter changed. `changed` is a defined key no producer emits yet
-(formatters send `data.findings` only), so this list is empty until one does; render it as
-`_no data — no producer reports rewrites yet_`, not as "nothing was rewritten".
+**Rewrote:** what a formatter changed. `changed` is the per-row boolean the sink copies from a
+producer's `data.changed`; the eight rewriting formatters (bash, biome, eol-normalizer, go,
+markdown, powershell, ruff, typos) send it on every run that reached the formatter, so a row with
+`changed == true` is a file the hook rewrote. A session whose envelope rows all predate those
+producer versions, or whose formatters all stopped before the formatter ran, has no such rows;
+render that as `_no data — no producer in this session reported a rewrite verdict_` when no row
+carries the key at all, and as `_nothing rewritten_` when rows carry it and every value is false.
 
 ```bash
 jq -sc "$HOOK_NORM"' | .[] | select(.changed == true)

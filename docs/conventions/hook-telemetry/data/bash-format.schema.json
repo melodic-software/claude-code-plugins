@@ -19,6 +19,10 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "ShellCheck findings remaining for the file, one per line. Empty array = clean."
+    },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when the bytes on disk differed from the pre-run snapshot after shfmt ran, false when they were identical or no rewrite was attempted. Absent when the verdict is unknown (a skip arm before the formatter, or the snapshot could not be taken). Added in bash-format 0.7.37."
     }
   }
 }

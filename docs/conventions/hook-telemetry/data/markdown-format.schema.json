@@ -19,6 +19,10 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Unfixable markdownlint violations remaining after --fix, one per line. Empty array = clean."
+    },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when markdownlint-cli2 --fix reported a non-zero count of fixes written (its \"Attempted: N fixes\" line, the same signal that drives the user-channel disclosure), false when the fix pass ran and reported none. Absent on a skip arm, where no fix pass ran. Added in markdown-format 0.11.45."
     }
   }
 }

@@ -850,7 +850,7 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # carry-forward branch on is NOT checked here and is checked nowhere else
 # either: ci-workflows tests its composite against its own ci.yml, not against
 # this repository's. It was verified by hand at pin
-# 449157aaa8e30f7b1457305d8048ebe6168e174a and must be re-verified whenever that
+# 906ae7ef379ea4d2b8497f64475dce1d3d8715c4 and must be re-verified whenever that
 # pin moves. A drifted copy that skipped the lanes while the composite still
 # aggregated would turn all-`skipped` into a pass with nothing executed.
 

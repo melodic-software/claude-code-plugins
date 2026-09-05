@@ -221,6 +221,7 @@ if [[ -s "$TEL" ]]; then
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq -r '.data.action' "$TEL")" == "lf" ]]; then ok "envelope: data.action lf"; else fail "envelope: data.action=$(jq -r '.data.action' "$TEL")"; fi
+  if [[ "$(jq -r '.data.changed' "$TEL")" == "true" ]]; then ok "envelope: data.changed true (CRLF file was rewritten to LF)"; else fail "envelope: data.changed=$(jq -c '.data.changed' "$TEL")"; fi
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
@@ -228,6 +229,22 @@ else
   fail "telemetry/stub-sink: no envelope written"
 fi
 rm -f "$TEL"
+
+# --- Stub sink + already-LF .sh -> action lf, data.changed false (#3755) ------
+# The attribute still resolves to lf (action names the arm that applies), but
+# the plan finds no work, no snapshot is armed, and the verdict is "not changed".
+printf 'echo already\n' >"$REPO/tel3.sh"
+TEL3="$(mktemp)"
+SINK3="$(make_sink "cat >\"$TEL3\"")"
+run_hook_env "$REPO/tel3.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINK3" >/dev/null
+wait_for_sink "$TEL3"
+if [[ -s "$TEL3" ]]; then
+  if [[ "$(jq -r '.status' "$TEL3")" == "skipped" ]]; then ok "telemetry/no-op: status skipped"; else fail "telemetry/no-op: status=$(jq -r '.status' "$TEL3")"; fi
+  if [[ "$(jq -r '.data.changed' "$TEL3")" == "false" ]]; then ok "telemetry/no-op: data.changed false (already LF, nothing rewritten)"; else fail "telemetry/no-op: data.changed=$(jq -c '.data.changed' "$TEL3")"; fi
+else
+  fail "telemetry/no-op: no envelope written"
+fi
+rm -f "$TEL3"
 
 # --- Normalized .sh -> systemMessage names the target ending (#1596) ----------
 # Fresh file: tel2.sh was already normalized in the telemetry stub-sink case above.
