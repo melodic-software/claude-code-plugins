@@ -17,7 +17,8 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   the in-repo prerequisites so consumers take the setup path, removed the stale-reference and
   skill-inventory tables, and lowered all-caps emphasis to plain prose.
 - **generate:** the audience-defaults reference now names the loading step in words rather than
-  by a step number the skill no longer uses.
+  by a step number the skill no longer uses. A second pass removed the last two `flair` mentions
+  and one `build/shots/` path the first pass left in `build-pipeline.md`.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
 

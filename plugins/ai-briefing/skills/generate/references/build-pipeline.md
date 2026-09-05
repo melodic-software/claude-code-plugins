@@ -82,7 +82,7 @@ node run.js
 
 ```bash
 node emit-slides-data.js                    # Step 1 — emit slides-data.js from briefing.md
-# AI overseer reviews slides-data.js: tier assignments, headline phrasing, flair candidates,
+# AI overseer reviews slides-data.js: tier assignments, headline phrasing,
 # patterns synthesis, cluster placement. Edit slides-data.js directly OR re-run emit with overrides.
 
 node build-pptx.js                          # Step 2a — pptx
@@ -120,7 +120,7 @@ Scripts make pipeline **efficient**, not autonomous. Overseer (Claude or human) 
 | **Visual review** | Screenshots every section to `shots/section-NN.png` and every responsive combination to `shots/responsive-*.png`, dumps `audit.json` | Reads screenshots, checks: text legibility, contrast, headline truncation natural, URL list density acceptable, no broken layouts, brand consistency |
 | **Ship gate** | Prints "VALIDATION PASSED" on 0 blocking | Final go/no-go after visual + audit review. Iterate (edit briefing.md OR slides-data.js, re-run) until satisfied |
 
-**Rule of thumb:** if a decision could embarrass the team in front of attendees (wrong tier, awkward headline, partisan flair, broken pattern claim), it's an overseer call. Scripts only handle decisions that have one mechanically-correct answer.
+**Rule of thumb:** if a decision could embarrass the team in front of attendees (wrong tier, awkward headline, a partisan item that slipped the apolitical filter, broken pattern claim), it's an overseer call. Scripts only handle decisions that have one mechanically-correct answer.
 
 ## `slides-data.js` schema
 
@@ -254,7 +254,7 @@ The gate list, and which gates block versus warn, live in the header comment of
 Outputs:
 
 - `shots/section-NN.png` and `shots/responsive-*.png` for visual review
-- `build/shots/audit.json` — structured audit (counts, mismatches, overflow)
+- `shots/audit.json` — structured audit (counts, mismatches, overflow)
 
 ## Drift / recheck triggers
 
