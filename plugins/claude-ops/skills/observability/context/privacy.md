@@ -55,7 +55,7 @@ Apply just before final stdout / file write — never to the raw JSONL input.
 
 ## Trust boundary
 
-Source files (`hook-events.jsonl`) are gitignored. They never leave the repo unless the user explicitly shares the `/claude-ops:observability` report or copies the JSONL elsewhere. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
+Source files (the hook log root's `sessions/*.jsonl` and `hook-events.jsonl`) sit in a tree that carries its own self-ignoring `.gitignore`. They never leave the repo unless the user explicitly shares the `/claude-ops:observability` report or copies the JSONL elsewhere. A per-session file also carries `file_path` values (repo-relative, or the basename when the file is outside the repo) and, for a `reason`-bearing event, the reason text the hook was given; both pass through the same filter below before any report. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
 
 Does NOT defend against:
 

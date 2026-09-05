@@ -28,11 +28,11 @@ reviewed pull request.
 The `ci-status` required check depends on every workload lane and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). The metadata gates (`do-not-merge`,
-`pr-issue-linkage`) run on `pull_request_target` so the base-branch definition
-evaluates, and emit their required contexts from the reusable's hosted default
-runner. Fork pull requests receive no secrets and no automated review, by
-design.
+success to branch protection). The metadata checks (Conventional Commits title,
+`do-not-merge` label, issue linkage) run as the `pr-contract` composite step
+inside the same `ci-status` job on the same hosted runner, so they no longer
+carry status contexts of their own. Fork pull requests receive no secrets and
+no automated review, by design.
 
 ## Toolchain integrity
 

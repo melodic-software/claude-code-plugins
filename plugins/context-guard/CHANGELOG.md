@@ -5,6 +5,45 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.42]
+
+### Changed
+
+- **`zone-crossing-inject.sh` no longer rewrites a state marker that already
+  holds the value.** The hook fires once per `UserPromptSubmit` and once per
+  `PostToolBatch`, so a three-batch turn that stayed in one zone fired four
+  times and rewrote both `.zone` and `.armed` four times to the values they
+  already held. Each marker is now written only when its on-disk value differs
+  from the new one. The comparison uses the raw `.armed` read, not the value
+  seeded from `.zone` when `.armed` is absent, so a missing marker still
+  latches on the first fire. Write ordering, the fail-open posture, and the
+  `.zone` rollback on a failed `.armed` write are unchanged; the rollback now
+  fires only when this call was the one that moved `.zone`. No change to when
+  the notice is emitted: the armed-rank gate already suppressed the extra
+  fires, so this removes wasted I/O rather than duplicate injection. A new
+  contract-test case pins the skip by marker mtime, with a positive control
+  that a mismatched marker is still rewritten; it fails against the previous
+  hook on exactly the two skip assertions.
+- **`hooks.json` carries a top-level `description`.** A documented field the
+  plugin omitted. The four `timeout: 60` values are unchanged: the 0.4.8 entry
+  and the README size that cap from a 22.0 s measurement on Windows 11 / Git
+  Bash with Defender real-time protection, and nothing here re-measured that
+  profile.
+
+## [0.7.41]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
 ## [0.7.40]
 
 ### Changed

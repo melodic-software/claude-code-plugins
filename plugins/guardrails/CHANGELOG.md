@@ -3,6 +3,104 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.3]
+
+### Changed
+
+- **The three PostToolUse verifiers read their kill switch before sourcing the
+  library.** `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify`
+  read `<name>_enabled` through `hook::check_enabled`, which only exists once
+  `hook-utils.sh` is sourced; the predicate is now inlined above the `source`
+  line, in the one shape `scripts/check-killswitch-hoist.sh` pins to
+  `hook::is_enabled`, and that gate scans PostToolUse rows from this change on.
+  The saving is stated honestly: in production these three run sourced under
+  `run-guards.sh`, which has already loaded the library for its own use and
+  whose include guard makes each verifier's `source` cost about 0.05 ms, so the
+  hoist recovers almost nothing on the live path. They are held to the rule
+  anyway, because one shape is what keeps the gate mechanical, and each
+  verifier is also invoked standalone by its own contract test, where the
+  disabled path measures 3.1 ms against the 6.1 to 6.5 ms the un-hoisted shape
+  costs (N = 15, Linux CI host). Enabled behavior is unchanged.
+
+## [0.32.2]
+
+### Changed
+
+- **`skill-reference-verify` builds its plugin index in one `jq`, not four
+  processes per manifest.** The name-to-directory index read every
+  `plugin.json` with two `jq` and two `tr` spawns, and this marketplace carries
+  74 manifests: 296 processes for a `.md` write citing any skill. Measured on the
+  Linux CI host, the loop alone cost 468.5 ms and the whole hook 642.9 ms
+  (334.8 spawn-equivalents, S = 2.52 ms); the same manifests through one
+  `jq -r … | @tsv` cost 5.7 ms. A manifest jq cannot parse, and any behind it in
+  the batch, fall back to the per-manifest read, so a malformed sibling changes
+  nothing for the others (pinned by a case with a `{ not json` manifest). Whole
+  hook after, same harness: 63.8 ms (33.8 S), against 47.3 ms for a `.md` that
+  cites nothing. The batch carries raw fields on non-whitespace separators, not
+  `@tsv`: a nameless manifest keeps its empty field in place (a tab would have
+  collapsed it and filed the plugin under its skills path), and a declared path
+  arrives byte-identical (no backslash escaping). The suite's spawn-count case
+  now asserts one invocation handed every manifest, and five new cases pin
+  declared `skills` paths (array, string, an undeclared sibling directory, a
+  nameless manifest, a backslash in a path) through the batched read. The
+  batch keys its bookkeeping on the plugin directory the hook rebuilds from its
+  own plugins root, not on the path jq echoes back: on Windows Git Bash a
+  native jq echoes the MSYS-converted argument, which would have marked no
+  manifest as read and sent every one through the per-manifest fallback. A
+  case simulates that echo and pins one invocation.
+- **`cli-flag-verify` answers cache hits in-process and gates on a bin name
+  before scanning.** On a warm 24 h cache the verifier's whole job was to read
+  one file and match one pattern, and spawning it for that cost a bash
+  process, the `#!/usr/bin/env` PATH walk for bash, then `mkdir`, `find` and
+  `grep`: 88 failed `execve` per warm run on this host, four of the five `env`
+  walks being these spawns, at 119 to 136 ms per run. The hook now indexes the
+  fresh cache files with one `find` per run (on the first candidate whose bin
+  is installed, so a write citing only absent tools pays nothing) and matches
+  the cached `--help` text with `=~`; a miss still goes through the verifier,
+  which populates the cache. The cache directory, key, window and match pattern
+  are one definition, the new `lib/verification/cli-flag-cache.sh`, sourced by
+  the hook and the verifier alike: the first hand-copied pattern had dropped
+  the `[` terminator, so `--color[=WHEN]` was known cold and unknown warm, and
+  a case now pins that notation on both paths plus the absence of any private
+  pattern in either script. After, same probe: 55 to 79 ms warm, 34
+  `execve` of which 11 fail (the one `env` walk left is the telemetry sink's).
+  Ahead of the scan, content that names
+  none of the scanned bins exits before the fragment pipeline: the previous
+  `-` gate alone passed every hyphenated paragraph. Cases pin zero verifier
+  spawns on a hit with findings identical to the miss run, zero `sed` spawns on
+  hyphenated prose, and the `--save-dev` versus `--save-developer` boundary on
+  both paths.
+- **`lib/verification/verify-cli-flag.sh` spends fewer processes on the cache
+  path.** `[[ -d ]]` before `mkdir -p`; the 24 h freshness test compares
+  against a reference file touched to that timestamp (`printf '%()T'` from
+  `EPOCHSECONDS` plus POSIX `touch -t`, one process in place of `find | grep`,
+  with the `find` shape kept for Bash before 5.0); the flag match is `=~` over
+  the cached text instead of `printf | grep -E`. Four verifier cases pin the
+  exact, longer-prefix, and shorter-prefix outcomes cold and warm.
+
+## [0.32.1]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
+
 ## [0.32.0]
 
 ### Added
@@ -117,6 +215,29 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   refusal set therefore only shrinks, by targets proven placeable. This is what lets
   `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
   `cd /etc && echo x > .work/f` still block.
+
+## [0.31.8]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
 
 ## [0.31.7]
 

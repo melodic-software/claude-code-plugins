@@ -1,11 +1,22 @@
 # Scope semantics — verified facts this skill depends on
 
 Every claim below was verified against a fetched official-docs page or an empirical test on a real
-machine, not assumed from training data. Last re-verified 2026-08-22 against
+machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
-[discover-plugins](https://code.claude.com/docs/en/discover-plugins), the published plugin-manifest
-JSON Schema, and the Claude Code changelog (version gates), with CLI behaviour checked live on
-**Claude Code 2.1.240**.
+[discover-plugins](https://code.claude.com/docs/en/discover-plugins),
+[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
+plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below.
+
+**The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
+The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
+(against a real version bump, not a no-op), the project-scope cwd keying, the merged-effective
+`enable` gate, and the reap-by-path survey live on **Claude Code 2.1.261**; those claims carry that
+version. These claims were **not re-run on 2.1.261** and keep their older stamps:
+the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
+and the mid-session path-resolution behaviour, all of which need an interactive session and were
+confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
+`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
+render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -59,14 +70,21 @@ probe — never from `list`/`details` text.
 the machine-local `installed_plugins.json` record. `enabledPlugins` carries no version — the
 committed settings files are untouched by an update. Re-verified on Claude Code 2.1.228 under the
 hardest available conditions: a tracked `.claude/settings.json` that a sibling `install -s project`
-had just rewritten, reverted to clean, then updated — the update left it clean. `sync`'s in-repo
+had just rewritten, reverted to clean, then updated — the update left it clean. Re-verified on
+**Claude Code 2.1.261** against a real version bump, not a no-op: a throwaway local marketplace served
+`probe-plugin` at `0.1.0`, an `install -s project` into a scratch repo wrote the id into its committed
+`.claude/settings.json`, that file was reverted to clean, the marketplace was bumped and refreshed, and
+`update -s project` then reported `updated from 0.1.0 to 0.1.1`. The `installed_plugins.json` record
+advanced to `0.1.1` with a new `lastUpdated` and `installPath`, so a real write did happen, while
+`git status` stayed empty. A second cycle (`0.1.1` → `0.1.2`) added a `.claude/settings.local.json` to
+the scratch repo and hash-compared both settings files across the update: both were unchanged. `sync`'s in-repo
 update step is therefore safe to run without a settings-diff review. It is the exception, not the
 rule: the next section lists the calls that do write.
 
 ## Every call that touches `enabledPlugins` at project scope writes committed settings
 
-**Empirically verified on Claude Code 2.1.228** — one call each, against a clean tracked
-`.claude/settings.json`, git-diffed after every step:
+**Empirically verified on Claude Code 2.1.228 and re-verified unchanged on 2.1.261** — one call
+each, against a clean tracked `.claude/settings.json`, git-diffed after every step:
 
 | Call | Writes `.claude/settings.json`? | Effect |
 |---|---|---|
@@ -88,7 +106,8 @@ Three properties hold across every writing call:
 
 `enable -s project` gates on the **merged effective** value, not that scope's raw map: enabling an id
 that is `true` only at user scope fails with `Plugin "<id>" is already enabled at project scope`
-rather than writing a project-scope entry.
+rather than writing a project-scope entry. Re-verified on **Claude Code 2.1.261**, same error string,
+and the committed file was byte-unchanged after the failed call.
 
 Two consequences:
 
@@ -96,17 +115,18 @@ Two consequences:
   `enabledPlugins` entry still dirties the tracked file, with a diff that changes no behavior: an
   empty map plus a key reorder. Expect it; it is not evidence an entry was removed.
   [converge.md](converge.md) Step 5 classifies it.
-- **`sync`** — this is why [sync.md](sync.md) Step 5 enables automatically only at `user` and `local`
+- **`sync`** — this is why [sync-install-enable.md](sync-install-enable.md) Step 5 enables automatically only at `user` and `local`
   scope and reports a `project`-scope gap instead of filling it. `sync` has no autonomous-session
   abort, so it has no safe moment to write a committed file; after that restriction, no `sync` path
   writes one.
 
 ## Project scope: the CLI keys on the cwd, `fleet-state.sh` matches on the checkout root
 
-**Empirically verified on Claude Code 2.1.228.** `-s project` has no path flag — it acts on the
-current directory, and it means that literally. Installing from `<checkout>/nested/subdir` recorded
-`projectPath: <checkout>\nested\subdir` and created a fresh `nested/subdir/.claude/settings.json`,
-rather than resolving up to the checkout root.
+**Empirically verified on Claude Code 2.1.228 and re-verified unchanged on 2.1.261.** `-s project`
+has no path flag — it acts on the current directory, and it means that literally. Installing from
+`<checkout>/nested/subdir` recorded `projectPath: <checkout>\nested\subdir` and created a fresh
+`nested/subdir/.claude/settings.json`, rather than resolving up to the checkout root. The 2.1.261
+re-run also confirmed the checkout root's own committed settings file stayed untouched.
 
 `fleet-state.sh` resolves its project root differently: `CLAUDE_PROJECT_DIR`, else
 `git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (`fleet-state.sh:211-221`), and
@@ -120,7 +140,7 @@ and one tracked `.claude/settings.json`, hold independent records and pin indepe
 ## A `projectPath` outlives its directory, and no CLI verb reaps the record
 
 Removing the directory a project/local install was made from leaves the install record in place,
-still naming the path. **Verified on Claude Code 2.1.240**: `claude plugin --help` lists no verb that
+still naming the path. **Re-verified on Claude Code 2.1.261**: `claude plugin --help` lists no verb that
 removes an install record by path, and `claude plugin prune --help` reports "Remove auto-installed
 dependencies that are no longer needed" — a *dependency* axis, whose own `-s project` has the same
 no-path-flag behaviour documented above, so it acts on the cwd and cannot reach a record belonging to
@@ -145,6 +165,12 @@ do.
 
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
+Everything in this section is doc-sourced and was re-fetched 2026-09-05 with the quoted text
+unchanged. The *behaviour* — what a bare reload actually warns about in a live session — is **not
+re-run on 2.1.261**: it needs an interactive session, which a non-interactive probe pass cannot
+drive. The `≥ 2.1.163` gate for `--force` is likewise **not re-verified on 2.1.261**, because the
+current docs page states the flag without naming the version that introduced it.
+
 **Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
 agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors — per
 `code.claude.com/docs/en/plugins-reference`, "monitors require a session restart". Recommend bare `/reload-plugins` by default; call out the restart requirement
@@ -152,7 +178,7 @@ only when an updated plugin ships a monitor.
 
 **An install can now activate itself — but not the installs this skill issues.** As of Claude Code
 2.1.221, an install started from the in-session `/plugin` interface reports its own activation state:
-per `code.claude.com/docs/en/discover-plugins` (fetched 2026-08-10), the summary says either
+per `code.claude.com/docs/en/discover-plugins` (re-fetched 2026-09-05, unchanged), the summary says either
 `Plugin is now active.` — "Claude Code activated the plugin as part of the install" — or
 `Run /reload-plugins to activate.`, which happens "because activating it would invalidate the prompt
 cache or because the activation attempt failed". Before 2.1.221, "no install took effect in the
@@ -191,7 +217,8 @@ This skill reads both surfaces, and they do not agree on which scopes count. Get
 is silent in both directions, so the asymmetry is stated here once and pointed at from everywhere
 else.
 
-**`pluginConfigs` — three sources only.** Per `code.claude.com/docs/en/plugins-reference`: "Claude
+**`pluginConfigs` — three sources only.** Re-fetched 2026-09-05, wording unchanged. Per
+`code.claude.com/docs/en/plugins-reference`: "Claude
 Code reads all `pluginConfigs` values from only three settings sources" — user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
 managed → `--settings` → user. And explicitly:
@@ -213,12 +240,16 @@ Two consequences this skill must not get wrong:
   indication the configured value was discarded. Never advise setting it at project or local scope.
 - A `--setting-sources` invocation that omits `user` drops user settings from that three-source read
   list, so a headless `sync` launched that way silently loses `install_new` the same way. See
-  [sync.md](sync.md) Step 4 — the fallback is correct, the silence is not.
+  [sync-install-enable.md](sync-install-enable.md) Step 4 — the fallback is correct, the silence is not.
 
-## `userConfig` has no `enum` field
+## `userConfig` has no `enum` type
 
-**Verified against the published plugin-manifest JSON Schema**: allowed `type` values are `string`,
-`number`, `boolean`, `directory`, `file` — no `enum`. `install_new` ships as `type: string` with its
+**Re-verified 2026-09-05 against the published plugin-manifest JSON Schema**: allowed `type` values
+are `string`, `number`, `boolean`, `directory`, `file` — there is no `enum` *type*. The schema does
+use an `enum` keyword, but only to constrain `type` itself to that list; an option cannot declare its
+own allowed values. The schema's `required` array for
+a `userConfig` option is `type`, `title`, `description`, and `claude plugin validate` on 2.1.261
+rejects an option that omits `title`. `install_new` ships as `type: string` with its
 valid values (`ask`/`all`/`none`) documented in `description` and validated in prose by this skill,
 not by the manifest schema.
 
@@ -228,7 +259,11 @@ Claude Code rewrites a marketplace's `renames` map into installed/enabled state 
 session start (old id → new id; `null` means removal). This skill hard-codes no rename knowledge —
 its only rename-adjacent behavior is that anything present in the current catalog but absent from
 `installed_plugins.json` shows up as `missing_from_install`, which naturally covers a renamed
-plugin's new id. `claude plugin prune` requires ≥ v2.1.121; renames mapping requires ≥ v2.1.193.
+plugin's new id. Renames mapping requires ≥ v2.1.193 — re-confirmed 2026-09-05 against
+`code.claude.com/docs/en/plugin-marketplaces`, which still says "Automatic migration requires Claude
+Code v2.1.193 or later." The `claude plugin prune` ≥ v2.1.121 gate is **not re-verified on 2.1.261**:
+the current docs describe `prune` without naming an introducing version, so the gate stands on its
+original source and nothing this pass found contradicts it.
 
 ## `autoUpdate` is a background complement, not a substitute
 
