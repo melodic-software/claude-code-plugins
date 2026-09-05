@@ -1,6 +1,6 @@
 # Auditing a skill
 
-Growable stub. When the audited component is a skill, also run `skill-quality:check` (its static
+When the audited component is a skill, also run `skill-quality:check` (its static
 contract gate) when installed, and lean on its findings; absent, this file is the manual fallback.
 
 ## Read first

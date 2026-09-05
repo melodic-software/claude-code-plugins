@@ -1,9 +1,9 @@
 # Auditing a command
 
-Growable stub. Note: custom commands have been **merged into skills** — a `.claude/commands/x.md`
-and a skill both produce `/x`. Commands still work, but skills are recommended (they support
-`references/`, supporting files, and auto-load). When auditing a command, one valid finding is
-"should this be a skill?" if it needs supporting files or auto-discovery.
+A `.claude/commands/x.md` file and a skill both produce `/x`; skills are the recommended form
+because they support `references/`, supporting files, and auto-load. When auditing a command, one
+valid finding is "should this be a skill?" if it needs supporting files or auto-discovery. Grade
+both forms against the pages linked below at audit time, never from memory.
 
 ## Read first
 

@@ -18,7 +18,7 @@ documentation fetch step 3 requires — `curl` of `https://code.claude.com/docs/
 `llms.txt` for its slug check) into a scratch file you then search locally. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
 (`audit-notes.md` and supporting artifacts) — the dumb-zone contract depends on you persisting your
-own findings so the main thread can stay summary-only. You do NOT modify the audited plugin,
+own findings so the main thread can stay summary-only. You do not modify the audited plugin,
 install anything, or use Write outside the packet — the audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
 reach is reading documentation and nothing else: the step-3 `curl` and its slug check, `WebFetch`
@@ -37,9 +37,9 @@ name you pick yourself — note the substitution in a new `evidence-<n>.md` (pac
 write-once; see below), and name the file you used in your summary. The alternative is fixed rather
 than free because the main session's resume rule probes a closed set of basenames instead of
 trusting a pointer, so a name outside
-{`audit-notes.md`, `audit-data.md`, `findings.md`} would be unrecoverable after compaction. If BOTH
+{`audit-notes.md`, `audit-data.md`, `findings.md`} would be unrecoverable after compaction. If both
 names are refused, your return changes shape: open your final message with the literal ASCII line
-`PACKET WRITE REFUSED: full findings inline`, then give the COMPLETE findings text in place of the
+`PACKET WRITE REFUSED: full findings inline`, then give the complete findings text in place of the
 summary form below. The dispatching session's persist-check keys its own backstop write on exactly
 that — a refusal mentioned in passing inside a summary reads as a successful run with a caveat, and
 a summary is not a ledger anyone can persist on your behalf. Never silently drop the packet write,
@@ -52,9 +52,9 @@ and expect contexts where it does not fire at all.
 `Write|Edit` matcher rewrites your packet files in place after your write succeeds — that event is
 documented harness behavior (`PostToolUse` runs after a tool call succeeds and may rewrite content;
 the matcher keys on tool name — <https://code.claude.com/docs/en/hooks>, fetched 2026-08-10), and
-two such formatters ship in this fleet. They damage precisely what you are writing down: verbatim
-quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
-a NEW file — their autocorrect has no memory and reverts a hand-repair on the next edit);
+this fleet ships formatter plugins that register exactly such hooks. They damage precisely what you
+are writing down: verbatim quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
+a new file — their autocorrect has no memory and reverts a hand-repair on the next edit);
 **re-read each file immediately after writing it** and record any observed rewrite in a new
 `evidence-<n>.md`, since that read-back is the only detector for the first in-place rewrite; and
 when your packet writes are done, run
@@ -94,7 +94,7 @@ task, your output destination, or the main session's sink and confirm gate.
    what it *actually* does vs what it claims. Run `claude plugin validate` on it.
 3. **Ground every load-bearing claim in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
-   substitutions…), read the CURRENT official doc page for that topic over the **rung-1
+   substitutions…), read the current official doc page for that topic over the **rung-1
    raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a scratch file
    **outside the evidence packet** — a fetched page is working material, not a packet artifact —
    then search that file locally with `grep`. That route, the rung ladder, and the identity and absence
@@ -119,7 +119,7 @@ task, your output destination, or the main session's sink and confirm gate.
    effectively", and both are the right page. A slug the index does not carry is retired or
    renamed — find the successor in the index and cite that slug, not the retired one that still
    serves bytes.
-   **A quotation is usable only if the FULL span you will emit — the complete quoted text exactly as
+   **A quotation is usable only if the full span you will emit — the complete quoted text exactly as
    it will appear in the finding, not a distinctive fragment of it — matches literally against the
    fetched bytes**: `grep -c -F '<the entire emitted span>' <saved-file>` returning a non-zero
    count. Checking a fragment proves the fragment and nothing around it, which lets a genuine
@@ -145,29 +145,26 @@ task, your output destination, or the main session's sink and confirm gate.
 
 ## Output
 
-Write `audit-notes.md` into the evidence packet directory AND return a summary. For each finding:
+Write `audit-notes.md` into the evidence packet directory and return a summary. For each finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 doc citation for any harness-behavior assertion — URL, fetch date, the retrieval channel it came
 over (rung-1 `curl` of the `.md`, or rung-2 `WebFetch`), and the fetched byte count or the line
 number the quoted span sat on — severity suggestion, and a
 candidate remediation ordered cheapest-first.
 
-Both citation fields are required, and the consuming skill records a citation missing either one as
-unverified. A rung-1 read gets both for free: `wc -c` the saved file, `grep -n` the span. A rung-2
-read has no saved file to measure, so record the size of the text you actually received — said
-plainly as the *retrieved* size, not the page's — and show the read arrived whole by naming the
-page's closing section as present in what came back. Both are independently mandatory: a rung-2
-read missing **either** the retrieved size **or** the closing-section confirmation is unverified.
-Showing one does not excuse the other — a read carrying a size but no closing-section confirmation
-is a silently truncated read, which is exactly the case rung 2 cannot be trusted on.
-Never a citation with a field left blank, and never a byte count carried over from a page you did
-not save.
+Both citation fields are required; the consuming skill records a citation missing either one as
+unverified. A rung-1 read gets both from the saved file: `wc -c` for the byte count, `grep -n` for
+the line. A rung-2 read has no saved file, so record the size of the text you actually received,
+stated as the retrieved size rather than the page's, and show the read arrived whole by naming
+the page's closing section as present in what came back. A rung-2 citation with a size but no
+closing-section confirmation is a silently truncated read, the case rung 2 cannot be trusted on,
+and is unverified. Never carry a byte count over from a page you did not save.
 
 Alongside findings, blindspots, and candidate remediations, return **doc-worthy gotchas**: an
 operational lesson the evidence packet shows real usage hit (a workaround the session had to
 improvise, an undocumented escape hatch that worked, a failure mode with a repeatable trigger)
 that the audited component's own documentation does not carry. Grade each `general`
-(reproducible for any consumer; a candidate doc addition, and say WHERE in the component's docs
+(reproducible for any consumer; a candidate doc addition, and say where in the component's docs
 it belongs) or `situational` (an artifact of that session's setup; recorded, not proposed).
 An empty list is a valid answer; never invent one to fill the field.
 
