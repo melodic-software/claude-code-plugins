@@ -175,6 +175,34 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
                     EXIT_CODE_CHANGED,
                     {"reason": "two identifiers collapse to one name", "at": new},
                 )
+        # The diff only sees positions that changed. An old name still present
+        # at an unchanged position is a rename that missed a reference; a new
+        # name already present at one is a rename onto an existing identifier.
+        unchanged = {
+            text
+            for (kind, text), y in zip(a, b)
+            if kind in IDENTIFIER_KINDS and (kind, text) == y
+        }
+        stale = sorted(old for old in mapping if old in unchanged)
+        if stale:
+            return (
+                "CODE-CHANGED",
+                EXIT_CODE_CHANGED,
+                {
+                    "reason": "incomplete rename: old name still referenced",
+                    "at": stale[0],
+                },
+            )
+        collision = sorted(new for new in reverse if new in unchanged)
+        if collision:
+            return (
+                "CODE-CHANGED",
+                EXIT_CODE_CHANGED,
+                {
+                    "reason": "rename collides with an existing identifier",
+                    "at": collision[0],
+                },
+            )
         return "RENAME-ONLY", EXIT_RENAME_ONLY, {"mapping": mapping}
     kinds = sorted({x[0] for x, _ in diffs})
     return (

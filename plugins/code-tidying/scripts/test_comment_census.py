@@ -17,6 +17,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# One case builds a throwaway git repository. Under an inherited absolute GIT_DIR
+# (or GIT_WORK_TREE / GIT_CONFIG) `git init` would write into the caller's
+# repository instead of the fixture, so clear the ambient git environment once
+# (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 SCRIPT = Path(__file__).with_name("comment-census.py")
 
 HEREDOC_SH = """#!/usr/bin/env bash
@@ -241,6 +249,45 @@ class Degradation(unittest.TestCase):
             self.assertEqual(p.returncode, 3, p.stderr)
             self.assertIn("UNAVAILABLE", p.stderr)
             self.assertIn("pygments", p.stderr)
+        finally:
+            shutil.rmtree(tmp)
+
+    @unittest.skipUnless(pygments_present(), "pygments not installed")
+    def test_tracked_subdirectory_target_lists_its_files(self):
+        # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
+        # matches nothing, so a directory target used to census zero files.
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            env = {
+                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
+            }
+            env.update(
+                {
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@x",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@x",
+                }
+            )
+            subprocess.run(["git", "init", "-q", str(tmp)], check=True, env=env)
+            sub = tmp / "plugins" / "thing"
+            sub.mkdir(parents=True)
+            (sub / "m.py").write_text(MOD_PY)
+            (tmp / "top.py").write_text(MOD_PY)
+            subprocess.run(["git", "-C", str(tmp), "add", "-A"], check=True, env=env)
+            subprocess.run(
+                ["git", "-C", str(tmp), "commit", "-q", "-m", "init"],
+                check=True,
+                env=env,
+            )
+            p = run("plugins/thing", "--json", "--layer", "pygments", cwd=tmp)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            rep = json.loads(p.stdout)
+            self.assertEqual(
+                [r["path"] for r in rep["files"]],
+                [os.path.join("plugins", "thing", "m.py")],
+                rep["files"],
+            )
         finally:
             shutil.rmtree(tmp)
 

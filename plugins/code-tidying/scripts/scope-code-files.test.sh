@@ -101,6 +101,19 @@ out=$(cd "$r2" && git checkout -q main && bash "$SCRIPT" --max 1)
 assert_equal "--max caps the listing but not the count" "rung=repository base=origin/main files=2" "$(printf '%s\n' "$out" | head -1)"
 assert_equal "--max 1 prints exactly one path" "2" "$(printf '%s\n' "$out" | grep -c .)"
 
+# 6b. A new directory and the grammar-only extensions. Default porcelain output
+# collapses an untracked directory to `?? dir/`, which no extension matches.
+mkdir -p "$r2/newdir/deeper"
+printf 'x = 1\n' >"$r2/newdir/deeper/fresh.py"
+printf 'export const a = 1;\n' >"$r2/newdir/mod.mjs"
+printf 'notes\n' >"$r2/newdir/README.md"
+out=$(cd "$r2" && bash "$SCRIPT")
+assert_equal "an untracked directory lists its code files" "rung=uncommitted base=none files=2" "$(printf '%s\n' "$out" | head -1)"
+assert_contains "the nested new file is listed" "$out" "newdir/deeper/fresh.py"
+assert_contains "a .mjs file counts as code" "$out" "newdir/mod.mjs"
+assert_absent "the untracked directory's markdown is excluded" "$out" "README.md"
+rm -rf "$r2/newdir"
+
 # 7. Usage errors.
 (cd "$r2" && bash "$SCRIPT" --max notanumber >/dev/null 2>&1)
 assert_equal "bad --max exits 2" "2" "$?"

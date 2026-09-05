@@ -19,7 +19,10 @@
 # Exit: 0 resolved; 1 not a git repository; 2 usage.
 set -uo pipefail
 
-CODE_EXT='\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$'
+# Keep in step with CODE_EXT in comment-census.py: the census must count every
+# file this resolver lists, and this resolver must list every file the
+# change-shape and commented-out-code grammars accept.
+CODE_EXT='\.(cs|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|sh|bash|ps1|psm1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$'
 BASE=""
 MAX=""
 while [[ $# -gt 0 ]]; do
@@ -84,9 +87,11 @@ resolve_base() {
 
 # Rung 1: uncommitted. Rename/copy entries emit the new path only. The -z
 # stream is piped straight into awk: a command substitution drops NUL bytes,
-# which would fold every record into one and list a single path.
-if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
-  list=$(git status --porcelain -z 2>/dev/null |
+# which would fold every record into one and list a single path. -uall lists
+# the files inside a new directory; the default collapses them to `?? dir/`,
+# which no extension matches.
+if [[ -n "$(git status --porcelain -uall 2>/dev/null)" ]]; then
+  list=$(git status --porcelain -uall -z 2>/dev/null |
     awk 'BEGIN { RS = "\0" } skip { skip = 0; next } { if (substr($0, 1, 2) ~ /[RC]/) skip = 1; print substr($0, 4) }' |
     code_only)
   emit uncommitted "" "$list"

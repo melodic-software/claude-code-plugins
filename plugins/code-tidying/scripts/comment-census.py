@@ -46,6 +46,8 @@ CODE_EXT = {
     ".cs",
     ".ts",
     ".tsx",
+    ".mts",
+    ".cts",
     ".js",
     ".jsx",
     ".mjs",
@@ -84,14 +86,15 @@ def tracked_files(roots: list[Path]) -> list[Path]:
             continue
         try:
             listing = subprocess.run(
-                ["git", "ls-files", "-z", "--", str(root)],
+                ["git", "ls-files", "-z", "--", "."],
                 capture_output=True,
                 check=True,
-                cwd=str(root if root.is_dir() else root.parent),
+                cwd=str(root),
             ).stdout
             names = [n for n in listing.decode(errors="replace").split("\0") if n]
-            base = root if root.is_dir() else root.parent
-            found = [base / n for n in names]
+            # Pathspec `.` with cwd=root: a repo-relative pathspec run from
+            # inside that directory would look for root/root and match nothing.
+            found = [root / n for n in names]
         except (subprocess.CalledProcessError, FileNotFoundError):
             found = [p for p in root.rglob("*") if p.is_file()]
         out.extend(p for p in found if p.suffix.lower() in CODE_EXT and p.is_file())

@@ -189,6 +189,20 @@ class PythonVerdicts(unittest.TestCase):
         self.assertEqual(code, 10, out)
         self.assertIn('"retry_budget": "max_attempts"', out)
 
+    def test_rename_that_misses_a_reference_is_code_changed(self):
+        # Only the declaration is renamed; the read in run() still says retry_budget.
+        after = PY_BASE.replace("retry_budget = 3", "max_attempts = 3")
+        code, out, _ = run(PY_BASE, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("incomplete rename", out)
+
+    def test_rename_onto_an_existing_identifier_is_code_changed(self):
+        before = "def f(x, y):\n    return x + y\n"
+        after = "def f(y, y):\n    return y + y\n"
+        code, out, _ = run(before, after, ".py", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("collides", out)
+
 
 @unittest.skipUnless(
     grammar_available(".cs"), "tree-sitter c-sharp grammar not installed"

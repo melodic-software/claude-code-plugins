@@ -75,9 +75,9 @@ the proof tool, the test-discovery procedure, and the mode ladder: [reference/sa
   function-local renames are certified by `${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py`
   (COMMENT-ONLY, RENAME-ONLY); additive and interface-creating moves need a discovered test net.
   Any other verdict reverts the edit and demotes it to a proposal.
-- **RENAME-ONLY is a shape claim, not a safety claim.** It cannot see shadowing, outer-scope
-  collisions, reflection, or string-keyed access. A rename applied on its strength is reported
-  with a review line naming the mapping, never silently.
+- **RENAME-ONLY is a shape claim, not a safety claim.** It rejects a rename that misses a
+  reference or lands on a name the file already uses, but cannot see other files, reflection, or
+  string-keyed access. A rename applied on its strength is reported with its mapping, never silently.
 - **Exempt surfaces are invisible to this skill** ([reference/safety.md](reference/safety.md)):
   public-API doc comments; legal headers; machine-read directives, universal and repo-local;
   units, sentinels and suppression justifications; negative and operational information;

@@ -205,5 +205,36 @@ class Ranking(unittest.TestCase):
         self.assertEqual(p.returncode, 1, p.stderr)
 
 
+class RankNormalisation(unittest.TestCase):
+    """Ties share one rank, so path spelling never moves a score."""
+
+    @staticmethod
+    def rank_norm():
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.rank_norm
+
+    def test_all_equal_values_share_the_midpoint(self):
+        self.assertEqual(
+            self.rank_norm()({"a": 1.0, "b": 1.0, "c": 1.0}),
+            {"a": 0.5, "b": 0.5, "c": 0.5},
+        )
+
+    def test_partial_tie_takes_the_mean_rank(self):
+        self.assertEqual(
+            self.rank_norm()({"b": 1.0, "a": 1.0, "c": 2.0}),
+            {"a": 0.25, "b": 0.25, "c": 1.0},
+        )
+
+    def test_distinct_values_span_zero_to_one(self):
+        self.assertEqual(
+            self.rank_norm()({"a": 3.0, "b": 1.0, "c": 2.0}),
+            {"b": 0.0, "c": 0.5, "a": 1.0},
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

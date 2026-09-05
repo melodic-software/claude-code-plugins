@@ -68,17 +68,35 @@ CENSUS = Path(__file__).with_name("comment-census.py")
 
 
 def git(*args: str, cwd: str = ".") -> str:
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=False, cwd=cwd).stdout
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False, cwd=cwd
+    ).stdout
 
 
 def rank_norm(values: dict[str, float]) -> dict[str, float]:
+    """Rank each value into [0, 1]; equal values share the mean of their ranks.
+
+    Fractional ranking keeps a tie (common for fan-in and churn in a small or
+    shallow repository) from being broken by path order, which would let the
+    spelling of a filename move a score.
+    """
     if not values:
         return {}
     order = sorted(values, key=lambda k: (values[k], k))
     n = len(order)
     if n == 1:
         return {order[0]: 1.0}
-    return {k: i / (n - 1) for i, k in enumerate(order)}
+    out: dict[str, float] = {}
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        mean_rank = (i + j) / 2
+        for k in order[i : j + 1]:
+            out[k] = mean_rank / (n - 1)
+        i = j + 1
+    return out
 
 
 def generated_paths(paths: list[str]) -> set[str]:
@@ -86,7 +104,10 @@ def generated_paths(paths: list[str]) -> set[str]:
         return set()
     proc = subprocess.run(
         ["git", "check-attr", "--stdin", "-z", "linguist-generated"],
-        input="\0".join(paths) + "\0", capture_output=True, text=True, check=False,
+        input="\0".join(paths) + "\0",
+        capture_output=True,
+        text=True,
+        check=False,
     )
     out: set[str] = set()
     fields = proc.stdout.split("\0")
@@ -97,7 +118,12 @@ def generated_paths(paths: list[str]) -> set[str]:
 
 
 def census_records() -> tuple[dict[str, dict], dict]:
-    proc = subprocess.run([sys.executable, str(CENSUS), ".", "--json", "--top", "0"], capture_output=True, text=True, check=False)
+    proc = subprocess.run(
+        [sys.executable, str(CENSUS), ".", "--json", "--top", "0"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if proc.returncode == EXIT_NO_LAYER:
         raise SystemExit(EXIT_NO_LAYER)
     if proc.returncode != 0:
@@ -109,7 +135,13 @@ def census_records() -> tuple[dict[str, dict], dict]:
 
 def churn_inputs(window_months: int, half_life_days: float, now: float):
     """Recency-weighted line churn, raw line churn, and per-file author commit counts."""
-    log = git("log", f"--since={window_months} months ago", "--numstat", "--no-renames", "--pretty=format:@%ct\t%aN")
+    log = git(
+        "log",
+        f"--since={window_months} months ago",
+        "--numstat",
+        "--no-renames",
+        "--pretty=format:@%ct\t%aN",
+    )
     weighted: dict[str, float] = defaultdict(float)
     raw: dict[str, float] = defaultdict(float)
     authors: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -142,9 +174,35 @@ def fan_in(paths: list[str]) -> dict[str, int]:
     if not names:
         return {}
     proc = subprocess.run(
-        ["git", "grep", "-I", "-o", "-h", "-w", "-F", "-f", "-", "--",
-         "*.sh", "*.py", "*.ts", "*.tsx", "*.js", "*.mjs", "*.cs", "*.yml", "*.yaml", "*.toml", "*.json", "*.md", "*.ps1"],
-        input="\n".join(names) + "\n", capture_output=True, text=True, check=False,
+        [
+            "git",
+            "grep",
+            "-I",
+            "-o",
+            "-h",
+            "-w",
+            "-F",
+            "-f",
+            "-",
+            "--",
+            "*.sh",
+            "*.py",
+            "*.ts",
+            "*.tsx",
+            "*.js",
+            "*.mjs",
+            "*.cs",
+            "*.yml",
+            "*.yaml",
+            "*.toml",
+            "*.json",
+            "*.md",
+            "*.ps1",
+        ],
+        input="\n".join(names) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
     )
     counts: dict[str, int] = defaultdict(int)
     for line in proc.stdout.splitlines():
@@ -153,7 +211,11 @@ def fan_in(paths: list[str]) -> dict[str, int]:
     for p in paths:
         own = 0
         try:
-            own = Path(p).read_text(encoding="utf-8", errors="replace").count(os.path.basename(p))
+            own = (
+                Path(p)
+                .read_text(encoding="utf-8", errors="replace")
+                .count(os.path.basename(p))
+            )
         except OSError:
             pass
         out[p] = max(0, counts.get(os.path.basename(p), 0) - own)
@@ -205,13 +267,33 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--window-months", type=int, default=24)
     ap.add_argument("--half-life-days", type=float, default=90.0)
     ap.add_argument("--min-lines", type=int, default=30, help="size floor, in lines")
-    ap.add_argument("--drift-top", type=int, default=10, help="compute the blame drift column for this many top rows (0 disables)")
+    ap.add_argument(
+        "--drift-top",
+        type=int,
+        default=10,
+        help="compute the blame drift column for this many top rows (0 disables)",
+    )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    if args.top < 0 or args.min_lines < 0 or args.drift_top < 0 or args.half_life_days <= 0:
-        print("rank-comment-targets: arguments must be non-negative (half-life positive)", file=sys.stderr)
+    if (
+        args.top < 0
+        or args.min_lines < 0
+        or args.drift_top < 0
+        or args.half_life_days <= 0
+    ):
+        print(
+            "rank-comment-targets: arguments must be non-negative (half-life positive)",
+            file=sys.stderr,
+        )
         return EXIT_USAGE
-    if subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True, check=False).returncode != 0:
+    if (
+        subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         return EXIT_NOT_GIT
 
     shallow = git("rev-parse", "--is-shallow-repository").strip() == "true"
@@ -245,7 +327,11 @@ def main(argv: list[str] | None = None) -> int:
     gated["byte-identical copies collapsed"] = len(candidates) - len(rows)
 
     now = time.time()
-    weighted, raw, authors = ({}, {}, {}) if shallow else churn_inputs(args.window_months, args.half_life_days, now)
+    weighted, raw, authors = (
+        ({}, {}, {})
+        if shallow
+        else churn_inputs(args.window_months, args.half_life_days, now)
+    )
     fin = fan_in(rows)
 
     # Residual comment volume: comment lines beyond the per-language median ratio.
@@ -253,7 +339,9 @@ def main(argv: list[str] | None = None) -> int:
     for p in rows:
         r = records[p]
         if r.get("lines"):
-            ratio_by_lang[r.get("language", "?")].append(r.get("comment_lines", 0) / r["lines"])
+            ratio_by_lang[r.get("language", "?")].append(
+                r.get("comment_lines", 0) / r["lines"]
+            )
     median = {k: sorted(v)[len(v) // 2] for k, v in ratio_by_lang.items()}
 
     inputs: dict[str, dict[str, float]] = {}
@@ -271,24 +359,47 @@ def main(argv: list[str] | None = None) -> int:
         expected = median.get(r.get("language", "?"), 0.0) * lines
         residual = max(0.0, r.get("comment_lines", 0) - expected)
         inputs[p] = {
-            "churn_per_line": a / lines, "fan_in": float(fin.get(p, 0)), "churn": a, "raw_churn": raw_a,
-            "owner_diffusion": diffusion, "residual_comment_lines": residual,
-            "comment_lines": float(r.get("comment_lines", 0)), "lines": float(lines),
+            "churn_per_line": a / lines,
+            "fan_in": float(fin.get(p, 0)),
+            "churn": a,
+            "raw_churn": raw_a,
+            "owner_diffusion": diffusion,
+            "residual_comment_lines": residual,
+            "comment_lines": float(r.get("comment_lines", 0)),
+            "lines": float(lines),
         }
 
     def norm(key):
         return rank_norm({p: v[key] for p, v in inputs.items()})
 
-    r_cpl, r_fin, r_churn, r_own, r_res = (norm(k) for k in ("churn_per_line", "fan_in", "churn", "owner_diffusion", "residual_comment_lines"))
+    r_cpl, r_fin, r_churn, r_own, r_res = (
+        norm(k)
+        for k in (
+            "churn_per_line",
+            "fan_in",
+            "churn",
+            "owner_diffusion",
+            "residual_comment_lines",
+        )
+    )
     scored = []
     for p, v in inputs.items():
         if shallow:
             exposure = r_fin[p]
         else:
-            exposure = 0.45 * r_cpl[p] + 0.30 * r_fin[p] + 0.15 * r_churn[p] + 0.10 * r_own[p]
+            exposure = (
+                0.45 * r_cpl[p] + 0.30 * r_fin[p] + 0.15 * r_churn[p] + 0.10 * r_own[p]
+            )
         payload = r_res[p] if v["comment_lines"] > 0 else 0.0
-        score = (exposure ** 0.65) * (payload ** 0.35) if payload > 0 else 0.0
-        scored.append({"path": p, "score": round(score, 4), "instances": canonical[p], **{k: round(x, 3) for k, x in v.items()}})
+        score = (exposure**0.65) * (payload**0.35) if payload > 0 else 0.0
+        scored.append(
+            {
+                "path": p,
+                "score": round(score, 4),
+                "instances": canonical[p],
+                **{k: round(x, 3) for k, x in v.items()},
+            }
+        )
     scored.sort(key=lambda r: (-r["score"], r["path"]))
     top = scored[: args.top] if args.top else scored
     for row in top[: args.drift_top]:
@@ -306,17 +417,31 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=1, sort_keys=True))
         return 0
-    print("READING ORDER, NOT EVIDENCE: a rank says look here first; it never says a comment is wrong.")
+    print(
+        "READING ORDER, NOT EVIDENCE: a rank says look here first; it never says a comment is wrong."
+    )
     if shallow:
-        print("shallow clone: no usable history, ranking by fan-in and comment payload only")
-    print(f"layers: lines={sources.get('lines')} bytes={sources.get('bytes') or 'n/a'} complexity={sources.get('complexity') or 'n/a'}")
-    print("gated out: " + ", ".join(f"{k}={v}" for k, v in sorted(gated.items())) + f"; candidates={len(rows)}")
+        print(
+            "shallow clone: no usable history, ranking by fan-in and comment payload only"
+        )
+    print(
+        f"layers: lines={sources.get('lines')} bytes={sources.get('bytes') or 'n/a'} complexity={sources.get('complexity') or 'n/a'}"
+    )
+    print(
+        "gated out: "
+        + ", ".join(f"{k}={v}" for k, v in sorted(gated.items()))
+        + f"; candidates={len(rows)}"
+    )
     print()
-    print("rank\tscore\tinst\tcomment_lines\tlines\tchurn\tfan_in\towners\tresidual\tdrift_days\tpath")
+    print(
+        "rank\tscore\tinst\tcomment_lines\tlines\tchurn\tfan_in\towners\tresidual\tdrift_days\tpath"
+    )
     for i, r in enumerate(top, 1):
         drift = r.get("comment_age_vs_code_days")
         drift_s = "" if drift is None else f"{drift:+.0f}"
-        print(f"{i}\t{r['score']:.3f}\t{r['instances']}\t{int(r['comment_lines'])}\t{int(r['lines'])}\t{r['churn']:.1f}\t{int(r['fan_in'])}\t{r['owner_diffusion']:.2f}\t{r['residual_comment_lines']:.0f}\t{drift_s}\t{r['path']}")
+        print(
+            f"{i}\t{r['score']:.3f}\t{r['instances']}\t{int(r['comment_lines'])}\t{int(r['lines'])}\t{r['churn']:.1f}\t{int(r['fan_in'])}\t{r['owner_diffusion']:.2f}\t{r['residual_comment_lines']:.0f}\t{drift_s}\t{r['path']}"
+        )
     return 0
 
 
