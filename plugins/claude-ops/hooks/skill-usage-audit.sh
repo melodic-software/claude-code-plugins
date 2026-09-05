@@ -16,16 +16,26 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 # shellcheck source=claude-ops-paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/claude-ops-paths.sh"
 
-hook::check_enabled "SKILL_USAGE_AUDIT"
-
 START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
+
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+# A bash match over the buffered payload, no extra process; empty when the
+# payload carries none, and the key is then left out of data.
+SESSION_ID=""
+[[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] && SESSION_ID="${BASH_REMATCH[1]}"
 
 TOOL=$(hook::jq_field "$INPUT" '.tool_name') || exit 0
 [[ "$TOOL" == "Skill" ]] || exit 0
@@ -42,8 +52,8 @@ claude_ops::record_skill_use "PostToolUse" "skill-usage-audit" "$INPUT" "$SKILL"
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
-  DATA=$(jq -nc --arg subject "Skill:$SKILL" --arg skill "$SKILL" \
-    '{subject: $subject, skill: $skill, source: "tool"}')
+  DATA=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "Skill:$SKILL" --arg skill "$SKILL" \
+    '{subject: $subject, skill: $skill, source: "tool"} + (if $session_id == "" then {} else {session_id: $session_id} end)')
   hook::emit_telemetry "skill-usage-audit" "PostToolUse" "ok" \
     "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 fi

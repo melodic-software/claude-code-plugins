@@ -40,6 +40,13 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+# A bash match over the buffered payload, no extra process; empty when the
+# payload carries none, and the key is then left out of data.
+SESSION_ID=""
+[[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] && SESSION_ID="${BASH_REMATCH[1]}"
+
 SKILL=$(hook::jq_field "$INPUT" '.command_name') || exit 0
 SKILL="${SKILL#/}"
 
@@ -54,9 +61,9 @@ claude_ops::record_skill_use "UserPromptExpansion" "skill-usage-expansion-audit"
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
-  DATA=$(jq -nc --arg subject "Skill:$SKILL" --arg skill "$SKILL" --arg exp "$EXP_TYPE" \
+  DATA=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "Skill:$SKILL" --arg skill "$SKILL" --arg exp "$EXP_TYPE" \
     '{subject: $subject, skill: $skill, source: "expansion"}
-     + (if $exp != "" then {expansion_type: $exp} else {} end)')
+     + (if $exp != "" then {expansion_type: $exp} else {} end) + (if $session_id == "" then {} else {session_id: $session_id} end)')
   hook::emit_telemetry "skill-usage-audit" "UserPromptExpansion" "ok" \
     "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 fi

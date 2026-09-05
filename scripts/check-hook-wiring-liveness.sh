@@ -96,8 +96,8 @@ A repo-local hook script under .claude/hooks/ must be wired by
 HOOK_TELEMETRY_SINK). An unwired script is dead weight that can still claim
 enforcement in its header (#2959: pr-linkage-mcp-gate.sh, stripped in #2188
 and never restored). Delete it, or wire it — do not re-add a hook without
-ledger evidence (#2188). Policy enforcement for PR linkage already survives
-via the source-control plugin hook plus required CI pr-issue-linkage.
+ledger evidence (#2188). PR linkage is still reported in CI by the pr-contract
+step of ci.yml's ci-status job, advisory since the contract folded into it.
 
 REMEDY
   exit 1
