@@ -3,7 +3,7 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.14]
+## [0.7.16]
 
 ### Changed
 
@@ -32,7 +32,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.7.13]
+## [0.7.15]
 
 ### Fixed
 

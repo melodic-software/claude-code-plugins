@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.36]
+## [0.21.37]
 
 ### Changed
 
@@ -28,7 +28,7 @@
   described by what it does rather than by compatibility with an older behavior.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.21.33]
+## [0.21.36]
 
 ### Fixed
 

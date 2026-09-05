@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.7]
+## [0.16.2]
 
 ### Changed
 
@@ -31,7 +31,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.15.3]
+## [0.16.1]
 
 ### Fixed
 

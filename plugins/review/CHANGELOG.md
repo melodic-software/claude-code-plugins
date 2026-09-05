@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.17]
+## [0.26.19]
 
 ### Changed
 
@@ -27,7 +27,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   evidence the caller needs to act) rather than a 500-word cap.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.26.16]
+## [0.26.18]
 
 ### Fixed
 

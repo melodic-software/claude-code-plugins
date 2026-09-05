@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.19.4]
+## [0.19.5]
 
 ### Changed
 
@@ -28,7 +28,7 @@
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.19.3]
+## [0.19.4]
 
 ### Fixed
 

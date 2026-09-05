@@ -3,7 +3,7 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.7]
+## [0.3.8]
 
 ### Changed
 
@@ -13,7 +13,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 - evals: audit cases 10 and 11 and realign case 7 assert the body's failed branch call and its exit status instead of the pre-compute sentinel the bodies no longer carry; realign case 8 matches the reworded refusal.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.3.6]
+## [0.3.7]
 
 ### Fixed
 

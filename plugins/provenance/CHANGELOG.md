@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.5]
+## [0.5.6]
 
 ### Changed
 
@@ -18,7 +18,7 @@
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.5.2]
+## [0.5.5]
 
 ### Fixed
 

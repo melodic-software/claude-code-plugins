@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.9]
+## [0.6.10]
 
 ### Changed
 
@@ -11,7 +11,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - improve: `research/deepening/html-report.md` describes badge colours, the files list, band shapes, module labels, and the accent palette in the terms the scaffold's own `<style>` block defines instead of Tailwind classes and colours it never ships; the wins bullet drops its word count; the tone line states the goal instead of banned phrases; the round-trip sequence advice moves from Tone into a sixth diagram pattern with a way to build it under the inline-SVG rule.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.6.8]
+## [0.6.9]
 
 ### Fixed
 

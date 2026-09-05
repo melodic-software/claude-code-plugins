@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.2]
+## [0.16.3]
 
 ### Changed
 
@@ -28,7 +28,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.16.1]
+## [0.16.2]
 
 ### Fixed
 

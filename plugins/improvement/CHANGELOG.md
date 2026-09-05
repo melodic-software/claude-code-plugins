@@ -3,7 +3,7 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.1.8]
+## [0.1.9]
 
 ### Changed
 
@@ -12,7 +12,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 - find: `context/unattended.md` describes the state key's shape in one paragraph instead of restating the helper's derivation it forbids re-deriving; `context/hotspots.md` computes the churn-by-complexity quadrant (medians, filter, product, sort) in the shell instead of asking the model to do the arithmetic.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.1.7]
+## [0.1.8]
 
 ### Fixed
 

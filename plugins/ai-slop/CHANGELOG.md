@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.10]
+## [0.5.11]
 
 ### Changed
 
@@ -8,7 +8,7 @@
 - setup: the `thresholds` key table lists the two density rules `detect.sh` reads; `rule_of_three` left the density table when it moved to the judgment rubric.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.5.8]
+## [0.5.10]
 
 ### Fixed
 
