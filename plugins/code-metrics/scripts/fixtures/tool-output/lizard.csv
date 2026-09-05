@@ -1,0 +1,4 @@
+9,3,34,1,9,"classify@4-12@plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts","plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts","classify","classify ( value )",4,12
+2,2,15,1,3,"classify.inner@12-14@plugins/code-metrics/scripts/fixtures/sources/cm_sample.py","plugins/code-metrics/scripts/fixtures/sources/cm_sample.py","classify.inner","classify.inner( flag : bool )",12,14
+7,3,34,1,12,"classify@9-20@plugins/code-metrics/scripts/fixtures/sources/cm_sample.py","plugins/code-metrics/scripts/fixtures/sources/cm_sample.py","classify","classify( value : int )",9,20
+9,3,27,1,9,"Classify@7-15@plugins/code-metrics/scripts/fixtures/sources/cm-sample.go","plugins/code-metrics/scripts/fixtures/sources/cm-sample.go","Classify","Classify value int",7,15
