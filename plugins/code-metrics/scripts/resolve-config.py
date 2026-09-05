@@ -238,6 +238,17 @@ def resolve(
 
 def dispatch_args(config: dict[str, Any]) -> list[str]:
     lines: list[str] = []
+    # A configured `all` default and a configured base travel to the dispatcher,
+    # which lets an explicit command-line --all, path, or --base win over them.
+    # `change` is the bundled default and the dispatcher's own, so it emits
+    # nothing: a no-op line would only be noise on the dispatcher's command line.
+    scope = config.get("scope") or {}
+    default = scope.get("default")
+    if default == "all":
+        lines.append(f"--scope-default {default}")
+    base = scope.get("base")
+    if isinstance(base, str) and base.strip() and base != "auto":
+        lines.append(f"--scope-base {base.strip()}")
     lanes = config.get("lanes") or {}
     ecosystems = config.get("_ecosystems") or {}
     for lane in sorted(set(lanes) | set(ecosystems)):
@@ -258,6 +269,12 @@ def ladder_overrides(config: dict[str, Any]) -> list[str]:
         for measure, tools in sorted(
             ((lane_cfg or {}).get("collectors") or {}).items()
         ):
+            if not tools:
+                # An explicitly empty list is a closed value: no collector runs
+                # for this lane and measure, so the dispatcher gets the
+                # reserved `none` rung rather than falling back to the ladder.
+                lines.append(f"{lane}\t{measure}\tnone")
+                continue
             for tool in tools:
                 lines.append(f"{lane}\t{measure}\t{tool}")
     return lines

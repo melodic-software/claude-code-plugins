@@ -93,28 +93,41 @@ def resolve(path: str, scope: list[str], root: str, prefixes: list[str]) -> str 
     for candidate in candidates:
         if candidate in scope:
             return candidate
-    best: tuple[int, str] | None = None
+    # Component-wise suffix match, either way round. The longest shared suffix
+    # wins only when it names ONE scoped file: two services vendoring the same
+    # `pkg/a.py` tie, and attributing the artifact to whichever came first
+    # would credit one service with the other's coverage, so a tie is no match.
+    matches: dict[str, int] = {}
     for candidate in candidates:
         parts = candidate.split("/")
         for target in scope:
             wanted = target.split("/")
             if len(wanted) <= len(parts) and parts[-len(wanted) :] == wanted:
-                if best is None or len(wanted) > best[0]:
-                    best = (len(wanted), target)
-    if best:
-        return best[1]
+                matches[target] = max(matches.get(target, 0), len(wanted))
+    unique = _unique_longest(matches)
+    if unique is not None or matches:
+        return unique
     for candidate in candidates:
         parts = candidate.split("/")
         for target in scope:
             wanted = target.split("/")
             if len(parts) < len(wanted) and wanted[-len(parts) :] == parts:
-                if best is None or len(parts) > best[0]:
-                    best = (len(parts), target)
-    if best:
-        return best[1]
+                matches[target] = max(matches.get(target, 0), len(parts))
+    unique = _unique_longest(matches)
+    if unique is not None or matches:
+        return unique
     base = candidates[0].rsplit("/", 1)[-1]
-    matches = [t for t in scope if t.rsplit("/", 1)[-1] == base]
-    return matches[0] if len(matches) == 1 else None
+    basename_matches = [t for t in scope if t.rsplit("/", 1)[-1] == base]
+    return basename_matches[0] if len(basename_matches) == 1 else None
+
+
+def _unique_longest(matches: dict[str, int]) -> str | None:
+    """The one target with the longest match, or None when absent or tied."""
+    if not matches:
+        return None
+    longest = max(matches.values())
+    winners = [target for target, length in matches.items() if length == longest]
+    return winners[0] if len(winners) == 1 else None
 
 
 def _lines(raw: Any) -> dict[int, int]:
@@ -269,13 +282,17 @@ def join(
     root: str = "",
     prefixes: list[str] | None = None,
     searched: list[str] | None = None,
+    scope_lanes: dict[str, str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """The whole join: coverage rows plus the run rows that explain them."""
     prefixes = prefixes or []
     scope = [normalize(path) for path in scope]
     merged, _ = merge_artifacts(artifacts, scope, root, prefixes)
     cyclomatic = _cyclomatic_rows(complexity)
-    lane_of: dict[str, str] = {}
+    # The dispatcher's own lane assignment leads: it covers every file in scope,
+    # including the ones no complexity collector produced a row for. The
+    # complexity document fills in only where the dispatcher said nothing.
+    lane_of: dict[str, str] = dict(scope_lanes or {})
     for row in complexity.get("measures") or []:
         if row.get("file"):
             lane_of.setdefault(normalize(row["file"]), row.get("lane") or "*")
@@ -363,13 +380,39 @@ def join(
         lane_cyclomatic = [
             row for row in cyclomatic if (row.get("lane") or "*") == lane
         ]
-        if not lane_cyclomatic:
-            crap_status = "not-applicable"
-            crap_reason = "no function-level cyclomatic rows in scope for this lane"
-        elif all(row.get("end_line") is None for row in lane_cyclomatic):
+        if lane_cyclomatic and all(
+            row.get("end_line") is None for row in lane_cyclomatic
+        ):
+            # A collector that reports no function end lines can never produce
+            # CRAP for this lane, whatever the coverage side did, so that stays
+            # the reported cause.
             crap_status, crap_reason = "not-applicable", NO_END_LINES
         elif status != "ok":
+            # CRAP is coverage times complexity, so a lane with no coverage has
+            # no CRAP whatever the cyclomatic side produced; the coverage row's
+            # reason is the blocker worth reporting.
             crap_status, crap_reason = status, reason
+        elif not lane_cyclomatic:
+            # No cyclomatic rows: either the lane's complexity collector did not
+            # run (its run row says why, and CRAP is then unavailable, not
+            # inapplicable) or the scope holds no functions for this lane.
+            comp_row = next(
+                (
+                    row
+                    for row in complexity.get("run") or []
+                    if row.get("lane") == lane and row.get("measure") == "cyclomatic"
+                ),
+                None,
+            )
+            if comp_row and comp_row.get("status") != "ok":
+                crap_status = "unavailable"
+                crap_reason = (
+                    f"cyclomatic collector {comp_row.get('status')}: "
+                    f"{comp_row.get('reason') or 'no reason given'}"
+                )
+            else:
+                crap_status = "not-applicable"
+                crap_reason = "no function-level cyclomatic rows in scope for this lane"
         else:
             crap_status, crap_reason = "ok", reason
         run.append(
@@ -502,8 +545,24 @@ def main(argv: list[str]) -> int:
             "usage: join.py --complexity <doc> --scope <files> [...]", file=sys.stderr
         )
         return 2
+    # The scope file is the dispatcher's `--print-scope` output: `lane<TAB>path`
+    # rows. A bare path (no tab) is still accepted and carries no lane.
+    scope: list[str] = []
+    scope_lanes: dict[str, str] = {}
     with open(args.scope, encoding="utf-8") as handle:
-        scope = [line.strip() for line in handle if line.strip()]
+        for line in handle:
+            line = line.rstrip("\n")
+            if not line.strip():
+                continue
+            lane, tab, path = line.partition("\t")
+            if not tab:
+                lane, path = "", line
+            path = normalize(path.strip())
+            if not path:
+                continue
+            scope.append(path)
+            if lane.strip():
+                scope_lanes.setdefault(path, lane.strip())
     result = join(
         _read_json(args.complexity),
         [_read_artifact(spec) for spec in args.artifacts],
@@ -511,6 +570,7 @@ def main(argv: list[str]) -> int:
         normalize(args.root).rstrip("/"),
         args.prefix_strip,
         args.searched,
+        scope_lanes,
     )
     _write_jsonl(args.measures_out, result["measures"])
     _write_jsonl(args.run_out, result["run"])

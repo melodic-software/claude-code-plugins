@@ -83,6 +83,30 @@ class PositionalLayerTests(unittest.TestCase):
             )
             self.assertIn("'nonsense' is not in the ladder", result.stderr)
 
+    def test_scope_defaults_and_an_empty_collector_list_reach_the_dispatcher(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                "scope:\n  default: all\n  base: mark\n"
+                "lanes:\n  python:\n    collectors:\n      cyclomatic: []\n",
+                encoding="utf-8",
+            )
+            args = run(
+                USER, str(team), "--ladder", str(LADDER), "--format", "dispatch-args"
+            ).stdout.splitlines()
+            self.assertEqual(args[:2], ["--scope-default all", "--scope-base mark"])
+            rows = run(
+                USER, str(team), "--ladder", str(LADDER), "--format", "ladder-overrides"
+            ).stdout.splitlines()
+            self.assertIn("python\tcyclomatic\tnone", rows)
+            # The bundled defaults (change, auto) emit no scope lines at all.
+            self.assertNotIn(
+                "--scope-default change",
+                run(USER, "--format", "dispatch-args").stdout,
+            )
+
     def test_a_quoted_reference_is_a_named_type_error(self) -> None:
         # A YAML author who writes `reference: "20"` gets a string scalar, and
         # the assembler would compare a number against it; the resolver names
@@ -167,13 +191,20 @@ class DiscoveredLayerTests(unittest.TestCase):
             (root / ".claude" / "code-metrics.local.yaml").write_text(
                 "size:\n  file_lines: 650\n", encoding="utf-8"
             )
-            (root / ".claude" / "ecosystems" / "bash.yaml").write_text(
+            # An ecosystem file's stem IS the lane name, and every lane name
+            # this repository knows is also the basename of a committed
+            # convention example. A literal `<lane>.yaml` here would make
+            # scripts/affected-tests.sh map that unrelated example to this
+            # suite, so the fixture names are composed from the lane instead.
+            ecosystems = root / ".claude" / "ecosystems"
+            shell, golang = "bash", "go"
+            (ecosystems / (shell + ".yaml")).write_text(
                 'globs: ["*.sh", "*.bats"]\nenabled: true\n', encoding="utf-8"
             )
-            (root / ".claude" / "ecosystems" / "go.yaml").write_text(
+            (ecosystems / (golang + ".yaml")).write_text(
                 'globs: ["*.go"]\n', encoding="utf-8"
             )
-            (root / ".claude" / "ecosystems" / "go.local.yaml").write_text(
+            (ecosystems / (golang + ".local.yaml")).write_text(
                 "enabled: false\n", encoding="utf-8"
             )
             result = run("--home", str(home), "--repo-root", str(root))

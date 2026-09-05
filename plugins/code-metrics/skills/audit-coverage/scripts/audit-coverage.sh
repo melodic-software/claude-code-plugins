@@ -182,20 +182,18 @@ if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"
 fi
 
-# The scope block travels with the report; the scope file list is the file set
-# the complexity document measured, which is what the join keys on.
+# The scope block travels with the report. The file list the join keys on is
+# the dispatcher's own resolved scope (same arguments, same exclusions), not
+# the files a complexity collector happened to emit rows for: a file with no
+# functions, or a lane whose collector is absent, still gets its file-level
+# coverage; complexity is needed only for CRAP.
 "${PY[@]}" -c '
 import json, sys
 document = json.load(open(sys.argv[1]))
 json.dump(document.get("scope") or {}, open(sys.argv[2], "w"))
-seen = []
-for row in document.get("measures") or []:
-    name = row.get("file")
-    if name and name not in seen:
-        seen.append(name)
-with open(sys.argv[3], "w") as handle:
-    handle.write("".join(name + "\n" for name in seen))
-' "$WORK/complexity.json" "$WORK/scope.json" "$WORK/scope-files.txt" || exit 2
+' "$WORK/complexity.json" "$WORK/scope.json" || exit 2
+bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --config "$CONFIG" \
+  --print-scope ${ARGS[@]+"${ARGS[@]}"} >"$WORK/scope-files.txt" || exit 2
 
 "${PY[@]}" "$SCRIPT_DIR/join.py" --complexity "$WORK/complexity.json" \
   --scope "$WORK/scope-files.txt" --root "$ROOT" \

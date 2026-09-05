@@ -157,6 +157,17 @@ assert_doc "the nested function is reported on its own" "$out" \
 assert_doc "the outer function reports the CRAP of its own coverage" "$out" \
   'any(r["function"]=="classify" and r["values"]["coverage_pct"]==50.0 and r["values"]["crap"]==4.125 for r in d["measures"])'
 
+# 5b. No complexity collector at all: file-level coverage still comes from the
+#     dispatcher's own scope, and CRAP is unavailable with the collector's reason
+#     rather than the scope reading as empty.
+out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES" --artifacts "$COVERAGE/coverage-py.json" 2>/dev/null)"
+rc=$?
+assert_eq "no complexity collector still exits 0" 0 "$rc"
+assert_doc "the python file row survives without any complexity row" "$out" \
+  'any(r["function"] is None and r["lane"]=="python" and r["values"]["coverage_pct"] is not None for r in d["measures"])'
+assert_doc "CRAP is unavailable and names the missing collector" "$out" \
+  'any(r["lane"]=="python" and r["measure"]=="crap" and r["status"]=="unavailable" and "cyclomatic collector" in r["reason"] for r in d["run"])'
+
 # 6. lcov-2.2.info: FNL/FNA with no FN record at all, so the end line and the
 #    hit count come from the 2.2 records or not at all.
 out="$(run_json lcov-2.2.info)"

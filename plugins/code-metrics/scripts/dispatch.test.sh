@@ -202,7 +202,14 @@ lanes:
   dotnet:
     enabled: false
 EOF
-printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/bash.yaml"
+# The ecosystem file's basename IS the lane name, and every lane name this
+# repository knows is also the basename of a committed convention example. A
+# literal `<lane>.yaml` here would make scripts/affected-tests.sh map that
+# unrelated example to this suite, so the fixture name is composed instead
+# (the same reason affected-tests.sh's own header declines to spell a
+# colliding basename).
+eco_lane=bash
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
 printf 'a = 1\nb = 2\nc = 3\nd = 4\ne = 5\nf = 6\n' >"$repo/a.py"
 printf 'g = 1\n' >"$repo/gen/b.py"
 printf 'run() { :; }\n' >"$repo/x.bats"
@@ -232,6 +239,48 @@ assert_doc "ladder override lists lizard only for typescript cyclomatic" "$out" 
 assert_doc "pre-resolved thresholds carry their layer" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["reference"]==15 and next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["layer"]=="team"'
 rm -f "$resolved"
+
+# 12. Configured scope: `scope.base` and `scope.default` apply when the command
+#     line names no --base, --all, or path; an explicit --base still wins; an
+#     explicitly empty collector list runs nothing for that lane and measure;
+#     and --print-scope prints the resolved lane/path rows and stops.
+repo="$(mktemp -d)"
+home="$(mktemp -d)"
+(
+  cd "$repo" || exit 1
+  git init -q -b main
+  git config user.email t@example.com
+  git config user.name t
+  printf 'x = 1\n' >base.py
+  git add base.py && git commit -q -m base
+  git checkout -q -b feature
+  printf 'y = 2\n' >changed.py
+  git add changed.py && git commit -q -m change
+  git tag mark
+  printf 'z = 3\n' >third.py
+  git add third.py && git commit -q -m third
+  mkdir -p .claude
+  printf 'scope:\n  base: mark\n' >.claude/code-metrics.yaml
+)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+assert_doc "a configured scope.base narrows the change to the commits after it" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["third.py"]'
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main)"
+assert_doc "an explicit --base wins over the configured one" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["changed.py","third.py"]'
+(cd "$repo" && printf 'scope:\n  default: all\nlanes:\n  python:\n    collectors:\n      file_lines: []\n' >.claude/code-metrics.yaml)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+assert_doc "a configured scope.default of all widens the run to the tree" "$out" \
+  'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
+assert_doc "an empty collector list runs nothing for that lane and says so" "$out" \
+  'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and d["measures"]==[]'
+listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
+assert_eq "--print-scope prints each measurable file with its lane" "python	base.py
+python	changed.py
+python	third.py" "$(printf '%s\n' "$listing" | sort)"
+assert_eq "--print-scope leaves out a file no lane claims" "" \
+  "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
+rm -rf "$repo" "$home"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

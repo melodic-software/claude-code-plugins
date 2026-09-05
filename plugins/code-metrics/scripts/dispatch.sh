@@ -7,7 +7,7 @@
 #   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
 #               [--config <resolved.json>] [--ladder <file.tsv>]
 #               [--lane-globs <lane>=<glob>[,<glob>...]]... [--disable-lane <lane>]...
-#               [--scope-file <file>] [--] [<path>...]
+#               [--scope-file <file>] [--print-scope] [--] [<path>...]
 #
 # Scope: `<path>...` measures those files and directories (an explicitly named
 # path that does not exist is a usage error, exit 2); `--all` measures every
@@ -15,7 +15,8 @@
 # repository); with neither, the default is the change: files that differ from
 # the merge-base with the default branch plus uncommitted and untracked files.
 # `--scope-file` reads the file list from a file (one path per line) instead.
-# Every path is emitted with forward slashes.
+# Every path is emitted with forward slashes. `--print-scope` prints the
+# resolved scope as `lane<TAB>path` rows and stops, producing no document.
 #
 # Configuration: without `--config`, the cascade is resolved here through
 # scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
@@ -57,6 +58,9 @@ SKILL=""
 MEASURES=""
 MODE="change"
 BASE="auto"
+MODE_SET=0
+BASE_SET=0
+PRINT_SCOPE=0
 SCOPE_FILE=""
 DETECT_ARGS=()
 PATHS=()
@@ -69,12 +73,22 @@ while [[ $# -gt 0 ]]; do
     ;;
   --all)
     MODE="all"
+    MODE_SET=1
     shift
     ;;
   --base)
     [[ $# -ge 2 ]] || die_usage "--base needs a value"
     BASE="$2"
+    BASE_SET=1
     shift 2
+    ;;
+  --print-scope)
+    # Print the resolved, excluded, binary-sniffed file list with its lane
+    # assignment (`lane<TAB>path`) and stop; the coverage skill keys its join
+    # on exactly the set the audits measure, and learns each file's lane
+    # without waiting on a complexity collector that may not be installed.
+    PRINT_SCOPE=1
+    shift
     ;;
   --config)
     [[ $# -ge 2 ]] || die_usage "--config needs a value"
@@ -129,6 +143,7 @@ done
 [[ -f "$LADDER" ]] || die_usage "ladder file not found: $LADDER"
 [[ -z "$CONFIG" || -f "$CONFIG" ]] || die_usage "config file not found: $CONFIG"
 [[ ${#PATHS[@]} -gt 0 && "$MODE" == "change" ]] && MODE="paths"
+[[ "$MODE" == "paths" ]] && MODE_SET=1
 
 if ! cm_resolve_python; then
   die_usage "Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite"
@@ -154,6 +169,14 @@ for line in "${config_detect_args[@]}"; do
   case "${line%% *}" in
   --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
   --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
+  # `scope.default` and `scope.base` apply only when the command line gave
+  # no --all, path, or --base of its own.
+  --scope-default)
+    if [[ "$MODE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
+    ;;
+  --scope-base)
+    if [[ "$BASE_SET" -eq 0 ]]; then BASE="${line#* }"; fi
+    ;;
   *) die_usage "unexpected resolver output: $line" ;;
   esac
 done
@@ -295,6 +318,11 @@ if [[ "$FILE_COUNT" -gt 0 ]]; then
   bash "$DETECT" "${DETECT_ARGS[@]}" -- "${scoped_files[@]}" >"$LANES_TSV" || exit 2
 else
   : >"$LANES_TSV"
+fi
+
+if [[ "$PRINT_SCOPE" -eq 1 ]]; then
+  cat "$LANES_TSV"
+  exit 0
 fi
 
 # ---- ladder ------------------------------------------------------------------

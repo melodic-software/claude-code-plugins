@@ -143,6 +143,34 @@ class PathNormalizationTests(unittest.TestCase):
             )
         self.assertEqual(document["measures"][0]["file"], "pkg/sample.go")
 
+    def test_an_ambiguous_suffix_joins_to_nothing(self) -> None:
+        # Two services vendor the same `pkg/a.py`; an artifact naming only the
+        # shared suffix must not credit whichever service came first.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [
+                        complexity_row("service-one/pkg/a.py", "f", 1, 3, "python", 1),
+                        complexity_row("service-two/pkg/a.py", "f", 1, 3, "python", 1),
+                    ]
+                )
+                .artifact(
+                    "lcov",
+                    {
+                        "pkg/a.py": {
+                            "lines": {"1": 1, "2": 1, "3": 1},
+                            "functions": None,
+                        }
+                    },
+                )
+                .join()
+            )
+        self.assertEqual(document["measures"], [])
+        coverage_row = next(r for r in document["run"] if r["measure"] == "coverage")
+        self.assertEqual(coverage_row["status"], "unavailable")
+        self.assertIn("0 of 2", coverage_row["reason"])
+
 
 class RunRowTests(unittest.TestCase):
     def test_a_lane_matched_in_part_carries_the_partial_reason(self) -> None:
