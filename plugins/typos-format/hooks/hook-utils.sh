@@ -119,7 +119,8 @@ hook::emit_skip_notice() {
 }
 
 # The exit-0 notice for hook::buffer_stdin rc 3 (a JSON payload cut short by
-# the pipe closing or stalling mid-document, #3507). Not once-per-session: each
+# the pipe CLOSING mid-document, #3507; a pipe that stalls on such a prefix is
+# rc 2 and never reaches this). Not once-per-session: each
 # occurrence is one tool call that ran unevaluated, and the user is the one who
 # can act on a starved host. Same text on stderr (next to buffer_stdin's own
 # diagnostic) and on both hook channels. <event> may be empty when the caller
@@ -129,7 +130,7 @@ hook::emit_skip_notice() {
 #   hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
 hook::stdin_cut_short_notice() {
   local event="$1" label="$2"
-  local msg="$label: hook stdin was cut short (the payload pipe closed or went quiet mid-document), so this tool call was not evaluated and is allowed through. That is a transport fault on this host, not a property of the command, and it says nothing about what would run. If it recurs the host is starved; see the stdin_read_timeout option and the recorded hook-run durations."
+  local msg="$label: hook stdin was cut short (the payload pipe closed mid-document), so this tool call was not evaluated and is allowed through. That is a transport fault on this host, not a property of the command, and it says nothing about what would run. If it recurs the host is starved; see the stdin_read_timeout option and the recorded hook-run durations."
   echo "$msg" >&2
   if [[ -n "$event" ]]; then
     hook::emit_channels "$event" "$msg" "$msg"
@@ -1377,16 +1378,21 @@ hook::repo_relative_path() {
 #   0  a payload, printed CR-stripped on stdout.
 #   1  nothing arrived (empty or whitespace-only stdin): callers skip silently.
 #   2  text arrived that is not JSON — `BLOCKED: hook stdin is not valid JSON.`
-#      on stderr. A blocking guard exits 2 on it: a payload it cannot read is
-#      what a bypass attempt would look like.
-#   3  a JSON payload was CUT SHORT (#3507): what arrived is a well-formed
-#      prefix (jq's own "Unfinished ... at EOF" verdict) and then the pipe
-#      closed, or went quiet for a whole idle bound. A transport fault — the
-#      harness writes the payload, the agent cannot shape it, and the same call
-#      succeeds on retry — so it says nothing about the command and no caller
-#      blocks on it: emit hook::stdin_cut_short_notice and exit 0. The stderr
-#      diagnostic names the character count and whether the pipe closed or
-#      stalled.
+#      on stderr — OR the pipe stayed open and went quiet for a whole idle bound
+#      before the document was complete: `BLOCKED: hook stdin timed out before
+#      a complete JSON payload arrived.` A blocking guard exits 2 on both. A
+#      payload it cannot read is what a bypass attempt would look like, and a
+#      stall is a condition the agent can help along (payload size splits the
+#      harness write at 64 KiB; host load from earlier tool calls widens the
+#      gap), so the stall arm stays fail-closed by decision (#3507, #3740).
+#   3  a JSON payload was CUT SHORT AT EOF (#3507): what arrived is a
+#      well-formed prefix (jq's own "Unfinished ... at EOF" verdict) and the
+#      pipe then CLOSED — the harness reported end-of-file mid-document, the
+#      one arm the reported incident produced. The harness writes the payload
+#      and owns the pipe's close, the agent cannot stage that, and the same
+#      call succeeds on retry, so it says nothing about the command and no
+#      caller blocks on it: emit hook::stdin_cut_short_notice and exit 0. The
+#      stderr diagnostic names the character count.
 #   INPUT=$(hook::buffer_stdin) || exit 0
 
 # The `read -N` availability guard, split out as its own predicate so the
@@ -1643,29 +1649,42 @@ hook::buffer_stdin() {
     # treat as a no-op. Decided first: a whitespace-only read that then stalled
     # is still an empty payload, not a stall to act on.
     [[ -n "${input//[[:space:]]/}" ]] || return 1
-    # CUT SHORT versus NOT JSON (#3507). jq names a document that ended before
-    # it closed "Unfinished JSON term at EOF" / "Unfinished string at EOF"
-    # (wording stable across jq 1.5 through 1.7; the suite pins it), while text
-    # that is not JSON fails on the offending token ("Invalid numeric literal",
-    # "Expected separator between values", ...). A well-formed prefix means
-    # every byte that arrived was the harness's payload and the pipe then
-    # closed, or went quiet for a whole idle bound, before the rest came: a
-    # transport fault. The harness serializes that payload, so the agent cannot
-    # shape it; the fault says nothing about the command; and it is
-    # non-deterministic (the same call succeeds on retry). A blocking caller
-    # therefore must not deny on it: rc 3, notice, exit 0. Text that never
-    # parsed keeps rc 2 — a payload the guard cannot read is what a bypass
-    # attempt would look like, so the blocking guards still fail closed there.
-    # Before this split both were rc 2, and on a starved Windows host (bash
-    # reports an early EOF and a pipe error with the same rc 1, so a truncated
-    # payload landed here as "not valid JSON") legitimate tool calls were
-    # blocked with a message that pointed at the command. Should jq's wording
-    # change, an unrecognized diagnostic falls through to rc 2 — the pre-#3507
-    # behavior, never a wider allow.
+    # STALLED stays fail-closed, and is decided BEFORE the content split below.
+    # A pipe still open after a whole idle bound with an incomplete document
+    # is the pre-#3507 stall verdict, unchanged: rc 2. The narrowing is
+    # deliberate (#3507, #3740): a stall is reachable from the agent's side —
+    # a payload past 64 KiB splits the harness write, and host load from
+    # earlier tool calls widens the gap between the halves — and the
+    # dispatcher takes rc 3 before any guard is sourced, so an allow here would
+    # let one induced stall skip every guard on the lane. Some genuine stalls
+    # on a starved host are therefore still denied; that is the accepted
+    # trade. Only the arm the reported incident produced, below, is allowed.
+    if ((stalled)); then
+      echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
+      return 2
+    fi
+    # CUT SHORT AT EOF versus NOT JSON (#3507). jq names a document that ended
+    # before it closed "Unfinished JSON term at EOF" / "Unfinished string at
+    # EOF" (wording stable across jq 1.5 through 1.7; the suite pins it), while
+    # text that is not JSON fails on the offending token ("Invalid numeric
+    # literal", "Expected separator between values", ...). The read reached
+    # here on end-of-file, not on the idle bound, so a well-formed prefix means
+    # every byte that arrived was the harness's payload and the harness's pipe
+    # then closed before the rest came: a transport fault. The harness
+    # serializes that payload and owns the close, so the agent cannot stage
+    # it; the fault says nothing about the command; and it is non-deterministic
+    # (the same call succeeds on retry). A blocking caller therefore must not
+    # deny on it: rc 3, notice, exit 0. Text that never parsed keeps rc 2 — a
+    # payload the guard cannot read is what a bypass attempt would look like,
+    # so the blocking guards still fail closed there. Before this split both
+    # were rc 2, and on a starved Windows host (bash reports an early EOF and a
+    # pipe error with the same rc 1, so a truncated payload landed here as "not
+    # valid JSON") legitimate tool calls were blocked with a message that
+    # pointed at the command. Should jq's wording change, an unrecognized
+    # diagnostic falls through to rc 2 — the pre-#3507 behavior, never a wider
+    # allow.
     if [[ "$jq_err" == *Unfinished* ]]; then
-      local how="closed"
-      ((stalled)) && how="went quiet for ${read_timeout}s"
-      echo "hook stdin was cut short: ${#input} characters of a JSON payload arrived, then the pipe ${how} before the document was complete (a transport fault, not a property of the tool call)." >&2
+      echo "hook stdin was cut short: ${#input} characters of a JSON payload arrived, then the pipe closed before the document was complete (a transport fault, not a property of the tool call)." >&2
       return 3
     fi
     echo "BLOCKED: hook stdin is not valid JSON." >&2

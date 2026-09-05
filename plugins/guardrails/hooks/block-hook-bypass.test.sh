@@ -551,11 +551,14 @@ assert_contains "crash path names guard did not run" "$crash_out" "guard did not
 # early EOF and a pipe read error the same rc 1). What arrived is a well-formed
 # JSON prefix, which the agent cannot shape — the harness serializes it — so
 # the guard must not deny on it: exit 0, a dual-channel notice, and a `skipped`
-# telemetry envelope. Both transport shapes are pinned: the pipe closing early
-# and the pipe going quiet past the idle bound. The stalled arm holds the pipe
-# with a sleep; if a slow spawn lets that hold expire first, the read ends in
-# early EOF instead, which is the other transport shape and the same verdict,
-# so the assertion cannot flake under load. The command inside the prefix is a
+# telemetry envelope. ONLY that transport shape is allowed: the same prefix on
+# a pipe that stays open and goes quiet past the idle bound is a stall, and a
+# stall stays fail-closed by decision (#3740) — payload size and host load
+# both move it, and under the dispatcher an allow on it would skip every guard
+# at once. The stalled arm therefore asserts exit 2, and its hold is a FIFO
+# handshake released only after the guard exits: a fixed sleep a slow spawn
+# outran would end the read in early EOF, which is now the OTHER verdict, and
+# the case would pass for the wrong reason. The command inside the prefix is a
 # real bypass form, so this also pins that a cut-short payload is never
 # matched: there is nothing to match, and the verdict is the transport one.
 CUT_BYPASS='{"tool_name":"Bash","tool_input":{"command":"cat > foo.txt'
@@ -567,13 +570,28 @@ assert_absent "cut-short payload: nothing is BLOCKED" "$(cat "$TEST_TMPDIR/cut.e
 assert_contains "cut-short payload: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$cut_out")" "not evaluated"
 assert_contains "cut-short payload: additionalContext carries the notice" "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$cut_out")" "not evaluated"
 assert_eq "cut-short payload: hookEventName is PreToolUse" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$cut_out" | tr -d '\r')"
-cut_rc=0
+CUT_FIFO="$TEST_TMPDIR/cut.fifo"
+if mkfifo "$CUT_FIFO" 2>/dev/null; then
+  cut_hold() { read -r _ <"$CUT_FIFO"; }
+  cut_release() { : >"$CUT_FIFO"; }
+else
+  cut_hold() { sleep 30; }
+  cut_release() { :; }
+fi
 {
   printf '%s' "$CUT_BYPASS"
-  sleep 3
-} | env CLAUDE_PROJECT_DIR= CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/cut.err" || cut_rc=$?
-assert_exit "cut-short payload (pipe stalled) is allowed" 0 "$cut_rc"
-assert_contains "cut-short payload (stalled): stderr names the transport fault" "$(cat "$TEST_TMPDIR/cut.err")" "cut short"
+  cut_hold
+} | {
+  env CLAUDE_PROJECT_DIR= CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash "$HOOK" >"$TEST_TMPDIR/cut.out" 2>"$TEST_TMPDIR/cut.err"
+  echo "$?" >"$TEST_TMPDIR/cut.rc"
+  cut_release
+}
+cut_rc=$(cat "$TEST_TMPDIR/cut.rc")
+assert_exit "same prefix, pipe stalled: BLOCKED (a stall stays fail-closed, #3740)" 2 "$cut_rc"
+assert_contains "stalled prefix: stderr names the stall" "$(cat "$TEST_TMPDIR/cut.err")" "timed out before a complete JSON payload"
+assert_absent "stalled prefix: not reported as cut short" "$(cat "$TEST_TMPDIR/cut.err")" "cut short"
+assert_absent "stalled prefix: no allow notice" "$(cat "$TEST_TMPDIR/cut.err")" "not evaluated"
+assert_silent "stalled prefix: nothing on stdout (no hook document, no notice)" "$(cat "$TEST_TMPDIR/cut.out")"
 # Text that is not JSON keeps failing closed: a payload the guard cannot read
 # is what a bypass attempt would look like, and it is not a transport shape.
 cut_rc=0

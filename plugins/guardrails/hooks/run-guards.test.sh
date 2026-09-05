@@ -115,18 +115,56 @@ run "not json" "$TEST_TMPDIR/allow.sh"
 assert_exit "malformed stdin: a fail-closed guard's rc-2 path is reached" 2 "$RC"
 assert_contains "malformed stdin names the reason once" "$ERR" "not valid JSON"
 assert_eq "malformed-stdin reason printed exactly once" "1" "$(grep -c 'not valid JSON' <<<"$ERR")"
-# A payload cut short in transit (#3507) — a well-formed JSON prefix the pipe
-# closed on — is a transport fault, not a verdict on the command. The dispatcher
-# takes it once as a loud allow: exit 0, the notice on systemMessage and stderr,
-# and no guard runs (block.sh would have exited 2 had it run).
-run '{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify' "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
-assert_exit "cut-short stdin: loud allow, taken once" 0 "$RC"
-assert_contains "cut-short stdin: the lib diagnostic names the cause" "$ERR" "cut short"
-assert_absent "cut-short stdin: nothing is BLOCKED" "$ERR" "BLOCKED"
-assert_eq "cut-short stdin: exactly one JSON document on stdout" "1" "$(jq -s 'length' <<<"$OUT")"
-assert_contains "cut-short stdin: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "not evaluated"
-assert_eq "cut-short stdin: notice printed exactly once" "1" "$(grep -c 'not evaluated' <<<"$ERR")"
-assert_eq "cut-short stdin: no guard ran" "" "$(cat "$SEEN")"
+# A payload cut short at EOF (#3507) — a well-formed JSON prefix the pipe
+# CLOSED on (`<<<` closes it) — is a transport fault, not a verdict on the
+# command. The dispatcher takes it once as a loud allow: exit 0, the notice on
+# systemMessage and stderr, and no guard runs (block.sh would have exited 2 had
+# it run). That "no guard ran" is EOF-specific; the stall case below is the
+# other half of the pin.
+CUT_PREFIX='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify'
+run "$CUT_PREFIX" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "cut-short stdin (early EOF): loud allow, taken once" 0 "$RC"
+assert_contains "cut-short stdin (early EOF): the lib diagnostic names the cause" "$ERR" "cut short"
+assert_absent "cut-short stdin (early EOF): nothing is BLOCKED" "$ERR" "BLOCKED"
+assert_eq "cut-short stdin (early EOF): exactly one JSON document on stdout" "1" "$(jq -s 'length' <<<"$OUT")"
+assert_contains "cut-short stdin (early EOF): systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "not evaluated"
+assert_eq "cut-short stdin (early EOF): notice printed exactly once" "1" "$(grep -c 'not evaluated' <<<"$ERR")"
+assert_eq "cut-short stdin (early EOF): no guard ran" "" "$(cat "$SEEN")"
+# The SAME prefix with the pipe HELD OPEN past the idle bound is a stall, and a
+# stall is rc 2 by decision (#3740): the exit above precedes every guard, so an
+# allow on a stall — which payload size and host load both move — would skip
+# all of them at once. The dispatcher must fall through and the guards must
+# RUN: block.sh's own BLOCKED line on stderr is the proof it was sourced, and
+# the lib's timed-out line is the reason. The hold is a FIFO handshake released
+# only after the dispatcher exits, so a slow spawn cannot let the pipe reach
+# EOF first and pass this as the other arm (the two arms now differ, so that
+# race would hide the regression this case exists to catch).
+STALL_FIFO="$TEST_TMPDIR/stall.fifo"
+if mkfifo "$STALL_FIFO" 2>/dev/null; then
+  stall_hold() { read -r _ <"$STALL_FIFO"; }
+  stall_release() { : >"$STALL_FIFO"; }
+else
+  stall_hold() { sleep 30; }
+  stall_release() { :; }
+fi
+: >"$SEEN"
+RC=0
+OUT=$({
+  printf '%s' "$CUT_PREFIX"
+  stall_hold
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash "$DISPATCH" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh" 2>"$TEST_TMPDIR/err"
+  echo "$?" >"$TEST_TMPDIR/stall.rc"
+  stall_release
+}) || true
+RC=$(cat "$TEST_TMPDIR/stall.rc")
+ERR=$(cat "$TEST_TMPDIR/err")
+assert_exit "stalled stdin: the guards ran and the block won the exit code" 2 "$RC"
+assert_contains "stalled stdin: the lib names the stall, not a cut-short" "$ERR" "timed out before a complete JSON payload"
+assert_absent "stalled stdin: no cut-short notice" "$ERR" "not evaluated"
+assert_absent "stalled stdin: no cut-short diagnostic" "$ERR" "cut short"
+assert_contains "stalled stdin: block.sh was sourced (its BLOCKED line is on stderr)" "$ERR" "BLOCKED: stub"
+assert_eq "stalled stdin: the notice-only exit was not taken (no JSON document on stdout)" "0" "$(jq -s 'length' <<<"$OUT")"
 
 # --- jq cache: a NUL-bearing payload bypasses the cache ----------------------
 nul_payload=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')

@@ -142,7 +142,7 @@
     "stdin_read_timeout": {
       "type": "number",
       "title": "Hook stdin read timeout (seconds)",
-      "description": "Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before the read gives up. Text that is not JSON then fails a blocking guard closed; a JSON payload cut short in transit is allowed with a notice",
+      "description": "Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block",
       "default": 2,
       "min": 1
     }
