@@ -1934,7 +1934,11 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # 10, not 5, because of the carry-forward wait below: this repository's full
+    # run takes 4 to 5 minutes, so a contract-only event arriving as one starts
+    # waits nearly that long, and a 5-minute job cannot hold a wait that long
+    # plus its own work.
+    timeout-minutes: 10
     permissions:
       # ci-status lists this workflow's runs on this head SHA to find an earlier
       # incomplete one before it reads the carried-forward status. Under an
@@ -1972,9 +1976,12 @@ jobs:
           # lane was already red here.
           treat-skipped-as: fail
           # A contract-only run no longer queues behind the full run it reads
-          # from, so it waits for one instead. 240 seconds is this job's
-          # `timeout-minutes: 5` less the 60-second margin the composite's
+          # from, so it waits for one instead. 540 seconds is this job's
+          # `timeout-minutes: 10` less the 60-second margin the composite's
           # README requires, so the fail-closed error is never preempted by the
-          # job timeout.
-          carry-forward-wait-seconds: '240'
+          # job timeout. Measured: a body edit one minute into a full run waited
+          # 210 s (run 33993232104), so the 240 s a 5-minute job allows would
+          # have gone red on the very case the wait exists for, a bot that
+          # force-pushes and edits in the same second.
+          carry-forward-wait-seconds: '540'
           token: ${{ github.token }}
