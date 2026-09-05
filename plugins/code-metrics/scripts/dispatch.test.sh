@@ -274,6 +274,11 @@ assert_doc "a configured scope.default of all widens the run to the tree" "$out"
   'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
 assert_doc "an empty collector list runs nothing for that lane and says so" "$out" \
   'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and d["measures"]==[]'
+# An explicit --base asks for a diff, so it beats a configured `default: all`
+# the same way --all and a path do; widening to the tree would discard the ref.
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base mark)"
+assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
+  'd["scope"]["mode"]=="change" and d["scope"]["base"] and d["scope"]["files"] < 4'
 listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
 assert_eq "--print-scope prints each measurable file with its lane" "python	base.py
 python	changed.py

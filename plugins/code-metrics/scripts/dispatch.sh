@@ -170,9 +170,11 @@ for line in "${config_detect_args[@]}"; do
   --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
   --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
   # `scope.default` and `scope.base` apply only when the command line gave
-  # no --all, path, or --base of its own.
+  # no --all, path, or --base of its own. An explicit --base counts against
+  # the default too: a base ref is meaningful only in change mode, so naming
+  # one asks for a diff, and widening to the tree would discard it silently.
   --scope-default)
-    if [[ "$MODE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
+    if [[ "$MODE_SET" -eq 0 && "$BASE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
     ;;
   --scope-base)
     if [[ "$BASE_SET" -eq 0 ]]; then BASE="${line#* }"; fi
