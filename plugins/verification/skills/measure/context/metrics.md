@@ -1,6 +1,6 @@
 # Metrics Criterion — baseline / compare
 
-Verify a **code-metrics-improvement claim** (simpler, cleaner, less coupled, better covered) against measured deltas. Use when someone claims code is "simpler," "cleaner," "more maintainable," or "better organized" and you need evidence, not assertion.
+Verify a **code-quality-improvement claim** (simpler, cleaner, less coupled, better covered) against measured deltas. Use when someone claims code is "simpler," "cleaner," "more maintainable," or "better organized" and you need evidence, not assertion.
 
 This file owns the metrics-family measurement discipline; the phase table, invocation forms, measure-delta vs review-for-ship boundary, and tooling notes are owned by SKILL.md ("Two-phase model" / "Purpose") — run the phases manually when the consuming project has no collector. Do not route metric measurement into a review gate — that would graft measurement onto a review skill and orphan `performance`'s twin.
 
@@ -10,19 +10,19 @@ Quality is partly subjective, but some aspects ARE measurable:
 
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
-| Complexity | Cyclomatic complexity, nesting depth | Count conditionals, measure max nesting |
-| Size | Lines of code, file count, method length | Line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
+| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is installed (treat a report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise count conditionals, measure max nesting |
+| Size | Lines of code, file count, method length | `/code-metrics:audit-size --json` when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
 | Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
-| Duplication | Repeated code blocks | Grep for similar patterns |
-| Test coverage | Test count, assertion count | Your test runner's output, test inventory |
+| Duplication | Repeated code blocks | `/code-metrics:audit-duplication --json` when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise grep for similar patterns |
+| Test coverage | Test count, assertion count, covered lines per function | `/code-metrics:audit-coverage --json` over the build's existing coverage artifact when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise your test runner's output, test inventory |
 | Test fault-detection | Covered-code mutation score | Your ecosystem's mutation tool, diff-scoped (see below) |
 | API surface | Public member count | Count `public` declarations |
 
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy** — "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies (line count from `git show <base>:<file>` piped to a line counter — `wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (a report whose `status` is `empty` on either side makes the comparison INCONCLUSIVE); otherwise the manual counts above (line count from `git show <base>:<file>` piped to a line counter — `wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
