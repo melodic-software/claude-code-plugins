@@ -34,10 +34,13 @@ set -uo pipefail
 # where the strip is a no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-
-hook::check_enabled "MARKDOWN_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # formatting work (pre-format exits below do not emit telemetry). EPOCHREALTIME is

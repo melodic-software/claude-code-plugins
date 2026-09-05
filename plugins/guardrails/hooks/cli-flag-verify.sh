@@ -28,10 +28,13 @@ set -uo pipefail
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "CLI_FLAG_VERIFY"
 
 hook::ctx_reset
 

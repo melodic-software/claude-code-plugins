@@ -23,17 +23,19 @@
 set -uo pipefail
 
 hook_dir="$(dirname "${BASH_SOURCE[0]}")"
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+# The variable is the userConfig key `index_drift_hook_enabled` upper-cased
+# behind the CLAUDE_PLUGIN_OPTION_ prefix -- the one Claude Code actually sets
+# and the one README.md documents. It is NOT the plugin name plus the hook
+# name; that spelling names a variable nothing ever sets, and the unset default
+# is `true`, so the kill switch would be dead in the one direction anybody
+# would notice.
+[[ "${CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$hook_dir/hook-utils.sh"
-
-# The argument is the userConfig key MINUS its `_enabled` suffix, upper-cased:
-# `index_drift_hook_enabled` -> INDEX_DRIFT_HOOK, which hook::is_enabled turns
-# back into CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED -- the variable Claude
-# Code actually sets, and the one README.md documents. It is NOT the plugin name
-# plus the hook name; that spelling names a variable nothing ever sets, and
-# hook::is_enabled's unset default is `true`, so the kill switch would be dead
-# in the one direction anybody would notice.
-hook::check_enabled "INDEX_DRIFT_HOOK"
 
 # Read inherited fd0 directly. stdin is read ONCE — reading it twice drains the
 # pipe, and on Windows Git Bash `</dev/stdin` cannot resolve the Win32 pipe CC

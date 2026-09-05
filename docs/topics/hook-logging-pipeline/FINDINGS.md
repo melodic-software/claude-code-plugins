@@ -258,3 +258,23 @@ Patch shape 3 (no verifier spawn on a cache hit) removes four of the five `env` 
 
 Every new suite case fails against the unmodified hooks (2 in the skill-reference suite, 3 in the
 cli-flag suite) and passes after; suites at 130 and 88 cases.
+
+### PostToolUse kill-switch hoist (Phase 2, same day, same host)
+
+Disabled path, switch read before the `source` line, N = 15, payload on stdin, mean wall time:
+
+| Hook (standalone) | Before (switch after source) | After |
+| --- | --- | --- |
+| `markdown-format` | 6.2 ms | 3.20 ms |
+| `typos-format` | 6.1 ms | 3.19 ms |
+| `eol-normalizer` | 6.5 ms | 3.10 ms |
+| `skill-usage-audit` | not in the before table | 3.09 ms |
+| `stale-path-verify` (invoked standalone) | not in the before table | 3.12 ms |
+| spawn floor | 1.9 ms | 1.8 ms |
+
+Recovery is the library parse, about 3 ms, on every hook that runs as its own process. The three
+guardrails verifiers run sourced under `run-guards.sh` in production, where the library is already
+loaded and the include guard makes their `source` about 0.05 ms, so their hoist recovers almost
+nothing on the live path; the standalone figure above is what their contract tests pay.
+`scripts/check-killswitch-hoist.sh` widened to PostToolUse reports 30 scripts (15 PreToolUse from
+PR #3727, 15 here) and its suite runs 16 cases.

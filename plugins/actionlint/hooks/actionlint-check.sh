@@ -16,10 +16,13 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "ACTIONLINT"
 
 # Capture $EPOCHREALTIME immediately after the kill-switch so duration_ms covers
 # the work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash

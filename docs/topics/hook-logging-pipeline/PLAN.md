@@ -361,7 +361,7 @@ which is stable on shared CI runners.
   pasted into the body; prune commit before the ready flip.
 - **Sanity Check:** harness "with refs" row for `skill-reference-verify` under 100 ms; the three guardrails suites exit 0 with the shim-counter cases; `scripts/affected-tests.sh --run` exit 0; `scripts/check-changelog-parity.sh --check-bump origin/main` exit 0.
 
-#### Phase 2: PostToolUse kill-switch hoist (PR B) [TODO]
+#### Phase 2: PostToolUse kill-switch hoist (PR B) [DOING]
 
 Extend, never recreate: `scripts/check-killswitch-hoist.sh` is on `main`.
 

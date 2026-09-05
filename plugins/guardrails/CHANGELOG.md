@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.3]
+
+### Changed
+
+- **The three PostToolUse verifiers read their kill switch before sourcing the
+  library.** `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify`
+  read `<name>_enabled` through `hook::check_enabled`, which only exists once
+  `hook-utils.sh` is sourced; the predicate is now inlined above the `source`
+  line, in the one shape `scripts/check-killswitch-hoist.sh` pins to
+  `hook::is_enabled`, and that gate scans PostToolUse rows from this change on.
+  The saving is stated honestly: in production these three run sourced under
+  `run-guards.sh`, which has already loaded the library for its own use and
+  whose include guard makes each verifier's `source` cost about 0.05 ms, so the
+  hoist recovers almost nothing on the live path. They are held to the rule
+  anyway, because one shape is what keeps the gate mechanical, and each
+  verifier is also invoked standalone by its own contract test, where the
+  disabled path measures 3.1 ms against the 6.1 to 6.5 ms the un-hoisted shape
+  costs (N = 15, Linux CI host). Enabled behavior is unchanged.
+
 ## [0.32.2]
 
 ### Changed
