@@ -105,3 +105,12 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   the dispatcher suite pinning it. Also verified live: `type-coverage --json-output` is a boolean
   flag (JSON to stdout), `details[]` needs `--detail`, and `typescript` 7.x crashes
   `type-coverage` 2.30.1 in the same way as an absent one (surfaces as exit 3 with stderr).
+- **plan-confirmed.** (Phase 6) The `dotnet type_coverage` ladder rung shipped as `none`
+  (`unavailable`) while design T9 and the Phase 6 sanity check want `not-applicable`; the
+  orchestrator changed it to `n/a` in `9011b537` before dispatch, outside the phase's file list.
+  Phase verifier: 13 of 13 PASS; its observation that the skill can never report `complete`
+  (three lanes are permanently `not-applicable`) is a report-status rule for the main session.
+- **deviation.** Plan said: Phase 3 and Phase 5 sanity pipelines feed the entry script's default
+  output to `json.load`. Found: the default output is markdown (as for `audit-size`), so both
+  pipelines fail by construction. Chose: the sanity lines gain `--json`, the form the Phase 1
+  check already uses. Revisit: none.

@@ -402,7 +402,7 @@ Files:
 - `bash plugins/code-metrics/skills/audit-duplication/scripts/run.test.sh | grep -c 'hook-utils'` prints at least 1 (the real-cluster case ran or printed its `SKIP`)
 - the phase gate
 
-### Phase 6: `audit-type-debt` [TODO]
+### Phase 6: `audit-type-debt` [DONE]
 
 Review: code-design
 
@@ -410,10 +410,10 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{type-coverage,mypy-report}.py` + two `test_<tool>.py` | CREATE | TS percentage; Python `--any-exprs-report` counts and Cobertura type-check coverage |
-| [ ] `plugins/code-metrics/scripts/fixtures/tool-output/{type-coverage.json,mypy-any-exprs.txt}` | CREATE | captured |
-| [ ] `plugins/code-metrics/skills/audit-type-debt/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | description states no standard or CWE anchors the measure; C# row `not-applicable` with the T9 sentence |
-| [ ] `plugins/code-metrics/reference/collectors/audit-type-debt.md` | CREATE | fragment: two stamped rows, including the `type-coverage` probe's requirement that `typescript` also resolves |
+| [x] `plugins/code-metrics/scripts/collectors/{type-coverage,mypy-report}.py` + two `test_<tool>.py` | CREATE | TS percentage; Python `--any-exprs-report` counts and Cobertura type-check coverage |
+| [x] `plugins/code-metrics/scripts/fixtures/tool-output/{type-coverage.json,mypy-any-exprs.txt}` | CREATE | captured |
+| [x] `plugins/code-metrics/skills/audit-type-debt/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | description states no standard or CWE anchors the measure; C# row `not-applicable` with the T9 sentence |
+| [x] `plugins/code-metrics/reference/collectors/audit-type-debt.md` | CREATE | fragment: two stamped rows, including the `type-coverage` probe's requirement that `typescript` also resolves |
 
 **Sanity Check:**
 
