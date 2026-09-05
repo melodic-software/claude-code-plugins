@@ -25,6 +25,16 @@
 # is nothing but `read` builtins. New callers take the `_to` form; the printing
 # form stays for the callers that still use it and delegates to `_to` rather
 # than duplicating the loop, so there is one drain implementation to change.
+#
+# WHY NOT HAND THE HOOK'S STDIN STRAIGHT TO `jq` and skip this file on the hot
+# path. It would not save a process: via `_to` the loop is `read` builtins and
+# costs zero. What it would save is the `<<<` here-string the caller then needs
+# to re-feed the payload, which bash spills to a temp file at or above 64KiB
+# (see zone-crossing-inject.sh's payload-pass note). The loop is kept anyway,
+# because the bounded `read -t 5` below is the property that caps a stalled
+# pipe: a slow reader truncates at five seconds instead of blocking to the
+# harness timeout, which is the exact symptom #3508 is about. Disk I/O on
+# oversized payloads is the smaller cost of the two.
 
 cg::read_payload_to() {
   local __cg_dest="$1"

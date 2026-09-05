@@ -115,10 +115,15 @@ set -uo pipefail
 # no redirection of its own. `2>/dev/null`, `<<<`, and a pipeline each defeat
 # the elision, so every one of them written INSIDE a substitution silently
 # doubles that call site's process cost. Hoisting them onto an enclosing
-# `{ ...; }` group restores the elision and changes nothing else: the same
-# stream is redirected, stdout is still captured, and the command's exit status
-# still propagates. Every `$( )` on this hook's path therefore holds a bare
-# simple command, with its redirections on the group.
+# `{ ...; }` group restores the elision: the same stream is redirected, stdout
+# is still captured, and the command's exit status still propagates. Every
+# `$( )` on this hook's path therefore holds a bare simple command, with its
+# redirections on the group.
+#
+# The group move itself is behaviour-neutral. The payload pass below also
+# swapped a `printf | jq` pipe for a `<<<` here-string, and that one is NOT
+# free on large payloads — read the note at that call site before treating this
+# rewrite as pure saving.
 #
 # That distinction is invisible to the xtrace budget test at the bottom of
 # zone-crossing-inject.test.sh, which counts commands in COMMAND POSITION: a
@@ -172,10 +177,26 @@ cg::read_payload_to INPUT || exit 0
 # jq a bare simple command inside the substitution, and the extraction costs
 # one process instead of three.
 #
-# Semantics are unchanged: the group's stderr redirect suppresses exactly what
-# jq's own did, the substitution still captures stdout, and a nonzero jq status
-# still propagates out of the group. jq parses JSON, so the newline `<<<`
-# appends changes nothing.
+# What jq sees is unchanged: the group's stderr redirect suppresses exactly what
+# jq's own did, the substitution still captures stdout, a nonzero jq status still
+# propagates out of the group, and jq parses JSON, so the newline `<<<` appends
+# changes nothing.
+#
+# ONE THING DOES CHANGE, and it is disclosed rather than buried. `<<<` is not a
+# pipe. Bash 5.1+ delivers a here-string through a pipe only while it fits in
+# the pipe buffer; at or above 64KiB it spills the string to a temp file
+# (`/tmp/sh-thd.*`, measured here: 60,000 bytes stays in the pipe, 65,536 opens
+# the file) and hands jq that fd. The `printf | jq` form this replaced never
+# touched disk at any size. Output is byte-identical either way, but a
+# PostToolBatch payload carrying every serialized tool result routinely clears
+# 64KiB, so a large fire now writes and reads a temp file it did not before.
+# That is a real cost on the very hosts this change is for: #3508's Windows
+# machines run Defender real-time protection, which scans temp-file writes, and
+# the 0.4.8 measurement in the plugin README already attributes 22.0 s on that
+# platform to it. The trade taken is one guaranteed process creation per fire
+# against disk I/O on the fires that exceed the buffer; the README's hook-cost
+# section states it. Feeding the hook's stdin straight to jq would avoid both,
+# but that means giving up payload.sh's bounded drain loop — see the note there.
 { FIELDS=$(jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")'); } 2>/dev/null <<<"$INPUT"
 # jq writes CRLF line endings on this host, and command substitution strips only
 # the TRAILING one, so with two lines the separator's carriage return survives

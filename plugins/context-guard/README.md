@@ -150,10 +150,37 @@ removing five of eight is the whole of the available saving on that class of hos
 on the per-turn ceiling as well as the per-tool-call one, because it fires on `UserPromptSubmit`
 too.
 
+Which hooks this reaches: the zone-crossing hook on both of its routes (`PostToolBatch` and
+`UserPromptSubmit`), and the `PreToolUse` zone gate, which calls the same resolver and so inherits
+its share. Not the `PostCompact` marker: `post-compact-mark.sh` never calls the resolver and still
+captures its payload through a command substitution, so its count is untouched by this pass.
+
 The contract test asserts the process-creation count under `strace` as an exact figure, alongside
 the older command-position budget, so a redirection moved back inside a substitution fails a test
 rather than quietly doubling a call site. Where `strace` is unavailable that assertion skips and
 the command-position budget still runs.
+
+#### The cost this pass added: a temp file on payloads over 64KiB
+
+The saving is not free, and the charge is disk rather than CPU. Two of the five removed process
+creations come from replacing `printf '%s' "$INPUT" | jq` with `jq` fed by `<<<"$INPUT"`, and a
+here-string is not a pipe. Bash 5.1+ delivers one through the pipe buffer only while it fits; at or
+above 64KiB it writes the string to a temp file (`/tmp/sh-thd.*`) and hands `jq` that descriptor.
+Measured on bash 5.2.21: a 60,000-byte here-string opens no file, a 65,536-byte one opens
+`/tmp/sh-thd.*` twice (create, then read). The pipeline this replaced never touched disk at any
+size.
+
+The extracted fields are byte-identical either way, so this changes no output. But a
+`PostToolBatch` payload carries every serialized tool result and routinely clears 64KiB, so a large
+fire now performs a temp-file write and read it did not perform before. That lands on the platform
+this work is for: the #3508 hosts run Defender real-time protection, which scans temp-file writes,
+and the 0.4.8 measurement below already attributes 22.0 s on that platform to it. The trade taken
+is one process creation saved on **every** fire against disk I/O on the fires that exceed the
+buffer, on hosts where a process creation costs 180 to 2,841 ms. Handing the hook's stdin straight
+to `jq` would avoid both, and is declined for a separate reason: it would give up `payload.sh`'s
+bounded `read -t 5` drain loop, which caps a stalled pipe at five seconds instead of letting it
+block to the harness timeout. That loop is builtins only and costs no process, so keeping it is not
+what the here-string pays for.
 
 What went: every `dirname` call, replaced by parameter expansion (three in the zone-crossing hook,
 two in each of the others); a second `jq`, by reading both envelope fields in one pass;
