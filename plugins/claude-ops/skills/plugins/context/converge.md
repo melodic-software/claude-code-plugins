@@ -92,7 +92,7 @@ Ephemeral checkouts make this a bulk condition rather than a curiosity — one r
 block every row that pointed into it.
 
 **A blocked row is not a resolved row, and `false` is not "dead".** Do not offer to "clean up" the
-record: no `claude plugin` verb removes an install record by path (verified on Claude Code 2.1.240),
+record: no `claude plugin` verb removes an install record by path (re-verified on Claude Code 2.1.261),
 and hand-editing `installed_plugins.json` is outside this skill's boundary. Do not silently drop the
 row either — the path may simply be an unmounted volume or an offline share, and a dropped row is
 drift the user never learns about. Report it and move on.

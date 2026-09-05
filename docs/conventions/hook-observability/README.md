@@ -40,7 +40,8 @@ telemetry..."`) — not a generic `"Running hook..."`.
 
 ### 2. `systemMessage` — user-visible, scoped by who can act on the content
 
-An exit-0 JSON output field (`hookSpecificOutput` sibling), 10,000-character cap, shown to the
+An exit-0 JSON output field (`hookSpecificOutput` sibling), 10,000-character cap (an overflow to a
+file, not a truncation; see [Output caps](#output-caps-stated-by-the-reference)), shown to the
 user immediately. Composed via `hook::emit_channels` / `hook::emit_skip_notice`
 (`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document — Claude Code parses a
 hook's entire stdout as a single document, so a hook with both agent-channel content and a
@@ -147,6 +148,52 @@ is off by design for the consumer who has not enabled it (the per-session event 
 session that never asked for logging). A hook that could speak and simply does not is not a
 candidate; give it a helper call.
 
+### Output caps stated by the reference
+
+Re-read 2026-09-05 against <https://code.claude.com/docs/en/hooks.md> by the rung-1 route in
+[upstream-drift](../upstream-drift/README.md#the-rungs): a `curl` of the raw-markdown channel,
+317,632 bytes, first heading `# Hooks reference`, slug listed in `llms.txt`, SHA-256
+`c30a50b8192dadf4e6ba016e451685f57a6d1d2c360d268887a9a94022d29f3e`. The channel claims above still
+match the page. Three cap facts the page states and this doc did not carry are recorded below, each
+as a four-part record (claim, basis, as-of date, recheck trigger). Line numbers are positions in
+that fetch, given so a re-check can find the span; the quoted text is the basis.
+
+1. **Output over the cap overflows to a file; it is not truncated.** Basis, line 913: "Hook output
+   strings, including `additionalContext`, `systemMessage`, and plain stdout, are capped at 10,000
+   characters. Output that exceeds this limit is saved to a file and replaced with a preview and
+   file path, the same way a large valid Bash result is handled". As of 2026-09-05. Recheck
+   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behaviour
+   under its JSON-output section changed or gone. What it means for a hook: an over-cap disclosure
+   is not lost, but it stops being the inline account the content-mutation rule above requires, and
+   in write mode the file has already been rewritten by then. A hook that must stay inline caps
+   itself under the figure with a truncation that keeps its counts and says it truncated, leaving
+   headroom for JSON escaping. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`
+   (4,000 for `systemMessage`, 8,000 for `additionalContext`).
+
+2. **The `additionalContext` cap is per value; there is no pool shared across hooks.** Basis, line
+   993: "When several hooks return `additionalContext` for the same event, Claude receives all of
+   the values. If a value exceeds 10,000 characters, Claude Code writes the full text to a file in
+   the session directory and passes Claude the file path with a short preview instead". As of
+   2026-09-05. Recheck trigger: the same re-fetch finds the "all of the values" sentence changed or
+   a shared budget stated for the field. What it means for a hook: size the value against 10,000
+   and never against what other hooks on the same event emit.
+
+3. **`classifierContext` carries its own 2,000-character cap, shared across hooks, and governs
+   neither channel above.** The field is a `PostToolUse` `hookSpecificOutput` member addressed to
+   the auto-mode classifier ("requires Claude Code v2.1.236 or later", line 1999). Basis, lines
+   2019 to 2021: "Claude Code caps the notes for one tool call at 2,000 characters and truncates the
+   rest. The cap is shared across every hook that responds to that call"; "Claude Code ignores the
+   field in the response of a hook that runs in the background"; "the classifier's transcript omits
+   read-only lookups such as file reads and searches. Claude Code discards a note attached to one
+   of those calls". As of 2026-09-05. Recheck trigger: the re-fetch finds the 2,000 figure, the
+   sharing rule, or the event list for the field changed. Why this doc records it: a 2026-09-04
+   peer review read the 2,000-character shared cap as the `additionalContext` cap and filed the
+   typos-format 8,000-character self-cap as a bug; the report was withdrawn on this reading of the
+   page, and this is where the next reader should find the answer. The field is not a fourth
+   surface for this convention: it reaches the classifier, never the user or the model, so it
+   changes nothing about which channel a fleet hook writes a notice to. No fleet hook emits it
+   today, and a `PreToolUse` guard cannot: the page lists it under `PostToolUse` only.
+
 ### 3. OTel-style telemetry envelope
 
 Every wired producer hook emits one envelope per meaningful-outcome run via `hook::emit_telemetry`
@@ -168,8 +215,10 @@ surface available to a hook; this is a grounded constraint, not an oversight.
 v2.1.196+) that matches the `prompt.id` attribute on real OpenTelemetry events, which would let
 external tooling correlate a hook's local envelope with the same turn's real OTel stream. Adding
 it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every producer's
-`data_json` construction — out of scope for this doc's three-surface convention. Tracked at
-melodic-software/claude-code-plugins#930.
+`data_json` construction — out of scope for this doc's three-surface convention.
+melodic-software/claude-code-plugins#930 is closed: the per-session event log (`claude-ops`,
+melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
+promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 ## What this convention is not
 
@@ -198,9 +247,17 @@ melodic-software/claude-code-plugins#930.
   consumer's view state**, not on any claim about which surfaces exist.
 
   Recheck trigger: a Claude Code release that surfaces hook output on a channel active by default,
-  or that adds a hook-output field to the JSON output schema beyond the three in
-  [the three surfaces](#the-three-surfaces) — either would make the assumption above false and
-  reopen this bullet.
+  or that adds a hook-output field addressed to the user or the model to the JSON output schema
+  beyond the three in [the three surfaces](#the-three-surfaces) — either would make the assumption
+  above false and reopen this bullet. A field addressed elsewhere does not fire it; see the firing
+  record below.
+
+  > **Trigger firing, 2026-09-05.** The second clause, as previously worded ("adds a hook-output
+  > field to the JSON output schema beyond the three"), fired on `classifierContext`, recorded
+  > under [Output caps](#output-caps-stated-by-the-reference). Re-derived from the same fetch: the
+  > field is addressed to the auto-mode classifier, is read on no consumer view state, and carries
+  > nothing to the user or the model, so the assumption this bullet rests on stands and the rule is
+  > unchanged. The clause is narrowed above to the fields that could falsify it.
 
   > **Correction, 2026-08-11.** This bullet previously read "No native 'verbose hooks' toggle
   > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose

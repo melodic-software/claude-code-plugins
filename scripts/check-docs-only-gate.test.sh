@@ -186,6 +186,48 @@ YAML
 
 expect "known-good fixture satisfies the contract" 0 "scope resolved once" --check "$base"
 
+# --- a required consumer fanned out across a matrix -------------------------
+#
+# Sharding a lane keeps its job key, so it stays one entry in the aggregate's
+# needs and one consumer here. Two properties are pinned. First, the
+# `strategy:` block's 6- and 8-space lines must fall THROUGH this structural
+# parser: it exits 2 on any shape it does not model, and an inconclusive gate on
+# the real ci.yml blocks every pull request. Second, a leg's own index may not
+# leak into a gate: the only sanctioned step condition is a bare equality
+# against one table output, so a compound `if:` mixing the output with
+# `strategy.job-index` must still be named as unsanctioned.
+
+sharded="$scratch/sharded.yml"
+xform_insert_after "$base" "      - gamma" "      - zeta" "$sharded"
+cat >>"$sharded" <<'YAML'
+
+  # A required consumer whose work is partitioned across four runners.
+  zeta:
+    needs: [changes]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ github.event_name == 'pull_request' && fromJSON('{"leg":[0,1,2,3]}') || fromJSON('{"leg":[0]}') }}
+    steps:
+      - name: Run this leg of the affected suite set
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          LEG: ${{ strategy.job-index }}
+          LEGS: ${{ strategy.job-total }}
+        run: scripts/affected-tests.sh --run --shard "$LEG/$LEGS"
+      - name: Run a detector self-test only when shell sources changed
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/some-detector.test.sh
+YAML
+expect "a sharded lane gating its steps satisfies the contract" 0 "scope resolved once" \
+  --check "$sharded"
+
+f="$scratch/leg-in-gate.yml"
+xform_replace_line "$sharded" \
+  "if: needs.changes.outputs.run_shell == 'true'" \
+  "        if: needs.changes.outputs.run_shell == 'true' && strategy.job-index == 0" "$f"
+expect "a leg index folded into a step gate is unsanctioned" 1 "unsanctioned condition" --check "$f"
+
 # --- 1. SINGLE RESOLUTION ---------------------------------------------------
 
 f="$scratch/second-resolution.yml"
@@ -568,6 +610,46 @@ if [[ -e "$unwritable" ]]; then
   fail "expected no output file to be produced at an unwritable path"
 else
   ok "an unwritable GITHUB_OUTPUT leaves docs_only unset, which run_full renders as 'true'"
+fi
+
+# --- LIVE: every detector self-test in `lint` carries its gate --------------
+#
+# The 32 `bash scripts/<detector>.test.sh` steps in `lint` were unconditional
+# and cost 61 s on every pull request, docs-only ones included. They are now
+# gated on `run_shell`, the one table output whose filter group names
+# `scripts/**`. The gate above proves each gate is well FORMED; nothing proved
+# they are still THERE, and a self-test that quietly loses its `if:` costs the
+# saving back one step at a time. Pinned by walking the live `lint` job.
+#
+# One exclusion, by name: `check-summary-reader-parity.test.sh` carries an `id:`
+# and feeds CHECK_RESULTS, so gating it would need a paired feed override and is
+# a different change from this one.
+live_workflow="$ROOT/.github/workflows/ci.yml"
+ungated_selftests="$(
+  awk '
+    /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
+      job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
+    }
+    job != "lint" { next }
+    /^      - / { gated = 0; ident = 0 }
+    /^        if: needs\.changes\.outputs\.run_shell == .true.$/ { gated = 1 }
+    /^        id:/ { ident = 1 }
+    /^        run: bash scripts\/[^ ]*\.test\.sh[[:blank:]]*$/ {
+      if (!gated && !ident) { line = $0; sub(/^[[:blank:]]*run: bash /, "", line); print line }
+    }
+  ' "$live_workflow"
+)"
+if [[ -z "$ungated_selftests" ]]; then
+  ok "every id-less detector self-test in the live lint job is gated on run_shell"
+else
+  fail "ungated detector self-test(s) in lint: $(printf '%s' "$ungated_selftests" | tr '\n' ' ')"
+fi
+
+gated_count="$(grep -c "if: needs.changes.outputs.run_shell == 'true'" "$live_workflow" || true)"
+if [[ "$gated_count" -ge 32 ]]; then
+  ok "the live workflow still carries at least 32 run_shell step gates ($gated_count)"
+else
+  fail "run_shell step gates fell to $gated_count; the lint saving is being given back"
 fi
 
 # --- verdict ----------------------------------------------------------------
