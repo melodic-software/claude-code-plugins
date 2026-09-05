@@ -40,8 +40,8 @@ Parse `$ARGUMENTS` for:
   (`/implementation:implement` then `/verification:confirm`) rather than fixing inline. See
   [Remediation](#remediation-delegated-to-other-plugins). Per the naming doctrine's verb
   contract, bare `audit` is READ-ONLY. It reports at Phase 3 and stops; remediation intent sits
-  behind this explicit override. (`--review-only` is accepted as a legacy alias for the bare
-  read-only default.)
+  behind this explicit override. (`--review-only` is also accepted and means the bare read-only
+  default.)
 - **Dimension filters** (optional, mutually exclusive):
   - `--docs-only`: only documentation checks
   - `--code-only`: only code-quality checks
@@ -52,26 +52,15 @@ If no filter is specified, audit every active dimension, the Phase 1 per-file fa
 dimension order irrelevant (each file gets its own subagent). Enumerate `primary-sources` across all
 active dimensions and dispatch per file.
 
-## Read-only default
-
-Bare invocation, by the user or the model, runs the audit (Phases 0–3) and stops at the Phase 3
-report. Remediation is never inlined here; it is delegated to the `implementation`/`verification`
-lanes and hands off only under an explicit `--fix` from the user (or an equally explicit "fix what
-you find" instruction in their prose). Model auto-invocation never supplies `--fix` on its own.
-
 ---
 
 ## Adapting to your environment (graceful degrade)
 
-The audit itself (Phases 0–3) is self-contained. Where Phase 2 names an adjacent capability, documentation-research tools (MCP docs servers, library-docs lookers-up, web search), treat it as
-optional: use it if your setup provides one, otherwise follow the inline graceful-degrade guidance,
-which confidence-tags the externally-unverifiable part `needs-review` rather than guessing.
-
-Remediation is different: it is **delegated**, not inlined. Fixing, verifying, self-reviewing, and
-retrospecting are owned end-to-end by the `implementation`/`verification` lanes (see
-[Remediation](#remediation-delegated-to-other-plugins)). When those plugins are absent the
-Phase 3 findings table is the handoff, remediate manually in the reported fix-priority order, NOT
-a cue to re-inline a fix/verify/review loop here.
+The audit itself (Phases 0–3) is self-contained. Phase 2 names an adjacent capability,
+documentation-research tools (MCP docs servers, library-docs lookers-up, web search). Having one is
+optional; using one when your setup provides it is not, per Phase 2's external-research step. With no
+such tool, follow the inline graceful-degrade guidance, which confidence-tags the
+externally-unverifiable part `needs-review` rather than guessing.
 
 Scope boundary with adjacent audit lanes: this skill verifies **factual claims** in docs/config
 against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
@@ -143,19 +132,18 @@ reading conventions first.
 ## Phase 1: Discover
 
 The goal is exhaustive verification, not sampling. Every factual claim in every relevant file must
-be checked against reality. The most common audit failure is skipping items. Thoroughness beats
-speed.
+be checked against reality. The most common audit failure is skipping items.
 
 Discovery runs as a **parallel subagent fan-out. One agent per primary-source file**, NOT a single
-sequential pass (fresh context per file ≈ 2× claim coverage and ~4× drift caught; a single context
-skips claims as it fills, the #1 audit failure). Each agent applies the claim-extraction method
+sequential pass. A single context skips claims as it fills, which is the most common way an audit
+misses drift; a fresh context per file does not. Each agent applies the claim-extraction method
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
 the scope-fencing rules in [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/discovery-method.md`](context/discovery-method.md).
 
 **Scope first (MANDATORY. Cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before
-dispatching. Never fan out the whole repo unprompted, an unscoped run across every doc/config/
-source file costs millions of tokens.
+dispatching. Never fan out the whole repo unprompted: one subagent per doc, config, and source
+file is a very large token cost.
 
 Full method. Claim-extraction steps, the verify-ALL-claims-on-a-line rule,
 enumerate/scope/dispatch/collect detail, and the per-finding report format. In
@@ -184,7 +172,7 @@ findings' files + verification-sources).
 ### External research (required when the tooling exists)
 
 When your setup provides documentation-research tools (MCP docs servers, library-docs lookers-up, web
-search), using them is REQUIRED, not optional, to validate findings involving:
+search), use them to validate findings involving:
 
 - **Best-practice claims**: is the documented pattern the current recommended approach?
 - **Library API claims**: does the method/class/parameter exist in the current version?
@@ -229,8 +217,9 @@ Use this exact table with consistent `error`/`warning`/`info` severity:
 
 ### Required sections after the findings table
 
-1. **Verified non-issues**. Every claim checked that turned out correct. This is the thoroughness
-   proof. Include at least as many verified items as findings.
+1. **Verified non-issues**. Every claim you checked that turned out correct, each carrying the same
+   verification evidence a finding carries: the file you read or the command you ran. List what you
+   actually verified, however many that is. A count with no evidence behind each row is not proof.
 2. **Drift patterns**. Group related findings and identify root causes (e.g., "7 findings trace to
    a registration refactor where code was updated but docs weren't")
 3. **Fix priority**. Recommended fix order per the category playbook
