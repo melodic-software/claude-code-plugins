@@ -12,12 +12,13 @@ value to count against, not a bar.
 
 | Skill | What it does |
 |---|---|
+| `/code-metrics:audit-complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
 | `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
+| `/code-metrics:audit-duplication` | Clone groups (duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, minus the replication the repository declares in a sanctioned-replication registry, which is an exclusion, not a suppression. |
+| `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
+| `/code-metrics:audit-type-debt` | The typed-code percentage per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
+| `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
 | `/code-metrics:setup` | `check` probes the interpreter, every configuration layer, and every collector; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
-
-Further audit skills (`audit-complexity`, `audit-duplication`, `audit-coverage`,
-`audit-type-debt`) and the `principles` literacy router land in the releases that follow; the
-changelog is the record.
 
 ## Works in any repo
 
@@ -38,7 +39,23 @@ ignored file) widen it. Nothing depends on a framework, a build system, or the p
 
 | Collector | Used for | Install |
 |---|---|---|
-| `scc` | comment-aware line counts | `go install github.com/boyter/scc/v3@latest`, `brew install scc`, or a release binary |
+| `scc` | comment-aware line counts, every lane | `go install github.com/boyter/scc/v3@latest`, `brew install scc`, or a release binary |
+| `lizard` | cyclomatic complexity and function ranges for TypeScript/JavaScript, Python, Go | `pip install lizard` or `pipx install lizard` |
+| `radon` | Python cyclomatic complexity, Halstead, function ranges | `pip install radon` |
+| `eslint` with the core `complexity` rule | TypeScript/JavaScript cyclomatic complexity when ESLint is wired | `npm install --save-dev eslint` |
+| `eslint-plugin-sonarjs` | TypeScript/JavaScript cognitive complexity | `npm install --save-dev eslint eslint-plugin-sonarjs` |
+| `gocyclo`, `gocognit` | Go cyclomatic and cognitive complexity | `go install github.com/fzipp/gocyclo/cmd/gocyclo@latest`, `go install github.com/uudashr/gocognit/cmd/gocognit@latest` |
+| `shellmetrics` | Bash cyclomatic complexity | one POSIX shell script from github.com/shellspec/shellmetrics, placed on `PATH` |
+| `multimetric` | Halstead difficulty in every lane; Bash cyclomatic as a labelled approximation | `pip install multimetric` |
+| `jscpd` | duplication in every lane | `npm install -g jscpd`, or a devDependency |
+| `dupl` | Go duplication | `go install github.com/mibk/dupl@latest` |
+| PMD CPD | duplication for the non-shell lanes when `jscpd` is absent | the PMD 7 distribution or `brew install pmd` (needs a JVM) |
+| `type-coverage` | TypeScript type coverage; needs a resolvable `typescript` in the project | `npm install --save-dev type-coverage typescript` |
+| `mypy` | Python `Any`-expression report | `pip install mypy`, `pipx install mypy`, or `uv tool install mypy` |
+
+Python has no maintained cognitive-complexity collector and Bash has none for cognitive
+complexity or function ranges; those rows report `unavailable` with the validation date, and the
+run continues.
 
 ## Install
 
@@ -70,9 +87,31 @@ provenance stamps: `reference/collectors.md`.
 
 ## Listing budget
 
-Every skill description in a session shares one listing budget. The figures this plugin adds,
-measured with `/skill-quality:check listing-budget` before and after the plugin was registered,
-are recorded here when the plugin is registered in the marketplace.
+Every skill description in a session shares one listing budget, and Claude Code drops the
+least-invoked descriptions first when it overflows. Measured with
+`plugins/skill-quality/scripts/check-listing-budget.sh` over every marketplace plugin's skills on
+2026-09-05, this plugin adds six listing-eligible descriptions (`setup` is model-hidden and costs
+nothing) at these estimated sizes:
+
+| Measurement | Characters |
+|---|---|
+| Marketplace aggregate before this plugin | 135,541 |
+| Marketplace aggregate with this plugin | 141,411 |
+| This plugin alone | 5,870 |
+
+The aggregate is an upper-bound estimate against the documented 8,000-character fallback; a
+consumer who installs only this plugin sits well inside it, and `/doctor` reports the resolved
+figure for a live session.
+
+## Known gaps
+
+- The two convention adopter rows (the marketplace's per-plugin conventions registry) are deferred
+  until the operator settles which conventions this plugin adopts; the plugin's own conventions
+  are the ones its reference files declare.
+- Bash has no collector for cognitive complexity or function ranges, and Python none for cognitive
+  complexity; those rows report `unavailable` with the validation date rather than a number.
+- C# is counted and its duplication measured, but its complexity lane is deferred to a native
+  collector and its type debt is reported as not applicable.
 
 ## License
 

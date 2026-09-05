@@ -438,17 +438,17 @@ Files:
 - `grep -o 'if that plugin is installed\|when the [^ ]* plugin is installed' plugins/code-metrics/skills/principles/SKILL.md | wc -l` prints at least 5
 - the phase gate; the SKILL.md is under 200 lines
 
-### Phase 8: README, evals quality, house style [TODO]
+### Phase 8: README, evals quality, house style [DONE]
 
 Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/reference/collectors.md` | MODIFY | merge the `reference/collectors/*.md` fragments from Phases 3 to 6 into the single stamped table |
-| [ ] `plugins/code-metrics/reference/collectors/` | DELETE | fragments folded in |
-| [ ] `plugins/code-metrics/README.md` | MODIFY | Requirements table complete; Configuration section points at `reference/config.md`; skill list of exactly seven; a "Known gaps" line for the two convention adopter rows if Q24 defers them |
-| [ ] `plugins/code-metrics/skills/*/evals/evals.json` | MODIFY | pass `check-evals-quality.sh` |
-| [ ] every `plugins/code-metrics/**/*.md` | KEEP or MODIFY | em-dash free, typos clean, markdownlint clean |
+| [x] `plugins/code-metrics/reference/collectors.md` | MODIFY | merge the `reference/collectors/*.md` fragments from Phases 3 to 6 into the single stamped table |
+| [x] `plugins/code-metrics/reference/collectors/` | DELETE | fragments folded in |
+| [x] `plugins/code-metrics/README.md` | MODIFY | Requirements table complete; Configuration section points at `reference/config.md`; skill list of exactly seven; a "Known gaps" line for the two convention adopter rows if Q24 defers them |
+| [x] `plugins/code-metrics/skills/*/evals/evals.json` | MODIFY | pass `check-evals-quality.sh` |
+| [x] every `plugins/code-metrics/**/*.md` | KEEP or MODIFY | em-dash free, typos clean, markdownlint clean |
 
 **Sanity Check:**
 

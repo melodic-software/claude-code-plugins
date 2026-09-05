@@ -5,9 +5,6 @@ user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup-check.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/setup-apply.py:*)", "Bash(git check-ignore:*)", "Bash(git ls-files:*)"]
 shell: bash
-metadata:
-  workflow-stage: setup
-  summary: Probe collectors and layers, write the team config per key
 ---
 
 ## Purpose

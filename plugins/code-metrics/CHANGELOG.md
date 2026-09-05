@@ -26,3 +26,44 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   idempotently, without installing anything or touching `.gitignore`.
 - **`audit-size` `size.mode: iso-8.2.115`:** the ISO/IEC 5055 §8.2.115 function-percentage form
   as a `function_lines` measure from collectors that report function ranges.
+- **`audit-complexity`:** per-function cyclomatic and cognitive complexity and Halstead difficulty
+  for TypeScript/JavaScript, Python, Bash, and Go through eight collector adapters (`lizard`,
+  `radon`, ESLint's `complexity` rule, `eslint-plugin-sonarjs`, `gocyclo`, `gocognit`,
+  `shellmetrics`, `multimetric`), each row carrying its start and end line or a label naming why
+  it has none; cyclomatic 20 cites ISO/IEC 5055:2021 §8.2.117 with 10 and 15 selectable.
+- **`audit-coverage`:** line coverage per file and per function read from lcov 1.x and 2.2
+  (`FNL`/`FNA`), Cobertura, coverage.py JSON (with its 7.6.0 `functions` regions), and Go cover
+  profiles, joined to the complexity rows for CRAP per function; artifacts are discovered or
+  named, never produced, and a function with no executable lines reports `null`.
+- **`audit-duplication`:** clone groups from `jscpd`, `dupl`, or PMD CPD with every instance's
+  range, minus the replication a sanctioned-replication registry declares (an exclusion recorded
+  in the report, not a suppression).
+- **`audit-type-debt`:** the typed-code percentage from `type-coverage` (TypeScript) and mypy's
+  `--any-exprs-report` (Python), with a `null` reference because no standard anchors the measure;
+  C# reported as not applicable.
+- **`principles`:** the metric-literacy router with source-attributed reference files (measures,
+  thresholds, CRAP's corrected provenance and the Lewis 2013 mechanism, literature), the
+  cross-metric caveats carried once, and gated pointers to the owners of mutation score,
+  tautological tests, dead code, coupling, and lint.
+- **The dispatcher:** a failed collector probe's stderr is relayed into the run row's reason; a
+  `not-applicable` row never withholds `status: complete`; `reference/collectors.md` carries one
+  stamped row per collector and artifact format.
+- **`audit-complexity`:** per-function cyclomatic and cognitive complexity and Halstead
+  difficulty through eight adapters (`lizard`, `radon`, ESLint's `complexity` rule,
+  `eslint-plugin-sonarjs`, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), each row
+  carrying its start and end lines or a label naming why it has none; cyclomatic 20 cites
+  ISO/IEC 5055:2021 §8.2.117 with 10 and 15 selectable.
+- **`audit-duplication`:** clone groups from `jscpd` (every lane), `dupl` (Go), or PMD CPD, with
+  a sanctioned-replication registry (design T8) that moves declared clusters into `excluded[]`
+  as an exclusion rather than a suppression; the suite carries this repository's
+  `hook-utils.sh` cluster as the acceptance case.
+- **`audit-type-debt`:** the typed-code percentage per lane from `type-coverage` (TypeScript;
+  the probe requires a resolvable `typescript`) and mypy's `--any-exprs-report` (Python); no
+  standard or CWE anchors the measure, and C# is reported as not applicable.
+- **`principles`:** the metric-literacy router with source-attributed reference files
+  (measures, thresholds, CRAP, literature), the cross-metric caveats carried once, and gated
+  pointers to the owners of mutation score, tautological tests, dead code, coupling, and lint.
+- **Report contract:** a `not-applicable` run row never withholds `status: complete`; a failed
+  probe's stderr is relayed into the `unavailable` reason; clone-group rows add
+  `summary.duplicated_lines` and `summary.clone_groups`, recomputed through `report.py
+  resummarize` after exclusions.

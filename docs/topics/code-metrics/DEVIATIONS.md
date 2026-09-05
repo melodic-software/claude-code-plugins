@@ -137,3 +137,28 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   rows only, while the scope header still shows the file count (a Phase 8 wording check). The
   `cpd` docstring and SKILL.md were updated by the orchestrator after the verifier ran, because
   the rungs added in `e5fc309e` made their "no rung ships" wording stale; re-gated.
+- **plan-confirmed.** (Phase 4) Worker A5's final report was lost when the session's container
+  restarted mid-return; the orchestrator re-ran the whole phase gate main-side (pytest 61, shell
+  suite 31, check-skill, evals quality, ruff, shellcheck, shfmt, portability, modes, prose,
+  affected-tests zero UNMAPPED, every plan sanity command) and the fresh-context verifier passed
+  13 of 13, including a hand-checked CRAP row (comp 3 at 50 percent gives 4.125). Its wording
+  finding (the lcov 2.2 row overclaimed that `FNL` is the only record with a function end line;
+  a three-field `FN` carries one too) is fixed in `reference/collectors.md`. Observations
+  carried, none a defect: `cobertura.py` applies the first `<source>` prefix only; the join's
+  trailing-name fallback could bind `A.run` to `B.run` in one file (file-level numbers unaffected);
+  the Go fixture joins through the unique-basename rule; the description sits at 1007 of 1024
+  codepoints.
+
+## Phase 8 (2026-09-05)
+
+- **discovery.** `scripts/generate-cheatsheet.mjs` excludes every `setup` skill and rejects one
+  that carries `workflow-stage`/`summary` metadata (no other plugin's setup skill carries them),
+  so the `metadata` block was removed from `skills/setup/SKILL.md`; `check-skill.sh` still passes
+  and design notes that said every skill carries `metadata.summary` are corrected by this entry.
+- **plan-confirmed.** Listing budget measured with `check-listing-budget.sh` over every
+  marketplace skills root: 135,541 characters before, 141,411 with the plugin, 5,870 for its six
+  listing-eligible skills (`setup` is model-hidden); recorded in the README. The four collector
+  fragments are folded into `reference/collectors.md` (26 table rows) and the directory removed;
+  `setup-check.sh` in a scratch repository prints one row per adapter (15).
+- **human-decision (pending).** Q24 (the two convention adopter rows) is still with the operator;
+  the README carries a "Known gaps" line for it as the plan directs.
