@@ -63,6 +63,11 @@ plugins/bugs/README.md
 plugins/claude-config/README.md
 plugins/claude-memory/README.md
 plugins/claude-ops/README.md
+plugins/code-metrics/CHANGELOG.md
+plugins/code-metrics/README.md
+plugins/code-metrics/reference/*.md
+plugins/code-metrics/skills/*/SKILL.md
+plugins/code-metrics/skills/principles/reference/*.md
 plugins/code-tidying/README.md
 plugins/codebase-health/README.md
 plugins/codebase-health/skills/*/SKILL.md

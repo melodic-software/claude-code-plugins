@@ -460,18 +460,18 @@ Files:
 - `bash scripts/check-skill-count-claims.sh --check` exits 0
 - the phase gate
 
-### Phase 9: Registration and generated indexes [TODO]
+### Phase 9: Registration and generated indexes [DONE]
 
 Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `.claude-plugin/marketplace.json` | MODIFY | entry after the `codebase-health` neighbour (the file is not sorted), `category: quality`, tags including `skill` as every catalog entry carries |
-| [ ] `.claude/settings.json` | MODIFY | `"code-metrics@melodic-software": true` in byte order, which places it before `code-tidying@`, not beside `codebase-health@` |
-| [ ] `docs/CATALOG.md`, `docs/SKILL-CHEAT-SHEET.md` | MODIFY | regenerated, never hand-edited |
-| [ ] `scripts/skill-leaf-name-registry.txt` | MODIFY | `principles code-metrics,mutation-testing,tdd`, with the one-line argument the file's header asks of a new owner joining an accepted collision (the sanctioned knowledge-router noun; the plugin namespace disambiguates) |
-| [ ] `scripts/em-dash-purged-paths.txt` | MODIFY | `plugins/code-metrics/README.md` and `plugins/code-metrics/skills/*/SKILL.md` |
-| [ ] `plugins/code-metrics/README.md` | MODIFY | the listing-budget section: baseline 135,541 over 182 skills, the after figure, per-entry chars for the six eligible skills |
+| [x] `.claude-plugin/marketplace.json` | MODIFY | entry after the `codebase-health` neighbour (the file is not sorted), `category: quality`, tags including `skill` as every catalog entry carries |
+| [x] `.claude/settings.json` | MODIFY | `"code-metrics@melodic-software": true` in byte order, which places it before `code-tidying@`, not beside `codebase-health@` |
+| [x] `docs/CATALOG.md`, `docs/SKILL-CHEAT-SHEET.md` | MODIFY | regenerated, never hand-edited |
+| [x] `scripts/skill-leaf-name-registry.txt` | MODIFY | `principles code-metrics,mutation-testing,tdd`, with the one-line argument the file's header asks of a new owner joining an accepted collision (the sanctioned knowledge-router noun; the plugin namespace disambiguates) |
+| [x] `scripts/em-dash-purged-paths.txt` | MODIFY | `plugins/code-metrics/README.md` and `plugins/code-metrics/skills/*/SKILL.md` |
+| [x] `plugins/code-metrics/README.md` | MODIFY | the listing-budget section: baseline 135,541 over 182 skills, the after figure, per-entry chars for the six eligible skills |
 
 **Sanity Check:**
 
