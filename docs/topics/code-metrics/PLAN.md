@@ -374,7 +374,7 @@ Files:
 **Sanity Check:**
 
 - `python3 -c 'import sys; sys.path.insert(0,"plugins/code-metrics/scripts/parsers"); import lcov; d=lcov.parse("plugins/code-metrics/scripts/fixtures/coverage/lcov-2.2.info"); assert d and all(isinstance(v,dict) for v in d.values())'` exits 0
-- `python3 plugins/code-metrics/skills/audit-coverage/scripts/crap.py --comp 5 --cov 0` prints `130`; `--comp 5 --cov 100` prints `5`; `--comp 5 --cov null` prints `null`
+- `python3 plugins/code-metrics/skills/audit-coverage/scripts/crap.py --comp 5 --cov 0` prints `30`; `--comp 5 --cov 100` prints `5`; `--comp 5 --cov null` prints `null`
 - `grep -rc 'sqlite\|\.coverage\b' plugins/code-metrics/scripts/parsers/*.py` prints 0 for every file
 - `bash plugins/code-metrics/skills/audit-coverage/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources --artifacts /nonexistent.info` exits 2 (an explicitly named path that does not exist is a usage error), and the same command with no `--artifacts` and `coverage.artifacts` empty in a scratch config exits 0 with a `run[]` row `status: "unavailable"` whose reason lists the paths searched
 - with the `lcov-absolute-sf.info` fixture and a fixture tree where only some scope files appear in it, the JSON's `run[]` carries a reason matching `partial, [0-9]+ of [0-9]+ scope files`
@@ -421,21 +421,21 @@ Files:
 - with runtime stubs, the run script's JSON has `values.type_coverage_pct` for `typescript` and `values.any_expressions` for `python`, and a `dotnet` row with `status: "not-applicable"`
 - the phase gate
 
-### Phase 7: `principles` [TODO]
+### Phase 7: `principles` [DONE]
 
 Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/skills/principles/{SKILL.md,evals/evals.json}` | CREATE | knowledge router: measure definitions, thresholds and their provenance, CRAP, literature, the cross-metric caveats (once, here), gated pointers to the five owners the Brief names |
-| [ ] `plugins/code-metrics/skills/principles/reference/{measures.md,thresholds.md,crap.md,literature.md}` | CREATE | CRAP provenance as the Brief states it; Lewis 2013 mechanism; McCabe "reasonable, but not magical"; NIST six practices; ISO clause map; "not a validated change-risk predictor" |
+| [x] `plugins/code-metrics/skills/principles/{SKILL.md,evals/evals.json}` | CREATE | knowledge router: measure definitions, thresholds and their provenance, CRAP, literature, the cross-metric caveats (once, here), gated pointers to the five owners the Brief names |
+| [x] `plugins/code-metrics/skills/principles/reference/{measures.md,thresholds.md,crap.md,literature.md}` | CREATE | CRAP provenance as the Brief states it; Lewis 2013 mechanism; McCabe "reasonable, but not magical"; NIST six practices; ISO clause map; "not a validated change-risk predictor" |
 
 **Sanity Check:**
 
 - `grep -c 'Change Risk Analysis and Predictions' plugins/code-metrics/skills/principles/reference/crap.md` prints at least 1 and `grep -c 'Change Risk Anti-Patterns' ...` prints at least 1
 - `grep -c 'not a validated' plugins/code-metrics/skills/principles/reference/crap.md` prints at least 1
 - `grep -c 'Lewis' plugins/code-metrics/skills/principles/reference/literature.md` prints at least 1
-- `grep -o 'if that plugin is installed\|when the [a-z-]* plugin is installed' plugins/code-metrics/skills/principles/SKILL.md | wc -l` prints at least 5
+- `grep -o 'if that plugin is installed\|when the `\?[a-z-]*`\? plugin is installed' plugins/code-metrics/skills/principles/SKILL.md | wc -l` prints at least 5
 - the phase gate; the SKILL.md is under 200 lines
 
 ### Phase 8: README, evals quality, house style [TODO]

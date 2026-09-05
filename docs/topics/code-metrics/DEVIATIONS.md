@@ -83,3 +83,25 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   `claude/code-quality-metrics-plugins-p99tkz`, file-disjoint by the scope-fencing table. Chose:
   workers edit in place and never touch git; the orchestrator verifies each return, runs the
   whole-plugin gate, and commits per return. Revisit: none; the plan's fence is the approved form.
+- **discovery.** (Phase 7, worker A4) The Phase 4 sanity check asserted `crap.py --comp 5 --cov 0`
+  prints `130`; under the Brief's own formula `comp^2 * (1 - cov/100)^3 + comp` the value is 30
+  (25 + 5), and 130 would need a cubed term. PLAN.md line 377 now says `30`; the other two values
+  (5 at full coverage, 930 for comp 30) were already right.
+- **deviation.** Plan said: the Phase 7 gate counts `when the [a-z-]* plugin is installed`. Found:
+  the fleet form (seam-phrasing, `audit-size/SKILL.md`) writes the plugin name in backticks, which
+  that regex misses, so the worker dropped the backticks to satisfy it. Chose: restore the
+  backticks in `principles/SKILL.md` and let the plan's grep accept both forms (`\`\?`). Revisit:
+  none.
+- **discovery.** (Phase 7) Corpus A2 verified the cognitive-complexity white paper at version 1.7
+  (29 August 2023) and no earlier edition; `literature.md` cites that version rather than the
+  brief's "Campbell 2018". Corpus A1 records the CRAP introduction as 17 July 2007 after its
+  verifier corrected an October date in the sidecar.
+- **discovery.** (Phase 6, worker A3) The dispatcher discards an adapter's `probe` stderr and
+  builds the `unavailable` reason from `install_hint` alone, so a specific probe failure (the
+  `type-coverage` binary present but no resolvable `typescript`) reads as the generic "not found".
+  The worker kept its fence: `probe` prints the specific sentence, and the install hint names the
+  `typescript` requirement so the run row still explains it. Relaying probe stderr into the reason
+  is a one-line dispatcher change for every adapter; scheduled for Phase 8 (main session), with
+  the dispatcher suite pinning it. Also verified live: `type-coverage --json-output` is a boolean
+  flag (JSON to stdout), `details[]` needs `--detail`, and `typescript` 7.x crashes
+  `type-coverage` 2.30.1 in the same way as an absent one (surfaces as exit 3 with stderr).
