@@ -1,0 +1,4 @@
+# Fixture: the local overlay (.claude/code-metrics.local.yaml). One
+# operator's exclusion, additive over the team file.
+scope:
+  exclude: ["vendor/**"]

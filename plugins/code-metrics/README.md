@@ -12,11 +12,12 @@ value to count against, not a bar.
 
 | Skill | What it does |
 |---|---|
-| `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference. |
+| `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
+| `/code-metrics:setup` | `check` probes the interpreter, every configuration layer, and every collector; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
 Further audit skills (`audit-complexity`, `audit-duplication`, `audit-coverage`,
-`audit-type-debt`), the `principles` literacy router, and `setup` land in the releases that
-follow; the changelog is the record.
+`audit-type-debt`) and the `principles` literacy router land in the releases that follow; the
+changelog is the record.
 
 ## Works in any repo
 
@@ -49,10 +50,15 @@ ignored file) widen it. Nothing depends on a framework, a build system, or the p
 ## Configuration
 
 This plugin has no `userConfig`. Everything tunable lives in the consumer's
-`.claude/code-metrics.yaml`, layered as user-global, team, and local overlay with per-key
-override, and every key has a bundled default (`scripts/config-defaults.json`), so the plugin works with
-no configuration at all. References ship with their provenance: cyclomatic 20 cites ISO/IEC
-5055:2021 §8.2.117; the 1000-line file default is the plugin's own number and says so.
+`.claude/code-metrics.yaml`, layered as user-global (`~/.claude/code-metrics.yaml`), team
+(tracked), and local overlay (`.claude/code-metrics.local.yaml`, gitignored; recommended line
+`.claude/**/*.local.*`) with per-key override, and every key has a bundled default
+(`scripts/config-defaults.json`), so the plugin works with no configuration at all. The consumer's
+`.claude/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
+and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
+§8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
+a documented YAML subset (block style, flow sequences of scalars, no flow mappings). Every key:
+`reference/config.md`; `/code-metrics:setup` writes the team layer and probes the collectors.
 
 ## The report
 

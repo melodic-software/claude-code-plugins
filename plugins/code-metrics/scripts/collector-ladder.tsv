@@ -19,6 +19,7 @@ typescript	file_lines	scc
 typescript	file_lines	line-counter
 typescript	duplication	jscpd
 typescript	type_coverage	type-coverage
+typescript	function_lines	lizard
 python	cyclomatic	lizard
 python	cyclomatic	radon
 python	cognitive	none	no maintained collector found (validated 2026-09-04)
@@ -28,6 +29,8 @@ python	file_lines	scc
 python	file_lines	line-counter
 python	duplication	jscpd
 python	type_coverage	mypy-report
+python	function_lines	lizard
+python	function_lines	radon
 bash	cyclomatic	shellmetrics
 bash	cyclomatic	multimetric
 bash	cognitive	none	no collector found (validated 2026-09-04)
@@ -36,6 +39,7 @@ bash	file_lines	scc
 bash	file_lines	line-counter
 bash	duplication	jscpd
 bash	type_coverage	n/a	not applicable to shell
+bash	function_lines	none	no Bash collector reports function end lines (validated 2026-09-05)
 go	cyclomatic	lizard
 go	cyclomatic	gocyclo
 go	cognitive	gocognit
@@ -45,6 +49,7 @@ go	file_lines	line-counter
 go	duplication	jscpd
 go	duplication	dupl
 go	type_coverage	n/a	not applicable to Go
+go	function_lines	lizard
 dotnet	file_lines	scc
 dotnet	file_lines	line-counter
 dotnet	duplication	jscpd

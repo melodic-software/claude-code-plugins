@@ -35,12 +35,19 @@ def count(path: str) -> dict[str, int]:
             total += 1
             if not raw.strip():
                 blank += 1
-    return {"lines_total": total, "lines_blank": blank, "lines_non_blank": total - blank}
+    return {
+        "lines_total": total,
+        "lines_blank": blank,
+        "lines_non_blank": total - blank,
+    }
 
 
 def main(argv: list[str]) -> int:
     if not argv:
-        print("usage: line-counter.py probe|measures|collect <lane> <measure> <file>...|install_hint", file=sys.stderr)
+        print(
+            "usage: line-counter.py probe|measures|collect <lane> <measure> <file>...|install_hint",
+            file=sys.stderr,
+        )
         return 2
     verb, rest = argv[0], argv[1:]
     if verb == "probe":
@@ -57,7 +64,10 @@ def main(argv: list[str]) -> int:
         return 0
     if verb == "collect":
         if len(rest) < 2:
-            print("usage: line-counter.py collect <lane> <measure> <file>...", file=sys.stderr)
+            print(
+                "usage: line-counter.py collect <lane> <measure> <file>...",
+                file=sys.stderr,
+            )
             return 2
         lane, measure, files = rest[0], rest[1], rest[2:]
         if measure != "file_lines":
@@ -85,6 +95,8 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     if sys.version_info < MIN_PYTHON:
-        print("line-counter.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
+        print(
+            "line-counter.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
+        )
         sys.exit(2)
     sys.exit(main(sys.argv[1:]))

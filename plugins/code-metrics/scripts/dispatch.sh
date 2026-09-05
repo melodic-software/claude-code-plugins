@@ -11,11 +11,20 @@
 #
 # Scope: `<path>...` measures those files and directories (an explicitly named
 # path that does not exist is a usage error, exit 2); `--all` measures every
-# tracked file under the paths (or the whole repository); with neither, the
-# default is the change: files that differ from the merge-base with the default
-# branch plus uncommitted and untracked files. `--scope-file` reads the file
-# list from a file (one path per line) instead. Every path is emitted with
-# forward slashes.
+# tracked or untracked-but-not-ignored file under the paths (or the whole
+# repository); with neither, the default is the change: files that differ from
+# the merge-base with the default branch plus uncommitted and untracked files.
+# `--scope-file` reads the file list from a file (one path per line) instead.
+# Every path is emitted with forward slashes.
+#
+# Configuration: without `--config`, the cascade is resolved here through
+# scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
+# .claude/code-metrics.yaml, .claude/code-metrics.local.yaml, plus the
+# consumer's .claude/ecosystems/<lane>.yaml files); CODE_METRICS_HOME overrides
+# the home directory the user-global layer is read from. `--config` takes a
+# pre-resolved JSON document (the resolver's output) instead. Either way the
+# resolved document supplies the references, `scope.exclude`, the per-lane
+# collector overrides, and the ecosystem globs and opt-outs.
 #
 # Exit: 0 the document was produced (including an `empty` run); 2 usage or
 # environment error; 3 a resolved collector ran and produced no parseable
@@ -28,7 +37,9 @@ COLLECTORS="$PLUGIN_ROOT/scripts/collectors"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
 DETECT="$PLUGIN_ROOT/scripts/detect-lanes.sh"
 LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
-CONFIG="$PLUGIN_ROOT/scripts/config-defaults.json"
+RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
+PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
+CONFIG=""
 
 usage() {
   sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
@@ -116,7 +127,7 @@ done
 [[ -n "$SKILL" ]] || die_usage "a skill name is required"
 [[ -n "$MEASURES" ]] || die_usage "--measures is required"
 [[ -f "$LADDER" ]] || die_usage "ladder file not found: $LADDER"
-[[ -f "$CONFIG" ]] || die_usage "config file not found: $CONFIG"
+[[ -z "$CONFIG" || -f "$CONFIG" ]] || die_usage "config file not found: $CONFIG"
 [[ ${#PATHS[@]} -gt 0 && "$MODE" == "change" ]] && MODE="paths"
 
 if ! cm_resolve_python; then
@@ -127,6 +138,29 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 FILES_LIST="$WORK/files"
 : >"$FILES_LIST"
+
+# ---- configuration -----------------------------------------------------------
+if [[ -z "$CONFIG" ]]; then
+  CONFIG="$WORK/config.json"
+  "${PY[@]}" "$RESOLVER" --ladder "$LADDER" --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" ||
+    die_usage "the configuration could not be resolved (see the message above)"
+fi
+# Ecosystem globs and lane opt-outs from the resolved document come first, so
+# an explicit command-line --lane-globs/--disable-lane wins over them.
+mapfile -t config_detect_args < <("${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format dispatch-args)
+CONFIG_DETECT_ARGS=()
+for line in "${config_detect_args[@]}"; do
+  [[ -n "$line" ]] || continue
+  case "${line%% *}" in
+  --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
+  --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
+  *) die_usage "unexpected resolver output: $line" ;;
+  esac
+done
+DETECT_ARGS=("${CONFIG_DETECT_ARGS[@]}" "${DETECT_ARGS[@]}")
+LADDER_OVERRIDES="$WORK/ladder-overrides.tsv"
+"${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format ladder-overrides >"$LADDER_OVERRIDES"
+mapfile -t EXCLUDE_GLOBS < <("${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format excludes)
 
 # ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
@@ -215,6 +249,24 @@ while IFS= read -r f; do
   [[ "$head_bytes" == "$text_bytes" ]] || continue
   printf '%s\n' "$f" >>"$SCOPED"
 done <"$WORK/dedup"
+# scope.exclude: drop every file a configured glob matches, counting them.
+EXCLUDED=0
+if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
+  mapfile -t candidates <"$SCOPED"
+  : >"$WORK/excluded"
+  for pattern in "${EXCLUDE_GLOBS[@]}"; do
+    [[ -n "$pattern" ]] || continue
+    "${PY[@]}" "$PATHGLOB" "$pattern" "${candidates[@]}" >>"$WORK/excluded"
+  done
+  if [[ -s "$WORK/excluded" ]]; then
+    sort -u "$WORK/excluded" >"$WORK/excluded.sorted"
+    EXCLUDED="$(wc -l <"$WORK/excluded.sorted" | tr -d ' ')"
+    sort "$SCOPED" | comm -23 - "$WORK/excluded.sorted" >"$WORK/kept"
+    # comm sorted the list; restore the scope order.
+    awk 'NR == FNR { keep[$0] = 1; next } keep[$0]' "$WORK/kept" "$SCOPED" >"$WORK/scoped.kept"
+    mv "$WORK/scoped.kept" "$SCOPED"
+  fi
+fi
 FILE_COUNT="$(wc -l <"$SCOPED" | tr -d ' ')"
 
 # ---- lanes -------------------------------------------------------------------
@@ -230,8 +282,12 @@ fi
 ladder_tools() {
   # Print the ordered tool list for a lane/measure; `*` rows apply when the
   # measure has no explicit row. Each line: tool<TAB>note.
+  # A `lanes.<lane>.collectors.<measure>` override from the resolved config
+  # replaces the bundled rows for that lane and measure (contracts.md §1).
   local lane="$1" measure="$2" explicit
-  explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
+  explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" 'NF >= 3 && $1 == l && $2 == m { print $3 "\t" }' "$LADDER_OVERRIDES")"
+  [[ -n "$explicit" ]] ||
+    explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
   if [[ -n "$explicit" ]]; then
     printf '%s\n' "$explicit"
   else
@@ -328,8 +384,8 @@ base_json=null
 # belong to no lane (a markdown file in a source tree), so `files` minus
 # `unclassified` reconciles with the measured file count.
 CLASSIFIED="$(cut -f2 "$LANES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
-printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": 0}\n' \
-  "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" >"$SCOPE_JSON"
+printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": %s}\n' \
+  "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" "$EXCLUDED" >"$SCOPE_JSON"
 
 THRESHOLDS="$WORK/thresholds.json"
 # The ladder's `halstead` measure reports several values; the reference is on
@@ -337,6 +393,7 @@ THRESHOLDS="$WORK/thresholds.json"
 threshold_measures=""
 for measure in "${MEASURE_LIST[@]}"; do
   [[ "$measure" == "halstead" ]] && measure="halstead_difficulty"
+  [[ "$measure" == "function_lines" ]] && measure="function_lines_pct"
   threshold_measures+="${threshold_measures:+,}$measure"
 done
 "${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures "$threshold_measures" >"$THRESHOLDS" || exit 2

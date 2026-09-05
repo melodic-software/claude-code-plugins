@@ -65,11 +65,13 @@ side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by 
 ## Configuration
 
 Everything tunable resolves through `.claude/code-metrics.yaml` (user-global, team, local
-overlay; per-key override): the reference (`size.file_lines`), the mode (`size.mode`:
-`file-lines` or `iso-8.2.115`, the latter comparing each function's non-empty lines against
-`size.function_lines_pct` of the file's), scope exclusions, and per-lane collector order. The
-report names the layer that supplied any value a personal layer changed. `/code-metrics:setup`
-writes the team file and probes the collectors.
+overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the reference
+(`size.file_lines`), the mode (`size.mode`: `file-lines`, or `iso-8.2.115`, which adds a
+`function_lines` measure comparing each function's non-empty lines against
+`size.function_lines_pct` of the file's, from a collector that reports function ranges such as
+`lizard` or `radon`; Bash has none and its row says so), scope exclusions (`scope.exclude`), and
+per-lane collector order. The report names the layer that supplied any value a personal layer
+changed. `/code-metrics:setup` writes the team file and probes the collectors.
 
 ## What this skill does not do
 

@@ -23,6 +23,7 @@ plugins/code-metrics/
 │   ├── resolve-config.py  + test_resolve_config.py    # cascade: user-global, team, overlay; per-key override
 │   ├── yaml_subset.py     + test_yaml_subset.py       # the YAML subset every surface the plugin reads is written in (T22)
 │   ├── detect-lanes.sh    + detect-lanes.test.sh      # extension map, consumer ecosystems globs
+│   ├── python-resolve.sh  + python-resolve.test.sh   # sourced: resolves the interpreter into the array PY (python3, python, py -3)
 │   ├── report.py          + test_report.py            # JSON assembly and markdown rendering
 │   ├── collectors/
 │   │   ├── lizard.py, radon.py, eslint-complexity.py, sonarjs.py, gocyclo.py, gocognit.py,
@@ -38,7 +39,7 @@ plugins/code-metrics/
     ├── audit-coverage/    SKILL.md, scripts/<name>.sh + <name>.test.sh, scripts/crap.py + test_crap.py, evals/evals.json
     ├── audit-type-debt/   SKILL.md, scripts/<name>.sh + <name>.test.sh, evals/evals.json
     ├── principles/        SKILL.md, reference/{measures.md,thresholds.md,crap.md,literature.md}, evals/evals.json
-    └── setup/             SKILL.md, scripts/check.sh + check.test.sh, scripts/apply.py + test_apply.py, templates/config-template.yaml, evals/evals.json
+    └── setup/             SKILL.md, scripts/setup-check.sh + setup-check.test.sh, scripts/setup-apply.py + test_setup_apply.py, templates/config-template.yaml, evals/evals.json
 ```
 
 `skills/<name>/scripts/<name>.sh` is a thin entry point: it parses the skill's arguments and calls

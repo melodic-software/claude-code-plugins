@@ -66,6 +66,13 @@
       "provenance": "plugin default; coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500 is the operator-list figure, selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
     },
     {
+      "measure": "function_lines_pct",
+      "config_key": "size.function_lines_pct",
+      "value_key": "function_lines_pct",
+      "direction": "at_or_above",
+      "provenance": "ISO/IEC 5055:2021 §8.2.115 (normative): a function whose non-empty lines exceed this percentage of the file's; used when size.mode is iso-8.2.115"
+    },
+    {
       "measure": "coverage",
       "config_key": "coverage.reference",
       "value_key": "coverage_pct",

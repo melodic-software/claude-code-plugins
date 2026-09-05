@@ -171,5 +171,52 @@ assert_doc "change scope is the committed diff plus untracked files, base record
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and sorted(r["file"] for r in d["measures"])==["changed.py","untracked.sh"]'
 rm -rf "$repo"
 
+# 10. The config cascade: a team file sets the reference, an exclusion, and a
+#     lane opt-out; an ecosystem file redefines the bash lane by globs. The
+#     resolver reads them from the repo root and a home directory with no
+#     user-global layer (CODE_METRICS_HOME).
+repo="$(mktemp -d)"
+home="$(mktemp -d)"
+mkdir -p "$repo/.claude/ecosystems" "$repo/gen"
+cat >"$repo/.claude/code-metrics.yaml" <<'EOF'
+size:
+  file_lines: 5
+scope:
+  exclude: ["gen/**"]
+lanes:
+  dotnet:
+    enabled: false
+EOF
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/bash.yaml"
+printf 'a = 1\nb = 2\nc = 3\nd = 4\ne = 5\nf = 6\n' >"$repo/a.py"
+printf 'g = 1\n' >"$repo/gen/b.py"
+printf 'run() { :; }\n' >"$repo/x.bats"
+printf 'echo plain\n' >"$repo/plain.sh"
+printf 'class C {}\n' >"$repo/C.cs"
+(cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t && git add -A && git commit -q -m fixture)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
+rc=$?
+assert_eq "cascade run exits 0" 0 "$rc"
+assert_doc "team reference 5 with layer team; a.py is over it" "$out" \
+  'next(t for t in d["thresholds"] if t["measure"]=="file_lines")["reference"]==5 and next(t for t in d["thresholds"] if t["measure"]=="file_lines")["layer"]=="team" and next(r for r in d["measures"] if r["file"]=="a.py")["over_reference"]==["file_lines"]'
+assert_doc "scope.exclude drops gen/b.py and counts it" "$out" \
+  'd["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"])'
+assert_doc "ecosystem globs redefine the bash lane" "$out" \
+  'any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and not any(r["file"]=="plain.sh" for r in d["measures"])'
+assert_doc "lanes.dotnet.enabled false opts the lane out" "$out" \
+  'not any(r["lane"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
+rm -rf "$repo" "$home"
+
+# 11. --config with a pre-resolved document: the collector override narrows the
+#     typescript cyclomatic ladder to lizard alone.
+resolved="$(mktemp)"
+"$PY" "$SCRIPT_DIR/resolve-config.py" "$SCRIPT_DIR/fixtures/config/user.yaml" "$SCRIPT_DIR/fixtures/config/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$resolved"
+out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --config "$resolved" "$SOURCES/cm-sample.ts")"
+assert_doc "ladder override lists lizard only for typescript cyclomatic" "$out" \
+  'd["run"][0]["lane"]=="typescript" and d["run"][0]["reason"]=="lizard: adapter not shipped"'
+assert_doc "pre-resolved thresholds carry their layer" "$out" \
+  'next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["reference"]==15 and next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["layer"]=="team"'
+rm -f "$resolved"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

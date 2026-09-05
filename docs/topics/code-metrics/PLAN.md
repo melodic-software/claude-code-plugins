@@ -204,8 +204,8 @@ Test boundaries (all newly introduced; each is the script's command line, one se
 | `skills/audit-coverage/scripts/crap.py` | the formula, `null` on no executable lines | new |
 | `scripts/dispatch.sh <skill> <measures> [scope]` | end-to-end: scope, run table, exit codes 0/2/3 | new |
 | `skills/<name>/scripts/<name>.sh` | argument parsing to dispatch | new |
-| `skills/setup/scripts/check.sh` | probe table, config validation, tracked-file guard | new |
-| `skills/setup/scripts/apply.py <key=value>...` | idempotent per-key write of the team file, unknown keys preserved | new |
+| `skills/setup/scripts/setup-check.sh` | probe table, config validation, tracked-file guard | new |
+| `skills/setup/scripts/setup-apply.py <key=value>...` | idempotent per-key write of the team file, unknown keys preserved | new |
 
 Python suites reach these through `subprocess` at the command line; where a pure function has no
 CLI they load the module with `importlib.util.spec_from_file_location` (the repository's idiom for
@@ -313,7 +313,7 @@ Steps:
 - `git ls-files plugins/code-metrics/scripts/fixtures | xargs -I{} sh -c 'test ! -x {}'` exits 0 (no committed executables)
 - the phase gate
 
-### Phase 2: Config cascade and `setup` [DOING]
+### Phase 2: Config cascade and `setup` [DONE]
 
 Review: code-design
 
@@ -321,21 +321,22 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/yaml_subset.py` + `test_yaml_subset.py` | CREATE | T22: block mappings and sequences, flow sequences of scalars, scalars, comments; a flow mapping, anchor, tag, or multi-line scalar is a named error with the line number |
-| [ ] `plugins/code-metrics/scripts/resolve-config.py` + `test_resolve_config.py` | CREATE | three layers through `yaml_subset`, per-key override, provenance layer per key, unknown keys inert |
-| [ ] `plugins/code-metrics/reference/config.md` | CREATE | every key from `design/contracts.md` §1 in block style, merge form and the YAML subset declared next to the keys |
-| [ ] `plugins/code-metrics/skills/setup/{SKILL.md,scripts/check.sh,scripts/check.test.sh,scripts/apply.py,scripts/test_apply.py,templates/config-template.yaml,evals/evals.json}` | CREATE | `check` probes every collector adapter present under `scripts/collectors/` and validates config; `apply.py` writes the team file per key, preserving unknown keys, idempotent; `disable-model-invocation: true`; never installs, never edits `.gitignore` |
-| [ ] `plugins/code-metrics/scripts/fixtures/config/{user.yaml,team.yaml,local.yaml,flow-mapping.yaml}` | CREATE | the team-overrides-user fixture the Brief requires; one file outside the subset for the named-error case |
-| [ ] `plugins/code-metrics/scripts/dispatch.sh` | MODIFY | read thresholds and lane overrides through `resolve-config.py`, and pass the resolved ecosystem `globs` and `enabled` to `detect-lanes.sh --globs/--disable` (the last edit to this file; later phases report a needed change instead) |
+| [x] `plugins/code-metrics/scripts/yaml_subset.py` + `test_yaml_subset.py` | CREATE | T22: block mappings and sequences, flow sequences of scalars, scalars, comments; a flow mapping, anchor, tag, or multi-line scalar is a named error with the line number |
+| [x] `plugins/code-metrics/scripts/resolve-config.py` + `test_resolve_config.py` | CREATE | three layers through `yaml_subset`, per-key override, provenance layer per key, unknown keys inert |
+| [x] `plugins/code-metrics/reference/config.md` | CREATE | every key from `design/contracts.md` §1 in block style, merge form and the YAML subset declared next to the keys |
+| [x] `plugins/code-metrics/skills/setup/{SKILL.md,scripts/setup-check.sh,scripts/setup-check.test.sh,scripts/setup-apply.py,scripts/test_setup_apply.py,templates/config-template.yaml,evals/evals.json}` | CREATE | `check` probes every collector adapter present under `scripts/collectors/` and validates config; `setup-apply.py` writes the team file per key, preserving unknown keys, idempotent; `disable-model-invocation: true`; never installs, never edits `.gitignore` |
+| [x] `plugins/code-metrics/scripts/fixtures/config/{user.yaml,team.yaml,local.yaml,flow-mapping.yaml}` | CREATE | the team-overrides-user fixture the Brief requires; one file outside the subset for the named-error case |
+| [x] `plugins/code-metrics/scripts/dispatch.sh` | MODIFY | read thresholds and lane overrides through `resolve-config.py`, and pass the resolved ecosystem `globs` and `enabled` to `detect-lanes.sh --globs/--disable` (the last edit to this file; later phases report a needed change instead) |
+| [x] `plugins/code-metrics/scripts/collector-ladder.tsv`, `scripts/config-defaults.json`, `skills/audit-size/{SKILL.md,scripts/audit-size.sh,scripts/audit-size.test.sh}`, `scripts/dispatch.test.sh` | MODIFY | the `size.mode` key: `function_lines` ladder rows, the `function_lines_pct` threshold, `--config` pass-through and mode selection in the `audit-size` entry point; suites cover the new options (added during the phase, see DEVIATIONS.md) |
 
 **Sanity Check:**
 
 - `python3 plugins/code-metrics/scripts/resolve-config.py plugins/code-metrics/scripts/fixtures/config/user.yaml plugins/code-metrics/scripts/fixtures/config/team.yaml | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["complexity"]["cyclomatic"]["reference"]==d["_provenance"]["complexity.cyclomatic.reference"]["value"] and d["_provenance"]["complexity.cyclomatic.reference"]["layer"]=="team"'` exits 0
-- `python3 plugins/code-metrics/scripts/yaml_subset.py plugins/code-metrics/scripts/fixtures/config/flow-mapping.yaml` exits non-zero and its stderr matches `flow mapping.*line [0-9]+`
+- `python3 plugins/code-metrics/scripts/yaml_subset.py plugins/code-metrics/scripts/fixtures/config/flow-mapping.yaml` exits non-zero and its stderr matches `line [0-9]+.*flow mapping`
 - `grep -c 'per-key override' plugins/code-metrics/reference/config.md` prints at least 1
 - `grep -c '^disable-model-invocation: true' plugins/code-metrics/skills/setup/SKILL.md` prints 1
-- `python3 plugins/code-metrics/skills/setup/scripts/apply.py --dir "$(mktemp -d)" size.file_lines=500` twice: the second run prints `already configured` and the file is byte-identical
-- the phase gate (the full "one row per collector" assertion for `check.sh` moves to Phase 8, once every adapter exists)
+- `python3 plugins/code-metrics/skills/setup/scripts/setup-apply.py --dir "$(mktemp -d)" size.file_lines=500` twice: the second run prints `already configured` and the file is byte-identical
+- the phase gate (the full "one row per collector" assertion for `setup-check.sh` moves to Phase 8, once every adapter exists)
 
 ### Phase 3: `audit-complexity` [TODO]
 
@@ -452,7 +453,7 @@ Files:
 **Sanity Check:**
 
 - `test ! -d plugins/code-metrics/reference/collectors` exits 0 and `grep -c '^| ' plugins/code-metrics/reference/collectors.md` prints at least 20 (fifteen adapters, three parsers, two facts, plus the header rows)
-- `bash plugins/code-metrics/skills/setup/scripts/check.sh` in a scratch repo with no config exits 0 and prints one row per adapter under `plugins/code-metrics/scripts/collectors/` with `missing` or a version (moved here from Phase 2)
+- `bash plugins/code-metrics/skills/setup/scripts/setup-check.sh` in a scratch repo with no config exits 0 and prints one row per adapter under `plugins/code-metrics/scripts/collectors/` with `missing` or a version (moved here from Phase 2)
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/code-metrics/skills/*/evals/evals.json` exits 0
 - `bash plugins/ai-slop/skills/audit/scripts/detect.sh --paths-file <(ls plugins/code-metrics/README.md plugins/code-metrics/skills/*/SKILL.md)` reports zero findings
 - `grep -rn '—' plugins/code-metrics --include='*.md' | wc -l` prints 0
@@ -557,7 +558,7 @@ suites generate at runtime, and every fixture basename must appear in a covering
 dispatcher and report assembler grow their extension points (skill-level pass-through options,
 every row shape, `excluded[]`) in Phases 1 and 2 so the Wave B workers never need to edit them;
 `reference/collectors.md` is written once in Phase 1 and extended only through per-skill
-fragments merged in Phase 8; `setup` gains `apply.py` with a suite and its full-probe assertion
+fragments merged in Phase 8; `setup` gains `setup-apply.py` with a suite and its full-probe assertion
 moves to Phase 8; the Brief's forbidden-surface constraint and the PR body sections now have
 mechanical checks in Phase 11; the duplication fixture no longer reuses the `hook-utils.sh`
 basename and the Brief's real-cluster case runs with a visible `SKIP` when `jscpd` is absent; the

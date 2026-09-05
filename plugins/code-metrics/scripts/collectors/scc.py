@@ -39,7 +39,9 @@ def probe() -> int:
         print("scc not on PATH", file=sys.stderr)
         return 1
     try:
-        out = subprocess.run([exe, "--version"], capture_output=True, text=True, check=False)
+        out = subprocess.run(
+            [exe, "--version"], capture_output=True, text=True, check=False
+        )
     except OSError as exc:
         print(f"scc --version failed: {exc}", file=sys.stderr)
         return 1
@@ -86,12 +88,18 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         print("scc not on PATH", file=sys.stderr)
         return 3
     result = subprocess.run(
-        [exe, "--by-file", "--format", "json", *files], capture_output=True, text=True, check=False
+        [exe, "--by-file", "--format", "json", *files],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     try:
         rows = translate(result.stdout, lane, files)
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
-        print(f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}", file=sys.stderr)
+        print(
+            f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
         return 3
     for row in rows:
         print(json.dumps(row))
@@ -100,7 +108,10 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 def main(argv: list[str]) -> int:
     if not argv:
-        print("usage: scc.py probe|measures|collect <lane> <measure> <file>...|install_hint", file=sys.stderr)
+        print(
+            "usage: scc.py probe|measures|collect <lane> <measure> <file>...|install_hint",
+            file=sys.stderr,
+        )
         return 2
     verb, rest = argv[0], argv[1:]
     if verb == "probe":
@@ -109,7 +120,9 @@ def main(argv: list[str]) -> int:
         print("*/file_lines")
         return 0
     if verb == "install_hint":
-        print("scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v3@latest, brew install scc, or a release binary)")
+        print(
+            "scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v3@latest, brew install scc, or a release binary)"
+        )
         return 0
     if verb == "collect":
         if len(rest) < 2:

@@ -21,7 +21,11 @@ def run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     if env:
         merged.update(env)
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=merged, check=False
+        [sys.executable, str(SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        env=merged,
+        check=False,
     )
 
 
@@ -42,20 +46,32 @@ class LineCounterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         row = json.loads(result.stdout.strip())
         expected_total = len(sample.read_bytes().splitlines())
-        expected_blank = sum(1 for line in sample.read_bytes().splitlines() if not line.strip())
-        self.assertEqual(row["values"], {
-            "lines_total": expected_total,
-            "lines_blank": expected_blank,
-            "lines_non_blank": expected_total - expected_blank,
-        })
+        expected_blank = sum(
+            1 for line in sample.read_bytes().splitlines() if not line.strip()
+        )
+        self.assertEqual(
+            row["values"],
+            {
+                "lines_total": expected_total,
+                "lines_blank": expected_blank,
+                "lines_non_blank": expected_total - expected_blank,
+            },
+        )
         self.assertEqual(row["lane"], "bash")
         self.assertIsNone(row["function"])
         self.assertEqual(row["labels"], ["comment-agnostic"])
         self.assertEqual(row["collector"], "line-counter")
 
     def test_collect_rejects_other_measures_and_missing_files(self) -> None:
-        self.assertEqual(run("collect", "bash", "cyclomatic", str(SOURCES / "cm-sample.sh")).returncode, 2)
-        self.assertEqual(run("collect", "bash", "file_lines", str(SOURCES / "nope.sh")).returncode, 3)
+        self.assertEqual(
+            run(
+                "collect", "bash", "cyclomatic", str(SOURCES / "cm-sample.sh")
+            ).returncode,
+            2,
+        )
+        self.assertEqual(
+            run("collect", "bash", "file_lines", str(SOURCES / "nope.sh")).returncode, 3
+        )
 
 
 if __name__ == "__main__":
