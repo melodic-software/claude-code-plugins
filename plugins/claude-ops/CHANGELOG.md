@@ -3,6 +3,82 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.6]
+
+### Added
+
+- **A per-session hook event log, off by default.** `hooks/session-event-log.sh`
+  appends one JSON line per hook event to
+  `<session_event_log_dir>/sessions/<session_id>.jsonl` (default root
+  `.observability/claude`, project-relative) on every one of the 30 events the
+  generated registry marks observable: a fixed spine (`ts`, `session_id`,
+  `hook_event_name`, `category`, `status`, `source`, `duration_ms`) plus the
+  correlation keys the payload carries (`prompt_id`, `tool_use_id`, `agent_id`,
+  `tool_name`, a repo-relative `file_path`, `reason`, `traceparent`). It sources
+  no library, reads stdin in bounded 4 KB slices and stops early only when the
+  buffer ends in `}`, carries the event name and has balanced braces (the
+  Win32 late-EOF stall costs one idle slice, not the read bound; a writer that
+  pauses after a nested `}` is read to the bound, never cut short), records a
+  file outside the project by its last segment after either separator, and the switch
+  `session_event_log_enabled` is read before anything else. Measured on the
+  Linux CI host, N = 15: 2.42 ms disabled against a 2.08 ms bare spawn floor,
+  4.5 to 5.75 ms enabled on a 2 KB payload, 35.7 ms on a 512 KB `tool_response`.
+  `session_event_log_categories` filters by category; `hooks/hook-events.registry.json`
+  is generated from a live fetch of the hooks reference by
+  `scripts/gen-hook-event-registry.sh`, which also regenerates the producer rows
+  in `hooks.json` and excludes `WorktreeCreate`, `MessageDisplay` and `FileChanged`
+  (each replaces or holds native behavior when registered).
+- **`SessionEnd` retention inside the 1.5 s budget.** `hooks/session-retention.sh`
+  keeps a session file when it is among the newest `session_log_keep_sessions`
+  (30) OR younger than `session_log_keep_days` (14), in four processes and no
+  stdin read (4.3 ms over 40 files, 24 ms over 100 with 70 pruned). With
+  `session_log_pre_prune_command` set, doomed files are moved to
+  `prune-pending/<epoch>-<pid>/` and the command runs detached with that
+  directory as its argument; the set is deleted on the first run after 24 h.
+- **`setup apply` writes the root's guard; `retirements.yaml` gains `claude-ops-r001`.**
+  The setup skill leaves the check-only carve-out: probe 5 reports the hook log
+  root, its containment (checked lexically and physically: a root whose
+  existing component is a symlink out of the project, or back to the project
+  root, is refused by every hook that writes or deletes under it), and its
+  self-ignoring `.gitignore` (`*`), and `apply`
+  writes exactly that one file, then reads back the tracked-versus-ignored pair.
+  The hooks heal an absent guard on their first write too, so a fresh clone or
+  worktree needs no setup run; a guard an operator edited is respected and the
+  write refused. The retirement record names the old shared-file location
+  (`.claude/observability/hook-events.jsonl`, `migrate`) with a successor that
+  appends the old rows under the new root; one eval per record, helper copy
+  synced by `scripts/sync-check-retirements.sh`.
+- **The observability skill reads the root and reports per session.** Every
+  whole-root query reads `sessions/*.jsonl` plus the shared `hook-events.jsonl`
+  through one normalizing prelude; `session` (newest file by mtime) and
+  `session:<id>` render a per-session report (hooks fired, blocked, rewrote,
+  per-hook duration, the event timeline); every report ends with the toggles,
+  retention, guard state and stale prune sets in effect, from
+  `probe-observability-state.sh --pipeline`. `clean` gains `--hook-root`, removes
+  session files untouched for the window, and sweeps stale `prune-pending/`
+  sets whether or not the logging switch is on.
+
+### Changed
+
+- **The reference sink routes by session.** `hooks/hook-telemetry-sink.sh` (and
+  the repo-local copy) writes under the hook log root: an envelope carrying a
+  well-formed `data.session_id` goes to `sessions/<session_id>.jsonl` in the
+  spine shape (`source: "envelope"`, a `changed` boolean when a producer sends
+  one), any other envelope to the shared `hook-events.jsonl` in the legacy shape
+  under its lock. The nine audit hooks now send `data.session_id` (their data
+  schemas gain the optional key); the fleet-wide addition is #930's follow-up.
+- **`hooks.json`** carries 40 handlers: the nine audit hooks, 30 generated
+  producer rows and the retention row (no `timeout`: a plugin cannot raise the
+  `SessionEnd` budget and would only lower it).
+
+### Fixed
+
+- **A racing guard heal no longer drops a line.** Two producers on one event
+  raced to create the root's `.gitignore`; the second read the empty file the
+  first had opened, took it for an operator's, and refused its write (the
+  33-parallel-fires case caught 32). An empty guard file is healed like an
+  absent one.
+
 ## [0.42.5]
 
 ### Added

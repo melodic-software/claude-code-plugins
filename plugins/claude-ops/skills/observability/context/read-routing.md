@@ -14,21 +14,28 @@ Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/claude-o
 |---|---|---|
 | **OTEL → DuckDB store** | CC CLI logs, metrics, traces (spans) | Yes — hot NDJSON + cold Parquet |
 | **OTEL → Aspire dashboard** | CC logs, metrics, traces (live in-memory) | **No** — restart drops history |
-| **JSONL observability** | Hook timing | Yes — `.claude/observability/*.jsonl` |
+| **JSONL observability** | Hook timing, per-session hook event log | Yes — the hook log root (`.observability/claude/` by default): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl` |
 
 ```text
 CC CLI ── OTLP :4318 ──▶ Collector ──┬── file ──▶ DuckDB (cc_logs, cc_metrics, cc_spans)  ← SSOT
                                      └── gRPC ──▶ Aspire :18888 (all 3 signals, optional UI)
 
-Hooks ──▶ hook-events.jsonl
+Hooks ──▶ envelope ──▶ sink ──┬── data.session_id ──▶ <root>/sessions/<session_id>.jsonl  (source: envelope)
+                              └── no session id  ──▶ <root>/hook-events.jsonl             (legacy shape)
+Every event ──▶ session-event-log (opt-in) ──▶ <root>/sessions/<session_id>.jsonl         (source: event-log)
 ```
+
+The root is the plugin's `session_event_log_dir` option (project-relative, self-ignoring
+`.gitignore` inside). The skill-usage store and the OTEL store stay under `.claude/observability/`.
 
 ## Quick routing — "I need to know X"
 
 | Question | Best path | Detail |
 |---|---|---|
 | Token/cost totals, per-model split, billing blocks | ccusage MCP or CLI | [data-sources.md](data-sources.md) §1 |
-| Hook p95 latency, hook errors, recurring hook sequences | `hook-events.jsonl` | [data-sources.md](data-sources.md) §2 |
+| Hook p95 latency, hook errors, recurring hook sequences | the hook log root (`sessions/*.jsonl` + `hook-events.jsonl`) | [data-sources.md](data-sources.md) §2 |
+| What one session did: hooks fired, blocked, rewrote, per-hook duration, the event timeline | `sessions/<session_id>.jsonl` (`session` / `session:<id>` scope) | [data-sources.md](data-sources.md) §2.5 |
+| Which hook-logging toggles and retention are in effect, guard state, stale prune sets | `probe-observability-state.sh --pipeline` | [data-sources.md](data-sources.md) §2.6 |
 | Why most installed skills never get used — starved by the listing budget, unreachable, or simply unobserved | `/claude-ops:audit-skill-visibility` | That skill owns interpretation of skill-usage data; this skill owns the store, the OTEL pipeline, and retention |
 | Tool latency, API errors (historical) | DuckDB `cc_logs` | [otel-queries.md](otel-queries.md) |
 | Token/cost metrics (historical) | DuckDB `cc_metrics` | [otel-queries.md](otel-queries.md) |
