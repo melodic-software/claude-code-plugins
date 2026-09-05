@@ -1368,8 +1368,9 @@ if [[ -f "$SKILL_MD" ]]; then
   # The line is a "Repository context. Gather first" bullet: the label carries a parenthetical
   # naming what an empty render can mean, then the command sits in backticks as a
   # `git status --porcelain | grep … | head` pipeline, so anchor on the label stem and on the
-  # ` | grep … | head` segment rather than on the whole line.
-  skill_grep="$(sed -n 's/^- Uncommitted \.md files[^`]*`[^|]*| \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
+  # ` | grep … | head` segment rather than on the whole line (no backtick in the pattern: a
+  # backtick inside single quotes trips shellcheck SC2016, and the ` | grep` anchor suffices).
+  skill_grep="$(sed -n 's/^- Uncommitted \.md files.*| \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
   if [[ -n "$skill_grep" ]]; then
     skill_out="$(cd "$PORC_REPO" && eval "git status --porcelain 2>/dev/null | $skill_grep")"
     # The quoted-path half needs the arrow fixture, which not every filesystem can
