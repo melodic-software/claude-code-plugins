@@ -2023,6 +2023,179 @@ else
   fail "process budget: an --ids projection costs at most 12 process creations" "measured $ids_count"
 fi
 
+# ============================================================================
+# Case: --from projects every selector from a saved report, identically to the
+# live projection. The point of the flag is that `sync` already holds the JSON
+# report before each mutating step, so the second live process was recomputing
+# a block the caller had. Equality with the live run is the whole contract.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [
+      {"scope": "user", "installPath": "y", "version": "0.1.0"},
+      {"scope": "project", "projectPath": "<PROJECT_ROOT>/sample-repo", "installPath": "x", "version": "0.1.0"}
+    ],
+    "beta@market1": [{"scope": "user", "installPath": "z", "version": "0.2.0"}],
+    "delta@market1": [{"scope": "local", "projectPath": "<PROJECT_ROOT>/sample-repo", "installPath": "w", "version": "0.3.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}, {"name": "gamma"}, {"name": "delta"}]}'
+mkdir -p "$case_dir/sample-repo"
+ARGS=(--marketplace market1)
+report=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$case_dir/sample-repo")
+rc=$?
+assert_exit "--from: the saved report itself is produced" 0 "$rc"
+write "$case_dir/report.json" "$report"
+
+for sel in installed-user update-candidates-user current-project \
+  missing-user-install missing-enabled user-scope-orphans; do
+  ARGS=(--marketplace market1 --ids "$sel")
+  live=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$case_dir/sample-repo")
+  ARGS=(--ids "$sel" --from "$case_dir/report.json")
+  projected=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$case_dir/sample-repo")
+  assert_eq "--from: '$sel' projection equals the live projection" "$live" "$projected"
+done
+
+# The fixture is built so the selectors are not all empty — an all-empty
+# comparison would pass vacuously and prove nothing about the projection.
+ARGS=(--ids missing-user-install --from "$case_dir/report.json")
+assert_eq "--from: the compared selectors are non-empty (missing-user-install)" \
+  "$(printf 'delta@market1\ngamma@market1')" "$(run_state "$case_dir")"
+
+# current-project carries a SECOND tab-separated field (the record's scope) that
+# Step 2 reads off the same line. Asserted against a hand-written report so the
+# case does not depend on this host resolving a fixture project root: --from
+# reads the report and nothing else.
+write "$case_dir/current-project-report.json" '{
+  "marketplace": {"name": "market1", "autoUpdate": false, "lastUpdated": "2026-01-01T00:00:00Z"},
+  "project_root": "/tmp/sample-repo",
+  "catalog": ["alpha"],
+  "catalog_versions": {"alpha@market1": "0.1.0"},
+  "installed": [
+    {"id": "alpha@market1", "scope": "project", "version": "0.1.0", "currentProject": true},
+    {"id": "alpha@market1", "scope": "local", "version": "0.1.0", "currentProject": true},
+    {"id": "beta@market1", "scope": "user", "version": "0.2.0", "currentProject": null}
+  ],
+  "enabled": {},
+  "missing_from_install": [],
+  "missing_from_user_install": [],
+  "missing_from_enabled": [],
+  "user_scope_orphans": [],
+  "divergences": []
+}'
+ARGS=(--ids current-project --from "$case_dir/current-project-report.json")
+assert_eq "--from: current-project keeps its second TAB field, one line per scope record" \
+  "$(printf 'alpha@market1\tproject\nalpha@market1\tlocal')" "$(run_state "$case_dir")"
+
+# ============================================================================
+# Case: every --from rejection is exit 2 with EMPTY stdout. The documented
+# consumer is `while read … done < <(… --ids …)`, which cannot see the exit
+# status, so anything left on stdout would be handed to `claude plugin update`
+# as an id. Captured WITHOUT 2>&1 for exactly that reason.
+# ============================================================================
+run_from_stdout_only() {
+  local case_dir="$1"
+  shift
+  env \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" "$@"
+}
+
+CASE_NUM=$((CASE_NUM + 1))
+prev_case_dir="$case_dir"
+case_dir=$(new_case_dir)
+cp "$prev_case_dir/installed_plugins.json" "$prev_case_dir/known_marketplaces.json" \
+  "$prev_case_dir/user_settings.json" "$prev_case_dir/report.json" "$case_dir/"
+cp "$prev_case_dir/catalog/market1.json" "$case_dir/catalog/"
+write "$case_dir/malformed.json" '{"marketplace": {"name": "market1"'
+write "$case_dir/envelope.json" '{"marketplaces": {"market1": {"marketplace": {"name": "market1"}, "installed": []}}}'
+
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/absent.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: a missing report is exit 2" 2 "$rc"
+assert_eq "--from: a missing report leaves stdout empty" "" "$out"
+err=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/absent.json" 2>&1 >/dev/null)
+assert_contains "--from: the missing-report error names the file" "$err" "$case_dir/absent.json"
+
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/malformed.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: a malformed report is exit 2" 2 "$rc"
+assert_eq "--from: a malformed report leaves stdout empty" "" "$out"
+err=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/malformed.json" 2>&1 >/dev/null)
+assert_contains "--from: the malformed-report error names the file" "$err" "$case_dir/malformed.json"
+
+# An --all envelope parses as JSON and every selector branch projects it to
+# nothing. A silently-empty id list is the failure class the --ids contract
+# exists to prevent, so it is refused by name.
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/envelope.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: an --all envelope is refused, not projected to empty" 2 "$rc"
+assert_eq "--from: the refused envelope leaves stdout empty" "" "$out"
+
+out=$(run_from_stdout_only "$case_dir" --all --ids missing-enabled --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: combined with --all is exit 2" 2 "$rc"
+assert_eq "--from: the --all rejection leaves stdout empty" "" "$out"
+err=$(run_from_stdout_only "$case_dir" --all --ids missing-enabled --from "$case_dir/report.json" 2>&1 >/dev/null)
+assert_contains "--from: the --all rejection names --all" "$err" "cannot be combined with --all"
+
+# Without a selector the earlier --ids/--all guard cannot fire, so this is the
+# --from path's own --all rejection rather than the existing one.
+out=$(run_from_stdout_only "$case_dir" --all --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: --all without --ids is still exit 2" 2 "$rc"
+assert_eq "--from: that rejection leaves stdout empty" "" "$out"
+err=$(run_from_stdout_only "$case_dir" --all --from "$case_dir/report.json" 2>&1 >/dev/null)
+assert_contains "--from: its own --all rejection names --from" "$err" "--from cannot be combined with --all"
+
+# Without --ids there is nothing to project; falling through would echo the
+# report back as if it had been recomputed.
+out=$(run_from_stdout_only "$case_dir" --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: without --ids is exit 2" 2 "$rc"
+assert_eq "--from: the no-selector rejection leaves stdout empty" "" "$out"
+
+# --marketplace alongside --from is a consistency check, never a second read.
+out=$(run_from_stdout_only "$case_dir" --marketplace other --ids missing-enabled --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: a disagreeing --marketplace is exit 2" 2 "$rc"
+assert_eq "--from: the disagreement rejection leaves stdout empty" "" "$out"
+out=$(run_from_stdout_only "$case_dir" --marketplace market1 --ids missing-user-install --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: an agreeing --marketplace passes the consistency check" 0 "$rc"
+assert_eq "--from: the agreeing run still projects" "$(printf 'delta@market1\ngamma@market1')" "$out"
+
+out=$(run_from_stdout_only "$case_dir" --marketplaces --ids missing-enabled --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: combined with --marketplaces is exit 2" 2 "$rc"
+
+# ============================================================================
+# Case: --from reads NO Claude Code state file. That is the cost claim — the
+# projection recomputes nothing — so it must hold even when every state file
+# the live path requires is absent.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+prev_case_dir="$case_dir"
+case_dir=$(new_case_dir)
+cp "$prev_case_dir/report.json" "$case_dir/"
+out=$(env \
+  FLEET_STATE_INSTALLED_JSON="$case_dir/absent-installed.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/absent-marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/absent-settings.json" \
+  FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+  bash "$SCRIPT" --ids missing-user-install --from "$case_dir/report.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: projects with every CC state file absent" 0 "$rc"
+assert_eq "--from: the state-free projection still emits the ids" \
+  "$(printf 'delta@market1\ngamma@market1')" "$out"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
