@@ -9,7 +9,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **Re-verified the `plugins` skill's empirical claims against Claude Code 2.1.261 and
   updated the stamps to match what was actually re-run.** Confirmed unchanged on 2.1.261:
-  `update -s project` still writes no committed settings file; the full
+  `update -s project` still writes no committed settings file, re-proved against a real
+  version bump rather than a no-op — a throwaway local marketplace served `probe-plugin`
+  at `0.1.0`, a project-scope install dirtied the scratch repo's committed
+  `.claude/settings.json`, that file was reverted to clean, and the update then advanced
+  the `installed_plugins.json` record to `0.1.1` (new `lastUpdated` and `installPath`)
+  while `git status` stayed empty; a second `0.1.1` → `0.1.2` cycle hash-compared both
+  `.claude/settings.json` and `.claude/settings.local.json` across the update and found
+  both unchanged. Also confirmed unchanged: the full
   install/uninstall/enable/disable project-scope write matrix, including the key being
   created when absent and the whole file being re-serialized so sibling keys move;
   `enable -s project` still gating on the merged effective value with the same error

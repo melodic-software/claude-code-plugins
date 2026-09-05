@@ -70,8 +70,13 @@ the machine-local `installed_plugins.json` record. `enabledPlugins` carries no v
 committed settings files are untouched by an update. Re-verified on Claude Code 2.1.228 under the
 hardest available conditions: a tracked `.claude/settings.json` that a sibling `install -s project`
 had just rewritten, reverted to clean, then updated — the update left it clean. Re-verified on
-**Claude Code 2.1.261** the same way, in a throwaway repo with a committed `.claude/settings.json`:
-the update reported the plugin already at its latest version and left `git status` empty. `sync`'s in-repo
+**Claude Code 2.1.261** against a real version bump, not a no-op: a throwaway local marketplace served
+`probe-plugin` at `0.1.0`, an `install -s project` into a scratch repo wrote the id into its committed
+`.claude/settings.json`, that file was reverted to clean, the marketplace was bumped and refreshed, and
+`update -s project` then reported `updated from 0.1.0 to 0.1.1`. The `installed_plugins.json` record
+advanced to `0.1.1` with a new `lastUpdated` and `installPath`, so a real write did happen, while
+`git status` stayed empty. A second cycle (`0.1.1` → `0.1.2`) added a `.claude/settings.local.json` to
+the scratch repo and hash-compared both settings files across the update: both were unchanged. `sync`'s in-repo
 update step is therefore safe to run without a settings-diff review. It is the exception, not the
 rule: the next section lists the calls that do write.
 
