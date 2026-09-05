@@ -3,6 +3,44 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`justify`, a third lane skill.** `/overengineering:justify <target>` applies the plugin's
+  scrutiny method to whatever single artifact you point at, against a two-part test: was there a
+  reason for this when it was built, and does that reason still hold today. It takes a path, a
+  `path#heading`, or a kind-prefixed identifier; a line or comment target widens to its enclosing
+  heading or file and the report's first line says so. It is read-only, reports before it discusses,
+  and never applies a remedy. With no target it never sweeps: it uses what the session has been
+  discussing, else offers to rank candidates by age and waits, else asks.
+- **`context/justification-lane.md`**, the lane binding. Routing precedence first, so a target the
+  enforcement lane already inventories goes to `audit` and gets no row here; then the item inventory,
+  five layers with their discovery probes, evidence sources on the method's tiers, protected-class
+  defaults, the lane's preflight additions, the two gates, the no-target ladder, the boundary against
+  existing owners, and the limits this lane accepts.
+- **A sanctioning-records probe in the shared preflight**, which both lanes run. A repetition that a
+  decision record sanctions and a check maintains is never duplication to collapse, because a finding
+  against it reports a working control as a defect.
+
+### Changed
+
+- **The findings artifact is `schema: 2`.** Five layer values for non-enforcement artifacts
+  (`decision-records`, `documents`, `components`, `dependencies`, `source`), appended so the
+  sort-significant enum order is preserved. A non-spine `Basis` field records whether a verdict is
+  `measured`, `class-inferred`, or `unexamined`, required only on rows a schema-2 run writes, so rows
+  carried forward from schema 1 stay legal. Frontmatter gains `mode` and `targets`, and a
+  targeted-run clause governs the merge rules so a pointed run never closes, rewrites, or re-disposes
+  a finding it did not examine. Finding ids gain a producer segment, an `artifact-item` claim, a
+  `package:` prefix, and a heading locator; a routed target produces no id and no row.
+- **`realign` presents a `justify`-producer row and never executes it**, naming the owner from the
+  lane's boundary and offering no rung, because its rollback ladder is enforcement-shaped. One eval
+  covers it.
+- **`delta` reports this lane's layers as not walkable rather than not walked**, since it composes
+  `audit` and no cycle at any scope will compare them. `Basis` stays outside the spine and never
+  enters the diff.
+- **`audit` writes `schema: 2` and `mode: walk`**, and accepts either schema on read.
+
 ## [0.3.6]
 
 ### Changed

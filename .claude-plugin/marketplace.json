@@ -569,10 +569,13 @@
         "enforcement-surface",
         "audit",
         "realign",
+        "delta",
         "retirement",
         "yagni",
         "carry-cost",
         "automation-sprawl",
+        "justification",
+        "justify",
         "skill"
       ]
     },

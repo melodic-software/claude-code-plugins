@@ -396,28 +396,35 @@ useful if it corroborated before presenting, ranking oldest-first and then repor
 candidates survive a citation check. That is a change to the shipped discovery command, so it is
 recorded here for the operator rather than made in-phase.
 
-### Phase 5: Plugin surfaces [TODO]
+### Phase 5: Plugin surfaces [DONE]
 
-- [ ] Read `.claude/rules/catalog-taxonomy.md` (procedural; category is unchanged).
-- [ ] `.claude-plugin/plugin.json`: `version` 0.3.6 → **0.4.0** (if a sibling PR lands a higher `overengineering` version first, renumber above it); description gains one clause naming the justification lane; `keywords` gain `justification`, `justify`.
-- [ ] `CHANGELOG.md`: `## [0.4.0]` with `### Added` (the `justify` lane; `justification-lane.md`; the sanctioning-record probe in the shared preflight) and `### Changed` (findings artifact schema 2: five layers, `Basis`, `mode`/`targets`, targeted merge clause, `justify` id forms, `package:` prefix; `realign` presents and never executes `justify` rows; `delta` coverage wording; `audit` writes schema 2).
-- [ ] `README.md`: fourth row in the skill table; "The shared method all three skills apply" reworded to "The shared method every skill applies" (accuracy; the count-claims gate does not match this form, so this is not a gate fix).
-- [ ] `.claude-plugin/marketplace.json`: `overengineering` entry `tags` set equal to the keyword list (a choice for consistency, not a repaired defect; no convention or gate ties tags to keywords). Category stays `quality`.
-- [ ] `node scripts/generate-catalog.mjs` and `node scripts/generate-cheatsheet.mjs` to regenerate `docs/CATALOG.md` and `docs/SKILL-CHEAT-SHEET.md` (the cheat sheet groups by `metadata.workflow-stage`; no config edit).
+**Executed 2026-09-05.** All eight Sanity Checks green. The version gate did not fire: `origin/main`
+still carries `overengineering` 0.3.6, so 0.4.0 stands and nothing needed renumbering above a
+sibling. One deviation from the plan's letter, recorded rather than taken silently: the marketplace
+`tags` list was set equal to the keyword list as instructed, and the keyword list itself already
+carried `delta`, which the tags did not, so the sync added `delta` alongside `justification` and
+`justify`. The `diff` check in the Sanity Check below is what the plan asked for and it passes.
+
+- [x] Read `.claude/rules/catalog-taxonomy.md` (procedural; category is unchanged).
+- [x] `.claude-plugin/plugin.json`: `version` 0.3.6 → **0.4.0** (if a sibling PR lands a higher `overengineering` version first, renumber above it); description gains one clause naming the justification lane; `keywords` gain `justification`, `justify`.
+- [x] `CHANGELOG.md`: `## [0.4.0]` with `### Added` (the `justify` lane; `justification-lane.md`; the sanctioning-record probe in the shared preflight) and `### Changed` (findings artifact schema 2: five layers, `Basis`, `mode`/`targets`, targeted merge clause, `justify` id forms, `package:` prefix; `realign` presents and never executes `justify` rows; `delta` coverage wording; `audit` writes schema 2).
+- [x] `README.md`: fourth row in the skill table; "The shared method all three skills apply" reworded to "The shared method every skill applies" (accuracy; the count-claims gate does not match this form, so this is not a gate fix).
+- [x] `.claude-plugin/marketplace.json`: `overengineering` entry `tags` set equal to the keyword list (a choice for consistency, not a repaired defect; no convention or gate ties tags to keywords). Category stays `quality`.
+- [x] `node scripts/generate-catalog.mjs` and `node scripts/generate-cheatsheet.mjs` to regenerate `docs/CATALOG.md` and `docs/SKILL-CHEAT-SHEET.md` (the cheat sheet groups by `metadata.workflow-stage`; no config edit).
 
 **File inventory (Phase 5):**
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/overengineering/.claude-plugin/plugin.json` | MODIFY | version, description, keywords |
-| [ ] `plugins/overengineering/CHANGELOG.md` | MODIFY | `## [0.4.0]` |
-| [ ] `plugins/overengineering/README.md` | MODIFY | fourth row; wording |
-| [ ] `.claude-plugin/marketplace.json` | MODIFY | tags |
-| [ ] `docs/CATALOG.md` | MODIFY (generated) | regen |
-| [ ] `docs/SKILL-CHEAT-SHEET.md` | MODIFY (generated) | regen |
-| [ ] `.claude/settings.json` | KEEP | `overengineering@melodic-software` already enabled |
-| [ ] `scripts/skill-leaf-name-registry.txt` | KEEP | `justify` collides with no other plugin |
-| [ ] `scripts/cheatsheet-config.mjs` | KEEP | grouping is by metadata, not per skill |
+| [x] `plugins/overengineering/.claude-plugin/plugin.json` | MODIFY | version, description, keywords |
+| [x] `plugins/overengineering/CHANGELOG.md` | MODIFY | `## [0.4.0]` |
+| [x] `plugins/overengineering/README.md` | MODIFY | fourth row; wording |
+| [x] `.claude-plugin/marketplace.json` | MODIFY | tags |
+| [x] `docs/CATALOG.md` | MODIFY (generated) | regen |
+| [x] `docs/SKILL-CHEAT-SHEET.md` | MODIFY (generated) | regen |
+| [x] `.claude/settings.json` | KEEP | `overengineering@melodic-software` already enabled |
+| [x] `scripts/skill-leaf-name-registry.txt` | KEEP | `justify` collides with no other plugin |
+| [x] `scripts/cheatsheet-config.mjs` | KEEP | grouping is by metadata, not per skill |
 
 **Sanity Check:**
 

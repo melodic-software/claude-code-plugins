@@ -14,8 +14,9 @@ evidence earns its keep**.
 | `/overengineering:audit` | Read-only walk of the enforcement surface. Reconstructs what each mechanism was built to solve, re-solves the problem fresh with a bias toward native and built-in mechanisms, and returns a verdict argued in cost of carry. KEEP / RETIRE / DOWNGRADE / CONSOLIDATE / UNPROVEN, with security-class artifacts capped at FLAG-FOR-HUMAN. Emits a diffable findings artifact plus an inline summary. |
 | `/overengineering:realign` | The only skill that changes anything. Consumes the findings artifact and, per accepted finding, drives interview → explore/research → plan → implement through presence-gated skill composition. Nothing is touched without explicit per-item acceptance. |
 | `/overengineering:delta` | The recurring lane. Re-runs the audit, compares its findings spine against the baseline the previous cycle left behind, and reports **only what moved** since that run. Above a configurable noise budget, so a repeat cycle is a short delta instead of the whole surface again. Read-only always; it never enters `realign`, and verdict changes queue for the human. |
+| `/overengineering:justify` | The pointed lane. Takes one artifact you name, a decision record, a document, a component, a dependency, or a code construct, and asks whether a reason existed for it and whether that reason still holds today. Every row says how much evidence the verdict rests on. Read-only: it reports, then discusses, and hands any remedy to the skill that owns it. A target the enforcement lane already covers routes to `audit` instead. It never sweeps the repository. |
 
-The shared method all three skills apply lives once, in
+The shared method every skill applies lives once, in
 [`context/scrutiny-method.md`](context/scrutiny-method.md); no skill restates it. The artifact that
 joins them is specified once, in
 [`context/findings-artifact.md`](context/findings-artifact.md).
