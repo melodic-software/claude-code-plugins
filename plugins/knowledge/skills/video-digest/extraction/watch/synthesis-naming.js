@@ -35,9 +35,7 @@ export function synthesisDestName(sourceFile, timestampSec, knownDestBySource = 
   if (knownDestBySource[sourceFile]) {
     return knownDestBySource[sourceFile];
   }
-  const stem = sourceStem(sourceFile);
-  const at = formatTimestampSlug(timestampSec);
-  return `at-${at}-${stem}.png`;
+  return `at-${formatTimestampSlug(timestampSec)}-${sourceStem(sourceFile)}.png`;
 }
 
 /**

@@ -38,14 +38,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -71,6 +71,13 @@ write_settings() {
   jq -n --argjson a "$allow" \
     '{permissions:{allow:$a, additionalDirectories:$ARGS.positional}}' \
     --args "$@" >"$cfg/settings.json"
+}
+
+# commit_empty <repo> — a commit so `worktree add` has a HEAD to detach from.
+commit_empty() {
+  git -C "$1" -c user.name=t -c user.email=t@t commit -q --allow-empty -F - --cleanup=verbatim <<'MSG'
+init
+MSG
 }
 
 FULL_ALLOW='["Bash(git add *)","Bash(git commit *)","Bash(git push)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
@@ -202,6 +209,16 @@ assert_eq "uncovered root → one gap" "1" "$(run "$REPO" "$CFG8" --count --work
 # child expressed in git-bash POSIX form (/d/repos/.worktrees/495-x).
 assert_eq "Windows-form entry covers POSIX-form child" "0" "$(run "$REPO" "$CFG3" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 9b: the PROBED ROOT is folded too, not just the entry --------------
+# Case 9 exercises the entry side only: its probed root is already in folded
+# form, so an implementation that compared the raw argument would still pass it.
+# The reverse pairing (POSIX-form entry, Windows-form probed root) is what pins
+# the fold on the argument.
+CFG9B="$TEST_TMPDIR/cfg9b"
+write_settings "$CFG9B" "$FULL_ALLOW" "${SL}d${SL}repos${SL}.worktrees"
+assert_eq "POSIX-form entry covers a Windows-form probed root" "0" \
+  "$(run "$REPO" "$CFG9B" --count --worktree-root "${WIN_ROOT}${BS}495-x")"
+
 # --- Case 10: worktree root not provided → NOTE (c), no gap -----------------
 OUT=$(run "$REPO" "$CFG3")
 assert_contains "no root arg emits NOTE (c)" "$OUT" "NOTE (c)"
@@ -309,7 +326,7 @@ assert_eq "autonomous path reads the main checkout's local grant → no gap" "0"
 # only to sessions started there, so a fresh worker would not inherit it. From a
 # worktree cwd the autonomous path keeps the main checkout's local file but
 # drops the worktree's own.
-git -C "$REPO3" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+commit_empty "$REPO3"
 WT16="$TEST_TMPDIR/local-mask-wt"
 git -C "$REPO3" worktree add -q --detach "$WT16"
 # Main-local grant (case 16's file) reaches a worktree cwd's autonomous run.
@@ -357,12 +374,6 @@ assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --c
 # read) or that the run says loudly that the layer was NOT read. Deny is the
 # probe because it is the masking direction: a dropped deny under-reports.
 #
-# commit_empty <repo> — a commit so `worktree add` has a HEAD to detach from.
-commit_empty() {
-  git -C "$1" -c user.name=t -c user.email=t@t commit -q --allow-empty -F - --cleanup=verbatim <<'MSG'
-init
-MSG
-}
 # plant_main_deny <checkout> — the main checkout's local file carries a deny and
 # nothing else, so any report of 'git push' proves that file was read.
 plant_main_deny() {
@@ -419,8 +430,8 @@ assert_eq "submodule worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-sub-wt" 
 SUBGITDIR="$(git -C "$SUPER/sub" rev-parse --git-common-dir | tr -d '\r')"
 INCWT="$(git config -f "$SUBGITDIR/config" --get core.worktree | tr -d '\r')"
 git config -f "$SUBGITDIR/config" --unset core.worktree
-printf '[core]\n\tworktree = %s\n' "$INCWT" > "$SUBGITDIR/worktree.inc"
-printf '[include]\n\tpath = worktree.inc\n' >> "$SUBGITDIR/config"
+printf '[core]\n\tworktree = %s\n' "$INCWT" >"$SUBGITDIR/worktree.inc"
+printf '[include]\n\tpath = worktree.inc\n' >>"$SUBGITDIR/config"
 OUT=$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --worktree-root "$RESROOT")
 assert_contains "include-defined core.worktree still reports the deny" "$OUT" "is DENIED"
 assert_not_contains "include-defined core.worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
@@ -531,7 +542,7 @@ assert_eq "root additionalDirectories entry covers any worktree root" "0" "$(run
 
 # --- Case 19: tilde-form additionalDirectories entry expands to the user home -
 # A ~-form entry (~/.worktrees) must expand to $HOME and cover an absolute probed
-# root beneath it — a grant tilde expansion makes live but a naive normalize_path
+# root beneath it — a grant tilde expansion makes live but a naive norm_path
 # leaves unmatched. HOME is set explicitly so the case is independent of the
 # tester's real home.
 HOME19="$TEST_TMPDIR/home19"
@@ -541,7 +552,7 @@ CFG19="$TEST_TMPDIR/cfg19"
 write_settings "$CFG19" "$FULL_ALLOW" "~/.worktrees"
 # run_home <home> <fixture-dir> <config-dir> [args...] — like run(), with HOME set
 # so a tilde-form entry expands deterministically. CLAUDE_CONFIG_DIR still points
-# settings at the fixture, so HOME only steers normalize_path's ~ expansion.
+# settings at the fixture, so HOME only steers norm_path's ~ expansion.
 run_home() {
   local home="$1" fx="$2" cfg="$3"
   shift 3
@@ -563,7 +574,7 @@ write_settings "$CFG19B" "$FULL_ALLOW" "~${BS}.worktrees"
 assert_eq "backslash-form tilde entry expands → zero gaps" "0" "$(run_home "$HOME19" "$REPO" "$CFG19B" --count --worktree-root "$HOME19/.worktrees/999-x")"
 
 # --- Case 19c: a trailing separator on the home does not double on the join --
-# HOME ending in / (or \) must not yield //.worktrees, which normalize_path does
+# HOME ending in / (or \) must not yield //.worktrees, which norm_path does
 # not collapse and so would not match the absolute probed root.
 assert_eq "trailing-slash home still covers the child → zero gaps" "0" "$(run_home "$HOME19/" "$REPO" "$CFG19" --count --worktree-root "$HOME19/.worktrees/999-x")"
 

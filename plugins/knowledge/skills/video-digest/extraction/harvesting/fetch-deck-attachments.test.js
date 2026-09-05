@@ -42,10 +42,7 @@ describe("fetchDeckAttachments", () => {
    * @param {Array<Record<string, unknown>>} links
    */
   function writeLinks(links) {
-    fs.writeFileSync(
-      path.join(sliceDir, "source", "harvested-links.json"),
-      JSON.stringify(links),
-    );
+    fs.writeFileSync(path.join(sliceDir, "source", "harvested-links.json"), JSON.stringify(links));
   }
 
   it("streams a normal attachment to disk", async () => {
@@ -94,13 +91,7 @@ describe("fetchDeckAttachments", () => {
 
   it("preserves a previously-fetched attachment when a retry stream fails", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/spec.pdf" }]);
-    const destPath = path.join(
-      sliceDir,
-      "source",
-      "attachments",
-      "attachment",
-      "spec.pdf",
-    );
+    const destPath = path.join(sliceDir, "source", "attachments", "attachment", "spec.pdf");
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     fs.writeFileSync(destPath, "previously-good-content");
 

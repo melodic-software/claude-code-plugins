@@ -152,7 +152,6 @@ packet="${2:-}"
 manifest="$packet/$MANIFEST_NAME"
 
 if [[ "$action" == record ]]; then
-  count=0
   # Enumerate BEFORE creating the temp manifest: a temp file inside the packet
   # is itself a packet file, and a walk that sees it would seal the manifest
   # into itself under a name that vanishes on `mv`.
@@ -209,14 +208,13 @@ if [[ "$action" == record ]]; then
       exit 2
     }
     printf '%s  %s\n' "$d" "$name" >>"$tmp"
-    count=$((count + 1))
   done
   mv -f -- "$tmp" "$manifest" || {
     rm -f -- "$tmp"
     echo "error: cannot install the manifest: $manifest" >&2
     exit 2
   }
-  echo "sealed=$count manifest=$manifest"
+  echo "sealed=${#files[@]} manifest=$manifest"
   exit 0
 fi
 

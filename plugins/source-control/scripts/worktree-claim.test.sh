@@ -51,6 +51,14 @@ run_claim() {
   return "$rc"
 }
 
+# stanza_for <path-substring> — $REPO's `worktree list --porcelain` record for
+# the worktree whose path contains <path-substring>. Paragraph mode (RS=) is
+# what makes one record one awk line, so the `locked` line stays attached to
+# the `worktree` line it belongs to.
+stanza_for() {
+  git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="$1" 'index($0, p)'
+}
+
 # --- AC1: plain git worktree add is reported unclaimed ------------------------
 
 git -C "$REPO" worktree add -q "$EXT/wt-plain" -b feat/plain
@@ -69,7 +77,7 @@ assert_exit "claim of an unlocked tree succeeds" 0 "$?"
 assert_contains "claim reason names this script" "$OUT" "worktree-claim.sh"
 assert_contains "claim reason names session sess-aaa" "$OUT" "session sess-aaa since"
 
-stanza=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-plain" 'index($0, p)')
+stanza=$(stanza_for wt-plain)
 assert_contains "porcelain shows the tree locked after claim" "$stanza" "locked"
 assert_contains "porcelain reason carries the session id" "$stanza" "sess-aaa"
 
@@ -142,7 +150,7 @@ run_claim claim "$EXT/wt-helper" --repo-dir "$REPO" --session-id later-session
 assert_exit "claim refuses to rewrite a helper reason (exit 4)" 4 "$?"
 assert_contains "refusal names the existing helper reason" "$ERR" "worktree-create.sh"
 
-after=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-helper" 'index($0, p)')
+after=$(stanza_for wt-helper)
 assert_contains "helper reason is still present after refused claim" "$after" "$HELPER_REASON"
 assert_not_contains "helper reason was not replaced with worktree-claim.sh" "$after" "worktree-claim.sh"
 
@@ -156,11 +164,11 @@ git -C "$REPO" worktree add -q "$EXT/wt-batch-a" -b feat/batch-a
 git -C "$REPO" worktree add -q "$EXT/wt-batch-b" -b feat/batch-b
 run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-sess
 assert_exit "--all-unclaimed succeeds" 0 "$?"
-st_a=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-batch-a" 'index($0, p)')
-st_b=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-batch-b" 'index($0, p)')
+st_a=$(stanza_for wt-batch-a)
+st_b=$(stanza_for wt-batch-b)
 assert_contains "batch a is locked" "$st_a" "batch-sess"
 assert_contains "batch b is locked" "$st_b" "batch-sess"
-after_helper=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-helper" 'index($0, p)')
+after_helper=$(stanza_for wt-helper)
 assert_contains "--all-unclaimed left the helper reason intact" "$after_helper" "$HELPER_REASON"
 
 # Idempotent: nothing left to claim.

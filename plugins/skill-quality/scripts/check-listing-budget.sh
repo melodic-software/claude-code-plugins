@@ -145,11 +145,11 @@ if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
 
-# `skill-frontmatter.sh` is deliberately NOT sourced any more. Its helpers are
-# per-call `awk`/`tr` execs, which is what made the pooled run unrunnable (see
-# the measurement scan below); their behaviour is ported into that scan's single
-# awk program instead. `check-skill.sh` remains the library's consumer, so the
-# file itself is unchanged and still shared.
+# `skill-frontmatter.sh` is deliberately NOT sourced here. Its helpers are
+# per-call `awk`/`tr` execs, which is what makes a pooled run unrunnable (see
+# the measurement note on the scan below); their behaviour is ported into that
+# scan's single awk program instead. `check-skill.sh` remains the library's
+# consumer, so the file itself stays shared.
 
 # Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
 # 0 and the report exits 0 announcing a zero-character budget and a bogus
@@ -321,11 +321,11 @@ fi
 #
 # `disable-model-invocation: true` keeps a skill's description out of the
 # model-visible listing entirely, so it spends none of the shared budget —
-# counting it would overstate the aggregate. See the header. Deliberately NOT
-# folded, exactly as before: YAML 1.1's `yes` / `on` aliases, because the docs
-# only ever spell this field `true` and treating a bare `yes` as the boolean
-# risks dropping a skill over a value the harness may read as a plain string.
-# A pragmatic normalizer for one known field, not a YAML parser.
+# counting it would overstate the aggregate. See the header.
+# A pragmatic normalizer for one known field, not a YAML parser. YAML 1.1's
+# `yes` / `on` aliases are deliberately NOT folded in: the docs only ever spell
+# this field `true`, and treating a bare `yes` as the boolean risks dropping a
+# skill over a value the harness may read as a plain string.
 if ! AWK_RESULT="$(awk -F'\t' \
   -v max="$MAX_DESC_CHARS" -v joiner_chars="$JOINER_CHARS" -v out="$CONTRIB_FILE" '
   function trim_ws(v) {

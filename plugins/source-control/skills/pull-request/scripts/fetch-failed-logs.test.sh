@@ -38,9 +38,9 @@ command -v zip >/dev/null 2>&1 || skip_suite "zip not installed"
 #   TOP-LEVEL: <step-num>_<job-name>.txt      consolidated step log (errors here)
 #   PER-JOB:   <job-name>/system.txt           agent metadata only
 # Filenames may contain SPACES + special chars (matrix expansions encoded with
-# underscores). Earlier fixture used <jobN>/01_step.txt — that layout does not
-# exist in real ZIPs and silently passed the test while the production logic
-# missed real errors.
+# underscores). Keep the fixture on this real layout: a synthetic
+# <jobN>/01_step.txt shape exists in no real ZIP, so a fixture built that way
+# goes green while the production walk misses real errors.
 
 FIXTURE_BUILD="$TEST_TMPDIR/fixture-build"
 mkdir -p "$FIXTURE_BUILD/build/" "$FIXTURE_BUILD/shell _ Bash (tests)/"
@@ -79,6 +79,7 @@ FIXTURE_JOB_TXT="$TEST_TMPDIR/job-logs.txt"
 #   api repos/<owner>/<repo>/actions/jobs/<id>/logs       → cat fixture text
 #   api repos/<owner>/<repo>/actions/runs/FAIL/logs       → exit 1 (failure)
 #   api repos/<owner>/<repo>/actions/runs/TINY/logs       → emit 5 bytes (not a ZIP)
+#   api repos/<owner>/<repo>/actions/jobs/FAIL/logs       → exit 1 (failure)
 #   repo view --json nameWithOwner ...                    → echo example-org/example-repo
 
 STUB_DIR="$TEST_TMPDIR/stubs"
@@ -187,9 +188,9 @@ run_script_with_scratch_silent "$TEST_TMPDIR/scratch8" || ec=$?
 assert_exit "missing run-id and --job exits 1" 1 "$ec"
 
 # ---- Audit flag fixture extension ----
-# Add a step file with: a ##[group]/##[endgroup] pair with timestamps,
-# a ##[notice] marker, and a "0 tests" suspicious-pattern line. Reuses the
-# existing fixture path so existing assertions keep working.
+# Append to the existing step file: a ##[group]/##[endgroup] pair with
+# timestamps, a ##[notice] marker, and a "0 tests" suspicious-pattern line.
+# Reusing the fixture path keeps the earlier assertions working.
 {
   printf '2026-05-08T10:02:00.000Z ##[group]Restore packages\n'
   printf '2026-05-08T10:02:01.500Z restoring...\n'
@@ -248,6 +249,29 @@ if [[ "$out" == *"groups (step structure)"* && "$out" == *"timing (per group"* &
   pass "--audit macro emits groups + timing + suspicious sections"
 else
   fail "--audit macro emits groups + timing + suspicious sections" "all 3 sections" "$out"
+fi
+
+# Case 15: --help emits the whole banner. usage() slices the header comment block
+# out of the script itself, so nothing but this pins the slice: without it, a
+# short slice that drops exit codes, a long slice that leaks executable lines,
+# and a usage() emitting nothing at all all leave this suite green.
+help_out=$(run_script --help)
+help_ec=$?
+if [[ $help_ec -eq 0 && "$help_out" == *"0  log fetch + extraction succeeded"* &&
+  "$help_out" == *"3  log payload exceeded the size cap"* &&
+  "$help_out" == *"4  ZIP extraction failed"* &&
+  "$help_out" == *"5  prerequisite missing (gh, unzip)"* ]]; then
+  pass "--help emits the full banner through the last documented exit code"
+else
+  fail "--help emits the full banner through the last documented exit code" \
+    "exit 0 + exit codes 0, 3, 4 and 5" "exit $help_ec, out: $help_out"
+fi
+# The other direction: a slice running past the header block leaks executable
+# lines into the banner, so the banner must stop before the first one.
+if [[ "$help_out" != *"set -uo pipefail"* ]]; then
+  pass "--help stops at the header block"
+else
+  fail "--help stops at the header block" "no shell options in the banner" "$help_out"
 fi
 
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------

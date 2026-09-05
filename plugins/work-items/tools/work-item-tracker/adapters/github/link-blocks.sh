@@ -13,12 +13,12 @@ shift
 blocker=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --blocked-by)
-      [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-      blocker="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --blocked-by)
+    [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
+    blocker="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 [[ -n "$blocker" ]] || wit_usage_error "--blocked-by is required"

@@ -21,7 +21,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 unset CLAUDE_PROJECT_DIR
-RC=0
 
 # hook::buffer_stdin bounds its fd0 read at CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT
 # seconds, default 2, and a timeout makes an advisory hook exit 0 silently. A

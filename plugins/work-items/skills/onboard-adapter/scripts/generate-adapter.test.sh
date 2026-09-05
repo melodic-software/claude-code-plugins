@@ -178,6 +178,14 @@ assert_eq "manifest keeps a declared-true verb" "true" "$(jq -r '.verbs["get-ite
 assert_eq "manifest keeps a declared-false verb" "false" "$(jq -r '.verbs.claim' "$A/capabilities.json")"
 assert_eq "manifest carries limits" "1000" "$(jq -r '.limits.list_items_max' "$A/capabilities.json")"
 
+# The provider name reaches the generated code in three spellings, and the
+# global/env one is UPPER-cased. A derivation that skipped the fold would emit
+# WIT_acmetracker_* globals and an auth env var no operator would guess, yet
+# every generated file would still agree with itself, so nothing else here
+# would notice.
+assert_contains "generated globals carry the upper-cased provider" \
+  "$(cat "$A/common.sh")" "WIT_ACMETRACKER_"
+
 # The version is the SEAM's, read from lib/json.sh — never a value the spec supplies.
 # A generated adapter that versioned itself could be born already skewed from the
 # engine that will dispatch it. Proven against a stand-in seam declaring 9.9.

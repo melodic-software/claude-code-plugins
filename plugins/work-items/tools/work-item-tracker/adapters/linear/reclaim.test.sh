@@ -117,7 +117,7 @@ rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired lease, different assignee → exit 0" "0" "$rc"
 assert_eq "still reclaimed (the lease is released)" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 # The lease is superseded, but the OTHER person's assignment is left alone.
-UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate")) | .variables.input.assigneeId] | length' 2>/dev/null || echo 0)"
+UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate")) | .variables.input.assigneeId] | length')"
 assert_eq "the other assignee is left in place" "0" "$UNASSIGNED"
 
 # --- the revalidation window ---
@@ -158,7 +158,7 @@ lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a rival lease taken during the window → exit 0" "0" "$rc"
 assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
-UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate"))] | length' 2>/dev/null || echo 0)"
+UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate"))] | length')"
 assert_eq "and the rival's assignment is untouched" "0" "$UNASSIGNED"
 
 # Activity on a LATER page must still count. Linear returns comments oldest-first, so on

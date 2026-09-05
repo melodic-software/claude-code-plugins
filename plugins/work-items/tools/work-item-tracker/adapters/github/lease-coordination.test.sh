@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # GitHub-adapter lease-coordination correctness that the abstract conformance
 # suite cannot assert (that suite needs a live GitHub target; these cases drive
-# specific renew-lease/reclaim decision paths deterministically against a stubbed
-# gh). Covers two lease-coordination findings:
+# specific claim/renew-lease/reclaim decision paths deterministically against a
+# stubbed gh). Covers three lease-coordination findings:
 #   (1) renew-lease REFUSES an expired lease even when it is still the active
 #       (non-superseded) lease whose handle matches — no revive, exit 7, no PATCH;
 #   (2) reclaim removes ONLY the expired lease's holder, leaving a co-assignee
 #       (manual or concurrent claimer) in place; and revalidates ownership before
-#       mutating, so a concurrent claim during the activity window aborts cleanly.
+#       mutating, so a concurrent claim during the activity window aborts cleanly;
+#   (3) claim's own protocol path (assign, sole-assignee check, lease post,
+#       arbitration), which claim.test.sh does not reach.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 

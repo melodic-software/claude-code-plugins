@@ -192,11 +192,10 @@ from babysit_classify import (
     strip_classification_rows,
 )
 from babysit_gh import (
-    GITHUB_OWNER_RE,
-    GITHUB_REPOSITORY_RE,
     fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
+    is_owner_repo_pair,
     parse_repo_number,
     resolve_authors,
 )
@@ -703,9 +702,7 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
     # `main`'s argument check, so the function's own contract holds for every
     # caller.
     if not (
-        GITHUB_OWNER_RE.fullmatch(head_owner)
-        and GITHUB_REPOSITORY_RE.fullmatch(head_name)
-        and head_name not in {".", ".."}
+        is_owner_repo_pair(head_owner, head_name)
         and FIX_COMMIT_RE.match(head_oid)
         and FIX_COMMIT_RE.match(sha)
     ):
@@ -762,11 +759,7 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
     # which costs nothing on the `default_repo` path (already validated by
     # `parse_repo_number`) and keeps one rule instead of two.
     owner, _, name = repo.partition("/")
-    if not (
-        GITHUB_OWNER_RE.fullmatch(owner)
-        and GITHUB_REPOSITORY_RE.fullmatch(name)
-        and name not in {".", ".."}
-    ):
+    if not is_owner_repo_pair(owner, name):
         return False, "refused-evidence-unverifiable"
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:
@@ -986,26 +979,27 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    def _usage_error(message: str) -> int:
-        print(json.dumps({"pr": args.pr, "error": message}))
-        return 2
+    def _refuse(message: str, code: int = 2, **envelope: object) -> int:
+        """Emit one refusal envelope on stdout and return its exit code.
+
+        `envelope` carries the extra fields a caller branches on before the
+        error text (`inScope`), so the key order every consumer already reads is
+        fixed here rather than restated per refusal. The same helper
+        `babysit_merge.py::main` defines, for the same reason; the default code
+        is the usage-error exit, which most refusals here are.
+        """
+        print(json.dumps({"pr": args.pr, **envelope, "error": message}))
+        return code
 
     extra_bot_logins = parse_extra_bot_logins(args.extra_bot_logins)
     allowed = parse_allowed_owners(args.allowed_owners)
     if not allowed:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "inScope": False,
-                    "error": (
-                        "--allowed-owners is required and must be non-empty; "
-                        "refusing to act without an owner allowlist"
-                    ),
-                }
-            )
+        return _refuse(
+            "--allowed-owners is required and must be non-empty; "
+            "refusing to act without an owner allowlist",
+            3,
+            inScope=False,
         )
-        return 3
 
     try:
         repo, number = parse_repo_number(args.pr)
@@ -1014,14 +1008,14 @@ def main() -> int:
         return 2
 
     if args.expected_comment_count is not None and not args.thread_id:
-        return _usage_error(
+        return _refuse(
             "--expected-comment-count requires --thread-id -- a count "
             "pin with no thread id to pin it to would silently fall "
             "through to resolving every eligible thread instead of refusing"
         )
 
     if args.expected_last_updated is not None and not args.thread_id:
-        return _usage_error(
+        return _refuse(
             "--expected-last-updated requires --thread-id -- a "
             "last-updated pin with no thread id to pin it to would "
             "silently fall through to resolving every eligible thread"
@@ -1040,7 +1034,7 @@ def main() -> int:
         if args.disposition is not None:
             stray.insert(0, "--disposition")
         if stray:
-            return _usage_error(
+            return _refuse(
                 f"{', '.join(stray)} requires --independent-resolver -- these are "
                 "the third mode's evidence contract, and accepting them in a mode "
                 "that never validates them would silently report an unchecked "
@@ -1057,7 +1051,7 @@ def main() -> int:
             if enabled
         ]
         if conflicting:
-            return _usage_error(
+            return _refuse(
                 f"--independent-resolver is refused with {', '.join(conflicting)}. "
                 "It is a parallel mode, never a relaxation: --autonomous is the "
                 "merging worker's own guard and cannot also be the independent "
@@ -1066,21 +1060,21 @@ def main() -> int:
                 "unattended resolve"
             )
         if args.disposition is None:
-            return _usage_error(
+            return _refuse(
                 "--independent-resolver requires --disposition "
                 f"{{{','.join(sorted(DISPOSITION_EVIDENCE))}}} -- the mode "
                 "resolves on validated evidence, and an unnamed disposition has "
                 "no evidence to validate"
             )
         if not args.thread_id:
-            return _usage_error(
+            return _refuse(
                 "--independent-resolver requires a single pinned --thread-id; "
                 "bulk is refused. Evidence is a claim about ONE finding, so a "
                 "bulk call would apply one thread's evidence to every thread"
             )
         required_flag = DISPOSITION_EVIDENCE[args.disposition]
         if evidence_args[required_flag] is None:
-            return _usage_error(
+            return _refuse(
                 f"--disposition {args.disposition} requires {required_flag}; "
                 "missing evidence refuses rather than resolving unproven"
             )
@@ -1090,7 +1084,7 @@ def main() -> int:
             if value is not None and flag != required_flag
         ]
         if surplus:
-            return _usage_error(
+            return _refuse(
                 f"--disposition {args.disposition} accepts only {required_flag}; "
                 f"remove {', '.join(surplus)}. Evidence is paired to its claim so "
                 "the script validates what was actually asserted"
@@ -1098,20 +1092,20 @@ def main() -> int:
         if args.fix_commit is not None and not FIX_COMMIT_RE.match(
             args.fix_commit.strip()
         ):
-            return _usage_error(
+            return _refuse(
                 f"--fix-commit {args.fix_commit!r} is not a 7-40 character hex "
                 "commit SHA; an unparsable SHA is refused, never looked up"
             )
         if args.tracker_item is not None and not TRACKER_ITEM_RE.match(
             args.tracker_item.strip()
         ):
-            return _usage_error(
+            return _refuse(
                 f"--tracker-item {args.tracker_item!r} is not owner/repo#N, #N, "
                 "or N; an unparsable item id is refused, never looked up"
             )
 
     if args.resolve and args.autonomous and not args.thread_id:
-        return _usage_error(
+        return _refuse(
             "--autonomous --resolve requires a single pinned "
             "--thread-id (with --expected-comment-count and "
             "--expected-last-updated); an unattended worker may not "
@@ -1123,7 +1117,7 @@ def main() -> int:
         )
 
     if args.resolve and args.autonomous and args.allow_unpinned_thread:
-        return _usage_error(
+        return _refuse(
             "--allow-unpinned-thread is refused in --autonomous mode; "
             "there is no unpinned autonomous resolve. An unattended "
             "worker must pin every --thread-id resolve with "
@@ -1141,7 +1135,7 @@ def main() -> int:
             if value is None
         ]
         if missing:
-            return _usage_error(
+            return _refuse(
                 "--resolve --thread-id requires both "
                 "--expected-comment-count and --expected-last-updated "
                 "to pin the comment count and latest comment-edit "
@@ -1152,16 +1146,11 @@ def main() -> int:
 
     owner = repo.split("/", 1)[0]
     if owner not in allowed:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "inScope": False,
-                    "error": f"owner {owner!r} out of scope; allowed: {sorted(allowed)}",
-                }
-            )
+        return _refuse(
+            f"owner {owner!r} out of scope; allowed: {sorted(allowed)}",
+            3,
+            inScope=False,
         )
-        return 3
 
     # Resolve self logins only after the owner-scope refusal above: '@me'
     # resolution is a network call, mirroring babysit_merge.py's ordering, so
@@ -1184,8 +1173,7 @@ def main() -> int:
         try:
             pr_author = fetch_pull_request_author(repo, number)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
-            print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
-            return 2
+            return _refuse(f"{type(exc).__name__}: {exc}")
         if is_self_login(pr_author, self_logins):
             print(
                 json.dumps(
@@ -1212,8 +1200,7 @@ def main() -> int:
             repo, number, extra_bot_logins=extra_bot_logins, self_logins=self_logins
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
-        print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
-        return 2
+        return _refuse(f"{type(exc).__name__}: {exc}")
 
     # One definition for both consumers below: the per-resolve audit record and
     # the summary on stdout. Two copies of this rule could drift, and one of

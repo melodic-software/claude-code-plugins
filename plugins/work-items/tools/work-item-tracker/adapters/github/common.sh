@@ -127,9 +127,8 @@ wit_map_gh_error() {
 # wit_run_gh <writer:write|read> <gh-args…> — run gh (routed by writer), capture
 # stdout to WIT_GH_OUT; on failure print stderr and exit with the mapped code.
 wit_run_gh() {
-  local writer="$1" err rc
+  local writer="$1" err rc errfile
   shift
-  local errfile
   errfile="$(mktemp)"
   if [[ "$writer" == "write" ]]; then
     WIT_GH_OUT="$(gh_write "$@" 2>"$errfile")"
@@ -242,7 +241,7 @@ wit_emit_item() {
   local owner="$1" repo="$2" number="$3" fields
   fields="$(wit_gh_issue_view_json_fields)"
   wit_run_gh read issue view "$number" -R "$owner/$repo" --json "$fields"
-  printf '%s\n' "$WIT_GH_OUT" | jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"
+  jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
 }
 
 # wit_list_lease_comments <owner> <repo> <number> — JSON array of
@@ -251,5 +250,5 @@ wit_list_lease_comments() {
   local owner="$1" repo="$2" number="$3"
   wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
     --jq '[.[] | select(.body | startswith("<!-- work-item-lease v1")) | {id, node_id, body, created_at}]'
-  printf '%s\n' "$WIT_GH_OUT" | jq -c -s 'add // []'
+  jq -cs 'add // []' <<<"$WIT_GH_OUT"
 }

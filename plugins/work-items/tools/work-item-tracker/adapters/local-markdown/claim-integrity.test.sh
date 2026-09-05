@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# --- Finding 1: expired lease reappears in the frontier (end-to-end, core CLI) ---
+# --- An expired lease reappears in the frontier (end-to-end, core CLI) ---
 
 STORAGE="$(mktemp -d)"
 BINDING="$(mktemp)"
@@ -42,7 +42,7 @@ rm -rf "$STORAGE"
 rm -f "$BINDING"
 unset WORK_ITEM_TRACKER_BINDING
 
-# --- Finding 2: a failed assignee write fails the claim and rolls the marker back ---
+# --- A failed assignee write fails the claim and rolls the marker back ---
 
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"

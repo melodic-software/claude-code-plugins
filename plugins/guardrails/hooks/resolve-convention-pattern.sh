@@ -59,7 +59,11 @@ readonly PR_DEFERRAL='Same as `subject_pattern`.'
 readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Stop at the first non-comment line rather than a fixed line number: the
+  # header outgrew the hardcoded 40 and the banner silently lost its whole exit
+  # status list. A blank-line terminator will not work here, because the header
+  # runs straight into `set -uo pipefail` with no blank line between them.
+  awk 'NR > 1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
   exit 0
 fi
 

@@ -257,9 +257,8 @@ assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out
 assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
 
 # Case 12: usage() derives the header block rather than extracting a hardcoded
-# line range, which silently dropped the Exit-codes block as the header grew.
-# Pin a formerly-truncated line (the last header line) so the truncation class
-# cannot come back unnoticed.
+# line range, which silently drops the Exit-codes block as the header grows.
+# Pin the last header line so the truncation class cannot appear unnoticed.
 assert_contains "--help reaches the end of the header (Exit codes block)" \
   "$help_out" "prerequisite missing (gh, jq)"
 

@@ -48,8 +48,9 @@ SECRET_PATTERNS=(
 # Scans <content> for high-confidence secret patterns.
 #
 # Output (stdout): one line per hit — `<label> (line <n[,n…]>)` — empty when
-# clean. Labels that matched are also appended to the SECRETS_LABELS array
-# (caller may clear it first) for telemetry.
+# clean. Stdout is the ONLY channel: both callers read it through a command
+# substitution, so a global set here would be discarded with the subshell.
+# Telemetry labels are parsed back off these lines by the caller.
 #
 # Exit: 0 = clean, 1 = violations found.
 #
@@ -60,7 +61,6 @@ SECRET_PATTERNS=(
 secrets::scan_text() {
   local content="$1" lines label pattern i
   local grep_e_args=()
-  SECRETS_LABELS=()
   for pattern in "${SECRET_PATTERNS[@]}"; do
     grep_e_args+=(-e "$pattern")
   done
@@ -74,7 +74,6 @@ secrets::scan_text() {
       head -3 | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
     if [[ -n "$lines" ]]; then
       printf '%s (line %s)\n' "$label" "$lines"
-      SECRETS_LABELS+=("$label")
     fi
   done
   return 1

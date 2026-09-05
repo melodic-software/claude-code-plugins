@@ -1,5 +1,12 @@
 # Changelog — discovery plugin
 
+## [0.19.3]
+
+### Changed
+
+- **A single-use alias, a dead reassignment and a redundant intermediate removed.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
+
 ## [0.19.2]
 
 ### Changed

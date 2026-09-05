@@ -127,10 +127,9 @@ export async function orchestrateWatching(
 
   assignFrameTimestamps(dedupResult.unique, durationSec);
 
-  const scored = dedupResult.unique.map((frame, index) => {
-    const priority = scoreFramePriority(frame, index, windows);
-    return toSelectedFrame(frame, priority, windows);
-  });
+  const scored = dedupResult.unique.map((frame, index) =>
+    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
+  );
 
   const selection = summarizeFrameSelection(scored, {
     targetMinFrames: coveragePlan.targetMinFrames,

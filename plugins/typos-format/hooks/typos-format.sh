@@ -198,7 +198,10 @@ FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED
 # array (additive schema property, defaults to empty). jq is authoritative. The
 # fallback is a fixed empty-shape object — NOT an interpolation of
 # TOOL/FILE_REL, which could inject quotes or backslashes from a path and
-# corrupt the envelope.
+# corrupt the envelope. The fallback is essentially unreachable in practice (it
+# fires only if `jq -c` fails, and when jq is absent hook::emit_telemetry drops
+# the envelope anyway), so losing the values here is harmless and strictly
+# safer than emitting malformed JSON.
 #
 # Both arrays arrive on STDIN, never as --argjson values. They are uncapped by
 # design, and Windows caps a process command line at 32767 characters — about
@@ -258,7 +261,7 @@ fi
 # that basename is a redaction for telemetry, and resolving it against the repo
 # root would scan a different file or none at all.
 TYPOS_ARG="$FILE"
-RUN_DIR="${root:-$(dirname "$FILE")}"
+RUN_DIR="${root:-$FILE_DIR}"
 if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi

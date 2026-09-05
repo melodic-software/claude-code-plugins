@@ -127,8 +127,7 @@ assert_eq "renew keeps holder" "$(jq -r '.holder' <<<"$CLAIM")" "$(jq -r '.holde
 
 # 6. Resolve + close item1 (resolution is a provider-native close; the seam has no
 # close verb by design — skills resolve via their own flow).
-N1="${ITEM1_ID##*#}"
-gh issue close "$N1" -R "$REPO" --comment "e2e: resolved" >/dev/null
+gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 
 # 7. Graduation: item1's closure unblocks item2 (open-blocker count, NOT
 # blockedBy.totalCount — closed blockers linger there).

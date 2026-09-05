@@ -18,16 +18,9 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 # Force the Windows host gate even on Linux CI.
 run_win() {
-  local label="$1" command="$2" expected="$3"
-  shift 3
-  local rc out
-  out=$(env OSTYPE=msys "$@" bash "$HOOK" <<<"$(command_json "$command")" 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
-  if ((expected == 2)); then
-    assert_contains "$label → message" "$out" "drive-root temp"
-    assert_contains "$label → fix" "$out" "%TEMP%"
-  fi
+  local label="$1" command="$2"
+  shift 2
+  run_win_payload "$label" "$(command_json "$command")" "$@"
 }
 
 run_win_pwsh() {
@@ -44,11 +37,7 @@ run_win_pwsh() {
 
 # Non-Windows host: /tmp is legitimate POSIX temp — must never block.
 run_posix_host() {
-  local label="$1" command="$2"
-  local rc
-  env OSTYPE=linux-gnu bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" 0 "$rc"
+  run_posix_host_payload "$1" "$(command_json "$2")"
 }
 
 # File-path lane (0.30.0): Write / Edit / MultiEdit / NotebookEdit carry
