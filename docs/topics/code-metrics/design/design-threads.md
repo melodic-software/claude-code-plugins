@@ -46,7 +46,7 @@ continues with the other lanes. The plugin never installs, downloads, or `npx`-f
 | Halstead difficulty | `multimetric` | `radon hal -j`, then `multimetric` | `multimetric` | `multimetric` |
 | Size (lines) | `scc --format json`, then the bundled counter | same | same | same |
 | Duplication | `jscpd --reporters json` | same | same (jscpd covers shell) | `jscpd`, then `dupl` |
-| Coverage | parse existing artifacts only (lcov, Cobertura, coverage.py JSON) | same | same (kcov emits lcov) | same |
+| Coverage | parse existing artifacts only (lcov, Cobertura, coverage.py JSON) | same, coverage.py JSON preferred for its per-function regions (7.6.0 and later) | same (kcov emits Cobertura and JSON, not lcov) | Go's own cover profile (`file:start.col,end.col numstmt count`) through a bundled parser; Go emits neither lcov nor Cobertura |
 | Type debt | `type-coverage` | `mypy --any-exprs-report` | not applicable | not applicable |
 
 **Rationale.** `lizard` 1.24.0 (2026-08-19) is current, per-function, and covers TS, JS, Python and Go
@@ -57,6 +57,19 @@ demoted to line counting, its complexity figure never surfaces (Brief: substring
 level). The install ban is the philosophy's prerequisite rule: never execute an undeclared tool as
 an incidental fallback. Every collector above is declared in the README and probed by `setup check`.
 
+**The ladder is data, not code.** The whole table ships in Phase 1 as
+`scripts/collector-ladder.tsv` (`lane`, `measure`, `tool`, in ladder order, one row per rung,
+every tool above listed before any adapter exists); the dispatcher reads it and reports a listed
+tool whose adapter file is absent as `unavailable` with reason `adapter not shipped`. Adding a
+collector is then one adapter file plus one ladder row, and no phase after the first edits the
+dispatcher. The config override `lanes.<lane>.collectors.<measure>` validates its names against
+the ladder file, never against a directory listing.
+
+**A collector succeeds when it produced parseable output**, not when it exited 0: ESLint exits 1
+whenever it reports (and at `max: 0` it always reports), mypy exits 1 on any type error while still
+writing its report. Each adapter suite carries a case for its tool's reporting exit code. A tool
+that produced no parseable output is the `collect` failure that maps to exit 3.
+
 ## T2. Lane detection. RESOLVED
 
 **Decision.** Lanes are detected from file extensions of the in-scope files against a bundled
@@ -64,8 +77,11 @@ extension map (`.ts .tsx .mts .cts .js .jsx .mjs .cjs` → `typescript`; `.py .p
 `.sh .bash` → `bash`; `.go` → `go`; `.cs` → `dotnet`, reported as deferred). When the consuming
 repository tracks `.claude/ecosystems/<ecosystem>.yaml` files (the marketplace-wide
 `ecosystem-commands` convention), their `globs` override the bundled map for that ecosystem and a
-resolved `enabled: false` opts the lane out. No framework detection: no measure here depends on a
-framework.
+resolved `enabled: false` opts the lane out; the file resolves through the same three cascade
+layers the convention prescribes (user-global, team, overlay), via the plugin's own config
+resolver, so this is not a single-layer deviation. The globs are gitignore-style, so matching goes
+through a bundled `scripts/pathglob.py` that translates `**` and `*` correctly at the Python 3.9
+floor (`fnmatch` cannot). No framework detection: no measure here depends on a framework.
 
 **Rationale.** Extension mapping is deterministic, needs no tool, and matches how `toolchain:check`
 classifies files. Reading the consumer's tracked ecosystem files is a convention seam, not a plugin
@@ -99,14 +115,23 @@ concern; the folder form is for per-ecosystem lifecycles, and lane overrides nes
 **Decision.** Every collector script writes one JSON document (`schema: code-metrics/v1`) to stdout
 and diagnostics to stderr; the skill renders the markdown report from that JSON. The JSON carries
 `scope`, `lanes` (with `collector` and `status` per lane), `measures` (per file or per function),
-`thresholds` (the resolved values with `provenance` strings), and `unavailable` (what could not be
-measured and why). Exit code 0 whenever the run completed, including runs where every lane was
-unavailable; non-zero only for a usage error or a broken collector invocation.
+`thresholds` (the resolved values with `provenance` strings), `unavailable` (what could not be
+measured and why), and a top-level `status`: `complete` (every implied lane and measure ran),
+`partial` (at least one did not), or `empty` (nothing was measured). Exit code 0 whenever the
+document was produced, including `empty` runs; exit 2 for a usage error, which includes any path
+the operator named explicitly (`--artifacts`, `--registry`, a scope path) that does not exist;
+exit 3 when a resolved collector ran and produced no parseable output. Auto-discovery that finds
+no artifact is not a usage error: it is `unavailable` with the paths searched as the reason. The
+markdown headline for an `empty` run reads "Measured nothing", and the pointer to
+`verification:measure` says that `empty` on either side of a comparison is INCONCLUSIVE.
 
 **Rationale.** A stable JSON shape is what lets `verification:measure` (by pointer, presence-gated)
 and a future `check` gate consume the numbers without re-parsing prose. Exit 0 on `unavailable`
 follows the prerequisite taxonomy: an optional-feature absence warns visibly and continues, and the
-warning is in the JSON as well as on stderr, so a silent skip is impossible by construction.
+warning is in the JSON as well as on stderr, so a silent skip is impossible by construction. The
+liveness-assertion convention adds the other half: a pass must mean the capability ran, so a
+consumer that reads only the exit code is told in the JSON and the headline that nothing ran, and
+a typo in an operator-named path is refused rather than reported as a reduced result.
 
 ## T6. Threshold semantics under ADR 0003. RESOLVED
 
@@ -123,17 +148,36 @@ measurement side means no sweep is owed and no false-positive budget is spent.
 
 **Decision.** `audit-coverage` computes CRAP per function as
 `comp^2 * (1 - cov/100)^3 + comp` (Savoia and Evans, 2007), where `comp` is the function's
-cyclomatic complexity from `audit-complexity`'s JSON and `cov` is the percentage of the function's
-executable lines with a non-zero `DA` hit within the function's start and end lines. `FNDA`/`FNA`
-records, when present, supply a function-hit flag but never replace the line-based percentage.
-Cobertura supplies the same per-line data from `<line number hits>`; coverage.py JSON from
-`executed_lines`/`missing_lines`. A function with no executable lines in the artifact reports
-`cov: null` and `crap: null`, never 0.
+cyclomatic complexity from `audit-complexity`'s JSON and `cov` is the function's line coverage
+percentage, taken in this order of preference and recorded per row as `cov_source`:
 
-**Rationale.** Line-range joining is the one method that works identically across the three
-formats, and it sidesteps the lcov 2.x change where `FN`/`FNDA` pairing became `FNL`/`FNA`
-(a parser written to the old pairing misreads 2.x output). Null over zero because a fabricated
-0% would produce a fabricated maximal CRAP.
+1. The artifact's own per-function region when it carries one (coverage.py JSON `functions`,
+   7.6.0 and later; Go cover profile blocks, which are exact statement ranges).
+2. The line-range join: executable lines with a non-zero hit within the function's start and end
+   lines, with the ranges of nested functions subtracted from the parent first. The range comes
+   from a collector that reports function end lines (`lizard`, `radon`); a lane whose resolved
+   collector reports only a start line (`shellmetrics`, `gocyclo`, `gocognit`, ESLint) reports
+   `crap: null` with a `run[]` row `<lane>/crap: not-applicable, reason: the resolved collector
+   reports no function end lines`. In V1 Bash has no such collector, so Bash CRAP is a documented
+   gap, not a silent null.
+
+`FNDA`/`FNA` records (and Cobertura `<method>` hits) supply a function-hit flag beside the
+percentage; when the flag says the function was never entered, `cov` is reported as `0` rather
+than the 1/N that a declaration line executed at import would produce. A function with no
+executable lines in the artifact reports `cov: null` and `crap: null`, never 0.
+
+Artifact paths are normalized on both sides before the join (Cobertura `<source>` prefixes and
+the repository root stripped, forward slashes, symlinks resolved once, an optional
+`coverage.path_prefix_strip` for compiled-output layouts), and a join that matches fewer than all
+scope files adds a `run[]` reason `coverage: partial, N of M scope files present in the
+artifacts`, so a total miss never reads as "no executable lines".
+
+**Rationale.** The artifact's own regions are exact where they exist; the line-range join is the
+method that works across lcov, Cobertura, and coverage.py JSON alike and sidesteps the lcov 2.x
+change where `FN`/`FNDA` pairing became `FNL`/`FNA` (a parser written to the old pairing misreads
+2.x output). Null over zero because a fabricated 0% would produce a fabricated maximal CRAP; a
+visible `not-applicable` row over a null because the stress test showed the null would otherwise
+cover a whole lane by construction.
 
 ## T8. Sanctioned replication as an exclusion. RESOLVED
 
@@ -259,7 +303,8 @@ findings to key it to would be ceremony.
 - **Configurability.** Everything an operator might tune is a key in `.claude/code-metrics.yaml`
   (T4); nothing is an environment variable.
 - **Extension.** A new lane or collector is one adapter file under the plugin's shared scripts
-  directory plus one row in the collector table; the dispatcher discovers adapters by name.
+  directory plus one row in `scripts/collector-ladder.tsv` and one stamped row in the reference
+  table; the dispatcher reads the ladder file and never a directory listing (T1).
 - **Observability.** Every report opens with a "Coverage of this run" table: lane, collector used,
   status (`ok`, `unavailable`, `not-applicable`, `deferred`), and reason. The same table is in the
   JSON. Nothing is skipped silently.

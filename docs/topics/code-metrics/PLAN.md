@@ -256,12 +256,19 @@ collector that probes but fails in `collect` (exit 3); a registry-sanctioned clo
 Execution order is integration-first: Phase 1 is the walking skeleton (one skill, one measure, no
 external tool) proven end to end before any collector lands.
 
-**Phase gate.** Every phase's Sanity Check includes these four commands, written once here:
+**Phase gate.** Every phase's Sanity Check includes these commands, written once here. They run in
+**explicit-path mode** over the phase's own files, because the affected-tests runner and
+`git ls-files` see tracked files only and Wave B workers may not stage: the file list is
+`FILES=$(git ls-files --others --exclude-standard --modified -- <the phase's ALLOWED paths>)`, and a
+worker's gate covers only its ALLOWED paths (a sibling's half-written suite must not red it). The
+whole-plugin form (the same commands over `plugins/code-metrics`) runs once in the main session
+after each wave returns and before each commit.
 
 - `CHECK_SKILL_SKILLS_ROOT=plugins/code-metrics/skills bash plugins/skill-quality/scripts/check-skill.sh --require-evals <skill>` exits 0 for every skill the phase creates or modifies (the script takes a skill name under that root, and CI passes `--require-evals`).
-- `scripts/affected-tests.sh --explain` on the phase diff lists zero `UNMAPPED` files; `scripts/affected-tests.sh --run` exits 0, or exits 3 with every `NOT RUN` entry a `test_*.py` file, in which case `python -m pytest -q -- <those files>` exits 0 (the handling `.github/workflows/ci.yml` applies; the runner never executes Python suites itself).
-- `scripts/run-ruff.sh check plugins/code-metrics` exits 0; `shellcheck --rcfile .shellcheckrc $(git ls-files 'plugins/code-metrics/**/*.sh')` exits 0.
-- `python -m pytest -q plugins/code-metrics` exits 0 (the interpreter resolved as the repo does: `python3`, else `python`, else `py -3`).
+- `scripts/affected-tests.sh --explain -- $FILES` lists zero `UNMAPPED` files; `scripts/affected-tests.sh --run -- $FILES` exits 0, or exits 3 with every `NOT RUN` entry a `test_*.py` file, in which case `python -m pytest -q -- <those files>` exits 0 (the handling `.github/workflows/ci.yml` applies; the runner never executes Python suites itself).
+- `scripts/run-ruff.sh check <the phase's .py files>` exits 0; `shellcheck --rcfile .shellcheckrc <the phase's .sh files>` exits 0; every shebang script in the list is mode 755.
+- `python -m pytest -q <the phase's test_*.py files>` exits 0 (the interpreter resolved as the repo does: `python3`, else `python`, else `py -3`).
+- Every sanity-check pipe below runs under `set -o pipefail`, so "exits 0" observes the script, not the one-liner after it.
 
 ### Phase 1: Walking skeleton, `audit-size` end to end [TODO]
 
@@ -278,7 +285,9 @@ Files:
 | [ ] `plugins/code-metrics/reference/collectors.md` | CREATE | stamped table with its header and the Phase 1 rows (`scc`, the bundled counter); Phases 3 to 6 add fragments under `reference/collectors/` that Phase 8 merges |
 | [ ] `plugins/code-metrics/scripts/detect-lanes.sh` + `detect-lanes.test.sh` | CREATE | extension map; consumer `globs`; `enabled: false` |
 | [ ] `plugins/code-metrics/scripts/report.py` + `test_report.py` | CREATE | JSON assembly for every row shape the contract names (per function, per file, per clone group with `instances[]`, per lane), `excluded[]`, `unavailable[]`, markdown rendering, exit-code taxonomy, so later phases add rows without editing it |
-| [ ] `plugins/code-metrics/scripts/dispatch.sh` + `dispatch.test.sh` | CREATE | scope resolution (change, paths, `--all`), collector ladder, `run[]` rows, pass-through of skill-level options (`--artifacts`, `--registry`, and any `--<name> <value>` it does not own) to the calling skill's post-step, so later phases never edit it |
+| [ ] `plugins/code-metrics/scripts/collector-ladder.tsv` | CREATE | the whole T1 ladder as data (`lane`, `measure`, `tool`, in order), every tool listed before its adapter exists |
+| [ ] `plugins/code-metrics/scripts/pathglob.py` + `test_pathglob.py` | CREATE | gitignore-style `**`/`*` matching at the 3.9 floor for consumer ecosystem globs |
+| [ ] `plugins/code-metrics/scripts/dispatch.sh` + `dispatch.test.sh` | CREATE | scope resolution (change, paths, `--all`; an explicitly named path that does not exist is exit 2), the ladder read from the TSV (a listed tool with no adapter file is `unavailable`, reason `adapter not shipped`; the suite asserts that path and never enumerates the adapter set), `run[]` rows, top-level `status`, pass-through of skill-level options (`--artifacts`, `--registry`, and any `--<name> <value>` it does not own) to the calling skill's post-step, `PLUGIN_ROOT` resolved with the `${CLAUDE_PLUGIN_ROOT:-...}` idiom, so later phases never edit it |
 | [ ] `plugins/code-metrics/scripts/collectors/line-counter.sh` + `.test.sh` | CREATE | bundled counter: `lines_total`, `lines_non_blank`, labelled comment-agnostic |
 | [ ] `plugins/code-metrics/scripts/collectors/scc.sh` + `.test.sh` | CREATE | `scc --by-file --format json` translation; probe |
 | [ ] `plugins/code-metrics/scripts/fixtures/{sources/,tool-output/scc.json}` | CREATE | sample files per lane (lint-clean or headed with a per-file disable); captured scc output; the suite generates the `scc` stub at runtime from the capture |
@@ -352,8 +361,9 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/parsers/{lcov,cobertura,coverage_py_json}.py` + three `test_*.py` | CREATE | one interface `parse(path) -> {file: {line: hits}}`; lcov handles `FNL`/`FNA`, `FN`/`FNDA`, `MCDC`; Cobertura tolerant of DTD drift |
-| [ ] `plugins/code-metrics/scripts/fixtures/coverage/{lcov-1x.info,lcov-2.2.info,cobertura.xml,coverage-py.json}` | CREATE | one per format, the 2.2 file with `FNL`/`FNA` and no `FN` |
+| [ ] `plugins/code-metrics/scripts/parsers/{lcov,cobertura,coverage_py_json,go_cover}.py` + four `test_*.py` | CREATE | one interface `parse(path) -> {file: {"lines": {line: hits}, "functions": [...] or None}}`; lcov handles `FNL`/`FNA`, `FN`/`FNDA`, `MCDC`; Cobertura tolerant of DTD drift and `<source>` prefixes; coverage.py returns its `functions` regions when present (7.6.0 and later); Go cover profile blocks parsed directly |
+| [ ] `plugins/code-metrics/scripts/fixtures/coverage/{lcov-1x.info,lcov-2.2.info,lcov-absolute-sf.info,cobertura.xml,coverage-py.json,go-cover.out}` | CREATE | one per format, the 2.2 file with `FNL`/`FNA` and no `FN`, one lcov file with absolute `SF:` paths for the normalization case, a coverage.py file carrying `functions`, a Go profile |
+| [ ] `plugins/code-metrics/skills/audit-coverage/scripts/join.py` + `test_join.py` | CREATE | path normalization on both sides (`coverage.path_prefix_strip`, repo root, `<source>` prefixes, forward slashes), the `partial, N of M scope files present` reason, artifact regions preferred over the line-range join, nested ranges subtracted, function-hit flag forcing `cov: 0`, `cov_source` per row |
 | [ ] `plugins/code-metrics/skills/audit-coverage/{SKILL.md,scripts/run.sh,scripts/run.test.sh,scripts/crap.py,scripts/test_crap.py,evals/evals.json}` | CREATE | `run.sh` owns the `--artifacts` option (a skill-level flag the dispatcher passes through, Phase 1); artifact discovery and explicit paths; per-file and per-function coverage; CRAP by invoking the sibling `audit-complexity` run script; missing artifact is a visible warning plus a reduced result |
 | [ ] `plugins/code-metrics/reference/collectors/audit-coverage.md` | CREATE | fragment: rows for the three formats with the lcov 2.2 and coverage.py SQLite stamps |
 
@@ -362,7 +372,10 @@ Files:
 - `python3 -c 'import sys; sys.path.insert(0,"plugins/code-metrics/scripts/parsers"); import lcov; d=lcov.parse("plugins/code-metrics/scripts/fixtures/coverage/lcov-2.2.info"); assert d and all(isinstance(v,dict) for v in d.values())'` exits 0
 - `python3 plugins/code-metrics/skills/audit-coverage/scripts/crap.py --comp 5 --cov 0` prints `130`; `--comp 5 --cov 100` prints `5`; `--comp 5 --cov null` prints `null`
 - `grep -rc 'sqlite\|\.coverage\b' plugins/code-metrics/scripts/parsers/*.py` prints 0 for every file
-- `bash plugins/code-metrics/skills/audit-coverage/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources --artifacts /nonexistent.info` exits 0 and its JSON has a `run[]` row with `status: "unavailable"` naming the missing artifact
+- `bash plugins/code-metrics/skills/audit-coverage/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources --artifacts /nonexistent.info` exits 2 (an explicitly named path that does not exist is a usage error), and the same command with no `--artifacts` and `coverage.artifacts` empty in a scratch config exits 0 with a `run[]` row `status: "unavailable"` whose reason lists the paths searched
+- with the `lcov-absolute-sf.info` fixture and a fixture tree where only some scope files appear in it, the JSON's `run[]` carries a reason matching `partial, [0-9]+ of [0-9]+ scope files`
+- with the lizard stub on PATH and a bash file in scope, the JSON has a `run[]` row `lane: "bash", measure: "crap", status: "not-applicable"` whose reason matches `no function end lines`, and every coverage row carries `cov_source`
+- `python3 plugins/code-metrics/skills/audit-coverage/scripts/join.py --self-test` exits 0 (nested range subtracted; a function with hit flag 0 reports `cov: 0`; coverage.py `functions` preferred when present)
 - the phase gate
 
 ### Phase 5: `audit-duplication` [TODO]
@@ -373,7 +386,7 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.sh` + three `.test.sh` | CREATE | jscpd JSON; CPD XML translated; dupl for Go; Bash only via jscpd |
+| [ ] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.sh` + three `.test.sh` | CREATE | jscpd 5 (a Rust binary) writes `<output>/jscpd-report.json`, so the adapter runs it with `--reporters json --output <tmpdir>` and prints the file; its stamp names the major and that v4's layout differs; CPD XML translated; dupl for Go; Bash only via jscpd |
 | [ ] `plugins/code-metrics/scripts/fixtures/{tool-output/jscpd.json,tool-output/cpd.xml,tool-output/dupl.txt,registry/cluster.txt,sources/cluster/{alpha,beta}/shared/shared-utils.sh}` | CREATE | a byte-identical two-plugin cluster under a basename that collides with nothing in this repository (T8 keys on path-within-plugin, not basename; reusing `hook-utils.sh` would select most of the shell corpus under `affected-tests.sh`), and the registry line that sanctions it |
 | [ ] `plugins/code-metrics/reference/collectors/audit-duplication.md` | CREATE | fragment: three stamped rows (jscpd, PMD CPD with its no-JSON note, dupl) |
 | [ ] `plugins/code-metrics/skills/audit-duplication/{SKILL.md,scripts/run.sh,scripts/run.test.sh,evals/evals.json}` | CREATE | `run.sh` owns `--registry`; debt after exclusions; `excluded[]` names the registry line; `run.test.sh` also carries the Brief's case over this repository's real `plugins/*/hooks/hook-utils.sh` cluster with `scripts/cross-plugin-source-registry.txt`, which runs when a real `jscpd` resolves and otherwise prints `SKIP jscpd` visibly |
@@ -478,7 +491,7 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/verification/skills/measure/context/metrics.md` | MODIFY | in the proxy table's "How to check" cells and the `baseline` step: "invoke `/code-metrics:audit-<measure>` when the `code-metrics` plugin is installed; otherwise the manual counts above" |
+| [ ] `plugins/verification/skills/measure/context/metrics.md` | MODIFY | in the proxy table's "How to check" cells and the `baseline` step: "invoke `/code-metrics:audit-<measure>` when the `code-metrics` plugin is installed, treating a report whose `status` is `empty` on either side as INCONCLUSIVE; otherwise the manual counts above" |
 | [ ] `plugins/verification/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Changed entry |
 | [ ] `plugins/testing/skills/write/context/organize.md` | MODIFY | lines 63-66: add the missing gate and fallback to the two `dotnet-test` references, and point CRAP at `/code-metrics:audit-coverage` when that plugin is installed |
 | [ ] `plugins/testing/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Fixed entry |
@@ -496,6 +509,10 @@ Files:
 
 Review: architecture, code-design
 
+0. `git fetch origin main && git rebase origin/main` (this branch was created by this session, so
+   the repo's rebase convention applies), then regenerate `docs/CATALOG.md` and
+   `docs/SKILL-CHEAT-SHEET.md`, re-take the three sibling patch versions if `main` bumped any of
+   them, and re-run the Phase 9 and 10 sanity checks; `bash scripts/check-stale-base-overlap.sh --check origin/main` exits 0.
 1. Dispatch `review:code-reviewer` (fresh context) over the branch diff; fix confirmed findings.
 2. `/plugin-quality:audit code-metrics` and `/docs-hygiene:audit-encapsulation detect`; fix
    confirmed findings.
@@ -546,8 +563,25 @@ resolution idiom, lint-clean fixtures, `--check` on the skill-count script, and 
 positions were corrected. Raised to the operator as Q24: two convention adopter rows under
 `docs/conventions/` that the Brief forbids editing.
 
-**Step 4, `/planning:devils-advocate` in a fresh-context sub-agent:** pending; recorded below when
-it lands.
+**Step 4, `/planning:devils-advocate` in a fresh-context sub-agent (2026-09-05):** 0 CRITICAL,
+6 HIGH, 9 MEDIUM, 5 LOW; 21 assumptions extracted and checked against the tools' own sources and
+this repository's scripts; the six stressed claims answered. All HIGH and the actionable MEDIUM
+findings verified and applied: the collector ladder becomes data (`scripts/collector-ladder.tsv`)
+so Wave B workers add adapter files only; the phase gate runs in explicit-path mode over
+`git ls-files --others --exclude-standard --modified` and per worker over its own paths, because
+the affected-tests runner sees tracked files only and whole-plugin runs would cross-contaminate;
+CRAP is scoped to collectors that report function end lines (`lizard`, `radon`) or artifacts that
+carry their own regions (coverage.py 7.6.0 and later, Go cover profiles), with Bash CRAP a visible
+`not-applicable` row rather than a silent null; artifact paths are normalized and a partial join
+is reported as such; an explicitly named missing path is exit 2 and a top-level `status` of
+`complete`, `partial`, or `empty` lets `verification:measure` refuse an empty comparison; a
+collector succeeds on parseable output rather than exit 0; a Go cover parser is added; jscpd 5's
+file-based JSON is read; `PLUGIN_ROOT` uses the repository idiom; Phase 11 starts with a rebase
+and regeneration step; the `collectors.md` ownership is one way; the ecosystem globs get a
+`**`-aware matcher and the three-layer read. Not folded in: a bundled brace-matching scanner for
+Bash function ranges (new scope, would give Bash CRAP a plugin-labelled number), surfaced at
+approval as a close call. Research suggested for it is not needed: the session's own probe of
+`shellmetrics` 0.5.0 already confirmed it prints start lines only.
 
 ## Execution shape
 
@@ -699,6 +733,10 @@ this session and is cheap to reverse. Briefed decisions carry no row.
 | Synthetic duplication cluster renamed away from `hook-utils.sh`, real-cluster case behind a visible `SKIP` | Phase 5 fixtures and suite | Reviewer finding 11: the hub basename selects most of the shell corpus under `affected-tests.sh` R3; T8 keys on path-within-plugin |
 | One shared phase gate written once | Every phase's Sanity Check ends with "the phase gate" | Reviewer findings 2 and 3: the same two commands were wrong in every phase |
 | Plugin version `0.1.0`, `MIN_PYTHON = (3, 9)`, interpreter candidate loop | Phase 1 manifest and every shell entry point | Fleet precedent for a first release and for the Python floor; the candidate loop is the repo idiom (`scripts/validate-plugins.sh`) |
+| Collector ladder shipped as data in Phase 1 | `scripts/collector-ladder.tsv`; the dispatcher never edited after Phase 2 | Stress test H1: the fences forbid workers from `dispatch.sh`, and name-based discovery cannot express order |
+| Bash CRAP is a documented `not-applicable` gap in V1, not a bundled range scanner | Phase 4 run row and the `audit-coverage` description | Stress test H4 plus the session's `shellmetrics` probe: no Bash collector reports function end lines; a brace-matching scanner is new scope (close call, flip line offered at approval) |
+| Explicitly named missing path is exit 2; top-level `status` field | Phase 1 dispatcher, Phase 4 sanity check, Phase 10 pointer sentence | Stress test H6 against the liveness-assertion convention and the contract's own exit-2 rule |
+| A Go cover-profile parser in V1 | Phase 4 adds `go_cover.py` and a fixture | Stress test M3: Go emits neither lcov nor Cobertura; the parser is smaller than the sentence explaining its absence |
 
 ### Mechanical work
 

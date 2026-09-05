@@ -18,6 +18,8 @@ plugins/code-metrics/
 │   └── report-schema.md                # code-metrics/v1 field reference
 ├── scripts/                            # shared, plugin-level, public entry surface for the skills
 │   ├── dispatch.sh        + dispatch.test.sh          # resolve scope, lanes, collectors; assemble the report
+│   ├── collector-ladder.tsv                           # lane, measure, tool, in ladder order; the whole T1 table from Phase 1
+│   ├── pathglob.py        + test_pathglob.py          # gitignore-style glob matching at the 3.9 floor
 │   ├── resolve-config.py  + test_resolve_config.py    # cascade: user-global, team, overlay; per-key override
 │   ├── yaml_subset.py     + test_yaml_subset.py       # the YAML subset every surface the plugin reads is written in (T22)
 │   ├── detect-lanes.sh    + detect-lanes.test.sh      # extension map, consumer ecosystems globs
@@ -27,7 +29,7 @@ plugins/code-metrics/
 │   │   │   shellmetrics.sh, multimetric.sh, scc.sh, line-counter.sh, jscpd.sh, cpd.sh, dupl.sh,
 │   │   │   type-coverage.sh, mypy-report.sh          # each with a co-located <tool>.test.sh
 │   ├── parsers/
-│   │   ├── lcov.py, cobertura.py, coverage_py_json.py # each with test_<stem>.py
+│   │   ├── lcov.py, cobertura.py, coverage_py_json.py, go_cover.py # each with test_<stem>.py
 │   └── fixtures/                       # sample sources, captured tool outputs, coverage artifacts, config layers, a registry; no executables (stubs are generated at test time)
 └── skills/
     ├── audit-complexity/  SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
@@ -108,6 +110,13 @@ caveats. Each carries that plugin's version bump and changelog entry.
   exclude `scripts/fixtures/`; no executable is committed under fixtures.
 - Suites needing a real tool that is absent print a visible `SKIP <tool>` line and exit 0, the
   shape `scripts/run-plugin-tests.sh` expects; a silent pass is a defect.
+- Every shebang script under `scripts/` and `skills/*/scripts/` is mode 755 (the exec-bit lane);
+  every shell entry point resolves `PLUGIN_ROOT` with the `${CLAUDE_PLUGIN_ROOT:-...}` idiom so it
+  runs outside a Claude session.
+- Fixture sources use dictionary-word identifiers, because `_typos.toml` is synced verbatim from
+  upstream and excludes no fixture path.
+- Sanity-check pipes run under `set -o pipefail` (or capture to a file and test `$?`), so "exits 0"
+  observes the script, not the Python one-liner after it.
 - Every skill frontmatter states `disable-model-invocation` explicitly, carries `metadata.summary`
   under 100 codepoints, and quotes `Use when:` triggers in single quotes; SKILL.md stays under 200
   lines with a `## Gotchas` section.

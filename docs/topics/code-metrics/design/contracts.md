@@ -42,6 +42,7 @@ duplication:
 
 coverage:
   artifacts: []            # explicit artifact paths; empty means auto-discover
+  path_prefix_strip: []    # prefixes removed from artifact paths before the join (compiled-output layouts)
   reference: null          # no default bar; the plugin never argues for 100%
   crap:
     reference: null        # Savoia and Evans 2007; not a validated predictor
@@ -92,6 +93,7 @@ renders markdown from this document and never from stderr.
   "schema": "code-metrics/v1",
   "skill": "audit-complexity",
   "generated_at": "2026-09-05T12:00:00Z",
+  "status": "partial",
   "scope": { "mode": "change", "base": "a1b2c3d", "files": 12, "excluded": 1 },
   "run": [
     { "lane": "typescript", "measure": "cyclomatic", "collector": "lizard 1.24.0", "status": "ok", "reason": null },
@@ -123,8 +125,18 @@ Field rules:
 - `values.<measure>` is a number or `null`; `null` means "not measured for this row", never zero.
 - `excluded[]` (duplication only) lists clone groups dropped by a registry, each with the registry
   path and line that sanctioned it.
-- Exit code: `0` when the document was produced, including all-lanes-unavailable runs; `2` for a
-  usage error; `3` when a resolved collector was invoked and failed (its stderr is relayed).
+- `status` is `complete` (every implied lane and measure ran), `partial` (at least one did not),
+  or `empty` (nothing was measured; the markdown headline reads "Measured nothing"). A consumer
+  comparing two reports treats `empty` on either side as INCONCLUSIVE.
+- `scope.files` of `0` (a docs-only change) yields `status: empty` with one `run[]` row
+  `*/*: not-applicable, reason: no measurable files in scope`.
+- Coverage rows carry `cov_source` (`artifact-region` or `line-range`) and `hit` (the artifact's
+  function-hit flag, or `null`); a lane whose collector reports no function end lines carries a
+  `<lane>/crap: not-applicable` run row (design T7).
+- Exit code: `0` when the document was produced, including `empty` runs; `2` for a usage error,
+  which includes an explicitly named path (`--artifacts`, `--registry`, a scope path) that does not
+  exist; `3` when a resolved collector ran and produced no parseable output (its stderr is
+  relayed). A collector's own non-zero exit is not a failure when it produced output.
 
 ## 3. Collector adapter contract
 
@@ -138,20 +150,28 @@ An adapter is one file, `plugins/code-metrics/scripts/collectors/<tool>.sh`, tha
 | `install_hint` | Prints one line naming how an operator installs the tool. |
 
 The dispatcher (`plugins/code-metrics/scripts/dispatch.sh`) resolves the ordered collector list per
-lane and measure (bundled defaults, then the config override), calls `probe` down the list, uses
-the first that resolves, and writes the `run[]` row either way. A collector that probes but then
-fails during `collect` produces exit `3` and a `run[]` row with `status: unavailable` and the
-tool's stderr as `reason`, so a half-working tool is visible rather than silent.
+lane and measure from `scripts/collector-ladder.tsv` (then the config override), calls `probe`
+down the list, uses the first that resolves, and writes the `run[]` row either way; a ladder row
+whose adapter file does not exist is `unavailable` with reason `adapter not shipped`. A collector
+that probes but then produces no parseable output in `collect` produces exit `3` and a `run[]`
+row with `status: unavailable` and the tool's stderr as `reason`, so a half-working tool is visible
+rather than silent. Adapters for tools that write their report to a file (`jscpd` 5, a Rust
+binary, writes `<output>/jscpd-report.json`) read that file and print it to stdout themselves.
 
 Coverage is not a collector: `audit-coverage` reads artifacts through parsers
-(`scripts/parsers/lcov.py`, `cobertura.py`, `coverage_py_json.py`) that share one interface,
-`parse(path) -> {file: {line: hits}}`, and it never runs a test command.
+(`scripts/parsers/lcov.py`, `cobertura.py`, `coverage_py_json.py`, `go_cover.py`) that share one
+interface, `parse(path) -> {file: {"lines": {line: hits}, "functions": [...] | None}}`, and it
+never runs a test command.
+
+Every shell entry point resolves its plugin root as
+`PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"` (the
+repository idiom), so suites and sanity checks work outside a Claude session.
 
 ## 4. Seams to other plugins (all presence-gated, all optional)
 
 | Direction | Seam | Gate and fallback |
 |---|---|---|
-| out | `verification:measure metrics` (its `baseline` and `compare` phases) consumes this JSON | The audit skills mention it once: "feed this JSON to `/verification:measure metrics` when the `verification` plugin is installed; otherwise keep the JSON beside your notes and compare by hand". |
+| out | `verification:measure metrics` (its `baseline` and `compare` phases) consumes this JSON | The audit skills mention it once: "feed this JSON to `/verification:measure metrics` when the `verification` plugin is installed, treating `status: empty` on either side as INCONCLUSIVE; otherwise keep the JSON beside your notes and compare by hand". |
 | out | `mutation-testing`, `testing:audit`, `code-tidying:audit-dead-code`, `coupling:reduce`, `toolchain:lint` own the measures the Brief leaves with them | `principles` names each owner with an "if installed" gate and the fallback "the concern is out of this plugin's scope; nothing here substitutes for it". |
 | in | The consumer's `.claude/ecosystems/<lane>.yaml` | A convention file, not a plugin; bundled extension map is the fallback. |
 | in | The consumer's sanctioned-replication registry | Listed in config; absent means no exclusions. |
