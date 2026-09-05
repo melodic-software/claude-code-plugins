@@ -3,6 +3,21 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.36]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when the line endings were rewritten, false when no rewrite
+  was attempted (no `eol` attribute, `-text`, binary) or the rewrite changed no
+  bytes. `action` keeps its meaning (the arm that applies to the file). The key
+  is omitted only when the snapshot could not be taken. This is what fills the
+  per-session observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/eol-normalizer.schema.json` gains the
+  optional key, and the suite pins it on a normalizing run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
 ## [0.6.35]
 
 ### Changed

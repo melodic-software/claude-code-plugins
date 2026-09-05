@@ -603,6 +603,11 @@ if wait_for_sink "$TELRF" 50; then
   else
     fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$TELRF")"
   fi
+  if [[ "$(jq -s -r '.[-1].data.changed' "$TELRF" 2>/dev/null)" == "false" ]]; then
+    ok "stub/reflow: data.changed false when nothing was applied"
+  else
+    fail "stub/reflow: data.changed=$(jq -s -c '.[-1].data.changed' "$TELRF")"
+  fi
 else
   fail "stub/reflow: telemetry sink never populated — the assertion below it never ran"
 fi
@@ -1082,6 +1087,11 @@ if [[ -s "$TELA" ]]; then
     ok "stub/telemetry: data.applied.line is a positive number, as the schema requires"
   else
     fail "stub/telemetry: data.applied.line wrong: $(jq -c '.data.applied' "$TELA")"
+  fi
+  if [[ "$(jq -r '.data.changed' "$TELA")" == "true" ]]; then
+    ok "stub/telemetry: data.changed true when a correction was applied (#3755)"
+  else
+    fail "stub/telemetry: data.changed=$(jq -c '.data.changed' "$TELA")"
   fi
   if [[ "$(jq -r '.data.findings[0].typo' "$TELA")" == "disallowme" ]]; then
     ok "stub/telemetry: data.findings still carries residual findings only"

@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.7]
+
+### Changed
+
+- **Per-session report: the "Rewrote" block is live.** The eight rewriting
+  formatters (bash, biome, eol-normalizer, go, markdown, powershell, ruff,
+  typos) now send `data.changed`, which the reference sink already copied to
+  the per-session row when present. The observability skill's context renders
+  a row per `changed == true` envelope, `_nothing rewritten_` when rows carry
+  the key and every value is false, and the no-data line only when no row in
+  the session carries it. The suite's per-session fixture carries one
+  `changed: true` row and one `changed: false` row, and the case that asserted
+  the block empty now asserts the rewritten file is named (#3755).
+
 ## [0.42.6]
 
 ### Added

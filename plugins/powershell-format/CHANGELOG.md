@@ -3,6 +3,22 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.38]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when Invoke-Formatter rewrote the file, false when the bytes
+  were identical. The key is omitted, never guessed, on a skip arm before the
+  formatter and when the snapshot could not be taken. This is what fills the
+  per-session observability report's "Rewrote" block (#3755). The findings arm
+  and the pwsh tool-break arm now take the disclosure before they emit
+  telemetry so the verdict is known when the envelope is built; stdout is
+  unchanged. `docs/conventions/hook-telemetry/data/powershell-format.schema.json`
+  gains the optional key, and the suite pins it on a reformatting run and a
+  no-op run. Carries the synced `rewrite-guard.sh` that records the verdict.
+
 ## [0.7.37]
 
 ### Changed
