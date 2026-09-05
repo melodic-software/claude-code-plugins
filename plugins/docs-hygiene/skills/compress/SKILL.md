@@ -36,8 +36,6 @@ Methodology: snapshot original → backend mechanical compression (the `caveman`
 
 Default-action Step B picks the mechanical-compression backend: the `caveman` plugin (marketplace `caveman`, invoked as `/caveman:compress` via the Skill tool) when present, otherwise the in-session Edit-based fallback. Caveman performs the mechanical flavor cuts (articles, fillers, hedging, verbose-verb collapses) as the compression backend. It is NOT the verification gate. Fallback policy is graceful: the in-session Edit-based path substitutes whenever caveman is absent or unwanted. Subsequent steps (semantic-diff dispatch, revert pass, markdownlint) wrap the output regardless of backend choice.
 
- `disable-model-invocation: false` is deliberate: compress is model-invocable with interview confirmation gates and permission-governed Edit/Bash; not an oversight relative to D1 guidance that mutating skills often set the flag true.
-
 Note the distinction inside that plugin: `/caveman:compress` is a function-call skill (this skill's backend); `/caveman:caveman` is a session-wide response formatter. Unrelated to this skill.
 
 **Step A. Detect caveman plugin:** `bash "${CLAUDE_SKILL_DIR}/scripts/detect-caveman.sh"`
@@ -100,7 +98,7 @@ Instead of dead-ending, offer a repo-wide run, confirmation-gated at every step;
 1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
 2. **Audit first** (free, mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table to a file: destination `${CLAUDE_PLUGIN_DATA}/audit/<branch-or-scope>-audit.md` when that dir is writable, otherwise a temp path echoed to the user, lexically sorted per the "Summary output deterministic" hard rule, and point at it. Never render every row inline. On a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds. **Stop here when the invocation was the audit action** (report-only).
 3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first), default (mutating) action only:
-   - **Scope**. Default: **top-10** COMPRESS-classified files, highest expected yield first (report-only / decline remains available); alternates: top-N (user picks N), all COMPRESS, include UNCERTAIN, stop after audit (report only). Downgraded from "all COMPRESS" after the 2026-08-15 calibration run (87 consecutive auto-reverts). See `context/fan-out-orchestration.md` circuit breaker.
+   - **Scope**. Default: **top-10** COMPRESS-classified files, highest expected yield first (report-only / decline remains available); alternates: top-N (user picks N), all COMPRESS, include UNCERTAIN, stop after audit (report only). A misclassified cohort burns two dispatches per file before the circuit breaker stops it, so the default caps exposure at ten. See `context/fan-out-orchestration.md` circuit breaker.
    - **Concurrency**. Default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
    - **Always-loaded files**. Default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.
 4. **Confirm and run**: batch default action over the confirmed set, waves per `context/fan-out-orchestration.md`. Every per-file hard rule, semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT`, applies unchanged.
@@ -129,8 +127,6 @@ Non-interactive contexts never interview; they take the no-op branch. The fallba
 Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP/COMPRESS/UNCERTAIN), `reason`.
 
 ## Gotchas
-
-Observed failure points. Each traces to a real incident; grown iteratively.
 
 - **Self-audit drifts toward EXPANSION.** The semantic-diff dispatch must run as a SEPARATE fresh-context audit, never a self-audit by the model that produced the edits. Self-audit re-adds words just removed ("preserve clarity"; an observed failure, see ## Sources). Prefer a cross-vendor advisor for that audit **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository). Subagents cannot reliably spawn the verifier themselves (nested subagent support is version-dependent, and a fresh-context verifier beats self-critique regardless), so for batch fan-out follow `context/fan-out-orchestration.md`: the main session dispatches separate compress + audit subagents, reconciling per finding.
 - **Sub-3% diffs auto-revert unless `--force`.** Default `<3% AND 0 semantic-loss → REVERT`; always-loaded instruction files bound at 2-3% yield (see ## Sources). Pass `--force` only when a targeted sub-3% diff is intentional, the user owns the result.

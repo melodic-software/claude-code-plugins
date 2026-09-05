@@ -64,7 +64,7 @@ is a scaling tool, and a small single-file skill is never flagged for lacking sp
 | `<target>` (default) | empty → uncommitted `.md` files from git; file path → single file; dir path → recursive batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on the targets; map its facts onto the shapes table via the judgment rules below |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
 
-Single action v1; a `split` action (applying the splits) is deferred until real demand surfaces. Author hand-edits driven by audit output cover the workflow.
+One action. Author hand-edits driven by audit output cover the workflow.
 
 **Facts vs judgment.** `detect.sh` is a fact emitter, not an adjudicator: it emits per-file size
 and heading facts, load-tier classification (path + frontmatter heuristic; `unknown` is yours to
