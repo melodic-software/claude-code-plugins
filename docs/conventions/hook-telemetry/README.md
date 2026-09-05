@@ -53,6 +53,24 @@ Every event, from every hook, carries these seven fields. All are required and a
 | `duration_ms` | integer (≥ 0) | **This hook's** runtime in milliseconds. Not CC's aggregate `total_duration_ms`. |
 | `data` | object | Per-hook payload; always present (at minimum `{}`). See "Per-hook data". |
 
+### Correlation keys (optional, since 1.1)
+
+Four optional spine fields, each copied verbatim from the hook payload by `hook::emit_telemetry` when
+the payload carries the key with a plain id (`[A-Za-z0-9._-]+`), and omitted otherwise, never guessed.
+They sit between `duration_ms` and `data`. A hierarchy, coarsest first:
+
+| Field | Source | Joins to |
+|-------|--------|----------|
+| `session_id` | payload `session_id` | The per-session event log and the per-session sink route. |
+| `prompt_id` | payload `prompt_id` (Claude Code v2.1.196+) | The `prompt.id` attribute on the session's real OpenTelemetry events: the documented join between a local envelope and the same turn's OTel stream. |
+| `tool_use_id` | payload `tool_use_id` on tool events | One tool call; finer than `prompt_id`. |
+| `agent_id` | payload `agent_id` inside a subagent | The subagent that ran the hook. |
+
+The library reads the payload the producer buffered: `HOOK_TELEMETRY_PAYLOAD` when set, else the
+`INPUT` variable every fleet hook assigns from `hook::buffer_stdin`. A producer that buffers under
+another name sets `HOOK_TELEMETRY_PAYLOAD` before it emits; a producer with no payload emits none of
+the four. A sink on 1.0 sees four unknown keys and ignores them under the tolerate-unknown rule.
+
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠
 `total_duration_ms`) so a name never misleads.
@@ -151,16 +169,15 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
-**Sink routing by session (reference sink, claude-ops 0.42.6).** The envelope's common fields carry
-no session identity, and hooks receive none from their environment (only the payload's
-`session_id`), so a producer that wants its rows filed per session adds `data.session_id` (the
-payload value, verbatim) under the additive rule above. The claude-ops reference sink routes on it:
-an envelope carrying a well-formed `data.session_id` is appended to
-`<root>/sessions/<session_id>.jsonl` beside the per-session event log, and an envelope without one
-goes to the shared `<root>/hook-events.jsonl` in the legacy shape. Today the nine claude-ops audit
-hooks send it. The fleet-wide addition to every producer, and promoting the key into the envelope
-spine as `schema_version` 1.1, are the follow-up tracked in #930; until then a whole-root report
-covers every producer and a per-session report covers the producers that send the key.
+**Sink routing by session (reference sink, claude-ops 0.42.8).** Since contract 1.1 every producer
+that emits through `hook::emit_telemetry` carries the payload's `session_id` on the envelope spine
+(see "Correlation keys" above), so a sink needs nothing from the producer to file rows per session.
+The claude-ops reference sink reads the spine key first and falls back to `data.session_id`, the
+key the nine claude-ops audit hooks added under the additive rule before 1.1 and still send: an
+envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
+per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
+carries no session) goes to the shared `<root>/hook-events.jsonl` in the legacy shape. The
+per-session report therefore covers every fleet producer from their 1.1 versions on (#3758).
 
 ## Implementers
 

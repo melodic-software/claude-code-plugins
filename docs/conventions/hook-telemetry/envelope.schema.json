@@ -41,6 +41,26 @@
       "minimum": 0,
       "description": "This hook's own runtime in milliseconds. NOT Claude Code's aggregate total_duration_ms."
     },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "Optional since 1.1. The Claude Code session the hook ran in, copied verbatim from the hook payload's session_id. Present when the producer's payload carried a plain id; a sink files the row per session on it and falls back to data.session_id from producers on 1.0."
+    },
+    "prompt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "Optional since 1.1. The payload's prompt_id (Claude Code v2.1.196+), which matches the prompt.id attribute on the session's real OpenTelemetry events: the documented join between a local envelope and the same turn's OTel stream."
+    },
+    "tool_use_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "Optional since 1.1. The payload's tool_use_id on tool events, finer than prompt_id: one per tool call."
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "Optional since 1.1. The payload's agent_id when the hook ran inside a subagent."
+    },
     "data": {
       "type": "object",
       "additionalProperties": true,

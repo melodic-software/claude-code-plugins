@@ -1601,7 +1601,7 @@ if [[ -s "$TEL" ]]; then
   done
   if [[ "$(jq -r '.hook' "$TEL")" == "typos-format" ]]; then ok "envelope: hook is typos-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
   if [[ "$(jq -r '.data.findings[0].typo' "$TEL")" == "disallowme" ]]; then ok "envelope: findings[0].typo correct"; else fail "envelope: findings[0].typo=$(jq -r '.data.findings[0].typo' "$TEL")"; fi
   if [[ "$(jq -r '.data.findings[0].corrections' "$TEL")" == "null" ]]; then ok "envelope: findings[0].corrections null for disallowed entry"; else fail "envelope: findings[0].corrections=$(jq -r '.data.findings[0].corrections' "$TEL")"; fi

@@ -60,7 +60,7 @@ mapfile -t FIELDS < <(printf '%s' "$INPUT" | jq -r '
   if (.hook and .hook_event and (.duration_ms != null) and .status)
   then (.timestamp // ""), .hook_event, .hook, (.data.tool // ""),
        (.duration_ms | tostring), (.data.subject // ""), .status,
-       (.data.session_id // "" | tostring),
+       ((.session_id // .data.session_id // "") | tostring),
        (.data.changed | if . == true then "true" elif . == false then "false" else "" end)
   else empty end' 2>/dev/null | tr -d '\r')
 [[ "${#FIELDS[@]}" -eq 9 ]] || exit 0

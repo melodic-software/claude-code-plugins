@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.5]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a guard emits, including guards run under `run-guards.sh`,
+  each only when present as a plain id, so the claude-ops per-session report
+  lists the guards with no change to the guards themselves (#3758).
+  `schema_version` reads `1.1`; no guard behavior changes.
+
 ## [0.32.4]
 
 ### Changed

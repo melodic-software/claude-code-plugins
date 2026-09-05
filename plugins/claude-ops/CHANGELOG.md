@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.8]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1, and the reference sink reads the spine
+  first.** The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a fleet producer emits, each only when present as a plain id.
+  `hook-telemetry-sink.sh` (and the repo-local copy under `.claude/hooks/`)
+  now routes on the spine `session_id` and falls back to `data.session_id`,
+  which the nine audit hooks still send, so envelopes from producers on 1.0
+  keep their route and every producer on 1.1 lands in
+  `sessions/<session_id>.jsonl`. The per-session report's "hooks fired" table
+  therefore covers the formatters and guards, not only the nine audit hooks
+  (#3758). `schema_version` reads `1.1`; the sink suite pins the spine route
+  and its precedence over the data key.
+
 ## [0.42.7]
 
 ### Changed

@@ -1947,6 +1947,26 @@ hook::emit_telemetry() {
   TZ=UTC printf -v timestamp '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || timestamp=""
   [[ -n "$timestamp" ]] || timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || timestamp=""
 
+  # Correlation keys (contract 1.1): session_id, prompt_id, tool_use_id and
+  # agent_id, read from the hook payload and placed on the envelope spine so a
+  # sink can file the row per session without every producer repeating the
+  # extraction. The payload is whatever the caller buffered: HOOK_TELEMETRY_PAYLOAD
+  # when set, else INPUT, the variable every fleet hook assigns from
+  # hook::buffer_stdin (that call runs in a command substitution, so the
+  # library cannot cache the buffer itself). A caller that buffered under
+  # another name sets HOOK_TELEMETRY_PAYLOAD before emitting. Each key is the
+  # first `"<key>":"<value>"` pair in the payload whose value is a plain id
+  # ([A-Za-z0-9._-]); absent or malformed keys are omitted, never guessed, and
+  # the values need no JSON escaping by construction. No jq, no subprocess.
+  local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
+  if [[ -n "$corr_payload" ]]; then
+    for corr_key in session_id prompt_id tool_use_id agent_id; do
+      if [[ "$corr_payload" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
+        corr+='"'"$corr_key"'":"'"${BASH_REMATCH[1]}"'",'
+      fi
+    done
+  fi
+
   # Trailing whitespace after the object (a newline a caller left on the
   # value) does not change what jq parses, so it does not block the builtin
   # path either.
@@ -1962,7 +1982,7 @@ hook::emit_telemetry() {
     hook::json_escape_jq_to e_hook "$hook_id"
     hook::json_escape_jq_to e_event "$hook_event"
     hook::json_escape_jq_to e_status "$status"
-    envelope='{"schema_version":"1.0","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"',"data":'"$data"'}'
+    envelope='{"schema_version":"1.1","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"','"$corr"'"data":'"$data"'}'
   else
     # jq path, for a data object the builtin compactor cannot prove. Fail-open:
     # jq absent → return 0. The `data` object is written to a temp file, not
@@ -1978,14 +1998,15 @@ hook::emit_telemetry() {
       return 0
     }
     envelope=$(jq -nc \
-      --arg schema_version "1.0" \
+      --arg schema_version "1.1" \
       --arg timestamp "$timestamp" \
       --arg hook "$hook_id" \
       --arg hook_event "$hook_event" \
       --arg status "$status" \
       --argjson duration_ms "$duration_ms" \
+      --argjson corr "{${corr%,}}" \
       --slurpfile data "$data_file" \
-      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms} + $corr + {data:($data[0] // {})}' \
       2>/dev/null) || {
       rm -f "$data_file"
       return 0

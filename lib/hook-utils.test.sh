@@ -169,10 +169,10 @@ if [[ -s "$SINK_FILE" ]]; then
   done
   # Validate schema_version
   sv=$(jq -r '.schema_version' "$SINK_FILE")
-  if [[ "$sv" == "1.0" ]]; then
-    ok "envelope: schema_version is 1.0"
+  if [[ "$sv" == "1.1" ]]; then
+    ok "envelope: schema_version is 1.1"
   else
-    fail "envelope: schema_version expected 1.0, got $sv"
+    fail "envelope: schema_version expected 1.1, got $sv"
   fi
   # Validate hook id
   hook_val=$(jq -r '.hook' "$SINK_FILE")
@@ -837,7 +837,7 @@ if [[ -s "$SINK3B" ]]; then
   else
     fail "envelope: lines=$lines3b raw=[$raw] jq -c=[$rerender]"
   fi
-  if [[ "$raw" == '{"schema_version":"1.0","timestamp":"'*'","hook":"sam\"ple","hook_event":"Post\tTool\u0001Use","status":"ok é","duration_ms":'*',"data":{"tool":"Bash","subject":"git commit -m \"x\"","form":"","n":[1,2,{"a":null,"b":true}],"e":{},"f":[]}}' ]]; then
+  if [[ "$raw" == '{"schema_version":"1.1","timestamp":"'*'","hook":"sam\"ple","hook_event":"Post\tTool\u0001Use","status":"ok é","duration_ms":'*',"data":{"tool":"Bash","subject":"git commit -m \"x\"","form":"","n":[1,2,{"a":null,"b":true}],"e":{},"f":[]}}' ]]; then
     ok "envelope: field order, escapes and compacted data are jq's"
   else
     fail "envelope: unexpected bytes: $raw"
@@ -3263,6 +3263,101 @@ else
   fail "repo_root tr pin: no real tr on PATH to wrap"
 fi
 rm -rf "$tr_shim"
+
+# --- Test 20: hook::emit_telemetry — correlation keys on the spine (1.1) -----
+# The library reads the payload the producer buffered (INPUT, or
+# HOOK_TELEMETRY_PAYLOAD when set) and copies session_id, prompt_id,
+# tool_use_id and agent_id onto the envelope between duration_ms and data,
+# each only when present with a plain id. Both envelope paths (builtin and
+# jq) carry them, and a sink on 1.0 sees four ignorable extra keys.
+corr_sink="$(mktemp)"
+corr_payload='{"session_id":"sess-20","prompt_id":"p-20","tool_use_id":"toolu_01ABC","agent_id":"agent-7","cwd":"/x","tool_input":{"file_path":"a.md","content":"{\"session_id\":\"decoy\"}"}}'
+# Builtin path: a data object the compactor proves.
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  for pair in session_id=sess-20 prompt_id=p-20 tool_use_id=toolu_01ABC agent_id=agent-7; do
+    key="${pair%%=*}" want="${pair#*=}"
+    got=$(jq -r ".$key" "$corr_sink")
+    if [[ "$got" == "$want" ]]; then ok "corr (builtin): $key copied from INPUT"; else fail "corr (builtin): $key expected $want, got $got"; fi
+  done
+  keys_order=$(jq -r 'keys_unsorted | join(",")' "$corr_sink")
+  if [[ "$keys_order" == "schema_version,timestamp,hook,hook_event,status,duration_ms,session_id,prompt_id,tool_use_id,agent_id,data" ]]; then
+    ok "corr (builtin): keys sit between duration_ms and data"
+  else
+    fail "corr (builtin): key order $keys_order"
+  fi
+  if [[ "$(jq -r '.data.session_id // "absent"' "$corr_sink")" == "absent" ]]; then ok "corr (builtin): data untouched"; else fail "corr (builtin): data gained a key"; fi
+else
+  fail "corr (builtin): sink empty"
+fi
+rm -f "$corr_sink"
+# jq path: pretty-printed data the compactor declines, same keys.
+corr_sink="$(mktemp)"
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" $'{\n  "tool": "Write",\n  "file": "a.md",\n  "findings": []\n}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "sess-20 p-20 toolu_01ABC agent-7" ]]; then
+    ok "corr (jq path): all four keys carried"
+  else
+    fail "corr (jq path): $(cat "$corr_sink")"
+  fi
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,session_id,prompt_id,tool_use_id,agent_id,data" ]]; then
+    ok "corr (jq path): same key order as the builtin path"
+  else
+    fail "corr (jq path): key order $(jq -r 'keys_unsorted | join(",")' "$corr_sink")"
+  fi
+else
+  fail "corr (jq path): sink empty"
+fi
+rm -f "$corr_sink"
+# Partial and malformed: only well-formed keys appear; a value with a quote,
+# a space or a path separator is not an id and is dropped, not escaped.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"../escape","prompt_id":"p 1","tool_use_id":"toolu_ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[has("session_id"), has("prompt_id"), has("tool_use_id"), has("agent_id")] | join(" ")' "$corr_sink")" == "false false true false" ]]; then
+    ok "corr: malformed ids dropped, well-formed one kept"
+  else
+    fail "corr: $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (partial): sink empty"
+fi
+rm -f "$corr_sink"
+# No payload at all: none of the four keys, and the envelope is otherwise the same.
+corr_sink="$(mktemp)"
+(
+  unset INPUT HOOK_TELEMETRY_PAYLOAD
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,data" ]]; then
+    ok "corr: no payload, no correlation keys"
+  else
+    fail "corr: unexpected keys without a payload: $(jq -r 'keys_unsorted | join(",")' "$corr_sink")"
+  fi
+else
+  fail "corr (no payload): sink empty"
+fi
+rm -f "$corr_sink"
+# HOOK_TELEMETRY_PAYLOAD wins over INPUT for a producer that buffers under another name.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"from-input"}' HOOK_TELEMETRY_PAYLOAD='{"session_id":"from-payload"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ "$(jq -r '.session_id' "$corr_sink" 2>/dev/null)" == "from-payload" ]]; then
+  ok "corr: HOOK_TELEMETRY_PAYLOAD overrides INPUT"
+else
+  fail "corr: override: $(cat "$corr_sink" 2>/dev/null)"
+fi
+rm -f "$corr_sink"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
