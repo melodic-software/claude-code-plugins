@@ -217,15 +217,31 @@ inside_repo() {
   [[ "$in_git" == "true" ]] || return 1
   top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
   [[ -n "$top" ]] || return 1
-  abs="$(cd "$1" 2>/dev/null && pwd)" || return 1
+  abs="$(cd -P "$1" 2>/dev/null && pwd -P)" || return 1
   [[ "$abs" == "$top" || "$abs" == "$top"/* ]]
+}
+
+git_listing() {
+  # git_listing <output file> <git subcommand and arguments>
+  #
+  # One scope listing, written to a file whose status is checked. An empty
+  # listing and a failed listing look identical on stdout, so an unread status
+  # turns a broken repository into a document that reports measuring nothing
+  # and exits 0. `core.quotePath=false` keeps a path with non-ASCII bytes
+  # readable: quoted, `café.py` comes back as an escaped literal that matches
+  # no file on disk and is dropped from the scope without a word.
+  local out="$1"
+  shift
+  if ! git -c core.quotePath=false "$@" >"$out"; then
+    die_usage "the repository file listing failed: git $1 (see the message above)"
+  fi
 }
 
 list_tracked_under() {
   # Tracked plus untracked-but-not-ignored files under a path, or a plain
   # walk outside git. Directories only; files are appended by the caller.
   if inside_repo "$1"; then
-    git ls-files --cached --others --exclude-standard -- "$1"
+    git -c core.quotePath=false ls-files --cached --others --exclude-standard -- "$1"
   else
     # Outside git, or a path outside this repository (git refuses it).
     find "$1" -type f
@@ -275,8 +291,12 @@ all)
     # `--all` with no path means the whole repository, so the listing is
     # root-anchored: without `:/` it would silently stop at the cwd and a run
     # from a subdirectory would measure that subtree while reporting `all`.
-    git ls-files --cached --others --exclude-standard --full-name -- ':/' |
-      rebase_onto_cwd >>"$FILES_LIST"
+    # The listing goes to a file and its status is checked, because a listing
+    # that failed and a repository with no files are the same empty output,
+    # and reporting the first as the second is a document that says it
+    # measured everything having measured nothing.
+    git_listing "$WORK/all-listing" ls-files --cached --others --exclude-standard --full-name -- ':/'
+    rebase_onto_cwd <"$WORK/all-listing" >>"$FILES_LIST"
   else
     find . -type f >>"$FILES_LIST"
   fi
@@ -315,10 +335,9 @@ change)
     [[ -n "$base_merge" ]] || die_usage "no merge-base between HEAD and $BASE"
     BASE_SHA="$base_merge"
   fi
-  {
-    git diff --name-only --diff-filter=d "$BASE_SHA"
-    git ls-files --others --exclude-standard --modified --full-name -- ':/'
-  } | rebase_onto_cwd >>"$FILES_LIST"
+  git_listing "$WORK/diff-listing" diff --name-only --diff-filter=d "$BASE_SHA"
+  git_listing "$WORK/work-listing" ls-files --others --exclude-standard --modified --full-name -- ':/'
+  cat "$WORK/diff-listing" "$WORK/work-listing" | rebase_onto_cwd >>"$FILES_LIST"
   ;;
 *)
   die_usage "unknown scope mode $MODE"

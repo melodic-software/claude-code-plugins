@@ -216,6 +216,54 @@ rc=$?
 assert_eq "an unusable scope.exclude glob exits 2 rather than measuring anyway" "2:" "$rc:$out"
 rm -rf "$repo"
 
+# 13. A file whose name carries non-ASCII bytes. git quotes such a path by
+#     default, and a quoted literal matches no file on disk, so the file left
+#     the scope with nothing said and the document still called itself complete.
+repo="$(mktemp -d)"
+(
+  cd "$repo" || exit 1
+  git init -q -b main
+  git config user.email t@example.com
+  git config user.name t
+  printf 'a = 1\n' >'café.py'
+  printf 'b = 2\n' >'plain.py'
+  git add -A && git commit -q -m accents
+)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
+assert_eq "a non-ASCII filename stays in scope" "python	café.py
+python	plain.py" "$(printf '%s\n' "$out" | sort)"
+
+# 14. A repository whose listing fails. An empty listing and a failed listing
+#     are the same on stdout, so an unread exit status turns a broken
+#     repository into a document that says it measured nothing, at exit 0.
+printf 'GARBAGE-NOT-AN-INDEX' >"$repo/.git/index"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
+rc=$?
+assert_eq "a failed repository listing exits 2 rather than reporting an empty run" "2:" "$rc:$out"
+rm -rf "$repo"
+
+# 15. A repository reached through a symlink. `cd`/`pwd` are logical and keep
+#     the symlink, while git reports the physical path, so a logical comparison
+#     never matched and the ignored-tree guard fell through to a plain walk.
+repo="$(mktemp -d)"
+(
+  cd "$repo" || exit 1
+  mkdir -p real
+  cd real || exit 1
+  git init -q -b main
+  git config user.email t@example.com
+  git config user.name t
+  mkdir -p sub vendored
+  printf 'a = 1\n' >sub/keep.py
+  printf 'junk = 1\n' >vendored/ignored.py
+  printf 'vendored/\n' >.gitignore
+  git add .gitignore sub/keep.py && git commit -q -m base
+  ln -s "$repo/real" "$repo/link"
+)
+out="$(cd "$repo/link/sub" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope --all ../vendored 2>/dev/null)"
+assert_eq "an ignored tree stays out of scope through a symlinked work tree" "" "$out"
+rm -rf "$repo"
+
 # 10. The config cascade: a team file sets the reference, an exclusion, and a
 #     lane opt-out; an ecosystem file redefines the bash lane by globs. The
 #     resolver reads them from the repo root and a home directory with no

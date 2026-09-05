@@ -267,6 +267,46 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(run_rows[1:], [], [])
         self.assertEqual(doc["status"], "empty")
 
+    def test_a_run_whose_only_producing_row_is_partial_is_partial_not_empty(
+        self,
+    ) -> None:
+        # `partial` says a row measured some of what it implied. It withholds
+        # `complete`, but it did produce rows, so a run carrying nothing else
+        # must not read as having measured nothing: `empty` prints the headline
+        # "Measured nothing" over a table that names the files it did measure.
+        run_rows = [
+            {
+                "lane": "python",
+                "measure": "coverage",
+                "collector": "lcov",
+                "status": "partial",
+                "reason": "partial, 1 of 2 scope files present in the artifacts",
+            },
+            {
+                "lane": "python",
+                "measure": "crap",
+                "collector": None,
+                "status": "not-applicable",
+                "reason": "no function-level cyclomatic rows in scope for this lane",
+            },
+        ]
+        doc = self.assemble(
+            run_rows,
+            [
+                {
+                    "file": "a.py",
+                    "function": None,
+                    "lane": "python",
+                    "values": {"coverage_pct": 50.0},
+                }
+            ],
+            [],
+        )
+        self.assertEqual(doc["status"], "partial")
+        self.assertEqual(doc["summary"]["files"], 1)
+        # A partial row is not an unavailable one; it produced what it names.
+        self.assertEqual(doc["unavailable"], [])
+
     def test_a_non_numeric_reference_never_compares_and_never_crashes(self) -> None:
         # A string reference (a quoted number that slipped past the resolver)
         # is no threshold at all: the row is not over it, and the assembler
