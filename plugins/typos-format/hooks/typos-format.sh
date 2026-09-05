@@ -83,10 +83,13 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-
-hook::check_enabled "TYPOS_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
@@ -276,7 +279,7 @@ fi
 # the component fails" — and every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
 # https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
-# Same idiom as hook::check_enabled's kill switch. Only the literal "true"
+# Same idiom as the hoisted kill switch at the top. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.
 WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-false}"

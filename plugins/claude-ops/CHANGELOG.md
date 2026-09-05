@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.4]
+
+### Changed
+
+- **`hooks/skill-usage-audit.sh` reads its kill switch before sourcing the library.**
+  `skill_usage_audit_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
 ## [0.42.3]
 
 ### Fixed

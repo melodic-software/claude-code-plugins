@@ -44,12 +44,12 @@ guard() {
   printf '%s\n' "$body" >"$fixture/plugins/$plugin/hooks/$name"
 }
 
-# hooks_json <fixture> <plugin> <command>
+# hooks_json <fixture> <plugin> <command> [<event>]   (event defaults to PreToolUse)
 hooks_json() {
-  local fixture="$1" plugin="$2" command="$3"
+  local fixture="$1" plugin="$2" command="$3" event="${4:-PreToolUse}"
   mkdir -p "$fixture/plugins/$plugin/hooks"
-  jq -n --arg c "$command" \
-    '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' \
+  jq -n --arg c "$command" --arg e "$event" \
+    '{hooks:{($e):[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' \
     >"$fixture/plugins/$plugin/hooks/hooks.json"
 }
 
@@ -242,7 +242,10 @@ else
   fail "a non-shell PreToolUse handler is reported as NOT SCANNED (rc=$rc): $out"
 fi
 
-# A PostToolUse guard is out of scope and is not scanned.
+# A PostToolUse hook is IN scope: the same rule, from both sides. A reversed
+# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted
+# (this case previously asserted the opposite, when the gate scanned PreToolUse
+# only), and a hoisted PostToolUse script passes on its own.
 f="$(new_fixture)"
 guard "$f" demo "alpha.sh" "$HOISTED"
 guard "$f" demo "post.sh" "$REVERSED"
@@ -253,10 +256,37 @@ jq -n '{hooks:{
 }}' >"$f/plugins/demo/hooks/hooks.json"
 out="$(run_check "$f")"
 rc=$?
-if ((rc == 0)); then
-  ok "a PostToolUse guard is out of scope"
+if ((rc != 0)) && [[ "$out" == *"post.sh"* && "$out" == *"BELOW the source"* ]]; then
+  ok "a reversed PostToolUse hook FAILS"
 else
-  fail "a PostToolUse guard is out of scope (rc=$rc): $out"
+  fail "a reversed PostToolUse hook FAILS (rc=$rc): $out"
+fi
+
+f="$(new_fixture)"
+guard "$f" demo "post.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/post.sh' PostToolUse
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"1 PreToolUse and PostToolUse hook script(s)"* ]]; then
+  ok "a hoisted PostToolUse hook passes and is counted"
+else
+  fail "a hoisted PostToolUse hook passes and is counted (rc=$rc): $out"
+fi
+
+# The launcher rule holds on PostToolUse too: guardrails registers its three
+# verifiers behind run-guards.sh, and each named script is scanned, not the
+# launcher.
+f="$(new_fixture)"
+guard "$f" demo "run-guards.sh" "$NO_SWITCH"
+guard "$f" demo "verify-a.sh" "$HOISTED"
+guard "$f" demo "verify-b.sh" "$REVERSED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh verify-a.sh verify-b.sh' PostToolUse
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"verify-b.sh"* && "$out" != *"run-guards.sh — "* ]]; then
+  ok "a PostToolUse launcher's arguments are scanned, the launcher is not"
+else
+  fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
 fi
 
 # --- fail closed -------------------------------------------------------------
