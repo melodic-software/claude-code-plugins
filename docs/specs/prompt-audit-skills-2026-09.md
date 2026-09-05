@@ -42,7 +42,7 @@ Greppable signals before the audit: 308 caps-emphasis words (`MUST|NEVER|ALWAYS|
 
 ## Method
 
-One fresh-context subagent per plugin (Claude Fable 5.1 through wave 3b; Claude Opus 5 with the same briefs once the Fable model limit began refusing subagent turns, the target model unchanged) reads the prompt-audit guide and the Fable 5.1 migration sections, audits every in-scope file of that plugin, and writes a report with one row per finding (`file:line`, quoted evidence, pattern row, why obsolete for the target, confidence, action, label, catalog row) and one proposed hunk per finding. The main session reviews each report, applies accepted hunks, updates the skill's evals when its body changed, runs `check-skill.sh` on each touched skill, bumps the plugin's patch version with a CHANGELOG line, and commits once per plugin.
+One fresh-context subagent per plugin (Claude Fable 5.1 through wave 3b; Claude Opus 5 with the same briefs from wave 3b onward, once the Fable model limit began refusing subagent turns, the target model unchanged) reads the prompt-audit guide and the Fable 5.1 migration sections, audits every in-scope file of that plugin, and writes a report with one row per finding (`file:line`, quoted evidence, pattern row, why obsolete for the target, confidence, action, label, catalog row) and one proposed hunk per finding. The main session reviews each report and records a per-finding decision, then either applies the accepted hunks itself (the lead applied every plugin with about fourteen or fewer accepted hunks by hand from wave 3b onward, thirty-one plugins in all) or dispatches an Opus 5 applier with the same brief (twelve plugins). Either way the applier updates the skill's evals when its body changed, runs `check-skill.sh` on each touched skill, bumps the plugin's patch version with a CHANGELOG line, and commits once per plugin. Eleven setup-only plugins whose single in-scope file the setup lane had already audited took their rows from that lane without a second auditor.
 
 Waves, ordered by usage, pipeline centrality, and signal density:
 
@@ -148,6 +148,9 @@ One row per applied plugin. "Applied" and "Withheld" name finding ids from `.wor
 | 5 | x | 13c0cbcc4 | 0.2.3 (above main's 0.2.2) | F1 to F4, F7 (applied by the lead; F7 is a lead call outside the catalog, replacing a real account name in a shipped example with a placeholder; F4 keeps four exact phrases) | F5 (follow-up F6), F6 |
 | 5 | ai-briefing | b07154b5c | 0.7.26 (above main's 0.7.25; the branch CHANGELOG lacks main's 0.7.21 to 0.7.25 entries until the merge) | F1 to F13 (Opus applier; F9 `apply-modified` keeps a version-free drift-trigger row; F6's Role cells filled from each script's header, one left empty where no header exists; F13 applied file-wide, two of its named sites already removed by F7 and F11) | F14 (follow-up F6), F15 |
 | 5 | adhd | ccc3d2e04 | 0.4.7 (above main's 0.4.6) | F1, F3, F4 (applied by the lead) | F2 (declined: the five-item list cap is the style skill's own domain-grounded product spec, keep-list 1), F5 (follow-up F6), F6 |
+| 5 | dometrain | b7a4413bf | 0.2.10 (above main's 0.2.9; the branch CHANGELOG lacks main's 0.2.9 entry until the merge) | F1 to F8, F12 (applied by the lead; F7 is the setup item the lane did not record; F12 as the same caps normalization) | F9, F10 (follow-up F23), F11 (follow-up F6) |
+| 5 | github | 9116abf80 | 0.3.14 (above main's 0.3.13; the branch CHANGELOG lacks main's 0.3.12 and 0.3.13 entries until the merge) | F1 (applied by the lead; the `gh api` write-surface list in advise and audit now carries its verification date, gh version, and recheck trigger) | F2 (keep-list 6), F3 (follow-up F6) |
+| 5 | playgrounds | fbf13a922 | 0.1.1 (above main's 0.1.0) | F1, F2 (applied by the lead; F1 keeps four exact phrases) | F3, F4 (follow-up F6) |
 <!-- spellchecker:on -->
 
 Notes on the wave-1 and wave-2 commits:
@@ -182,7 +185,8 @@ Each phrase below was a single-quoted trigger in the skill's description at `ori
 - **context7** lookup (4): 'check context7 for X', 'how do I configure X', 'latest docs for X', 'whats the API for X'. setup (4): 'add the Context7 MCP server', 'configure context7', 'context7 auth', 'context7 setup'.
 - **firecrawl**: none (the description keeps all six quoted phrases and drops only their prose restatements).
 - **x** read (3): 'I pasted an X link', 'read this tweet', 'what does this X post say'.
-- **ai-briefing**, **adhd**: none.
+- **ai-briefing**, **adhd**, **dometrain**, **github**: none.
+- **playgrounds** use (4): 'explore this parameter space', 'let me tweak parameters and see the result', 'sliders to balance this', 'tune this visually'.
 - **plugin-quality** audit (4): 'find bugs/gaps in this plugin', 'find gaps in this plugin', 'is this hook well-designed', 'is this plugin well-designed'.
 - **repo-hygiene** clean (9): 'clean caches across all repos', 'clean up my stashes', 'clear build artifacts across all my repos', 'clear build artifacts', 'fresh clone state', 'prune git across the fleet', 'remove caches', 'reset all my repos', 'reset to origin'.
 - **overengineering** audit (6): 'enforcement clutter', 'process cruft', 'retire dead automation', 'too many guards', 'what automation can we retire', 'why does this check exist'. delta (4): 'delta since the last run', 'only show me what is new', 'recurring overengineering check', 'weekly automation-cruft check'. realign (5): 'act on the audit findings', 'execute the overengineering findings', 'peel back these hooks', 'retire the automation we agreed to retire', 'start the ablation window'.
@@ -213,15 +217,357 @@ Across the five, no skill lost a step, a gate, or a safety refusal. The directio
 
 ## Catalog gaps
 
-Findings whose pattern has no row in `plugins/claude-config/skills/audit-instructions/reference/criteria.md`.
+Findings whose pattern has no row in `plugins/claude-config/skills/audit-instructions/reference/criteria.md`, or that the auditor filed under a row it does not quite match. One line per finding, generated from the reports and decisions by `.work/prompt-audit-skills/gen-record-sections.py`; "withheld" marks the ones that were not applied. Each shape below is a candidate row for the criteria file (follow-up F24).
 
-(filled per wave)
+- **adhd** F2 (`plugins/adhd/skills/shape/SKILL.md:129-136` and `plugins/adhd/skills/clarify/SKILL.md:227`, withheld): Group 1f, "Output-shaping choreography - one pattern, remove every limb": numeric.
+- **adhd** F4 (`plugins/adhd/skills/clarify/SKILL.md:150-151`): Group 2, "History narratives: past tense ... past-tense narration of why a rule".
+- **ai-slop** F3 (`plugins/ai-slop/skills/audit/reference/rewrite-guide.md:61-62`): Group 2, "The recency trap: one session's stumble encoded as a permanent rule", and.
+- **ai-slop** F7 (`plugins/ai-slop/skills/audit/SKILL.md:87-88`): Group 1d, "Migration-relative phrasing: 'X now works differently', 'also counts'".
+- **ai-slop** F8 (`plugins/ai-slop/skills/audit/reference/rewrite-guide.md:71-72`): Group 1d, "Migration-relative phrasing".
+- **ai-slop** F9 (`plugins/ai-slop/skills/audit/reference/catalog.md:126-127`): Group 1d, "Migration-relative phrasing".
+- **ai-slop** F10 (`plugins/ai-slop/skills/audit/reference/catalog.md:140-141`): Group 1d, "Migration-relative phrasing".
+- **architecture** F8 (`plugins/architecture/skills/improve/research/deepening/html-report.md:84`): Group 1f, "Output-shaping choreography: numeric output ceilings ('under 120 words'").
+- **autonomy** F26 (`plugins/autonomy/reference/trigger-dispatch.md:22-26`, withheld): Group 2, Time-sensitive content (vendor-state claims marked unverified, with a wire-time recheck trigger and no date).
+- **autonomy** F27 (`Boris playbook attributions: plugins/autonomy/reference/guardrails.md:13-17; guardrails/work-classes.md:92-95; guardrails/security-review.md:35-37; runner.md:45`, withheld): Group 2, History narratives (provenance paragraphs that assign each idea to its source).
+- **bugs** F15 (`plugins/bugs/skills/write/SKILL.md:118 and plugins/bugs/skills/write/context/template.md:43-44, :69-70`, withheld): Group 2, Volatile specifics (an external-API claim with no verification date).
+- **claude-config** F15 (`plugins/claude-config/skills/audit-instructions/SKILL.md:2 (description)`): Group 2, Trigger-case enumeration (thirteen phrases, with near-synonym pairs: 'audit instructions' / 'instruction audit').
+- **claude-config** F16 (`plugins/claude-config/skills/audit-permission-state/SKILL.md:2 (description)`): Group 2, Trigger-case enumeration (near-synonym pairs: 'what permissions are actually in effect' / 'show me my effective permissions').
+- **claude-config** F33 (`Time-relative and machine-specific qualifiers`, withheld): Group 2, Time-sensitive content (idiom-dating only; the convention the first two cite owns the measured platform).
+- **claude-ops** F37 (`plugins/claude-ops/skills/audit-install-state/reference/surfaces.md:3-4`, withheld): none in prompt-audit's tables (dated, so the Group 2 "no verification date" row does not match).
+- **code-tidying** F6 (`plugins/code-tidying/skills/tidy/reference/exclusions.md:72 and plugins/code-tidying/skills/tidy/lanes/self-update.md:33`): Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims with".
+- **code-tidying** F7 (`plugins/code-tidying/skills/tidy/lanes/self-update.md:5-15`): Group 2, "Volatile specifics: hardcoded paths ... skills rot factually as code ships".
+- **code-tidying** F16 (`plugins/code-tidying/skills/tidy/SKILL.md:195`): Group 1d, "Migration-relative phrasing: 'X now works differently', 'also counts', 'no".
+- **code-tidying** F17 (`plugins/code-tidying/skills/tidy/SKILL.md:82`): Group 1d, "Migration-relative phrasing"; the second sentence describes an in-progress.
+- **code-tidying** F23 (`plugins/code-tidying/skills/tidy/SKILL.md:2`, withheld): Group 2, "Trigger-case enumeration": a candidate on shape, but not on provenance.
+- **codebase-health** F1 (`plugins/codebase-health/skills/audit/SKILL.md`:232-233): Group 1f, output-shaping choreography (numeric output clamp with a stated operational).
+- **computer-use** F11 (`plugins/computer-use/skills/diagnose/SKILL.md:62-63`, withheld): Group 2, Volatile specifics: dated and sourced, but with no recheck trigger, which the repo's four-part record (claim, basis, as-of date).
+- **computer-use** F12 (`plugins/computer-use/skills/diagnose/reference/windows-quirks.md:5-6`, withheld): Group 2, Volatile specifics: a dated basis with no recheck trigger.
+- **context-budget** F7 (`plugins/context-budget/skills/audit/scripts/fixtures/context-sample.md:3-4`, withheld): Group 2, Time-sensitive content (an as-of stamp with no date); outside the prompt surface (no skill body links the fixture).
+- **coupling** F4 (`plugins/coupling/skills/reduce/ (4 files, 59 lines)`, withheld): none in prompt-audit.md.
+- **debugging** F5 (`plugins/debugging/skills/debug/SKILL.md:6`): Group 1d, fossil (config that outlived the mechanism it served) and prompt-audit Step 6 "a removal is complete only when everything referencing it goes too".
+- **debugging** F13 (`plugins/debugging/skills/debug/reference/ecosystem-debugging.md:11`, withheld): Group 2, volatile specifics (API claims with no verification date).
+- **debugging** F14 (`plugins/debugging/skills/debug/reference/ecosystem-debugging.md:3-20 and plugins/debugging/skills/debug/templates/checklist.md:7-12`): none in prompt-audit; house-style item outside this audit's scope.
+- **disk-hygiene** F16 (`plugins/disk-hygiene/skills/clean/reference/safety-model.md:303-306`, withheld): Group 2, History narratives (a pinned plugin version number), the same row F4 acts on.
+- **docs-hygiene** F11 (`extract-ssot/actions/identify.md:403`): Group 1f, numeric output constraint; and Group 1c "Grader and eval vocabulary" in its pressure-toward-being-scored sense.
+- **domain-driven-design** F4 (`plugins/domain-driven-design/skills/curate-language/SKILL.md:8`, withheld): none in prompt-audit.
+- **dometrain** F10 (`plugins/dometrain/skills/sync/context/update.md:36-38 and 49-53`, withheld): none.
+- **evals** F4 (`plugins/evals/skills/methodology/SKILL.md:2 (and design/SKILL.md:2)`, withheld): Group 2, "Trigger-case enumeration".
+- **firecrawl** F1 (`plugins/firecrawl/skills/update/UPSTREAM.md:6-10`): Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims with".
+- **firecrawl** F10 (`plugins/firecrawl/skills/firecrawl/SKILL.md:41, 42, 46, 49`, withheld): Group 3, "Tool names in the system prompt; prose lists that shadow the real tool list".
+- **github** F1 (`plugins/github/skills/advise/SKILL.md:83-88 and plugins/github/skills/audit/SKILL.md:86-91`): Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims".
+- **github** F2 (`plugins/github/skills/advise/SKILL.md:2 and plugins/github/skills/audit/SKILL.md:2`, withheld): Group 2, "Trigger-case enumeration".
+- **implementation** F17 (`plugins/implementation/skills/implement/context/bugfix.md:28`, withheld): Group 2, Volatile specifics (an undated count describing an external plugin's contents).
+- **improvement** F6 (`plugins/improvement/skills/find/context/hotspots.md:112-128`): Group 4, "An LLM executor for a deterministic plan" (routing, tallying, filtering).
+- **machine-health** F16 (`plugins/machine-health/skills/audit/references/shared/discovery-guide.md:11` and `plugins/machine-health/skills/audit/SKILL.md:73`, withheld): considered against Group 1f, "Output-shaping choreography: numeric output ceilings".
+- **mutation-testing** F1 (`plugins/mutation-testing/skills/audit/context/suppression.md:25-26`): Group 2, "History narratives: past tense, incident IDs, PR numbers, pinned model names".
+- **mutation-testing** F5 (`plugins/mutation-testing/skills/audit/context/persist-findings.md:183`): Group 2, "History narratives: past tense".
+- **mutation-testing** F6 (`plugins/mutation-testing/skills/audit/context/persist-findings.md:98`): Group 2, "Volatile specifics".
+- **mutation-testing** F7 (`plugins/mutation-testing/skills/principles/SKILL.md:2`): Group 2, "Trigger-case enumeration: description lists of near-synonymous example queries".
+- **mutation-testing** F8 (`plugins/mutation-testing/skills/audit/SKILL.md:2`): Group 2, "Trigger-case enumeration".
+- **naming** F6 (`plugins/naming/skills/name-it-better/SKILL.md:111-112`, withheld): Group 1a, capitalized emphasis with no adjacent reason.
+- **overengineering** F1 (`plugins/overengineering/skills/delta/context/baseline-model.md:23`): Group 1d, Fossils, "Migration-relative phrasing".
+- **overengineering** F2 (`plugins/overengineering/skills/delta/SKILL.md:278-279`): Group 1d, Fossils, "Migration-relative phrasing".
+- **overengineering** F4 (`plugins/overengineering/skills/audit/evals/evals.json cases 10 and 11; plugins/overengineering/skills/realign/evals/evals.json case 7`): prompt-audit Step 6, "A removal is complete only when everything referencing it goes too: tests asserting the old behavior".
+- **overengineering** F6 (`plugins/overengineering/skills/realign/SKILL.md:254-257`): Group 2, "History narratives: past tense, incident IDs, PR numbers, pinned model names".
+- **planning** F30 (`plugins/planning/skills/interview/SKILL.md:259`, withheld): none (a spoke pointer filed under the boundary section, where it reads as a "does not do" item).
+- **planning** F35 (`plugins/planning/skills/plan/SKILL.md:67`): Group 3, routing text naming a skill not present under `plugins/`; Group 1b adjacent.
+- **playgrounds** F2 (`plugins/playgrounds/skills/use/SKILL.md:118-119`): Group 2, "History narratives: past tense, incident IDs, PR numbers, pinned model".
+- **playwright** F6 (`plugins/playwright/skills/playwright/SKILL.md:74-77`, withheld): Group 2, row "Volatile specifics: hardcoded paths, flags, version numbers, API".
+- **playwright** F7 (`plugins/playwright/skills/playwright/reference/windows-quirks.md:82`, withheld): Group 2, row "Volatile specifics: hardcoded paths, flags, version numbers, API".
+- **plugin-quality** F18 (`plugins/plugin-quality/skills/audit/SKILL.md:113-114 (add)`): keep-list 11, "Re-baselining adds text too" (the per-target "Behavioral shifts" sections); Group 4, sub-agent architecture.
+- **plugin-quality** F21 (`Dated verification stamps with no recheck trigger (six sites)`, withheld): none in prompt-audit's tables (it names the undated claim as the defect, and these are dated).
+- **prototype** F8 (`plugins/prototype/skills/explore-directions/SKILL.md:161-162`, withheld): Group 2, "Verbose SKILL.md" (a sentence the model has to reconcile before it can act on it).
+- **rate-limit-guard** F6 (`plugins/rate-limit-guard/skills/setup/SKILL.md:239-240`): none (a lowercase sentence start after a full stop; editing residue, not a dated pattern).
+- **review** F20 (`plugins/review/skills/code-review/SKILL.md:47-50`, withheld): none (a sentence fragment; outside prompt-audit's pattern tables).
+- **setup-lane** T9 (`Reconfiguration paragraph duplicated verbatim across the fleet`, withheld): none in prompt-audit's tables; keep-list 8 (working redundancy is not cruft).
+- **setup-lane** F25 (`plugins/actionlint/skills/setup/SKILL.md:100-106`, withheld): Group 2, Volatile specifics (a version-pinned claim); dated, but with no recheck trigger.
+- **testing** F1 (`plugins/testing/skills/write/context/organize.md:49 (and write/context/write.md:121)`): Group 2, "Volatile specifics: hardcoded paths, flags, version numbers" (verified stale).
+- **testing** F18 (`plugins/testing/skills/write/context/write.md:28-33`): Group 1c, "Strategy coaching next to task rules": an unconditional approval gate, scoped down only by invocation source.
+- **testing** F19 (`plugins/testing/skills/write/context/write.md:62`): Group 1c, "Strategy coaching next to task rules": an invitation to refactor existing code beyond the slice under test.
+- **testing** F25 (`plugins/testing/skills/diagnose/SKILL.md:68 (and diagnose/context/investigate.md:16, write/SKILL.md:74)`, withheld): Group 2, "Volatile specifics: ... version numbers, API claims with no verification date".
+- **testing** F26 (`plugins/testing/skills/run-e2e/context/e2e.md:12`, withheld): Group 2, "Volatile specifics": an undated version floor.
+- **testing** F27 (`plugins/testing/skills/diagnose/context/investigate.md:55-60 (and loop.md:111-116, plan/SKILL.md:120-125, run-e2e/context/e2e.md:154-159, write/context/organize.md:61-66, write/context/write.md:151-157)`): The brief's routing rule: a sibling reference naming a skill that does not exist under `plugins/`.
+- **toolchain** F14 (`plugins/toolchain/skills/check/context/dotnet.md:52`, withheld): Group 2, Volatile specifics; dated, but with no recheck trigger.
+- **toolchain** F15 (`plugins/toolchain/skills/check/context/go.md:38`, withheld): Group 2, Volatile specifics (a verification stamp with a toolchain version but no date and no recheck trigger).
+- **verification** F5 (`plugins/verification/skills/measure/context/metrics.md:11-20 (add after the table)`): Group 4, An LLM executor for a deterministic plan (a count is a computation whose inputs fully determine its output); Group 1b.
+- **verification** F10 (`plugins/verification/skills/measure/context/metrics.md:90-96 and plugins/verification/skills/measure/context/performance.md:61-68`): the brief's routing rule: a sibling reference is flagged when it names a skill that does not exist in `plugins/`.
+- **wizard** F1 (`plugins/wizard/skills/generate/SKILL.md:99-104`, withheld): Group 1a, pressure language.
 
 ## Withheld findings
 
-Low-confidence and `flag` items, reported but not applied.
+Low-confidence and `flag` items, reported but not applied. Grouped by plugin, one line per finding: id, location, the pattern row the auditor cited, the auditor's confidence, and the lead's disposition, generated from the reports and decisions by `.work/prompt-audit-skills/gen-record-sections.py`. The setup-lane group holds the cross-cutting setup-skill findings that no single plugin owns.
 
-(filled per wave)
+- **adhd** (3):
+  - F2 (`plugins/adhd/skills/shape/SKILL.md:129-136` and `plugins/adhd/skills/clarify/SKILL.md:227`), Group 1f, "Output-shaping choreography - one pattern, remove every limb": numeric; medium; declined by the lead: the five-item cap is this style skill's own product spec, grounded in the working-memory fact at line 39, not a clamp written against an older model's verbosity; keep-list 1.
+  - F5 (`plugins/adhd/skills/clarify/SKILL.md:143-156, 191-193`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims"; low; withheld; follow-up F6.
+  - F6 (`plugins/adhd/skills/clarify/SKILL.md:2` and `plugins/adhd/skills/shape/SKILL.md:2`), Group 2, "Trigger-case enumeration: description lists of near-synonymous example"; low; withheld, low confidence.
+- **ai-briefing** (2):
+  - F14 (`plugins/ai-briefing/skills/generate/references/slide-generation.md:215, :247`), Group 2, Volatile specifics (a command form and a harness command named as bare fact); low; withheld; follow-up F6 (`/reload-plugins` does exist in the current Claude Code build; the record notes it).
+  - F15 (`plugins/ai-briefing/skills/generate/references/slide-generation.md:99, :157, :165; build-pipeline.md:107`), Group 2, The recency trap (one window's news encoded as a permanent illustration); low; withheld, low confidence.
+- **ai-slop** (1):
+  - F12 (`plugins/ai-slop/skills/audit/reference/catalog.md:1-1098`), Group 2, "Verbose SKILL.md explaining things the model already knows" (signal row); low; withheld, low confidence; owned by `docs-hygiene:audit-progressive-disclosure`.
+- **architecture** (2):
+  - F13 (`plugins/architecture/skills/improve/SKILL.md:25-28`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+  - F14 (`plugins/architecture/skills/improve/SKILL.md:40`), Group 1c, "Padding: repetition as reinforcement"; low; withheld; keep-list 10.
+- **autonomy** (7):
+  - F23 (`plugins/autonomy/skills/setup/SKILL.md:267; plugins/autonomy/skills/setup/context/prerequisite-resolution-slice.md:38-39; plugins/autonomy/reference/prerequisite-resolution.md:86-88`), Group 2, Volatile specifics (a harness-capability claim stated three times with no verification date or recheck trigger); low; withheld; follow-up F6.
+  - F24 (`plugins/autonomy/reference/telemetry.md:14-15, :22, :69-70`), Group 2, Volatile specifics (undated empirical harness claims and an upstream-status claim); low; withheld; follow-up F6.
+  - F25 (`plugins/autonomy/reference/runner/escalation.md:140-152`), Group 2, Volatile specifics (harness-capability claims, "today", no date); low; withheld; follow-up F6.
+  - F26 (`plugins/autonomy/reference/trigger-dispatch.md:22-26`), Group 2, Time-sensitive content (vendor-state claims marked unverified, with a wire-time recheck trigger and no date); low; withheld, low confidence.
+  - F27 (`Boris playbook attributions: plugins/autonomy/reference/guardrails.md:13-17; guardrails/work-classes.md:92-95; guardrails/security-review.md:35-37; runner.md:45`), Group 2, History narratives (provenance paragraphs that assign each idea to its source); low; withheld, low confidence.
+  - F28 (`plugins/autonomy/reference/runner.md:12-13 and :33`), Group 2, History narratives (a planning-era tier label, `T4`, defined nowhere in the plugin); low; withheld, low confidence.
+  - F29 (`plugins/autonomy/reference/autonomous-pipeline-reminder.md:29-66 (out of scope)`), Keep-list 11, Re-baselining adds text too; Group 1d, Fossils (a locally reworded prompting-guide block); low; out of audit scope; follow-up F18.
+- **bugs** (5):
+  - F9 (`plugins/bugs/skills/write/SKILL.md:20-22`), Group 2, History narratives (a rationale for how a fixed command came to be shaped, addressed to whoever might edit it); medium; fleet decision: the "pipe is the bound" paragraph is kept fleet-wide.
+  - F14 (`plugins/bugs/skills/scan/SKILL.md:119-120`), Group 2, Volatile specifics (a figure stated as bare fact with no source or recheck trigger); low; withheld, low confidence.
+  - F15 (`plugins/bugs/skills/write/SKILL.md:118 and plugins/bugs/skills/write/context/template.md:43-44, :69-70`), Group 2, Volatile specifics (an external-API claim with no verification date); low; withheld, low confidence.
+  - F16 (`plugins/bugs/skills/scan/SKILL.md:22-25 and plugins/bugs/skills/write/SKILL.md:24-27`), Group 2, Volatile specifics (a harness-behavior claim with no verification date); low; withheld; follow-up F6 (one dated record on the fleet gather block).
+  - F17 (`plugins/bugs/skills/scan/SKILL.md:231-246 and plugins/bugs/skills/write/SKILL.md:144-150`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 10.
+- **claude-config** (4):
+  - F30 (Undated `pre-v2.1.211` harness-version claims), Group 2, Volatile specifics (a harness version boundary stated as bare fact with no verification date in the bodies); medium (pattern match); action withheld to `flag`; withheld; follow-up F6.
+  - F31 (`plugins/claude-config/skills/audit-instructions/reference/conflict-criteria.md:532-533, :540-547`), Group 2, Volatile specifics (an undated local measurement); low; withheld; follow-up F6 (measured figure).
+  - F32 (`Dated stamps with no recheck trigger, and undated verification notes`), Group 2, Volatile specifics; low; withheld; follow-up F6.
+  - F33 (`Time-relative and machine-specific qualifiers`), Group 2, Time-sensitive content (idiom-dating only; the convention the first two cite owns the measured platform); low; withheld, low confidence.
+- **claude-memory** (1):
+  - F12 (`plugins/claude-memory/skills/audit/reference/official-guidance.md:168`), Group 2, "Volatile specifics ... with no verification date"; low; withheld; follow-up F6.
+- **claude-ops** (13); shared note: withheld; F26, F28, F29, F30, F31, F32, F33, F34, F37 join follow-up F6 (undated harness and upstream claims); F27 and F35 join F6's measured-figure note; F36 and F38 are keep-list 8 and 10:
+  - F26 (`plugins/claude-ops/skills/audit-install-state/SKILL.md:48-53`), Group 2, Volatile specifics (harness claims with no verification date or recheck trigger); low; see the shared note.
+  - F27 (`plugins/claude-ops/skills/audit-install-state/SKILL.md:223-224`), Group 2, Volatile specifics (a measured figure with no date or trigger); low; see the shared note.
+  - F28 (`plugins/claude-ops/skills/audit-native-overlap/SKILL.md:286-289`), Group 2, Volatile specifics (undated harness examples); low; see the shared note.
+  - F29 (`plugins/claude-ops/skills/inventory/SKILL.md:210-216`), Group 2, Volatile specifics ("Verified" with no date); low; see the shared note.
+  - F30 (`plugins/claude-ops/skills/changelog/SKILL.md:167 and context/read-actions.md:9-13`), Group 2, Volatile specifics (harness behavior with no verification date); low; see the shared note.
+  - F31 (`plugins/claude-ops/skills/lanes/SKILL.md:92-104, :214-221 and context/refresh.md:68-80`), Group 2, Volatile specifics (harness claim with a doc link but no verification date), stated three times; low; see the shared note.
+  - F32 (`plugins/claude-ops/skills/lanes/SKILL.md:189-193, :223-235 and context/refresh.md:10-11`), Group 2, Volatile specifics ("verified" and "confirmed on this machine" with no date or CLI version); low; see the shared note.
+  - F33 (`plugins/claude-ops/skills/observability/SKILL.md:150-151`), Group 2, Volatile specifics (two harness-defect claims with no date, issue, or trigger); Group 1d model-version workaround shape; low; see the shared note.
+  - F34 (`plugins/claude-ops/skills/observability/context/read-routing.md:75 and plugins/context/sync.md:122-125`), Group 2, Volatile specifics (upstream issue state stated without a date); low; see the shared note.
+  - F35 (`plugins/claude-ops/skills/observability/context/operator-setup-retention.md:15-16 and context/data-sources.md:251`), Group 2, Volatile specifics (measured figures with no date or trigger); low; see the shared note.
+  - F36 (`plugins/claude-ops/skills/audit-performance/SKILL.md:177-193 and audit-skill-visibility/SKILL.md:208-211, :215-217`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; see the shared note.
+  - F37 (`plugins/claude-ops/skills/audit-install-state/reference/surfaces.md:3-4`), none in prompt-audit's tables (dated, so the Group 2 "no verification date" row does not match); low; see the shared note.
+  - F38 (`plugins/claude-ops/skills/setup/SKILL.md:80-83 and :85-87`), Group 1c, Padding (near-duplicate sentences across sections); low; see the shared note.
+- **code-tidying** (1):
+  - F23 (`plugins/code-tidying/skills/tidy/SKILL.md:2`), Group 2, "Trigger-case enumeration": a candidate on shape, but not on provenance; low; withheld, low confidence; keep-list 6.
+- **codebase-health** (1):
+  - F11 (`plugins/codebase-health/skills/audit/SKILL.md`:25-28), Group 2, brittle skill files, "API claims with no verification date"; low; withheld; follow-up F6.
+- **computer-use** (4):
+  - F10 (`plugins/computer-use/skills/diagnose/SKILL.md:2`), Group 2, Trigger-case enumeration (partial match); low; withheld, low confidence.
+  - F11 (`plugins/computer-use/skills/diagnose/SKILL.md:62-63`), Group 2, Volatile specifics: dated and sourced, but with no recheck trigger, which the repo's four-part record (claim, basis, as-of date); low; withheld; follow-up F6 (dated stamp, no recheck trigger).
+  - F12 (`plugins/computer-use/skills/diagnose/reference/windows-quirks.md:5-6`), Group 2, Volatile specifics: a dated basis with no recheck trigger; low; withheld; follow-up F6 (dated stamp, no recheck trigger).
+  - F13 (`plugins/computer-use/skills/diagnose/SKILL.md:76-87`), Group 1c, Padding (repetition across sections); low; withheld; keep-list 10.
+- **context-budget** (6):
+  - F4 (`plugins/context-budget/skills/audit/SKILL.md:226-228`), Group 2, Volatile specifics (a version-pinned harness-behavior claim with no verification date and no recheck trigger); low; withheld; follow-up F6.
+  - F5 (`plugins/context-budget/skills/audit/SKILL.md:34-36`), Group 2, Volatile specifics (an undated claim about a bundled skill's availability and frontmatter); low; withheld; follow-up F6.
+  - F6 (`plugins/context-budget/skills/audit/reference/engine.md:25-30 (and :52-53)`), Group 2, Volatile specifics (API claims carrying citations but no verification date or recheck trigger); low; withheld; follow-up F6.
+  - F7 (`plugins/context-budget/skills/audit/scripts/fixtures/context-sample.md:3-4`), Group 2, Time-sensitive content (an as-of stamp with no date); outside the prompt surface (no skill body links the fixture); low; withheld; outside the prompt surface.
+  - F8 (`plugins/context-budget/skills/audit/SKILL.md:24-26, :51, :86`), Group 1c, Padding (repetition as reinforcement; the same constraint restated across sections); low; withheld; keep-list 8 and 10.
+  - F9 (`plugins/context-budget/skills/audit/SKILL.md:93`), Group 2, Volatile specifics (a wall-clock range with no date, machine class, or recheck trigger); low; withheld; follow-up F6.
+- **context-guard** (3):
+  - F15 (plugins/context-guard/skills/setup/SKILL.md:37-135 (`check` steps 1, 2, 4, 5)), Group 4, An LLM executor for a deterministic plan; medium; recorded as follow-up F17: moving the probes into a `## Pre-computed context` block is a mechanism change gated by `scripts/check-skill-precompute-compose.sh` and the worktree guard's `$`-expansion rule, not an audit hunk.
+  - F16 (`Undated harness-capability claims in four sites`), Group 2, Volatile specifics (harness settings keys and behavior stated as bare fact with no verification date); low; withheld; follow-up F6.
+  - F17 (`plugins/context-guard/reference/reader-contract.md:383-391`), Group 2, History narratives (pinned model names in provenance prose); dated, but with no recheck trigger; low; withheld; follow-up F6.
+- **context7** (1):
+  - F12 (`plugins/context7/skills/lookup/SKILL.md:26 versus context/update.md:52`), Group 1a, the `Default to [tool]` row; read against a convention this plugin states about; low; withheld, low confidence.
+- **coupling** (2):
+  - F3 (`plugins/coupling/skills/reduce/SKILL.md:25-28`), Group 1c, "Padding: ... asides get applied where they don't fit"; also Group 2; medium; fleet decision: the gather-block wording is settled fleet-wide and is not rewritten per plugin.
+  - F4 (`plugins/coupling/skills/reduce/ (4 files, 59 lines)`), none in prompt-audit.md; low; withheld; house style owned by `ai-slop:audit`.
+- **debugging** (3):
+  - F3 (`plugins/debugging/skills/debug/SKILL.md:25-28`), Group 1d, migration-relative phrasing ("rather than pre-compute lines" is a diff against the previous prompt version the model never saw); medium; fleet decision: the gather-block sentence "Keep these as separate body Bash calls rather than pre-compute lines: ..." is the settled fleet wording (a structural contrast, not a version diff); do not rewrite it per plugin.
+  - F4 (`plugins/debugging/skills/debug/SKILL.md:21-23`), Group 2, verbose SKILL.md explaining things the model already knows (every paragraph must justify its token cost); medium; fleet decision: the one-sentence "The pipe is the bound and belongs in the command" form is kept fleet-wide (it stops a read-time cap from replacing the pipe); source-control already applied that form.
+  - F13 (`plugins/debugging/skills/debug/reference/ecosystem-debugging.md:11`), Group 2, volatile specifics (API claims with no verification date); low; withheld, low confidence.
+- **discipline** (4):
+  - T3 (`Gotchas bullets that restate rules already in the body`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - T4 (`"Does not fabricate a finding" recap of the shared method's non-negotiable`), Group 1c, Padding (repetition as reinforcement across files); signal `do not hallucinate`; low; withheld, low confidence.
+  - T5 (`Undated harness fork-mode claims`), Group 2, Volatile specifics (harness API claims with a source but no verification date or recheck trigger); low; withheld; follow-up F6.
+  - F12 (`plugins/discipline/skills/sweep-all/SKILL.md:176-179`), Group 2, Volatile specifics (a measured figure from one run, no date, no recheck trigger); low; withheld, low confidence.
+- **discovery** (3):
+  - F24 (`Undated harness-behavior claims stated as bare fact (multiple files)`), Group 2, Volatile specifics (API and harness claims with no verification date); low; withheld; follow-up F6.
+  - F25 (`plugins/discovery/skills/explore/reference/dispatch.md:166-187`), Group 2, Volatile specifics; low; withheld, low confidence.
+  - F26 (`plugins/discovery/agents/explorer.md, agents/researcher.md, agents/intent-tracer.md (Group 4 roster)`), Group 4, Redundant specialist sub-agents (roster check); low; withheld, low confidence.
+- **disk-hygiene** (2):
+  - F15 (`Undated harness-version claims (four sites)`), Group 2, Volatile specifics (harness version numbers and API claims with no verification date); low; withheld; follow-up F6.
+  - F16 (`plugins/disk-hygiene/skills/clean/reference/safety-model.md:303-306`), Group 2, History narratives (a pinned plugin version number), the same row F4 acts on; low; withheld, low confidence; keep-list 1.
+- **docs-hygiene** (3):
+  - F21 (`extract-ssot/actions/batch.md:35 and 281`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+  - F26 (`extract-ssot/SKILL.md:27, extract-ssot/context/anti-patterns.md:129, extract-ssot/context/decision-framework.md:27-30, 56, 59`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+  - F27 (`audit-encapsulation/context/public-surface-contract.md:5`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+- **domain-driven-design** (1):
+  - F4 (`plugins/domain-driven-design/skills/curate-language/SKILL.md:8`), none in prompt-audit; low; withheld; house style owned by `ai-slop:audit`.
+- **dometrain** (3):
+  - F9 (`plugins/dometrain/skills/grounding/SKILL.md:2`), Group 2, Trigger-case enumeration (partial match only); low; withheld, low confidence.
+  - F10 (`plugins/dometrain/skills/sync/context/update.md:36-38 and 49-53`), none; low; withheld; recorded as follow-up F23 (a documented maintainer command resolves `${CLAUDE_PLUGIN_ROOT}` to the installed cache the next paragraph forbids writing).
+  - F11 (`plugins/dometrain/skills/setup/SKILL.md:20-26`), Group 2, Volatile specifics (an API claim with no verification date); low; withheld; follow-up F6.
+- **education** (1):
+  - F10 (`plugins/education/skills/teach/SKILL.md:86 (the harness claim, not the tracker ref)`), Group 2, Volatile specifics (a harness-behavior claim with no verification date); low; withheld; follow-up F6.
+- **evals** (1):
+  - F4 (`plugins/evals/skills/methodology/SKILL.md:2 (and design/SKILL.md:2)`), Group 2, "Trigger-case enumeration"; low; withheld, low confidence.
+- **event-storming**: none.
+- **firecrawl** (3):
+  - F8 (`plugins/firecrawl/skills/firecrawl/SKILL.md:92 (with lines 2 and 3)`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers"; low; withheld, low confidence; the description half lands with F5.
+  - F9 (`plugins/firecrawl/skills/firecrawl/context/commands.md:120`), Group 2, "duplicated info across SKILL.md and reference files"; low; withheld, low confidence; keep-list 8.
+  - F10 (`plugins/firecrawl/skills/firecrawl/SKILL.md:41, 42, 46, 49`), Group 3, "Tool names in the system prompt; prose lists that shadow the real tool list"; low; withheld, low confidence.
+- **github** (2):
+  - F2 (`plugins/github/skills/advise/SKILL.md:2 and plugins/github/skills/audit/SKILL.md:2`), Group 2, "Trigger-case enumeration"; low; withheld, low confidence; keep-list 6.
+  - F3 (`plugins/github/skills/setup/SKILL.md:62`), Group 2, "Volatile specifics", read as a harness-substitution claim; low; withheld; follow-up F6.
+- **guardrails**: none.
+- **implementation** (6):
+  - F15 (`plugins/implementation/skills/implement/SKILL.md:2`), Group 2, Trigger-case enumeration (eight quoted phrases); low; withheld, low confidence.
+  - F16 (`plugins/implementation/agents/implementer.md:26-51 and plugins/implementation/agents/phase-verifier.md:23-45`), none in prompt-audit's tables; low; withheld; candidate for an instruction-placement pass (agent-file rationale sections).
+  - F17 (`plugins/implementation/skills/implement/context/bugfix.md:28`), Group 2, Volatile specifics (an undated count describing an external plugin's contents); low; withheld, low confidence.
+  - F18 (`plugins/implementation/skills/implement-dispatch/SKILL.md:43, 116, 117`), none in prompt-audit's tables (verified true for this repo: both checks run in `.github/workflows/ci.yml`); low; withheld, low confidence.
+  - F19 (`plugins/implementation/skills/implement/SKILL.md:18, 20`), Group 2, Volatile specifics (a harness-behavior claim about which command shapes a worktree-isolated session accepts); low; withheld; a trailing `\| head` on a git command is accepted by worktree isolation (the worktree skill states it and this session confirms it), so the concern does not hold.
+  - F20 (`plugins/implementation/skills/implement/context/refactor.md:12`), none in prompt-audit's tables; low; withheld, low confidence.
+- **improvement** (3):
+  - F9 (`plugins/improvement/skills/find/context/ci-health.md:32-36, :40-41; skills/find/SKILL.md:235-237; skills/find/context/unattended.md:74-75`), Group 2, Volatile specifics ("hardcoded paths, flags, version numbers, API claims"); medium (pattern match); action withheld to `flag`; withheld; follow-up F6.
+  - F10 (`plugins/improvement/skills/find/SKILL.md:227-241`), Group 1c, Padding (repetition as reinforcement); low; withheld; keep-list 10.
+  - F11 (`plugins/improvement/skills/find/SKILL.md:2`), Group 2, Trigger-case enumeration (description lists of near-synonymous example); low; withheld, low confidence.
+- **instruction-placement** (2):
+  - F7 (`Gotchas sections that restate rules already in the body (four skills)`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - F8 (`plugins/instruction-placement/skills/realign/context/apply-recipes.md:95-97`), Group 2, Volatile specifics (an undated claim about how other harnesses resolve a file, with no verification record); low; withheld; follow-up F6.
+- **kindle-dedrm** (2):
+  - F10 (`plugins/kindle-dedrm/skills/manage/SKILL.md:143`), Group 1a, "Pressure language", with Group 1c "repetition as reinforcement"; low; withheld, low confidence; keep-list 8.
+  - F11 (`plugins/kindle-dedrm/skills/manage/references/troubleshooting.md:246-248`), none; low; withheld; subsumed by F3.
+- **knowledge** (3):
+  - F26 (`Trigger-case enumeration in five skill descriptions`), Group 2, Trigger-case enumeration; low; withheld, low confidence; no replacement proposed (check 3 is advisory, so the gate does not block a later consolidation).
+  - F27 (`Undated external version floors`), Group 2, Volatile specifics (version numbers with no verification date); low; withheld; follow-up F6.
+  - F28 (`Rule bodies restated across docpage-digest's two Phase 4 spokes`), Group 2, Time-sensitive content (duplicated info across SKILL.md and reference); low; withheld, low confidence; keep-list 8.
+- **machine-health** (3):
+  - F14 (`plugins/machine-health/skills/setup/SKILL.md:2`), Group 2, "Trigger-case enumeration"; low; withheld, low confidence.
+  - F15 (`plugins/machine-health/skills/audit/references/windows/remediation-policy.md:67`), Group 1a, "Pressure language"; the signal is emphasis with no adjacent "because"; low; withheld, low confidence; the prohibition stays.
+  - F16 (`plugins/machine-health/skills/audit/references/shared/discovery-guide.md:11` and `plugins/machine-health/skills/audit/SKILL.md:73`), considered against Group 1f, "Output-shaping choreography: numeric output ceilings"; low; withheld; keep-list 4.
+- **mcp-tools** (1):
+  - F6 (`plugins/mcp-tools/skills/audit/reference/checklist.md:38, 105, 106`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims with no verification date"; medium; withheld; follow-up F6.
+- **mutation-testing** (1):
+  - F11 (`plugins/mutation-testing/skills/setup/SKILL.md:80-89`), Group 1b, "Inline lookup tables, point systems, arithmetic rubrics the model must compute → Data in files or tool results"; medium; recorded as follow-up F21 in the record (a new lint script and test).
+- **naming** (1):
+  - F6 (`plugins/naming/skills/name-it-better/SKILL.md:111-112`), Group 1a, capitalized emphasis with no adjacent reason; low; withheld, low confidence.
+- **overengineering** (3):
+  - F10 (`plugins/overengineering/skills/audit/SKILL.md:20-23, plugins/overengineering/skills/delta/SKILL.md:19-23, plugins/overengineering/skills/realign/SKILL.md:19-22`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+  - F11 (`plugins/overengineering/skills/delta/context/recurring-wiring.md:37-38 and 51-53`), Group 2, "Volatile specifics"; medium; withheld; follow-up F6.
+  - F12 (`plugins/overengineering/skills/audit/SKILL.md:92-93 and 142-144; plugins/overengineering/skills/audit/context/surface-walk.md:95-97; plugins/overengineering/skills/delta/context/recurring-wiring.md:24-25`), model-migration.md, "Migrating to Claude Fable 5.1", Behavioral shifts, "Rare: context anxiety"; low; withheld, low confidence.
+- **performance** (1):
+  - F21 (`plugins/performance/skills/snapshot/SKILL.md:94-96`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims with no verification date"; low; withheld; follow-up F6.
+- **planning** (6):
+  - F30 (`plugins/planning/skills/interview/SKILL.md:259`), none (a spoke pointer filed under the boundary section, where it reads as a "does not do" item); low; withheld, low confidence.
+  - F31 (`plugins/planning/skills/plan/SKILL.md:198 and 206`), Group 2, Volatile specifics (harness-capability status stated as bare fact, undated); low; withheld; follow-up F6 (undated harness claims).
+  - F32 (`plugins/planning/skills/interview/context/session-config.md:103-108`), Group 2, Volatile specifics (harness-capability claim, undated); low; withheld; follow-up F6.
+  - F33 (`plugins/planning/skills/wayfind/SKILL.md:20`), Group 4, Request-building code disagreeing with its own prose contract; low; withheld; follow-up F9 (wayfind pre-compute coerces a non-string container label its own doc forbids).
+  - F34 (`plugins/planning/skills/wayfind/SKILL.md:2, 90, 189, 200`), Group 3, routing text naming a plugin rather than an invocable skill; low; withheld, low confidence.
+  - F36 (`plugins/planning/skills/prd/SKILL.md:58 and 92`), Group 1c, Padding (near-duplicate sentences across sections, two differently worded canned messages for one event); low; withheld, low confidence.
+- **playbooks** (4):
+  - F13 (`skills/fable-5/context/calibration.md:66-69`), Group 2, volatile specifics (binary-registry internals), dated and triggered in the correct form; low; withheld, low confidence.
+  - F14 (`skills/fable-5/context/orchestration.md:97`), Group 2, volatile specifics (restated pricing ratio and TTL), dated but with no recheck trigger of their own; low; withheld; follow-up F6 (missing recheck trigger on the cache-pricing stamp).
+  - F15 (`skills/boris/SKILL.md:58,133` and `skills/boris/reference/orchestration.md:92-106`), Group 2, pinned model names; judged under the brief's per-model-doctrine criterion; low; withheld; follow-up F13 (boris re-sync).
+  - F16 (`reference/model-adaptation/opus-5.md:62-63,207-208,243-246`), Group 2, brittle skill files (maintainer bookkeeping in a model-facing chapter); I13 for the citation; low; withheld; follow-up F8 (non-loading citation) and a maintainer note.
+- **playgrounds** (2):
+  - F3 (`plugins/playgrounds/skills/use/SKILL.md:72-73`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims"; low; withheld; follow-up F6 (case 3 quotes the command, unchanged).
+  - F4 (`plugins/playgrounds/skills/use/SKILL.md:53-56`), Group 2, "Volatile specifics: hardcoded paths, flags, version numbers, API claims"; low; withheld; follow-up F6.
+- **playwright** (2):
+  - F6 (`plugins/playwright/skills/playwright/SKILL.md:74-77`), Group 2, row "Volatile specifics: hardcoded paths, flags, version numbers, API"; low; withheld; follow-up F6.
+  - F7 (`plugins/playwright/skills/playwright/reference/windows-quirks.md:82`), Group 2, row "Volatile specifics: hardcoded paths, flags, version numbers, API"; low; withheld; follow-up F6 (setup/SKILL.md:34-40 consumes the claim).
+- **plugin-quality** (5):
+  - F8 (`plugins/plugin-quality/skills/audit/SKILL.md:58-92 (and skills/setup/SKILL.md:28-30)`), Group 1b, "Inline lookup tables, point systems, arithmetic rubrics the model must compute" (replacement: data in files or tool results); medium; recorded as follow-up F19 in the record: a synced copy of `context-zone.sh` plus its test, a registry entry, and a sync script is a mechanism change, not an audit hunk. Leave `:58-92` and `setup/SKILL.md:28-30` as they are.
+  - F19 (`plugins/plugin-quality/agents/auditor.md:117-119`), Group 2, Volatile specifics (two live documentation page titles stated as bare fact with no date; they illustrate the "same subject"); low; withheld; follow-up F6.
+  - F20 (`plugins/plugin-quality/skills/audit/references/component-types/skill.md:18-20 and :22-24`), Group 2, Volatile specifics (harness-capability claims with no verification date or recheck trigger); low; withheld; follow-up F6.
+  - F21 (`Dated verification stamps with no recheck trigger (six sites)`), none in prompt-audit's tables (it names the undated claim as the defect, and these are dated); low; withheld; follow-up F6 (dated stamps with no recheck trigger).
+  - F22 (`plugins/plugin-quality/agents/auditor.md:5`), none in prompt-audit's tables (it does not error on the target and is not a sampling parameter); low; withheld, low confidence; `effort: high` is a fleet convention.
+- **prototype** (1):
+  - F8 (`plugins/prototype/skills/explore-directions/SKILL.md:161-162`), Group 2, "Verbose SKILL.md" (a sentence the model has to reconcile before it can act on it); low; withheld, low confidence.
+- **provenance** (2):
+  - F14 (`plugins/provenance/skills/audit/SKILL.md:2, :82, :227 versus reference/rubric.md:297`), Group 1c, Padding (duplicated wordings of one rule that the model must reconcile); low; withheld; recorded as follow-up F20 in the record (script and test change).
+  - F15 (`plugins/provenance/skills/audit/SKILL.md:2`), Group 2, Trigger-case enumeration (a description listing near-synonymous example); low; withheld, low confidence.
+- **rate-limit-guard** (2):
+  - F4 (`plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md:11-109 (and SKILL.md:109-200, which drives it)`), Group 4, An LLM executor for a deterministic plan (a call whose inputs fully determine its output executed by the model instead of code); medium; recorded as follow-up F15: scripting the statusline compose transform is a code change with its own tests, not an audit hunk.
+  - F5 (`plugins/rate-limit-guard/reference/reader-contract.md:206-209`), Group 2, Volatile specifics (a harness-capability claim with no verification date); Group 2, Time-sensitive content ("until it stabilizes"); low; withheld; follow-up F6.
+- **repo-fleet-hygiene** (3):
+  - F13 (`plugins/repo-fleet-hygiene/skills/apply/SKILL.md:2 (frontmatter description)`), Group 2, Trigger-case enumeration (near-synonymous example queries); low; withheld, low confidence.
+  - F14 (`plugins/repo-fleet-hygiene/skills/audit/SKILL.md:26 and :236`), Group 1c, Padding (near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - F15 (`plugins/repo-fleet-hygiene/skills/setup/SKILL.md:126-128 (setup delta)`), Group 1c, Padding (limits with escape hatches; commentary about the instruction); low; withheld, low confidence.
+- **repo-hygiene** (1):
+  - F9 (`plugins/repo-hygiene/skills/clean/reference/invocation-forms.md:14-16 (and its successor text after F1)`), Group 2, Volatile specifics (an API/harness capability claim with a source but no verification date); low; withheld; follow-up F6.
+- **review** (6):
+  - F16 (`plugins/review/agents/*.md:6 (all six agents)`), Group 4, Request config (an effort level pinned across a model change); low; withheld; effort sweep is a measurement item.
+  - F17 (`plugins/review/agents/*.md:5 and plugins/review/skills/fanout/context/run-everything-mode.md:141`), Group 4, Request config (model routing with no recorded baseline); low; withheld; model routing without baseline.
+  - F18 (`plugins/review/skills/quality-gate/context/pr.md:11-24, plugins/review/skills/quality-gate/context/code.md:7, plugins/review/skills/fanout/SKILL.md:127-129`), Group 2, Volatile specifics (harness capability claims with no verification date); low; withheld; follow-up F6.
+  - F19 (`plugins/review/skills/security-review/SKILL.md:15-16`), Group 1d, Fossils ("known issue with [tool]" comment); Group 2, Volatile specifics; low; withheld; follow-up F6.
+  - F20 (`plugins/review/skills/code-review/SKILL.md:47-50`), none (a sentence fragment; outside prompt-audit's pattern tables); low; withheld, low confidence.
+  - F21 (`plugins/review/agents/ecosystem-specialist.md:22, plugins/review/skills/fanout/context/fix-pass-mode.md:7, plugins/review/skills/quality-gate/context/close-out.md:38, 102, 112, 260, plugins/review/skills/quality-gate/context/spec.md:59, 80, 104`), Group 2, Volatile specifics (hardcoded paths that resolve only in one repository); low; withheld; follow-up F8 (repo-relative citations that resolve only in the marketplace checkout).
+- **session-flow** (11):
+  - F26 (`skills/running-retro/SKILL.md:52-53 and skills/running-retro/context/checkpoint.md:136`), Group 1f, Output-shaping choreography (numeric ceiling); low; withheld, low confidence.
+  - F27 (`skills/setup/SKILL.md:47-50 and skills/running-retro/SKILL.md:177, 210`), Group 2, Pinned model names; duplicated info across SKILL.md and the manifest; low; withheld, low confidence.
+  - F28 (`skills/orient/SKILL.md:29-36`), Group 2, Volatile specifics (harness-behavior claims with no verification date); low; withheld; fleet follow-up F6 (verify and stamp undated harness claims).
+  - F29 (`skills/keep-going/SKILL.md:166-169`), Group 2, Volatile specifics (undated harness claim); low; withheld; follow-up F6.
+  - F30 (`skills/retro/SKILL.md:116-118`), Group 2, Volatile specifics (a setting default stated as bare fact, undated); low; withheld; follow-up F6.
+  - F31 (`skills/handoff/context/gotchas.md:43-44 and skills/find-handoff/SKILL.md:213-215`), Group 2, Volatile specifics (undated harness-behavior claims); low; withheld; follow-up F6.
+  - F32 (`skills/orchestrate/SKILL.md:40-41 and 99-101`), Group 1d, Fossils (a delegation-suppressing guardrail); low; withheld; candidate for the wave-1 behavioral spot-check on orchestrate.
+  - F33 (`skills/orchestrate/context/sources.md:53-57, 74-76, 80-81, 263-267`), Group 2, Pinned model names (in citations backing a model-agnostic brief); low; withheld; refresh citations on the next sources re-verify.
+  - F34 (skills/orient/SKILL.md:2, skills/find-handoff/SKILL.md:2, skills/reanchor/SKILL.md:2 (frontmatter `description`)), Group 2, Trigger-case enumeration (near-synonym lists); low; withheld, low confidence.
+  - F35 (`skills/handoff/context/gotchas.md:37-38`), Group 2, The recency trap (one narrow conditional with a numeric threshold and no stated general principle); low; withheld, low confidence.
+  - F36 (`skills/workflow/context/philosophy.md:16-18`), Group 1d, Fossils (a context-budget line written for context-limited sessions); low; withheld, low confidence.
+- **setup-lane** (13); shared note: withheld; F20, F21, F22, F27 join follow-up F6; F23, F24 join a benchmark-figure note under F6:
+  - T5 (`Undated harness-release claims`), Group 2, Volatile specifics (version numbers and API claims with no verification date); medium (pattern match); action withheld to `flag`; withheld; follow-up F6.
+  - T6 (`"Do not invent an organization, repository, marketplace, or environment-variable prefix"`), Group 1c, Prohibition lists; signal `do not hallucinate` ("re-test whether you still need it - removal here is low confidence"); low; withheld, low confidence.
+  - T8 (`Gotchas sections that restate rules already in the body`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - T9 (`Reconfiguration paragraph duplicated verbatim across the fleet`), none in prompt-audit's tables; keep-list 8 (working redundancy is not cruft); low; withheld; keep-list 8.
+  - F12 (`plugins/source-control/skills/setup/SKILL.md:315`), Group 2, The recency trap (a standing invitation to encode each session's stumble as a permanent rule); medium; already covered by source-control F66.
+  - F20 (`plugins/discovery/skills/setup/SKILL.md:57-62, :63-71, :85`), Group 2, Volatile specifics (harness version numbers stated as bare fact, no verification date, no recheck trigger); low; see the shared note.
+  - F21 (`plugins/computer-use/skills/setup/SKILL.md:30 and :44`), Group 2, Volatile specifics (product-availability and plan-tier claims with no verification date); low; see the shared note.
+  - F22 (`plugins/dometrain/skills/setup/SKILL.md:112-113 and plugins/miro/skills/setup/SKILL.md:102-103`), Group 2, Volatile specifics (a hardcoded harness path stated as fact, no verification date); low; see the shared note.
+  - F23 (`plugins/context7/skills/setup/SKILL.md:91`), Group 2, Volatile specifics; a restated external benchmark figure with no recheck trigger; low; see the shared note.
+  - F24 (`Measured figures in the statusline guard plugins`), Group 2, Volatile specifics; restated figures with no verification date or recheck trigger; low; see the shared note.
+  - F25 (`plugins/actionlint/skills/setup/SKILL.md:100-106`), Group 2, Volatile specifics (a version-pinned claim); dated, but with no recheck trigger; low; see the shared note.
+  - F26 (`plugins/ai-briefing/skills/setup/SKILL.md:99-100`), Group 2, Time-sensitive content ("current" with no date and no statement of what the restriction is); low; see the shared note.
+  - F27 (`plugins/autonomy/skills/setup/SKILL.md:112-116 and templates/ci-otlp-artifact.md:94-97`), Group 2, Volatile specifics (API and beta-flag claims whose verification stamps carry no date and no recheck trigger); low; see the shared note.
+- **skill-quality** (2):
+  - F8 (`plugins/skill-quality/skills/check/SKILL.md:160-164 and :170-172`), Group 2, Volatile specifics (harness-capability claims with no verification date); low; withheld; follow-up F6.
+  - F9 (`plugins/skill-quality/skills/setup/SKILL.md:16-20`), Group 2, Volatile specifics; low; withheld; setup lane T5 verdict stands; follow-up F6.
+- **songwriting** (2):
+  - F11 (`plugins/songwriting/skills/co-write/SKILL.md:166-167`), Group 1d, "Migration-relative phrasing", plus the time-relative "today"; low; withheld, low confidence.
+  - F12 (`plugins/songwriting/skills/object-writing/SKILL.md:99-101`), Group 2, "Volatile specifics"; low; withheld; follow-up F6.
+- **source-control** (10):
+  - F72 (`skills/babysit-prs/reference/freshness.md:20-26,45,80-82`), Group 2, volatile specifics (external API behavior claims with no verification date or recheck trigger); medium; withheld; follow-up F6 (undated external and harness claims).
+  - F73 (`skills/babysit-prs/reference/safety.md:386-429`), Group 2, volatile specifics (harness-capability claims with version pins and no as-of date; doc links present, no recheck trigger); medium; withheld; follow-up F6.
+  - F74 (`skills/pull-request/reference/monitor.md:388-389`), Group 2, volatile specifics (a named third-party bot's login, signalling convention, and timing, undated); medium; withheld; follow-up F7 (Codex-specific reviewer shapes).
+  - F75 (`skills/pull-request/reference/readiness.md:41,83-92,140,147-156`), Group 2, volatile specifics (same as F74; the Gate 5 command bakes a vendor login into a control gate); medium; withheld; follow-up F7.
+  - F76 (`skills/babysit-prs/reference/loop.md:462-474`), Group 2, volatile specifics (undated harness-capability claims stated as bare fact); low; withheld; follow-up F6.
+  - F77 (`skills/commit/SKILL.md:96-97,341-346; skills/commit/reference/exec-bit.md:8-11`), Group 1a, trait claims ("you tend to"); Group 2, history narratives ("the observed failure"); low; withheld, low confidence.
+  - F78 (`skills/pull-request/reference/prep.md:29`), Group 4, request config and architecture (a delegation cap); low; withheld; delegation-cap candidate for a behavioral baseline, alongside session-flow F32.
+  - F79 (`skills/babysit-prs/reference/stuck-checks.md:62-67,95-98`), Group 2, volatile specifics (marketplace-specific workflow and repository names in a plugin body); low; withheld, low confidence.
+  - F80 (`skills/pull-request/templates/checklist.md:9`), keep-list item 8 exception (duplicates that disagree): `create.md` §2.4.1 pushes through `push-branch.sh`; low; withheld, low confidence.
+  - F81 (`skills/babysit-loop/reference/promotion-evidence-resolution.md:9,28,35,44; skills/babysit-prs/reference/safety.md:722`), outside prompt-audit's tables; citation form; low; withheld; follow-up F8 (cross-plugin relative links).
+- **tdd**: none.
+- **testing** (7):
+  - F5 (`plugins/testing/skills/diagnose/SKILL.md:12-27`), Group 2, "Verbose SKILL.md explaining things the model already knows"; medium; fleet decision: the gather block keeps its settled wording, including the "pipe is the bound" paragraph and the "rather than pre-compute lines" sentence.
+  - F6 (`plugins/testing/skills/plan/SKILL.md:12-28`), Group 2, as F5; medium; same.
+  - F7 (`plugins/testing/skills/run-e2e/SKILL.md:12-27`), Group 2, as F5; medium; same.
+  - F8 (`plugins/testing/skills/write/SKILL.md:12-27`), Group 2, as F5; medium; same.
+  - F25 (`plugins/testing/skills/diagnose/SKILL.md:68 (and diagnose/context/investigate.md:16, write/SKILL.md:74)`), Group 2, "Volatile specifics: ... version numbers, API claims with no verification date"; low; withheld; follow-up F6.
+  - F26 (`plugins/testing/skills/run-e2e/context/e2e.md:12`), Group 2, "Volatile specifics": an undated version floor; low; withheld, low confidence.
+  - F28 (`plugins/testing/skills/run-e2e/context/e2e-config.md:5, 14, 35-37 (and non-ui.md:3, 5)`), No prompt-audit row; low; withheld, low confidence.
+- **toolchain** (6):
+  - F13 (`plugins/toolchain/skills/lint/SKILL.md:35-37`), Group 2, Volatile specifics (measured figures with no basis, date, or recheck trigger); low; withheld, low confidence.
+  - F14 (`plugins/toolchain/skills/check/context/dotnet.md:52`), Group 2, Volatile specifics; dated, but with no recheck trigger; low; withheld, low confidence.
+  - F15 (`plugins/toolchain/skills/check/context/go.md:38`), Group 2, Volatile specifics (a verification stamp with a toolchain version but no date and no recheck trigger); low; withheld, low confidence.
+  - F16 (`plugins/toolchain/skills/check/SKILL.md:24-27 and plugins/toolchain/skills/lint/SKILL.md:24-27`), Group 2, Volatile specifics (an undated harness-capability claim stated as bare fact); low; withheld; fleet template, follow-up F6 pool.
+  - F17 (`plugins/toolchain/skills/check/SKILL.md:191-197 and plugins/toolchain/skills/lint/SKILL.md:214-224`), Group 1c, Padding (near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - F18 (`plugins/toolchain/skills/check/SKILL.md:2`), Group 2, Trigger-case enumeration ('run tests' and 'run the tests' are the same intent); low; withheld, low confidence.
+- **verification** (3):
+  - F6 (`plugins/verification/skills/measure/context/performance.md:65`), Group 2, Volatile specifics (a count about another marketplace's skill, stated as bare fact with no verification date or recheck trigger); medium; superseded by L1 below (the whole bullet goes).
+  - F8 (`plugins/verification/skills/confirm/SKILL.md:55, :68-69, :75, :138, :145, :153 and plugins/verification/skills/measure/SKILL.md:63-68`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 8 and 10.
+  - F9 (`plugins/verification/skills/measure/SKILL.md:2`), Group 2, Trigger-case enumeration (nine quoted phrases; 'is it faster', 'did that actually speed it up'); low; withheld, low confidence.
+- **visualization**: none.
+- **wizard** (2):
+  - F1 (`plugins/wizard/skills/generate/SKILL.md:99-104`), Group 1a, pressure language; low; withheld, low confidence; keep-list 3 (credential-handling gate carries its reason).
+  - F2 (`plugins/wizard/skills/generate/SKILL.md:86`), Group 1c, padding row, matching the "near-duplicate sentences across sections"; low; withheld, low confidence; keep-list 8.
+- **work-items** (7):
+  - F17 (`The telemetry upsert is a 60-line shell block the model transcribes, in two files`), Group 4, An LLM executor for a deterministic plan (a fixed sequence whose inputs fully determine its output); medium; recorded as follow-up F11 in the record: extracting the 60-line upsert into `plugins/work-items/scripts/lane-telemetry-upsert.sh` is a mechanism change that needs its own script, test suite, and loop-lane convention review, not an audit hunk. Leave both fenced blocks and the classifier-fallback section as they are.
+  - F18 (`Undated harness-behavior claims (6 sites)`), Group 2, Volatile specifics (harness and tool claims with no verification date or recheck trigger); low; withheld; follow-up F6.
+  - F19 (`Gotchas that restate rules already in the body`), Group 1c, Padding (repetition as reinforcement; near-duplicate sentences across sections); low; withheld; keep-list 10.
+  - F20 (`Purpose paragraphs that restate the description verbatim`), Group 1c, Padding (repetition as reinforcement); low; withheld; keep-list 8.
+  - F21 (`Remaining near-duplicate trigger pairs`), Group 2, Trigger-case enumeration (the same row as F11, at a scale too small to call growth); low; withheld, low confidence.
+  - F22 (`decompose/context/container-lifecycle.md:14, "Step 3 (above)"`), none in prompt-audit's tables; a stale relative pointer left behind when the section moved out of `SKILL.md` into a context file; low; withheld, low confidence.
+  - F23 (`onboard-adapter/SKILL.md:5-8 and :12, YAML comments carrying maintainer rationale`), Group 2, History narratives (a justification for a frontmatter value, addressed to maintainers); low; withheld, low confidence.
+- **x** (2):
+  - F5 (`plugins/x/skills/read/SKILL.md:153-154, 226`), Group 2, "Volatile specifics"; medium; withheld; follow-up F6 (needs live egress to re-verify).
+  - F6 (`plugins/x/skills/read/SKILL.md:160-192 and plugins/x/skills/read/context/failure-modes.md:30-92`), Group 2, "duplicated info across SKILL.md and reference files"; Group 1c, "repetition"; low; withheld; keep-list 8.
 
 ## Follow-ups
 
@@ -249,4 +595,5 @@ Inventoried here as they arise and shipped in the PR body verbatim.
 - F21. `mutation-testing/skills/setup/SKILL.md:80-89` has the model re-derive a suppression entry's `finding_id` hash from its constituents and check node-kind membership by hand (prompt-audit Group 1b and Group 4, the same shape as F19). Ship `plugins/mutation-testing/scripts/suppression-lint.sh` with a test implementing the two published derivations and the membership check, have setup call it, and retarget setup eval 5 and audit eval 3 from "the model re-derives" to the script. Deferred from the audit as a mechanism change.
 - F22. `plugins/ai-briefing/skills/setup/evals/evals.json:33` prompts `/ai-briefing:setup --with-build-deps`, but the skill's contract is `apply install-build-deps`; the case exercises a flag the skill does not accept. Retarget the prompt to the contract form. Observed by the ai-briefing auditor outside the audit's markdown scope.
 - F23. `plugins/dometrain/skills/sync/context/update.md` documents the maintainer-only `--refresh-baseline` command through `${CLAUDE_PLUGIN_ROOT}`, which resolves to the installed plugin cache in a normal session, while the next paragraph forbids running it anywhere but a working clone; the script writes next to itself either way. Give the command as a clone-relative path, or document that the flag is only safe under `--plugin-dir`. A script-safety contradiction, not a prose hunk; observed by the dometrain auditor.
+- F24. Add a criteria row to `plugins/claude-config/skills/audit-instructions/reference/criteria.md` for each recurring shape in [Catalog gaps](#catalog-gaps): dated stamps with no recheck trigger, migration-relative phrasing inside reference and context files, routing text that names a skill absent from `plugins/`, sibling-file meta-commentary, and maintainer rationale inside model-facing YAML comments; the rest are one-offs and stay listed.
 - F10. Not an audit finding, recorded so it is not mistaken for one: `.claude/hooks/cloud-bootstrap-plugins.test.sh` fails 15 of 32 assertions on this Windows host ("not installed at user scope") with `.claude/cloud-bootstrap.sh` and the suite byte-identical to `origin/main`. The failure is environmental or pre-existing; confirm on CI and file separately if it reproduces there. Same status for `plugins/docs-hygiene/skills/audit-noise/scripts/emit-findings.test.sh` ("tier is looked up as IMPORTANT", "Location is repo-relative") and `plugins/provenance/skills/audit/scripts/list-corpus.test.sh` and `emit-findings.test.sh` ("a directory target lists its markdown"), which fail on this host with their scripts and suites byte-identical to `origin/main`. Same again for `plugins/work-items/skills/onboard-adapter/scripts/generate-adapter.test.sh` case 116, and for the nine eval-case digest assertions in `plugins/planning/tests/interview-defenses.test.sh` (`interview/evals/evals.json` unchanged since the digests were pinned; local jq 1.8.2), and for four Windows temp-path cases in `plugins/instruction-placement/scripts/verify-load.test.sh` (selected by a basename collision on `typescript.md`; the probe and suite are unchanged on this branch), and for `plugins/claude-ops/skills/audit-install-state/scripts/install_state.test.sh` (a Windows filename-syntax error on a fixture path) and `plugins/claude-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh` (no `installed_plugins.json` in the temp config), both with scripts and suites byte-identical to HEAD, and for `plugins/claude-ops/skills/plugins/scripts/fleet-state.test.sh`, which fails a varying subset of its 74 cases on this host (six inside a check-skill run, two when run alone) with the scripts byte-identical to `origin/main`. Same again for `plugins/claude-config/skills/audit-instructions/scripts/restatement-scan.test.sh` (two I29 fixture cases, script and fixtures byte-identical to `origin/main`) and the one `emit-findings.test.sh` case downstream of it ("Action names a body cut"), which reads the same scanner's output. Same again for `plugins/claude-config/skills/audit-permission-grants/scripts/permission-rule-check.test.sh` case 6b ("vendored copies excluded, exactly one finding"), whose script and suite no branch commit touched (main has since tidied the suite in ac7eeeac8). The fleet gather block itself ("the harness runs a skill's whole pre-compute block as one shell invocation") is an undated harness claim in about 55 skills; one dated four-part record on the worktree skill, which owns the mechanism, with the copies pointing at it, clears every site at once. discovery adds six undated claim families across thirteen files (silent preload failure, `AskUserQuestion` and plan-mode tools filtered from non-fork subagents, the Workflow tool absent from subagents, background as the default execution mode, spawns permission-classified before launch); the fix is one dated record per claim in the plugin's `reference/parent-contract.md` with the skills pointing at it. claude-config adds the undated `pre-v2.1.211` boundary at six body sites (the dated owner is `audit-permission-state/reference/criteria.md`), dated-but-triggerless stamps across eight files, the `conflict-scan.sh` precision figures in `conflict-criteria.md`, and the "Fable 5 subpage" pointers in `audit-prompting-postures/reference/postures.md` that need a Fable 5.1 sibling once it exists. discipline adds five files of undated fork-mode harness claims (`sweep-all/SKILL.md`, its two references, `scrutinize-dont-coast/SKILL.md`, `use-your-skills/SKILL.md`). claude-memory adds the undated upstream-issue state at `audit/reference/official-guidance.md:168`. testing adds the xUnit v3 and .NET 10 framework-trap claims (`diagnose/SKILL.md:68`, `diagnose/context/investigate.md:16`, `write/SKILL.md:74`) and the `playwright-cli` version floor in `run-e2e/context/e2e.md:12`. planning also adds two undated harness claims to F6: the agent-teams "experimental, default-off" status in `plan/SKILL.md` and the "cannot read effort or advisor state" claim in `interview/context/session-config.md`. `plugins/ai-slop/skills/audit/scripts/detect.test.sh` fails its four "git absent" cases (4 of 202) on this Windows host because the test symlinks the shell builtin `printf` into a fake PATH directory (`ln: failed to create symbolic link`); the scripts are unchanged by the ai-slop commit. `plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.test.sh` fails its two telemetry-sink cases and `hygiene.test.sh` fails `test_stash_must_exist_in_an_independent_checkout` and `test_preview_allows_root_children_os_managed_snapshot` on this host with the scripts byte-identical to HEAD; neither case reads markdown, and the frontmatter-belt assertions in `test_hygiene.py` that do read `clean/SKILL.md` pass after the disk-hygiene commit. `plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh` fails 4 of 53 cases on this host (embedded quote and backslash unescaping in the preview script, arrow-in-filename, tab-bearing path) with `detect.sh` and the suite byte-identical to HEAD; the code-tidying commit touches only prose the script does not read. `plugins/knowledge/skills/docpage-digest/scripts/check-fences-exact.test.sh` fails six cases on this host with a `UnicodeEncodeError` writing U+2265 to the cp1252 console, script and suite byte-identical to HEAD; the knowledge commit touches no fence, quote payload, or script. `plugins/education/skills/teach/scripts/list-workspaces.test.sh` fails "worktree lists the MAIN repo's workspace" on this worktree checkout with the script unchanged.
