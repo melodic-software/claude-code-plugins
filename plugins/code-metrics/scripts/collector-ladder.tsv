@@ -53,5 +53,5 @@ go	function_lines	lizard
 dotnet	file_lines	scc
 dotnet	file_lines	line-counter
 dotnet	duplication	jscpd
-dotnet	type_coverage	none	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
+dotnet	type_coverage	n/a	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
 dotnet	*	deferred	C# lane deferred; research tag probe:dotnet-metrics-linux
