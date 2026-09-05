@@ -128,6 +128,81 @@ Everything else routes through
 from the bundled templates (or `check` to inspect existing lanes read-only). It is
 idempotent and safe to re-run to add or retune lanes.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed. Doubt keeps the comment in every posture. Any other value is read as strict. |
+| `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
+| `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively** — Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure code-tidying@<marketplace>`.
+2. **Headless** — repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install code-tidying@<marketplace> -s <scope> --config comment_posture=<value>
+   ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior. A check run in the old session
+   still reports the old value, and that is not a failed write.
+
+3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "code-tidying@<marketplace>": {
+         "options": {
+           "comment_posture": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

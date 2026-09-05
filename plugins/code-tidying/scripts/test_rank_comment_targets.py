@@ -17,6 +17,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# The fixtures build throwaway repositories. Under an inherited absolute GIT_DIR
+# (or GIT_WORK_TREE / GIT_CONFIG) `git init` and `git config` would write into the
+# caller's repository instead of the fixture, so clear the ambient git environment
+# once, before any fixture is built (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 SCRIPT = Path(__file__).with_name("rank-comment-targets.py")
 
 
