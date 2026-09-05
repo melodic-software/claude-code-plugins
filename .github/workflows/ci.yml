@@ -352,15 +352,39 @@ jobs:
         with:
           config: .editorconfig-checker.json
 
-      # Deliberately NOT scoped to the diff yet, at 111 s per run over 766
-      # files: the action's `paths` input takes search roots, not a file list,
-      # so a changed-files input is a ci-workflows change, landing separately on
-      # branch `ci-perf/shellcheck-files-input`.
+      # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
+      # cannot tell a blank input from an unset one, so it falls back to its own
+      # discovery. That is the wanted answer on push, where there is no base to
+      # diff against, and on any diff that changes what every script is judged
+      # against rather than a script: the rcfile, or a sourced library or test
+      # harness, which the composite cannot see is load-bearing outside the
+      # list. This branches in the shell rather than in `if:` because a step
+      # cannot carry both a resolver gate and an event gate.
+      - name: Select the changed shell scripts
+        id: changed_shell
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed=''
+          files=''
+          if [ -n "$BASE_REF" ]; then
+            changed=$(git diff --name-only --diff-filter=d "origin/$BASE_REF...HEAD")
+            if ! printf '%s\n' "$changed" |
+              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$'; then
+              files=$(printf '%s\n' "$changed" | grep -E '\.(sh|bash)$' || true)
+            fi
+          fi
+          {
+            printf 'files<<SHELL_FILES\n%s\nSHELL_FILES\n' "$files"
+          } >>"$GITHUB_OUTPUT"
+
       - name: Lint shell scripts
         id: shellcheck
+        if: needs.changes.outputs.run_shell == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
+          files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
 
       - name: Lint workflows
@@ -1162,7 +1186,7 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            shellcheck=${{ steps.shellcheck.outcome }}
+            shellcheck=${{ needs.changes.outputs.run_shell == 'false' && 'success' || steps.shellcheck.outcome }}
             actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
             marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
