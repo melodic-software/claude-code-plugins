@@ -24,6 +24,7 @@ context, read the file directly.
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it; read before editing any skill body |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
+| `plugins/provenance/skills/audit/AGENTS.md` | `plugins/provenance/skills/audit/**` | Editing the provenance audit skill: contributor conventions |
 | `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->

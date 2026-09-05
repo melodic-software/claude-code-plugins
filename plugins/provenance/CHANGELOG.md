@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.5]
+
+### Changed
+
+- **`audit`:** `reference/rubric.md` drops its version-history preamble and the two in-line
+  version notes, keeping the invalidation rule; the editor rule about measurement results moves to
+  a new `skills/audit/AGENTS.md`, which also takes the `affected-tests.sh` exit-3 note from
+  `context/gotchas.md`. `context/persist-findings.md` states its eight relay-boundary rules in the
+  present tense instead of as past bug reports. `reference/nomination.md` drops its rubric-version
+  pins, states the judge and review case block once, and trims the reviewer rationale to the one
+  fact the Judgment section does not carry. `reference/source-fetch.md` and
+  `reference/dispositions.md` drop the research-phase incident, the marketplace-specific generator
+  path, and the golden-set starting count. `context/gotchas.md` drops its preamble and the
+  8 percent figure.
+- **`setup`:** removed the editor-addressed sentence after the fixture-exclusion rule.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.2]
 
 ### Fixed

@@ -131,7 +131,6 @@ A repository that runs this plugin's own eval harness lists the fixture tree in
 would decline the fixtures under the eval harness's own config isolation, leaving the eval
 author reading prose instead of results. As a config entry, a normal run declines the tree and
 says so, while the harness lifts the config layer and the fixtures report their real findings.
-If someone proposes moving this into the script, that is the reason not to.
 
 ## Enabling the trigger-less-stamp check
 
