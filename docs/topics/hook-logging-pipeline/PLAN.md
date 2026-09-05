@@ -565,7 +565,10 @@ Runs before retention so every producer row, including the one `session-retentio
   per session; envelopes without one route to the shared file) and the follow-up pointer for the
   fleet-wide `data.session_id` addition and the envelope 1.1 bump (#930).
 - [ ] claude-ops patch bump above `origin/main` with the CHANGELOG entry at the head; the
-  `plugin.json` description gains one sentence (skill count unchanged).
+  `plugin.json` description gains one sentence (skill count unchanged). Main took 0.42.3 (a
+  fleet-state fix) while B was open, so B moved to 0.42.4 and this PR's number is 0.42.5 unless
+  main moves again; `retirements.yaml` `claude-ops-r001` carries that same number and is
+  re-checked here.
 - [ ] Toggle cycle: enable, fire ten events, disable, fire ten, enable, fire ten;
   `ls -R .observability/claude/` shows only `.gitignore`, `sessions/<id>.jsonl`, and (when
   configured) `prune-pending/`.

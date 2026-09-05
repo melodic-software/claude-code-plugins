@@ -6,7 +6,7 @@
 ---
 id: claude-ops-r001
 retired: 2026-09-05
-plugin_version: 0.42.4
+plugin_version: 0.42.5
 kind: file
 path: .claude/observability/hook-events.jsonl
 action: migrate
