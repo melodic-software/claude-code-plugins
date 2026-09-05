@@ -1123,6 +1123,36 @@ fi
 # cases above already use, and each was checked to FAIL when that ordering is
 # inverted.
 
+# --- Case 34: CRLF does not decide which of the pass's verdicts is readable ---
+# The shared jq pass emits the payload and then several bare tokens. A native jq
+# on Windows ends every line with CRLF, `read -r` splits on LF only, and MSYS
+# command substitution strips only the TRAILING CRLF — so before the strip in
+# _rlg_absorb_jq_lines, whichever token was not last arrived as `true\r` and
+# compared equal to nothing. Both tokens are asserted here through the same CRLF
+# shim, because each one silently breaks a different half of the contract: the
+# window-bearing verdict decides whether a writer may proceed through a held
+# lock, and the enablement verdict decides whether the tee runs at all. Invisible
+# on a Linux runner without this shim, where the real jq emits LF.
+HOME_CRW="$WORK/home-crlf-windows"
+CRW_DIR="$HOME_CRW/.claude/rate-limit-guard"
+mkdir -p "$CRW_DIR/.rate-limits.json.lock"
+printf '%s' "$(build_input)" | HOME="$HOME_CRW" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if jq -e '.rate_limits' <"$HOME_CRW/$TEE_REL" >/dev/null 2>&1; then
+  ok "crlf: the window-bearing verdict survives CRLF (writes through a held lock)"
+else
+  fail "crlf: a CR on the window-bearing token blocked a window-bearing write"
+fi
+rmdir "$CRW_DIR/.rate-limits.json.lock" 2>/dev/null || true
+HOME_CRG="$WORK/home-crlf-gate"
+mkdir -p "$HOME_CRG"
+write_settings "$HOME_CRG/.claude/settings.json" "$USER_FALSE"
+printf '%s' "$(build_input)" | HOME="$HOME_CRG" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if [[ ! -e "$HOME_CRG/$TEE_REL" ]]; then
+  ok "crlf: the enablement verdict survives CRLF (a configured false still gates)"
+else
+  fail "crlf: a CR on the enablement token let a disabled tee write"
+fi
+
 STATE_EMAIL='{"oauthAccount":{"emailAddress":"lane@example.com"},"projects":{}}'
 
 # Seed a state file and pin it older than anything the render will write, so the
@@ -1132,7 +1162,7 @@ write_old_state() {
   touch -t 200001010000 "$1"
 }
 
-# --- Case 34: the state file's account lands in the snapshot ------------------
+# --- Case 35: the state file's account lands in the snapshot ------------------
 HOME_ACCT="$WORK/home-account"
 mkdir -p "$HOME_ACCT"
 write_old_state "$HOME_ACCT/.claude.json" "$STATE_EMAIL"
@@ -1149,7 +1179,7 @@ else
   fail "account: injection damaged the snapshot: $(cat "$ACCT_FILE" 2>/dev/null)"
 fi
 
-# --- Case 35: no state file → no account key ---------------------------------
+# --- Case 36: no state file → no account key ---------------------------------
 # Absence, never a guess: the reader contract routes a missing account.email to
 # "could not attribute", which is a state every consumer already handles.
 HOME_NOACCT="$WORK/home-account-absent"
@@ -1161,7 +1191,7 @@ else
   fail "account: key present without a state file: $(jq -c '.account' <"$HOME_NOACCT/$TEE_REL")"
 fi
 
-# --- Case 36: CLAUDE_CONFIG_DIR redirects the state file read ----------------
+# --- Case 37: CLAUDE_CONFIG_DIR redirects the state file read ----------------
 # Set inline on this one invocation: the suite unsets it at the top for
 # hermeticity, and exporting it would redirect the settings lookup for every
 # case above as well. HOME carries a DIFFERENT address, so a reader that ignored
@@ -1179,7 +1209,7 @@ else
   fail "account: CLAUDE_CONFIG_DIR ignored, account.email = $(jq -r '.account.email' <"$HOME_CFG/$TEE_REL" 2>/dev/null)"
 fi
 
-# --- Case 37: a malformed value is dropped, and the statusline is untouched ---
+# --- Case 38: a malformed value is dropped, and the statusline is untouched ---
 # The value crosses into a JSON string this writer builds with parameter
 # expansion, so a quote or a backslash could terminate or escape out of it. Each
 # fixture below is checked twice: the account key must be absent, AND the
@@ -1224,7 +1254,7 @@ else
   fail "account: control did not inject, so the malformed-value cases are vacuous"
 fi
 
-# --- Case 38: a stdin account key wins; the writer injects nothing ------------
+# --- Case 39: a stdin account key wins; the writer injects nothing ------------
 # The projection already forwards any top-level key containing "account", so
 # when the harness supplies identity itself the two shapes must not contradict
 # each other. The state file here holds a DIFFERENT address, so a writer that
@@ -1245,7 +1275,7 @@ else
   fail "account: writer injected over a stdin account key: $(jq -c '.account' <"$STDIN_ACCT_FILE")"
 fi
 
-# --- Case 39: a state file newer than the chosen record → no account key ------
+# --- Case 40: a state file newer than the chosen record → no account key ------
 # The drain can choose ANY session's record, so the file that dates the
 # observation is the chosen record's spool file, not this render's. A state file
 # modified after that observation means a switch may have happened in between,
