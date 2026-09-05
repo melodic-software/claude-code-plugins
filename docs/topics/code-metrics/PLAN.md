@@ -60,8 +60,9 @@ without editing the plugin.
 - `scc` is not a cyclomatic collector (substring matching, file-level, 287 of 366 languages with a
   non-empty check list); if its figure appears it is named as scc's own approximation. No skill or
   plugin name uses `static`: coverage is a dynamic measure that this plugin reads statically.
-- Validation before any push: `scripts/affected-tests.sh --run`; PRs open as drafts and satisfy
-  `.claude/rules/pr-body-contract.md`.
+- Validation before any push: `scripts/affected-tests.sh --run`. One branch
+  (`claude/code-quality-metrics-plugins-p99tkz`) and one draft PR, opened only after all of the
+  work is done and validated (Q22); the PR body satisfies `.claude/rules/pr-body-contract.md`.
 
 ### Acceptance criteria
 
@@ -124,15 +125,14 @@ without editing the plugin.
   detected, Stryker excludes them), passed to `mutation-testing` rather than acted on here.
 - The nine unlinked "dead code" mentions across other plugins; that is `discipline:point-dont-copy`
   territory.
-- Cross-plugin reference edits (`verification/skills/measure/context/metrics.md`,
-  `testing/skills/write/context/organize.md`, `mutation-testing/skills/principles`), which ship as a
-  separate PR per Q15, including the missing gate and fallback at `organize.md:63-66`.
+- Nothing else in the plugin's own tree. The cross-plugin reference edits
+  (`verification/skills/measure/context/metrics.md`, `testing/skills/write/context/organize.md`,
+  `mutation-testing/skills/principles`, including the missing gate and fallback at
+  `organize.md:63-66`) are in scope of the same branch and PR per Q22, as their own commits after
+  the plugin's files land.
 
 ### Deferred questions
 
-- Q22, Branch strategy: the session is bound to one branch, which already carries the shipped
-  skill-doctor unit (`b92f6ead`), while Q15 requires the plugin to ship as a separate PR, defer
-  until the /planning:plan approval gate; **arbiter: USER-RESERVED**
 - Q23, A dedicated `skill-doctor` row in `docs/native-surfaces/records.json` needs an
   `upstream-source` pin (the `anthropics/claude-code` CHANGELOG commit SHA), which is outside this
   session's repository scope, defer until the operator supplies the SHA or adds the repository to
