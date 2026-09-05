@@ -39,9 +39,19 @@ Enforcement, so the rule is not merely written down:
   Without that exclusion the contradictory item stays frontier-available, so each lane
   instance in turn claims it, hits the fail-closed admission gate, and escalates — burning a
   worker every pass while the item never moves.
-- **The attended frontier still shows it.** The exclusion is autonomous-only, so a mislabeled
-  item stays visible to `/work-items:attend-queue` and to operators instead of vanishing from
-  every view.
+- **The attended frontier still shows it.** The exclusion is autonomous-only, so `list-frontier`
+  without `--autonomous` (operator listings, container-scoped views) still returns a mislabeled
+  item instead of it vanishing from every derived view.
+- **The human-gated role label is what keeps it in the attended queue.**
+  `/work-items:attend-queue` builds its attention view from the human-gated role label plus a
+  machine-marked comment, not from the frontier, so the attended frontier above is not a
+  substitute for that label. An item carrying a floor class but neither the human-gated role
+  label nor an intake condition matches no row in that view and is floored out of the
+  autonomous frontier, which leaves it reachable by no lane. That is why the attended lane's
+  "Flip to agent-ready" transition refuses to strip the human-gated role label off a floor-class
+  item unless the same edit reclassifies it to C1-C3
+  ([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md), "Human-floor work class:
+  reclassify or stay gated").
 
 C3 `scoped` is deliberately **not** floored at the frontier: its disposition turns on
 bug-fix-vs-feature shape and first-drain ratification, neither readable from a label, so the
@@ -49,7 +59,11 @@ work-loop admission gate owns it.
 
 Remediation when the pair is found on an existing item: keep the work class, remove the
 autonomous-eligible role label, and apply the human-gated role label (default `needs-human`)
-so the item routes to the attended lane.
+so the item routes to the attended lane. Resolving the escalation that follows does **not**
+lift the floor: the attended lane either reclassifies the item to an autonomously dispatchable
+class in the same edit as the role-label flip, or leaves it human-gated with its completion
+route recorded as a comment. A floor-class item never leaves the attended lane carrying the
+autonomous-eligible role label alone.
 
 ## Migration
 
