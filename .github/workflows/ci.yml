@@ -1241,6 +1241,7 @@ jobs:
             evals-quality=${{ steps.evals_quality.outcome }}
             precompute-compose=${{ steps.precompute_compose.outcome }}
             listing-budget=${{ steps.listing_budget.outcome }}
+            listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
