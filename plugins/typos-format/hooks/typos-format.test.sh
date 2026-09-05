@@ -1584,6 +1584,21 @@ else
   fail "telemetry/sink-unset: rc=$RC_NS out=$OUT_NS"
 fi
 
+# --- Stub sink + clean file -> status ok, data.changed false (#3755) ----------
+# typos ran and had nothing to apply: a known false, not an omitted key, so an
+# all-clean session reads "nothing rewritten" rather than "no data".
+TELCL="$(mktemp)"
+SINKCL="$(make_sink "cat >\"$TELCL\"")"
+run_hook_env "$REPO/tel-clean.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKCL" >/dev/null
+wait_for_sink "$TELCL"
+if [[ -s "$TELCL" ]]; then
+  if [[ "$(jq -r '.status' "$TELCL")" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status=$(jq -r '.status' "$TELCL")"; fi
+  if [[ "$(jq -r '.data.changed' "$TELCL")" == "false" ]]; then ok "telemetry/clean: data.changed false on a clean run"; else fail "telemetry/clean: data.changed=$(jq -c '.data.changed' "$TELCL")"; fi
+else
+  fail "telemetry/clean: no envelope written"
+fi
+rm -f "$TELCL"
+
 # --- Stub sink + unfixable finding -> envelope status ok with findings -------
 printf 'this has a disallowme term\n' >"$REPO/tel.txt"
 TEL="$(mktemp)"

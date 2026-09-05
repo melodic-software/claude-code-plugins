@@ -295,10 +295,11 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   RUFF_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-emit_tel "skipped" '[]'
 # The fix/format passes may already have rewritten the file before the verify
 # pass broke; take the disclosure and compose it with the tool-break context
-# as one document (#3406).
+# as one document (#3406). Taken before the telemetry emit so data.changed
+# records that rewrite too.
 hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
+emit_tel "skipped" '[]'
 hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0
