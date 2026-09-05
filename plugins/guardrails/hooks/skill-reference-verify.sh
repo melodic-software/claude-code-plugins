@@ -196,10 +196,13 @@ shopt -u nullglob
 # When it is built, one jq reads every manifest. The previous shape spawned two
 # jq and two tr per manifest, and this marketplace carries 74 of them: 296
 # processes, 468 ms on a Linux host and 11.4 s on Windows Git Bash, for work one
-# process finishes in 6 ms. Each output line is `<manifest>\t<name>\t<paths>`,
-# the declared skill paths joined by \x1f so a path may carry any other
-# character; @tsv escapes tab, newline, CR and backslash, none of which a
-# manifest name or path carries, so every value arrives byte-identical.
+# process finishes in 6 ms. Each output line is
+# `<manifest>\x1e<name>\x1e<paths>`, the declared skill paths joined by \x1f.
+# Raw strings, not @tsv: @tsv backslash-escapes its fields, and the values are
+# used as paths, so they must arrive byte-identical. The two separators are
+# non-whitespace so `read` keeps an EMPTY field in place (tab is IFS
+# whitespace and would collapse a nameless manifest's fields together); neither
+# byte can appear in a manifest name or path.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
@@ -207,7 +210,7 @@ build_plugin_index() {
   PLUGIN_INDEX_BUILT=1
   local m pdir pname paths
   local -A seen=()
-  while IFS=$'\t' read -r m pname paths; do
+  while IFS=$'\x1e' read -r m pname paths; do
     m="${m//$'\r'/}"
     [[ -n "$m" ]] || continue
     pdir="${m%/.claude-plugin/plugin.json}"
@@ -221,7 +224,7 @@ build_plugin_index() {
     jq -r '[input_filename, (.name // "" | tostring),
             ((.skills // null) | if . == null then ""
               elif type == "array" then map(tostring) | join("\u001f")
-              else tostring end)] | @tsv' "${manifests[@]}" 2>/dev/null
+              else tostring end)] | join("")' "${manifests[@]}" 2>/dev/null
   )
   # jq stops the batch at the first manifest it cannot parse, so every manifest
   # behind a malformed one comes back unread. Those, and the malformed one, take

@@ -385,6 +385,8 @@ ctx_contains "bin-name gate: a real command still reaches the scan" "$OUT" "UNKN
 REAL_VERIFIER="$HOOK_DIR/../lib/verification/verify-cli-flag.sh"
 WRAP_ROOT="$TEST_TMPDIR/wrap-root"
 mkdir -p "$WRAP_ROOT/lib/verification"
+# The hook sources the shared cache definitions from the same plugin root.
+cp "$HOOK_DIR/../lib/verification/cli-flag-cache.sh" "$WRAP_ROOT/lib/verification/"
 VLOG="$TEST_TMPDIR/verifier-spawns"
 {
   printf '#!/usr/bin/env bash\n'
@@ -420,13 +422,17 @@ cat >"$FAKE_BIN_DIR/fakesave" <<'FAKE'
 #!/usr/bin/env bash
 echo "Usage: fakesave [options]"
 echo "  --save-dev     save as a dev dependency"
+echo "  --color[=WHEN] colorize the output"
 exit 0
 FAKE
 chmod +x "$FAKE_BIN_DIR/fakesave"
 save_dir="$TEST_TMPDIR/cache-prefix"
 mkdir -p "$save_dir/cache"
 save_target="$save_dir/target.sh"
-SAVE_CONTENT=$'fakesave --save-developer\nfakesave --save-dev'
+# `--color` is documented in the optional-part notation `--color[=WHEN]`; the
+# `[` terminator must be accepted on the warm path exactly as on the cold one
+# (the first hand-copied hook pattern dropped it and flagged --color warm only).
+SAVE_CONTENT=$'fakesave --save-developer\nfakesave --save-dev\nfakesave --color'
 printf '%s\n' "$SAVE_CONTENT" >"$save_target"
 run_save() {
   OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$save_dir" \
@@ -437,9 +443,19 @@ run_save() {
 run_save
 ctx_contains "prefix trap (miss): --save-developer is unknown" "$OUT" "UNKNOWN_FLAG: fakesave --save-developer"
 assert_absent "prefix trap (miss): --save-dev is known" "$OUT" "UNKNOWN_FLAG: fakesave --save-dev "
+assert_absent "optional-part notation (miss): --color[=WHEN] is known" "$OUT" "UNKNOWN_FLAG: fakesave --color"
 run_save
 ctx_contains "prefix trap (hit): --save-developer is still unknown" "$OUT" "UNKNOWN_FLAG: fakesave --save-developer"
 assert_absent "prefix trap (hit): --save-dev is still known" "$OUT" "UNKNOWN_FLAG: fakesave --save-dev "
+assert_absent "optional-part notation (hit): --color[=WHEN] is still known" "$OUT" "UNKNOWN_FLAG: fakesave --color"
+
+# The shared definitions are one file for both paths: the hook's cache-hit
+# match and the verifier's must read the pattern from cli-flag-cache.sh, never
+# from a private copy.
+assert_eq "one flag pattern: the hook carries no private FLAG_PATTERN" 0 \
+  "$(grep -c '\[\]\[:space:\]=,|)' "$HOOK")"
+assert_eq "one flag pattern: the verifier carries no private FLAG_PATTERN" 0 \
+  "$(grep -c '\[\]\[:space:\]=,|)' "$REAL_VERIFIER")"
 
 # ================= VERIFIER OPTION PARSING (positional guard) ===============
 # Verifier options are recognized only before <bin>; a TARGET flag spelled

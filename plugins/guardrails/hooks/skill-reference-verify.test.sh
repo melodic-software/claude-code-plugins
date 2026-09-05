@@ -926,7 +926,12 @@ fi
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
-FIXTURE_MANIFESTS=$(find "$REPO/plugins" -name plugin.json | wc -l | tr -d ' ')
+# Counted with the hook's own glob shape (plugins/*/.claude-plugin/plugin.json),
+# so a fixture manifest at another depth never skews the expectation.
+shopt -s nullglob
+FIXTURE_MANIFEST_FILES=("$REPO"/plugins/*/.claude-plugin/plugin.json)
+shopt -u nullglob
+FIXTURE_MANIFESTS=${#FIXTURE_MANIFEST_FILES[@]}
 MANIFEST_ARGS=$(grep -c 'plugin.json' "$JQ_LOG")
 INVOKE_COUNT=$(grep -c 'INVOKE' "$JQ_LOG")
 assert_eq "lazy index: one jq invocation builds the whole index" 1 "$INVOKE_COUNT"
@@ -963,6 +968,28 @@ assert_silent "declared paths: array and string paths resolve → silent" "$OUT"
 run 'Use `/gamma:hidden`.'
 assert_contains "declared paths: an undeclared directory is not a skill root" "$OUT" \
   "UNRESOLVED_SKILL: /gamma:hidden"
+
+# A manifest with NO name but a skills key: the empty field must stay in place
+# (a whitespace separator collapses it, and the paths land in the name slot),
+# so the plugin indexes under its directory name with its declared path intact.
+mkdir -p "$REPO/plugins/noname/.claude-plugin" "$REPO/plugins/noname/extra/inner"
+MSYS_NO_PATHCONV=1 jq -n '{version:"0.1.0",skills:["./extra"]}' \
+  >"$REPO/plugins/noname/.claude-plugin/plugin.json"
+: >"$REPO/plugins/noname/extra/inner/SKILL.md"
+run 'Use `/noname:inner`.'
+assert_silent "nameless manifest: indexed by directory with its declared path" "$OUT"
+run 'Use `/noname:absent`.'
+assert_contains "nameless manifest: an absent skill still reports under plugins/noname/" "$OUT" \
+  "plugins/noname/"
+
+# A declared path carrying a backslash must arrive byte-identical (@tsv would
+# double it); the directory literally named `.\extra` holds the skill.
+mkdir -p "$REPO/plugins/bslash/.claude-plugin" "$REPO/plugins/bslash/.\\extra/held"
+MSYS_NO_PATHCONV=1 jq -n '{name:"bslash",version:"0.1.0",skills:".\\extra"}' \
+  >"$REPO/plugins/bslash/.claude-plugin/plugin.json"
+: >"$REPO/plugins/bslash/.\\extra/held/SKILL.md"
+run 'Use `/bslash:held`.'
+assert_silent "backslash in a declared path: read byte-identical, skill resolves" "$OUT"
 
 # A manifest jq cannot parse still names its plugin by directory, so a reference
 # to a skill under its conventional `skills/` still resolves and stays quiet.

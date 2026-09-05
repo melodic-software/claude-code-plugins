@@ -90,7 +90,7 @@ esac
 # Bundled verifier missing (install corruption, not a consumer-facing
 # prerequisite) — fail open, don't block, but make it visible once per
 # session rather than a fully silent skip (docs/conventions/hook-observability/).
-if [[ ! -x "$VERIFIER" ]]; then
+if [[ ! -x "$VERIFIER" || ! -f "$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
     hook::emit_skip_notice "PostToolUse" \
       "guardrails/cli-flag-verify: bundled verifier missing at $VERIFIER — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
@@ -386,53 +386,48 @@ split_candidate_key() {
 # than the work: a bash process, the `#!/usr/bin/env` PATH walk for bash (one
 # failed execve per PATH entry ahead of it), then mkdir, find, grep. Measured on
 # a warm cache: 88 failed execve per run on this host, 4 of the 5 env walks
-# being these spawns. The cache location, key, freshness rule and match pattern
-# below mirror the verifier's exactly (its header documents them); a miss still
+# being these spawns. The cache location, key, freshness window and match
+# pattern are ONE definition, sourced from lib/verification/cli-flag-cache.sh
+# by this hook and by the verifier, so the two paths cannot drift; a miss still
 # goes through the verifier, which populates the cache, and every exit code
 # keeps its meaning.
-if [[ -n "${LOCALAPPDATA:-}" ]]; then
-  CFV_CACHE_DIR="${LOCALAPPDATA//\\//}/guardrails/cli-flag-cache"
-else
-  CFV_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/guardrails/cli-flag-cache"
-fi
+# shellcheck source=../lib/verification/cli-flag-cache.sh
+source "$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
+CFV_CACHE_DIR=""
+cfv_cache_dir_to CFV_CACHE_DIR
 declare -A CFV_FRESH=()
-# One find for the whole run, only when there is something to verify: every
-# cache file younger than the verifier's 24 h window.
+CFV_FRESH_INDEXED=0
+# One find for the whole run, on the first candidate whose bin is installed:
+# every cache file inside the freshness window. A write that only cites bins
+# this machine lacks never pays it.
 cfv_index_fresh_cache() {
   local f
+  ((CFV_FRESH_INDEXED)) && return 0
+  CFV_FRESH_INDEXED=1
   [[ -d "$CFV_CACHE_DIR" ]] || return 0
   while IFS= read -r f; do
     [[ -n "$f" ]] && CFV_FRESH["$f"]=1
-  done < <(find "$CFV_CACHE_DIR" -maxdepth 1 -name '*.help' -mmin -1440 2>/dev/null)
+  done < <(find "$CFV_CACHE_DIR" -maxdepth 1 -name '*.help' -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null)
 }
 # verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
 # (the verifier's contract, answered here on a hit and by the verifier on a miss).
 verify_candidate() {
-  local bin="$1" chainstr="$2" flag="$3" key s cache_file help pat
-  key="$bin"
-  for s in $chainstr; do
-    key="${key}__${s}"
-  done
-  key="${key//[^a-zA-Z0-9_-]/_}"
+  local bin="$1" chainstr="$2" flag="$3" key cache_file help
+  local -a chainarr=()
+  read -ra chainarr <<<"$chainstr"
+  cfv_index_fresh_cache
+  cfv_cache_key_to key "$bin" "${chainarr[@]}"
   cache_file="$CFV_CACHE_DIR/$key.help"
   if [[ -n "${CFV_FRESH[$cache_file]:-}" && -s "$cache_file" ]]; then
     help=$(<"$cache_file")
-    # Same anchors as the verifier's FLAG_PATTERN: a non-flag character or the
-    # start before the flag, a terminator or the end after it, so `--save-dev`
-    # never matches `--save-developer`. Over the whole multi-line string, a line
-    # start is preceded by a newline, which the leading class admits.
-    pat="(^|[^a-zA-Z0-9_-])${flag}([][:space:]=,|)]|\$)"
-    [[ "$help" =~ $pat ]] && return 0
+    cfv_flag_in_help "$help" "$flag" && return 0
     return 1
   fi
-  local -a chainarr=()
-  read -ra chainarr <<<"$chainstr"
   "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
 }
 
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
-((${#CANDIDATES[@]})) && cfv_index_fresh_cache
 for key in "${!CANDIDATES[@]}"; do
   split_candidate_key "$key"
   # Skip if binary not on PATH (verifier exit 2). Avoids spurious failures on
