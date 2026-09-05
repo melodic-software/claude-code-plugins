@@ -243,3 +243,18 @@ in kind (88 here, all the `env` PATH walk); the count is `PATH`-length-bound, an
 73 plugin `bin/` directories after `/usr/bin`, which is why none of the failures land under them.
 Patch shape 3 (no verifier spawn on a cache hit) removes four of the five `env` walks and the
 `mkdir`, `find`, and `grep` those spawns carry.
+
+### After the four patch shapes (same day, same host)
+
+| Row | Before | After |
+| --- | --- | --- |
+| `skill-reference-verify` (with refs) | 642.9 ms (334.8 S) | 63.8 ms (33.8 S at S = 1.83 ms) |
+| `skill-reference-verify` (no refs) | 47.1 ms | 47.3 ms (the no-reference path was never the cost) |
+| index loop, isolated | 468.5 ms | 5.2 ms batched (446.3 ms for the old loop on the same run) |
+| `cli-flag-verify` warm | 118.9 to 135.8 ms | 55.1 to 79.2 ms |
+| `cli-flag-verify` cold (cache cleared) | 980.5 ms | 461.6 ms (four `--help` calls still dominate; host variance) |
+| `execve` per warm run | 152 (88 failed) | 34 (11 failed, all the sink's one `env` walk) |
+| guardrails trio on `.txt` | 81.1 ms | 73.2 ms (ungated path, untouched by this lane) |
+
+Every new suite case fails against the unmodified hooks (2 in the skill-reference suite, 3 in the
+cli-flag suite) and passes after; suites at 130 and 88 cases.

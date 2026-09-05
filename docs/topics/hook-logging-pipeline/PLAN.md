@@ -309,7 +309,7 @@ CHANGELOG entries; nothing meets the ADR admission test (every choice here is re
 
 ### Phases
 
-#### Phase 0: Baseline measurements [TODO]
+#### Phase 0: Baseline measurements [DONE]
 
 Re-measure before touching anything (ADR-0003 rule 1). PR #3732 changed the library's startup
 path after the handoff figures were taken, so every number is re-captured.
@@ -323,7 +323,7 @@ path after the handoff figures were taken, so every number is re-captured.
 - [ ] Distilled figures into FINDINGS.md under "Re-measurement 2026-09-05".
 - **Sanity Check:** `grep -c 'Re-measurement 2026-09-05' docs/topics/hook-logging-pipeline/FINDINGS.md` prints 1; `ls .work/hook-logging-pipeline/baselines/` lists one file.
 
-#### Phase 1: Verifier-lane fix (PR A) [TODO]
+#### Phase 1: Verifier-lane fix (PR A) [DOING]
 
 Review: code-design
 

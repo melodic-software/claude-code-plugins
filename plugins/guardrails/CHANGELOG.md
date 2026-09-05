@@ -15,7 +15,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (334.8 spawn-equivalents, S = 2.52 ms); the same manifests through one
   `jq -r … | @tsv` cost 5.7 ms. A manifest jq cannot parse, and any behind it in
   the batch, fall back to the per-manifest read, so a malformed sibling changes
-  nothing for the others (pinned by a case with a `{ not json` manifest). The
+  nothing for the others (pinned by a case with a `{ not json` manifest). Whole
+  hook after, same harness: 63.8 ms (33.8 S), against 47.3 ms for a `.md` that
+  cites nothing. The
   suite's spawn-count case now asserts one invocation handed every manifest, and
   three new cases pin declared `skills` paths (array, string, and an undeclared
   sibling directory) through the batched read.
@@ -27,7 +29,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   walks being these spawns, at 119 to 136 ms per run. The hook now indexes the
   fresh cache files with one `find` per run and matches the cached `--help` text
   with `=~` under the verifier's own pattern; a miss still goes through the
-  verifier, which populates the cache. Ahead of the scan, content that names
+  verifier, which populates the cache. After, same probe: 55 to 79 ms warm, 34
+  `execve` of which 11 fail (the one `env` walk left is the telemetry sink's).
+  Ahead of the scan, content that names
   none of the scanned bins exits before the fragment pipeline: the previous
   `-` gate alone passed every hyphenated paragraph. Cases pin zero verifier
   spawns on a hit with findings identical to the miss run, zero `sed` spawns on
