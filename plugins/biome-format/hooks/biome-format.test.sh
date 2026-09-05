@@ -388,6 +388,8 @@ if [[ -s "$TEL" ]]; then
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
+  # An unused binding is a finding, not a fix, and the line is already formatted: no bytes moved.
+  if [[ "$(jq -r '.data.changed' "$TEL")" == "false" ]]; then ok "envelope: data.changed false (nothing rewritten)"; else fail "envelope: data.changed=$(jq -c '.data.changed' "$TEL")"; fi
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
@@ -395,6 +397,22 @@ else
   fail "telemetry/stub-sink: no envelope written"
 fi
 rm -f "$TEL"
+
+# --- Stub sink + format rewrite -> data.changed true (#3755) ----------------
+# Exported, so no unused-binding finding; the missing spaces and semicolon are
+# what Biome's formatter rewrites.
+printf 'export const telFmt=1\n' >"$REPO/tel-fmt.ts"
+TELF="$(mktemp)"
+SINKF="$(make_sink "cat >\"$TELF\"")"
+OUT_F=$(run_hook_env "$REPO/tel-fmt.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKF")
+wait_for_sink "$TELF"
+if [[ -s "$TELF" ]]; then
+  if [[ "$(jq -r '.data.changed' "$TELF")" == "true" ]]; then ok "telemetry/rewrite: data.changed true after Biome reformatted the file"; else fail "telemetry/rewrite: data.changed=$(jq -c '.data.changed' "$TELF") status=$(jq -r '.status' "$TELF")"; fi
+  if [[ "$OUT_F" == *'"systemMessage"'* ]]; then ok "telemetry/rewrite: the disclosure still reaches stdout"; else fail "telemetry/rewrite: disclosure missing from stdout: $OUT_F"; fi
+else
+  fail "telemetry/rewrite: no envelope written"
+fi
+rm -f "$TELF"
 
 # --- Stub sink + gate OFF -> status skipped ---------------------------------
 printf 'const s=1;var t=2\n' >"$REPO_NO/tel2.ts"

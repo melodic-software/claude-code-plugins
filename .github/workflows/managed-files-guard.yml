@@ -53,12 +53,12 @@ jobs:
           # diff against, and the action fails closed on a diff it cannot see.
           fetch-depth: 0
       - name: Guard managed files
-        # Pinned to the merged ci-workflows main commit that closes the
-        # guard's fail-open on an unreadable diff (ci-workflows#530). No
-        # release carries it yet, so the pin-comment takes the convention's
-        # fallback form; the claude-lanes-repin cascade advances it to the
-        # first release that does (components/managed-files-guard/README.md).
-        uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@3b2f4eab5b4bb58a150e400613350ede37742ee8 # 3b2f4ea 2026-08-30
+        # Pinned to the ci-workflows release that carries the close of the
+        # guard's fail-open on an unreadable diff (ci-workflows#530). v0.22.0
+        # is the first release containing that commit, so the pin-comment now
+        # takes the convention's release-tag form rather than the short-SHA
+        # fallback (components/managed-files-guard/README.md).
+        uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

@@ -133,6 +133,76 @@ assert_eq "--lib library is loaded before the guards run" "ps=1" "$(cat "$SEEN")
 run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
 assert_eq "dirname inside a dispatched guard is the external command" "file /" "$(cat "$SEEN")"
 
+# --- relative and bare BASH_SOURCE still locate hook-utils --------------------
+# Production always invokes with an absolute path, so the `cd && pwd` arm in
+# run-guards.sh and the `_HOOK_SELF=.` fallback were unhit by the rest of this
+# suite. `./run-guards.sh` makes `${BASH_SOURCE[0]%/*}` answer `.` (a relative
+# dir); a bare filename makes the strip a no-op and takes the `=` fallback.
+# Both must still source the sibling library and serve the jq cache.
+run_from_hooks_dir() {
+  local spelling="$1"
+  shift
+  : >"$SEEN"
+  RC=0
+  OUT=$(
+    cd "$HOOK_DIR" || exit 1
+    bash "$spelling" "$@" <<<"$PAYLOAD" 2>"$TEST_TMPDIR/err"
+  ) || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+run_from_hooks_dir ./run-guards.sh "$TEST_TMPDIR/allow.sh"
+assert_exit "relative ./run-guards.sh exits 0" 0 "$RC"
+assert_eq "relative ./run-guards.sh still serves the cache" \
+  $'git status --short\nBash' "$(cat "$SEEN")"
+run_from_hooks_dir run-guards.sh "$TEST_TMPDIR/allow.sh"
+assert_exit "bare run-guards.sh exits 0" 0 "$RC"
+assert_eq "bare run-guards.sh still serves the cache" \
+  $'git status --short\nBash' "$(cat "$SEEN")"
+bare_guard_rc=0
+(cd "$HOOK_DIR" && bash block-no-verify.sh <<<"$PAYLOAD" >/dev/null) || bare_guard_rc=$?
+assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
+
+# --- benign Bash lane: no dirname/sed exec on the dispatched hot path ----------
+# 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
+# and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname
+# execs plus one sed on a benign `git status --short` (flag-commit-pr-skill-bypass
+# is default-off and exits before source). PATH shims count execs; function
+# forks are invisible to them, which is the same instrument as spawn-census.sh.
+SHIM="$TEST_TMPDIR/spawn-shim"
+mkdir -p "$SHIM"
+SPAWN_LOG="$SHIM/spawns.log"
+for tool in dirname sed; do
+  real=$(type -P "$tool")
+  if [[ -z "$real" ]]; then
+    bad "need $tool on PATH to pin its absence from the dispatcher"
+    real=""
+    break
+  fi
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q >>%q\nexec %q "$@"\n' "$tool" "$SPAWN_LOG" "$real" >"$SHIM/$tool"
+  chmod +x "$SHIM/$tool"
+done
+if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" ]]; then
+  : >"$SPAWN_LOG"
+  PATH="$SHIM:$PATH" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+    block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+    flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
+    block-convention-violation.sh block-windows-drive-tmp.sh \
+    block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
+  assert_eq "benign Bash dispatcher execs neither dirname nor sed" "" "$(cat "$SPAWN_LOG")"
+fi
+DISPATCH_SRC=$(cat "$DISPATCH")
+assert_absent "dispatcher copies jq_fields without a sed pipeline" "$DISPATCH_SRC" '| sed'
+assert_contains "dispatcher copies jq_fields via parameter expansion" "$DISPATCH_SRC" 'hook::jq_fields_uncached ()'
+for g in block-no-verify block-dangerous-git block-hook-bypass \
+  flag-commit-pr-skill-bypass block-noncanonical-commit \
+  block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
+  secret-pattern-detection hardcoded-path-check \
+  cli-flag-verify skill-reference-verify stale-path-verify \
+  workflow-resilience-check; do
+  assert_absent "$g sources hook-utils without dirname" "$(cat "$HOOK_DIR/$g.sh")" \
+    'source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"'
+done
+
 # --- no jq: several emitters yield ONE document, never a concatenation -------
 # Build a PATH with no jq on it. A directory that carries jq is replaced by a
 # shim directory re-exporting its other executables, so every other tool the
@@ -155,8 +225,8 @@ for d in "${path_dirs[@]}"; do
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1 || ! PATH="$NOJQ_PATH" command -v sed >/dev/null 2>&1; then
-  bad "could not build a PATH without jq that still carries sed"
+if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+  bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
     local input="$1"
@@ -205,6 +275,34 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
+done
+
+# --- PostToolUse rows carry an `if` per extension the verifiers accept --------
+# Claude Code evaluates a handler's `if` before spawning it, so a Write to a file
+# no verifier would scan spawns nothing. That saving holds only while the set of
+# `if` extensions in hooks.json equals the set the three verifiers' own
+# `case "$FILE"` gates accept: an extension added to a gate without an `if` row
+# is a verifier that silently never fires on it, and an `if` row with no gate
+# is a spawn that always early-exits. Both directions are pinned here, against
+# the scripts' source rather than a second hand-kept list.
+post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOK_DIR/hooks.json")
+post_n=$(jq 'length' <<<"$post_rows")
+if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
+ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
+assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated"
+distinct_cmds=$(jq -r '[.[] | [.command, .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
+assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
+gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
+  sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
+}
+if_exts=$(jq -r '.[] | .if | capture("^Edit\\(\\*\\.(?<e>[a-z0-9]+)\\)$") | .e' <<<"$post_rows" | sort -u | tr '\n' ' ')
+gate_exts=$(for v in cli-flag-verify skill-reference-verify stale-path-verify; do gate_exts_of "$v"; done | sort -u | tr '\n' ' ')
+assert_eq "if extensions equal the union of the verifiers' case gates" "$gate_exts" "$if_exts"
+for v in cli-flag-verify skill-reference-verify stale-path-verify; do
+  v_exts=$(gate_exts_of "$v" | tr '\n' ' ')
+  for e in $v_exts; do
+    if [[ " $if_exts " == *" $e "* ]]; then ok "$v gate *.$e has an if row"; else bad "$v gate *.$e has no if row"; fi
+  done
 done
 
 report

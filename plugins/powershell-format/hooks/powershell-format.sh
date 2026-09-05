@@ -108,7 +108,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -664,11 +666,12 @@ case $PWSH_EXIT in
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document. Emitting the
   # context and the systemMessage as two objects would break the single-JSON-doc
-  # stdout contract, which is what hook::emit_channels exists to prevent.
+  # stdout contract, which is what hook::emit_channels exists to prevent. The
+  # take precedes the telemetry emit so data.changed carries its verdict.
   hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
+  emit_tel "ok" "$FINDINGS_JSON"
   hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
   ;;
@@ -760,13 +763,14 @@ case $PWSH_EXIT in
     [[ -n "$line" ]] || continue
     PS_CTX+=$'\n'"  $line"
   done <<<"$PSSA_OUTPUT"
-  emit_tel "skipped" '[]'
   # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
   # inside the same try/catch that raises exit 4 — so a rewrite can already be on
   # disk when pwsh breaks. Take the disclosure (which also releases the snapshot
   # on the changed and unchanged paths alike) and emit it WITH the tool-break
-  # context as one document, rather than exiting on a silent rewrite.
+  # context as one document, rather than exiting on a silent rewrite. Taken
+  # before the telemetry emit so data.changed records that rewrite too.
   hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
+  emit_tel "skipped" '[]'
   hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
   ;;

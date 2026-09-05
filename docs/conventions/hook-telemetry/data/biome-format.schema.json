@@ -19,6 +19,10 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Biome diagnostics remaining after formatting, one per line. Empty array = clean."
+    },
+    "changed": {
+      "type": "boolean",
+      "description": "Whether this run rewrote the file: true when the bytes on disk differed from the pre-run snapshot after Biome ran, false when they were identical. Absent when the verdict is unknown (a skip arm before the formatter, or the snapshot could not be taken). Added in biome-format 0.6.35."
     }
   }
 }
