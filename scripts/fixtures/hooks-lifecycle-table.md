@@ -1,4 +1,4 @@
-The table below summarizes when each event fires. The [Hook events](#hook-events) section documents the full input schema and decision control options for each one.
+The table below summarizes when each event fires. The Hook events section of the upstream page documents the full input schema and decision control options for each one.
 
 | Event                 | When it fires                                                                                                                                                                                                                                         |
 | :-------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,4 +35,3 @@ The table below summarizes when each event fires. The [Hook events](#hook-events
 | `Elicitation`         | When an MCP server requests user input during a tool call                                                                                                                                                                                             |
 | `ElicitationResult`   | After a user responds to an MCP elicitation, before the response is sent back to the server                                                                                                                                                           |
 | `SessionEnd`          | When a session terminates                                                                                                                                                                                                                             |
-
