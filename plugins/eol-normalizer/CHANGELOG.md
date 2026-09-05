@@ -3,6 +3,46 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.32]
+
+### Changed
+
+- **`eol-normalizer.sh`'s `build_data_json` rationale comment is completed to
+  the formatter family's canonical text.** It stopped mid-argument, at the
+  point where the jq fallback drops the tool and path values rather than
+  interpolating them; it now also says why losing them is harmless, since the
+  fallback fires only when `jq -n` fails and `hook::emit_telemetry` discards
+  the envelope anyway when jq is absent. Adapted for this hook's `$1 = action`
+  argument. Comment-only: no code line in this plugin changed.
+
+  The code edits in this group landed on its other two members, a collapsed
+  guard in `go-format.sh` and two dead stores in `markdown-format.sh`. Nothing
+  in this hook met the bar. Suites stayed green at 51, 54 and 171 with
+  baselines byte-identical.
+
 ## [0.6.31]
 
 ### Changed

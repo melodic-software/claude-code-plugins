@@ -3,6 +3,68 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.8.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.8.32]
+
+### Changed
+
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `FINDINGS_JSON` was built with `printf | jq -R . | jq -s .` on every
+  findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for `TOOL`
+  and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 139/144/141 traced lines
+  become 130/124/127 and jq executions drop from 5 to 3. With the sink wired, jq
+  executions are unchanged at 7.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
+- **`actionlint-check.sh` reaches its telemetry emission from one place.** The
+  findings-present and findings-absent paths each ended in their own
+  `emit_tel "ok" ...` plus `exit 0`; hoisting `FINDINGS_JSON='[]'` above the
+  branch leaves a single emission point at the end of the file, so the two
+  paths can no longer drift in status, payload or exit code. No jq pipeline was
+  added, removed or swapped for a helper, so the spawn count this hook is
+  budgeted on is unchanged.
+- **The `build_data_json` rationale comment is completed to the formatter
+  family's canonical text.** It stopped mid-argument, at the point where the jq
+  fallback drops the tool and path values rather than interpolating them; it
+  now also says why losing them is harmless, since the fallback fires only when
+  `jq -n` fails and `hook::emit_telemetry` discards the envelope anyway when jq
+  is absent. Comment-only.
+
+  The three formatter hooks in this group stayed green at 45, 51 and 46
+  assertions, with hook-exec-form, silent-skips and cross-plugin-drift green
+  alongside.
+
 ## [0.8.31]
 
 ### Changed

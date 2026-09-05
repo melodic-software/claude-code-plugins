@@ -127,10 +127,10 @@ help_rc=$?
 assert_exit "--help exits 0" 0 "$help_rc"
 assert_contains "--help documents the usage line" "$help_out" "--worktree-path"
 # usage() derives the header block (shebang to first non-comment line) rather
-# than extracting a hardcoded line range, so a header edit can no longer
-# silently truncate the help. The usage line sits early; the exit-code taxonomy
-# and the last header line sit at the end, exactly where a reintroduced
-# hardcoded range would truncate first.
+# than extracting a hardcoded line range, so a header edit cannot silently
+# truncate the help. The usage line sits early; the exit-code taxonomy and the
+# last header line sit at the end, exactly where a hardcoded range would
+# truncate first.
 assert_contains "--help includes the exit-code taxonomy near the header's end" \
   "$help_out" "prerequisite missing (claude CLI, jq)"
 assert_contains "--help reaches the end of the header, not a truncated range" \

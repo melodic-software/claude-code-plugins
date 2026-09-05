@@ -29,15 +29,14 @@ BeforeAll {
             [string] $Id,
             [string] $Category,
             [string] $Severity,
-            [hashtable] $Detail = @{},
-            [string] $Notes
+            [hashtable] $Detail = @{}
         )
         [pscustomobject]@{
             id       = $Id
             category = $Category
             severity = $Severity
             detail   = [pscustomobject]$Detail
-            notes    = $Notes
+            notes    = ''
             trend    = $null
         }
     }

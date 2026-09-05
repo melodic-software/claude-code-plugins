@@ -346,22 +346,16 @@ resolve_base() {
 # equals the squash commit's, and still matches after the base advances. Both
 # verified in a fixture rather than assumed.
 patch_ids() {
-  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$"
+  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" rc=0
   : >"$out"
-  git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || {
-    rm -f "$patches"
-    return 1
-  }
-  if [[ ! -s "$patches" ]]; then
-    rm -f "$patches"
-    return 0
+  git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || rc=1
+  # An empty stream is a legitimate empty range, so only a non-empty one is fed
+  # to patch-id; $out stays truncated either way.
+  if ((rc == 0)) && [[ -s "$patches" ]]; then
+    git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || rc=1
   fi
-  git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || {
-    rm -f "$patches"
-    return 1
-  }
   rm -f "$patches"
-  return 0
+  return "$rc"
 }
 
 L_STATE="?"
@@ -386,8 +380,7 @@ classify_landed() {
   # `refs/heads/release` can both exist; rev-parse picks one by precedence and
   # says so only on stderr, so a silent pick could test against the wrong history
   # entirely. The warning is the signal, and it is treated as unresolvable.
-  local base_err
-  base_err="$WORKDIR/base-resolve.err"
+  local base_err="$WORKDIR/base-resolve.err"
   if ! base_sha=$(git -C "$p" rev-parse --verify "$base^{commit}" 2>"$base_err"); then
     L_REASON="base-unresolvable:$base"
     return 0
@@ -610,6 +603,20 @@ collect_targets() {
   if ! git -C "$REPO_DIR" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
     die "git worktree list failed in $REPO_DIR — refusing to report a partial inventory" 4
   fi
+
+  # Emit the record accumulated so far, if any. Called when the next `worktree `
+  # line opens a record and once at end of input, never on a blank separator:
+  # under -z the records are NUL-delimited fields, and the final record has no
+  # trailing separator of its own. One definition so the two flush sites cannot
+  # drift.
+  flush_record() {
+    [[ -n "$path" ]] || return 0
+    T_PATH+=("$path")
+    [[ "$detached" -eq 1 ]] && branch="(detached)"
+    T_BRANCH+=("$branch")
+    T_HEAD+=("$head")
+  }
+
   path=""
   head=""
   branch=""
@@ -617,15 +624,7 @@ collect_targets() {
   while IFS= read -r -d '' line; do
     case "$line" in
     "worktree "*)
-      # A new record begins. Flush the previous one here rather than on a blank
-      # separator: under -z the records are NUL-delimited fields, and the final
-      # record has no trailing separator of its own.
-      if [[ -n "$path" ]]; then
-        T_PATH+=("$path")
-        [[ "$detached" -eq 1 ]] && branch="(detached)"
-        T_BRANCH+=("$branch")
-        T_HEAD+=("$head")
-      fi
+      flush_record
       path="${line#worktree }"
       head=""
       branch=""
@@ -637,12 +636,7 @@ collect_targets() {
     *) ;;
     esac
   done <"$porcelain"
-  if [[ -n "$path" ]]; then
-    T_PATH+=("$path")
-    [[ "$detached" -eq 1 ]] && branch="(detached)"
-    T_BRANCH+=("$branch")
-    T_HEAD+=("$head")
-  fi
+  flush_record
 }
 
 # assert_row_count <expected> <actual>: a pass that covered fewer worktrees than

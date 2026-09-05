@@ -1,4 +1,5 @@
 {
+  "description": "Asks before a write lands on a Claude Code settings surface, where an unreviewed edit changes the harness itself.",
   "hooks": {
     "PreToolUse": [
       {

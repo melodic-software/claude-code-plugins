@@ -3,11 +3,16 @@
 # directly. Reuses clean_path_key / clean_skip_matches from clean-common.sh —
 # the separator-agnostic normalization + skip matching proven out by tree-batch.
 #
-# tree-batch (git-tree-reset-batch.sh) reads lines and emits per-repo records
-# through this module, but its resolve-dedup loop is inline:
-# batch_resolve_repos additionally runs each input through batch_normalize_input
-# (backslash folding), which tree-batch's loop does not, so adopting it there is a
-# behavior change rather than a lift.
+# tree-batch (git-tree-reset-batch.sh) reads lines, matches the skip ledger and
+# emits per-repo records through this module, but its resolve-dedup loop is
+# inline: batch_resolve_repos additionally runs each input through
+# batch_normalize_input (backslash folding), which tree-batch's loop does not, so
+# adopting it there is a behavior change rather than a lift. Measured on the
+# distinguishing input — a real git repo whose directory name contains a literal
+# backslash: tree-batch's loop resolves it and resets it, batch_resolve_repos
+# folds the name to a path that does not exist and reports it blocked
+# `not-a-directory`. Dropping a repo the caller named is the defect class this
+# tier exists to close, so the loop stays inline.
 
 # shellcheck source=clean-common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/clean-common.sh"
@@ -63,6 +68,54 @@ batch_read_lines_into() {
   # Explicit success: do not let the last `[[ -n "$line" ]]` (false on a
   # trailing blank, or on the EOF guard after a delimiter) become the result.
   return 0
+}
+
+# Skip-list ledger. BATCH_SKIP_INPUTS is filled by each orchestrator's --skip /
+# --skip-from parsing; BATCH_SKIP_HITS parallels it one slot per entry, so an
+# entry that protected nothing can be surfaced instead of failing silently (the
+# original fleet-reset data loss). BATCH_SKIP_MATCHED carries the last entry that
+# matched the most recent batch_skip_match call.
+BATCH_SKIP_INPUTS=()
+BATCH_SKIP_HITS=()
+BATCH_SKIP_MATCHED=""
+
+# batch_reset_skip_hits — size the hit ledger to the skip list, every slot 0.
+# Pre-filling is load-bearing, not cosmetic: under `set -u` a read of an array
+# element that was never assigned is an unbound-variable error, and
+# batch_report_unmatched_skips reads EVERY slot, including entries no repo ever
+# matched. Call once, after the skip list is fully parsed.
+batch_reset_skip_hits() {
+  local s
+  BATCH_SKIP_HITS=()
+  for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do BATCH_SKIP_HITS+=(0); done
+}
+
+# batch_skip_match <repo_key> — does any skip entry cover this repo? Sets
+# BATCH_SKIP_MATCHED to the matching entry (the LAST one, when several match) for
+# the caller's Reason line, and returns 0/1 so the caller can branch without
+# re-testing. Every matching entry is marked hit, not just the reported one: an
+# entry that did protect a repo must never be reported UnmatchedSkip.
+batch_skip_match() {
+  local repo_key="$1" s
+  BATCH_SKIP_MATCHED=""
+  for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do
+    if clean_skip_matches "$repo_key" "${BATCH_SKIP_INPUTS[$s]}"; then
+      BATCH_SKIP_MATCHED="${BATCH_SKIP_INPUTS[$s]}"
+      BATCH_SKIP_HITS[s]=1
+    fi
+  done
+  [[ -n "$BATCH_SKIP_MATCHED" ]]
+}
+
+# batch_report_unmatched_skips — print one `UnmatchedSkip: <entry>` line per skip
+# entry that matched no repo in this run.
+batch_report_unmatched_skips() {
+  local s
+  for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do
+    if [[ "${BATCH_SKIP_HITS[$s]}" -eq 0 ]]; then
+      printf 'UnmatchedSkip: %s\n' "${BATCH_SKIP_INPUTS[$s]}"
+    fi
+  done
 }
 
 # Resolve-and-dedup accumulators, populated by batch_resolve_repos. Reset per call.

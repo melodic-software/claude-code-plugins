@@ -21,6 +21,7 @@
     "fallbackLabelAllowlist",
     "forbiddenHostedRunnerLabels",
     "managedLabelPatterns",
+    "approvedManagedRunnerLabels",
     "hostedExceptionReasons",
     "localCredentialActions"
   ],
@@ -85,6 +86,7 @@
     "fallbackLabelAllowlist": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "forbiddenHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "managedLabelPatterns": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
+    "approvedManagedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "hostedExceptionReasons": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "localCredentialActions": {
       "type": "array",

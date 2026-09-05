@@ -24,16 +24,30 @@ against those sources before relying on a time-sensitive detail; the platform mo
 - Renders a self-contained **HTML** or **Markdown** page.
 - **Mermaid renders natively** — both a ` ```mermaid ` markdown fence and an HTML
   `<pre class="mermaid">` block.
-- **Strict Content-Security-Policy**: every external host is blocked — no CDN
-  scripts, stylesheets, fonts, remote images, or `fetch`/XHR/WebSocket. Inline all
-  CSS and JS; embed images as `data:` URIs. There is a page-size cap (~16 MiB).
+- **Bundled mermaid runtime: 11.16.1** (version-specific record). Claim: the
+  publish path injects `/_runtime/mermaid-11.16.1.min.js` into the page. Basis:
+  runtime strings read from the installed Claude Code 2.1.260 binary; the platform
+  documents no runtime version. As of 2026-09-04. Recheck when the artifacts page
+  or the changelog names the runtime, when a mermaid-family rendering failure is
+  reported, or at each release of this plugin; re-read the installed binary before
+  relying on the number.
+- **Content-Security-Policy**: the page may load typefaces from Google Fonts
+  (`fonts.googleapis.com`, `fonts.gstatic.com`) and scripts from four CDN hosts
+  (`cdnjs.cloudflare.com`, `cdn.jsdelivr.net` on `/npm/` paths,
+  `cdn.tailwindcss.com`, `code.jquery.com`); every other external image, script,
+  stylesheet, and font is blocked, and `fetch`/XHR/WebSocket reach only the page's
+  own origin and the Google Fonts hosts. This plugin's own policy is stricter:
+  inline all CSS and JS and embed images as `data:` URIs, so a page never depends
+  on a network call. There is a page-size cap (~16 MiB). Verified 2026-09-04
+  against `https://code.claude.com/docs/en/artifacts`; recheck when that page's
+  "Page constraints" or "Allowlist the viewer domain" section changes.
 - **Theme-aware** (light/dark), **responsive**, and **favicon required** — this is
   the Artifact tool's own contract; an artifact-design capability, when installed,
   owns the craft on top of it.
 - **Connector-backed live data** (Claude Code v2.1.209+): a published page can
   call declared MCP connectors at view time, showing current data rather than a
-  build-time snapshot. The CSP above still holds — the page itself makes no
-  network call; it hands each call to claude.ai. Calls run through each viewer's
+  build-time snapshot. The CSP above still holds; the page itself makes no data
+  call of its own, it hands each call to claude.ai. Calls run through each viewer's
   own connector account after that viewer approves; a connector-backed page can
   never be shared to a public link; and on Team/Enterprise an org Owner toggle
   ("Enable artifact connectors") gates the capability.
@@ -67,8 +81,9 @@ a plain file stays unrendered.
 ### Mermaid diagram families
 
 Thirteen families are stable in mainline mermaid and form the safe default set for
-artifact rendering. The bundled renderer's version is undocumented (see below), so
-treat per-family support as presumed-safe rather than guaranteed:
+artifact rendering. The platform does not document the bundled renderer's version
+(it is read from the binary; see the Published Artifact record above), so treat
+per-family support as presumed-safe rather than guaranteed:
 
 | Family | Use it for |
 |---|---|
@@ -87,8 +102,8 @@ treat per-family support as presumed-safe rather than guaranteed:
 | `journey` | User-journey steps with satisfaction scores |
 
 The newest "fire-icon" families (for example `sankey`, `xychart`, `kanban`,
-`radar`, `treemap`) are **UNVERIFIED** in the bundled artifact renderer — the
-bundled mermaid version is undocumented. Prefer a stable family, or verify a newer
+`radar`, `treemap`) are present upstream in mermaid 11.16.1; their rendering in
+the artifact viewer is **UNVERIFIED**. Prefer a stable family, or verify a newer
 one empirically on a throwaway artifact before relying on it.
 
 ### Tables
@@ -99,8 +114,9 @@ no rendering surface beyond GFM.
 
 ### Charts (quantitative data)
 
-There is **no external chart library** on a page — the CSP blocks every CDN. The
-zero-dependency paths are:
+This plugin loads **no external chart library** on a page: the platform allows
+scripts from four CDN hosts, but the plugin's policy is no network calls, so the
+paths are zero-dependency:
 
 - **On a page:** hand-authored inline **SVG + CSS** primitives (bars, lines,
   scatter, area, stat tiles). The *craft* — palette, scales, marks, accessibility
@@ -112,7 +128,20 @@ zero-dependency paths are:
 
 Box-drawing characters, directory trees, and small structural sketches render
 crisply in a monospace terminal code fence — a zero-dependency structural picture
-that needs no page surface.
+that needs no page surface. A directory tree here is a structure sketch; a file
+tree that carries one line of responsibility per entry is the code-shape form
+below.
+
+### Code-shape sketches
+
+Fenced text forms for code: pseudocode, a call tree, a component tree with file
+paths, a shallow file tree with per-entry responsibilities, types and signatures,
+a diff-shaped delta over any of those, and the whole block as the fallback. They
+render in any GFM surface, need no page, and take the same delivery ladder as
+every other form, except that a pull-request diff, fetched content, or another
+repository's files are never rendered to HTML until the rendered-views escape
+helper ships (the convention's security baseline). One example per form lives in
+`code-shapes.md` beside this file.
 
 ### Rich page (composite / interactive / large)
 
@@ -179,7 +208,8 @@ fit ground:
 - `veelenga/claude-mermaid` — a solo-author MCP server (local render), a
   code-execution trust surface.
 - `careerhackeralex/visualize` — a solo-author HTML-viz skill that pulls chart
-  libraries from a CDN, which the artifact CSP blocks outright.
+  libraries from hosts outside the artifact allowlist, and this plugin's policy is
+  no network calls in any case.
 
 Until a credible option exists the skill relies only on native rendering surfaces
 and the presence-gated craft capabilities. The revisit trigger for a self-hostable,
@@ -193,11 +223,20 @@ before relying on a time-sensitive detail.
 
 - Terminal Markdown rendering (code-block syntax highlighting, hyperlinks) —
   `https://code.claude.com/docs/en/interactive-mode.md`.
-- Mermaid emitted as source, not terminal-rendered —
-  `https://code.claude.com/docs/en/output-styles.md`.
-- Artifact CSP (no external requests, inline CSS/JS, `data:` images, ~16 MiB,
-  self-contained), HTML+Markdown types, availability gating, and connector-backed
-  live data (verified 2026-08-04) —
+- Mermaid emitted as source, not terminal-rendered (verified 2026-09-04): no
+  official page documents terminal mermaid rendering. Absence checked in
+  `https://code.claude.com/docs/en/interactive-mode.md` and
+  `https://code.claude.com/docs/en/fullscreen.md` (both fetched whole, zero
+  occurrences) and in the `llms-full.txt` docs corpus (one hit, an output-style
+  example, not a rendering statement). The shipped binary carries no terminal-side
+  renderer (every mermaid string is on the artifact publish path). Open issues:
+  anthropics/claude-code#14375 requests terminal rendering; #52517 reports Claude
+  Desktop's Claude Code tab showing a mermaid fence as raw source. Recheck when a
+  changelog entry or either page names terminal diagram rendering, or when #14375
+  closes.
+- Artifact CSP (Google Fonts plus four CDN script hosts allowed, everything else
+  blocked; this plugin inlines regardless), ~16 MiB, HTML+Markdown types,
+  availability gating, and connector-backed live data (verified 2026-09-04):
   `https://code.claude.com/docs/en/artifacts`.
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules — the Artifact
@@ -218,8 +257,13 @@ UNVERIFIED / low-confidence (flagged, not asserted):
 - Terminal rendering of a mermaid fence as a *diagram* — verified only as source
   text; treated as source, never as an inline picture.
 - Inline terminal raster images — undocumented.
-- The mermaid version bundled by the Artifact renderer (undocumented; the current
-  mermaid *release* is not necessarily what Artifacts bundle) and the newest
-  "fire-icon" families in that renderer — verify empirically before use.
+- Rendering of the newest "fire-icon" mermaid families in the artifact viewer
+  (present upstream in 11.16.1; see the Published Artifact record): verify
+  empirically before use.
+- Public sharing of an artifact is reported to fail for pages containing mermaid
+  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824 open,
+  #81410 a sibling, as of 2026-09-04); the mechanism is unconfirmed; private and
+  org sharing are unaffected. Recheck when either issue closes or a changelog
+  entry names artifact public sharing.
 - Third-party repo maintenance signals (last-commit dates, exact star counts) and
   the AntV egress claim (from its README, not empirically exercised).

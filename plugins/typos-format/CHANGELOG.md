@@ -3,6 +3,92 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.41]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.40]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.39]
+
+### Changed
+
+- **`build_data_json` states why its fallback exists, matching its three sibling
+  formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
+  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  one deliberate word changed: the siblings say the fallback fires only if
+  `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
+  the sentence names `jq -c`. Copying it verbatim would have stated something
+  false about this file.
+  No gate was added here. Unlike its siblings, this hook's `FINDINGS_JSON` comes
+  from `hook::jq_fields` over classifier output it produces regardless of
+  telemetry, so nothing is spent on the unwired path and there is nothing to
+  guard.
+- **The `RUN_DIR` fallback reuses the precomputed `FILE_DIR`.** It read
+  `${root:-$(dirname "$FILE")}`, forking `dirname` on the branch where no repo
+  root was resolved, to recompute a directory the hook had already derived
+  seventy-odd lines earlier with `${FILE%/*}` and its two special cases. That
+  earlier value is what the hook passes to `hook::repo_root`, so the two answers
+  were already required to name the same directory; they are now one expression
+  instead of two. Single line, one fewer process on the no-repo-root path.
+
+## [0.6.38]
+
+### Fixed
+
+- **The suite's spawn tracer had never worked, and four assertions were passing
+  on an empty measurement.** It delivered `PS4` as an exported environment
+  variable, but bash overwrites and re-exports `PS4` at startup: `env
+  PS4='SENTINEL ' bash -c 'declare -p PS4'` reports `declare -x PS4="+ "`.
+  Prefix assignment, `env(1)` and `export` are all discarded alike (`dash` honours
+  it; bash does not). So the tracer's pattern matched **0 of 802** trace lines,
+  `dirname`, `basename`, the own-frame ceiling and the allowlist assertions were
+  all measuring an empty word list, and the fifth assertion failed. `PS4` now
+  arrives through a `BASH_ENV` preload, which the traced shell performs itself and
+  which preserves the `${FUNCNAME[0]}` attribution the tracer depends on;
+  `source` would not, since it pushes a frame. **765 of 803** lines are now
+  marked, and a new assertion fails loudly if that count is ever zero again.
+- **The jq expectation was stale.** It asserted 2 and the true count is **1**,
+  established with a counting `jq` shim on PATH rather than with the repaired
+  tracer, so a tracer bug could not substitute one wrong number for another. Only
+  `hook::buffer_stdin`'s `jq -e .` runs: `hook::read_file_path` takes the builtin
+  fast path on a single-chunk payload and never reaches its jq fallback, and the
+  notebook filter is gated on a payload that carries a notebook path. The comment
+  documenting the old count went with it.
+
+### Known issues
+
+- **Roughly 40% of this suite has never run in CI.** It gates on a real `typos`
+  binary, and the `typos` action lives in the `lint` job while the plugin
+  contract tests run in `test-linux`: separate jobs, separate runners, no shared
+  PATH, and `typos` appears in neither the CI Python requirements nor the npm
+  devDependencies. The suite prints `SKIP: no typos binary` and exits 0. Measured
+  by stripping `typos` from PATH: **87 of 144 assertions run**, so 57 never
+  execute in CI, including telemetry, config precedence, symlinked roots and the
+  write-mode allowlist, not only the trace block.
+- **The repaired tracer is blind to a `command`-prefixed external.** `command
+  dirname` scores zero on all six spawn assertions, because the traced word is
+  `command`, whose type is `builtin`, so the ceiling misses it too. `env dirname`
+  is half-caught and an absolute path is caught. Latent rather than live: the
+  hook's only use of `command` is `command -v`.
+
 ## [0.6.37]
 
 ### Changed

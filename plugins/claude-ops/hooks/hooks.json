@@ -1,4 +1,5 @@
 {
+  "description": "Records session observability telemetry across nine events: API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures and unsurfaced hook failures.",
   "hooks": {
     "StopFailure": [
       {

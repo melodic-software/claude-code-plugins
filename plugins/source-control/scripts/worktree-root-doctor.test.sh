@@ -45,9 +45,8 @@ mkrepo() {
   fgit -C "$repo" init -q -b main >/dev/null 2>&1
   printf '%s' "$repo"
 }
-: >"$TEST_TMPDIR/empty-gitconfig"
-
 EMPTY_GCFG="$TEST_TMPDIR/empty-gitconfig"
+: >"$EMPTY_GCFG"
 
 # Every fixture-building git call runs against the pinned empty global config, so
 # the host's real ~/.gitconfig can never leak an includeIf into a fixture. One
@@ -60,9 +59,9 @@ help_out=$(bash "$DOCTOR" --help 2>&1)
 assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help documents the exit taxonomy" "$help_out" "at least one warn/error"
 # --help derives the whole header rather than a hardcoded line range, which
-# used to cut off mid exit-codes list. Pin two formerly-truncated lines: the
-# dropped exit code, and the last header line.
-assert_contains "--help includes the usage-error exit code (formerly truncated)" \
+# cuts off mid exit-codes list as the header grows. Pin the two lines such a
+# range drops first: an exit code, and the last header line.
+assert_contains "--help includes the usage-error exit code" \
   "$help_out" "2  usage error"
 assert_contains "--help reaches the end of the header, not a truncated range" \
   "$help_out" "suffix shape IS flagged when a declared pattern carries it"

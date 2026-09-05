@@ -75,7 +75,7 @@ while [[ $# -gt 0 ]]; do
   -h | --help)
     # The whole header (everything after the shebang up to the first
     # non-comment line), markers stripped. Derived rather than a hardcoded
-    # line range, which silently truncated as the header grew.
+    # line range: such a range silently truncates as the header grows.
     awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
       "${BASH_SOURCE[0]}"
     exit 0

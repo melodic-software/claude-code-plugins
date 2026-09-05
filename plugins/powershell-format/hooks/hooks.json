@@ -1,4 +1,5 @@
 {
+  "description": "Formats PowerShell scripts, modules and manifests after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {

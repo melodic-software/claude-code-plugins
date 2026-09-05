@@ -88,22 +88,30 @@ CB_REPO=""
 # shellcheck source=/dev/null
 source "$BINDING_FILE_SH"
 cb_setup
-trap 'cb_teardown' EXIT
+# The overlay case below writes `.work-item-tracker.local.json` BESIDE the binding
+# (CONTRACT.md "Setup (binding file)" fixes that name), and every binding mktemps its
+# binding file straight into $TMPDIR. Two conformance runs sharing a host would
+# therefore write the same overlay path and clobber each other's overlay assertions,
+# so re-home the binding under a run-private directory and keep the overlay path
+# private with it.
+BINDING_DIR="$(mktemp -d)"
+cp "$WORK_ITEM_TRACKER_BINDING" "$BINDING_DIR/.work-item-tracker.json"
+export WORK_ITEM_TRACKER_BINDING="$BINDING_DIR/.work-item-tracker.json"
+trap 'cb_teardown; rm -rf "$BINDING_DIR"' EXIT
 
 repo_args=()
 [[ -n "$CB_REPO" ]] && repo_args=(--repo "$CB_REPO")
 
 WIT_OUT=""
-WIT_RC=0
 
 # wit_case <label> <expected-rc> <args…> — run the CLI, assert exit code and
 # CR-free stdout; output lands in WIT_OUT for shape assertions.
 wit_case() {
-  local label="$1" expected_rc="$2"
+  local label="$1" expected_rc="$2" rc
   shift 2
   WIT_OUT="$(bash "$TRACKER" "$@" 2>/dev/null)"
-  WIT_RC=$?
-  assert_eq "$label (exit code)" "$expected_rc" "$WIT_RC"
+  rc=$?
+  assert_eq "$label (exit code)" "$expected_rc" "$rc"
   case "$WIT_OUT" in
   *$'\r'*) fail "$label (stdout CR-free)" "no CR" "CR present" ;;
   *) pass "$label (stdout CR-free)" ;;
@@ -124,13 +132,12 @@ assert_schema_version "capabilities"
 # provider literally named `null` is a valid adapter name
 # (`^[a-z][a-z0-9-]{0,31}$`), so reject on JSON type instead: require a string
 # of length > 0. Empty and JSON null still fail; `"null"` is accepted as a name.
+# PROVIDER stays raw text either way, for later path/JSON reuse; compact JSON is
+# only the diagnostic shown by fail (empty → `""`, null → `null`).
+PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
 if jq -e '.provider | type == "string" and length > 0' <<<"$WIT_OUT" >/dev/null; then
-  PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
   pass "capabilities names a provider"
 else
-  # Keep PROVIDER as raw text for later path/JSON reuse; compact JSON is
-  # only the diagnostic shown by fail (empty → `""`, null → `null`).
-  PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
   fail "capabilities names a provider" "JSON string of length > 0" "$(jq -c '.provider' <<<"$WIT_OUT")"
 fi
 CAPS="$WIT_OUT"
@@ -147,8 +154,9 @@ assert_eq "missing binding → exit 3" "3" "$?"
 # (lease TTL, jira/linear/gitea auth identity); any other key is a configuration error (exit 3,
 # same first-run signal as a missing binding), and removing the overlay restores
 # the team view. Deep merge semantics are unit-tested (lib/binding.test.sh); this
-# asserts the seam-level behavior through the CLI.
-OVERLAY_PATH="$(cd "$(dirname "$WORK_ITEM_TRACKER_BINDING")" && pwd)/.work-item-tracker.local.json"
+# asserts the seam-level behavior through the CLI. The binding was re-homed into
+# $BINDING_DIR above, so that is the directory the CLI derives the overlay from.
+OVERLAY_PATH="$BINDING_DIR/.work-item-tracker.local.json"
 printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
 wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
 printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
@@ -294,8 +302,9 @@ fi
 if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier"
-  assert_contains "frontier holds unblocked A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
-  assert_not_contains "frontier drops blocked B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
+  frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
+  assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
+  assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
 fi
 
 # --- lease lifecycle + claim race ---
@@ -336,13 +345,13 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     wit_case "reclaim live lease is a no-op" 0 reclaim "$ITEM_A_ID"
     assert_eq "live lease not reclaimed" "false" "$(jq -r '.reclaimed' <<<"$WIT_OUT")"
     # `reason` is FREE TEXT — CONTRACT.md's output table gives it no vocabulary — so this
-    # asserts the semantic fact, not one adapter's prose. Exact-matching github's "lease
-    # live" made the suite unrunnable for any adapter that words it differently: linear
-    # says "lease is still live", so its first live run would have been spent chasing a
-    # string mismatch rather than a real defect. What must hold is that reclaim selected
+    # asserts the semantic fact, not one adapter's prose. github words it "lease live"
+    # and linear "lease is still live", so exact-matching either spelling makes the
+    # suite unrunnable for the other adapter. What must hold is that reclaim selected
     # the ACTIVE lease rather than the superseded newer one.
-    assert_contains "reclaim picked the active lease" "$(jq -r '.reason' <<<"$WIT_OUT")" "live"
-    assert_not_contains "…and not the superseded one" "$(jq -r '.reason' <<<"$WIT_OUT")" "superseded"
+    reclaim_reason="$(jq -r '.reason' <<<"$WIT_OUT")"
+    assert_contains "reclaim picked the active lease" "$reclaim_reason" "live"
+    assert_not_contains "…and not the superseded one" "$reclaim_reason" "superseded"
 
     # Expired-lease reclaim: ttl 0 lease on B expires immediately.
     if [[ -n "$ITEM_B_ID" ]]; then

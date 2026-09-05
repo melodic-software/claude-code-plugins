@@ -1,0 +1,8 @@
+{
+  // Validator fixtures are input specimens, not authored prose: several are
+  // deliberately malformed (ASCII rails, leftover FILL comments, headings out
+  // of order) because test_save_point.py asserts that the validator rejects
+  // them. Linting them fails by construction, so this nested config ignores
+  // the whole directory. The synced root config is never edited for this.
+  "ignores": ["**"]
+}

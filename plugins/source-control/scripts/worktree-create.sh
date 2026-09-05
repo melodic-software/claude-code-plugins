@@ -44,7 +44,14 @@
 #   3  refuse — no usable external root, root inside a repository, or a
 #      cross-drive root on Windows at any resolution rung including the
 #      unconfigured plugin-data-dir default (guidance on stderr); nothing created
-#   4  environment error — not a git repo, or `git worktree add` failed
+#   4  environment error: not a git repo, `git worktree add` failed, or the tree
+#      was created and then left incomplete because a `.worktreeinclude` file
+#      failed to copy. That last case shares exit 5's shape, a tree on disk that
+#      is not what the caller asked for, so a caller treating 4 as "nothing was
+#      created" is wrong for it
+#   5  worktree created, but `git worktree lock` failed: the path is still the
+#      sole stdout line and the tree exists, yet it carries no claim for a
+#      cleanup sweep to read (a warning names it on stderr)
 
 set -uo pipefail
 
@@ -215,7 +222,8 @@ Options:
 On success the created worktree path is printed as the sole stdout line, for the
 caller to feed to EnterWorktree(path:).
 
-Exit codes: 0 success · 2 usage · 3 refuse (no usable root) · 4 environment.
+Exit codes: 0 success · 2 usage · 3 refuse (no usable root) · 4 environment ·
+5 created but not locked.
 EOF
 }
 
@@ -735,14 +743,15 @@ worktree_path=$(normalize_path "$worktree_path")
 # the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
 # invariant, verified" for the measured claim, and note that a worktree dropped
 # inside a .git or bare directory additionally mixes the checkout into git
-# metadata, which is a separate and undisputed reason to refuse. The root resolution above does not catch a root explicitly
-# pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
-# a sibling clone, or a path beneath a .git directory), so ask git about the
-# target's location: walk up from the target's parent to the nearest existing
-# ancestor. Probing the parent, never the target itself, keeps an already-created
-# worktree at $worktree_path from matching its own top level — that case is the
-# "already exists" error below. `--show-toplevel` catches work-tree ancestors (and
-# by top-level equality tells the source repo from a foreign clone);
+# metadata, which is a separate and undisputed reason to refuse. The root
+# resolution above does not catch a root explicitly pointed inside a repository
+# (e.g. the old .claude/worktrees/ path, a root under a sibling clone, or a path
+# beneath a .git directory), so ask git about the target's location: walk up
+# from the target's parent to the nearest existing ancestor. Probing the parent,
+# never the target itself, keeps an already-created worktree at $worktree_path
+# from matching its own top level — that case is the "already exists" error
+# below. `--show-toplevel` catches work-tree ancestors (and by top-level
+# equality tells the source repo from a foreign clone);
 # `--is-inside-git-dir` catches .git and bare-repo ancestors, which have no work
 # tree and so report no top level. Both come from `rev-parse`, so the check is
 # immune to path-format differences (drive-letter spelling, symlinks) that defeat

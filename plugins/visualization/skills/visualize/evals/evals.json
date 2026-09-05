@@ -48,7 +48,7 @@
       "expectations": [
         "Recognizes multiple equally plausible targets with no form specified as genuine ambiguity",
         "Asks a single question with a RECOMMENDED default listed first",
-        "Does not ask when the target is obvious or a form was named"
+        "Does not ask when the target is obvious and one form dominates, or a form was named"
       ]
     },
     {
@@ -88,6 +88,74 @@
         "Honors medium: file from the team layer (writes a local HTML page; does not publish an Artifact)",
         "Reports which cascade layer supplied the value",
         "Treats absent sibling layers as a valid state, not an error"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "algorithm-renders-pseudocode-in-terminal",
+      "prompt": "Here is how the retry should work: try the request; if it fails with a 5xx, wait one second, then two, then four, up to five attempts in total; after that give up and surface the last error. show me the shape of this.",
+      "expected_output": "Treats the prose-described retry logic as the target, picks pseudocode as the form (logic described in prose, not yet written), and renders one short pseudocode fence in the terminal. It does not produce a page, a mermaid diagram, or a question, and it does not restate the logic in prose beside the fence.",
+      "files": [],
+      "expectations": [
+        "Picks pseudocode for logic described in prose",
+        "Renders a single fenced pseudocode block in the terminal",
+        "Does not produce a page, an Artifact, or a mermaid diagram",
+        "Does not ask a question; the target and the form are both clear"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "delta-over-known-shape-picks-diff-sketch",
+      "prompt": "what changes if we add a reset-to-defaults button beside save? visualize it. (Fixture: earlier in this conversation the assistant rendered this component tree: <SettingsPage> (src/routes/settings.tsx) containing useSettings(), <SettingsForm>, and <SaveButton> (packages/ui).)",
+      "expected_output": "Recognizes that the surrounding shape is already in the conversation and that the point is what changes, so it renders a diff-shaped delta over the existing component tree (a diff fence with + lines for the new button and any new state) rather than a fresh full tree. Stays in the terminal.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Picks the diff-shaped delta because the surrounding shape already exists in the conversation",
+        "Renders a diff fence over the earlier component tree rather than re-rendering the whole tree",
+        "Keeps only the changed lines plus the unchanged anchor lines needed to place them",
+        "Stays in the terminal; no page or Artifact"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "smallest-view-restraint",
+      "prompt": "where does session state live in this codebase? show me the shape of this. (Fixture: earlier in the conversation the assistant read src/sessions/store.ts, src/sessions/events.ts, and src/transport/client.ts.)",
+      "expected_output": "Picks exactly one form, a shallow file tree with one line of responsibility per entry, because that is the smallest view that answers a where-does-this-live question. It does not also emit a call tree, a component tree, or pseudocode, and it does not offer a menu, because one form clearly dominates.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Renders exactly one form: a shallow file tree with per-entry responsibilities",
+        "Does not add a second form the question did not need",
+        "Does not offer a ranked menu when one form dominates",
+        "Uses real box-drawing glyphs in the tree"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "thin-context-code-paste-offers-ranked-menu",
+      "prompt": "[The user pastes a 40-line TypeScript function named reconcileOrders, with no request and no other text; nothing earlier in the conversation mentions it. The thin_context_prompt option is unset, so the default auto applies.]",
+      "expected_output": "With thin context, no named form, and several code-shape forms fitting about equally (a call tree of what it calls, its types and signatures, the whole block, a diff against nothing), it asks exactly one question listing two to four fitting forms with a RECOMMENDED one first and renders nothing until the user answers. It does not paraphrase the pasted function into pseudocode, and it does not interrogate form by form.",
+      "files": [],
+      "expectations": [
+        "Asks exactly one question listing two to four fitting code-shape forms, RECOMMENDED first",
+        "Renders nothing before the user answers",
+        "Does not paraphrase the pasted code into pseudocode",
+        "Does not interrogate one form at a time or ask more than one question"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "diff-with-artifact-argument-stays-terminal",
+      "prompt": "/visualization:visualize artifact [The user pastes a unified diff from a pull request touching src/transport/client.ts and src/transport/stream.ts and asks to see the change as a sketch.]",
+      "expected_output": "Recognizes a pull-request diff as content the rendered-views security baseline pins to the terminal until the escape helper ships, so it renders a diff-shaped delta as a terminal fence and says in one line that the artifact argument was not honored for this content. It does not publish an Artifact or write a local HTML file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes a pull-request diff as content that is never rendered to HTML until the escape helper ships",
+        "Renders the diff-shaped delta as a terminal fence",
+        "States in one line why the artifact argument was not honored",
+        "Does not publish an Artifact or write a local HTML file"
       ]
     }
   ]

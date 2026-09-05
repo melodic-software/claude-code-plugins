@@ -18,17 +18,17 @@ const F = `
 `;
 
 const ops = [
-  { name: 'fetch_issue (wit_linear_fetch_issue)', loc: 'common.sh:547-551',
+  { name: 'fetch_issue (wit_linear_fetch_issue)', loc: 'common.sh:556-560',
     q: `query($team: String!, $num: Float!) {
     issues(filter: { team: { key: { eq: $team } }, number: { eq: $num } }, first: 1) {
       nodes { ${F} }
     }
   }`, vars: { team: 'ENG', num: 123 } },
 
-  { name: 'viewer (wit_linear_resolve_viewer)', loc: 'common.sh:674',
+  { name: 'viewer (wit_linear_resolve_viewer)', loc: 'common.sh:683',
     q: `query { viewer { id displayName email } }`, vars: {} },
 
-  { name: 'activity_since (wit_linear_activity_since)', loc: 'common.sh:704-711',
+  { name: 'activity_since (wit_linear_activity_since)', loc: 'common.sh:713-720',
     q: `query($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
       comments(first: $first, after: $after) {
@@ -38,7 +38,7 @@ const ops = [
     }
   }`, vars: { id: 'u', first: 50, after: null } },
 
-  { name: 'lease_comments (wit_linear_lease_comments)', loc: 'common.sh:737-744',
+  { name: 'lease_comments (wit_linear_lease_comments)', loc: 'common.sh:746-753',
     q: `query($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
       comments(first: $first, after: $after) {
@@ -48,19 +48,19 @@ const ops = [
     }
   }`, vars: { id: 'u', first: 50, after: 'cur' } },
 
-  { name: 'commentCreate (wit_linear_post_comment)', loc: 'common.sh:794',
+  { name: 'commentCreate (wit_linear_post_comment)', loc: 'common.sh:807',
     q: `mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { id createdAt } } }`,
     vars: { input: { issueId: 'u', body: 'b' } } },
 
-  { name: 'commentUpdate (wit_linear_update_comment)', loc: 'common.sh:811',
+  { name: 'commentUpdate (wit_linear_update_comment)', loc: 'common.sh:824',
     q: `mutation($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success } }`,
     vars: { id: 'u', input: { body: 'b' } } },
 
-  { name: 'issueUpdate assign (wit_linear_set_assignee, assign)', loc: 'common.sh:819',
+  { name: 'issueUpdate assign (wit_linear_set_assignee, assign)', loc: 'common.sh:832',
     q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
     vars: { id: 'u', input: { assigneeId: 'uid' } } },
 
-  { name: 'issueUpdate unassign (assigneeId: null)', loc: 'common.sh:819-821',
+  { name: 'issueUpdate unassign (assigneeId: null)', loc: 'common.sh:832-833',
     q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
     vars: { id: 'u', input: { assigneeId: null } } },
 
@@ -79,7 +79,7 @@ const ops = [
   // Labels come from the ROOT issueLabels connection, filtered to this team OR workspace-level
   // (team: { null: true }), paginated. This replaced a single unpaginated team.labels(first: 250)
   // page, which could neither see workspace labels nor read past its own first page.
-  { name: 'create-item label resolve (root issueLabels, team-or-workspace)', loc: 'create-item.sh:154-164',
+  { name: 'create-item label resolve (root issueLabels, team-or-workspace)', loc: 'create-item.sh:137-146',
     q: `query($team: ID!, $first: Int!, $after: String) {
     issueLabels(
       filter: { or: [{ team: { id: { eq: $team } } }, { team: { null: true } }] }
@@ -92,11 +92,11 @@ const ops = [
   }`,
     vars: { team: '00000000-0000-0000-0000-000000000000', first: 50, after: null } },
 
-  { name: 'issueCreate', loc: 'create-item.sh:151',
+  { name: 'issueCreate', loc: 'create-item.sh:216',
     q: `mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id number team { key } } } }`,
     vars: { input: { title: 't', teamId: 'tid', description: 'd', labelIds: ['l1'], parentId: 'p' } } },
 
-  { name: 'issueRelationCreate (create-item)', loc: 'create-item.sh:167-168',
+  { name: 'issueRelationCreate (create-item)', loc: 'create-item.sh:232-233',
     q: `mutation($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }`,
     vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
 
@@ -128,7 +128,7 @@ const ops = [
 
 let fail = 0;
 for (const op of ops) {
-  let doc, errs = [];
+  let doc, errs;
   try { doc = parse(op.q); } catch (e) { console.log(`FAIL PARSE  ${op.name} :: ${e.message}`); fail++; continue; }
   errs = validate(schema, doc);
   let varErrs = [];

@@ -67,6 +67,14 @@ assert fan_out["statusline"]["configured"] is True, fan_out["statusline"]
 assert "spawn_cost" in fan_out and "state_label" in fan_out["spawn_cost"], fan_out["spawn_cost"]
 assert "fan_out" in report["timings_seconds"], report["timings_seconds"]
 print("OK: fan-out layer is present in the shipped report")
+
+census = report.get("kernel_objects")
+assert census is not None and "supported" in census, (
+    "the report ships no kernel_objects section; the host-level floor is invisible"
+)
+assert census["supported"] is False or census["state_label"] in {"nominal", "paged-pool-high", "token-leak"}, census
+assert "kernel_objects" in report["timings_seconds"], report["timings_seconds"]
+print("OK: kernel-object census is present in the shipped report")
 PY
 
 # --skip-fan-out must actually skip it, so an operator on a wedged machine can
@@ -79,5 +87,6 @@ import sys
 report = json.loads(open(sys.argv[1], encoding="utf-8").read())
 assert "fan_out" not in report, "--skip-fan-out did not skip the fan-out probes"
 assert "tree_census" in report, "skipping fan-out must not drop the other phases"
+assert "kernel_objects" in report, "skipping fan-out must not drop the host-level floor"
 print("OK: --skip-fan-out honored")
 PY

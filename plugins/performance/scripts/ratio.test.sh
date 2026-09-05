@@ -106,7 +106,7 @@ fi
 # discriminating-skip-required: this case is the only cover for the clamp.
 write_samples "$WORK/subms" 0 0 0 0
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/subms" BENCH_CONC=1 BENCH_MIN_PAIRS=1
-assert_eq "an unresolvable denominator still exits 0" "2" "$RUN_RC"
+assert_eq "a comparison arm the clock cannot resolve is refused" "2" "$RUN_RC"
 assert_contains "the all-zero arm is refused before any ratio prints" \
   "clock resolution" "$RUN_OUT"
 
@@ -188,10 +188,10 @@ assert_eq "a non-integer BENCH_MIN_PAIRS is refused" "2" "$RUN_RC"
 
 # --- 8. the disagreement check inspects EVERY printed ratio, not just p50 ---
 # A tail spike in one arm moves ratio_of_p95 while the paired median and
-# ratio_of_p50 both sit at 1.00x. The p95 value was previously discarded at the
-# call site, so a quotable 5.95x could sit beside two 1.00x figures with nothing
-# saying they disagree. A statistic excluded from the check is a statistic that
-# can be quoted while the rest of the line silently contradicts it.
+# ratio_of_p50 both sit at 1.00x. Excluding p95 from the check would leave a
+# quotable 5.95x beside two 1.00x figures with nothing saying they disagree: a
+# statistic excluded from the check is a statistic that can be quoted while the
+# rest of the line silently contradicts it.
 # discriminating-skip-required: this is the only case covering p95 in the
 # disagreement check; without it the flag can regress to p50-only and every
 # other assertion here still passes.

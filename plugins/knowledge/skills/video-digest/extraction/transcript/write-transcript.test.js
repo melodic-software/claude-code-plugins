@@ -66,6 +66,33 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     return { path: vttPath, rung: "manual-en", isAutoCaption: false };
   }
 
+  /**
+   * The caption-less, media-bearing single-entry input every ASR-rung case
+   * starts from. A fresh options object per call — the envelope is frozen, the
+   * options object around it is not.
+   */
+  function asrCandidateOptions() {
+    return {
+      sliceDir,
+      envelope: createAcquisitionEnvelope({
+        entries: [entry({ mediaPath: "/w/a.mp4" })],
+        metadata,
+        workDir: "/w",
+      }),
+      sourceUrl: "https://x.com/u/status/1",
+      sliceKey: "urlKey0",
+      transcriptStrategy: "captions+repair",
+    };
+  }
+
+  /** Detection stub for a present ASR toolchain. */
+  const asrDetected = async () => ({
+    available: true,
+    python: "python",
+    version: "1.1.0",
+    detail: "test",
+  });
+
   /** @param {import('../adapters/adapter-contract.js').AcquisitionEnvelope} envelope */
   async function writeWithFakeFs(envelope) {
     /** @type {Record<string, string>} */
@@ -147,33 +174,15 @@ so I opened clawed code today
         words: [],
       };
     };
-    const result = await writeEnvelopeTranscriptArtifacts(
-      {
-        sliceDir,
-        envelope: createAcquisitionEnvelope({
-          entries: [entry({ mediaPath: "/w/a.mp4" })],
-          metadata,
-          workDir: "/w",
-        }),
-        sourceUrl: "https://x.com/u/status/1",
-        sliceKey: "urlKey0",
-        transcriptStrategy: "captions+repair",
+    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
+      mkdir: async () => {},
+      readFile: async () => "",
+      writeFile: async (filePath, content) => {
+        files[String(filePath)] = String(content);
       },
-      {
-        mkdir: async () => {},
-        readFile: async () => "",
-        writeFile: async (filePath, content) => {
-          files[String(filePath)] = String(content);
-        },
-        detectAsr: async () => ({
-          available: true,
-          python: "python",
-          version: "1.1.0",
-          detail: "test",
-        }),
-        runAsr: runAsrMock,
-      },
-    );
+      detectAsr: asrDetected,
+      runAsr: runAsrMock,
+    });
 
     expect(result.transcripts).toHaveLength(1);
     expect(result.transcripts[0].strategy).toBe("asr");
@@ -183,30 +192,17 @@ so I opened clawed code today
   });
 
   it("caption-absent + capability absent degrades explicitly in the named provenance field", async () => {
-    const result = await writeEnvelopeTranscriptArtifacts(
-      {
-        sliceDir,
-        envelope: createAcquisitionEnvelope({
-          entries: [entry({ mediaPath: "/w/a.mp4" })],
-          metadata,
-          workDir: "/w",
-        }),
-        sourceUrl: "https://x.com/u/status/1",
-        sliceKey: "urlKey0",
-        transcriptStrategy: "captions+repair",
-      },
-      {
-        mkdir: async () => {},
-        readFile: async () => "",
-        writeFile: async () => {},
-        detectAsr: async () => ({
-          available: false,
-          python: null,
-          version: null,
-          detail: "not installed",
-        }),
-      },
-    );
+    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
+      mkdir: async () => {},
+      readFile: async () => "",
+      writeFile: async () => {},
+      detectAsr: async () => ({
+        available: false,
+        python: null,
+        version: null,
+        detail: "not installed",
+      }),
+    });
 
     expect(result.transcripts).toHaveLength(0);
     expect(result.transcriptDegradation).toContain("faster-whisper");
@@ -246,31 +242,13 @@ so I opened clawed code today
   });
 
   it("an ASR failure degrades the entry explicitly instead of failing the digest", async () => {
-    const result = await writeEnvelopeTranscriptArtifacts(
-      {
-        sliceDir,
-        envelope: createAcquisitionEnvelope({
-          entries: [entry({ mediaPath: "/w/a.mp4" })],
-          metadata,
-          workDir: "/w",
-        }),
-        sourceUrl: "https://x.com/u/status/1",
-        sliceKey: "urlKey0",
-        transcriptStrategy: "captions+repair",
-      },
-      {
-        mkdir: async () => {},
-        readFile: async () => "",
-        writeFile: async () => {},
-        detectAsr: async () => ({
-          available: true,
-          python: "python",
-          version: "1.1.0",
-          detail: "test",
-        }),
-        runAsr: async () => ({ success: false, error: "ASR transcription failed: boom" }),
-      },
-    );
+    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
+      mkdir: async () => {},
+      readFile: async () => "",
+      writeFile: async () => {},
+      detectAsr: asrDetected,
+      runAsr: async () => ({ success: false, error: "ASR transcription failed: boom" }),
+    });
 
     expect(result.transcripts).toHaveLength(0);
     expect(result.transcriptDegradation).toContain("boom");

@@ -898,19 +898,18 @@ else
 fi
 
 # ============================================================================
-# Case: static guard — no large-payload `--argjson` call site regresses back
-# into fleet-state.sh (#1336). The runtime case above proves the CURRENT
-# script doesn't crash; this guards against a future edit silently
-# reintroducing `--argjson catalog|installed|missing*` (the exact pattern
-# that crashed) alongside the harmless small-boolean `--argjson au|ci` uses
-# this script legitimately keeps (a fixed literal `true`/`false`, never
-# proportional to catalog size). Counts every `--argjson` occurrence in the
-# script body (source lines only, comments excluded) and asserts it matches
-# the fixed count of boolean-only remaining uses.
+# Case: static guard: no `--argjson` call site regresses back into
+# fleet-state.sh (#1336). The runtime case above proves the CURRENT script
+# doesn't crash; this guards against a future edit silently reintroducing
+# `--argjson catalog|installed|missing*` (the exact pattern that crashed).
+# Every payload now travels as a `--slurpfile` of a validated source file or
+# on stdin, and the few fixed-size booleans ride as `--arg` strings, so the
+# script body (source lines only, comments excluded) carries no `--argjson`
+# at all.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 argjson_code_count=$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -c -- '--argjson' || true)
-assert_eq "static guard: --argjson remains only on fixed-size booleans (au/ci/autoUpdate), not catalog-sized payloads" "7" "$argjson_code_count"
+assert_eq "static guard: no --argjson call site at all (payloads travel as --slurpfile or stdin)" "0" "$argjson_code_count"
 
 # ============================================================================
 # --ids: the id-projection mode `sync` Steps 2-5 loop, so no caller hand-writes
@@ -1814,6 +1813,96 @@ assert_contains "--ids help text names current-project" "$out" "current-project"
 assert_contains "--ids help text names missing-user-install" "$out" "missing-user-install"
 assert_contains "--ids help text names missing-enabled" "$out" "missing-enabled"
 assert_contains "--ids help text names user-scope-orphans" "$out" "user-scope-orphans"
+
+# ============================================================================
+# Process budget: one report costs a FIXED number of process creations, never
+# one per catalog entry. Each creation is a fork() emulation plus a
+# CreateProcess on Windows Git Bash (roughly 120 ms on a quiet host, seconds
+# on a contended one), and the pre-rewrite script paid one jq, one realpath
+# and their subshells for every catalog entry: 736 creations and 17 minutes
+# for a 74-plugin catalog on the authoring host. Counted the way the baseline
+# was: `bash -x` with PS4 carrying $BASHPID, so every subshell shows up as a
+# distinct pid, plus every external exec. Two fixtures that differ only in
+# catalog size must cost the same, and that cost must sit under the budget.
+# The equality half needs a batching `realpath` (hook::_physical_prime); a
+# host without one resolves per path and is reported, not failed.
+# ============================================================================
+count_creations() {
+  local trace="$1" forks execs
+  forks=$(grep -oE '^\++[0-9]+\+' "$trace" | sort -u | wc -l | tr -d ' ')
+  execs=$(grep -cE '^\++[0-9]+\+ (command )?(jq|tr|realpath|readlink|mktemp|git|head|sed|cygpath|rm|cat|grep|awk|sort|uniq|cut|wc|date|dirname|basename|ls|find) ' "$trace" || true)
+  echo $((forks - 1 + execs))
+}
+
+# Like run_state, but under `bash -x` with a pid-stamped PS4 and stderr (the
+# trace) routed to $2. CLAUDE_PROJECT_DIR is pinned to a fixture directory so
+# the count does not depend on whether the suite itself runs inside a git repo.
+run_traced() {
+  local case_dir="$1" trace="$2"
+  mkdir -p "$case_dir/proj"
+  # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
+  env \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    CLAUDE_PROJECT_DIR="$case_dir/proj" \
+    PS4='+${BASHPID}+ ' \
+    bash -x "$SCRIPT" "${ARGS[@]}" 2>"$trace"
+}
+
+seed_budget_case() {
+  local case_dir="$1" n="$2" i pairs=() entries=""
+  for ((i = 1; i <= n; i++)); do
+    pairs+=("plugin$i=0.$i.0")
+    entries+="{\"name\": \"plugin$i\", \"source\": \"./plugin$i\"},"
+  done
+  seed_catalog_versions_case "$case_dir" "${pairs[@]}"
+  write "$case_dir/catalog/market1.json" "{\"plugins\": [${entries%,}]}"
+  write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"plugin1@market1":[{"scope":"user","installPath":"y","version":"0.0.1"}]}}'
+}
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_budget_case "$case_dir" 2
+ARGS=(--marketplace market1)
+out=$(run_traced "$case_dir" "$case_dir/trace-small.log")
+small=$(count_creations "$case_dir/trace-small.log")
+assert_eq "process budget: the small-catalog run still produces the report" \
+  "2" "$(jq -r '[.catalog_versions | to_entries[] | select(.value != null)] | length' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_budget_case "$case_dir" 12
+ARGS=(--marketplace market1)
+out=$(run_traced "$case_dir" "$case_dir/trace-large.log")
+large=$(count_creations "$case_dir/trace-large.log")
+assert_eq "process budget: the large-catalog run resolves every manifest" \
+  "12" "$(jq -r '[.catalog_versions | to_entries[] | select(.value != null)] | length' <<<"$out" 2>/dev/null)"
+if [[ "$large" -le 12 ]]; then
+  pass "process budget: a --marketplace report costs at most 12 process creations (measured $large)"
+else
+  fail "process budget: a --marketplace report costs at most 12 process creations" "measured $large (trace: $case_dir/trace-large.log)"
+fi
+if command -v realpath >/dev/null 2>&1; then
+  assert_eq "process budget: the count does not grow with the catalog (2 entries vs 12)" "$small" "$large"
+else
+  pass "process budget: catalog-size invariance not asserted (no realpath on this host; hook-utils resolves per path)"
+fi
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_budget_case "$case_dir" 12
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_traced "$case_dir" "$case_dir/trace-ids.log")
+ids_count=$(count_creations "$case_dir/trace-ids.log")
+assert_eq "process budget: --ids projects from the same single pass (plugin1 is behind 0.1.0)" \
+  "plugin1@market1" "$out"
+if [[ "$ids_count" -le 12 ]]; then
+  pass "process budget: an --ids projection costs at most 12 process creations (measured $ids_count)"
+else
+  fail "process budget: an --ids projection costs at most 12 process creations" "measured $ids_count"
+fi
 
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

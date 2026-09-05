@@ -1,5 +1,5 @@
 ---
-description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, a rich rendered page, or, where the bundled design skill is available, a hand-editable design canvas) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed. It does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual', 'show me the shape of this'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, a rich rendered page, or, where the bundled design skill is available, a hand-editable design canvas) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed. It does not teach them. Not for chart craft (a dataviz capability owns it) or restating dense text in plainer words (a comprehension concern)."
 argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
 user-invocable: true
 disable-model-invocation: false
@@ -44,7 +44,10 @@ Read where the conversation stands and identify the single thing most worth
 showing: a process just described, a set of options compared, a trend in some
 numbers, a structure being designed. Usually one target dominates. If two or more
 are equally plausible and the user named no form, that is genuine ambiguity.
-Carry it to Step 4. Otherwise proceed with the dominant target.
+Carry it to Step 4. Otherwise proceed with the dominant target. Read the chat
+history first: the thing just discussed, pasted, or changed is usually the
+target, and a shape already shown earlier in the conversation is usually what a
+follow-up question is about.
 
 ## Step 2: Pick the form
 
@@ -58,9 +61,27 @@ rendering-surface facts these rest on. The summary:
 | Flow, process, hierarchy, sequence, state, relationships, timeline | a **mermaid diagram** (pick the family per the catalog) |
 | Attributes or options compared across items | a **markdown table** |
 | Quantities: trend, distribution, proportion, ranking | a **chart**. Route the craft to a chart-craft/dataviz capability |
-| Small structural sketch, directory tree, box layout | **ASCII / Unicode art** |
-| A composite, interactive, or large multi-part view | a **rich rendered page** |
+| Small structural sketch, box layout, a directory tree as structure | **ASCII / Unicode art** |
+| Logic described in prose, or an algorithm before it is written | **pseudocode** (a code-shape sketch) |
+| A call path through named functions: orchestration, control flow, a backend-shaped problem | a **call tree** (a code-shape sketch) |
+| A UI's component tree, with the state hooks and module boundaries that matter | a **component tree** with file paths (a code-shape sketch) |
+| Where things live, or the scope of a refactor | a **shallow file tree**, one line of responsibility per entry (a code-shape sketch) |
+| The shape of code before any of it exists | **types and signatures** (a code-shape sketch) |
+| What changes, when the surrounding shape is already in the conversation | a **diff-shaped delta** over any of the shapes above (a code-shape sketch) |
+| Mostly new code, or a copyable target shape, when no sketch is smaller than the code | **the whole block**, the fallback among the code-shape sketches |
+| A composite, interactive, or large multi-part view; an infographic; a short slide deck | a **rich rendered page** |
 | A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **design canvas**. Route to a design-canvas capability (the bundled `design` skill), when available |
+
+**Code-shape sketches** are fenced text: they render in any GFM surface and need
+no page. Tie-break against the mermaid row: when the content is code (named
+functions, files, components, types), prefer a code-shape row; when it is a
+process, sequence, or state in the domain, prefer a mermaid family. Pseudocode
+never paraphrases pasted code when a structural form answers the question. Pick
+the smallest view that makes the key point clear, place it beside the short
+text it supports, keep only the calls, files, props, states, and boundaries the
+question needs, and use one form, sometimes several, rarely all. One example per
+form lives in [`context/code-shapes.md`](context/code-shapes.md); its paths and
+identifiers are placeholders.
 
 When the form is a chart and a chart-craft/dataviz capability is installed, invoke
 it for the craft (form heuristic, palette, mark specs); when it is not installed,
@@ -125,6 +146,13 @@ degrade **visibly** to the best terminal form with a one-line notice. Never assu
 the Artifact surface exists. The `file` preference deliberately stays on the
 machine (never published); `artifact` prefers publishing but degrades the same way.
 
+**Code-shape sketches take this same ladder** (under auto they stay in the
+terminal, per rung 4; `file`, `artifact`, and the configured preference are
+honored for them as for any form), with one exception: a pull-request diff,
+fetched content, or another repository's files are never rendered to HTML until
+the rendered-views escape helper ships. That exception overrides rung 1 and the
+preference; when a page was asked for, say in one line why it was not produced.
+
 **Page chrome.** When authoring a rich page, take the palette, type stacks,
 radii, and accessibility floor (link/focus contrast tokens, color-scheme and
 reduced-motion behavior) from this plugin's bundled chrome reference,
@@ -169,11 +197,26 @@ first, when either is genuinely ambiguous:
 - **Target ambiguity**. Several equally plausible things to show. Ask which, *even
   if a form was named*: naming "diagram this" fixes the *how*, not the *what*.
 - **Form ambiguity**. The target is clear, no form was named, and two forms fit it
-  about equally. Ask which form.
+  about equally. Ask which form. The common case is pasted code with little
+  conversational context: when two or more code-shape forms fit it about equally,
+  ask one question listing those two to four forms, the recommended one first,
+  and render nothing until the answer. When one form clearly dominates (a
+  comparison is a table, a series is a chart, a where-does-this-live question is
+  a file tree), render it without asking.
+
+The pasted-code case honors `${user_config.thin_context_prompt}`. Claude Code
+text-substitutes the configured value into this line; if it still shows the
+literal `${user_config.thin_context_prompt}` token or is empty, the option is
+unset and `auto` applies. `auto` is the behavior above; `always` offers the
+ranked menu on any bare code paste; `never` renders the recommended form without
+asking. Any other value is reported and treated as `auto`.
 
 When neither is ambiguous, meaning a dominant target and a clear best form, proceed with
-the matrix's pick: good defaults, no nagging. A specified form or medium is always
-honored and simply removes that axis from any question.
+the matrix's pick: good defaults, no nagging. A specified form or medium is honored
+and simply removes that axis from any question, with one carve-out: Step 3's
+terminal-only exception for a pull-request diff, fetched content, or another
+repository's files overrides a requested `file` or `artifact` medium. Never
+interrogate form by form; one question, then render.
 
 ## Step 5: Render
 
@@ -184,7 +227,9 @@ honored and simply removes that axis from any question.
 - **A rich page** follows the Artifact tool's own contract and, when an
   artifact-design capability is installed, its guidance. The page-contract facts
   live once in [`context/decision-matrix.md`](context/decision-matrix.md). Do not
-  restate them here.
+  restate them here. When the subject is a product UI, match that product's own
+  colors, type, spacing, and components rather than the plugin chrome; use real
+  labels and data; support desktop and mobile.
 - Report what you produced and, for a page, its path or link.
 
 ## Gotchas
@@ -219,4 +264,5 @@ round-trip controls), never a hand-built imitation of the explorer.
 - **Does not teach artifact-design fundamentals**. Those route to an artifact-design capability and the Artifact tool's contract.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
+- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until the rendered-views escape helper ships. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.

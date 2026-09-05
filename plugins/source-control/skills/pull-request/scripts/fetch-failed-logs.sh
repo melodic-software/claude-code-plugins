@@ -45,7 +45,7 @@ set -uo pipefail
 
 RUN_ID=""
 JOB_ID=""
-MAX_BYTES_ARG=""
+MAX_BYTES=52428800
 KEEP_ZIP=0
 RAW=0
 ERRORS_ONLY=0
@@ -55,7 +55,7 @@ TIMING=0
 SUSPICIOUS=0
 
 usage() {
-  sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -75,7 +75,7 @@ while (($# > 0)); do
       printf 'fetch-failed-logs: --max-bytes needs a numeric argument\n' >&2
       exit 1
     }
-    MAX_BYTES_ARG="$2"
+    MAX_BYTES="$2"
     shift 2
     ;;
   --keep-zip)
@@ -228,8 +228,6 @@ emit_group_timing() {
   ' "$file"
 }
 
-MAX_BYTES="${MAX_BYTES_ARG:-52428800}"
-
 # --- Repo resolution ---------------------------------------------------------
 
 if [[ -n "${FETCH_LOGS_REPO:-}" ]]; then
@@ -338,7 +336,7 @@ fi
 # rather than per-job dirs.
 
 # Enumerated ONCE and reused by every walk below (markers, --raw, the three
-# audit sections, the no-marker fallback), so the five consumers do not each
+# audit sections, the no-marker fallback), so those consumers do not each
 # re-walk the extracted tree. NUL-delimited to survive filenames with spaces
 # (real ZIPs have them — e.g. "shell _ Bash").
 TXT_FILES=()

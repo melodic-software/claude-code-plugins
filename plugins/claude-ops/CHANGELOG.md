@@ -3,6 +3,130 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.42.1]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.42.0]
+
+### Added
+
+- **audit-performance: `kernel_objects`, the host-level floor beneath the four suspects
+  (Windows).** A read-only census through `NtQueryObject(ObjectTypesInformation)` and
+  `GetPerformanceInfo`: live and high-water counts for Token, Process, Thread, Key, File,
+  Section, Event, and EtwRegistration objects, paged and nonpaged pool, system handle,
+  process, and thread totals, and uptime. Token leads because a Token object that outlives
+  every handle to it is held by a kernel reference, and a leaking driver or service path
+  accumulates them for the life of the boot: the host that motivated this carried 3.81M Token
+  objects and about 10 GB of paged pool at two days' uptime, every process creation on it cost
+  1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor (#3715). The section reports
+  `objects_per_uptime_second`, a population ratio that names its own bias (it includes the
+  boot population and cannot see churn; a 3 s in-run delta read 0/s against a 60 s window's
+  15/s, so the no-sleep ratio is the honest engine signal), projects the hours until the leak
+  threshold at that ratio, and carries two findings that are not one verdict:
+  `token-objects-leaked` alone yields `state_label: token-leak`, while `paged-pool-high` is an
+  unattributed pool signal routed to `poolmon`. Off Windows the section says
+  `supported: false` with the reason rather than vanishing; the block parser is unit-tested
+  against a synthetic x64 layout on every platform, and the end-to-end contract asserts the
+  section ships. `known-performance-issues.md` records the signature, the ruled-out causes,
+  and the elevated attribution runbook; `SKILL.md` reads the section before the four suspects.
+- **`lib/test_spawn_noise.py` proves the lib stands alone in an isolated interpreter.** The
+  stand-alone check asserted that the engine's script directory was absent from the current
+  process's `sys.path`, which CI's Python lane cannot guarantee: it collects this suite and the
+  engine's in one pytest process, and pytest prepends each suite's directory. The check now
+  runs in a `python -I` child that proves the exclusion itself before importing, so the suite
+  passes wherever it is collected.
+
+## [0.41.14]
+
+### Changed
+
+- **`install_state.py`'s `scan()` aggregates counts with a dict comprehension.**
+  The `setdefault` loop it replaces could never reach its already-present
+  branch: `counts` starts empty and `count_by_entry` returns unique keys, so
+  every iteration took the insert path.
+- **`overlap.py`'s quoted-scalar frontmatter branch strips once and drops a
+  dead conjunct.** `body.rstrip()` was computed three times, and the `!= ""`
+  test guarding it can never matter, since `"".endswith(quote)` is already
+  false. The join and split normalization at the return makes the value
+  byte-identical in every case.
+- **Three suites lose assertion helpers that had no callers.**
+  `claude-observability.test.sh` drops `skip_case`, `assert_exit` and
+  `assert_file_exists`; `prune-otel-store.test.sh` drops `assert_exit` and
+  `assert_file_exists` but keeps `skip_case`, which has eight duckdb-gated
+  callers; `check-all.test.sh` drops `skip_case` and `assert_eq`. The formatter
+  hook also reflowed two one-line `pass()` definitions and one `case` block's
+  labels.
+
+  The Python suites ran 50 and 77 tests and the shell suites 33 and 112 cases,
+  with the duckdb cases skipping locally and covered in CI; the pinned ruff
+  wrapper is clean.
+
+- **One candidate was reverted rather than shipped:** routing
+  `skill-usage-expansion-audit.sh`'s expansion-type extraction through
+  `hook::jq_field`. The verifier proved behavior equivalence across every input
+  class, and then `strace` measured one added fork per execution, because the
+  helper's nested command substitution costs a fork the inline form did not
+  pay. This is an always-on PostToolUse hook, and spawn count is the cost
+  driver the marketplace hook budget is written against, so the dedup's value
+  sits below its price. The reverted commit's own claim of an unchanged spawn
+  count was false. The candidate is recorded as a human decision, dedup against
+  fork cost, rather than quietly retried.
+
+## [0.41.13]
+
+### Changed
+
+- **`plugins` skill: `fleet-state.sh` computes the whole report in three `jq`
+  passes and two batched `realpath` calls instead of one process per catalog
+  entry.** The report used to cost 108 `jq`, 78 `realpath`, 23 `mktemp` and
+  about 460 subshells for a 74-plugin catalog: one `jq` per manifest to read
+  its version, one `realpath` per manifest for the containment check, one
+  `mktemp` per `--slurpfile` payload, and a `| tr -d '\r'` pipeline behind
+  every `jq`. Measured with `bash -x` and a `$BASHPID`-stamped `PS4` on the
+  authoring Windows host: 736 process creations and 17.0 minutes wall for one
+  default run, and `sync` calls the script six to eight times. The rewrite
+  reads every top-level input in one `jq` (validation, the merged
+  `enabledPlugins` context, every marketplace's fields, every recorded
+  `projectPath`, and the default marketplace this plugin was installed from,
+  matched inside that same `jq` because MSYS rewrites a mount-alias root such
+  as `/tmp/...` into the drive-letter spelling the install records carry only
+  when it crosses into a native binary's argv), lists a marketplace's entries
+  with a second, resolves
+  the checkout root and every manifest that exists with one
+  `hook::_physical_prime` call, reads each contained manifest with
+  `read -d ''`, and composes the block, or the `--ids` projection, with a
+  third `jq` whose shell-assembled payload (context, `projectPath` presence,
+  manifest text) travels on stdin, never on argv, so the #1336 ceiling stays
+  out of reach without a temp file. Carriage returns are stripped by
+  parameter expansion in the capture helper, so no `tr` runs. Same output
+  bytes for the default run, `--all`, `--marketplaces` and every `--ids`
+  selector against the same snapshot of the machine's state; the fail-open
+  contract, the containment gate and every error path are unchanged. Three
+  new test cases pin the budget: a `--marketplace` report and an `--ids`
+  projection each cost at most 12 process creations, and a 2-entry and a
+  12-entry catalog cost the same. The static `--argjson` guard now asserts
+  zero call sites.
+
 ## [0.41.12]
 
 ### Changed

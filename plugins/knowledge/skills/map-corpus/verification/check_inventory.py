@@ -94,10 +94,11 @@ def check_manifest(manifest, data: bytes, failures: Failures):
     snap = manifest.get("snapshot", {})
     if not isinstance(snap, dict):
         fail(2, "manifest 'snapshot' is not an object.")
-    if snap.get("sha256") != sha256_hex(data):
+    actual_sha = sha256_hex(data)
+    if snap.get("sha256") != actual_sha:
         failures.add(
             f"manifest snapshot.sha256 {snap.get('sha256')!r} does not match "
-            f"the snapshot file ({sha256_hex(data)}); the manifest describes "
+            f"the snapshot file ({actual_sha}); the manifest describes "
             f"different bytes."
         )
         return None

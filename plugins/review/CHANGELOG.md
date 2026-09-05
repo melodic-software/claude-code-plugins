@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.17]
+
+### Changed
+
+- **`diff-vs-base.test.sh`: five duplicated work-repo setup lines folded into one `init_work_repo`
+  helper.** Test-only tidy from the repo-wide simplification sweep; the same git commands run in
+  the same order at every call site, verified with an argv trace.
+
 ## [0.26.16]
 
 ### Changed

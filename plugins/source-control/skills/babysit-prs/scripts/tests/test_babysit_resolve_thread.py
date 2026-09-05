@@ -1514,6 +1514,30 @@ class CompareUrlFieldsAreValidated(unittest.TestCase):
             (False, "refused-evidence-unverifiable"),
         )
 
+    def test_a_dotted_repository_name_under_a_plain_owner_reaches_the_compare(
+        self,
+    ) -> None:
+        # Pins the ARGUMENT ORDER of the owner/repo validation, which nothing
+        # else here does. Every other head-repo fixture uses a name and an owner
+        # that both regexes accept or both reject, so passing the pair the wrong
+        # way round is invisible to them. A dot is legal in a repository name and
+        # illegal in an owner, so this shape clears validation only when the two
+        # are passed in the right order.
+        #
+        # The assertion is the inverse of the one `_with_pr_view` documents: with
+        # a single scripted response, reaching the compare call raises
+        # StopIteration, so the raise is what proves validation did NOT refuse.
+        # Transposed, the pair is rejected, no second call is made, and this
+        # raises nothing.
+        with self.assertRaises(StopIteration):
+            self._with_pr_view(
+                {
+                    "headRefOid": HEAD_OID,
+                    "headRepository": {"name": "my.repo"},
+                    "headRepositoryOwner": {"login": "owner"},
+                }
+            )
+
     def test_non_hex_head_oid_is_refused(self) -> None:
         self.assertEqual(
             self._with_pr_view(
