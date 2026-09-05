@@ -237,11 +237,20 @@ substitution whose status the loop discards. The intermediate lands in `$run_dir
 reports, so it is covered by the same cleanup and no third temp location is invented:
 
 ```bash
-while IFS= read -r id; do
-  [[ -n "$id" ]] || continue
-  # the step's mutating call for "$id"
-done <"$run_dir/ids.mid.$mp.txt"
+if ((rc != 0)); then
+  # The step did NOT run. Report it inline under "Action needed" with the
+  # script's own error text; do not fall through to the loop.
+else
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    # the step's mutating call for "$id"
+  done <"$run_dir/ids.mid.$mp.txt"
+fi
 ```
+
+The branch is the point. A snippet that assigns `rc` and then loops unconditionally has done nothing
+the bare process substitution did not, which is the same defect as journaling a mutating call through
+`tee` without capturing `PIPESTATUS[0]`: the status is available and discarded.
 
 Pass `--marketplace "$mp"` alongside `--from` when you want the script to prove the saved report is
 the one you think it is; with `--from` that flag is a consistency check (mismatch is exit 2), never
@@ -362,10 +371,14 @@ project_root=$(jq -r '.project_root // "null"' "$run_dir/pre.$mp.json")
   --ids current-project --from "$run_dir/pre.$mp.json" >"$run_dir/ids.pre.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing in-repo"
 
-while IFS=$'\t' read -r id scope; do
-  [[ -n "$id" ]] || continue
-  claude plugin update "$id" -s "$scope"
-done <"$run_dir/ids.pre.$mp.txt"
+if ((rc != 0)); then
+  # Report the projection failure under "Action needed"; the step did not run.
+else
+  while IFS=$'\t' read -r id scope; do
+    [[ -n "$id" ]] || continue
+    claude plugin update "$id" -s "$scope"
+  done <"$run_dir/ids.pre.$mp.txt"
+fi
 ```
 
 The `rc` check matters more here than anywhere else: this is the primary value path, and an
@@ -444,10 +457,14 @@ re-read — the one the concurrency rule requires before a mutating step — red
   --ids update-candidates-user --from "$run_dir/mid.$mp.json" >"$run_dir/ids.mid.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "fleet already current"
 
-while IFS= read -r id; do
-  [[ -n "$id" ]] || continue
-  claude plugin update "$id" -s user
-done <"$run_dir/ids.mid.$mp.txt"
+if ((rc != 0)); then
+  # Report the projection failure under "Action needed"; the sweep did not run.
+else
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    claude plugin update "$id" -s user
+  done <"$run_dir/ids.mid.$mp.txt"
+fi
 ```
 
 Reading an unchecked empty projection as "already current" is the silently-skipped-update failure
