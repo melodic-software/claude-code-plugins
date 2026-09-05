@@ -115,6 +115,18 @@ run "not json" "$TEST_TMPDIR/allow.sh"
 assert_exit "malformed stdin: a fail-closed guard's rc-2 path is reached" 2 "$RC"
 assert_contains "malformed stdin names the reason once" "$ERR" "not valid JSON"
 assert_eq "malformed-stdin reason printed exactly once" "1" "$(grep -c 'not valid JSON' <<<"$ERR")"
+# A payload cut short in transit (#3507) — a well-formed JSON prefix the pipe
+# closed on — is a transport fault, not a verdict on the command. The dispatcher
+# takes it once as a loud allow: exit 0, the notice on systemMessage and stderr,
+# and no guard runs (block.sh would have exited 2 had it run).
+run '{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify' "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "cut-short stdin: loud allow, taken once" 0 "$RC"
+assert_contains "cut-short stdin: the lib diagnostic names the cause" "$ERR" "cut short"
+assert_absent "cut-short stdin: nothing is BLOCKED" "$ERR" "BLOCKED"
+assert_eq "cut-short stdin: exactly one JSON document on stdout" "1" "$(jq -s 'length' <<<"$OUT")"
+assert_contains "cut-short stdin: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "not evaluated"
+assert_eq "cut-short stdin: notice printed exactly once" "1" "$(grep -c 'not evaluated' <<<"$ERR")"
+assert_eq "cut-short stdin: no guard ran" "" "$(cat "$SEEN")"
 
 # --- jq cache: a NUL-bearing payload bypasses the cache ----------------------
 nul_payload=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')

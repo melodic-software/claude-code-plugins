@@ -3,6 +3,21 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.37]
+
+### Changed
+
+- **Vendored `hook-utils.sh` tells a hook payload cut short in transit from
+  stdin that is not JSON (#3507).** `hook::buffer_stdin` returns a new rc 3
+  when what arrived is a well-formed JSON prefix and the pipe then closed or
+  went quiet (jq's own "Unfinished" parse verdict), and rc 2 only for text that
+  never parsed; the "timed out before a complete JSON payload" message is
+  gone. New `hook::stdin_cut_short_notice` emits the exit-0 notice for callers
+  that block on rc 2. None of this plugin's hooks branches on which non-zero
+  status the read returned, so their behavior is unchanged; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
 ## [0.7.36]
 
 ### Changed

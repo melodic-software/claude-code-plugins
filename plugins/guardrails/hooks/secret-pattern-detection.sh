@@ -43,10 +43,11 @@ start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
 # once, parse each field from it. rc 1 (empty stdin) skips like the empty-field
-# guards below; rc 2 (read timed out before a complete payload) FAILS CLOSED —
-# the guard cannot evaluate the tool call, and a silent skip would pass exactly
-# the traffic this guard exists to stop. buffer_stdin already printed the
-# BLOCKED reason to stderr. Buffering does not require jq (hook::buffer_stdin's
+# guards below; rc 2 (text that is not JSON) FAILS CLOSED — the guard cannot
+# evaluate the tool call, and a silent skip would pass exactly the traffic this
+# guard exists to stop; rc 3 (a JSON payload cut short by the pipe, a transport
+# fault, #3507) is a loud skip the dispatcher takes once. buffer_stdin already
+# printed the reason to stderr. Buffering does not require jq (hook::buffer_stdin's
 # own JSON-completeness check is jq-optional), so it runs before the jq gate
 # below — hook::require_jq needs the buffered input for its once-per-session
 # notice scoping.

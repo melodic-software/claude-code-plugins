@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.2]
+
+### Fixed
+
+- **A hook payload cut short in transit no longer blocks the tool call
+  (#3507).** On a starved Windows host `block-hook-bypass` denied a plain
+  `jq -r ... "$HOME/.claude.json"` with `BLOCKED: hook stdin is not valid
+  JSON.` The harness pipe had delivered part of the payload and then reported
+  end-of-file (bash reports an early EOF and a pipe read error with the same
+  status), and `hook::buffer_stdin` folded that truncated buffer into the same
+  rc 2 as text that was never JSON, so every blocking guard denied on it with
+  a message that pointed at the command. The verdict is now split on what
+  arrived: jq's own parse diagnostic tells a document that ended before it
+  closed ("Unfinished ... at EOF") from text that fails on a token, and only
+  the latter stays rc 2. A well-formed prefix the pipe closed on, or that went
+  quiet past the idle bound, is a new rc 3: a transport fault the agent cannot
+  stage (the harness serializes the payload) that says nothing about the
+  command, so no guard denies on it. `run-guards.sh` takes it once as a loud
+  allow (`systemMessage` plus stderr, exit 0, no guard runs); `block-hook-bypass`
+  run alone adds `additionalContext` and a `skipped` telemetry envelope with
+  `data.reason` `stdin-cut-short`. Text that is not JSON, a NUL payload, and
+  every matched bypass form still block, and a held-open pipe carrying
+  non-JSON is still rc 2: the split is on the content, not on how the read
+  stopped. The rc 3 diagnostic names the character count and whether the pipe
+  closed or went quiet, so the operator is pointed at the host rather than at
+  the command. The old "timed out before a complete JSON payload arrived"
+  message is gone with the branch that printed it. Should a future jq rename
+  the diagnostic, the unrecognized wording falls back to rc 2, the previous
+  verdict, never a wider allow; the suite pins the wording so that shows up as
+  a test failure first. The stdin posture comments in the seven sibling
+  guards, the README, and the `stdin_read_timeout` option text are updated to
+  say the same. New `hook::stdin_cut_short_notice` in the vendored
+  `hook-utils.sh` carries the notice text.
+
 ## [0.32.1]
 
 ### Changed

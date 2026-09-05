@@ -17,8 +17,10 @@
 #   * stdin is read and validated ONCE (hook::buffer_stdin), then every guard's
 #     own `hook::buffer_stdin` call is answered from that buffer with the same
 #     return code the guard would have seen on its own (0 payload, 1 empty,
-#     2 stalled/malformed), so each guard's fail-open / fail-closed posture on
-#     bad stdin is exercised exactly as when it runs alone.
+#     2 not JSON), so each guard's fail-open / fail-closed posture on bad
+#     stdin is exercised exactly as when it runs alone. The two verdicts no
+#     guard acts on differently — 1 (nothing arrived) and 3 (a payload cut
+#     short, #3507) — are taken once here instead of once per guard.
 #   * The payload fields the guards read (`.tool_input.command`, `.tool_name`,
 #     `.cwd`, the Write/Edit content fields, ...) are extracted with ONE jq
 #     process; `hook::jq_fields` answers from that cache when every requested
@@ -97,6 +99,15 @@ RUN_GUARDS_STDIN_RC=0
 RUN_GUARDS_INPUT=$(hook::buffer_stdin) || RUN_GUARDS_STDIN_RC=$?
 # Nothing arrived: every guard would take its empty-stdin skip. Take it once.
 ((RUN_GUARDS_STDIN_RC == 1)) && exit 0
+# The payload was cut short (rc 3, #3507): a transport fault, so every guard
+# would skip with the same notice. Say it once and stop. The event name is not
+# known here (this dispatcher is wired under PreToolUse and PostToolUse alike),
+# so the notice goes out on systemMessage and stderr only; a guard run alone
+# adds the agent channel itself.
+if ((RUN_GUARDS_STDIN_RC == 3)); then
+  hook::stdin_cut_short_notice "" "guardrails"
+  exit 0
+fi
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::buffer_stdin() {

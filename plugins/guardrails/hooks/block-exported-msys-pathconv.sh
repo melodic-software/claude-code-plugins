@@ -93,10 +93,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
-# rc 1 (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed
-# out before a complete payload) FAILS CLOSED — the guard cannot evaluate the
-# tool call, and a silent skip would pass exactly the traffic this guard exists
-# to stop. buffer_stdin already printed the BLOCKED reason to stderr.
+# rc 1 (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that
+# is not JSON) FAILS CLOSED — the guard cannot evaluate the tool call, and a
+# silent skip would pass exactly the traffic this guard exists to stop; rc 3 (a
+# JSON payload cut short by the pipe, a transport fault, #3507) is a loud skip
+# the dispatcher takes once. buffer_stdin already printed the reason to stderr.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
