@@ -18,7 +18,12 @@ In September 2026 the operator ran that procedure over every skill in this marke
 Claude Fable 5.1 as the target model. The run is recorded in
 [`docs/specs/prompt-audit-skills-2026-09.md`](../specs/prompt-audit-skills-2026-09.md): one
 fresh-context auditor per plugin, one report per plugin, the lead's per-finding decisions, one
-commit per plugin with a patch bump and evals updated in step, and a follow-up inventory.
+commit per plugin with a patch bump and evals updated in step, and a follow-up inventory. The
+sweep closed on 2026-09-05 over all 74 plugins: 63 took a commit and 11 were clean (one
+single-skill plugin and ten whose only in-scope file the setup lane had audited). Across the
+64 reports the lead applied 805 finding ids and withheld 207, the withheld set listed in the
+record by plugin. The branch changed 694 files under `plugins/`, and no skill lost a step, a
+gate, or a safety refusal in the record's five-skill behavioral spot-check.
 
 Three accepted decisions stood in the way, and the operator ruled before the first wave that
 none of them binds this lane:
