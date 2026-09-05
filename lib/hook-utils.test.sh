@@ -3329,6 +3329,59 @@ else
   fail "corr (partial): sink empty"
 fi
 rm -f "$corr_sink"
+# Root only. An unanchored search takes the leftmost match anywhere in the
+# payload, so a same-named key inside tool_input is read as the envelope's own:
+# tool_input.options.prompt_id becomes prompt_id, and a nested session_id
+# ahead of the real one files the row under the WRONG session. Both are pinned
+# here in the direction that matters — the nested value must never appear.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"sess-root","tool_input":{"options":{"prompt_id":"NESTED"}}}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.prompt_id // "absent")] | join(" ")' "$corr_sink")" == "sess-root absent" ]]; then
+    ok "corr: a nested prompt_id is not captured, the root session_id is"
+  else
+    fail "corr (nested key): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (nested key): sink empty"
+fi
+rm -f "$corr_sink"
+# A nested session_id ahead of the root one must not win. The root key sits
+# after a container here, so it is omitted rather than guessed: no session_id
+# routes to the shared log, which is recoverable; the nested one would have
+# routed to another session's file, which is not.
+corr_sink="$(mktemp)"
+INPUT='{"tool_input":{"n":{"session_id":"NESTED"}},"session_id":"sess-root"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '.session_id // "absent"' "$corr_sink")" == "absent" ]]; then
+    ok "corr: a nested session_id ahead of the root one is never captured"
+  else
+    fail "corr (nested first): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (nested first): sink empty"
+fi
+rm -f "$corr_sink"
+# The documented payload shape carries all four ids ahead of tool_input, so the
+# root cut costs nothing there: every key is still captured.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"s-1","prompt_id":"p-1","tool_use_id":"toolu_1","agent_id":"a-1","cwd":"/x","tool_input":{"file_path":"a.md"},"tool_response":{"ok":true}}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-1 p-1 toolu_1 a-1" ]]; then
+    ok "corr: all four ids still captured ahead of a nested container"
+  else
+    fail "corr (documented shape): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (documented shape): sink empty"
+fi
+rm -f "$corr_sink"
 # No payload at all: none of the four keys, and the envelope is otherwise the same.
 corr_sink="$(mktemp)"
 (

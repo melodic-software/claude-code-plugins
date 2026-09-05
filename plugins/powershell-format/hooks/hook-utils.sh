@@ -1955,11 +1955,32 @@ hook::emit_telemetry() {
   # hook::buffer_stdin (that call runs in a command substitution, so the
   # library cannot cache the buffer itself). A caller that buffered under
   # another name sets HOOK_TELEMETRY_PAYLOAD before emitting. Each key is the
-  # first `"<key>":"<value>"` pair in the payload whose value is a plain id
-  # ([A-Za-z0-9._-]); absent or malformed keys are omitted, never guessed, and
-  # the values need no JSON escaping by construction. No jq, no subprocess.
+  # first `"<key>":"<value>"` pair AT THE PAYLOAD ROOT whose value is a plain
+  # id ([A-Za-z0-9._-]); absent or malformed keys are omitted, never guessed,
+  # and the values need no JSON escaping by construction. No jq, no subprocess.
+  #
+  # ROOT ONLY. The search is cut at the first nested container, so a same-named
+  # key inside tool_input or tool_response can never be captured: an unanchored
+  # search takes the leftmost match anywhere in the payload, which reads
+  # `tool_input.options.prompt_id` as the envelope's prompt_id, and a nested
+  # `session_id` occurring before the real one files the row under the WRONG
+  # session. The cut is deliberately conservative: a `:{` or `:[` inside a
+  # string value truncates early, and a root key after the first container is
+  # then omitted rather than guessed, which the "omitted, never guessed" rule
+  # above already allows. Every documented payload carries these ids ahead of
+  # tool_input. Cutting first also makes the four searches scan a short prefix
+  # instead of the whole payload, so this is cheaper than searching it all —
+  # which matters, because staying off jq on this path is why the emitter
+  # meets its latency budget at all.
   local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
   if [[ -n "$corr_payload" ]]; then
+    # `[[{]` is a bracket expression holding `[` and `{`; the brace is safe
+    # there only because it is inside a bracket expression in a regex, not in a
+    # `${...}` pattern, where a literal `}` would end the expansion.
+    local corr_cut=':[[:space:]]*[[{]'
+    if [[ "$corr_payload" =~ $corr_cut ]]; then
+      corr_payload=${corr_payload%%"${BASH_REMATCH[0]}"*}
+    fi
     for corr_key in session_id prompt_id tool_use_id agent_id; do
       if [[ "$corr_payload" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
         corr+='"'"$corr_key"'":"'"${BASH_REMATCH[1]}"'",'
