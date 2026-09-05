@@ -220,6 +220,14 @@ used:
    nobody ever pointed at, so the confirmation is not a courtesy.
 2. **Offer git-age discovery.** Offer to rank candidates by first-seen date, oldest first, and
    **wait**. Never run it unasked, and never present its output as findings.
+
+   **Corroborate before presenting.** Age plus low churn ranks; it does not evidence disuse, and on
+   this repository it was measured at 1 real candidate in 638 ranked ones. So the ranking is a
+   shortlist to check, not a shortlist to show: every ranked path is searched for inbound references
+   under section 7's varied query forms, and a path that has one is dropped before the operator ever
+   sees it. The search counts a citation from **anywhere in the repository, the path's own directory
+   included**. Present the survivors with both counts, the ranked and the surviving, so the operator
+   can tell a path nothing cites from a path nobody searched for properly.
 3. **Ask.** With no context and no accepted offer, ask the operator what to point at.
 
 ## 11. Boundary against existing owners
@@ -258,3 +266,11 @@ new" is outside the method.
   `class-inferred` to `measured` reports as unchanged.
 - **Two sessions writing one artifact rely on re-read-before-write, not a lock.** Section 7 makes the
   window small. It does not close it, and no lock is claimed.
+- **A citation search scoped by location misses citations, the way one scoped by name does.** Section
+  7 already varies the query form, which catches a document cited under a different name. The
+  matching trap is a document cited from a different place than the search looks: this lane's own
+  discovery measurement filtered candidates to those "cited nowhere outside their own directory", and
+  so reported `docs/ai-briefing-design.md` as uncited even though `docs/MIGRATION-PLAYBOOK.md` links
+  to it. Both files sit in `docs/`, so the filter excluded the one citation that existed. Section
+  10's corroboration step is scoped repository-wide because of it, and any future narrowing of a
+  citation search is a new instance of this limit rather than an optimization.

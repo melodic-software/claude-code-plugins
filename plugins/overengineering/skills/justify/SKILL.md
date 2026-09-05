@@ -84,6 +84,12 @@ naming both what was pointed at and what is being judged. Where the target was a
 
    Post-process into (path, first-seen date) pairs, oldest first. The output is a candidate list to
    choose from, never a finding set.
+
+   **Corroborate before presenting, per lane section 10.** Age is not evidence of disuse. Check each
+   ranked path for inbound references under the varied query forms of lane section 7, counting a
+   citation from anywhere in the repository including the path's own directory, and drop the ones
+   that have any. Present what survives, with the count that was ranked and the count that survived,
+   so the operator can tell an uncited path from an unsearched one.
 3. **Ask** what to point at.
 
 ## Before the walk
