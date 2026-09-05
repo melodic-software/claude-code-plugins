@@ -3,6 +3,14 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.15]
+
+### Changed
+
+- audit: the write-regime paragraph and `context/restoration-regimes.md` resolve the regime from the `principles` tooling table (StrykerJS under `inPlace: true` and mutmut at 2.x or below land in tree; the rest are constants) instead of claiming most tools' out-of-tree default is user-changeable; the malformed-entry rule in `context/suppression.md` no longer narrates the early draft; the undated selection-timing measurement and the second full statement of the withholding-label bar are removed from Gotchas; `context/persist-findings.md` drops the incident sentence and the bare "measured" marker; the description names its intents with two exact phrases.
+- principles: the description names its intent categories with six exact phrases instead of twelve; `reference/tooling.md` points at the hook-utils measurement instead of copying its figures; the four dated reference stamps carry a recheck trigger.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.14]
 
 ### Fixed

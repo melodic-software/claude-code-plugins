@@ -1,5 +1,5 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants, the code under test is restored and the restoration verified, tracked source is either byte-identical at the end or the run fails naming what it could not restore, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: 'run mutation testing', 'are my tests actually checking this', 'mutation score for this change', 'my coverage is high but I do not trust it', 'audit test quality', 'persist the surviving mutants for the fix pass', after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
+description: "Run diff-scoped mutation analysis and report surviving mutants, the code under test is restored and the restoration verified, tracked source is either byte-identical at the end or the run fails naming what it could not restore, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
 argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -89,7 +89,12 @@ difference it exists to detect.
 
 **Resolve the write regime here too**, because it decides which restoration gate
 [Phase 3](#phase-3--execute) can run: does the configured tool write mutants out of tree, rewrite the
-working file whole once, or apply and revert it per mutant? Read the project's own config for it. The out-of-tree default of most tools is user-changeable, so the tool's reputation is not the answer.
+working file whole once, or apply and revert it per mutant? Read the project's own config and the
+installed tool version for it. Two rows of the `principles` skill's
+[`tooling.md`](../principles/reference/tooling.md) table can land in tree: StrykerJS under
+`inPlace: true`, and mutmut at 2.x or below, where the installed major version *is* the regime. The
+rest are constants. Resolve it from what this project actually configured, never from the tool's
+reputation.
 State the resolved regime in the scope report. Refuse when the regime is in-tree per mutant and the
 tool offers neither per-mutant observability nor interrupt safety: the gate that regime requires
 cannot be run, and a check that cannot run is not a check.
@@ -289,10 +294,6 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   on it; never skip that probe to save a suite run.
 - **Flaky tests inflate the score by an unknown margin.** A flaky failure kills a mutant by accident.
   There is no correction factor. Either fix the flakes or report the score with the caveat attached.
-- **Test selection is fixed overhead per target, not per mutant.** Measured in this repository: for
-  the most-depended-on shared library, selection alone exceeded 120 seconds while the resulting
-  suite set was 64 of 390 suites; a leaf file selected 2. Re-deriving the selection inside the
-  mutant loop is the difference between a run that finishes and one that does not.
 - **A timeout counts as detected, and that is correct**, an infinite loop *is* a detected behavior
   change. But a score leaning heavily on timeouts is being carried by wall-clock rather than
   assertions; report the timeout share when it is large.
@@ -305,9 +306,8 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   that one is not.
 - **Reaching for a withholding label is the standard way this technique manufactures false
   confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
-  write, and "arid" is the easier of the two to reach for because its bar is **otherwise** a judgment
-  about value rather than about observable behavior, the node-kind membership test is what makes it
-  checkable. Require the demonstration for either; report the claim as unclassified when none exists.
+  write. [Phase 4](#phase-4--triage-fresh-context) holds the bar for both withholding labels; do not
+  soften it when a survivor is inconvenient.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
   failure mode of resolving only the documented default on a repo that configured its own memory
