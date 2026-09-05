@@ -1009,6 +1009,25 @@ jobs:
         id: listing_budget
         continue-on-error: true
         run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
+      # The step above measures a DEFAULT consumer, against the documented
+      # 8,000-char fallback, and for this fleet it is permanently many times
+      # over. That makes it useless as a growth signal: nothing it can print is
+      # ever new information. This second pass measures the budget THIS repo
+      # actually configures — `.claude/settings.json` sets
+      # skillListingBudgetFraction to 0.05 — reconstructed with the script's own
+      # documented arithmetic (TOKENS x CHARS_PER_TOKEN x FRACTION) at the
+      # 1M-token window the marketplace's own fleet is driven on. Report-only
+      # for the same reason its sibling is. What it buys is a line that flips
+      # from OK to WARN on the day the fleet outgrows the configured headroom,
+      # instead of that day passing unremarked. The durable fix for the
+      # aggregate is the per-skill description trim, which #3526 owns.
+      - name: Report the skill-listing budget at this repo's configured fraction
+        id: listing_budget_configured
+        continue-on-error: true
+        env:
+          CHECK_SKILL_LISTING_CONTEXT_TOKENS: "1000000"
+          CHECK_SKILL_LISTING_BUDGET_FRACTION: "0.05"
+        run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 
       # Portability lint: skills declared ecosystem/forge/tracker-agnostic must
       # not ship bare hardcoded stack/forge/branch/tracker defaults — the

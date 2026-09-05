@@ -21,6 +21,7 @@
   "worktree": {
     "baseRef": "head"
   },
+  "skillListingBudgetFraction": 0.05,
   "enabledPlugins": {
     "actionlint@melodic-software": true,
     "adhd@melodic-software": true,
