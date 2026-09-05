@@ -1,4 +1,5 @@
 {
+  "description": "Normalizes line endings after a write or edit so a checkout's own EOL policy holds.",
   "hooks": {
     "PostToolUse": [
       {

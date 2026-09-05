@@ -19,6 +19,7 @@ What this suite adds is what the engine's suite structurally cannot:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -36,14 +37,27 @@ class TestModuleStandsAlone(unittest.TestCase):
     def test_the_lib_imports_without_the_engine_on_the_path(self):
         engine_dir = LIB_DIR.parent / "skills" / "audit-performance" / "scripts"
         self.assertTrue(engine_dir.is_dir(), "precondition: engine dir must exist to be excluded")
-        for entry in sys.path:
-            self.assertNotEqual(
-                Path(entry).resolve() if entry else LIB_DIR,
-                engine_dir,
-                "precondition: the engine's script dir must NOT be on sys.path for this test",
-            )
-        self.assertTrue(callable(spawn_noise.summarize_spawn_samples))
-        self.assertTrue(callable(spawn_noise.spawn_probe))
+        # A fresh isolated interpreter, not this process: sys.path here is shared with every
+        # other suite a pytest run collected alongside this one (CI's Python lane collects the
+        # engine's suite in the same process, and pytest prepends each suite's directory), so
+        # an in-process check can only prove what happens to be absent right now. `-I` starts
+        # with neither the cwd nor PYTHONPATH on the path; the child then proves the exclusion
+        # itself before importing.
+        probe = (
+            "import pathlib, sys\n"
+            f"engine = pathlib.Path({str(engine_dir)!r})\n"
+            "assert all(pathlib.Path(p).resolve() != engine for p in sys.path if p), sys.path\n"
+            f"sys.path.insert(0, {str(LIB_DIR)!r})\n"
+            "import spawn_noise\n"
+            "assert callable(spawn_noise.summarize_spawn_samples)\n"
+            "assert callable(spawn_noise.spawn_probe)\n"
+            "print('stands-alone')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", probe], capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "stands-alone")
 
     def test_the_threshold_constants_are_owned_here(self):
         self.assertEqual(spawn_noise.BIMODAL_SPREAD_RATIO, 3.0)

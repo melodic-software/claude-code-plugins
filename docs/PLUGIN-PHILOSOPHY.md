@@ -640,6 +640,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
 | Hook observability (status/failure surfaces) | [`docs/conventions/hook-observability/`](conventions/hook-observability/README.md) |
 | Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
+| Hook input rewriting (deny-or-ask, never a silent `updatedInput`) | [`docs/conventions/hook-input-rewriting/`](conventions/hook-input-rewriting/README.md) |
 | Hook config delivery (userConfig→hook channel matrix) | [`docs/conventions/hook-config-delivery/`](conventions/hook-config-delivery/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Plugin-data report keying, retention, and overwrite | [`docs/conventions/plugin-data-report-keying/`](conventions/plugin-data-report-keying/README.md) |
@@ -792,6 +793,13 @@ The complementary task-design doctrine — describe the task, guardrails, and ex
 model a way to verify its own work, and skip step-by-step procedure — is already this marketplace's
 encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
 its implementation, and need no new mechanism on its account.
+
+Two further axes are settled elsewhere, and neither is implied by the rubric above:
+
+| Question about a hook | Where it is decided |
+|---|---|
+| Does it fire by default? | [ADR 0003](adr/0003-verification-guards-earn-default-on-by-measured-precision.md) — a default-on guard earns its place by measured precision, and loses it to observed false positives with no true positive |
+| Does it belong in this plugin, or its own? | [ADR 0028](adr/0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md) — Class A (the hooks ARE the plugin) and Class B (the hook IS the feature mechanism) never split; only Class C (hooks adjunct to a skill surface) is a candidate, and a candidate still argues its own case |
 
 ## Fresh-eyes checkpoints
 
