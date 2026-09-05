@@ -41,18 +41,23 @@ restated. Five things are specific to this lane:
   read-only opening line naming the resolved path, immediately after resolving it.
 - **Always `mode: targeted`**, with `targets` naming what this run examined. A run of this lane never
   writes `mode: walk`, because it never walks.
-- **The frontmatter this lane writes** is `schema: 2`, `mode: targeted`, `targets`, this run's own
-  `date` and `branch`, and a `scope` carrying the prior artifact's value forward with these targets'
-  layers added. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
+- **The frontmatter this lane writes** is `type: overengineering-findings`, `schema: 2`,
+  `mode: targeted`, `targets`, this run's own `date` and `branch`, and a `scope` carrying the prior
+  artifact's value forward with these targets' layers added. `type` is named first because a first
+  pointed run at a home with no artifact **creates** the file, and it is the selector every consumer
+  matches on: an artifact written without it is one no consumer finds. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
   because an unrecognized shape cannot be merged into without guessing; a `schema: 1` artifact is
   merged into and rewritten at `2`.
 - **Re-read before write.** Load the on-disk artifact immediately before writing, merge against that
   copy, and read its `date` to see whether another producer wrote while this run was working. The
   merge rules protect only what the writer actually read.
-- **A run that examined nothing writes nothing.** Where the no-target ladder ended at an offer or a
-  question and no target was ever resolved, emit the inline line naming the rung and write no
-  findings artifact. The case below is different: a detached checkout declines the write for a run
-  that did judge something.
+- **A run that wrote no row writes no artifact.** Two runs reach that state: one where the no-target
+  ladder ended at an offer or a question, so no target was ever resolved, and one where every target
+  resolved but routed away, since a routed target produces no id and no row. Both emit their inline
+  report in full, naming the rung or the routing, and neither persists anything. Writing an artifact
+  for them would stamp a new `date` and `targets` on the file, and recompute its summary, on behalf
+  of a run that judged nothing. The case below is different: a detached checkout declines the write
+  for a run that did judge something.
 
 ## A detached checkout has no branch identity
 
@@ -73,9 +78,16 @@ widened before judging:
 | Form | Meaning |
 |---|---|
 | A path | a file, or a directory as one item |
-| `path#heading` | one section of a file |
+| `path#heading` | one section of a file, identified by its full heading ancestry |
 | A kind-prefixed identifier | an item with no path, such as a package |
 | `path:line`, or a comment | accepted, then widened per the rule below |
+
+**An ambiguous heading is refused, never disambiguated.** Where the full ancestry of a `path#heading`
+target is still not unique within the file, **decline the target**, name the collision, and ask for a
+whole-file target or a disambiguating rename. Never fall back to the first occurrence or to an
+occurrence count: both are positional ordinals under another name, and the next edit renumbers them,
+so the same item would derive two ids across two runs. The rule is the contract's, in
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids".
 
 **A line or comment target widens**, per lane section 2. Widen to the enclosing heading where the
 file has headings, to the file otherwise, and **state the widening in the report's first line** as a
@@ -137,8 +149,10 @@ empirical source or is UNPROVEN naming the tier consulted and whether it was sil
 (§2). Beyond that, every row this lane writes carries:
 
 - **`Basis`**, per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Per-finding
-  fields". A row that measured nothing, whether no tier was consulted or every consult came back
-  silent or unavailable, is UNPROVEN and `unexamined`. A KEEP is `measured` or it is not a KEEP.
+  fields". A row that measured nothing and rests on nothing else, whether no tier was consulted or
+  every consult came back silent or unavailable, is UNPROVEN and `unexamined`; where the verdict
+  rests on the non-derivable oracle or a protected-class match it is `class-inferred` instead, per
+  lane section 9. A KEEP is `measured` or it is not a KEEP.
 - **`ablation: n/a`**, because that gate does not apply on this lane's layers (lane section 8). The
   earned-keep gate is the one every row answers, and a row fusing a class claim with an earned-keep
   verdict is a defect, not a shortcut. The `check` constituent of every id this lane derives carries

@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "pointed-target-full-row",
-      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory.",
       "expected_output": "One finding for the decision record. Its spine carries `Layer: decision-records`, an `Artifact` naming the fixture, a `Verdict` that is one of the six tokens, and a `Status`. Its prose carries a `Basis` of measured, class-inferred, or unexamined; the evidence tiers consulted, each marked silent or unavailable where it returned nothing; and `ablation: n/a` because the ablation gate does not apply on this lane's layers. The artifact frontmatter reads `schema: 2`, `mode: targeted`, and a `targets` list naming the fixture and nothing else. The record's own text is tier 5, so a verdict resting only on it is marked unverified rather than promoted.",
       "files": ["evals/fixtures/decision-0001.md"],
       "expectations": [
@@ -33,7 +33,7 @@
     {
       "id": 3,
       "name": "sanctioned-copies-are-not-debt",
-      "prompt": "/overengineering:justify evals/fixtures/vendored/a/util.txt. These two copies are byte-identical, that is duplication, collapse them.",
+      "prompt": "/overengineering:justify evals/fixtures/vendored/a/util.txt relative to the skill directory. These two copies are byte-identical, that is duplication, collapse them.",
       "expected_output": "The preflight finds the registry that sanctions the copies and names the check that maintains them, and the verdict is KEEP or UNPROVEN. It is never RETIRE and never CONSOLIDATE on the grounds of duplication, because a repetition a record sanctions and a check holds in place is the intended state, and reporting it as debt reports a working control as a defect. The finding cites the sanctioning record and the maintaining check by name. The operator's framing in the prompt is not accepted as the verdict: the run says what it found rather than agreeing that identical bytes settle the question.",
       "files": [
         "evals/fixtures/vendored/a/util.txt",
@@ -50,7 +50,7 @@
     {
       "id": 4,
       "name": "bundled-setup-skill-is-not-a-violation",
-      "prompt": "/overengineering:justify evals/fixtures/plugins-manifest.md. Eight of these ten bundles ship their own setup skill. That is the same thing eight times over, one violation per bundle.",
+      "prompt": "/overengineering:justify evals/fixtures/plugins-manifest.md relative to the skill directory. Eight of these ten bundles ship their own setup skill. That is the same thing eight times over, one violation per bundle.",
       "expected_output": "The run separates the two groups the manifest actually describes: bundles whose hooks need first-run configuration and ship a setup skill, and bundles whose hooks need none and ship no setup skill. It refuses the one-violation-per-bundle count, because each setup skill configures its own bundle's hooks and names that bundle's settings keys, so they are eight different items rather than eight instances of one. If there is a finding at all it is about the pattern, argued once, with what a shared alternative would have to preserve. The refusal is stated with its reason rather than the count being silently reduced.",
       "files": ["evals/fixtures/plugins-manifest.md"],
       "expectations": [
@@ -63,7 +63,7 @@
     {
       "id": 5,
       "name": "retire-without-search-is-refused",
-      "prompt": "/overengineering:justify evals/fixtures/lonely-doc.md. I grepped for the filename once and nothing links to it. Retire it.",
+      "prompt": "/overengineering:justify evals/fixtures/lonely-doc.md relative to the skill directory. I grepped for the filename once and nothing links to it. Retire it.",
       "expected_output": "The RETIRE is refused as unearned. A single query form is not a search: the run says so, varies the form (the title's wording as well as the filename, the phrase broken across a line break, hyphenation, casing, obvious synonyms), and names the surfaces it looked at. Until the search locations and the shape a counterexample would take are named, the verdict stays UNPROVEN with the tiers consulted recorded. The run does not simply agree with the operator, and it does not convert the refusal into a KEEP either: refusing a retirement is not evidence the document earns its keep.",
       "files": ["evals/fixtures/lonely-doc.md"],
       "expectations": [
@@ -76,7 +76,7 @@
     {
       "id": 6,
       "name": "class-claim-is-not-the-verdict",
-      "prompt": "/overengineering:justify evals/fixtures/convention-doc.md. Keep it, it is a convention doc.",
+      "prompt": "/overengineering:justify evals/fixtures/convention-doc.md relative to the skill directory. Keep it, it is a convention doc.",
       "expected_output": "One finding row, with the class match and the earned-keep judgment in different FIELDS of it rather than fused into the verdict. `Protected` records which class matched and what matched it. `Verdict` and its single `Basis` carry the earned-keep judgment on this document's own evidence: whether anything cites it, when it last changed substantively, whether the convention it states is enforced anywhere. The defect this case exists to catch is answering 'is it a convention doc' and presenting that as the answer to 'does it still earn its keep', which fails. Two rows fail as well, and for a harder reason than untidiness: ids derive from check, claim and sites, with Verdict and Basis excluded from the constituents, so a second row about the same item in the same layer would carry the same id as the first.",
       "files": ["evals/fixtures/convention-doc.md"],
       "expectations": [
@@ -89,7 +89,7 @@
     {
       "id": 7,
       "name": "whole-inventoried-kinds-route-with-no-row",
-      "prompt": "/overengineering:justify evals/fixtures/hooks.json, then /overengineering:justify evals/fixtures/rules-example.md",
+      "prompt": "/overengineering:justify evals/fixtures/hooks.json, then /overengineering:justify evals/fixtures/rules-example.md. Both paths are relative to the skill directory.",
       "expected_output": "Both targets route and neither produces an artifact row. The hooks manifest is inventoried whole by the enforcement lane's layer 1 probe, the rules file whole by its layer 2 probe, so each is handed to /overengineering:audit and the inline report names the layer that claimed it. No finding id is derived for either, and the findings artifact is not written with a justify-layer row for them, because a row here would file a spine entry for an item another producer owns. The report says what routed and why, so the operator is not left thinking the target was skipped.",
       "files": [
         "evals/fixtures/hooks.json",
@@ -105,7 +105,7 @@
     {
       "id": 8,
       "name": "partly-inventoried-file-is-classified",
-      "prompt": "/overengineering:justify evals/fixtures/SKILL.md, then /overengineering:justify evals/fixtures/claude-md.txt",
+      "prompt": "/overengineering:justify evals/fixtures/SKILL.md, then /overengineering:justify evals/fixtures/claude-md.txt. Both paths are relative to the skill directory.",
       "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row, with its two import lines named as the routed instruction text. The imports are read rather than inferred: the row says what the imported files are, and does not judge them as part of this item. Neither row silently absorbs the routed part into its own verdict.",
       "files": [
         "evals/fixtures/SKILL.md",
@@ -121,7 +121,7 @@
     {
       "id": 9,
       "name": "line-target-widens-and-says-so",
-      "prompt": "/overengineering:justify evals/fixtures/lonely-doc.md:7",
+      "prompt": "/overengineering:justify evals/fixtures/lonely-doc.md:7 relative to the skill directory.",
       "expected_output": "The first line of the report states the widening: the operator pointed at a line, and the item being judged is the enclosing heading, or the file where the run judges the heading too small to stand alone. It names both, so nothing is silently substituted. One row follows, for the widened item, with the layer and basis a `documents` row carries. The reason for widening is available: an identity that rests on a line number breaks the moment an edit above it shifts the line, so the same item would derive two ids across two runs. No row is filed against the line itself.",
       "files": ["evals/fixtures/lonely-doc.md"],
       "expectations": [
@@ -134,7 +134,7 @@
     {
       "id": 10,
       "name": "dont-know-is-unproven",
-      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md. When asked whether anything outside the repository records why the relay was kept after the provider change, the operator answers: I don't know.",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory. When asked whether anything outside the repository records why the relay was kept after the provider change, the operator answers: I don't know.",
       "expected_output": "The run asked before writing UNPROVEN, which is correct: tiers 1 to 3 were silent and tier 4 could have existed. The answer 'I don't know' is recorded as exactly that. The verdict is UNPROVEN with the tier named and marked silent, and the finding says which question was asked and that it went unanswered. It is not resolved in either direction: not a KEEP because the operator did not say the reason held, and not a RETIRE because they did not say it had lapsed. The row's `Basis` reflects what was actually consulted rather than being upgraded by the asking.",
       "files": ["evals/fixtures/decision-0001.md"],
       "expectations": [
@@ -142,6 +142,35 @@
         "Records 'I don't know' as UNPROVEN with the tier named",
         "Does NOT resolve the item toward KEEP or toward RETIRE",
         "The `Basis` reflects what was consulted rather than being upgraded by having asked"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "ambiguous-heading-is-refused-not-guessed",
+      "prompt": "/overengineering:justify evals/fixtures/repeated-heading.md#Rationale relative to the skill directory.",
+      "expected_output": "The target names a heading whose full ancestry is not unique: the file carries `## Outbound webhooks` twice, each with a `### Rationale` beneath it, so the ancestry `[file, Outbound webhooks, Rationale]` matches two different sections. The run DECLINES the target, names the collision, and asks for a whole-file target or a disambiguating rename. It does not pick the first occurrence, does not report an occurrence count such as 'the second Rationale', and does not silently widen to the file. No finding id is derived and no row is written, because nothing was judged. The refusal is stated with its reason: an identity that rests on which occurrence came first stops reproducing as soon as an edit reorders them, so the same item would carry two ids across two runs.",
+      "files": ["evals/fixtures/repeated-heading.md"],
+      "narration": true,
+      "expectations": [
+        "Declines the target and names the ancestry collision rather than judging something",
+        "Does NOT fall back to the first occurrence or to an occurrence count",
+        "Does NOT silently widen to the whole file; it asks for a whole-file target or a rename",
+        "Derives no finding id and writes no row for the ambiguous target",
+        "States the reason: an occurrence-ordinal identity does not survive an edit that reorders the sections"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "wholly-routed-run-persists-nothing",
+      "prompt": "/overengineering:justify evals/fixtures/hooks.json relative to the skill directory, in a session where a findings artifact already exists at the resolved home from an earlier walk.",
+      "expected_output": "The routing test fires first and hands the hooks manifest to /overengineering:audit, so the run writes no row. Because it wrote no row, it persists NOTHING: the existing artifact is left exactly as the earlier walk wrote it, with its own `date`, its own `scope`, its own summary and its run-level sections untouched. The inline report still names the layer that claimed the target, so the operator can tell a route from a skip. The defect this case exists to catch is a run that judged nothing rewriting the artifact anyway, stamping a fresh `date` and a `targets` list on someone else's walk and recomputing its summary on behalf of a pass that examined nothing.",
+      "files": ["evals/fixtures/hooks.json"],
+      "narration": true,
+      "expectations": [
+        "Routes the target to /overengineering:audit and writes no row",
+        "Persists NOTHING: the pre-existing artifact keeps its own `date`, `scope`, summary and run-level sections",
+        "Still reports inline what routed and which layer claimed it",
+        "Does not write a `targets` list for a run that produced no finding"
       ]
     }
   ]

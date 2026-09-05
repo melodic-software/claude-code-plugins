@@ -58,8 +58,16 @@ Allowed target forms:
 | Form | Example shape | The item |
 |---|---|---|
 | Path | a file or a directory | the file, or the directory as one item |
-| `path#heading` | a file plus one of its headings | that section |
+| `path#heading` | a file plus one of its headings | that section, identified by its full ancestry |
 | Kind-prefixed identifier | a package, an app, an integration | the named thing |
+
+**An ambiguous heading is refused, never disambiguated.** A heading whose full ancestry is still not
+unique in its file does not identify an item. Decline the target, name the collision, and ask for a
+whole-file target or a disambiguating rename. Falling back to the first occurrence, or to an
+occurrence count, is a positional ordinal under another name, and the id contract in
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids", forbids those for the
+same reason it forbids line numbers: the next edit renumbers them and the item derives a different
+id.
 
 **A line or a comment target widens.** A target naming a line, or a comment, is widened to its
 enclosing heading where the file has headings, and to the file otherwise. **The report's first line
@@ -242,9 +250,14 @@ same item in the same layer derives the **same id** as the first. One item, one 
 `Basis` is defined in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Per-finding
 fields", and is not redefined here. Two consequences bind this lane directly:
 
-- **A row that measured nothing is UNPROVEN and `unexamined`.** That covers a row with no tier
-  consulted and a row whose every consult came back silent or unavailable alike. There is no third
-  option, and an `unexamined` row carrying any other verdict is a contract violation.
+- **A row that measured nothing, and rests on nothing else, is UNPROVEN and `unexamined`.** That
+  covers a row with no tier consulted and a row whose every consult came back silent or unavailable
+  alike. An `unexamined` row carrying any verdict other than UNPROVEN is a contract violation.
+- **`class-inferred` takes precedence where the verdict actually rests on a class.** A row whose
+  consults were all silent or tier-5-only, but whose verdict rests on the method's non-derivable
+  oracle or on a protected-class match, is `class-inferred` and not `unexamined`. The two are
+  distinguished by what the verdict leans on, never by how little came back: measuring nothing is
+  the condition both share, so it cannot be the discriminator.
 - **A KEEP is `measured` or it is not a KEEP.** A keep resting on a class match is the fused shape
   section 8 refuses. Where the oracle itself is cited, the row is `measured` and the citation is
   what makes it so.
