@@ -11,8 +11,8 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   `account: {"email": "<address>"}` at the top level, read from Claude Code's own
   `.oauthAccount.emailAddress` in `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`. A reader can now tell
   whether a snapshot describes the account it is running under, which is the writer-side half of the
-  account-identity design; reader-side invalidation of latched state and the lane-floor re-audit
-  remain `TODO(#1218)` follow-up, so the multi-account gap narrows rather than closes.
+  account-identity design. Reader-side invalidation of latched state and the lane-floor re-audit are
+  not built, so the multi-account gap narrows rather than closes.
 
   **Mislabeling is worse than absence, so the field is omitted in four cases:** the state file is
   missing, unreadable, or holds no email-shaped value; the stdin payload already carried a top-level

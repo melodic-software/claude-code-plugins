@@ -241,11 +241,11 @@ sweeping the directory expects them:
   the mismatch instead of being blind to it. The loop-lane convention §6 owns the framing. Of the
   three sides that design named (a writer-side field, reader-side invalidation of latched state, a
   lane-floor re-audit), the writer-side field has landed as `account.email` above; the other two
-  are not built, and `TODO(#1218)` tracks them. No consuming lane acts on the field yet. Two
-  residuals keep this a gap rather than an invariant: the field is **absent** whenever the writer
-  could not attribute the observation (four cases, listed under "Tee file shape"), and absence is
-  indistinguishable from "the writer never attributes on this platform"; and a reader that latched
-  a `resets_at` before a switch has no obligation yet to drop it.
+  are not built, and no consuming lane acts on the field yet. Two residuals keep this a gap rather
+  than an invariant: the field is **absent** whenever the writer could not attribute the
+  observation (four cases, listed under "Tee file shape"), and absence is indistinguishable from
+  "the writer never attributes on this platform"; and a reader that latched a `resets_at` before a
+  switch has no obligation yet to drop it.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on

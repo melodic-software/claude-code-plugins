@@ -836,10 +836,10 @@ gap changes no lane's obligations today; it removes the false assurance that not
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
 (`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). The other two sides
-remain `TODO(#1218)` follow-up: reader-side invalidation of latched state on an identity change,
-and the re-audit of every lane body's inlined guard floor. No lane acts on the field yet, so the
-gap above narrows rather than closes — a lane can now be told whose windows it is reading, and is
-not yet obliged to do anything about the answer.
+are not built: reader-side invalidation of latched state on an identity change, and the re-audit
+of every lane body's inlined guard floor. No lane acts on the field yet, so the gap above narrows
+rather than closes — a lane can now be told whose windows it is reading, and is not yet obliged to
+do anything about the answer.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
