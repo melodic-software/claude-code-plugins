@@ -16,7 +16,7 @@ rung=<uncommitted|branch|repository> base=<ref|none> files=<n>
 | `repository` | the tree is clean on the base branch, or no base resolves while clean | every tracked code file |
 
 The base is `--base <ref>` when given, else `refs/remotes/origin/HEAD`, else the first of
-`origin/main`, `origin/master`, `main`, `master` that exists.
+`origin/main`, `origin/master`, `main`, `master` that exists. <!-- portability-ok: documents the script's detection-first order (the remote's own HEAD is read before any name is tried); the names are the last-resort fallback, not an assumed default -->
 
 The ladder advances on **absence** of a rung, never on emptiness: a rung that exists but yields zero
 code files is reported with `files=0`, so a docs-only branch reports its files as out of scope
