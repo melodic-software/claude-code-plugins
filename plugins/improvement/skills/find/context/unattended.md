@@ -53,18 +53,11 @@ skill miss its own prior reports and dismissed-memory):
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
-For reference, the key's shape is `<repo-identity>/<worktree-discriminator>`:
-
-- **repo-identity** — the first configured remote URL (`git remote` then `git remote get-url`),
-  normalized to `host/owner/repo`: lowercased, scheme/credentials/`.git` suffix stripped. No
-  remote → `local/<first 12 hex of sha256 of the canonicalized repo root>`. Not a repository →
-  `nonrepo/<first 12 hex of sha256 of the working directory>`.
-- **worktree-discriminator** — first 8 hex of sha256 of the canonicalized worktree root
-  (`git rev-parse --show-toplevel`, resolved with `pwd -P`). Two worktrees of one repo hold
-  different content and must not share an artifact.
-- Validate every derived segment as a path segment (`[a-z0-9._-]`, starting alphanumeric);
-  hash anything that does not fit, so a hostile remote URL cannot walk the write out of the
-  plugin's namespace. (`sha256sum`, or `shasum -a 256` where it is absent.)
+The key's shape is `<repo-identity>/<worktree-discriminator>`: the repo's first configured remote
+normalized to `host/owner/repo`, then a hash of the canonicalized worktree root, so two worktrees
+of one repo never share an artifact. The helper owns the whole derivation, including the
+fallbacks for a repo with no remote and a directory that is not a repository, and the path-segment
+validation that keeps a hostile remote URL from walking the write out of the plugin's namespace.
 
 Retention: **one report file per run** (UTC-timestamped filename — a same-day rerun must not
 erase the earlier report; the sequence is the trend source), and the dismissed memory is a

@@ -94,12 +94,13 @@ Combine with Step 1's output (drop paths deleted since — churn counts history,
 the present):
 
 ```bash
+raw="${TMPDIR:-/tmp}/hotspots.$$"
 git log --since="90 days ago" --pretty=format: --name-only |
   grep -v '^$' | grep -Ev "$excludes" | sort | uniq -c | sort -rn | head -50 |
   while read -r churn f; do
     [ -f "$f" ] || continue
     printf '%s %s %s\n' "$churn" "$(indent_of "$f")" "$f"
-  done
+  done > "$raw"
 ```
 
 Each row is now `<churn> <indent-units> <loc> <path>`.
@@ -120,8 +121,25 @@ Plot churn against indentation complexity; classify against the medians of the s
 | Low churn × high complexity | Complex but stable | Deliberately left alone — the method's own doctrine |
 | Low churn × low complexity | Quiet | Ignore |
 
-Mechanically: compute the median churn and median indent over the surviving files; the hotspot
-quadrant is above both medians; rank inside it by the product `churn × indent`.
+Compute the quadrant in the shell rather than by hand; the medians, the filter, the product,
+and the sort are all determined by the rows above:
+
+```bash
+n=$(wc -l < "$raw")
+mid=$(( (n + 1) / 2 ))
+med_churn=$(cut -d' ' -f1 "$raw" | sort -n | sed -n "${mid}p")
+med_indent=$(cut -d' ' -f2 "$raw" | sort -n | sed -n "${mid}p")
+
+# hotspot quadrant only, ranked by churn x indent, descending
+awk -v mc="$med_churn" -v mi="$med_indent" \
+  '$1 > mc && $2 > mi { printf "%d %s\n", $1 * $2, $0 }' "$raw" | sort -rn
+rm -f "$raw"
+```
+
+Each surviving row is `<churn×indent> <churn> <indent-units> <loc> <path>`. Read the quadrant
+table above to classify what the filter excluded; the caveats below decide which surviving rows
+become candidates. The temp file lives outside the target repository, so a scan never leaves an
+artifact in it.
 
 Each hotspot becomes a candidate with citation
 `hotspot: <churn> commits/<window> × indent <n> (<loc> LOC) — rung 2` and confidence per

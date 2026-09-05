@@ -3,6 +3,15 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.8]
+
+### Changed
+
+- find: the instrument-first rule fires only when the whole target is unmeasured, matching SKILL.md and the eval; a single unmeasured dimension is an ordinary evidence gap. The ranking leaf drops the Fibonacci point system and the score formula and keeps the four components as the judgment; the SRE precedent is stated once, in SKILL.md.
+- find: the filing-behavior bullets name the phase each check belongs to (dismissed memory at candidate assembly, tracker dedupe at filing time) in the order the ranking leaf prescribes; two of seven "this skill edits nothing" statements are removed; the gather-block author note is reduced to the constraint's reason.
+- find: `context/unattended.md` describes the state key's shape in one paragraph instead of restating the helper's derivation it forbids re-deriving; `context/hotspots.md` computes the churn-by-complexity quadrant (medians, filter, product, sort) in the shell instead of asking the model to do the arithmetic.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.1.7]
 
 ### Fixed
