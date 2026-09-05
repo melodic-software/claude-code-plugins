@@ -15,8 +15,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `hook_event_name`, `category`, `status`, `source`, `duration_ms`) plus the
   correlation keys the payload carries (`prompt_id`, `tool_use_id`, `agent_id`,
   `tool_name`, a repo-relative `file_path`, `reason`, `traceparent`). It sources
-  no library, reads stdin in bounded 4 KB slices with a `}`-tail stop (the
-  Win32 late-EOF stall costs one idle slice, not the read bound), and the switch
+  no library, reads stdin in bounded 4 KB slices and stops early only when the
+  buffer ends in `}`, carries the event name and has balanced braces (the
+  Win32 late-EOF stall costs one idle slice, not the read bound; a writer that
+  pauses after a nested `}` is read to the bound, never cut short), records a
+  file outside the project by its last segment after either separator, and the switch
   `session_event_log_enabled` is read before anything else. Measured on the
   Linux CI host, N = 15: 2.42 ms disabled against a 2.08 ms bare spawn floor,
   4.5 to 5.75 ms enabled on a 2 KB payload, 35.7 ms on a 512 KB `tool_response`.

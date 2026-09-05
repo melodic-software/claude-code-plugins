@@ -85,8 +85,21 @@ while :; do
   ((rc > 128)) || break # EOF (rc 1) or a read error: what we hold is what there is
   if [[ -n "$chunk" ]]; then
     quiet=0
+    # A slice that timed out holding data is the late-EOF shape: the payload
+    # is here and the pipe is not closing. Stop early only when what we hold
+    # looks like the WHOLE payload: it ends in `}`, it carries the event name
+    # (the key every fire must have), and its braces balance. A writer that
+    # paused after a nested `}` (tool_input closed, tool_use_id still to come)
+    # fails the balance test and the loop keeps reading to the idle bound; a
+    # brace inside a string can only delay the stop, never force it early on
+    # its own.
     tail="${buf##*[![:space:]]}"
-    [[ "${buf%"$tail"}" == *'}' ]] && break
+    body="${buf%"$tail"}"
+    if [[ "$body" == *'}' && "$buf" == *'"hook_event_name"'* ]]; then
+      open="${body//[^{]/}"
+      close="${body//[^/}]/}"
+      ((${#open} == ${#close})) && break
+    fi
     continue
   fi
   quiet=$((quiet + 1))
@@ -142,7 +155,10 @@ if [[ -n "$file_path" ]]; then
   if [[ "$file_path" == "$project/"* ]]; then
     file_path="${file_path#"$project"/}"
   else
-    file_path="${file_path##*/}"
+    # Last segment after either separator: a Windows path arrives with `\\`
+    # (JSON-escaped backslashes) and no `/` at all, and stripping on `/` alone
+    # would keep the whole path, username included.
+    file_path="${file_path##*[/\\]}"
   fi
 fi
 slog_ts_to ts

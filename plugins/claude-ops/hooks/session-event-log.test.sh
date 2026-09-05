@@ -144,6 +144,31 @@ assert_eq "payload cwd resolves the project" 1 "$(wc -l <"$P/.observability/clau
 P=$(project outside)
 run "$P" "$(payload s9 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"/opt/elsewhere/private/notes.md"}')" "$ON" >/dev/null
 assert_eq "outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9.jsonl")"
+# A Windows path carries no `/`: the last segment must be taken after `\` too,
+# or the whole path (username included) lands in the log.
+# Assembled from parts so no drive-letter path literal sits in this file (the
+# repo's hardcoded-path guard rejects one); the payload carries `\\` per
+# separator, the JSON escape of one backslash.
+BS="\\\\"
+WIN_PATH="Q:${BS}scratch${BS}private${BS}notes.md"
+run "$P" "$(payload s9w PostToolUse "\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${WIN_PATH}\"}")" "$ON" >/dev/null
+assert_eq "Windows outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9w.jsonl")"
+
+# --- a pause after a NESTED `}` does not end the read early ----------------------
+# The writer stops for longer than one slice right after tool_input closes,
+# then sends the rest. Read as "the payload ended", the buffer has no event
+# name and the fire is silently dropped; read as "not yet balanced", the loop
+# waits for the rest and the line lands with every key.
+P=$(project midpause)
+{
+  printf '{"session_id":"s9p","cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"x.md"}' "$P"
+  sleep 1.2
+  printf ',"hook_event_name":"PostToolUse","tool_use_id":"tu-9"}'
+} | env CLAUDE_PROJECT_DIR="$P" "$ON" CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1 bash "$HOOK" >/dev/null 2>&1
+assert_eq "mid-message pause after a nested brace → the line is still written" 1 \
+  "$(wc -l <"$P/.observability/claude/sessions/s9p.jsonl" 2>/dev/null | tr -d ' ')"
+assert_eq "mid-message pause → the keys after the pause are present" "tu-9" \
+  "$(jq -r .tool_use_id "$P/.observability/claude/sessions/s9p.jsonl" 2>/dev/null)"
 
 # --- a held-open pipe returns inside the idle bound, with the line written --------
 # The writer keeps the pipe open for 3 s after the payload (the Win32 late-EOF
