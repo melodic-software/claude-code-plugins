@@ -594,6 +594,125 @@ resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
 assert_eq "version skew: correct marketplace despite version mismatch" "market1" "$resolved_name"
 
 # ============================================================================
+# Case: out-of-cache dev checkout — the plugin root is a local clone, so no
+# installPath can ever match it. The marketplace manifest walk-up (stage 3a)
+# must find .claude-plugin/marketplace.json above the plugin root and accept
+# its name because known_marketplaces.json has that key.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+dev_checkout="$case_dir/dev-checkout"
+dev_root="$dev_checkout/plugins/this-plugin"
+mkdir -p "$dev_root" "$dev_checkout/.claude-plugin"
+write "$dev_checkout/.claude-plugin/marketplace.json" '{"name": "market1", "plugins": [{"name": "this-plugin", "source": "./plugins/this-plugin"}]}'
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$dev_root")
+rc=$?
+assert_exit "dev checkout: resolves via marketplace.json walk-up" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "dev checkout: correct marketplace from the manifest" "market1" "$resolved_name"
+
+# ============================================================================
+# Case: deeply nested out-of-cache dev checkout — same shape as above, but the
+# plugin root sits FIVE levels below the marketplace manifest. The walk-up must
+# follow ancestors to the filesystem root rather than assuming a maximum source
+# depth, so a monorepo layout resolves exactly like a shallow one.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+deep_checkout="$case_dir/deep-checkout"
+deep_root="$deep_checkout/packages/extensions/plugins/x/this-plugin"
+mkdir -p "$deep_root" "$deep_checkout/.claude-plugin"
+write "$deep_checkout/.claude-plugin/marketplace.json" '{"name": "market1", "plugins": [{"name": "this-plugin", "source": "./packages/extensions/plugins/x/this-plugin"}]}'
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$deep_root")
+rc=$?
+assert_exit "deep dev checkout: resolves via marketplace.json walk-up" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "deep dev checkout: correct marketplace from the manifest" "market1" "$resolved_name"
+
+# ============================================================================
+# Case: stage precedence — an installPath match and a walk-up manifest naming a
+# DIFFERENT registered marketplace both point somewhere. The installPath match
+# (stage 1) must win; the manifest walk-up is a last resort for roots no
+# installPath can represent, never an override.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+both_checkout="$case_dir/both-checkout"
+both_root="$both_checkout/plugins/this-plugin"
+mkdir -p "$both_root" "$both_checkout/.claude-plugin"
+write "$both_checkout/.claude-plugin/marketplace.json" '{"name": "market2", "plugins": [{"name": "this-plugin", "source": "./plugins/this-plugin"}]}'
+native_both="$(cygpath -w "$both_root" 2>/dev/null || echo "$both_root")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg root "$native_both" \
+    '{version: 1, plugins: {"this-plugin@market1": [{scope: "user", installPath: $root, version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$both_root")
+rc=$?
+assert_exit "stage precedence: exit 0" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "stage precedence: installPath match beats the walk-up manifest" "market1" "$resolved_name"
+
+# ============================================================================
+# Case: out-of-cache root under a known marketplace's installLocation — no
+# manifest anywhere above it, so stage 3a finds nothing and stage 3b must
+# match the recorded installLocation prefix.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+install_location="$case_dir/market1-clone"
+loc_root="$install_location/plugins/this-plugin"
+mkdir -p "$loc_root"
+native_location="$(cygpath -w "$install_location" 2>/dev/null || echo "$install_location")"
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {}}'
+write "$case_dir/known_marketplaces.json" "$(
+  jq -cn --arg loc "$native_location" \
+    '{market1: {source: {source: "github", repo: "example/market1"}, installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}'
+)"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$loc_root")
+rc=$?
+assert_exit "installLocation root: resolves via installLocation prefix" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "installLocation root: correct marketplace from installLocation" "market1" "$resolved_name"
+
+# ============================================================================
+# Case: a marketplace.json naming a marketplace known_marketplaces.json does
+# NOT know is not a resolution. Fail loud, never guess. installLocation stays
+# the inert "z" so stage 3b cannot resolve it either.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+stranger_checkout="$case_dir/stranger-checkout"
+stranger_root="$stranger_checkout/plugins/this-plugin"
+mkdir -p "$stranger_root" "$stranger_checkout/.claude-plugin"
+write "$stranger_checkout/.claude-plugin/marketplace.json" '{"name": "not-registered", "plugins": [{"name": "this-plugin", "source": "./plugins/this-plugin"}]}'
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$stranger_root")
+rc=$?
+assert_exit "unregistered manifest name: fails loud, doesn't guess" 1 "$rc"
+assert_contains "unregistered manifest name: names the fallback" "$out" "--marketplace"
+assert_contains "unregistered manifest name: error names the out-of-cache branch" "$out" "not under the cache"
+
+# ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found
 # ============================================================================
 # A directory-exclusion PATH filter (drop every PATH dir containing a jq
