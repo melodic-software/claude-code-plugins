@@ -407,8 +407,9 @@ emit_tool_break() {
 
 if [[ $SCAN_RC -eq 0 ]]; then
   # Clean, or excluded by the repo's own typos config. Nothing was changed and
-  # there is nothing to disclose.
-  emit_tel "ok" '[]'
+  # there is nothing to disclose; typos ran, so the rewrite verdict is a
+  # known false rather than an omitted key.
+  emit_tel "ok" '[]' '[]' false
   exit 0
 fi
 
