@@ -1,13 +1,19 @@
 # Sync Steps 4 and 5 — install and enable
 
-Read this file only when the Step 1 `fleet-state.sh` report for the marketplace being swept has a
-non-empty `missing_from_user_install` **or** a non-empty `missing_from_enabled`, or when Step 1's
-refresh failed for that marketplace and the report has to name what these two steps deferred. On an
-already-current fleet both arrays are empty, both steps are no-ops, and none of this is reachable.
+Read this file only when the **fresh pre-Step-4 `fleet-state.sh` re-read** for the marketplace being
+swept — the live read [sync.md](sync.md)'s "Steps 4 and 5" section takes and saves as
+`$run_dir/pre-install.$mp.json` — has a non-empty `missing_from_user_install` **or** a non-empty
+`missing_from_enabled`, or when Step 1's refresh failed for that marketplace and the report has to
+name what these two steps deferred. On an already-current fleet both arrays are empty, both steps
+are no-ops, and none of this is reachable. The gate deliberately keys on that re-read rather than
+Step 1's older report, because state can change between the two; see sync.md for why.
 
 The steps below are the loop body of [sync.md](sync.md) Steps 2–5, run once per marketplace, and
 every rule that file states — CLI-mediated mutation only, the per-marketplace failure rule, the
-re-read boundary at the step — applies here unchanged.
+re-read boundary at the step, the projection shape and its exit-status check, and the
+`rc=${PIPESTATUS[0]}` capture after every `tee`-journaled mutating call — applies here unchanged.
+Each mutating call below is journaled and status-captured in exactly the shape sync.md's "Run
+journal" section fixes; that shape is not restated here.
 
 ## Contents
 
@@ -19,17 +25,21 @@ re-read boundary at the step — applies here unchanged.
 Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh failed — see
 [sync.md](sync.md) Step 1.
 
-This step makes its own live `fleet-state.sh --marketplace "$mp"` re-read, exactly as the
-re-read-before-each-mutating-step rule requires, saves it to the run journal as
-`pre-install.$mp.json`, and projects its ids from that file. `--from` replaces the SECOND process
-this step used to launch, never the re-read itself:
+This step's live `fleet-state.sh --marketplace "$mp"` re-read — the one the
+re-read-before-each-mutating-step rule requires — has already happened: it is the read that gated
+loading this file, saved to the run journal as `pre-install.$mp.json`. Project the ids from that
+file rather than reading a third time. `--from` replaces the SECOND process this step used to
+launch, never the re-read itself:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
-  >"$run_dir/pre-install.$mp.json"
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
-  --ids missing-user-install --from "$run_dir/pre-install.$mp.json"
+  --ids missing-user-install --from "$run_dir/pre-install.$mp.json" \
+  >"$run_dir/ids.pre-install.$mp.txt"
+rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to install"
 ```
+
+Check `rc` before looping the file, per sync.md's projection section: a `--from` rejection exits 2
+with empty stdout, which a loop alone cannot tell apart from an empty install list.
 
 Take `fleet-state.sh`'s `missing_from_user_install` from that projection (see
 [sync.md](sync.md) Step 3 for why the ids never come from a hand-written `jq`) — catalog ids not
@@ -116,15 +126,22 @@ machine default (same override `fleet-state.sh` honors).
 Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
 marketplace whose Step 1 refresh failed — see [sync.md](sync.md) Step 1.
 
-Same shape as Step 4: this step makes its own live re-read, saves it as `pre-enable.$mp.json`, and
-projects from that file.
+**This step takes its own live re-read — it cannot reuse Step 4's.** Step 4 mutated in between: it
+installed plugins and normalized the user-scope `enabledPlugins` map, so `pre-install.$mp.json` no
+longer describes the state this step is about to act on. Save the new read as `pre-enable.$mp.json`
+and project from it:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
   >"$run_dir/pre-enable.$mp.json"
+
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
-  --ids missing-enabled --from "$run_dir/pre-enable.$mp.json"
+  --ids missing-enabled --from "$run_dir/pre-enable.$mp.json" \
+  >"$run_dir/ids.pre-enable.$mp.txt"
+rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to enable"
 ```
+
+Check `rc` before looping the file, for the reason Step 4 gives.
 
 Take `fleet-state.sh`'s `missing_from_enabled` from that projection — ids
 installed somewhere but never mentioned (true

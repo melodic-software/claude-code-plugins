@@ -6,6 +6,7 @@
 - [Version capture for the report](#version-capture-for-the-report)
 - [Run journal](#run-journal)
 - [Marketplace scoping — Steps 2–5 are the per-marketplace loop body](#marketplace-scoping--steps-25-are-the-per-marketplace-loop-body)
+- [Projecting a step's id list — the shape every mutating step uses](#projecting-a-steps-id-list--the-shape-every-mutating-step-uses)
 - [Step 1 — Marketplace refresh](#step-1--marketplace-refresh)
 - [Step 2 — In-repo update (the primary value path)](#step-2--in-repo-update-the-primary-value-path)
 - [Step 3 — User-scope update sweep](#step-3--user-scope-update-sweep)
@@ -86,9 +87,16 @@ there and **not** here — a `context/*.md` spoke is read raw, so a `${CLAUDE_PL
 here would resolve to nothing) and create one directory for this run:
 
 ```bash
-run_dir="$journal_root/$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p "$run_dir"
+mkdir -p "$journal_root"
+run_dir=$(mktemp -d "$journal_root/$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
 ```
+
+`mktemp -d`, not a bare `mkdir -p` on the timestamp alone: the stamp has one-second resolution, so
+two `sync` sessions started within the same second compute the *same* path and `mkdir -p` succeeds
+for both — snapshots overwrite each other and the two runs' `journal.log` lines interleave, which
+is exactly the reconstruction failure this journal exists to prevent. `mktemp -d` creates the
+directory atomically or fails, so each run gets its own. The suffix means a run directory is
+`<UTC timestamp>.XXXXXX`, not the bare timestamp; sort by name to order runs.
 
 Then, for the rest of the run:
 
@@ -113,21 +121,53 @@ Then, for the rest of the run:
   ```bash
   { echo "\$ claude plugin update $id -s user"; claude plugin update "$id" -s user 2>&1; } \
     | tee -a "$run_dir/journal.log"
+  rc=${PIPESTATUS[0]}
   ```
 
-- **Step 6 reads those files.** Every `<old> → <new>` pair comes from `pre.json` plus
-  `journal.log`, with `post.json` as source 3's fallback, and the three `divergences[]` snapshots
-  the attribution split needs come from the three saved reports. Do not re-derive any of it from
-  memory of the run.
+  **`rc=${PIPESTATUS[0]}` is not optional, and it has to be the very next statement.** A pipeline's
+  own `$?` is `tee`'s status, and `tee` succeeds whenever it can write the log — so without this
+  capture a `claude plugin update` that *failed* journals its own error text and is then read as a
+  success, and the "Action needed" row the failure earns is never emitted. `PIPESTATUS[0]` is the
+  first pipeline element, which here is the brace group, whose status is its last command's: the
+  `claude plugin update` call. Any command between the pipeline and the capture — including an
+  `echo` — overwrites `PIPESTATUS`, so read it first and branch on `rc` afterwards. (`set -o
+  pipefail` before the pipeline is an equivalent fix, but it makes the *pipeline* fail rather than
+  handing you the CLI's status, and every mutating step here needs the status itself.)
 
-**`audit` writes no journal.** SKILL.md's action table says `audit` mutates nothing, and a run that
-creates directories under the plugin data dir does not match that line even though the data dir is
-not fleet state. `audit` issues no mutating call, so it has no `<old> → <new>` pairs to lose and
-nothing the journal would protect.
+  **This is the canonical journaled-mutation shape.** Every other mutating call the algorithm makes
+  — `claude plugin install`, `claude plugin enable`, `claude plugin marketplace update` — is
+  journaled the same way and captures `rc` the same way, including the ones in
+  [sync-install-enable.md](sync-install-enable.md); that file points here rather than restating it.
+- **Step 6 reads those files.** Every `<old> → <new>` pair comes from `pre.<mp>.json` plus
+  `journal.log`, with `post.<mp>.json` as source 3's fallback, and the three `divergences[]`
+  snapshots the attribution split needs come from the three saved reports. Do not re-derive any of
+  it from memory of the run.
 
-The journal is best-effort and never fails the sweep: if the directory cannot be created, say so in
+**`audit` writes no durable journal — it uses a throwaway scratch directory instead.** SKILL.md's
+action table says `audit` mutates nothing, and a run that leaves directories behind under the plugin
+data dir does not match that line even though the data dir is not fleet state. But `audit` runs this
+same algorithm, and Steps 2–5 project their id lists with `--from` against a saved report, so it
+does need somewhere to put those reports. It gets one outside the journal root and deletes it:
+
+```bash
+run_dir=$(mktemp -d "${TMPDIR:-${TEMP:-.}}/plugins-audit.XXXXXX")
+# ... run the algorithm ...
+rm -rf "$run_dir"
+```
+
+Note `${TMPDIR:-${TEMP:-.}}` and **not** a hardcoded `/tmp`: on Windows that path is an MSYS mount
+alias this repo's guardrails reject. Remove the directory when the run ends, including on the error
+paths — an audit that leaks one scratch directory per invocation is its own drift.
+
+So `audit` and `sync` execute one algorithm, differing only in where the reports land and in
+issuing no mutating call. `audit` has no `<old> → <new>` pairs to lose and nothing durable the
+journal would protect, which is why its copy is disposable rather than kept.
+
+The journal is best-effort and never fails the sweep: if `mkdir -p` or `mktemp -d` fails, say so in
 the report and fall back to holding the values in context, which is the weaker guarantee this
-section exists to replace.
+section exists to replace. Without a `run_dir` the `--from` projections have no saved report to read,
+so those steps fall back to the live `--marketplace "$mp" --ids <selector>` form — the second process
+`--from` exists to avoid, correct but costlier.
 
 ## Marketplace scoping — Steps 2–5 are the per-marketplace loop body
 
@@ -164,6 +204,51 @@ marketplace; `--ids` projects a single block, so it takes one marketplace at a t
 
 The per-marketplace failure rule from Step 1 carries through: a marketplace whose iteration fails is
 reported inline and never aborts the loop for the rest.
+
+## Projecting a step's id list — the shape every mutating step uses
+
+Steps 2–5 all do the same three things: take the live re-read the concurrency rule already requires
+and **redirect it to the run journal**, project the step's selector out of that file with `--from`,
+and loop the result. Written out once, with Step 3's selector as the example:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+  >"$run_dir/mid.$mp.json"
+
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids update-candidates-user --from "$run_dir/mid.$mp.json" >"$run_dir/ids.mid.$mp.txt"
+rc=$?
+```
+
+**Check that `rc` before looping — an empty projection is ambiguous and the exit status is the only
+thing that disambiguates it.** Every `--from` rejection (a missing or malformed report, an `--all`
+envelope, a report lacking the field the selector reads, a `--marketplace` disagreeing with the
+report's own name) exits 2 with **empty stdout**, deliberately, so a failure can never be handed to
+`claude plugin update` as an id. That makes the two outcomes identical to a
+`while read … done < <(fleet-state.sh …)` consumer, which never sees the exit status at all: zero
+lines read, step reports nothing to do. So:
+
+- **exit 0, empty output** — genuinely nothing to do for this selector. Proceed.
+- **exit 2, empty output** — the projection failed. Report it inline under "Action needed" with the
+  script's own error text and treat the step as not run; never as "nothing to do".
+
+Project to a file and check `$?` first, then loop the file, rather than reading from a process
+substitution whose status the loop discards. The intermediate lands in `$run_dir` alongside the
+reports, so it is covered by the same cleanup and no third temp location is invented:
+
+```bash
+while IFS= read -r id; do
+  [[ -n "$id" ]] || continue
+  # the step's mutating call for "$id"
+done <"$run_dir/ids.mid.$mp.txt"
+```
+
+Pass `--marketplace "$mp"` alongside `--from` when you want the script to prove the saved report is
+the one you think it is; with `--from` that flag is a consistency check (mismatch is exit 2), never
+a second read.
+
+Steps 2 through 5 each name their own report file and selector below; the redirect, the `rc` check,
+and the loop-from-a-file shape are this section's and are not restated at each step.
 
 ## Step 1 — Marketplace refresh
 
@@ -264,17 +349,28 @@ re-run `realpath` to recompute a block already on disk. Same script, same projec
 `\r` protection is identical. Each line is `<id>\t<scope>`, so the `-s` flag comes off the same line
 as the id it belongs to:
 
+Per the projection section above, this step's own re-read is redirected to `pre.$mp.json` — that
+file is what the branch on `project_root` above reads, and what `--from` projects — and the
+projection's exit status is checked before the loop:
+
 ```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+  >"$run_dir/pre.$mp.json"
+project_root=$(jq -r '.project_root // "null"' "$run_dir/pre.$mp.json")
+
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids current-project --from "$run_dir/pre.$mp.json" >"$run_dir/ids.pre.$mp.txt"
+rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing in-repo"
+
 while IFS=$'\t' read -r id scope; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s "$scope"
-done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
-  --ids current-project --from "$run_dir/pre.$mp.json")
+done <"$run_dir/ids.pre.$mp.txt"
 ```
 
-Pass `--marketplace "$mp"` alongside `--from` when you want the script to prove the saved report is
-the one you think it is; with `--from` that flag is a consistency check (mismatch is exit 2), never
-a second read.
+The `rc` check matters more here than anywhere else: this is the primary value path, and an
+unchecked failed projection is indistinguishable from the honest "a project resolved and it has no
+in-repo installs" zero the step is required to report.
 
 The scope rides on the record for a reason: one plugin can hold **both** a `project`- and a
 `local`-scope record for the same repo (the multi-scope case `divergences[]` tracks), and both are
@@ -336,16 +432,27 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 "Action needed") and does not abort the sweep for the rest.
 
 Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON, and use the
-**`update-candidates-user`** selector rather than `installed-user`. Project it from this step's own
-re-read (`mid.json`), for the reason Step 2 gives:
+**`update-candidates-user`** selector rather than `installed-user`. This step makes its own live
+re-read — the one the concurrency rule requires before a mutating step — redirects it to
+`mid.$mp.json`, and projects from that file, for the reason Step 2 gives:
 
 ```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+  >"$run_dir/mid.$mp.json"
+
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids update-candidates-user --from "$run_dir/mid.$mp.json" >"$run_dir/ids.mid.$mp.txt"
+rc=$?   # exit 2 with empty output is a FAILED projection, not "fleet already current"
+
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
-done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
-  --ids update-candidates-user --from "$run_dir/mid.$mp.json")
+done <"$run_dir/ids.mid.$mp.txt"
 ```
+
+Reading an unchecked empty projection as "already current" is the silently-skipped-update failure
+this step exists to prevent, so check `rc` per the projection section before concluding the sweep
+had nothing to do.
 
 ### Why the pre-filter, and why it can only ever be a candidate list
 
@@ -385,11 +492,31 @@ fails with "Plugin not found" even when unambiguous, and on Windows a hand-writt
 
 ## Steps 4 and 5 — install and enable
 
-**Read [sync-install-enable.md](sync-install-enable.md) only when this marketplace's report has a
+**Take a fresh live re-read first, and gate the spoke on THAT report — never on Step 1's.** Step 4
+is a mutating step, so the concurrency rule already requires its own re-read; make it here, before
+deciding whether to load the spoke:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+  >"$run_dir/pre-install.$mp.json"
+```
+
+**Read [sync-install-enable.md](sync-install-enable.md) only when `pre-install.$mp.json` has a
 non-empty `missing_from_user_install` or a non-empty `missing_from_enabled`, or when Step 1's
-refresh failed for it.** Both arrays are empty on an already-current fleet, which is the common
-case, and then both steps are no-ops with nothing to load. The gating signal is in the report Step 1
-already read.
+refresh failed for this marketplace.** Both arrays are empty on an already-current fleet, which is
+the common case, and then both steps are no-ops with nothing to load.
+
+Gating on the Step 1 report instead would be a real hole, not a nicety: another session can
+uninstall a plugin or change enable state between Step 1 and here, and a gate keyed on the older
+report would then decline to load the spoke, skip the live pre-install and pre-enable reads the
+spoke mandates, and leave the new gap silently unresolved — while the step-level concurrency
+boundary this file opens with says the decision belongs to the step's own re-read. The progressive
+disclosure is kept; only the report it keys on moves. Step 4 reuses this file rather than reading
+again, so the honest gate costs nothing.
+
+**Step 5 still takes its own re-read.** Step 4 mutates in between — it installs, and it normalizes
+the user-scope `enabledPlugins` map — so `pre-install.$mp.json` is stale by the time Step 5 runs and
+cannot stand in for `pre-enable.$mp.json`. Do not collapse the two.
 
 - **Step 4 — install new catalog plugins.** Installs the `missing_from_user_install` ids at `user`
   scope per the configured `install_new` policy, then normalizes the user-scope `enabledPlugins`
@@ -418,9 +545,15 @@ Concretely: equal project and user records at `v1`, Step 2 updates the project r
 user update fails — the skew is Step 2's, and a two-snapshot diff blames Step 3. Take the
 `divergences[]` read from each of the three `fleet-state.sh` calls the algorithm already makes — the
 pre-Step-2 snapshot, the pre-Step-3 re-read the concurrency rule requires anyway, and the post-sweep
-re-read, saved as the run journal's `pre.json`, `mid.json`, and `post.json` — and attribute each new
-row to the interval it first appeared in. No extra call is needed; this is bookkeeping over reads
-that already happen.
+re-read, saved as the run journal's `pre.<mp>.json`, `mid.<mp>.json`, and `post.<mp>.json` — and
+attribute each new row to the interval it first appeared in. No extra call is needed; this is
+bookkeeping over reads that already happen.
+
+**The names carry the marketplace, and in `all` mode there is one set per marketplace.** Steps 2–5
+are the per-marketplace loop body, so a three-marketplace run leaves three `pre.<mp>.json`, three
+`mid.<mp>.json`, and three `post.<mp>.json` files in one `run_dir`. Do the attribution split per
+marketplace against that marketplace's own three snapshots; a cross-marketplace diff compares
+unrelated fleets.
 
 Report as
 `<N> actionable (<M> newly created by this run — <a> by the in-repo update, <b> by the user-scope

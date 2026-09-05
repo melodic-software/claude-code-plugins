@@ -439,6 +439,28 @@ ids_selector_valid() {
   esac
 }
 
+# The fields each selector's branch of PROJECTION_PROGRAM actually consumes,
+# as `<field>:<jq type>` pairs. This exists for `--from`: a live run computed
+# the block itself and every field is present by construction, but a saved
+# report is arbitrary input, and a syntactically valid object that simply lacks
+# the field a selector reads projects to NOTHING and exits 0 — a silently-empty
+# id list, the exact failure class `--ids` exists to prevent.
+#
+# ADDITIVE to the baseline shape check below (.marketplace.name plus
+# .installed, which together are what makes a file a fleet-state report at
+# all), never a replacement for it. Keep this in step with PROJECTION_PROGRAM:
+# a selector that starts reading a new field adds it here.
+ids_selector_required_fields() {
+  case "$1" in
+  installed-user | current-project) echo 'installed:array' ;;
+  update-candidates-user) echo 'installed:array catalog_versions:object' ;;
+  missing-user-install) echo 'missing_from_user_install:array' ;;
+  missing-enabled) echo 'missing_from_enabled:array' ;;
+  user-scope-orphans) echo 'user_scope_orphans:array' ;;
+  *) echo '' ;;
+  esac
+}
+
 # Validate the selector before any marketplace resolution: a typo is a usage
 # error (exit 2) and must report as one, not be masked by whatever the
 # resolution attempt would have returned first.
@@ -496,19 +518,40 @@ if [[ -n "$FROM_REPORT" ]]; then
   # Validate the SHAPE, not just the JSON. An --all envelope
   # ({"marketplaces": {...}}) parses fine and every selector branch projects it
   # to nothing — a silently-empty id list, which is the exact failure class the
-  # --ids contract exists to prevent. Fail loud and name the fix instead.
-  if ! jq_to FS_FROM_NAME -er '
-        if type != "object" then error("not a JSON object")
-        elif has("marketplaces") then error("this is an --all envelope, not a single-marketplace report")
+  # --ids contract exists to prevent. So does a truncated object that carries
+  # the baseline fields but not the one THIS selector reads, so the per-selector
+  # required-field list above is checked too. Fail loud and name the fix instead.
+  #
+  # The verdict comes back on stdout as `ok:<name>` or `err:<detail>` rather
+  # than through jq's `error()`: the detail has to reach the operator's terminal
+  # naming the offending field, and a nonzero jq exit only distinguishes an
+  # unparseable file from a well-formed but wrong-shaped one.
+  FS_FROM_CHECK=""
+  if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
+        if type != "object" then "err:not a JSON object"
+        elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
         elif (.marketplace | type) != "object" or (.marketplace.name | type) != "string"
-          then error("no .marketplace.name string")
-        elif (.installed | type) != "array" then error("no .installed array")
-        else .marketplace.name end' "$FROM_REPORT" 2>/dev/null; then
-    echo "ERROR: --from report is not a single-marketplace fleet-state report: $FROM_REPORT" >&2
+          then "err:missing or wrong-typed field .marketplace.name (expected a string)"
+        elif (.installed | type) != "array"
+          then "err:missing or wrong-typed field .installed (expected an array)"
+        else . as $r
+          | [$required | split(" ")[] | select(length > 0) | split(":")
+             | select(($r[.[0]] | type) != .[1])
+             | "missing or wrong-typed field .\(.[0]) (expected \(if .[1] == "array" then "an" else "a" end) \(.[1]))"]
+            as $bad
+          | if ($bad | length) > 0 then "err:" + ($bad | join("; "))
+            else "ok:" + $r.marketplace.name end
+        end' "$FROM_REPORT" 2>/dev/null; then
+    FS_FROM_CHECK="err:not valid JSON"
+  fi
+  if [[ "$FS_FROM_CHECK" != ok:* ]]; then
+    echo "ERROR: --from report is not a usable fleet-state report for --ids $IDS_SELECTOR: $FROM_REPORT" >&2
+    echo "  ${FS_FROM_CHECK#err:}" >&2
     echo "  Expected the JSON object \`--marketplace <name>\` prints (.marketplace.name," >&2
     echo "  .installed, .catalog_versions, …), not an --all envelope or arbitrary JSON." >&2
     exit 2
   fi
+  FS_FROM_NAME="${FS_FROM_CHECK#ok:}"
   # --marketplace alongside --from is an optional CONSISTENCY CHECK, never a
   # second read: projecting one marketplace's report while believing it is
   # another's is how a sweep mutates the wrong fleet.

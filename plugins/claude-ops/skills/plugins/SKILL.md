@@ -134,6 +134,12 @@ contents (`installed_plugins.json`, `known_marketplaces.json`, committed setting
 an `audit` run, modulo any concurrent session or background `autoUpdate` sweep. Note that caveat in
 the report rather than asserting byte-identical files.
 
+`audit` runs the same steps, which project their id lists with `--from` against a saved report, so
+it does write those reports — to a throwaway `mktemp -d` scratch directory it deletes when the run
+ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
+for both actions while leaving nothing behind, which is what "mutates nothing" means here. See
+[context/sync.md](context/sync.md)'s "Run journal" section.
+
 Because `audit` issues no `marketplace update`, its Step 3 prediction is computed against an
 **unrefreshed** catalog and is therefore a lower bound on what `sync` would update. Report it as one,
 carrying the catalog's `lastUpdated`. See [context/sync.md](context/sync.md) Step 3. An `audit`
@@ -301,7 +307,7 @@ default when that render is still the placeholder token, not on the option's nam
 | File | Load when |
 |---|---|
 | [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
-| [context/sync-install-enable.md](context/sync-install-enable.md) | Sync Steps 4 and 5, and only when this marketplace's report has a non-empty `missing_from_user_install` or `missing_from_enabled`, or its Step 1 refresh failed. Both arrays are empty on a current fleet. |
+| [context/sync-install-enable.md](context/sync-install-enable.md) | Sync Steps 4 and 5, and only when the fresh pre-Step-4 re-read (not Step 1's report) has a non-empty `missing_from_user_install` or `missing_from_enabled`, or its Step 1 refresh failed. Both arrays are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
 | [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |

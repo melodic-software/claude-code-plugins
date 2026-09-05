@@ -2177,6 +2177,56 @@ rc=$?
 assert_exit "--from: combined with --marketplaces is exit 2" 2 "$rc"
 
 # ============================================================================
+# Case: a report that is syntactically valid, carries the baseline fields, and
+# simply lacks the field THIS selector reads is refused by name. Before the
+# per-selector required-field check, `missing-enabled` evaluated the absent
+# `.missing_from_enabled` with `[]?`, emitted nothing, and exited 0 — a
+# silently-empty id list a `while read` consumer reads as "nothing to do".
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+write "$case_dir/incomplete.json" '{"marketplace":{"name":"m"},"installed":[]}'
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/incomplete.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: an incomplete report is exit 2, not an empty exit 0" 2 "$rc"
+assert_eq "--from: the incomplete report leaves stdout empty" "" "$out"
+err=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/incomplete.json" 2>&1 >/dev/null)
+assert_contains "--from: the incomplete-report error names the file" "$err" "$case_dir/incomplete.json"
+assert_contains "--from: the incomplete-report error names the missing field" "$err" ".missing_from_enabled"
+
+# The baseline `.installed` check stays universal rather than becoming
+# per-selector: it is the structural marker that the file is a fleet-state
+# report at all, so its absence is refused even for a selector that never
+# reads it.
+write "$case_dir/no-installed.json" '{"marketplace":{"name":"m"},"missing_from_enabled":[]}'
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/no-installed.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: a report with no .installed is exit 2 even for a selector that ignores it" 2 "$rc"
+assert_eq "--from: that rejection leaves stdout empty" "" "$out"
+
+# update-candidates-user is the one selector that also reads catalog_versions,
+# so its required-field list is the one that has to be per-selector rather than
+# a single shared list.
+write "$case_dir/no-catalog-versions.json" '{"marketplace":{"name":"m"},"installed":[]}'
+out=$(run_from_stdout_only "$case_dir" --ids update-candidates-user --from "$case_dir/no-catalog-versions.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: update-candidates-user without .catalog_versions is exit 2" 2 "$rc"
+err=$(run_from_stdout_only "$case_dir" --ids update-candidates-user --from "$case_dir/no-catalog-versions.json" 2>&1 >/dev/null)
+assert_contains "--from: that error names .catalog_versions" "$err" ".catalog_versions"
+# ...and the same fixture is fine for a selector that does not read it.
+out=$(run_from_stdout_only "$case_dir" --ids installed-user --from "$case_dir/no-catalog-versions.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: installed-user does not require .catalog_versions" 0 "$rc"
+
+# Present-but-empty is NOT the same as absent: a real report with nothing to do
+# still exits 0 with empty output, which is what makes the exit status a usable
+# discriminator for the caller's guard.
+write "$case_dir/empty-but-present.json" '{"marketplace":{"name":"m"},"installed":[],"missing_from_enabled":[]}'
+out=$(run_from_stdout_only "$case_dir" --ids missing-enabled --from "$case_dir/empty-but-present.json" 2>/dev/null)
+rc=$?
+assert_exit "--from: the field present but empty is exit 0" 0 "$rc"
+assert_eq "--from: the present-but-empty projection emits nothing" "" "$out"
+
+# ============================================================================
 # Case: --from reads NO Claude Code state file. That is the cost claim — the
 # projection recomputes nothing — so it must hold even when every state file
 # the live path requires is absent.

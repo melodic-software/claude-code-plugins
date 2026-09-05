@@ -20,13 +20,25 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   an error as a plugin id: `--from` with `--all`, `--from` without `--ids`, a
   missing or malformed file, an `--all` envelope (valid JSON that every selector
   projects to nothing, refused by name rather than silently returning an empty
-  list), and a `--marketplace <name>` disagreeing with the report's own
-  `marketplace.name`. That flag is an optional consistency check under `--from`,
+  list), a `--marketplace <name>` disagreeing with the report's own
+  `marketplace.name`, and a report that carries the baseline `.marketplace.name`
+  and `.installed` fields but not the field the CHOSEN selector reads. That last
+  one is per-selector: each selector declares the fields its branch of the
+  projection program consumes (only `update-candidates-user` reads
+  `catalog_versions`), and a missing or wrong-typed one is exit 2 naming the file
+  and the field, because `{"marketplace":{"name":"m"},"installed":[]}` otherwise
+  evaluated the absent array with `[]?`, emitted nothing, and exited 0 — a
+  silently-empty id list read as "nothing to do". A field that is present but
+  empty still exits 0 with empty output, so the exit status is a usable
+  discriminator. `--marketplace` under `--from` is an optional consistency check,
   never a second read. New regression cases cover per-selector equality with the
-  live projection, each rejection's exit code and empty stdout, and a projection
-  run with every state file absent. (#3728)
+  live projection, each rejection's exit code and empty stdout, the incomplete
+  and present-but-empty reports, and a projection run with every state file
+  absent. (#3728)
 - **`sync` writes a per-run journal.** At run start it creates
-  `${CLAUDE_PLUGIN_DATA}/plugins-sync/runs/<UTC timestamp>/`, saves the pre-sweep,
+  `${CLAUDE_PLUGIN_DATA}/plugins-sync/runs/<UTC timestamp>.XXXXXX/` with
+  `mktemp -d` (atomically, so two sessions starting in the same UTC second cannot
+  share a directory and interleave their snapshots and logs), saves the pre-sweep,
   mid-sweep, and post-sweep `fleet-state.sh` reports there, and appends every
   mutating CLI call and its output to `journal.log`. Step 6 reads the
   `<old>`/`<new>` pairs and the three `divergences[]` snapshots out of those files instead
@@ -48,16 +60,42 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   condition, the same progressive-disclosure pattern the hub already uses for
   `converge.md` and `scope-semantics.md`. The Report template and the
   `install_new` render stay in `SKILL.md`, which documents them as deliberate
-  hub-only exceptions. (#3728)
+  hub-only exceptions. The spoke loads on the FRESH pre-Step-4 re-read's arrays,
+  not on Step 1's older report: another session can uninstall a plugin or change
+  enable state in between, and a gate keyed on the stale report would skip the
+  live pre-install and pre-enable reads the spoke mandates and leave the new gap
+  unresolved. Step 4 reuses that re-read; Step 5 still takes its own, because
+  Step 4 mutates in between. (#3728)
 
 ### Changed
 
 - **`sync.md`'s Step 2 and Step 3 loops project their id lists with `--from`**
   against the report each step already read, rather than launching a second
-  `fleet-state.sh`. The mandate to take ids from the script and never from a
-  hand-written `jq` is unchanged, and so is every selector's output. Cross-file
-  references in `converge.md`, `gotchas.md`, and `scope-semantics.md` that named
-  `sync.md` Step 4 or Step 5 now point at the new spoke. (#3728)
+  `fleet-state.sh`. Each step now shows the redirect that creates its saved
+  report, and projects to a file whose exit status is checked before the loop:
+  a `--from` rejection is exit 2 with empty stdout, which a `while read` consumer
+  cannot tell apart from an empty id list, so the check is what keeps a failed
+  projection from being reported as "nothing to do". The mandate to take ids from
+  the script and never from a hand-written `jq` is unchanged, and so is every
+  selector's output. Cross-file references in `converge.md`, `gotchas.md`, and
+  `scope-semantics.md` that named `sync.md` Step 4 or Step 5 now point at the new
+  spoke. (#3728)
+- **Every `tee`-journaled mutating call captures `rc=${PIPESTATUS[0]}`.** A
+  pipeline's own `$?` is `tee`'s status, and `tee` succeeds whenever it can write
+  the log, so the documented snippet reported success for a `claude plugin update`
+  that failed and never emitted the "Action needed" row the failure earned. The
+  capture must be the statement immediately after the pipeline, since any
+  intervening command clobbers `PIPESTATUS`. `sync.md`'s "Run journal" section
+  carries the one canonical shape; `sync-install-enable.md` points at it for its
+  install and enable calls rather than restating it. (#3728)
+- **`audit` uses a throwaway `mktemp -d` scratch directory for its reports.**
+  `audit` runs the same algorithm, whose steps project with `--from` against a
+  saved report, so forbidding it from saving reports at all left it choosing
+  between violating its read-only contract and taking exit 2 from `--from` and
+  omitting its predictions. It now writes to a scratch directory under
+  `${TMPDIR:-${TEMP:-.}}` (never a hardcoded `/tmp`, which is an MSYS mount alias
+  on Windows) and removes it when the run ends, so one algorithm serves both
+  actions and only `sync` writes the durable journal. (#3728)
 
 ## [0.42.4]
 
