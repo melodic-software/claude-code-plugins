@@ -4,12 +4,12 @@
 
 - [Concurrency](#concurrency)
 - [Version capture for the report](#version-capture-for-the-report)
+- [Run journal](#run-journal)
 - [Marketplace scoping — Steps 2–5 are the per-marketplace loop body](#marketplace-scoping--steps-25-are-the-per-marketplace-loop-body)
 - [Step 1 — Marketplace refresh](#step-1--marketplace-refresh)
 - [Step 2 — In-repo update (the primary value path)](#step-2--in-repo-update-the-primary-value-path)
 - [Step 3 — User-scope update sweep](#step-3--user-scope-update-sweep)
-- [Step 4 — Install new catalog plugins (per `install_new` policy)](#step-4--install-new-catalog-plugins-per-install_new-policy)
-- [Step 5 — `enabledPlugins` completeness](#step-5--enabledplugins-completeness)
+- [Steps 4 and 5 — install and enable](#steps-4-and-5--install-and-enable)
 - [Step 6 — Report](#step-6--report)
 
 `sync` is the default action: bring the effective fleet current where you stand. Every step below
@@ -44,11 +44,10 @@ values have to be collected while the sweep runs — neither can be reconstructe
 
 **Retain the pre-sweep `fleet-state.sh` output for the whole run.** It is the sole source of every
 `<old>`, and once Step 2/3 have run there is nothing left on the machine that still holds those
-values — the pre-update versions are gone. Keep that snapshot (and each `claude plugin update` line
-as it is emitted) available through Step 6 rather than assuming it can be recovered; a sweep of
-several dozen mutations whose report depends on the `<old> → <new>` pairs is otherwise one context
-compaction away from being unable to emit its own report. This skill provides no durable log for
-that today — see "Deferred" in the plugin's CHANGELOG for why the script does not write one.
+values — the pre-update versions are gone. Do not hold it in context and hope: a sweep of several
+dozen mutations whose report depends on the `<old> → <new>` pairs is one context compaction away
+from being unable to emit its own report. Write it to the run journal below, and read it back in
+Step 6.
 
 Three sources, in precedence order, and **never** a synthesized value:
 
@@ -72,6 +71,63 @@ sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-s
 source 3 agreed with source 2 on every id. That establishes the write landed before the re-read on
 that run — not that it is synchronous per call, and not that it holds on another version. Keep
 source 2 primary and keep the divergence handling above.
+
+## Run journal
+
+Every `sync` run keeps its own directory on disk, so Step 6 reads what happened rather than
+reconstructing it from conversation. Nothing in the report then depends on the transcript surviving
+a compaction, and `converge` or a later audit gets a real before-state.
+
+`fleet-state.sh` does not write it — it stays the read-only inspector its own header advertises.
+The journal is agent-executed shell around the calls the algorithm already makes.
+
+At run start, take `journal_root` from SKILL.md's "State inspection" section (the value substitutes
+there and **not** here — a `context/*.md` spoke is read raw, so a `${CLAUDE_PLUGIN_DATA}` written
+here would resolve to nothing) and create one directory for this run:
+
+```bash
+run_dir="$journal_root/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$run_dir"
+```
+
+Then, for the rest of the run:
+
+- **Save every `fleet-state.sh` report** the algorithm re-reads, rather than only reading it. These
+  are the same calls the re-read-before-each-mutating-step rule already requires, so the journal
+  costs a redirect, not an extra read, and `--from` never replaces one of them. It replaces only the
+  second process a step used to launch to project its ids. Name them per marketplace:
+
+  | File | The re-read it saves |
+  |---|---|
+  | `pre.<mp>.json` | Step 2's, before the in-repo update |
+  | `mid.<mp>.json` | Step 3's, before the user-scope sweep |
+  | `pre-install.<mp>.json` | Step 4's, before any install |
+  | `pre-enable.<mp>.json` | Step 5's, before any enable |
+  | `post.<mp>.json` | the post-sweep re-read Step 6 reads |
+
+  The three the divergence attribution needs are `pre`, `mid`, and `post`; the other two exist
+  because Steps 4 and 5 mutate too.
+- **Append every mutating CLI call and its output** to `$run_dir/journal.log` as it runs, so the
+  `<new>` values that only the CLI reports survive the step that produced them:
+
+  ```bash
+  { echo "\$ claude plugin update $id -s user"; claude plugin update "$id" -s user 2>&1; } \
+    | tee -a "$run_dir/journal.log"
+  ```
+
+- **Step 6 reads those files.** Every `<old> → <new>` pair comes from `pre.json` plus
+  `journal.log`, with `post.json` as source 3's fallback, and the three `divergences[]` snapshots
+  the attribution split needs come from the three saved reports. Do not re-derive any of it from
+  memory of the run.
+
+**`audit` writes no journal.** SKILL.md's action table says `audit` mutates nothing, and a run that
+creates directories under the plugin data dir does not match that line even though the data dir is
+not fleet state. `audit` issues no mutating call, so it has no `<old> → <new>` pairs to lose and
+nothing the journal would protect.
+
+The journal is best-effort and never fails the sweep: if the directory cannot be created, say so in
+the report and fall back to holding the values in context, which is the weaker guarantee this
+section exists to replace.
 
 ## Marketplace scoping — Steps 2–5 are the per-marketplace loop body
 
@@ -202,14 +258,23 @@ claude plugin update <id> -s local     # for a currentProject:true entry with sc
 
 `fleet-state.sh --ids current-project` emits exactly those records — use it rather than a
 hand-written `jq` over `installed[]` (see Step 3 for why the hand-written form breaks on Windows).
-Each line is `<id>\t<scope>`, so the `-s` flag comes off the same line as the id it belongs to:
+Project it with `--from` off the report this step just saved rather than running a second live
+process: that process would re-parse `installed_plugins.json`, re-walk the catalog manifests, and
+re-run `realpath` to recompute a block already on disk. Same script, same projection, so the
+`\r` protection is identical. Each line is `<id>\t<scope>`, so the `-s` flag comes off the same line
+as the id it belongs to:
 
 ```bash
 while IFS=$'\t' read -r id scope; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s "$scope"
-done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" --ids current-project)
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids current-project --from "$run_dir/pre.$mp.json")
 ```
+
+Pass `--marketplace "$mp"` alongside `--from` when you want the script to prove the saved report is
+the one you think it is; with `--from` that flag is a consistency check (mismatch is exit 2), never
+a second read.
 
 The scope rides on the record for a reason: one plugin can hold **both** a `project`- and a
 `local`-scope record for the same repo (the multi-scope case `divergences[]` tracks), and both are
@@ -271,13 +336,15 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 "Action needed") and does not abort the sweep for the rest.
 
 Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON, and use the
-**`update-candidates-user`** selector rather than `installed-user`:
+**`update-candidates-user`** selector rather than `installed-user`. Project it from this step's own
+re-read (`mid.json`), for the reason Step 2 gives:
 
 ```bash
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
-done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" --ids update-candidates-user)
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids update-candidates-user --from "$run_dir/mid.$mp.json")
 ```
 
 ### Why the pre-filter, and why it can only ever be a candidate list
@@ -316,160 +383,28 @@ fails with "Plugin not found" even when unambiguous, and on Windows a hand-writt
 *same* "Plugin not found" text and so misreads as the bare-name problem. Both are
 [gotchas.md](gotchas.md); `--ids` is why neither can happen here.
 
-## Step 4 — Install new catalog plugins (per `install_new` policy)
+## Steps 4 and 5 — install and enable
 
-Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh failed — see Step 1.
+**Read [sync-install-enable.md](sync-install-enable.md) only when this marketplace's report has a
+non-empty `missing_from_user_install` or a non-empty `missing_from_enabled`, or when Step 1's
+refresh failed for it.** Both arrays are empty on an already-current fleet, which is the common
+case, and then both steps are no-ops with nothing to load. The gating signal is in the report Step 1
+already read.
 
-Take `fleet-state.sh`'s `missing_from_user_install` (`--marketplace "$mp" --ids missing-user-install`
-emits the id list directly — see Step 3) — catalog ids not installed at `user` scope
-(already excludes anything explicitly opted out with `enabledPlugins: false` in any scope — never
-re-offer a deliberate decline). This is deliberately user-scope, not the all-scope `missing_from_install`:
-a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
-usable from other directories, so installing at `user` scope below (the "usable from any directory"
-guarantee) must key off user-scope completeness. Apply the configured
-policy — SKILL.md's `${user_config.install_new}` line renders the actual value; that render, not this
-step's prose, is what to branch on:
+- **Step 4 — install new catalog plugins.** Installs the `missing_from_user_install` ids at `user`
+  scope per the configured `install_new` policy, then normalizes the user-scope `enabledPlugins`
+  key order the install just disturbed.
+- **Step 5 — `enabledPlugins` completeness.** Enables the `missing_from_enabled` ids at `user` and
+  `local` scope, and reports rather than writes at `project` scope.
 
-- **`ask`** (default) — present every entry in one batched `AskUserQuestion` multi-select, then
-  `claude plugin install <id> -s user` for each the user picks
-- **`all`** — `claude plugin install <id> -s user` for every entry, no prompt
-- **`none`** — install nothing; list the entries under "Action needed" in the report only
-
-**A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
-`ask`.** `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
-[scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
-configured `install_new` with it — and the render falls back to the unset placeholder, which this
-step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
-report rather than letting a policy the user set appear to have been honored.
-
-**Caveat (document, don't silently absorb):** with `install_new: all`, a catalog plugin that's
-installed at `user` scope and then *disabled* (not uninstalled — `enabledPlugins: false` still
-recorded, install record still present) is correctly excluded (it's not in `missing_from_user_install`,
-it's an installed, opted-out plugin). But a plugin that's *uninstalled entirely* without ever setting
-`false` reappears in `missing_from_user_install` on the very next sync and gets reinstalled —
-`install_new: all` has no memory of "I removed this on purpose." If that's not the intent, uninstall
-AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
-
-**Say that in the report, at the moment it fires.** When the policy is `all` and this step installed
-anything, the `Installed:` row carries the recurrence clause from SKILL.md's Report section. A
-caveat documented only here is invisible to the person reading the report, who is exactly the person
-about to be surprised by it on the next run. Do not leave it to inference.
-
-**Capture each install's own CLI output, don't discard it.** An install can report that the plugin
-declares `userConfig` options left unset, along with its own suggested remedy. That line is
-per-install information this step is the only one positioned to see, and it belongs in the report's
-"Action needed" list rather than in the scrollback — see SKILL.md's Report section for the slot.
-
-### After any install — normalize user-scope `enabledPlugins` key order
-
-Claude Code's settings writer appends each new `enabledPlugins` key at the end of the map rather
-than inserting it alphabetically. The rest of the map is sorted, so every sync that installs
-something leaves an unsorted tail that never self-heals and churns diffs for anyone whose
-`~/.claude/settings.json` is managed.
-
-There is no `claude plugin` verb that reorders the map. After this step installs **anything**,
-run the bundled normalizer against the user-scope file only:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
-```
-
-Override the path with `--file` or `FLEET_STATE_USER_SETTINGS` when the run is not using the
-machine default (same override `fleet-state.sh` honors).
-
-- **User scope only.** The write is a strict key reorder: keys and values byte-identical, order
-  alone changed. It is consistent with what this step already does — Step 5 already writes
-  `~/.claude/settings.json` via `claude plugin enable -s user`.
-- **Never normalize project scope.** That is the committed, team-shared file the Scope invariant
-  protects. If a project-scope map is unsorted, report it under Action needed and stop:
-
-  ```bash
-  "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh \
-    --report-project "${project_root}/.claude/settings.json"
-  ```
-
-  `project-unsorted` is a report row, not a write. `converge` remains the only action that may
-  touch that file.
-- **Never silent.** A `normalized keys=N` result becomes the report's `Normalized:` row. A
-  `refused:` result (permission denial, unreadable JSON, a semantic diff) becomes an Action
-  needed bullet — fail loudly, never skip. `--check` is the audit-mode stand-in (predict
-  `would-normalize`, write nothing).
-- **Skip the write when this step installed nothing.** An already-sorted map is a no-op either
-  way (`already-sorted`); the reorder exists to heal the tail this step just created.
-
-## Step 5 — `enabledPlugins` completeness
-
-Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
-marketplace whose Step 1 refresh failed — see Step 1.
-
-Take `fleet-state.sh`'s `missing_from_enabled` (`--marketplace "$mp" --ids missing-enabled` emits the
-id list directly — see Step 3) — ids installed somewhere but never mentioned (true
-or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with
-`defaultEnabled: false`. That field is a publisher's deliberate opt-in-required default (it takes
-precedence over the plugin's own `plugin.json` field — see
-[scope-semantics.md](scope-semantics.md)); no explicit `enabledPlugins` entry for one of those ids is
-the *intended* state, not a completeness gap — never run `enable` for it. This only catches the
-default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
-own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
-reads the marketplace's catalog file, never each installed plugin's own manifest).
-
-Consider each remaining id in each *verifiable* scope where it has an install record (from
-`installed[]`) but no raw entry in that scope's own `enabledPlugins` map — **`user` scope, or
-`project`/`local` scope with `currentProject: true`, never a `project`/`local` record for a different
-repo** (same restriction as `missing_from_enabled` itself, for the same reason: this invocation never
-reads another repo's settings files, so it cannot know whether that record is genuinely unmentioned
-there or already has its own entry — acting on it would risk mutating the current repo or an unread
-repo instead).
-
-**`sync` never writes a committed settings file — the scope decides whether this step acts or
-reports.** SKILL.md's scope section makes `converge` the one action that may touch a committed
-`.claude/settings.json`, and only behind its confirm gate. `enable <id> -s project` writes exactly
-that file (verified on Claude Code 2.1.228 — see [scope-semantics.md](scope-semantics.md)), so this
-step must not issue it. Confirming instead of skipping is not an option: `converge` can afford a
-confirm because it *aborts* in an autonomous session, while `sync` is the on-demand and headless
-maintenance action with no such abort, so there may be no human to answer.
-
-- **`user` and `local` — enable automatically.** Neither is team-shared state: `user` writes
-  machine-scope `~/.claude/settings.json`, and `local` writes the gitignored
-  `.claude/settings.local.json`.
-
-  ```bash
-  claude plugin enable <id> -s user     # or -s local
-  ```
-
-- **`project` — never enable; report it, but only when the report would be runnable.** Emit an
-  "Action needed" row per SKILL.md's Report section carrying the exact command, so the user can run
-  it deliberately and review the resulting diff:
-
-  ```bash
-  (cd "<that record's projectPath>" && claude plugin enable <id>@<marketplace> -s project)
-  ```
-
-  The `cd`-into-its-own-`projectPath` form is required for the reason
-  [converge.md](converge.md) Step 2 gives — `-s project` has no path flag and always acts on the
-  current directory — and the id stays fully qualified per [gotchas.md](gotchas.md).
-
-  **Order matters — suppress this row for any id the `user`/`local` branch just enabled.** An id
-  with no `enabledPlugins` entry anywhere but install records at *both* `user` and `project` scope
-  produces two rows in one run. The `user` row enables first, and `enable -s project` gates on the
-  **merged effective** value, not that scope's raw map (see
-  [scope-semantics.md](scope-semantics.md)), so the reported command would then fail with
-  `Plugin "<id>" is already enabled at project scope` — a report that hands the user a command
-  guaranteed to error. Emit the `project` row only for an id this step did **not** enable at `user`
-  or `local` scope; in practice that means an id whose only verifiable record is the project one.
-  Skipping is correct rather than merely convenient: after the `user` enable the plugin already
-  loads in that project by scope precedence, so nothing is broken — only the team-shared *declaration*
-  is absent, and that is a deliberate choice for the user to make, not drift for `sync` to report as
-  actionable.
-
-Never touches an id that has an explicit entry anywhere (true — already enabled, nothing to do; or
-false — deliberate opt-out, never flipped). This step only fills a genuine gap: installed but never
-recorded either way.
+When Step 1's refresh failed for this marketplace, both steps are deferred rather than run — the
+spoke carries what to say about that; see Step 1 above for why.
 
 ## Step 6 — Report
 
 Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from
-the sources the "Version capture for the report" section above fixes.
+the sources the "Version capture for the report" section above fixes, read back out of the run
+journal rather than out of memory of the run.
 
 **Split the Divergences count into pre-existing and run-caused.** A user-scope sweep that moves user
 scope ahead of untouched project records *manufactures* actionable divergences — the run's own
@@ -483,8 +418,9 @@ Concretely: equal project and user records at `v1`, Step 2 updates the project r
 user update fails — the skew is Step 2's, and a two-snapshot diff blames Step 3. Take the
 `divergences[]` read from each of the three `fleet-state.sh` calls the algorithm already makes — the
 pre-Step-2 snapshot, the pre-Step-3 re-read the concurrency rule requires anyway, and the post-sweep
-re-read — and attribute each new row to the interval it first appeared in. No extra call is needed;
-this is bookkeeping over reads that already happen.
+re-read, saved as the run journal's `pre.json`, `mid.json`, and `post.json` — and attribute each new
+row to the interval it first appeared in. No extra call is needed; this is bookkeeping over reads
+that already happen.
 
 Report as
 `<N> actionable (<M> newly created by this run — <a> by the in-repo update, <b> by the user-scope

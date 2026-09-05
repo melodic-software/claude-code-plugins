@@ -86,6 +86,7 @@ files directly, and never write them:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name> | --all]
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name>] --ids <selector>
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids <selector> --from <report.json>
 ```
 
 The second form emits the plain id list a mutating step loops, instead of the JSON report. One
@@ -93,6 +94,20 @@ tab-separated record per line, first field always the fully-qualified `<name>@<m
 whenever a step needs ids; never hand-write a `jq` extraction over the JSON, which reintroduces a
 trailing `\r` on Windows and silently corrupts every id but the last (see
 [context/gotchas.md](context/gotchas.md)).
+
+The third form projects that same id list from a report already on disk rather than recomputing the
+fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
+selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
+
+`sync` writes its run journal under this plugin's per-machine data directory. The path is
+substituted here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and **not** in a
+`context/*.md` spoke, which is read raw:
+
+```bash
+journal_root="${CLAUDE_PLUGIN_DATA}/plugins-sync/runs"
+```
+
+See [context/sync.md](context/sync.md)'s "Run journal" section for what goes in it.
 
 After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bundled writer.
 Never hand-edit `~/.claude/settings.json`:
@@ -286,6 +301,7 @@ default when that render is still the placeholder token, not on the option's nam
 | File | Load when |
 |---|---|
 | [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
+| [context/sync-install-enable.md](context/sync-install-enable.md) | Sync Steps 4 and 5, and only when this marketplace's report has a non-empty `missing_from_user_install` or `missing_from_enabled`, or its Step 1 refresh failed. Both arrays are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
 | [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |
