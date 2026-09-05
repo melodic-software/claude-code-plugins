@@ -227,7 +227,7 @@ build_plugin_index() {
     jq -r '[input_filename, (.name // "" | tostring),
             ((.skills // null) | if . == null then ""
               elif type == "array" then map(tostring) | join("\u001f")
-              else tostring end)] | join("")' "${manifests[@]}" 2>/dev/null
+              else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
   )
   # jq stops the batch at the first manifest it cannot parse, so every manifest
   # behind a malformed one comes back unread. Those, and the malformed one, take

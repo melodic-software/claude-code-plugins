@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Shared by lib/verification/verify-cli-flag.sh and hooks/cli-flag-verify.sh:
 # where the `--help` cache lives, how a cache key is spelled, how long an entry
 # stays fresh, and the pattern that decides whether a flag appears in a help
@@ -7,11 +7,10 @@
 # drifted apart on the first review of that split (a `[` fell out of one
 # terminator class, so `--flag[=VALUE]` was known cold and unknown warm).
 #
-# Sourced, never executed. Every function assigns into a caller-named variable
-# (`printf -v`) rather than printing, so no caller pays a command substitution,
-# which is a fork on Windows Git Bash.
-
-# shellcheck shell=bash
+# Sourced, never executed (no shebang, like every other sourced library here).
+# Every function assigns into a caller-named variable (`printf -v`) rather
+# than printing, so no caller pays a command substitution, which is a fork on
+# Windows Git Bash.
 
 # Freshness window for a cached `--help`, in minutes (24 h). Read by both
 # sourcing scripts, which is why shellcheck sees no use here.

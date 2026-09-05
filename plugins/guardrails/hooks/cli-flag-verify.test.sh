@@ -409,7 +409,12 @@ run_hit() {
 }
 run_hit
 COLD_OUT="$OUT"
-assert_eq "cache miss: every candidate goes through the verifier (3 spawns)" 3 "$VSPAWNS"
+# Three candidates over two (bin, chain) keys: `faketool sub` and `faketool`.
+# The first miss on each key spawns the verifier, which writes that key's cache
+# file; the second `faketool` candidate is then answered in-process from the
+# file the first one just wrote. Two spawns, not three (the un-indexed shape
+# spawned once per candidate).
+assert_eq "cache miss: one verifier spawn per (bin, chain) key, not per candidate" 2 "$VSPAWNS"
 ctx_contains "cache miss: unknown flags reported" "$COLD_OUT" "UNKNOWN_FLAG: faketool sub --fake"
 ctx_contains "cache miss: unknown top-level flag reported" "$COLD_OUT" "UNKNOWN_FLAG: faketool --bogus"
 run_hit
