@@ -266,6 +266,31 @@ Code v2.1.193 or later." The `claude plugin prune` ≥ v2.1.121 gate is **not re
 the current docs describe `prune` without naming an introducing version, so the gate stands on its
 original source and nothing this pass found contradicts it.
 
+## An unchanged version number keeps the old cache directory while `gitCommitSha` moves
+
+`claude plugin update -y <plugin>@<marketplace>` re-points the install record's `gitCommitSha` in
+`installed_plugins.json` without rewriting the plugin's cache directory when the manifest version
+number is unchanged across the two commits. The cache is keyed by version, so an update that does
+not move the version finds the directory already there and leaves the older build in it. The record
+then names the new commit and the files on disk are the old one.
+
+**Consequence, and it is the reason the check exists.** The version-and-sha comparison every
+delivery script relies on passes in exactly this state, so it is not proof that the files loaded are
+the files delivered. Any measurement or behaviour test run against that cache directory is a test of
+a different build than the one the record names, and nothing in the report says so.
+
+Observed on **Claude Code 2.1.259** (issue #3681 evidence, not re-run since). After a delivery,
+six plugins reported the new sha while their cache directories still held files from an earlier
+commit — twelve stale files in the worst case, including a reviewed dispatcher, three formatters, and
+two `hooks.json` files. Removing those version directories and running the update again recreated
+them correctly from the clone, which is both the confirmation and the remediation. **Recheck
+trigger:** any minor-version bump touching plugin caching or the `plugin update` path — a date alone
+is not a trigger.
+
+`cache-content-check.sh` is the standing detection: it byte-compares every file in a cache directory
+against the recorded commit in the marketplace clone, which is the only check that separates this
+state from a healthy one. It reports and never repairs; see `SKILL.md`'s "Cache content" section.
+
 ## `autoUpdate` is a background complement, not a substitute
 
 Official-Anthropic marketplaces default `autoUpdate: true`; third-party and local-dev marketplaces

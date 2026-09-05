@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.13]
+
+### Added
+
+- **A standing cache-content check in the `plugins` skill, so a version-and-sha match is no
+  longer taken as proof that the files on disk are the build the record names (#3681).**
+  `claude plugin update` re-points an install record's `gitCommitSha` without rewriting the
+  plugin's cache directory when the manifest version number is unchanged across the two commits,
+  because the cache is keyed by version. The record then claims the new commit while the directory
+  still holds the older build, and every check the skill had passed in that state. On the reporting
+  machine six plugins were in it at once, twelve stale files in the worst case, including a reviewed
+  dispatcher and two `hooks.json` files. Any measurement or behaviour test against those caches was
+  a test of a different build. The new `cache-content-check.sh` byte-compares every file in a cache
+  directory against the recorded commit in the marketplace clone, in both directions: a changed
+  file, a file the commit has and the cache lacks, and a file deleted at the commit but still
+  sitting in the cache. It runs as Step 5b of `sync` and of `audit`, ungated, because an unchanged
+  version number is exactly the case in which every other step reports success. Cache-only files the
+  marketplace repo's own `.gitignore` covers are excluded: a cache directory is a live plugin root,
+  so it accumulates `__pycache__` and vendored dependencies that were never in any commit, and
+  without that filter three installs on the authoring machine reported stale on generated state
+  alone. The report gains a `Cache content:` row naming the affected ids and the remediation that
+  was proved to work, which is removing that version's directory and re-running the update.
+- **The check reports and never repairs, and never reaches the network.** It writes no state file,
+  removes no cache directory, and does not `git fetch` a commit the marketplace clone lacks. A
+  missing commit is reported as `sha-not-local` and counted as unverifiable rather than as a pass,
+  because fetching it would be a mutation the audit does not perform and would erase the very
+  condition the verdict exists to report. A project-scope record whose `projectPath` is not on this
+  machine is counted as skipped rather than verdicted, on the same reasoning the skill already
+  applies to stale project records: absent is not dead.
+- **Route (b) of the three the issue offered, taken deliberately.** Route (a), a repo rule that
+  every plugin change bumps the version, prevents nothing already delivered and depends on every
+  future author remembering it; route (c), an upstream report, has no delivery date this repo
+  controls and leaves the machine undetected in the meantime. Route (b) is a check that runs on
+  every sync and audit, needs no author discipline, and holds whatever upstream does. It does not
+  preclude the other two.
+
 ## [0.42.12]
 
 ### Changed
