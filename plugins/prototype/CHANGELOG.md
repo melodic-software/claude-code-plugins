@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4]
+
+### Changed
+
+- explore-directions, pressure-test: dropped the compound `git status` grant from `allowed-tools` that no body instruction issues; each description names its intent category with three exact phrases instead of listing six or seven near-synonyms.
+- explore-directions: the two `design`-skill fallbacks read as one current rule instead of a contrast against a future gate; removed the negative restatement of the substrate taxonomy and the second copy of the same-process sentence.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.10.2]
 
 ### Fixed

@@ -1,9 +1,9 @@
 ---
-description: "Builds throwaway UI variations, several radically different visual layouts on one route, switchable from a floating control bar, to answer 'what should this look like' before committing to a design. Use when: 'mock up a UI', 'try a few designs', 'what should this page look like', 'show me options for this dashboard', 'try a different layout for the settings screen', 'prototype this screen', 'explore design options'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup (or, where the bundled design skill is available, an editable design-canvas Artifact); you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions. Use /prototype:pressure-test for those. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
+description: "Builds throwaway UI variations, several radically different visual layouts on one route, switchable from a floating control bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on your real stack by default (real header, real data, real density) or as a self-contained HTML mockup (or, where the bundled design skill is available, an editable design-canvas Artifact); you flip between variants, pick one (or steal bits from each), and throw the rest away. Not for logic or state questions. Use /prototype:pressure-test for those. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
 argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash({ git status --porcelain 2>/dev/null || echo \"(git status unavailable)\"; } | head -10)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
 metadata:
   workflow-stage: plan
@@ -73,8 +73,7 @@ intent, not by mount target:
   that beats the default routing.
 
 The HTML mockup is a sibling of sub-shape B: both answer "no existing page," split only by whether
-you want the variant judged inside the real app or as the fastest throwaway standalone. It is not a
-second axis layered over A and B.
+you want the variant judged inside the real app or as the fastest throwaway standalone.
 
 ### Sub-shape A. Adjustment to existing page (preferred)
 
@@ -101,8 +100,7 @@ design problems a populated one would expose.
 
 When the intent selector routes here, no app or dev server, no app yet, or a non-dev exploring,
 the variants live in one self-contained `file://` HTML page with synthetic data and an in-page
-switcher. Same variant-comparison process as the real stack; the substrate is the only thing that
-changes. Assemble one per task (there is no canned template to copy):
+switcher. Assemble one per task (there is no canned template to copy):
 
 1. **N variant containers**. One block per variant, all in the single page.
 2. **An in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL; toggle
@@ -163,12 +161,10 @@ building, never switch silently; the HTML mockup stays the default:
   properties panel, inline text) applies where saving is enabled for the user's account;
   otherwise the canvas is view-plus-PNG/PDF-export.
 
-The fallbacks are two distinct states, not one:
-
-- `design` **absent from the skill list**. Do not offer or mention it; the HTML mockup covers
-  the same ground (a user whose session lacks the skill has no `/design` command either).
-- `design` **listed but the invocation is refused** (a future invocability gate). Suggest the
-  user run `/design <scope>` themselves; user invocation survives such gates.
+When `design` is absent from the skill list, do not offer or mention it; the HTML mockup covers
+the same ground, and a user whose session lacks the skill has no `/design` command either. If the
+invocation is refused, suggest the user run `/design <scope>` themselves, since user invocation
+survives gates that stop model invocation.
 
 The capture discipline is unchanged either way: record the winning-variant key and notes in
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
