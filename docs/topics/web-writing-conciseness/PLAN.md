@@ -8,8 +8,9 @@ Topic slug: `web-writing-conciseness`. Interview ledger and discovery artifacts:
 
 ### TLDR
 
-- A new small plugin (working name `writing`, category `presentation`) with one reactive skill
-  that rewrites a wall of text for scanning human readers, and one doctrine reference file.
+- A new small plugin (`writing`, category `presentation`) with one dual-mode skill (name open,
+  Q9): invoked bare it sets a standing write-for-readers posture for the session; given a target
+  it rewrites that text for scanning human readers. Plus one doctrine reference file.
 - Doctrine derived from NN/g (concise, scannable, objective), GOV.UK, US plain language, Google,
   Microsoft, and BLUF, paraphrased with drift stamps; NN/g is never vendored.
 - Reciprocal routing: ai-slop, docs-hygiene:write-for-humans, and discipline:tighten-your-output
@@ -43,12 +44,29 @@ been posted, on request.
 - Draft PR #3766 (code-metrics) edits `.claude-plugin/marketplace.json`,
   `scripts/skill-leaf-name-registry.txt`, `docs/CATALOG.md`, `docs/SKILL-CHEAT-SHEET.md`; rebase
   after it merges or expect list conflicts.
+- One feature branch and one draft PR carry the whole change (new plugin, reciprocal Boundary
+  edits, composition-site pointers, and every plugin version bump); no split.
+- No second skill: the standing posture and the targeted rewrite are two modes of one skill.
 
 ### Acceptance criteria
 
-- A new plugin directory with `plugin.json`, README, CHANGELOG, one reactive SKILL.md, a
+- A new plugin directory with `plugin.json`, README, CHANGELOG, one dual-mode SKILL.md, a
   `reference/` doctrine file, and `evals/evals.json`; `skill-quality:check` and
   `scripts/check-skill-leaf-names.sh --check` pass.
+- Inputs are universal: the skill accepts any text or reference the agent can resolve with the
+  tools it has (pasted text, a file, a URL, a PR, a ticket key) and does not enumerate input types.
+- Reader, destination, and completeness floor are inferred from principles stated in the doctrine
+  (who reads it, where it lands, what must survive, including any structural contract the
+  destination imposes such as a PR body's required sections); there is no fixed profile table, and
+  any examples are illustrations.
+- The doctrine's formatting rule is by purpose (lists for facts a reader scans, prose for reasoning
+  a reader follows; bold limited to a few keywords per screen, never restating the line) and cites
+  the ai-slop catalog's carve-out wording; it names no model generation.
+- `evals/evals.json` carries six fixture-backed cases: a long comment to BLUF with every decision
+  and number preserved; a PR body with its closing line and sections intact; a short comment with
+  an inline diff and no subagent; a decline routing SKILL.md prose to write-for-agents; a
+  route-away of "this is a wall of text" to adhd:clarify; and a bare invocation that sets the
+  standing posture.
 - The doctrine file separates universal brevity rules (about half the words, no filler,
   expletives, intensifiers, or redundancy, active voice, one idea per sentence) from human-only
   scannability rules (BLUF, front-loaded headings, lists for scannable facts, bounded bold), and
