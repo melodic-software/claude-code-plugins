@@ -90,10 +90,16 @@ esac
 # Bundled verifier missing (install corruption, not a consumer-facing
 # prerequisite) — fail open, don't block, but make it visible once per
 # session rather than a fully silent skip (docs/conventions/hook-observability/).
-if [[ ! -x "$VERIFIER" || ! -f "$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh" ]]; then
+CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
+if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
+    if [[ ! -x "$VERIFIER" ]]; then
+      cfv_missing="bundled verifier missing at $VERIFIER"
+    else
+      cfv_missing="bundled verifier library missing at $CFV_SHARED"
+    fi
     hook::emit_skip_notice "PostToolUse" \
-      "guardrails/cli-flag-verify: bundled verifier missing at $VERIFIER — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
+      "guardrails/cli-flag-verify: $cfv_missing — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
   fi
   exit 0
 fi
@@ -391,19 +397,20 @@ split_candidate_key() {
 # by this hook and by the verifier, so the two paths cannot drift; a miss still
 # goes through the verifier, which populates the cache, and every exit code
 # keeps its meaning.
-# shellcheck source=../lib/verification/cli-flag-cache.sh
-source "$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
 CFV_CACHE_DIR=""
-cfv_cache_dir_to CFV_CACHE_DIR
 declare -A CFV_FRESH=()
 CFV_FRESH_INDEXED=0
-# One find for the whole run, on the first candidate whose bin is installed:
-# every cache file inside the freshness window. A write that only cites bins
-# this machine lacks never pays it.
+# Runs once, on the first candidate whose bin is installed: sources the shared
+# definitions, resolves the cache directory, and indexes with one find every
+# cache file inside the freshness window. A write that yields no candidate, or
+# only cites bins this machine lacks, never pays any of it.
 cfv_index_fresh_cache() {
   local f
   ((CFV_FRESH_INDEXED)) && return 0
   CFV_FRESH_INDEXED=1
+  # shellcheck source=../lib/verification/cli-flag-cache.sh
+  source "$CFV_SHARED"
+  cfv_cache_dir_to CFV_CACHE_DIR
   [[ -d "$CFV_CACHE_DIR" ]] || return 0
   while IFS= read -r f; do
     [[ -n "$f" ]] && CFV_FRESH["$f"]=1
@@ -412,7 +419,7 @@ cfv_index_fresh_cache() {
 # verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
 # (the verifier's contract, answered here on a hit and by the verifier on a miss).
 verify_candidate() {
-  local bin="$1" chainstr="$2" flag="$3" key cache_file help
+  local bin="$1" chainstr="$2" flag="$3" key cache_file help rc
   local -a chainarr=()
   read -ra chainarr <<<"$chainstr"
   cfv_index_fresh_cache
@@ -424,6 +431,14 @@ verify_candidate() {
     return 1
   fi
   "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
+  rc=$?
+  # A miss the verifier could answer (0 or 1) has just written the cache file,
+  # so every later candidate sharing this (bin, chain) is answered here rather
+  # than spawning the verifier again for the same --help text.
+  if ((rc == 0 || rc == 1)) && [[ -s "$cache_file" ]]; then
+    CFV_FRESH["$cache_file"]=1
+  fi
+  return "$rc"
 }
 
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
