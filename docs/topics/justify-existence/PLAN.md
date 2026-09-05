@@ -497,6 +497,20 @@ footprint is otherwise exactly what the plan declared.
 across every created file and every modified file, and a rubric read of the two authored instruction
 surfaces found no metaphor jargon, promotional tone, or mechanism-free claims.
 
+**Pull request:** <https://github.com/melodic-software/claude-code-plugins/pull/3776>, opened as a
+**draft** at head `07033f76`. Its body's first line is the `No related issue:` form and it carries
+all four required sections, so the `pr-issue-linkage` contract is met. The peer announcement went out
+before the PR existed, to the sibling session on this branch and to the session whose branch touches
+the same shared generated files.
+
+**It stays a draft for now, deliberately.** Phase 6 being green is a necessary condition for the flip
+to ready, not a sufficient one, and two operator decisions are open. First, the discovery-measurement
+gate this plan names: the two confirmed candidates are the implementer's assessment and the operator
+confirms or overturns them, and a count of zero cuts discovery mode from V1. Second, a sibling
+session on this branch has a pen-holder question in front of the operator; that question was asked on
+stale facts and has been corrected by message, but it is theirs to answer. Flipping to ready would
+request human review and spend both AI review lanes on work whose scope is still open.
+
 ### Files Affected (whole plan)
 
 | File | Action |
