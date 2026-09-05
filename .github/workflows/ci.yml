@@ -650,6 +650,7 @@ jobs:
       # without it (#3752). Self-test first so a broken detector cannot mask a
       # regression.
       - name: Test the hooks-description gate
+        if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-hooks-description.test.sh
       - name: Check every plugin hooks.json carries a top-level description
         id: hooks_description
