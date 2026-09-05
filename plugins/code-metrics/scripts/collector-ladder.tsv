@@ -1,0 +1,52 @@
+# The collector ladder: which tool measures which measure in which lane, in
+# order of preference (design thread T1). Tab-separated: lane, measure, tool,
+# note. The dispatcher reads this file and never a directory listing; a tool
+# listed here whose adapter (scripts/collectors/<tool>.py) does not exist is
+# reported as `unavailable` with the reason `adapter not shipped`.
+#
+# Three reserved tool names carry a status instead of a collector:
+#   none      no maintained collector exists; the note is the reason
+#   n/a       the measure does not apply to the lane; the note is the reason
+#   deferred  the lane is planned but not shipped; the note is the reason
+# A measure of `*` matches every measure not listed explicitly for that lane.
+#
+# lane	measure	tool	note
+typescript	cyclomatic	lizard
+typescript	cyclomatic	eslint-complexity
+typescript	cognitive	sonarjs
+typescript	halstead	multimetric
+typescript	file_lines	scc
+typescript	file_lines	line-counter
+typescript	duplication	jscpd
+typescript	type_coverage	type-coverage
+python	cyclomatic	lizard
+python	cyclomatic	radon
+python	cognitive	none	no maintained collector found (validated 2026-09-04)
+python	halstead	radon
+python	halstead	multimetric
+python	file_lines	scc
+python	file_lines	line-counter
+python	duplication	jscpd
+python	type_coverage	mypy-report
+bash	cyclomatic	shellmetrics
+bash	cyclomatic	multimetric
+bash	cognitive	none	no collector found (validated 2026-09-04)
+bash	halstead	multimetric
+bash	file_lines	scc
+bash	file_lines	line-counter
+bash	duplication	jscpd
+bash	type_coverage	n/a	not applicable to shell
+go	cyclomatic	lizard
+go	cyclomatic	gocyclo
+go	cognitive	gocognit
+go	halstead	multimetric
+go	file_lines	scc
+go	file_lines	line-counter
+go	duplication	jscpd
+go	duplication	dupl
+go	type_coverage	n/a	not applicable to Go
+dotnet	file_lines	scc
+dotnet	file_lines	line-counter
+dotnet	duplication	jscpd
+dotnet	type_coverage	none	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
+dotnet	*	deferred	C# lane deferred; research tag probe:dotnet-metrics-linux

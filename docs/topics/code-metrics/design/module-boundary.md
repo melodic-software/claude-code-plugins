@@ -25,23 +25,23 @@ plugins/code-metrics/
 │   ├── detect-lanes.sh    + detect-lanes.test.sh      # extension map, consumer ecosystems globs
 │   ├── report.py          + test_report.py            # JSON assembly and markdown rendering
 │   ├── collectors/
-│   │   ├── lizard.sh, radon.sh, eslint-complexity.sh, sonarjs.sh, gocyclo.sh, gocognit.sh,
-│   │   │   shellmetrics.sh, multimetric.sh, scc.sh, line-counter.sh, jscpd.sh, cpd.sh, dupl.sh,
-│   │   │   type-coverage.sh, mypy-report.sh          # each with a co-located <tool>.test.sh
+│   │   ├── lizard.py, radon.py, eslint-complexity.py, sonarjs.py, gocyclo.py, gocognit.py,
+│   │   │   shellmetrics.py, multimetric.py, scc.py, line-counter.py, jscpd.py, cpd.py, dupl.py,
+│   │   │   type-coverage.py, mypy-report.py          # Python adapters, each with a co-located test_<tool>.py
 │   ├── parsers/
 │   │   ├── lcov.py, cobertura.py, coverage_py_json.py, go_cover.py # each with test_<stem>.py
 │   └── fixtures/                       # sample sources, captured tool outputs, coverage artifacts, config layers, a registry; no executables (stubs are generated at test time)
 └── skills/
-    ├── audit-complexity/  SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
-    ├── audit-size/        SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
-    ├── audit-duplication/ SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
-    ├── audit-coverage/    SKILL.md, scripts/run.sh + run.test.sh, scripts/crap.py + test_crap.py, evals/evals.json
-    ├── audit-type-debt/   SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
+    ├── audit-complexity/  SKILL.md, scripts/<name>.sh + <name>.test.sh, evals/evals.json
+    ├── audit-size/        SKILL.md, scripts/<name>.sh + <name>.test.sh, evals/evals.json
+    ├── audit-duplication/ SKILL.md, scripts/<name>.sh + <name>.test.sh, evals/evals.json
+    ├── audit-coverage/    SKILL.md, scripts/<name>.sh + <name>.test.sh, scripts/crap.py + test_crap.py, evals/evals.json
+    ├── audit-type-debt/   SKILL.md, scripts/<name>.sh + <name>.test.sh, evals/evals.json
     ├── principles/        SKILL.md, reference/{measures.md,thresholds.md,crap.md,literature.md}, evals/evals.json
     └── setup/             SKILL.md, scripts/check.sh + check.test.sh, scripts/apply.py + test_apply.py, templates/config-template.yaml, evals/evals.json
 ```
 
-`skills/<name>/scripts/run.sh` is a thin entry point: it parses the skill's arguments and calls
+`skills/<name>/scripts/<name>.sh` is a thin entry point: it parses the skill's arguments and calls
 `${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.sh` with the skill name and measure set. Nothing under a
 skill's `scripts/` is duplicated across skills; the shared code is one copy under the plugin's
 `scripts/`, which the encapsulation audit treats as an entry surface.
@@ -51,8 +51,8 @@ skill's `scripts/` is duplicated across skills; the shared code is one copy unde
 | Path | Visibility | Who may cite it |
 |---|---|---|
 | `skills/*/SKILL.md` | public | anything |
-| `skills/*/scripts/run.sh` | public entry surface | other skills in this plugin, consumers |
-| `scripts/dispatch.sh`, `scripts/collectors/*.sh`, `scripts/parsers/*.py` | plugin-internal entry surface | this plugin's skills only |
+| `skills/<name>/scripts/<name>.sh` | public entry surface | other skills in this plugin, consumers |
+| `scripts/dispatch.sh`, `scripts/collectors/*.py`, `scripts/parsers/*.py` | plugin-internal entry surface | this plugin's skills only |
 | `scripts/fixtures/**` | private | this plugin's tests only |
 | `skills/*/reference/**`, `skills/*/evals/**`, `reference/**` | private supporting files | the owning SKILL.md, and the README for `reference/config.md` |
 | `.claude/code-metrics.yaml` (consumer side) | consumer-owned contract | `reference/config.md` declares it |

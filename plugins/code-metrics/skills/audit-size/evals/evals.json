@@ -1,0 +1,42 @@
+{
+  "skill_name": "audit-size",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reports-the-change-with-provenance-and-no-verdict",
+      "prompt": "/code-metrics:audit-size",
+      "expected_output": "Runs the bundled audit-size.sh against the change (merge-base diff plus uncommitted files), presents the markdown report with its Coverage of this run table and the 1000-line reference labelled as the plugin's own number rather than ISO-backed, and renders no pass/fail verdict.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/audit-size.sh rather than counting lines by hand",
+        "Presents the Coverage of this run table naming the collector used (scc or the bundled counter) per lane",
+        "States the reference's provenance: 1000 is the plugin's own number, not ISO-backed",
+        "Does not declare any file a failure, defect, or violation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scc-absent-is-visible-not-silent",
+      "prompt": "/code-metrics:audit-size src/ (scc is not installed on this machine)",
+      "expected_output": "The report's run table shows the bundled counter as the collector with the comment-agnostic label, explains that scc did not resolve, and does not attempt to install it.",
+      "files": [],
+      "expectations": [
+        "The run table names line-counter as the collector and the rows carry the comment-agnostic label",
+        "Says scc did not resolve and offers its install hint without installing anything",
+        "Still reports total and non-blank lines per file"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "json-feeds-a-comparison-through-the-gated-pointer",
+      "prompt": "/code-metrics:audit-size --json --all src/ so I can compare it after the refactor",
+      "expected_output": "Produces the code-metrics/v1 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
+      "files": [],
+      "expectations": [
+        "Runs audit-size.sh with --json and keeps the document for the later comparison",
+        "Mentions /verification:measure only behind an if-installed gate with a stated fallback",
+        "States that a report with status empty on either side makes the comparison inconclusive"
+      ]
+    }
+  ]
+}

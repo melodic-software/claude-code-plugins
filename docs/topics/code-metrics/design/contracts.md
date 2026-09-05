@@ -140,7 +140,7 @@ Field rules:
 
 ## 3. Collector adapter contract
 
-An adapter is one file, `plugins/code-metrics/scripts/collectors/<tool>.sh`, that implements:
+An adapter is one Python file, `plugins/code-metrics/scripts/collectors/<tool>.py` (invoked through the resolved interpreter; a bash adapter would shell out to a Python translator anyway, so the translator is the adapter), that implements these verbs on its command line:
 
 | Function | Contract |
 |---|---|

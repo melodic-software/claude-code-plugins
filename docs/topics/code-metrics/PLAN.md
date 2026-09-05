@@ -199,11 +199,11 @@ Test boundaries (all newly introduced; each is the script's command line, one se
 | `scripts/resolve-config.py <layers...>` | cascade merge, per-key override, provenance layer | new |
 | `scripts/yaml_subset.py <file>` | the YAML subset (T22): block mappings and sequences, flow sequences of scalars, scalars, comments; a construct outside the subset is a named error | new |
 | `scripts/detect-lanes.sh <files...>` | extension map, consumer `globs` override, `enabled: false` | new |
-| `scripts/collectors/<tool>.sh probe\|measures\|collect\|install_hint` | presence gate, output translation | new |
+| `scripts/collectors/<tool>.py probe\|measures\|collect\|install_hint` | presence gate, output translation | new |
 | `scripts/parsers/{lcov,cobertura,coverage_py_json}.py` | `parse(path) -> {file: {line: hits}}` | new |
 | `skills/audit-coverage/scripts/crap.py` | the formula, `null` on no executable lines | new |
 | `scripts/dispatch.sh <skill> <measures> [scope]` | end-to-end: scope, run table, exit codes 0/2/3 | new |
-| `skills/*/scripts/run.sh` | argument parsing to dispatch | new |
+| `skills/<name>/scripts/<name>.sh` | argument parsing to dispatch | new |
 | `skills/setup/scripts/check.sh` | probe table, config validation, tracked-file guard | new |
 | `skills/setup/scripts/apply.py <key=value>...` | idempotent per-key write of the team file, unknown keys preserved | new |
 
@@ -271,7 +271,7 @@ after each wave returns and before each commit.
 - `python -m pytest -q <the phase's test_*.py files>` exits 0 (the interpreter resolved as the repo does: `python3`, else `python`, else `py -3`).
 - Every sanity-check pipe below runs under `set -o pipefail`, so "exits 0" observes the script, not the one-liner after it.
 
-### Phase 1: Walking skeleton, `audit-size` end to end [TODO]
+### Phase 1: Walking skeleton, `audit-size` end to end [DONE]
 
 Review: code-design
 
@@ -279,20 +279,22 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/.claude-plugin/plugin.json` | CREATE | name, `0.1.0`, description, author, MIT, keywords; no `userConfig` (T4) |
-| [ ] `plugins/code-metrics/README.md` | CREATE | lead, Works in any repo, Requirements (collector table), Install, Configuration, License; listing-budget section placeholder filled in Phase 9 |
-| [ ] `plugins/code-metrics/CHANGELOG.md` | CREATE | Keep a Changelog, `## [0.1.0]` |
-| [ ] `plugins/code-metrics/reference/report-schema.md` | CREATE | `code-metrics/v1` field reference from `design/contracts.md` §2 |
-| [ ] `plugins/code-metrics/reference/collectors.md` | CREATE | stamped table with its header and the Phase 1 rows (`scc`, the bundled counter); Phases 3 to 6 add fragments under `reference/collectors/` that Phase 8 merges |
-| [ ] `plugins/code-metrics/scripts/detect-lanes.sh` + `detect-lanes.test.sh` | CREATE | extension map; consumer `globs`; `enabled: false` |
-| [ ] `plugins/code-metrics/scripts/report.py` + `test_report.py` | CREATE | JSON assembly for every row shape the contract names (per function, per file, per clone group with `instances[]`, per lane), `excluded[]`, `unavailable[]`, markdown rendering, exit-code taxonomy, so later phases add rows without editing it |
-| [ ] `plugins/code-metrics/scripts/collector-ladder.tsv` | CREATE | the whole T1 ladder as data (`lane`, `measure`, `tool`, in order), every tool listed before its adapter exists |
-| [ ] `plugins/code-metrics/scripts/pathglob.py` + `test_pathglob.py` | CREATE | gitignore-style `**`/`*` matching at the 3.9 floor for consumer ecosystem globs |
-| [ ] `plugins/code-metrics/scripts/dispatch.sh` + `dispatch.test.sh` | CREATE | scope resolution (change, paths, `--all`; an explicitly named path that does not exist is exit 2), the ladder read from the TSV (a listed tool with no adapter file is `unavailable`, reason `adapter not shipped`; the suite asserts that path and never enumerates the adapter set), `run[]` rows, top-level `status`, pass-through of skill-level options (`--artifacts`, `--registry`, and any `--<name> <value>` it does not own) to the calling skill's post-step, `PLUGIN_ROOT` resolved with the `${CLAUDE_PLUGIN_ROOT:-...}` idiom, so later phases never edit it |
-| [ ] `plugins/code-metrics/scripts/collectors/line-counter.sh` + `.test.sh` | CREATE | bundled counter: `lines_total`, `lines_non_blank`, labelled comment-agnostic |
-| [ ] `plugins/code-metrics/scripts/collectors/scc.sh` + `.test.sh` | CREATE | `scc --by-file --format json` translation; probe |
-| [ ] `plugins/code-metrics/scripts/fixtures/{sources/,tool-output/scc.json}` | CREATE | sample files per lane (lint-clean or headed with a per-file disable); captured scc output; the suite generates the `scc` stub at runtime from the capture |
-| [ ] `plugins/code-metrics/skills/audit-size/{SKILL.md,scripts/run.sh,scripts/run.test.sh,evals/evals.json}` | CREATE | the skill; `size.mode` file-lines and iso-8.2.115 |
+| [x] `plugins/code-metrics/.claude-plugin/plugin.json` | CREATE | name, `0.1.0`, description, author, MIT, keywords; no `userConfig` (T4) |
+| [x] `plugins/code-metrics/README.md` | CREATE | lead, Works in any repo, Requirements (collector table), Install, Configuration, License; listing-budget section placeholder filled in Phase 9 |
+| [x] `plugins/code-metrics/CHANGELOG.md` | CREATE | Keep a Changelog, `## [0.1.0]` |
+| [x] `plugins/code-metrics/reference/report-schema.md` | CREATE | `code-metrics/v1` field reference from `design/contracts.md` §2 |
+| [x] `plugins/code-metrics/reference/collectors.md` | CREATE | stamped table with its header and the Phase 1 rows (`scc`, the bundled counter); Phases 3 to 6 add fragments under `reference/collectors/` that Phase 8 merges |
+| [x] `plugins/code-metrics/scripts/detect-lanes.sh` + `detect-lanes.test.sh` | CREATE | extension map; consumer `globs`; `enabled: false` |
+| [x] `plugins/code-metrics/scripts/report.py` + `test_report.py` | CREATE | JSON assembly for every row shape the contract names (per function, per file, per clone group with `instances[]`, per lane), `excluded[]`, `unavailable[]`, markdown rendering, exit-code taxonomy, so later phases add rows without editing it |
+| [x] `plugins/code-metrics/scripts/config-defaults.json` | CREATE | bundled defaults for every key in `design/contracts.md` §1 plus the `thresholds[]` map (measure, `config_key`, `value_key`, `direction`, provenance) the report reads; Phase 2's resolver layers the consumer's YAML over it |
+| [x] `plugins/code-metrics/scripts/python-resolve.sh` + `python-resolve.test.sh` | CREATE | the one interpreter resolver every shell entry point sources (`PY` as an array so `py -3` works) |
+| [x] `plugins/code-metrics/scripts/collector-ladder.tsv` | CREATE | the whole T1 ladder as data (`lane`, `measure`, `tool`, in order), every tool listed before its adapter exists |
+| [x] `plugins/code-metrics/scripts/pathglob.py` + `test_pathglob.py` | CREATE | gitignore-style `**`/`*` matching at the 3.9 floor for consumer ecosystem globs |
+| [x] `plugins/code-metrics/scripts/dispatch.sh` + `dispatch.test.sh` | CREATE | scope resolution (change, paths, `--all`; an explicitly named path that does not exist is exit 2), the ladder read from the TSV (a listed tool with no adapter file is `unavailable`, reason `adapter not shipped`; the suite asserts that path and never enumerates the adapter set), `run[]` rows, top-level `status`, pass-through of skill-level options (`--artifacts`, `--registry`, and any `--<name> <value>` it does not own) to the calling skill's post-step, `PLUGIN_ROOT` resolved with the `${CLAUDE_PLUGIN_ROOT:-...}` idiom, so later phases never edit it |
+| [x] `plugins/code-metrics/scripts/collectors/line-counter.py` + `test_line_counter.py` | CREATE | bundled counter: `lines_total`, `lines_non_blank`, labelled comment-agnostic |
+| [x] `plugins/code-metrics/scripts/collectors/scc.py` + `test_scc.py` | CREATE | `scc --by-file --format json` translation; probe |
+| [x] `plugins/code-metrics/scripts/fixtures/{sources/,tool-output/scc.json}` | CREATE | sample files per lane (lint-clean or headed with a per-file disable); captured scc output; the suite generates the `scc` stub at runtime from the capture |
+| [x] `plugins/code-metrics/skills/audit-size/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | the skill; `size.mode` file-lines and iso-8.2.115 |
 
 Steps:
 
@@ -300,18 +302,18 @@ Steps:
    absent from PATH (line-counter used, `run[]` row names it), present (runtime stub replaying
    `tool-output/scc.json`), and with an empty stub PATH and the bundled counter disabled (every
    `run[]` row non-`ok`, exit 0).
-2. Green: `detect-lanes.sh`, `report.py`, `dispatch.sh`, the two collectors, `run.sh`.
+2. Green: `detect-lanes.sh`, `report.py`, `dispatch.sh`, the two collectors, `<skill>.sh`.
 3. `SKILL.md` for `audit-size` to the frontmatter rules in `design/module-boundary.md`; the
    description states the default reference (1000, plugin's own) and that no finding is emitted.
 
 **Sanity Check:**
 
-- `bash plugins/code-metrics/skills/audit-size/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["schema"]=="code-metrics/v1" and d["skill"]=="audit-size" and d["run"]'` exits 0
-- `PATH=$(mktemp -d) CODE_METRICS_DISABLE_BUNDLED=1 bash plugins/code-metrics/skills/audit-size/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"])'` exits 0 (the all-lanes-unavailable guarantee)
+- `bash plugins/code-metrics/skills/audit-size/scripts/audit-size.sh --json --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["schema"]=="code-metrics/v1" and d["skill"]=="audit-size" and d["run"]'` exits 0
+- with `scc` off `PATH`, `CODE_METRICS_DISABLE_BUNDLED=1 bash plugins/code-metrics/skills/audit-size/scripts/audit-size.sh --json --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"])'` exits 0 (the all-lanes-unavailable guarantee; the dispatcher suite builds a `PATH` with every ladder tool removed for the same case, since an empty `PATH` would starve bash of the interpreter)
 - `git ls-files plugins/code-metrics/scripts/fixtures | xargs -I{} sh -c 'test ! -x {}'` exits 0 (no committed executables)
 - the phase gate
 
-### Phase 2: Config cascade and `setup` [TODO]
+### Phase 2: Config cascade and `setup` [DOING]
 
 Review: code-design
 
@@ -324,7 +326,7 @@ Files:
 | [ ] `plugins/code-metrics/reference/config.md` | CREATE | every key from `design/contracts.md` §1 in block style, merge form and the YAML subset declared next to the keys |
 | [ ] `plugins/code-metrics/skills/setup/{SKILL.md,scripts/check.sh,scripts/check.test.sh,scripts/apply.py,scripts/test_apply.py,templates/config-template.yaml,evals/evals.json}` | CREATE | `check` probes every collector adapter present under `scripts/collectors/` and validates config; `apply.py` writes the team file per key, preserving unknown keys, idempotent; `disable-model-invocation: true`; never installs, never edits `.gitignore` |
 | [ ] `plugins/code-metrics/scripts/fixtures/config/{user.yaml,team.yaml,local.yaml,flow-mapping.yaml}` | CREATE | the team-overrides-user fixture the Brief requires; one file outside the subset for the named-error case |
-| [ ] `plugins/code-metrics/scripts/dispatch.sh` | MODIFY | read thresholds and lane overrides through `resolve-config.py` (the last edit to this file; later phases report a needed change instead) |
+| [ ] `plugins/code-metrics/scripts/dispatch.sh` | MODIFY | read thresholds and lane overrides through `resolve-config.py`, and pass the resolved ecosystem `globs` and `enabled` to `detect-lanes.sh --globs/--disable` (the last edit to this file; later phases report a needed change instead) |
 
 **Sanity Check:**
 
@@ -343,14 +345,14 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.sh` + eight `.test.sh` | CREATE | T1 ladder; each translates to `measures[]` rows with `start_line`/`end_line` |
+| [ ] `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.py` + eight `test_<tool>.py` | CREATE | T1 ladder; each translates to `measures[]` rows with `start_line`/`end_line` |
 | [ ] `plugins/code-metrics/scripts/fixtures/tool-output/{lizard.csv,radon-cc.json,radon-hal.json,eslint.json,sonarjs.json,gocyclo.txt,gocognit.json,shellmetrics.csv,multimetric.json}` | CREATE | captured where the sandbox can run the tool, else documented-format with a labelled header; each suite generates its tool's stub at runtime from the capture |
-| [ ] `plugins/code-metrics/skills/audit-complexity/{SKILL.md,scripts/run.sh,scripts/run.test.sh,evals/evals.json}` | CREATE | cyclomatic, cognitive, halstead; references with provenance (20 §8.2.117; 10; 15; cognitive and Halstead `null`) |
+| [ ] `plugins/code-metrics/skills/audit-complexity/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | cyclomatic, cognitive, halstead; references with provenance (20 §8.2.117; 10; 15; cognitive and Halstead `null`) |
 | [ ] `plugins/code-metrics/reference/collectors/audit-complexity.md` | CREATE | eight stamped rows as a fragment; Phase 8 merges the fragments into `reference/collectors.md` |
 
 **Sanity Check:**
 
-- with the suite's runtime stub directory first on `PATH`, `bash plugins/code-metrics/skills/audit-complexity/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); t=[x for x in d["thresholds"] if x["measure"]=="cyclomatic"][0]; assert t["reference"]==20 and "8.2.117" in t["provenance"]; assert any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" for r in d["run"])'` exits 0
+- with the suite's runtime stub directory first on `PATH`, `bash plugins/code-metrics/skills/audit-complexity/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources | python3 -c 'import json,sys; d=json.load(sys.stdin); t=[x for x in d["thresholds"] if x["measure"]=="cyclomatic"][0]; assert t["reference"]==20 and "8.2.117" in t["provenance"]; assert any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" for r in d["run"])'` exits 0
 - `grep -c 'scc' plugins/code-metrics/skills/audit-complexity/SKILL.md` prints 0 (scc never named as a complexity source)
 - the phase gate
 
@@ -365,7 +367,7 @@ Files:
 | [ ] `plugins/code-metrics/scripts/parsers/{lcov,cobertura,coverage_py_json,go_cover}.py` + four `test_*.py` | CREATE | one interface `parse(path) -> {file: {"lines": {line: hits}, "functions": [...] or None}}`; lcov handles `FNL`/`FNA`, `FN`/`FNDA`, `MCDC`; Cobertura tolerant of DTD drift and `<source>` prefixes; coverage.py returns its `functions` regions when present (7.6.0 and later); Go cover profile blocks parsed directly |
 | [ ] `plugins/code-metrics/scripts/fixtures/coverage/{lcov-1x.info,lcov-2.2.info,lcov-absolute-sf.info,cobertura.xml,coverage-py.json,go-cover.out}` | CREATE | one per format, the 2.2 file with `FNL`/`FNA` and no `FN`, one lcov file with absolute `SF:` paths for the normalization case, a coverage.py file carrying `functions`, a Go profile |
 | [ ] `plugins/code-metrics/skills/audit-coverage/scripts/join.py` + `test_join.py` | CREATE | path normalization on both sides (`coverage.path_prefix_strip`, repo root, `<source>` prefixes, forward slashes), the `partial, N of M scope files present` reason, artifact regions preferred over the line-range join, nested ranges subtracted, function-hit flag forcing `cov: 0`, `cov_source` per row |
-| [ ] `plugins/code-metrics/skills/audit-coverage/{SKILL.md,scripts/run.sh,scripts/run.test.sh,scripts/crap.py,scripts/test_crap.py,evals/evals.json}` | CREATE | `run.sh` owns the `--artifacts` option (a skill-level flag the dispatcher passes through, Phase 1); artifact discovery and explicit paths; per-file and per-function coverage; CRAP by invoking the sibling `audit-complexity` run script; missing artifact is a visible warning plus a reduced result |
+| [ ] `plugins/code-metrics/skills/audit-coverage/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,scripts/crap.py,scripts/test_crap.py,evals/evals.json}` | CREATE | `<skill>.sh` owns the `--artifacts` option (a skill-level flag the dispatcher passes through, Phase 1); artifact discovery and explicit paths; per-file and per-function coverage; CRAP by invoking the sibling `audit-complexity` run script; missing artifact is a visible warning plus a reduced result |
 | [ ] `plugins/code-metrics/reference/collectors/audit-coverage.md` | CREATE | fragment: rows for the three formats with the lcov 2.2 and coverage.py SQLite stamps |
 
 **Sanity Check:**
@@ -373,7 +375,7 @@ Files:
 - `python3 -c 'import sys; sys.path.insert(0,"plugins/code-metrics/scripts/parsers"); import lcov; d=lcov.parse("plugins/code-metrics/scripts/fixtures/coverage/lcov-2.2.info"); assert d and all(isinstance(v,dict) for v in d.values())'` exits 0
 - `python3 plugins/code-metrics/skills/audit-coverage/scripts/crap.py --comp 5 --cov 0` prints `130`; `--comp 5 --cov 100` prints `5`; `--comp 5 --cov null` prints `null`
 - `grep -rc 'sqlite\|\.coverage\b' plugins/code-metrics/scripts/parsers/*.py` prints 0 for every file
-- `bash plugins/code-metrics/skills/audit-coverage/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources --artifacts /nonexistent.info` exits 2 (an explicitly named path that does not exist is a usage error), and the same command with no `--artifacts` and `coverage.artifacts` empty in a scratch config exits 0 with a `run[]` row `status: "unavailable"` whose reason lists the paths searched
+- `bash plugins/code-metrics/skills/audit-coverage/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources --artifacts /nonexistent.info` exits 2 (an explicitly named path that does not exist is a usage error), and the same command with no `--artifacts` and `coverage.artifacts` empty in a scratch config exits 0 with a `run[]` row `status: "unavailable"` whose reason lists the paths searched
 - with the `lcov-absolute-sf.info` fixture and a fixture tree where only some scope files appear in it, the JSON's `run[]` carries a reason matching `partial, [0-9]+ of [0-9]+ scope files`
 - with the lizard stub on PATH and a bash file in scope, the JSON has a `run[]` row `lane: "bash", measure: "crap", status: "not-applicable"` whose reason matches `no function end lines`, and every coverage row carries `cov_source`
 - `python3 plugins/code-metrics/skills/audit-coverage/scripts/join.py --self-test` exits 0 (nested range subtracted; a function with hit flag 0 reports `cov: 0`; coverage.py `functions` preferred when present)
@@ -387,14 +389,14 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.sh` + three `.test.sh` | CREATE | jscpd 5 (a Rust binary) writes `<output>/jscpd-report.json`, so the adapter runs it with `--reporters json --output <tmpdir>` and prints the file; its stamp names the major and that v4's layout differs; CPD XML translated; dupl for Go; Bash only via jscpd |
+| [ ] `plugins/code-metrics/scripts/collectors/{jscpd,cpd,dupl}.py` + three `test_<tool>.py` | CREATE | jscpd 5 (a Rust binary) writes `<output>/jscpd-report.json`, so the adapter runs it with `--reporters json --output <tmpdir>` and prints the file; its stamp names the major and that v4's layout differs; CPD XML translated; dupl for Go; Bash only via jscpd |
 | [ ] `plugins/code-metrics/scripts/fixtures/{tool-output/jscpd.json,tool-output/cpd.xml,tool-output/dupl.txt,registry/cluster.txt,sources/cluster/{alpha,beta}/shared/shared-utils.sh}` | CREATE | a byte-identical two-plugin cluster under a basename that collides with nothing in this repository (T8 keys on path-within-plugin, not basename; reusing `hook-utils.sh` would select most of the shell corpus under `affected-tests.sh`), and the registry line that sanctions it |
 | [ ] `plugins/code-metrics/reference/collectors/audit-duplication.md` | CREATE | fragment: three stamped rows (jscpd, PMD CPD with its no-JSON note, dupl) |
-| [ ] `plugins/code-metrics/skills/audit-duplication/{SKILL.md,scripts/run.sh,scripts/run.test.sh,evals/evals.json}` | CREATE | `run.sh` owns `--registry`; debt after exclusions; `excluded[]` names the registry line; `run.test.sh` also carries the Brief's case over this repository's real `plugins/*/hooks/hook-utils.sh` cluster with `scripts/cross-plugin-source-registry.txt`, which runs when a real `jscpd` resolves and otherwise prints `SKIP jscpd` visibly |
+| [ ] `plugins/code-metrics/skills/audit-duplication/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | `<skill>.sh` owns `--registry`; debt after exclusions; `excluded[]` names the registry line; `run.test.sh` also carries the Brief's case over this repository's real `plugins/*/hooks/hook-utils.sh` cluster with `scripts/cross-plugin-source-registry.txt`, which runs when a real `jscpd` resolves and otherwise prints `SKIP jscpd` visibly |
 
 **Sanity Check:**
 
-- with the runtime `jscpd` stub on PATH, `bash plugins/code-metrics/skills/audit-duplication/scripts/run.sh --all plugins/code-metrics/scripts/fixtures/sources/cluster --registry plugins/code-metrics/scripts/fixtures/registry/cluster.txt | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"]==0 and len(d["excluded"])>=1'` exits 0
+- with the runtime `jscpd` stub on PATH, `bash plugins/code-metrics/skills/audit-duplication/scripts/<skill>.sh --all plugins/code-metrics/scripts/fixtures/sources/cluster --registry plugins/code-metrics/scripts/fixtures/registry/cluster.txt | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"]==0 and len(d["excluded"])>=1'` exits 0
 - the same command without `--registry` reports `duplicated_lines` greater than 0
 - `bash plugins/code-metrics/skills/audit-duplication/scripts/run.test.sh | grep -c 'hook-utils'` prints at least 1 (the real-cluster case ran or printed its `SKIP`)
 - the phase gate
@@ -407,9 +409,9 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/code-metrics/scripts/collectors/{type-coverage,mypy-report}.sh` + two `.test.sh` | CREATE | TS percentage; Python `--any-exprs-report` counts and Cobertura type-check coverage |
+| [ ] `plugins/code-metrics/scripts/collectors/{type-coverage,mypy-report}.py` + two `test_<tool>.py` | CREATE | TS percentage; Python `--any-exprs-report` counts and Cobertura type-check coverage |
 | [ ] `plugins/code-metrics/scripts/fixtures/tool-output/{type-coverage.json,mypy-any-exprs.txt}` | CREATE | captured |
-| [ ] `plugins/code-metrics/skills/audit-type-debt/{SKILL.md,scripts/run.sh,scripts/run.test.sh,evals/evals.json}` | CREATE | description states no standard or CWE anchors the measure; C# row `not-applicable` with the T9 sentence |
+| [ ] `plugins/code-metrics/skills/audit-type-debt/{SKILL.md,scripts/<skill>.sh,scripts/<skill>.test.sh,evals/evals.json}` | CREATE | description states no standard or CWE anchors the measure; C# row `not-applicable` with the T9 sentence |
 | [ ] `plugins/code-metrics/reference/collectors/audit-type-debt.md` | CREATE | fragment: two stamped rows, including the `type-coverage` probe's requirement that `typescript` also resolves |
 
 **Sanity Check:**
@@ -626,9 +628,9 @@ approval as a close call. Research suggested for it is not needed: the session's
 
 | Agent | Phase | ALLOWED files | LOC |
 |---|---|---|---|
-| A1 | 3 | `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.sh` and `.test.sh`; `scripts/fixtures/tool-output/<those>`; `skills/audit-complexity/**`; `reference/collectors/audit-complexity.md` | ~500 |
-| A2 | 5 | `scripts/collectors/{jscpd,cpd,dupl}.sh` and `.test.sh`; matching fixtures; `scripts/fixtures/registry/**`; `scripts/fixtures/sources/cluster/**`; `skills/audit-duplication/**`; `reference/collectors/audit-duplication.md` | ~300 |
-| A3 | 6 | `scripts/collectors/{type-coverage,mypy-report}.sh` and `.test.sh`; matching fixtures; `skills/audit-type-debt/**`; `reference/collectors/audit-type-debt.md` | ~200 |
+| A1 | 3 | `plugins/code-metrics/scripts/collectors/{lizard,radon,eslint-complexity,sonarjs,gocyclo,gocognit,shellmetrics,multimetric}.py` and `test_<tool>.py`; `scripts/fixtures/tool-output/<those>`; `skills/audit-complexity/**`; `reference/collectors/audit-complexity.md` | ~500 |
+| A2 | 5 | `scripts/collectors/{jscpd,cpd,dupl}.py` and `test_<tool>.py`; matching fixtures; `scripts/fixtures/registry/**`; `scripts/fixtures/sources/cluster/**`; `skills/audit-duplication/**`; `reference/collectors/audit-duplication.md` | ~300 |
+| A3 | 6 | `scripts/collectors/{type-coverage,mypy-report}.py` and `test_<tool>.py`; matching fixtures; `skills/audit-type-debt/**`; `reference/collectors/audit-type-debt.md` | ~200 |
 | A4 | 7 | `skills/principles/**` | ~250 |
 | A5 | 4 | `scripts/parsers/**`; `scripts/fixtures/coverage/**`; `skills/audit-coverage/**`; `reference/collectors/audit-coverage.md` | ~450 |
 
