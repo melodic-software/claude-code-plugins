@@ -43,6 +43,6 @@ review by eye, which is why they are written down rather than left to judgment.
 - **A line range you read rather than took from a `SECTION` record is a guess.** It will look right
   and excise the wrong text, and the diff lands in a file that steers the agent's behavior.
 - **An empty detector result means "no sections found", which is itself suspicious.** A markdown
-  file with headings that reports none is a detector problem, not a clean file — say so instead of
-  reporting the file as having nothing to move. This exact shape shipped once: an awk regex the
-  engine could not compile printed a panic to stderr and an empty fact set to stdout.
+  file with headings that reports none is a detector problem, not a clean file. Say so instead of
+  reporting the file as having nothing to move. One cause to check: an awk regex the engine cannot
+  compile prints a panic to stderr and an empty fact set to stdout.

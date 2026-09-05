@@ -19,9 +19,8 @@ The warrant is all three criteria, but one carries the weight. **The index targe
 referent whose validity cannot be established by a configuration prompt.** A prompt stores the path
 you typed; it cannot tell you that Claude Code will never read it. Claude Code loads `CLAUDE.md`, not
 `AGENTS.md`, so a repository carrying both with no import between them gets a perfectly generated,
-perfectly in-sync index that never enters context, with every other gate green. Verifying that is
-this skill's main job, and nothing else in the plugin can do it before a migration has already
-happened.
+perfectly in-sync index that never enters context, with every other gate green. Verifying that before a first audit
+is this skill's job; `/instruction-placement:check` asks the same question again on every gate run.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, and the
 optional empirical load probe needs the Claude Code CLI plus `jq`.
@@ -96,6 +95,7 @@ does not re-verify has not finished.
 - **A target that does not exist yet is not unreachable.** Those are different states with different
   remedies. Do not collapse them into one verdict.
 - **Reachability is not sync.** A reachable index can still be stale, and a stale index can still be
-  reachable. `/instruction-placement:check` owns sync; this owns whether the file is read at all.
+  reachable. `/instruction-placement:check` gates both on every run. This skill asks only the
+  reachability question, as a prerequisite before the first audit.
 - **The plugin works with no configuration.** Every setting has a default that behaves. Do not
   present configuration as a prerequisite to a first audit.
