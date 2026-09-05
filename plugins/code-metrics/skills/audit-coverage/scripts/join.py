@@ -199,7 +199,17 @@ def _fold_function(functions: list[dict[str, Any]], incoming: dict[str, Any]) ->
             incoming["start_line"] is not None
             and existing["start_line"] == incoming["start_line"]
         )
-        if not (same_name or same_span):
+        # A name alone is not an identity: one file can hold two `render`
+        # methods in different classes, and a Cobertura report may name both
+        # unqualified. When both records say where they start and the starts
+        # differ, they are different functions, and folding them would let one
+        # method's coverage stand in for the other's.
+        different_span = (
+            existing["start_line"] is not None
+            and incoming["start_line"] is not None
+            and existing["start_line"] != incoming["start_line"]
+        )
+        if different_span or not (same_name or same_span):
             continue
         if existing["name"] is None:
             existing["name"] = incoming["name"]
@@ -233,9 +243,29 @@ def _match_function(
     for candidate in functions:
         if candidate.get("name") == name:
             return candidate
-    for candidate in functions:
-        if (candidate.get("name") or "").rsplit(".", 1)[-1] == tail and tail:
-            return candidate
+    # A shared tail is not an identity: `A.render` and `B.render` both end in
+    # `render`, so an unqualified complexity row matches each. Prefer the
+    # candidate whose start line the complexity collector also reported, and
+    # take a bare tail match only when exactly one candidate carries it;
+    # returning the first would give both rows the same method's coverage.
+    if tail:
+        shared = [
+            candidate
+            for candidate in functions
+            if (candidate.get("name") or "").rsplit(".", 1)[-1] == tail
+        ]
+        if start_line is not None:
+            positioned = [
+                candidate
+                for candidate in shared
+                if candidate.get("start_line") == start_line
+            ]
+            if len(positioned) == 1:
+                return positioned[0]
+        if len(shared) == 1:
+            return shared[0]
+        if shared:
+            return None
     for candidate in functions:
         if start_line is not None and candidate.get("start_line") == start_line:
             return candidate

@@ -123,6 +123,54 @@ class ArtifactMergeTests(unittest.TestCase):
         # A fully covered function's CRAP is its complexity, not comp^2 + comp.
         self.assertEqual(function["values"]["crap"], function["values"]["cyclomatic"])
 
+    def test_two_methods_sharing_a_name_in_one_file_stay_separate(self) -> None:
+        # One file, two classes, both with a `render` the artifact names
+        # unqualified. Folding them on the name alone would let the covered
+        # one stand in for the uncovered one.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row("src/a.py", "A.render", 1, 4, "python", 2),
+                    complexity_row("src/a.py", "B.render", 10, 14, "python", 2),
+                ]
+            )
+            case.artifact(
+                "cobertura",
+                {
+                    "src/a.py": {
+                        "lines": {"1": 1, "2": 1, "10": 0, "11": 0},
+                        "functions": [
+                            {
+                                "name": "render",
+                                "start_line": 1,
+                                "end_line": 4,
+                                "hit": 1,
+                                "lines": {"1": 1, "2": 1},
+                            },
+                            {
+                                "name": "render",
+                                "start_line": 10,
+                                "end_line": 14,
+                                "hit": 0,
+                                "lines": {"10": 0, "11": 0},
+                            },
+                        ],
+                    }
+                },
+            )
+            document = case.join()
+        rows = {
+            row["function"]: row
+            for row in document["measures"]
+            if row["function"] is not None
+        }
+        self.assertEqual(rows["A.render"]["values"]["coverage_pct"], 100.0)
+        self.assertEqual(rows["B.render"]["values"]["coverage_pct"], 0.0)
+        # The uncovered method keeps the CRAP its own coverage earns.
+        self.assertGreater(
+            rows["B.render"]["values"]["crap"], rows["A.render"]["values"]["crap"]
+        )
+
     def test_a_function_only_one_artifact_knows_the_end_of_keeps_that_range(
         self,
     ) -> None:

@@ -207,10 +207,24 @@ mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
 # ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
 
+inside_repo() {
+  # Whether a directory lies within this repository's work tree. Asked by
+  # location rather than by whether git lists anything under it: a directory
+  # holding only ignored files (`node_modules`) lists nothing, and reading
+  # that as "not a repository path" would send the walk below through the
+  # very tree the ignore rules exclude.
+  local top abs
+  [[ "$in_git" == "true" ]] || return 1
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -n "$top" ]] || return 1
+  abs="$(cd "$1" 2>/dev/null && pwd)" || return 1
+  [[ "$abs" == "$top" || "$abs" == "$top"/* ]]
+}
+
 list_tracked_under() {
   # Tracked plus untracked-but-not-ignored files under a path, or a plain
   # walk outside git. Directories only; files are appended by the caller.
-  if [[ "$in_git" == "true" ]] && git ls-files --error-unmatch --cached --others --exclude-standard -- "$1" >/dev/null 2>&1; then
+  if inside_repo "$1"; then
     git ls-files --cached --others --exclude-standard -- "$1"
   else
     # Outside git, or a path outside this repository (git refuses it).
@@ -229,13 +243,40 @@ expand_path() {
   fi
 }
 
+# Root-relative names rebased onto the cwd. `git diff` always prints
+# root-relative paths and `ls-files --full-name -- :/` is asked for them, so a
+# run from a subdirectory sees the whole repository, and every path still comes
+# out cwd-relative like an explicitly named one.
+rebase_onto_cwd() {
+  local root_prefix climb slashes i p
+  root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  climb=""
+  if [[ -n "$root_prefix" ]]; then
+    slashes="${root_prefix//[^\/]/}"
+    for ((i = 0; i < ${#slashes}; i++)); do climb+="../"; done
+  fi
+  while IFS= read -r p; do
+    if [[ -z "$root_prefix" ]]; then
+      printf '%s\n' "$p"
+    elif [[ "$p" == "$root_prefix"* ]]; then
+      printf '%s\n' "${p#"$root_prefix"}"
+    else
+      printf '%s\n' "$climb$p"
+    fi
+  done
+}
+
 BASE_SHA=""
 case "$MODE" in
 all)
   if [[ ${#PATHS[@]} -gt 0 ]]; then
     for p in "${PATHS[@]}"; do expand_path "$p"; done >>"$FILES_LIST"
   elif [[ "$in_git" == "true" ]]; then
-    git ls-files --cached --others --exclude-standard >>"$FILES_LIST"
+    # `--all` with no path means the whole repository, so the listing is
+    # root-anchored: without `:/` it would silently stop at the cwd and a run
+    # from a subdirectory would measure that subtree while reporting `all`.
+    git ls-files --cached --others --exclude-standard --full-name -- ':/' |
+      rebase_onto_cwd >>"$FILES_LIST"
   else
     find . -type f >>"$FILES_LIST"
   fi
@@ -274,29 +315,10 @@ change)
     [[ -n "$base_merge" ]] || die_usage "no merge-base between HEAD and $BASE"
     BASE_SHA="$base_merge"
   fi
-  # Both listings are asked for root-relative names (`git diff` always prints
-  # them; `ls-files` prints cwd-relative ones and limits itself to the cwd
-  # without a pathspec), then rebased onto the cwd, so a run from a
-  # subdirectory keeps the whole change and every path stays cwd-relative
-  # like an explicitly named one.
-  root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
-  climb=""
-  if [[ -n "$root_prefix" ]]; then
-    slashes="${root_prefix//[^\/]/}"
-    for ((i = 0; i < ${#slashes}; i++)); do climb+="../"; done
-  fi
   {
     git diff --name-only --diff-filter=d "$BASE_SHA"
     git ls-files --others --exclude-standard --modified --full-name -- ':/'
-  } | while IFS= read -r p; do
-    if [[ -z "$root_prefix" ]]; then
-      printf '%s\n' "$p"
-    elif [[ "$p" == "$root_prefix"* ]]; then
-      printf '%s\n' "${p#"$root_prefix"}"
-    else
-      printf '%s\n' "$climb$p"
-    fi
-  done >>"$FILES_LIST"
+  } | rebase_onto_cwd >>"$FILES_LIST"
   ;;
 *)
   die_usage "unknown scope mode $MODE"
@@ -323,7 +345,12 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
   : >"$WORK/excluded"
   for pattern in "${EXCLUDE_GLOBS[@]}"; do
     [[ -n "$pattern" ]] || continue
-    "${PY[@]}" "$PATHGLOB" "$pattern" "${candidates[@]}" >>"$WORK/excluded"
+    # An exclusion the matcher cannot use is a configuration error, not an
+    # exclusion that matched nothing: continuing would measure the very files
+    # the consumer asked to leave out and still exit 0.
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" "${candidates[@]}" >>"$WORK/excluded"; then
+      die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
+    fi
   done
   if [[ -s "$WORK/excluded" ]]; then
     sort -u "$WORK/excluded" >"$WORK/excluded.sorted"

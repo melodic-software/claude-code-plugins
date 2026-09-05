@@ -184,6 +184,36 @@ rc=$?
 assert_eq "change scope from a subdirectory exits 0" 0 "$rc"
 assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the cwd" "$out" \
   'sorted(r["file"] for r in d["measures"])==["../changed.py","../untracked.sh","inner.py"]'
+# `--all` means the whole repository, from a subdirectory too: an unanchored
+# listing stops at the cwd, so the run would measure that subtree while its
+# scope block still called itself `all`.
+out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
+rc=$?
+assert_eq "--all from a subdirectory exits 0" 0 "$rc"
+assert_doc "--all from a subdirectory measures the whole repository, paths relative to the cwd" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["../base.py","../changed.py","../untracked.sh","inner.py"]'
+# An explicitly named directory holding only ignored files lists nothing. Asking
+# git whether it listed anything cannot tell that apart from a path outside the
+# repository, and reading it as "outside" walks the very tree the ignore rules
+# exclude.
+(
+  cd "$repo" || exit 1
+  mkdir -p vendored
+  printf 'vendored/\n' >.gitignore
+  printf 'a = 1\n' >vendored/ignored.py
+  git add .gitignore && git commit -q -m ignore
+)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines vendored)"
+rc=$?
+assert_eq "an ignored directory exits 0" 0 "$rc"
+assert_doc "an ignored directory measures nothing rather than being walked" "$out" \
+  'd["scope"]["files"]==0 and d["measures"]==[]'
+# A scope.exclude glob the matcher cannot use is a configuration error: dropping
+# it would measure the files the consumer asked to leave out, and still exit 0.
+(cd "$repo" && mkdir -p .claude && printf 'scope:\n  exclude: ["[z-a]"]\n' >.claude/code-metrics.yaml)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
+rc=$?
+assert_eq "an unusable scope.exclude glob exits 2 rather than measuring anyway" "2:" "$rc:$out"
 rm -rf "$repo"
 
 # 10. The config cascade: a team file sets the reference, an exclusion, and a
