@@ -17,6 +17,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - work: removed issue numbers and the classifier-denial incident narrative; deleted the compatibility passage for an old implementation version; stated the claim-before-dispatch invariant once; dropped the roadmap and "no longer" phrasing; the workflow requirement is a plain statement; rewrote the description's trigger list as intent categories
 - work-loop: removed issue numbers; restored "Report and pace" as its own cycle step; the claim-before-dispatch gotcha is one sentence; moved the maintainer-only C3 gate check into a new `skills/work-loop/AGENTS.md`
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.39.62]
 
 ### Changed

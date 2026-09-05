@@ -26,6 +26,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   lines stay where they were. The branch call fails with no output on a detached checkout instead of
   printing a sentinel string, so the steps that read the sentinel now read the exit status, and
   delta no longer describes its block as deliberately one line.
+
 ## [0.3.6]
 
 ### Changed

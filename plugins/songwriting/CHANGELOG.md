@@ -32,6 +32,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   CHANGELOG already carries.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [1.4.22]
 
 ### Changed

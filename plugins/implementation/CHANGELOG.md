@@ -39,6 +39,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   session refuses a git-bearing compound command, which blocked these skills from loading inside a
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were. The pre-flight branch check names the gathered branch.
+
 ## [0.16.1]
 
 ### Changed

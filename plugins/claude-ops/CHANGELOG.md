@@ -44,6 +44,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
   loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
   lines stay where they were.
+
 ## [0.42.7]
 
 ### Changed

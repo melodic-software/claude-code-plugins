@@ -112,9 +112,9 @@ declared narrows and fills where no contradicting fact exists; intent never outr
   asserts a prerequisite and the current per-surface probe shows it missing, the identity
   resolves to `unsupported`. A positive verdict never survives the capability's disappearance on
   evidence of intent alone. The contradiction is simultaneously emitted as a **finding** and
-  routed per the marketplace's liveness-assertion convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md>)
-  Core contract's two limbs (fail loud, or publish to a channel an agent reads): in a gate context the
+  routed per the
+  [liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) Core contract's
+  two limbs (fail loud, or publish to a channel an agent reads): in a gate context the
   resolver's non-zero exit is the loud limb; in a report context the divergence finding in the
   emitted resolution is the agent-readable one; the interactive `apply` path additionally
   proposes correcting the declaration.
@@ -137,8 +137,8 @@ axes accept no repo-local value at all (this plugin's ratified cascade deviation
 ## Composition seams
 
 Resolution composes convention-owned consumer surfaces. Every cross-plugin reference is
-presence-gated with a documented fallback per the marketplace's seam-phrasing convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/seam-phrasing/README.md>):
+presence-gated with a documented fallback per
+[seam phrasing](../../../docs/conventions/seam-phrasing/README.md):
 
 | Concern | Seam | Fallback when absent |
 |---|---|---|
@@ -168,7 +168,8 @@ classification obligation forbids.
 ## Configured is not working
 
 Presence establishes configured, never health. The verdict vocabulary is non-health-asserting by
-construction. The liveness-assertion convention's on-touch obligation (same URL as above)
+construction. The
+[liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) on-touch obligation
 still binds every implementing engine surface (the setup `check`, the resolver): each states its
 taxonomy row and how it satisfies fail-loud or agent-readable routing. A consumer that treats
 configured as working is itself the false-green defect. Execution evidence belongs to the

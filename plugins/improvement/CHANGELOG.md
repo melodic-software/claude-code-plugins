@@ -23,6 +23,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were. The
   target-repo note names the gathered branch and log calls.
+
 ## [0.1.7]
 
 ### Changed

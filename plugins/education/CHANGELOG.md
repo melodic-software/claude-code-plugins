@@ -19,6 +19,7 @@ All notable changes to the `education` plugin are documented here. Format follow
   the matching eval case asserts all three.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.10.3]
 
 ### Changed

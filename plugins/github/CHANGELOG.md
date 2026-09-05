@@ -11,6 +11,7 @@ All notable changes to the `github` plugin are documented here. Format follows
   dated verification record with a recheck trigger.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.13]
 
 ### Changed

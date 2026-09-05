@@ -11,6 +11,7 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
   that declared it first.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.8.35]
 
 ### Changed

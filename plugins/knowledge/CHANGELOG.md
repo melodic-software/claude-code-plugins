@@ -30,6 +30,7 @@ only after that version increases.
   queue evolution breadcrumbs to `reference/ingest-deferred-decisions.md` section 6.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.13.44]
 
 ### Changed

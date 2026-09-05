@@ -18,6 +18,7 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   read-only mode rather than a "default", matching the argument hint, and eval case 1 says so.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.8]
 
 ### Changed

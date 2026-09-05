@@ -21,6 +21,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
 ## [0.6.8]
 
 ### Changed

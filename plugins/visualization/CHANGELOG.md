@@ -9,6 +9,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 - visualize: the description names the intent (visualize, diagram, chart, draw, sketch, render, or which form fits) instead of ten near-synonym phrases, and drops its all-caps emphasis; three "do not restate here" sentences addressed to the file's editor rather than the model are removed, along with the Purpose section's fourth copy of the not-a-craft-teacher boundary (the Gotchas and Boundary sections keep it).
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.0]
 
 ### Added

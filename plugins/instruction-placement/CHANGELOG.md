@@ -12,6 +12,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - check: the reachability row is introduced without "newest".
 - delta: the quiet-run report states the window and the suppressed count instead of a one-line ceiling; eval case 1 renamed and reworded to match.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.11.26]
 
 ### Changed

@@ -14,6 +14,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - auditor agent: dropped the hardcoded formatter count, stated the two-field citation rule once instead of four times, and lowered all-caps emphasis.
 - setup: removed the doctrine-pilot aside and the retirement-manifest justification, and restated the retired-layer and dual-read sentences without "no longer" or "still".
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.8]
 
 ### Changed

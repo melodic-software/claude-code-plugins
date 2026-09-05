@@ -7,8 +7,8 @@ declared scheduling surface, and why.
 
 ## Liveness
 
-This slice's `check` is an **engine health-check** surface under the marketplace's liveness-assertion
-convention (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md>): it
+This slice's `check` is an **engine health-check** surface under
+[`liveness-assertion`](../../../../../docs/conventions/liveness-assertion/README.md): it
 invokes the deterministic resolver end-to-end and fails loud on internal failure. It never
 reports "healthy" from configuration alone, and never invents a verdict-shaped fallback.
 

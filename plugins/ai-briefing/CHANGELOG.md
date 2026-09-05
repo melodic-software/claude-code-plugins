@@ -21,6 +21,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   and one `build/shots/` path the first pass left in `build-pipeline.md`.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.25]
 
 ### Changed

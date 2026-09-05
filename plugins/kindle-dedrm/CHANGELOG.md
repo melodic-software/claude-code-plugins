@@ -17,6 +17,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
   names intent categories with two example phrases.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.14]
 
 ### Changed

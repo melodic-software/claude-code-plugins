@@ -18,6 +18,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   unverified environment conditions.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.2.9]
 
 ### Changed

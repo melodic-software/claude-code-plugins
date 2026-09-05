@@ -24,6 +24,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   check are unchanged. `check-skill.test.sh` cases that asserted a FAIL on a dropped phrase now
   assert a zero exit with the warning text; the sibling-move and coincidental-overlap cases still
   prove their distinct verdicts.
+
 ## [0.20.13]
 
 ### Changed

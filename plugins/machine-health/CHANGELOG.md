@@ -22,6 +22,7 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   earlier version or the retirement-manifest rationale.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.12.12]
 
 ### Changed

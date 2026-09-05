@@ -15,6 +15,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - setup: dropped the review-finding ids, the gotchas session-log intro, and the retirement-manifest justification sentence on the shadowed-markdown probe; tightened the description to intent categories
 - worktree: removed pre-compute archaeology, the closed upstream issue pointers, and the author-machine record counts; stated the reap-record rules in the present tense
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.55.52]
 
 ### Changed

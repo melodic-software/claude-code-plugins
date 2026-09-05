@@ -41,6 +41,7 @@
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were. rename-references gathers rename pairs as two calls, unstaged and staged, each bounded
   to 15. audit-progressive-disclosure names the gathered sample.
+
 ## [0.21.35]
 
 ### Changed

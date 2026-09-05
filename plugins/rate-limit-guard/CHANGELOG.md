@@ -17,6 +17,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   to the drift-check registry that owns the roster.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.33]
 
 ### Changed

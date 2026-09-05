@@ -25,6 +25,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   register across the six cited reference contracts.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.22.26]
 
 ### Changed

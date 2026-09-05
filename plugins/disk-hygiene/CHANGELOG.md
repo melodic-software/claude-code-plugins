@@ -19,6 +19,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   managed settings are read first, then the user file, matching `lib/killswitch_config.py`.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.21.7]
 
 ### Added

@@ -37,6 +37,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   copy can reach it.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.40.34]
 
 ### Changed

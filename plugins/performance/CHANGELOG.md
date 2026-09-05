@@ -24,6 +24,7 @@ All notable changes to the `performance` plugin are documented here. Format foll
   rather than the removed narration. The prompts and the graded expectations are unchanged.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.1.1]
 
 ### Fixed

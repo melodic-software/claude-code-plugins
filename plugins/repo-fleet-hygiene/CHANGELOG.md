@@ -11,6 +11,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 - apply: the contract sentence drops its issue numbers.
 - setup: the `check` config-presence step agrees with the audit that a bare no-scope run fails instead of defaulting to the current project; "now requires" and "currently no way" read as current rules; the `fleet.skip` replace semantics are stated once, in "Configuration grammar", with the two action paths pointing at it.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.23.17]
 
 ### Changed

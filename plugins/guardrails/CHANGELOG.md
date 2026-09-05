@@ -11,6 +11,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   option and the manifest default, and no longer claims that an unset toggle means `true`
 - setup: dropped the hardcoded guard count and the install-commit-msg rationale sentence
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.32.3]
 
 ### Changed
