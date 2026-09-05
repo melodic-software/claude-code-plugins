@@ -1153,6 +1153,32 @@
         "contents": "read",
         "pull-requests": "read"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@906ae7ef379ea4d2b8497f64475dce1d3d8715c4": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "args",
+        "issue-title",
+        "issue-labels",
+        "issue-type",
+        "auto-close"
+      ],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@906ae7ef379ea4d2b8497f64475dce1d3d8715c4": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {

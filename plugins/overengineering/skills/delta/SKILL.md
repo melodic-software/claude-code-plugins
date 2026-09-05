@@ -112,9 +112,12 @@ modes are silent, so do not infer the model from the run steps below.
 Parse `$ARGUMENTS`, using the same vocabulary `overengineering:audit` uses, and **pass it through
 unchanged**:
 
-- **Layer scope**. One or more values from the layer vocabulary owned by
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`; default `all`. Forwarded verbatim to the
-  audit, and it bounds the comparison too (see "Layers that were not walked").
+- **Layer scope**. One or more of the **ten enforcement layers** in the vocabulary owned by
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, `agent-hooks` through
+  `external-integrations`; default `all`, meaning those ten. Forwarded verbatim to the audit, and it
+  bounds the comparison too (see "Layers that were not walked"). The five layers the justification
+  lane owns are not accepted here for the same reason the audit refuses them: this lane composes the
+  audit, which walks only the ten, so forwarding one would ask for a walk that cannot happen.
 - **`unattended`** (also accepted as `--unattended`). Forwarded verbatim. A scheduled runner, a
   dispatched worker, and a background run all pass it. **Attended is the default**, and the mode is
   never inferred from a probe. Under `unattended` this lane asks nothing, offers nothing, and takes
