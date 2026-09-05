@@ -20,7 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `.zone` rollback on a failed `.armed` write are unchanged; the rollback now
   fires only when this call was the one that moved `.zone`. No change to when
   the notice is emitted: the armed-rank gate already suppressed the extra
-  fires, so this removes wasted I/O rather than duplicate injection.
+  fires, so this removes wasted I/O rather than duplicate injection. A new
+  contract-test case pins the skip by marker mtime, with a positive control
+  that a mismatched marker is still rewritten; it fails against the previous
+  hook on exactly the two skip assertions.
 - **`hooks.json` carries a top-level `description`.** A documented field the
   plugin omitted. The four `timeout: 60` values are unchanged: the 0.4.8 entry
   and the README size that cap from a 22.0 s measurement on Windows 11 / Git
