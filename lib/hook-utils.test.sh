@@ -3348,17 +3348,16 @@ else
   fail "corr (nested key): sink empty"
 fi
 rm -f "$corr_sink"
-# A nested session_id ahead of the root one must not win. The root key sits
-# after a container here, so it is omitted rather than guessed: no session_id
-# routes to the shared log, which is recoverable; the nested one would have
-# routed to another session's file, which is not.
+# A nested session_id ahead of the root one must not win, and the ROOT one is
+# still the value that lands: selecting by depth beats truncating at the first
+# container, which would have dropped this key entirely.
 corr_sink="$(mktemp)"
 INPUT='{"tool_input":{"n":{"session_id":"NESTED"}},"session_id":"sess-root"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
 wait_for_sink "$corr_sink"
 if [[ -s "$corr_sink" ]]; then
-  if [[ "$(jq -r '.session_id // "absent"' "$corr_sink")" == "absent" ]]; then
-    ok "corr: a nested session_id ahead of the root one is never captured"
+  if [[ "$(jq -r '.session_id // "absent"' "$corr_sink")" == "sess-root" ]]; then
+    ok "corr: the root session_id wins over one nested ahead of it"
   else
     fail "corr (nested first): $(cat "$corr_sink")"
   fi
@@ -3366,20 +3365,85 @@ else
   fail "corr (nested first): sink empty"
 fi
 rm -f "$corr_sink"
-# The documented payload shape carries all four ids ahead of tool_input, so the
-# root cut costs nothing there: every key is still captured.
+# THE DOCUMENTED PAYLOAD ORDER, which puts tool_use_id AFTER tool_input (see
+# session-event-log.sh's early-stop note: "tool_input closed, tool_use_id still
+# to come"). A fixture that lists the four ids up front instead would pass
+# against an extractor that stops at the first container while the real payload
+# silently lost tool_use_id on every tool event, so the order here is the point
+# of the case, not incidental.
 corr_sink="$(mktemp)"
-INPUT='{"session_id":"s-1","prompt_id":"p-1","tool_use_id":"toolu_1","agent_id":"a-1","cwd":"/x","tool_input":{"file_path":"a.md"},"tool_response":{"ok":true}}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+INPUT='{"session_id":"s-1","prompt_id":"p-1","cwd":"/x","tool_name":"Bash","tool_input":{"command":"npm test","timeout":120000},"tool_response":{"ok":true},"tool_use_id":"toolu_1","agent_id":"a-1"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
 wait_for_sink "$corr_sink"
 if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-1 p-1 toolu_1 a-1" ]]; then
-    ok "corr: all four ids still captured ahead of a nested container"
+    ok "corr: all four ids captured with tool_use_id after tool_input"
   else
-    fail "corr (documented shape): $(cat "$corr_sink")"
+    fail "corr (documented order): $(cat "$corr_sink")"
   fi
 else
-  fail "corr (documented shape): sink empty"
+  fail "corr (documented order): sink empty"
+fi
+rm -f "$corr_sink"
+# A decoy inside an array of objects is nested too, and must not be reached.
+corr_sink="$(mktemp)"
+INPUT='{"items":[{"session_id":"BAD"},{"agent_id":"BAD"}],"session_id":"good","agent_id":"ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .agent_id] | join(" ")' "$corr_sink")" == "good ok" ]]; then
+    ok "corr: decoys inside a root array are not reached"
+  else
+    fail "corr (array decoy): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (array decoy): sink empty"
+fi
+rm -f "$corr_sink"
+# The scan is bounded. hook::buffer_stdin caps nothing, so a Write payload
+# carries the whole file; the ids still come back from a multi-megabyte
+# payload, and they come back from the root, not from the body.
+# INPUT is assigned, never exported — the same shape every fleet hook uses.
+# The `VAR=... cmd` prefix form would export it, and a payload this size then
+# overflows the sink subprocess's environment (E2BIG) instead of testing the cap.
+corr_sink="$(mktemp)"
+(
+  corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
+  INPUT='{"session_id":"s-big","prompt_id":"p-big","tool_input":{"content":"'"$corr_big"'","prompt_id":"NESTED"}}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id] | join(" ")' "$corr_sink")" == "s-big p-big" ]]; then
+    ok "corr: a multi-megabyte payload still yields the root ids"
+  else
+    fail "corr (large payload): $(jq -c '{session_id,prompt_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (large payload): sink empty"
+fi
+rm -f "$corr_sink"
+# The same large payload must not pick up a nested decoy either: past the size
+# gate the walk is skipped for cost, and the head cut is what keeps it safe.
+# This is the half of the gate's behaviour that is a guarantee; the other half
+# (a root key after the first container is omitted up here) is a known gap.
+corr_sink="$(mktemp)"
+(
+  corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
+  INPUT='{"session_id":"s-big","tool_input":{"content":"'"$corr_big"'","session_id":"NESTED"},"tool_use_id":"toolu_past_gate"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big omitted" ]]; then
+    ok "corr: past the size gate the root id holds and no nested one is taken"
+  else
+    fail "corr (past gate): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (past gate): sink empty"
 fi
 rm -f "$corr_sink"
 # No payload at all: none of the four keys, and the envelope is otherwise the same.
