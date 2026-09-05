@@ -43,7 +43,7 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
-| `/claude-ops:setup` | Check-only: reports the effective known-issues-registry and skill-usage-log destinations, their defaults, and path containment, and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt. |
+| `/claude-ops:setup` | `check` reports the effective known-issues-registry, skill-usage-log and hook-log-root destinations, their defaults, path containment, the hook log root's self-ignoring guard, and retired conventions (`retirements.yaml`), and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt; `apply` writes exactly one file, the guard inside the hook log root, and runs the gated retirement cleanup. |
 
 ## The audit hooks
 
@@ -151,9 +151,16 @@ per "How to set these" below.
 ### Wiring the reference sink
 
 A migrated emitter is inert without a consumer. `hooks/hook-telemetry-sink.sh`
-is a **reference** sink: it reads an envelope on stdin and appends one line to
-`<project-root>/.claude/observability/hook-events.jsonl`. Exactly the shape the
-`observability` skill reads.
+is a **reference** sink: it reads an envelope on stdin and appends one line under
+the hook log root, `<project-root>/.observability/claude` by default (the
+`session_event_log_dir` option moves it). An envelope carrying
+`data.session_id` lands in `sessions/<session_id>.jsonl`, beside the
+per-session event log; one without lands in the shared `hook-events.jsonl`
+in the legacy shape. Both are what the `observability` skill reads. The root
+carries a self-ignoring `.gitignore`, created on the first write (or by
+`/claude-ops:setup apply`); rows left at the old
+`.claude/observability/hook-events.jsonl` location are detected by setup as
+retirement `claude-ops-r001` and migrated on request.
 
 Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
 resolution time**. A *relative* value resolves against the **consuming repo
@@ -198,8 +205,11 @@ your own repository's context:
   `<project-root>/.claude/observability/otel` and is overridable via the
   `CC_OTEL_STORE` env var (retention windows via `CC_OTEL_RETENTION_DAYS` /
   `CC_OTEL_BODY_RETENTION_DAYS`). The hook-event JSONL source is read from
-  `<project-root>/.claude/observability/hook-events.jsonl` only when your own
-  hooks emit it; every source degrades gracefully when absent.
+  the hook log root (`<project-root>/.observability/claude` by default, the
+  `session_event_log_dir` option moves it): `sessions/<session_id>.jsonl`
+  when the per-session event log is on or the sink is wired, and the shared
+  `hook-events.jsonl` for envelopes without a session id; every source
+  degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
   (`registry.json`), `check-all` output, `--write` observability reports, and
@@ -264,9 +274,11 @@ options tune the skills:
   `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`. Plugin-owned, update-safe,
   never in any repo tree. Prose-validated (no `enum` in the manifest schema);
   an unknown value falls back to `repo` with a one-time advisory. The default
-  stays `repo` deliberately: the store sits beside `hook-events.jsonl`, matching
+  stays `repo` deliberately: the store stays in the project tree, matching
   the observability posture that telemetry is project-local, and the exclude
-  entry removes the status noise that motivated the scope knob.
+  entry removes the status noise that motivated the scope knob. (The hook log
+  root is a separate tree with its own self-ignoring guard; see "Wiring the
+  reference sink".)
 - **`skill_usage_git_exclude`** (boolean, default `true`). Repo scope only:
   idempotently exclude the store dir via `.git/info/exclude` (never touches
   `.gitignore` or tracked files). Set `false` when your team deliberately

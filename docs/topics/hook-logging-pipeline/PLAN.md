@@ -487,7 +487,7 @@ Runs before retention so every producer row, including the one `session-retentio
   `--check` clean and drifted; the nine handlers survive the merge byte-for-byte under `jq -S`.
 - **Sanity Check:** `jq '[.[] | select(has("recheck") and has("basis") and has("as_of") and has("producer"))] | length == length' <registry>` prints true and `jq length` at least 30; `jq -r '.hooks | keys[]' plugins/claude-ops/hooks/hooks.json | grep -c -E '^(WorktreeCreate|MessageDisplay|FileChanged)$'` prints 0; `scripts/gen-hook-event-registry.sh --check` exit 0; `bash scripts/gen-hook-event-registry.test.sh` exit 0.
 
-#### Phase 5: SessionEnd retention with detached pre-prune [DOING]
+#### Phase 5: SessionEnd retention with detached pre-prune [DONE]
 
 - [ ] `plugins/claude-ops/hooks/session-retention.sh`, sourcing nothing, same kill switch as the
   producer, **reads no stdin** (the late-EOF stall would spend the whole 1.5 s budget before any
@@ -529,7 +529,17 @@ Runs before retention so every producer row, including the one `session-retentio
 - [ ] Evals: "writes only the guard", "refuses a root-equivalent dir", "reports the retirement".
 - **Sanity Check:** `bash plugins/claude-ops/lib/check-retirements.sh --manifest plugins/claude-ops/retirements.yaml --root <clean fixture>` exit 0 and exit 1 against a fixture carrying the old file; `scripts/sync-check-retirements.sh --check` exit 0; `grep -c 'check-retirements.sh' plugins/claude-ops/skills/setup/SKILL.md` at least 2; `bash scripts/check-changed-skills.sh origin/main` exit 0.
 
-#### Phase 7: Reader extension and path migration [TODO]
+#### Phase 7: Reader extension and path migration [DONE]
+
+Landed 2026-09-05. The old-path grep in the sanity check below is read as "no code or query
+still reads or writes the old location": the seven remaining mentions name it as retired (the
+setup skill and its eval, the README's sink section, `data-sources.md`'s cross-reference, the
+`clean.sh` header, and two tests that assert the old path is no longer written or prune a
+consumer's leftover), which the retirement record requires. The probe gained a `--root` flag and
+a `--pipeline` mode because a skill subprocess inherits no `CLAUDE_PLUGIN_OPTION_*`; the skill
+body passes the rendered options through flags. The reader's queries share one `HOOK_NORM`
+prelude so legacy rows (`event`) and per-session rows (`hook_event_name`) group together, and
+every per-session block slurps.
 
 - [ ] `data-sources.md`: `HOOK_ROOT` from `${user_config.session_event_log_dir}` (channel E)
   with a flag override, never from `CLAUDE_PLUGIN_DATA`; every `jq -s "$HOOK_LOG"` becomes
