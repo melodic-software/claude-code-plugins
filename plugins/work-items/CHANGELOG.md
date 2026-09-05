@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- **`list-frontier --autonomous` no longer surfaces items whose work class is a
+  human floor.** `work-class: structural` (C4) and `work-class: untrusted-provenance`
+  (C5) are human-gated regardless of any other signal, per the admission-gate
+  table that binds whether or not the `autonomy` plugin is installed — but the
+  frontier filter only excluded the `human-gated` role label, so such an item
+  stayed frontier-available. Each lane instance in turn claimed it, hit the
+  fail-closed admission gate, escalated, and released it: a burned worker every
+  pass, with the item never moving. An item carrying BOTH the autonomous-eligible
+  role label and a floor class is self-contradictory, and the frontier now
+  resolves that against the floor. The exclusion is autonomous-only, so the
+  attended lane and operator views still see the item rather than losing it
+  from every view. C3 `scoped` is deliberately not floored here: its disposition
+  turns on bug-fix-vs-feature shape and first-drain ratification, which no label
+  carries and the work-loop admission gate owns. Floor strings live in
+  `lib/labels.sh` as the one definition source; unlike the canonical roles and
+  the container marker they are fixed, because the work-class axis has no
+  binding key to remap. Four new `lib/frontier.test.sh` cases cover the floor
+  under `--autonomous`, its absence on the attended frontier, C3 survival, and
+  exact-match (not substring) label comparison.
+
+### Changed
+
+- **Triage may no longer pair the autonomous-eligible role label with a C4/C5
+  work class.** `skills/triage/context/apply-outcome.md` listed all five classes
+  as valid partners for `agent-ready`, which is what produced the contradictory
+  items above; the hard pairing rule now admits C1–C3 only and routes a C4/C5
+  outcome to the human-gated role label. `reference/work-class-labels.md` gains
+  the invariant, its enforcement points, and the remediation for items already
+  carrying the pair; `tools/work-item-tracker/CONTRACT.md` records the new
+  `list-frontier` filter term.
+
 ## [0.39.62]
 
 ### Changed
