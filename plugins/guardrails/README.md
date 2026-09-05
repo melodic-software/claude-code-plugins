@@ -461,14 +461,15 @@ reaches the change. The other two rows do reproduce: the second pass put PostToo
 is still 52.6 spawn-equivalents against the fleet target of 8. Three things account
 for nearly all of it, and none is a guardrails guard:
 
-- **Telemetry, roughly 4 spawn-equivalents per guard.** `HOOK_TELEMETRY_SINK` is set
-  on this host, so every guard that reaches its `emit_tel` spends 2 `jq` plus a
-  `mktemp` plus an `rm`. The emitter, the temp file and its removal all live in
-  `hook-utils.sh`, a synced library. With the sink unset the same Bash path measured
-  45.7 spawn-equivalents against 79.5, so telemetry is about two fifths of the wall
-  and 4.2 spawn-equivalents per guard across the eight. This is the single largest
-  remaining item and it is an opt-in observability feature, not overhead a guard
-  chose.
+- **Telemetry, remaining sink dispatch only on the string-field guards.**
+  `HOOK_TELEMETRY_SINK` is opt-in. The seven always-on Bash guards that emit
+  `{tool,subject,form}` now build that object with `hook::json_str_object_to`
+  (0 jq; byte-identical to `jq -nc --arg …` on this host). The envelope was
+  already builtin (#3678). What remains on a wired sink is the fire-and-forget
+  sink process itself, plus `jq` in the advisory guards that still pass
+  `--argjson` findings arrays. The unwired default path is still zero
+  telemetry spawns. The 0.31.1 paired figures above were taken before this
+  cut and are not re-stated as current.
 - **One subshell fork per guard.** Each guard runs in a `$(source ...)` subshell so
   its `exit` and `trap` behave as they do standalone. A guard that does nothing at
   all measures 0.6 to 0.9 spawn-equivalents, which is that fork. Eight guards on the
