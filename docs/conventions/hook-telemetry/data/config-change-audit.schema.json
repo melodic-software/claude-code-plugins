@@ -4,12 +4,19 @@
   "title": "config-change-audit telemetry data",
   "description": "Per-hook `data` payload for the config-change-audit ConfigChange emitter. Discovered from the envelope `hook` value \"config-change-audit\". Evolves additive-only. Privacy-safe: carries the ConfigChange `source` identifier only (never the changed file's contents).",
   "type": "object",
-  "required": ["subject"],
+  "required": [
+    "subject"
+  ],
   "additionalProperties": true,
   "properties": {
     "subject": {
       "type": "string",
       "description": "The mutated configuration source from the ConfigChange `source` field (e.g. \"user_settings\", \"project_settings\", \"local_settings\", \"skills\")."
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "The Claude Code session id from the hook payload, when the payload carried one. The claude-ops reference sink routes an envelope carrying it into the per-session log (sessions/<session_id>.jsonl under the log root) instead of the shared hook-events.jsonl. Additive since claude-ops 0.42.4; a sink that predates it ignores the key."
     }
   }
 }

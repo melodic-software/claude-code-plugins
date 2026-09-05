@@ -13,6 +13,7 @@ Thumbs.db
 # Local-only Claude Code state
 .claude/settings.local.json
 .claude/observability/
+.observability/
 .claude/worktrees/
 # loop-lane escalation records (docs/conventions/loop-lane/README.md §2 — signal, not storage)
 .claude/lane-escalations/
