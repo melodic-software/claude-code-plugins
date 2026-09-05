@@ -24,8 +24,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   which misdiagnosed every root that was never under the cache at all.
 
   The suite runs 81 cases, 0 failed, with new cases for a dev-checkout root, an
-  `installLocation` root, and a manifest naming an unregistered marketplace;
-  shellcheck is clean at `-S warning`.
+  `installLocation` root, a manifest naming an unregistered marketplace, and the
+  precedence of an `installPath` match over a walk-up manifest naming a
+  different registered marketplace; shellcheck is clean at `-S warning`.
 
 ## [0.42.2]
 

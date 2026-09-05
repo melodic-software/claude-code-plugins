@@ -616,6 +616,36 @@ resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
 assert_eq "dev checkout: correct marketplace from the manifest" "market1" "$resolved_name"
 
 # ============================================================================
+# Case: stage precedence — an installPath match and a walk-up manifest naming a
+# DIFFERENT registered marketplace both point somewhere. The installPath match
+# (stage 1) must win; the manifest walk-up is a last resort for roots no
+# installPath can represent, never an override.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+both_checkout="$case_dir/both-checkout"
+both_root="$both_checkout/plugins/this-plugin"
+mkdir -p "$both_root" "$both_checkout/.claude-plugin"
+write "$both_checkout/.claude-plugin/marketplace.json" '{"name": "market2", "plugins": [{"name": "this-plugin", "source": "./plugins/this-plugin"}]}'
+native_both="$(cygpath -w "$both_root" 2>/dev/null || echo "$both_root")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg root "$native_both" \
+    '{version: 1, plugins: {"this-plugin@market1": [{scope: "user", installPath: $root, version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$both_root")
+rc=$?
+assert_exit "stage precedence: exit 0" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "stage precedence: installPath match beats the walk-up manifest" "market1" "$resolved_name"
+
+# ============================================================================
 # Case: out-of-cache root under a known marketplace's installLocation — no
 # manifest anywhere above it, so stage 3a finds nothing and stage 3b must
 # match the recorded installLocation prefix.
