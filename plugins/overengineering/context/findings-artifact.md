@@ -87,7 +87,9 @@ unacceptable for operator judgments — see "The durable judgment record".
 ```yaml
 ---
 type: overengineering-findings
-schema: 1
+schema: 2
+mode: walk
+# targets: omitted under `mode: walk`; required, one item per line, under `mode: targeted`
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
 scope: <the layers actually walked this run>
 branch: <branch at audit time; never `HEAD`, and never written at all when the branch identity is unresolved>
@@ -209,6 +211,16 @@ truncated to 16 hex — the convention owns that computation and this document d
 prose field.** They are recomputed every run. An id that moved when a verdict moved would break
 carry-forward by construction, which is the one property the whole contract exists to provide.
 
+**`check` is a hash input, never a serialized field, so no consumer can read the producer off a
+finding.** The id is `sha256` and does not invert. A consumer that needs to know which lane produced
+a row reads **`Layer`**, which is in the spine and present on every row including rows carried
+forward from `schema: 1`. The layer enum partitions cleanly by producer and stays partitioned by
+construction: `overengineering:audit` writes only the ten enforcement layers, and a pointed lane
+routes an enforcement target away rather than judging it, so it never writes one. The five
+justification layers are therefore reachable only from a justification-lane run. Any future producer
+must either take its own layers or make its rows indistinguishable to every existing consumer, which
+is the reason this partition is stated here rather than left as an observation about today's enum.
+
 **Cross-artifact findings: the id binds every site; the body names every site.** The spine's
 `Artifact` field is single-line by contract and carries the finding's **primary subject** — the one
 path or identifier it is filed under and sorts by. It is not the site list and cannot be, because
@@ -224,10 +236,20 @@ work here. The prefix set is closed here and is the same set a `sites` `surface`
 one is added to this list, never coined per run, or two runs derive two different ids for one item.
 
 **A heading is a member, not an ordinal.** Where a target names a section rather than a whole file
-(`path#heading`), its `anchor/v1` locator path is `[<file>, <heading>]`, exactly as any other
-aggregating-container member. A line number is **not** an admissible locator: the `sites` rule above
-forbids a positional ordinal, so a lane pointed at a line widens to the enclosing heading or file
-and says so in its report rather than coining an id no second run would reproduce.
+(`path#heading`), its `anchor/v1` locator path is the heading's **full ancestry** within the file,
+outermost first: `[<file>, <h2>, <h3>]` for a subsection, `[<file>, <heading>]` only where the
+heading is top-level. Ancestry is what makes the locator a member path rather than a label, and it
+is required because heading text repeats: a file with `### Rationale` under two different sections
+would otherwise derive one anchor for both, and a status or suppression an operator wrote against
+one section would carry onto a section they never judged.
+
+**An ambiguous heading is refused, not disambiguated.** Where the full ancestry is still not unique
+in the file, the lane **declines the target**, names the collision, and asks for a whole-file target
+or a disambiguating rename. It does not fall back to "the first one" or to an occurrence count:
+both are positional ordinals under another name, and the `sites` rule above forbids those precisely
+because the next run renumbers them. A line number is not admissible for the same reason, so a lane
+pointed at a line widens to the enclosing heading or file and says so in its report rather than
+coining an id no second run would reproduce.
 
 **A routed target produces no id and no row.** Where a lane hands a target to another lane rather
 than judging it, there is nothing to identify: the routing is reported inline by the lane that

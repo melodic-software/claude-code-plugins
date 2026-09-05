@@ -195,9 +195,15 @@ decision record has no such observable. The gate applies only to the enforcement
 routes away, and it is that lane's to answer.
 
 **A class claim presented as the verdict is a defect.** "It is a convention document, so keep it" is
-a class match, not an earned keep. Record the class as a protected or class marker with
-`Basis: class-inferred`, and state the earned-keep verdict separately with its own `Basis`. A single
-row fusing the two hides which of them the operator is being asked to trust.
+a class match, not an earned keep. The two are recorded in **different fields of one row**, not as
+two rows and not as two `Basis` values: the class match and the pattern that matched it go in
+`Protected`, and `Verdict` plus its single `Basis` carry the earned-keep judgment on its own
+evidence. A row whose `Protected` names a class while its `Basis` reads `measured` is the honest
+shape, and it says exactly which of the two the operator is being asked to trust.
+
+Two rows would not merely be untidy, they would be invalid: ids are derived from `check`, `claim`
+and `sites`, and `Verdict` and `Basis` are excluded from the constituents, so a second row about the
+same item in the same layer derives the **same id** as the first. One item, one row, one verdict.
 
 ## 9. Basis assignment
 

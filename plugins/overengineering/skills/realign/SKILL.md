@@ -111,12 +111,16 @@ stopping halfway is a normal end to a run.
 
 ## The queue
 
-**A finding this skill cannot execute is presented and never actioned.** Read each finding's `check`
-constituent: where its producer segment is not `audit`, this skill has no rollback ladder for it.
+**A finding this skill cannot execute is presented and never actioned.** Read each finding's
+`Layer`: where it is one of `decision-records`, `documents`, `components`, `dependencies` or
+`source`, this skill has no rollback ladder for it. Dispatch on the layer rather than on the `check`
+producer segment, because `check` is a hash input and never a serialized field, so it cannot be read
+back off an artifact; the layer partition that makes this sound is stated in
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids".
 The ladder in "Execution order" is enforcement-shaped, and its rung-1 fallback ("nothing registered
 or wired to disable" leaves deletion as the only remaining act) would turn a lane it does not
-understand into a deletion. So a `overengineering/justify/rule-<layer>` row is **displayed with its
-evidence, its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
+understand into a deletion. So a row in one of those five layers is **displayed with its evidence,
+its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
 Say so in one line where the finding would otherwise be gated, so the operator sees the finding
 rather than losing it. This is the state `docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md`
 describes: a lane's findings become executable here once a rollback ladder exists for its layers,

@@ -77,13 +77,13 @@
       "id": 6,
       "name": "class-claim-is-not-the-verdict",
       "prompt": "/overengineering:justify evals/fixtures/convention-doc.md. Keep it, it is a convention doc.",
-      "expected_output": "Two separately labelled things, never one fused row. The class match is recorded as a protected or class marker with `Basis: class-inferred`, naming which class matched and what matched it. The earned-keep verdict is stated separately with its own `Basis`, resting on what the evidence tiers actually returned about this document: whether anything cites it, when it last changed substantively, whether the convention it states is enforced anywhere. A single row that answers 'is it a convention doc' and presents that as the answer to 'does it still earn its keep' is the defect this case exists to catch, and it fails.",
+      "expected_output": "One finding row, with the class match and the earned-keep judgment in different FIELDS of it rather than fused into the verdict. `Protected` records which class matched and what matched it. `Verdict` and its single `Basis` carry the earned-keep judgment on this document's own evidence: whether anything cites it, when it last changed substantively, whether the convention it states is enforced anywhere. The defect this case exists to catch is answering 'is it a convention doc' and presenting that as the answer to 'does it still earn its keep', which fails. Two rows fail as well, and for a harder reason than untidiness: ids derive from check, claim and sites, with Verdict and Basis excluded from the constituents, so a second row about the same item in the same layer would carry the same id as the first.",
       "files": ["evals/fixtures/convention-doc.md"],
       "expectations": [
-        "Records the class match as a marker with `Basis: class-inferred`, naming the class and what matched",
-        "States the earned-keep verdict separately, with its own `Basis`",
-        "A single fused row answering both questions at once fails",
-        "The earned-keep verdict cites what the tiers returned, not the class"
+        "Records the class match in `Protected`, naming the class and what matched it",
+        "Emits exactly ONE row for the item, carrying one `Verdict` and one `Basis`",
+        "Does not present the class match as the verdict, and does not emit a second row for the same item",
+        "The verdict cites what the evidence tiers returned about this document, not the class it belongs to"
       ]
     },
     {
