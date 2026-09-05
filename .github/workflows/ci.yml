@@ -360,6 +360,17 @@ jobs:
       # harness, which the composite cannot see is load-bearing outside the
       # list. This branches in the shell rather than in `if:` because a step
       # cannot carry both a resolver gate and an event gate.
+      #
+      # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
+      # `run_shell`, and `run_shell` carries the docs-only term: a pull request
+      # whose only change is a shell script under a docs-only prefix such as
+      # `docs/topics/` resolves docs-only, and the gate would skip ShellCheck on
+      # the very file it should read while the aggregator override recorded that
+      # skip as success. So the step always runs. The accepted cost is the other
+      # side of the same coin: a diff that changes no shell file at all gets a
+      # blank list and pays the whole-repository scan, which is what every run
+      # paid before this step existed. The saving is on diffs that do change
+      # shell files, which is where the lane's cost was being spent.
       - name: Select the changed shell scripts
         id: changed_shell
         env:
@@ -380,7 +391,6 @@ jobs:
 
       - name: Lint shell scripts
         id: shellcheck
-        if: needs.changes.outputs.run_shell == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
@@ -1186,7 +1196,7 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            shellcheck=${{ needs.changes.outputs.run_shell == 'false' && 'success' || steps.shellcheck.outcome }}
+            shellcheck=${{ steps.shellcheck.outcome }}
             actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
             marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
