@@ -214,24 +214,48 @@ enables; the cloud bootstrap installs (see
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
   published `main`. Local collaborators are prompted once they trust the folder.
-- **`skillListingBudgetFraction` is set to `0.05` because enabling the whole catalog does not
-  fit the stock listing budget.** Claude Code loads every enabled skill's name and description
+- **`skillListingBudgetFraction` is set to `0.05`, and what that buys depends entirely on the
+  live model's context window.** Claude Code loads every enabled skill's name and description
   each turn and caps the total at
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) of the context window,
-  default 1%. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring skills
-  first, so a skill that is never invoked loses the keywords a request would have matched and
-  goes on not being invoked. Measured on `main` at 3ea592bb with
+  default `0.01`. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring
+  skills first, so a skill that is never invoked loses the keywords a request would have matched
+  and goes on not being invoked. Measured on this branch's base (`main` at 3ea592bb) with
   `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`: **182 listing-eligible
-  skills, 135,596 characters**. At the 90,000-character budget this repo previously ran on,
-  `claude-ops:audit-skill-visibility` puts **72 of those 182 skills in the starved bucket**; at
-  0.05 it reports `listing-fits` and **0 starved**. The value is a *fit-today* lever, not a
-  durable one: the same tool measured 56,922 characters on 2026-07-20 and 86,005 on 2026-08-05,
-  which is roughly 1,700 characters of growth a day, and no fraction anyone would want to pay
-  for buys more than weeks against that. Trimming the descriptions at their source is the durable
-  fix and is tracked separately in
-  [#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526). A second,
-  report-only CI step measures the aggregate against this configured fraction so the day the
-  fleet outgrows it is visible rather than silent.
+  skills, 135,596 characters**. The budget is `window_tokens x 4 chars/token x fraction`, so at
+  `0.05` the listing fits **only on a context window of 677,980 tokens or larger**. Read the
+  setting as a window assumption, not a guarantee:
+
+  | Context window | Budget at `0.05` | `claude-ops:audit-skill-visibility` |
+  | --- | --- | --- |
+  | 200,000 (Claude Code's documented default) | 40,000 chars | `overflowing`, **135 of 182 starved** |
+  | 677,980 (break-even for today's fleet) | 135,596 chars | `listing-fits`, 0 starved |
+  | 750,000 | 150,000 chars | `listing-fits`, 0 starved, 14,404 spare |
+  | 1,000,000 | 200,000 chars | `listing-fits`, 0 starved, 64,404 spare |
+
+  On a 200k-window machine this setting does not clear the fleet; it moves the starved count from
+  177 to 135. It reaches 0 starved only on the large-window models this marketplace is actually
+  driven on.
+
+  **The repo did not previously run `0.03` or a 90,000-character budget.**
+  `git log -S skillListingBudgetFraction -- .claude/settings.json` shows 57db0238 is the first
+  commit to set the key at all, so before it this repo inherited the harness default `0.01`,
+  which is the documented 8,000-character fallback on a 200k window and leaves **177 of 182
+  skills starved**. The `0.03` / 90,000-character pair belongs to one contributor's machine in
+  [#3505](https://github.com/melodic-software/claude-code-plugins/issues/3505)'s debug log, where
+  the audit reports 72 of 182 starved. That is a real observation of one consumer, not this
+  repository's prior configuration.
+
+  **This is a stopgap measured in days.** The same tool measured 59,465 characters on 2026-07-20
+  and 86,316 on 2026-08-05 against 135,596 on 2026-09-05, which is 1,620 to 1,700 characters of
+  growth a day. Against the 14,404-character headroom on a 750,000-token window that is **about
+  9 days**; against the 64,404 on a 1,000,000-token window, **about 40 days**. No fraction anyone
+  would want to pay for changes that shape, because the aggregate is what grows. Trimming the
+  descriptions at their source is the fix, and it is
+  [#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526). That is required
+  work, not optional follow-up. Until it lands, a second report-only CI step measures the
+  aggregate at this configured fraction on the tighter 750,000-token basis, so the WARN arrives
+  with days of warning instead of after the consumers on that basis have already overflowed.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
