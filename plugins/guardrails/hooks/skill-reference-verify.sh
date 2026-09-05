@@ -187,21 +187,49 @@ shopt -u nullglob
 # stays in the search set, so at worst a reference resolves that Claude Code would
 # not offer and this advisory stays quiet. Staying quiet is the failure this guard
 # is allowed to have; a false alarm is not.
-# BUILT ON DEMAND. Two jq processes per manifest, and this marketplace carries
-# 74 of them, so the index costs ~150 spawns, measured at 11.4 s (272
-# spawn-equivalents) on Windows Git Bash, which was the whole PostToolUse:Write
-# cost of this plugin on a file that cites nothing. Nothing below the reference
-# scan reads the index, and the scan needs no plugin knowledge to find its
-# candidates, so the index is built once, only when a candidate exists. The gates
-# above stay where they are: their `exit 0` paths deliberately skip telemetry, and
-# moving them would change that.
+# BUILT ON DEMAND, IN ONE PROCESS. Nothing below the reference scan reads the
+# index, and the scan needs no plugin knowledge to find its candidates, so the
+# index is built once, only when a candidate exists. The gates above stay where
+# they are: their `exit 0` paths deliberately skip telemetry, and moving them
+# would change that.
+#
+# When it is built, one jq reads every manifest. The previous shape spawned two
+# jq and two tr per manifest, and this marketplace carries 74 of them: 296
+# processes, 468 ms on a Linux host and 11.4 s on Windows Git Bash, for work one
+# process finishes in 6 ms. Each output line is `<manifest>\t<name>\t<paths>`,
+# the declared skill paths joined by \x1f so a path may carry any other
+# character; @tsv escapes tab, newline, CR and backslash, none of which a
+# manifest name or path carries, so every value arrives byte-identical.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
   ((PLUGIN_INDEX_BUILT)) && return 0
   PLUGIN_INDEX_BUILT=1
-  local m pdir pname
+  local m pdir pname paths
+  local -A seen=()
+  while IFS=$'\t' read -r m pname paths; do
+    m="${m//$'\r'/}"
+    [[ -n "$m" ]] || continue
+    pdir="${m%/.claude-plugin/plugin.json}"
+    pname="${pname//$'\r'/}"
+    [[ -n "$pname" ]] || pname="${pdir##*/}"
+    PLUGIN_DIR["$pname"]="$pdir"
+    paths="${paths//$'\r'/}"
+    PLUGIN_SKILL_PATHS["$pname"]="${paths//$'\x1f'/$'\n'}"
+    seen["$m"]=1
+  done < <(
+    jq -r '[input_filename, (.name // "" | tostring),
+            ((.skills // null) | if . == null then ""
+              elif type == "array" then map(tostring) | join("\u001f")
+              else tostring end)] | @tsv' "${manifests[@]}" 2>/dev/null
+  )
+  # jq stops the batch at the first manifest it cannot parse, so every manifest
+  # behind a malformed one comes back unread. Those, and the malformed one, take
+  # the per-manifest read the batch replaced: exact for the readable ones, and
+  # the directory name for the broken one. On a tree where every manifest
+  # parses (this one, gated by CI) the residue is empty and this spawns nothing.
   for m in "${manifests[@]}"; do
+    [[ -n "${seen[$m]:-}" ]] && continue
     pdir="${m%/.claude-plugin/plugin.json}"
     pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
     [[ -n "$pname" ]] || pname="${pdir##*/}"

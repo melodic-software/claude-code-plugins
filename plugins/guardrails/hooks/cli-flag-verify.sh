@@ -299,7 +299,23 @@ extract_candidates() {
 HAS_FLAG_SHAPE=0
 [[ "$SCAN_CONTENT" == *-* ]] && HAS_FLAG_SHAPE=1
 
-((HAS_FLAG_SHAPE)) && extract_candidates
+# SECOND PRE-GATE, same cost class. A candidate also names one of the scanned
+# bins, and ordinary prose is full of hyphens ("well-known", "re-run") that pass
+# the `-` test alone, so on a markdown Write the scan ran for nothing on nearly
+# every paragraph. Substring, not word-bounded: a superset of every real
+# candidate (extract_candidates matches the whole token), so it skips only
+# content that could not have yielded one, and it spawns nothing. The Edit
+# reconstruction below keeps its own gate: a bare-flag hunk names no bin by
+# definition, and the bin it belongs to is on disk.
+HAS_BIN=0
+for cfv_bin in $BINS; do
+  if [[ "$SCAN_CONTENT" == *"$cfv_bin"* ]]; then
+    HAS_BIN=1
+    break
+  fi
+done
+
+((HAS_FLAG_SHAPE && HAS_BIN)) && extract_candidates
 
 # Partial-replacement context reconstruction (Edit only). When an Edit's hunk is
 # a bare flag fragment — a flag token swapped in with no binary/subcommand in the
@@ -364,15 +380,65 @@ split_candidate_key() {
   KEY_FLAG="${rest##*|}"
 }
 
+# CACHE HITS ARE ANSWERED IN THIS PROCESS. The verifier keeps each
+# `<bin> [<subcmd>...] --help` output under a 24 h cache, and on a hit its whole
+# job is to read that file and match one pattern. Spawning it for that cost more
+# than the work: a bash process, the `#!/usr/bin/env` PATH walk for bash (one
+# failed execve per PATH entry ahead of it), then mkdir, find, grep. Measured on
+# a warm cache: 88 failed execve per run on this host, 4 of the 5 env walks
+# being these spawns. The cache location, key, freshness rule and match pattern
+# below mirror the verifier's exactly (its header documents them); a miss still
+# goes through the verifier, which populates the cache, and every exit code
+# keeps its meaning.
+if [[ -n "${LOCALAPPDATA:-}" ]]; then
+  CFV_CACHE_DIR="${LOCALAPPDATA//\\//}/guardrails/cli-flag-cache"
+else
+  CFV_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/guardrails/cli-flag-cache"
+fi
+declare -A CFV_FRESH=()
+# One find for the whole run, only when there is something to verify: every
+# cache file younger than the verifier's 24 h window.
+cfv_index_fresh_cache() {
+  local f
+  [[ -d "$CFV_CACHE_DIR" ]] || return 0
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && CFV_FRESH["$f"]=1
+  done < <(find "$CFV_CACHE_DIR" -maxdepth 1 -name '*.help' -mmin -1440 2>/dev/null)
+}
+# verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
+# (the verifier's contract, answered here on a hit and by the verifier on a miss).
+verify_candidate() {
+  local bin="$1" chainstr="$2" flag="$3" key s cache_file help pat
+  key="$bin"
+  for s in $chainstr; do
+    key="${key}__${s}"
+  done
+  key="${key//[^a-zA-Z0-9_-]/_}"
+  cache_file="$CFV_CACHE_DIR/$key.help"
+  if [[ -n "${CFV_FRESH[$cache_file]:-}" && -s "$cache_file" ]]; then
+    help=$(<"$cache_file")
+    # Same anchors as the verifier's FLAG_PATTERN: a non-flag character or the
+    # start before the flag, a terminator or the end after it, so `--save-dev`
+    # never matches `--save-developer`. Over the whole multi-line string, a line
+    # start is preceded by a newline, which the leading class admits.
+    pat="(^|[^a-zA-Z0-9_-])${flag}([][:space:]=,|)]|\$)"
+    [[ "$help" =~ $pat ]] && return 0
+    return 1
+  fi
+  local -a chainarr=()
+  read -ra chainarr <<<"$chainstr"
+  "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
+}
+
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
+((${#CANDIDATES[@]})) && cfv_index_fresh_cache
 for key in "${!CANDIDATES[@]}"; do
   split_candidate_key "$key"
   # Skip if binary not on PATH (verifier exit 2). Avoids spurious failures on
   # systems missing tools the file references for documentation purposes.
   command -v "$KEY_BIN" >/dev/null 2>&1 || continue
-  read -ra chainarr <<<"$KEY_CHAIN"
-  "$VERIFIER" --quiet "$KEY_BIN" "${chainarr[@]}" "$KEY_FLAG" 2>/dev/null
+  verify_candidate "$KEY_BIN" "$KEY_CHAIN" "$KEY_FLAG"
   rc=$?
   # Exit 1 = flag absent (likely hallucinated); 2 = unverifiable, treat as
   # neutral (don't flag — could be tool not on this machine, transient

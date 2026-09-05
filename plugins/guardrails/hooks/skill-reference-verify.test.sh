@@ -880,19 +880,24 @@ for fp in /bar.md bar.md /a/b/bar.md; do
 done
 
 # =================== LAZY PLUGIN INDEX (spawn cost) =========================
-# The name -> directory index costs two jq processes per plugin manifest, and a
-# marketplace carries dozens. Nothing below the reference scan reads it, so it
-# must not be built for a write that cites no skill at all, which is almost
-# every write this PostToolUse hook sees. Counted, not asserted from the source:
-# a `jq` shim ahead of the real one on PATH records every invocation that names a
-# manifest, then delegates so the hook still behaves exactly as it would.
+# The name -> directory index reads every plugin manifest, and a marketplace
+# carries dozens. Nothing below the reference scan reads it, so it must not be
+# built for a write that cites no skill at all, which is almost every write this
+# PostToolUse hook sees; and when it is built, ONE jq reads every manifest (the
+# per-manifest shape cost 296 processes on 74 manifests). Counted, not asserted
+# from the source: a `jq` shim ahead of the real one on PATH records every
+# manifest argument it is handed plus one INVOKE marker per invocation that
+# names any manifest, then delegates so the hook still behaves exactly as it
+# would.
 SHIM_DIR="$TEST_TMPDIR/jq-shim"
 mkdir -p "$SHIM_DIR"
 JQ_LOG="$TEST_TMPDIR/jq-manifest-calls"
 REAL_JQ="$(command -v jq)"
 {
   printf '#!/usr/bin/env bash\n'
-  printf 'for a in "$@"; do case "$a" in *plugin.json) printf "%%s\\n" "$a" >>"%s" ;; esac; done\n' "$JQ_LOG"
+  printf 'hit=0\n'
+  printf 'for a in "$@"; do case "$a" in *plugin.json) printf "%%s\\n" "$a" >>"%s"; hit=1 ;; esac; done\n' "$JQ_LOG"
+  printf '((hit)) && printf "INVOKE\\n" >>"%s"\n' "$JQ_LOG"
   printf 'exec "%s" "$@"\n' "$REAL_JQ"
 } >"$SHIM_DIR/jq"
 chmod +x "$SHIM_DIR/jq"
@@ -914,14 +919,62 @@ else
   bad "lazy index: index was never built for a reference-bearing write"
 fi
 
-# Built at most once even with several references to several plugins.
+# Built at most once even with several references to several plugins, and in
+# ONE process: every manifest in the fixture is handed to a single jq. The
+# pre-batch shape logged two invocations per manifest (12 here); this case
+# fails against it.
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
-MANIFEST_COUNT=$(sort -u "$JQ_LOG" | wc -l | tr -d ' ')
-CALL_COUNT=$(wc -l <"$JQ_LOG" | tr -d ' ')
-assert_eq "lazy index: built once, two jq per manifest" \
-  "$((MANIFEST_COUNT * 2))" "$CALL_COUNT"
+FIXTURE_MANIFESTS=$(find "$REPO/plugins" -name plugin.json | wc -l | tr -d ' ')
+MANIFEST_ARGS=$(grep -c 'plugin.json' "$JQ_LOG")
+INVOKE_COUNT=$(grep -c 'INVOKE' "$JQ_LOG")
+assert_eq "lazy index: one jq invocation builds the whole index" 1 "$INVOKE_COUNT"
+assert_eq "lazy index: that invocation is handed every manifest once" \
+  "$FIXTURE_MANIFESTS" "$MANIFEST_ARGS"
+
+# ============ DECLARED SKILL PATHS (batched index equivalence) ==============
+# The batched jq must carry each manifest's `skills` key exactly as the
+# per-manifest reads did: an array of paths, a single string path, and none.
+# A skill under a declared path resolves; the same name under an undeclared
+# sibling directory does not, which proves the path set is read from the
+# manifest and not from a directory scan.
+mk_plugin_paths() {
+  local dir="$1" name="$2" skills_json="$3"
+  mkdir -p "$REPO/plugins/$dir/.claude-plugin"
+  MSYS_NO_PATHCONV=1 jq -n --arg n "$name" --argjson s "$skills_json" \
+    '{name:$n,version:"0.1.0",skills:$s}' \
+    >"$REPO/plugins/$dir/.claude-plugin/plugin.json"
+}
+mk_plugin_paths gamma gamma '["./extra-skills","./more"]'
+mkdir -p "$REPO/plugins/gamma/extra-skills/deep" "$REPO/plugins/gamma/more/wide" \
+  "$REPO/plugins/gamma/undeclared/hidden"
+: >"$REPO/plugins/gamma/extra-skills/deep/SKILL.md"
+: >"$REPO/plugins/gamma/more/wide/SKILL.md"
+: >"$REPO/plugins/gamma/undeclared/hidden/SKILL.md"
+mk_plugin_paths delta delta '"./one"'
+mkdir -p "$REPO/plugins/delta/one/solo"
+: >"$REPO/plugins/delta/one/solo/SKILL.md"
+
+run 'Use `/gamma:deep`, `/gamma:wide` and `/delta:solo`.'
+assert_exit "declared paths: array and string paths resolve → exit 0" 0 "$?"
+assert_silent "declared paths: array and string paths resolve → silent" "$OUT"
+
+run 'Use `/gamma:hidden`.'
+assert_contains "declared paths: an undeclared directory is not a skill root" "$OUT" \
+  "UNRESOLVED_SKILL: /gamma:hidden"
+
+# A manifest jq cannot parse still names its plugin by directory, so a reference
+# to a skill under its conventional `skills/` still resolves and stays quiet.
+mkdir -p "$REPO/plugins/broken/.claude-plugin" "$REPO/plugins/broken/skills/works"
+printf '{ not json' >"$REPO/plugins/broken/.claude-plugin/plugin.json"
+: >"$REPO/plugins/broken/skills/works/SKILL.md"
+run 'Use `/broken:works`.'
+assert_exit "malformed manifest: plugin still indexed by directory → exit 0" 0 "$?"
+assert_silent "malformed manifest: conventional skills/ still resolves → silent" "$OUT"
+run 'Use `/gamma:deep` after a malformed sibling manifest.'
+assert_silent "malformed manifest: the other manifests are still read" "$OUT"
+rm -rf "$REPO/plugins/broken"
 
 # ============================ TELEMETRY =====================================
 
