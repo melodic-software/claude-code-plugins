@@ -142,11 +142,17 @@ the artifact's enum order, with each layer's discovery probes and evidence sourc
 shallow-clone reads, the aggregating-container granularity rule, and the per-layer incremental write.
 Read it at the start of the walk, not per layer.
 
-Two properties of the walk matter enough to state here:
+Three properties of the walk matter enough to state here:
 
 - **Write the artifact per layer, as the walk proceeds.** A partial artifact is a checkpoint, not a
   failure, a context-exhausted run then dies with its completed layers persisted and a later pass
   merges into them.
+- **Re-read the artifact from disk immediately before each of those writes**, and merge against that
+  copy rather than the one loaded before the walk. A second producer writes this file, its rows sit
+  in layers this walk never visits, and a merge against a stale copy would drop them with no closure
+  row, since a closure row is written only for a layer the run walked. The obligation is the
+  contract's, in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Re-run merge
+  semantics", and it binds every writer.
 - **Answer the three liveness questions independently for every item** (§3). Inferring one from
   another is what produces every false green the method enumerates.
 

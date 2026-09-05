@@ -91,10 +91,14 @@ finding produced by `overengineering:justify`. Report them under that second lab
 count, so an operator reads "outside this lane" rather than "pending next cycle". Those findings are
 re-judged by pointing that lane at the artifact again, never by a delta cycle.
 
-**An intervening targeted run is not an evidence-availability move.** A `mode: targeted` artifact
-appends its own per-target availability lines and does not rewrite the walk's per-tier tokens, so a
-token that differs because a pointed run ran in between has not moved. Compare against the most
-recent `mode: walk` assessment, and say so where a targeted run sits inside the span.
+**An intervening targeted run cannot move an evidence-availability token, and this lane could not
+see one if it did.** A `mode: targeted` artifact appends its own per-target availability lines and
+leaves the walk's per-tier tokens untouched, so every token this lane compares was written by a
+walk and a difference between two of them is a real move. That guarantee is what makes the
+comparison sound, because the detection is not available: the spine baseline records `source-date`
+and `source-scope` and no mode, so nothing in what this lane reads says whether a pointed run sat
+inside the span. Rely on the guarantee rather than looking for the run, and never report an
+availability move as uncertain on the grounds that one might have.
 
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
 `scope` carries baseline rows that are themselves stale carry-forwards. A verdict move there is

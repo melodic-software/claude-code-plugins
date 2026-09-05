@@ -31,8 +31,18 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   `measured`, `class-inferred`, or `unexamined`, required only on rows a schema-2 run writes, so rows
   carried forward from schema 1 stay legal. Frontmatter gains `mode` and `targets`, and a
   targeted-run clause governs the merge rules so a pointed run never closes, rewrites, or re-disposes
-  a finding it did not examine. Finding ids gain a producer segment, an `artifact-item` claim, a
-  `package:` prefix, and a heading locator; a routed target produces no id and no row.
+  a finding it did not examine. That clause defines target membership on the sites a run actually
+  derived rather than on a matching path string, because a target naming a heading matches no site's
+  surface and a target naming a file or directory would otherwise sweep in sections nobody opened.
+  Finding ids gain a producer segment, an `artifact-item` claim, a `package:<ecosystem>/<name>`
+  prefix, and a heading locator; a routed target produces no id and no row.
+- **Re-read before write is now a producer obligation on every writer**, stated in the contract
+  rather than in one lane. Two producers write one file, and a merge against a copy loaded earlier in
+  a run drops the other's rows with no closure record, since a closure row is written only for a
+  layer the run walked and the two producers walk disjoint layers.
+- **The contract's obligations table carries a column per skill**, including the second producer, so
+  the schema refusal, the branch refusal, the missing-artifact behaviour and the evidence-availability
+  duty are stated for it rather than inferred.
 - **`realign` presents a `justify`-producer row and never executes it**, naming the owner from the
   lane's boundary and offering no rung, because its rollback ladder is enforcement-shaped. One eval
   covers it.

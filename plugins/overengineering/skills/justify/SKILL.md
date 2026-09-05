@@ -19,14 +19,13 @@ Point at one artifact and ask whether it has earned its place. The two-part test
 a reason existed when it was built, and that reason still holds today. The method computes both
 already, so this skill supplies a lane rather than a second method.
 
-**The method is not restated here.** Read `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` before
-judging anything, and cite its sections in the findings. Every bare `§N` in this file is a section of
-that document.
-
-**The lane is not restated here either.** `${CLAUDE_PLUGIN_ROOT}/context/justification-lane.md`
-carries this lane's item inventory, its five layers with their probes, its evidence sources on the §2
-tiers, its protected classes, the routing precedence, and its known limits. Read it before the first
-target. Its own sections are numbered, and this file refers to them as "lane section N".
+**Neither the method nor the lane is restated here.** Read
+`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` before judging anything and cite its sections in
+the findings; every bare `§N` in this file is one of its sections. Then read
+`${CLAUDE_PLUGIN_ROOT}/context/justification-lane.md` before the first target: it carries this
+lane's item inventory, its five layers with their probes, its evidence sources on the §2 tiers, its
+protected classes, the routing precedence, and its known limits. Its sections are numbered, and this
+file refers to them as "lane section N".
 
 **The verdict is the deliverable, and the conversation after it is the point.** Report first, then
 discuss. The remedy is refactor or remove, decided by the operator, and it is carried out by the
@@ -35,16 +34,25 @@ owner the finding names, never here.
 ## Read-only contract
 
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Read-only contract", governs, and is not
-restated. Three things are specific to this lane:
+restated. Five things are specific to this lane:
 
 - **The one write is the findings artifact**, at the memory-tier home resolved through
   `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. Never the artifact being judged. Emit the
   read-only opening line naming the resolved path, immediately after resolving it.
 - **Always `mode: targeted`**, with `targets` naming what this run examined. A run of this lane never
   writes `mode: walk`, because it never walks.
+- **The frontmatter this lane writes** is `schema: 2`, `mode: targeted`, `targets`, this run's own
+  `date` and `branch`, and a `scope` carrying the prior artifact's value forward with these targets'
+  layers added. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
+  because an unrecognized shape cannot be merged into without guessing; a `schema: 1` artifact is
+  merged into and rewritten at `2`.
 - **Re-read before write.** Load the on-disk artifact immediately before writing, merge against that
-  copy, and record its `date`. Another session may have written since this run started, and the merge
-  rules protect only what the writer actually read.
+  copy, and read its `date` to see whether another producer wrote while this run was working. The
+  merge rules protect only what the writer actually read.
+- **A run that examined nothing writes nothing.** Where the no-target ladder ended at an offer or a
+  question and no target was ever resolved, emit the inline line naming the rung and write no
+  findings artifact. The case below is different: a detached checkout declines the write for a run
+  that did judge something.
 
 ## A detached checkout has no branch identity
 
@@ -59,17 +67,20 @@ write, not the judgment.
 
 ## Arguments
 
-Parse `$ARGUMENTS` as one target in one of three forms:
+Parse `$ARGUMENTS` as one target. Three forms are judged as given, and two more are accepted and
+widened before judging:
 
 | Form | Meaning |
 |---|---|
 | A path | a file, or a directory as one item |
 | `path#heading` | one section of a file |
 | A kind-prefixed identifier | an item with no path, such as a package |
+| `path:line`, or a comment | accepted, then widened per the rule below |
 
 **A line or comment target widens**, per lane section 2. Widen to the enclosing heading where the
-file has headings, to the file otherwise, and **state the widening in the report's first line**,
-naming both what was pointed at and what is being judged. Where the target was a comment, name
+file has headings, to the file otherwise, and **state the widening in the report's first line** as a
+rule with its reason: what was pointed at, what is being judged instead, and that an identity
+resting on a line number derives a different id as soon as an edit above it moves the line. Where the target was a comment, name
 `code-tidying:dissolve-comments` as the owner of comments in that same line.
 
 **No target: the ladder in lane section 10, and it never sweeps.** State which rung was used.
@@ -88,8 +99,8 @@ naming both what was pointed at and what is being judged. Where the target was a
    **Corroborate before presenting, per lane section 10.** Age is not evidence of disuse. Check each
    ranked path for inbound references under the varied query forms of lane section 7, counting a
    citation from anywhere in the repository including the path's own directory, and drop the ones
-   that have any. Present what survives, with the count that was ranked and the count that survived,
-   so the operator can tell an uncited path from an unsearched one.
+   that have any. Present what survives with both counts, the ranked and the surviving, so the
+   operator can tell an uncited path from an unsearched one.
 3. **Ask** what to point at.
 
 ## Before the walk
@@ -97,11 +108,11 @@ naming both what was pointed at and what is being judged. Where the target was a
 1. **Resolve the branch identity, then the artifact home**, exactly as
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Before the walk", step 1 does. The
    precompute above is a convenience, not the source of truth; where its line is absent, run
-   `git symbolic-ref --quiet --short HEAD` and read the exit status. Run the whole rung order in the
-   topic-docs binding rather than assuming the default's shape.
+   `git symbolic-ref --quiet --short HEAD` and read the exit status. Run the topic-docs binding's
+   whole rung order rather than assuming the default's shape.
 2. **Run the shared preflight**, `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`,
-   section "Preflight". Its sanctioning-record probe is lane-independent and matters here: a
-   repetition a record sanctions and a check maintains is never duplication to collapse.
+   section "Preflight". Its sanctioning-record probe matters here: a repetition a record sanctions
+   and a check maintains is never duplication to collapse.
 3. **Add the lane's four preflight items**, lane section 7: vary the query form before any absence
    claim, make a retirement cost more than a keep, write targeted mode, and re-read before write.
 4. **Apply the routing test**, lane section 1, before classifying anything. A target an enforcement
@@ -126,13 +137,12 @@ empirical source or is UNPROVEN naming the tier consulted and whether it was sil
 (§2). Beyond that, every row this lane writes carries:
 
 - **`Basis`**, per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Per-finding
-  fields". A row with no tier consulted is UNPROVEN and `unexamined`. A KEEP is `measured` or it is
-  not a KEEP.
-- **`ablation: n/a`**, because the ablation gate does not apply on this lane's layers (lane section
-  8). The earned-keep gate is the one every row answers, and a row that fuses a class claim with an
-  earned-keep verdict is a defect, not a shortcut.
-
-The `check` constituent of every id this lane derives carries `justify` as its producer segment.
+  fields". A row that measured nothing, whether no tier was consulted or every consult came back
+  silent or unavailable, is UNPROVEN and `unexamined`. A KEEP is `measured` or it is not a KEEP.
+- **`ablation: n/a`**, because that gate does not apply on this lane's layers (lane section 8). The
+  earned-keep gate is the one every row answers, and a row fusing a class claim with an earned-keep
+  verdict is a defect, not a shortcut. The `check` constituent of every id this lane derives carries
+  `justify` as its producer segment.
 
 ## Intent checkpoints
 
@@ -140,9 +150,8 @@ The `check` constituent of every id this lane derives carries `justify` as its p
 
 Where intent reconstruction scores MEDIUM or LOW (§4), or where tiers 1 to 3 are silent and tier 4
 could exist, ask before writing UNPROVEN. Recommendation first, one small numbered set of questions,
-batched rather than drip-fed. Where `planning:interview` is installed, reuse its question mechanics;
-otherwise ask the same questions inline as a numbered list. The questions are what matter, so nothing
-is lost but the mechanics.
+batched rather than drip-fed. Reuse `planning:interview`'s question mechanics where it is installed
+and ask the same questions inline otherwise; the questions are what matter.
 
 **"I don't know" is an accepted answer.** It records UNPROVEN with the tier named, and resolves the
 item in neither direction.
@@ -170,10 +179,11 @@ start it unasked.
 ## The report
 
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/report-template.md` owns the output shape: the findings
-artifact as the single source of truth, an inline summary always. Two additions for this lane. A
+artifact as the single source of truth, an inline summary always. Three additions for this lane. A
 widened target puts the widening in the **first line**, before anything else. A routed target is
 reported inline with the layer that claimed it and no row at all, so the operator can tell a route
-from a skip.
+from a skip. The template's "always" on writing the artifact carries this lane's two exceptions,
+both in the read-only contract above: no branch identity, and a run that examined nothing.
 
 ## Gotchas
 
@@ -183,11 +193,10 @@ from a skip.
   finding, and record which forms were tried.
 - **Relocated coverage is not absent coverage.** A guard that never fires because the concern it
   guards is now handled earlier is not an unguarded concern. Find where the concern went before
-  calling it gone; the finding is then about the duplicate, argued on carry cost, not about a hazard
-  nobody covers.
+  calling it gone; the finding is then about the duplicate, argued on carry cost.
 - **Silence about a document is usually unavailable, not empty.** Most consumers record nothing about
   which documents get read, so the honest reading of no usage data is that tier 1 does not exist here
-  (§2). Collapsing the two is how a report manufactures confidence.
+  (§2). Collapsing the two manufactures confidence.
 - **A class match is a marker, never a verdict.** "It is a decision record" says which rules apply,
   not whether this one earns its keep.
 - **The operator's framing is not evidence.** A target arriving with its conclusion attached ("this

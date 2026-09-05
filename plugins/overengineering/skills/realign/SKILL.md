@@ -131,9 +131,8 @@ or wired to disable" leaves deletion as the only remaining act) would turn a lan
 understand into a deletion. So a row in one of those five layers is **displayed with its evidence,
 its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
 Say so in one line where the finding would otherwise be gated, so the operator sees the finding
-rather than losing it. This is the state `docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md`
-describes: a lane's findings become executable here once a rollback ladder exists for its layers,
-and not before.
+rather than losing it. A lane's findings become executable here once a rollback ladder exists for
+its layers, and not before.
 
 Present the remaining findings in the artifact's order and dispose of each by its current status:
 
