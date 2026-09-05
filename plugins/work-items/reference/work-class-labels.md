@@ -20,6 +20,37 @@ Discover live members through the bound adapter's label listing (GitHub:
 `work-class:` label; the merge partition and admission gate read the label only — never a
 `Work-class: C<n>` body trailer.
 
+## Human-floor classes exclude the autonomous-eligible role label
+
+`work-class: structural` (C4) and `work-class: untrusted-provenance` (C5) are human-gated
+**regardless of any other signal** (the admission-gate table in
+[`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate", which binds
+whether or not the `autonomy` plugin is installed). The autonomous-eligible role label
+(default `agent-ready`) asserts the opposite, so **an item must never carry both**. Applying
+that role label to a C4 or C5 item is a triage defect, not an operator override: no label
+lifts the floor.
+
+Enforcement, so the rule is not merely written down:
+
+- **`list-frontier --autonomous` drops human-floor items** even when the autonomous-eligible
+  role label is present ([`../tools/work-item-tracker/lib/frontier.sh`](../tools/work-item-tracker/lib/frontier.sh);
+  the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
+  [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)).
+  Without that exclusion the contradictory item stays frontier-available, so each lane
+  instance in turn claims it, hits the fail-closed admission gate, and escalates — burning a
+  worker every pass while the item never moves.
+- **The attended frontier still shows it.** The exclusion is autonomous-only, so a mislabeled
+  item stays visible to `/work-items:attend-queue` and to operators instead of vanishing from
+  every view.
+
+C3 `scoped` is deliberately **not** floored at the frontier: its disposition turns on
+bug-fix-vs-feature shape and first-drain ratification, neither readable from a label, so the
+work-loop admission gate owns it.
+
+Remediation when the pair is found on an existing item: keep the work class, remove the
+autonomous-eligible role label, and apply the human-gated role label (default `needs-human`)
+so the item routes to the attended lane.
+
 ## Migration
 
 Repos adopting triage's autonomous-eligible outcomes or the work-loop admission gate need all
