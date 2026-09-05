@@ -15,7 +15,20 @@
 #   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
 #   scripts/affected-tests.sh --allow-unmapped   downgrade an unmapped file to a warning
+#   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#
+# SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
+# rule below runs in full, the unmapped check fires in full, and only then is
+# the sorted suite list partitioned by index modulo n. Legs are therefore a
+# partition in the mathematical sense: the union of legs 0..n-1 is exactly the
+# unsharded selection and no two legs share a suite. That is the property CI
+# needs when it fans one selection across n runners and calls the change tested.
+# Modulo, not contiguous blocks: the sorted list clusters suites by directory,
+# so a block partition hands one leg a whole slow plugin while another gets
+# nothing, and interleaving spreads the clusters. An EMPTY leg is not an error;
+# it exits 0, because "this leg had nothing to run" and "nothing was affected"
+# are the same statement about that runner.
 #
 # Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
@@ -250,7 +263,34 @@ do_run=0
 allow_unmapped=0
 explain=0
 print_fanout=""
+shard_spec=""
+# Whether --shard was SUPPLIED, tracked apart from its value. `--shard=` with an
+# empty right-hand side is what an environment variable that expanded to nothing
+# produces, and a presence test on the value alone would read it as "no shard
+# requested" and run the whole selection on every leg while reporting success.
+shard_given=0
+shard_index=0
+shard_total=1
 declare -a explicit_paths=()
+
+# parse_shard <spec>: accept exactly `<i>/<n>` with i and n decimal, n >= 1 and
+# 0 <= i < n. Rejected whole-string rather than by prefix: a spec this function
+# cannot read must never silently become leg 0 of 1, because that leg RUNS
+# EVERYTHING and would report a full pass from a typo'd fan-out.
+parse_shard() {
+  local spec="$1" i n
+  [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
+  i="${spec%%/*}"
+  n="${spec##*/}"
+  # Strip leading zeros so `08` is 8 rather than an octal parse error.
+  i=$((10#$i))
+  n=$((10#$n))
+  ((n >= 1)) || return 1
+  ((i < n)) || return 1
+  shard_index="$i"
+  shard_total="$n"
+  return 0
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -286,6 +326,21 @@ while [[ $# -gt 0 ]]; do
     base_ref="${1#--base=}"
     shift
     ;;
+  --shard)
+    # Same as --base above: usage errors exit 2, not 1.
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      echo "error: --shard needs <index>/<total>." >&2
+      exit 2
+    fi
+    shard_spec="$2"
+    shard_given=1
+    shift 2
+    ;;
+  --shard=*)
+    shard_spec="${1#--shard=}"
+    shard_given=1
+    shift
+    ;;
   --print-fanout)
     # Same as --base above: usage errors exit 2, not 1.
     if [[ $# -lt 2 || -z "$2" ]]; then
@@ -313,6 +368,11 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
+  echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total; got: $shard_spec" >&2
+  exit 2
+fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests.XXXXXX")" || exit 2
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -953,6 +1013,25 @@ fi
 if [[ ${#selected[@]} -eq 0 ]]; then
   echo "No suites selected (every changed file is a recorded no-suite class or a deletion)." >&2
   exit 0
+fi
+
+# The partition. It happens HERE, after the unmapped check, after the deletion
+# and no-suite reporting, and after the sort, so every leg derives the same
+# full selection from the same diff and then keeps its own slice of it. Doing it
+# earlier (partitioning the CHANGED FILES) would give each leg a different
+# derivation, and the unmapped check would then fire on whichever leg happened
+# to receive the unmapped file rather than on all of them.
+if [[ "$shard_total" -gt 1 ]]; then
+  declare -a leg=()
+  for ((si = shard_index; si < ${#selected[@]}; si += shard_total)); do
+    leg+=("${selected[$si]}")
+  done
+  echo "shard: leg $shard_index of $shard_total keeps ${#leg[@]} of ${#selected[@]} selected suite(s)." >&2
+  selected=("${leg[@]}")
+  if [[ ${#selected[@]} -eq 0 ]]; then
+    echo "This leg has no suites to run; the other legs carry the selection." >&2
+    exit 0
+  fi
 fi
 
 if [[ "$explain" -eq 1 ]]; then
