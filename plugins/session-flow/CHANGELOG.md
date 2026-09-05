@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.35.1]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
 ## [0.35.0]
 
 ### Added

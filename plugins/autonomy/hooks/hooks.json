@@ -1,4 +1,5 @@
 {
+  "description": "Gates the Stop event so a Ralph-loop lane continues or halts on its own recorded state.",
   "hooks": {
     "Stop": [
       {

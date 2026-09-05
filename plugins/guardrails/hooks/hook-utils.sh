@@ -1067,6 +1067,34 @@ hook::json_escape_jq() {
   printf '%s' "$__hu_e"
 }
 
+# hook::json_str_object_to <var> [key value]...
+# Compact JSON object of string fields, byte-identical to
+# `jq -n --arg k v --arg k2 v2 '{k:$k,k2:$k2}'` after `jq -c` (what
+# hook::json_compact_to already proves for telemetry data). Keys are
+# emitted in caller order. No jq, no temp file. Guard emit_tel builders
+# that only carry string fields use this so a wired HOOK_TELEMETRY_SINK
+# no longer spends one jq per guard on `{tool,subject,form}`.
+hook::json_str_object_to() {
+  local __hu_dest="$1"
+  shift
+  local __hu_out="{" __hu_first=1 __hu_k __hu_v __hu_ek __hu_ev
+  while (($# >= 2)); do
+    __hu_k="$1"
+    __hu_v="$2"
+    shift 2
+    hook::json_escape_jq_to __hu_ek "$__hu_k"
+    hook::json_escape_jq_to __hu_ev "$__hu_v"
+    if ((__hu_first)); then
+      __hu_first=0
+    else
+      __hu_out+=","
+    fi
+    __hu_out+='"'"$__hu_ek"'":"'"$__hu_ev"'"'
+  done
+  __hu_out+="}"
+  printf -v "$__hu_dest" '%s' "$__hu_out"
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
 # CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
 # comparison are canonicalized (symlinks resolved) first, so neither an
@@ -1189,7 +1217,12 @@ hook::repo_root() {
   local hint="${1:-.}"
   local root
   HOOK_REPO_ROOT_UNRESOLVED=0
-  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  # CR-stripped in the shell, not `git | tr`: that pipeline paid a `tr` exec
+  # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
+  # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
+  # same substitution buffer_stdin already uses for the payload.
+  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null) || root=""
+  root="${root//$'\r'/}"
   if [[ -n "$root" ]]; then
     printf '%s' "$root"
     return 0
@@ -1374,24 +1407,38 @@ hook::json_complete() {
 # read returns before payload bytes arrive, same class as exact zero (#1883).
 readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
 
-hook::resolve_read_timeout() {
-  local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
-  if [[ "$t" != "2" ]]; then
+# hook::resolve_read_timeout_to <var>
+# Write the resolved timeout into <var> in THIS shell. The print form below
+# is the public contract (tests and callers that capture stdout). GNU Bash
+# runs command substitution in a subshell even when the body is only
+# builtins (Command Execution Environment), so hook::buffer_stdin must call
+# this _to form — `read_timeout=$(hook::resolve_read_timeout)` was one of
+# the two startup forks the suite documents.
+hook::resolve_read_timeout_to() {
+  local __hu_dest="$1"
+  local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  if [[ "$__hu_t" != "2" ]]; then
     local probe
     # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$t" discard </dev/null 2>&1)
-    if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
-      t=2
-    elif [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+    probe=$(read -r -t "$__hu_t" discard </dev/null 2>&1)
+    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+      __hu_t=2
+    elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
       local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
       frac="${frac}000000"
       frac="${frac:0:6}"
       local micros=$((10#$whole * 1000000 + 10#$frac))
       if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
-        t=2
+        __hu_t=2
       fi
     fi
   fi
+  printf -v "$__hu_dest" '%s' "$__hu_t"
+}
+
+hook::resolve_read_timeout() {
+  local t
+  hook::resolve_read_timeout_to t
   printf '%s' "$t"
 }
 
@@ -1404,14 +1451,18 @@ hook::resolve_read_timeout() {
 # idle path to four cheap builtin reads.
 HOOK_STDIN_READ_SLICES=4
 
-# Resolve the per-read slice for an already-resolved timeout, printing
-# "<slice> <count>". Falls back to "<timeout> 1" — exactly the unsliced
+# Resolve the per-read slice for an already-resolved timeout into two caller
+# variables (slice, count). The print form below is the public contract:
+# "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
 # behavior — when this shell's `read -t` will not accept the fractional slice,
 # which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
 # already covers. Probed, not version-tested, for the same reason as
-# hook::resolve_read_timeout.
-hook::resolve_read_slice() {
-  local t="$1" slice=""
+# hook::resolve_read_timeout. hook::buffer_stdin calls the _to form so the
+# resolution does not pay a process-substitution fork (GNU Bash: commands
+# grouped for substitution run in a subshell).
+hook::resolve_read_slice_to() {
+  local __hu_t="$1" __hu_slice=""
+  local __hu_slice_dest="$2" __hu_count_dest="$3"
   # The division is fixed-point shell arithmetic, not `awk t/n`. A hook pays for
   # every external process it spawns — ~140 ms each on Windows Git Bash, where
   # process creation is fork() emulation — and this one spawned awk on EVERY
@@ -1427,31 +1478,44 @@ hook::resolve_read_slice() {
   # A value the pattern rejects, or one large enough to overflow the arithmetic
   # into a negative, leaves `slice` unusable and falls through to the unsliced
   # "<t> 1" form below, exactly as an awk failure did.
-  if [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
+  if [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
     local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
     frac="${frac}000000"
     frac="${frac:0:6}"
     local micros=$((10#$whole * 1000000 + 10#$frac))
     local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
-    printf -v slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
+    printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
   fi
-  if [[ -n "$slice" && "$slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$slice" =~ ^0+\.0+$ ]]; then
+  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]]; then
     local probe
     # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$slice" discard </dev/null 2>&1)
+    probe=$(read -r -t "$__hu_slice" discard </dev/null 2>&1)
     if [[ -z "$probe" ]]; then
-      printf '%s %s' "$slice" "$HOOK_STDIN_READ_SLICES"
+      printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
+      printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
       return 0
     fi
   fi
-  printf '%s 1' "$t"
+  printf -v "$__hu_slice_dest" '%s' "$__hu_t"
+  printf -v "$__hu_count_dest" '%s' "1"
+}
+
+hook::resolve_read_slice() {
+  local slice count
+  hook::resolve_read_slice_to "$1" slice count
+  printf '%s %s' "$slice" "$count"
 }
 
 hook::buffer_stdin() {
   local input="" chunk="" read_rc=0 stalled=0 idle_slices=0 validated=0
   local read_timeout read_slice slice_count
-  read_timeout=$(hook::resolve_read_timeout)
-  read -r read_slice slice_count < <(hook::resolve_read_slice "$read_timeout")
+  # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
+  # even when the body is builtins only. Those two forks were the documented
+  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe inside
+  # resolve_read_slice_to still uses $(read) — that is the remaining, smaller
+  # fork, paid only when the computed slice needs a live `read -t` probe.
+  hook::resolve_read_timeout_to read_timeout
+  hook::resolve_read_slice_to "$read_timeout" read_slice slice_count
   local -a read_opts=(-r -t "$read_slice")
   if hook::read_supports_nchars; then
     read_opts+=(-N 65536)

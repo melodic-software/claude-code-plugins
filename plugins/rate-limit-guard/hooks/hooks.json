@@ -1,4 +1,5 @@
 {
+  "description": "Records a stop caused by an API rate limit, so the pause is visible rather than looking like a finished turn.",
   "hooks": {
     "StopFailure": [
       {

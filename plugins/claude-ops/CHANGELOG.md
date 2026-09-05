@@ -3,6 +3,59 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.42.1]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.42.0]
+
+### Added
+
+- **audit-performance: `kernel_objects`, the host-level floor beneath the four suspects
+  (Windows).** A read-only census through `NtQueryObject(ObjectTypesInformation)` and
+  `GetPerformanceInfo`: live and high-water counts for Token, Process, Thread, Key, File,
+  Section, Event, and EtwRegistration objects, paged and nonpaged pool, system handle,
+  process, and thread totals, and uptime. Token leads because a Token object that outlives
+  every handle to it is held by a kernel reference, and a leaking driver or service path
+  accumulates them for the life of the boot: the host that motivated this carried 3.81M Token
+  objects and about 10 GB of paged pool at two days' uptime, every process creation on it cost
+  1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor (#3715). The section reports
+  `objects_per_uptime_second`, a population ratio that names its own bias (it includes the
+  boot population and cannot see churn; a 3 s in-run delta read 0/s against a 60 s window's
+  15/s, so the no-sleep ratio is the honest engine signal), projects the hours until the leak
+  threshold at that ratio, and carries two findings that are not one verdict:
+  `token-objects-leaked` alone yields `state_label: token-leak`, while `paged-pool-high` is an
+  unattributed pool signal routed to `poolmon`. Off Windows the section says
+  `supported: false` with the reason rather than vanishing; the block parser is unit-tested
+  against a synthetic x64 layout on every platform, and the end-to-end contract asserts the
+  section ships. `known-performance-issues.md` records the signature, the ruled-out causes,
+  and the elevated attribution runbook; `SKILL.md` reads the section before the four suspects.
+- **`lib/test_spawn_noise.py` proves the lib stands alone in an isolated interpreter.** The
+  stand-alone check asserted that the engine's script directory was absent from the current
+  process's `sys.path`, which CI's Python lane cannot guarantee: it collects this suite and the
+  engine's in one pytest process, and pytest prepends each suite's directory. The check now
+  runs in a `python -I` child that proves the exclusion itself before importing, so the suite
+  passes wherever it is collected.
+
 ## [0.41.14]
 
 ### Changed
