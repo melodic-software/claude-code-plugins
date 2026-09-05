@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.6]
+
+### Changed
+
+- **The Bash dispatcher and every always-on guard locate `hook-utils.sh`
+  with parameter expansion, not `dirname`, and the dispatcher copies its jq
+  cache helper without `sed`.** A benign `git status --short` on this host
+  spent 7 `dirname` execs (one per enabled Bash guard; the default-off
+  `flag-commit-pr-skill-bypass` exits before `source`) plus one `sed` to rename
+  `hook::jq_fields`, of 13 counted PATH-shim spawns. After: 0 `dirname`, 0
+  `sed`, 5 remaining (`3 git` + `2 jq`, the classification work and the one primed
+  payload parse). Spawn census through a stable PATH shim, `HOOK_TELEMETRY_SINK`
+  unset, same payload: **13 → 5**. Wall clock on this measurable Linux host
+  (spawn floor 0.5–0.7 ms, n=20): p50 70.0 → 60.7 ms, p95 73.5 → 62.1 ms.
+  The milliseconds are context; on a host whose spawn floor is tens of
+  milliseconds the durable figure is the eight PATH-visible execs that
+  disappeared.
+  `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes; a
+  dispatched guard still sees the real `dirname` command, not a dispatcher
+  shadow. `run-guards.test.sh` pins both the empty shim log and the source
+  shape. What each guard checks is unchanged.
+
 ## [0.32.5]
 
 ### Changed

@@ -133,6 +133,47 @@ assert_eq "--lib library is loaded before the guards run" "ps=1" "$(cat "$SEEN")
 run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
 assert_eq "dirname inside a dispatched guard is the external command" "file /" "$(cat "$SEEN")"
 
+# --- benign Bash lane: no dirname/sed exec on the dispatched hot path ----------
+# 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
+# and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname
+# execs plus one sed on a benign `git status --short` (flag-commit-pr-skill-bypass
+# is default-off and exits before source). PATH shims count execs; function
+# forks are invisible to them, which is the same instrument as spawn-census.sh.
+SHIM="$TEST_TMPDIR/spawn-shim"
+mkdir -p "$SHIM"
+SPAWN_LOG="$SHIM/spawns.log"
+for tool in dirname sed; do
+  real=$(type -P "$tool")
+  if [[ -z "$real" ]]; then
+    bad "need $tool on PATH to pin its absence from the dispatcher"
+    real=""
+    break
+  fi
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q >>%q\nexec %q "$@"\n' "$tool" "$SPAWN_LOG" "$real" >"$SHIM/$tool"
+  chmod +x "$SHIM/$tool"
+done
+if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" ]]; then
+  : >"$SPAWN_LOG"
+  PATH="$SHIM:$PATH" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+    block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+    flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
+    block-convention-violation.sh block-windows-drive-tmp.sh \
+    block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
+  assert_eq "benign Bash dispatcher execs neither dirname nor sed" "" "$(cat "$SPAWN_LOG")"
+fi
+DISPATCH_SRC=$(cat "$DISPATCH")
+assert_absent "dispatcher copies jq_fields without a sed pipeline" "$DISPATCH_SRC" '| sed'
+assert_contains "dispatcher copies jq_fields via parameter expansion" "$DISPATCH_SRC" 'hook::jq_fields_uncached ()'
+for g in block-no-verify block-dangerous-git block-hook-bypass \
+  flag-commit-pr-skill-bypass block-noncanonical-commit \
+  block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
+  secret-pattern-detection hardcoded-path-check \
+  cli-flag-verify skill-reference-verify stale-path-verify \
+  workflow-resilience-check; do
+  assert_absent "$g sources hook-utils without dirname" "$(cat "$HOOK_DIR/$g.sh")" \
+    'source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"'
+done
+
 # --- no jq: several emitters yield ONE document, never a concatenation -------
 # Build a PATH with no jq on it. A directory that carries jq is replaced by a
 # shim directory re-exporting its other executables, so every other tool the
@@ -155,8 +196,8 @@ for d in "${path_dirs[@]}"; do
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1 || ! PATH="$NOJQ_PATH" command -v sed >/dev/null 2>&1; then
-  bad "could not build a PATH without jq that still carries sed"
+if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+  bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
     local input="$1"
