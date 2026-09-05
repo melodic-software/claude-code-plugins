@@ -72,7 +72,7 @@ This document defines the repeatable process for improving the **output of a sim
 
 **Process:**
 
-1. Read ALL board items (full pagination)
+1. Read ALL board items (`miro_list_board_items` with `limit=1000`)
 2. Score each criterion in `simulation-evaluation.md` rubric: Pass / Partial / Fail
 3. Calculate weighted scores per phase and overall
 4. Flag any Critical criteria that scored Fail
@@ -204,7 +204,8 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 ### Periodically (every 2-3 versions)
 
 - Re-read the EPUB source chapters cover to cover — the book is on Leanpub and may be updated
-- Check for new practitioner insights (web-research search — Perplexity MCP if present, else `WebSearch`: "EventStorming 2025 2026 new techniques")
+- Check for new practitioner insights (web-research search — Perplexity MCP if present, else
+  `WebSearch`: "EventStorming new techniques", restricted to the past year)
 - Review whether the evaluation rubric itself is still calibrated correctly
 - Clean up old boards (keep only latest version)
 
@@ -244,6 +245,8 @@ The skill is ready for production use on a real domain when:
 5. **Ubiquitous language is captured** — 5+ domain-specific terms with precise definitions
 6. **Aggregates are behavior-rich** — aggregate:command ratio <= 1:1 after consolidation
 7. **MCP integration works** — board creation, sticky placement, and reading all via MCP tools
-8. **Visual verification passes** — screenshots show correct colors, layout, and density at each checkpoint
+8. **Visual verification passes, where it applies** — on the live-board path with a browser MCP
+   connected, screenshots show correct colors, layout, and density at each checkpoint; otherwise the
+   markdown artifact is checked instead
 9. **Version progression is positive** — each version scores equal or better than the previous
 10. **No known gaps** — all identified gaps from the gap analysis are either fixed or explicitly deferred with rationale

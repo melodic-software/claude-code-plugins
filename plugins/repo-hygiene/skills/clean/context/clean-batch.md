@@ -88,8 +88,7 @@ reports the deduped count.
 representative. If that specific worktree vanishes before apply while a live
 sibling still shares the store, the prune is reported `skipped`, not run — it is
 deferred, not lost: `git` prune/gc is non-destructive and idempotent, and a fresh
-dry-run → apply over the live siblings picks a new representative. Widening the
-plan to carry fallback candidates is a possible future refinement.
+dry-run → apply over the live siblings picks a new representative.
 
 ### The batch plan IS the gated set
 

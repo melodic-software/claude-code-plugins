@@ -9,11 +9,23 @@ metadata:
   summary: Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -10 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -10`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 
@@ -165,8 +177,7 @@ is invoked via the Skill tool.
 
 ## Gotchas
 
-Observed failure history and the counterweights this skill exists to hold. Add here when a
-new one surfaces.
+The counterweights this skill exists to hold. Add here when a new one surfaces.
 
 - **Over-abstraction is decoupling's own disease.** An interface with one implementation, an
   event bus for a one-to-one call, a config knob nothing varies. Each adds indirection while
@@ -179,9 +190,9 @@ new one surfaces.
   documents (or functions) that happen to read the same but would change for different
   reasons must not be consolidated. Consolidation actively harms. Test what changes
   together, not what looks alike.
-- **Unverified scan claims do not ship.** A scan agent once reported a service "registered
-  but never composed" that one search disproved. Phase C exists because the report lends
-  every claim its authority.
+- **Unverified scan claims do not ship.** A scan claim inherits the report's authority, so
+  phase C reproduces every finding against the artifacts before it reaches the ledger or the
+  user.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
 - **The ledger records what a re-scan currently finds; it never replays.** Re-emitting stale

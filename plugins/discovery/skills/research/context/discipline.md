@@ -15,15 +15,15 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 
 ## Source-tier ratio (per claim)
 
-Mandate: every accepted claim has **≥1 Tier 0/1 source PLUS ≥2 independent corroborators** of any tier.
+Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier.
 
 **Anti-pattern:** three AI-synthesis citations of three different secondary blogs = 1 Tier 2 source, not 3. They're synthesizing from the same upstream pool. Count INDEPENDENT primary sources, not citation count.
 
-**Tool-diversity per topic — MUST track in the evidence table.** Two sources both from one synthesis tool / both from one search engine / both from one author's blog network = 1 corroborator, not 2.
+**Track tool diversity per topic in the evidence table.** Two sources both from one synthesis tool / both from one search engine / both from one author's blog network = 1 corroborator, not 2.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
-Mandate: when the topic touches a library/tool/CLI/API/framework that ships releases, **one Phase 1 or Phase 2 query MUST fetch the LATEST upstream changelog or release notes this turn** and confirm the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. The windows below bound how stale a cited doc may be before this cross-check is required — a stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
+When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. The windows below bound how stale a cited doc may be before this cross-check is required — a stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
 
 **Tightening tiers:**
 
@@ -38,7 +38,7 @@ Mandate: when the topic touches a library/tool/CLI/API/framework that ships rele
 
 ## Falsification step (mandatory Phase 2 query)
 
-Mandate: **exactly one Phase 2 query MUST attempt to falsify the leading hypothesis** from Phase 1.
+Exactly one Phase 2 query attempts to falsify the leading hypothesis from Phase 1.
 
 **Falsification query patterns:**
 
@@ -51,7 +51,7 @@ Mandate: **exactly one Phase 2 query MUST attempt to falsify the leading hypothe
 
 ## Broad-topic auto-detect
 
-Mandate: when the research topic matches ANY of the triggers below, **double all phase minimums**:
+When the research topic matches any trigger below, double all phase minimums:
 
 | Trigger | Example topic |
 |---|---|
@@ -67,7 +67,7 @@ Mandate: when the research topic matches ANY of the triggers below, **double all
 
 ## Query scaling — floors are not targets
 
-The per-phase minimums (3+ standard, 6+ broad-topic) are FLOORS to start from, not targets to stop at. Models satisfice to stated numbers, so a flat "3 per phase" reliably produces exactly-3 shallow phases. The corrective: make the query count a FUNCTION of the open-question count.
+The per-phase minimums (3+ standard, 6+ broad-topic) are floors to start from, not targets to stop at. The query count is a function of the open-question count: a flat per-phase number would stop a run while numbered gaps are still open.
 
 | Phase | Query count |
 |---|---|
@@ -113,13 +113,11 @@ A ledger built from search results inherits exactly the blind spot the ledger ex
 
 ## Tool-ecosystem Phase 3 fallback
 
-Mandate: when no preferred-source author covers the topic's domain (typical for tool-ecosystem topics — AI coding tools, MCP servers, CI-platform specifics), Phase 3 MUST cite all three:
+When no preferred-source author covers the topic's domain (typical for tool-ecosystem topics: AI coding tools, MCP servers, CI-platform specifics), Phase 3 cites all three:
 
 1. **Official maintainer** — the vendor's own social / GitHub / blog
 2. **Upstream repo changelog or releases** — `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
 3. **One recognized industry authority** — a top-voted community post or well-known practitioner blog with the author named
-
-Don't skip Phase 3 because "no preferred author exists."
 
 ## Primary-source-first protocol
 

@@ -52,9 +52,9 @@ When a security scanner or reviewer is added, replaced, or removed:
 
 Every gate below reads a GitHub list endpoint, and every one of those endpoints returns **30 items per page** by default and reports nothing when it truncates. A truncated read is not a visibly short answer — it is a confidently wrong one. Three rules, all absolute:
 
-**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on a page you never fetched — indistinguishable from X not existing. This repo's own PR heads carry 33–37 check runs, so the unpaginated form dropped `do-not-merge / do-not-merge`, then a required status context, on every head it was run against, and a reader concluded the context never attaches. It attached and was green every time.
+**1. Paginate every list read.** `--paginate` with `per_page=100`. Without it, "is X present?" answers a silent *no* for anything on a page you never fetched — indistinguishable from X not existing. A PR head with more than 30 check runs makes the unpaginated form drop required contexts silently, so a reader concludes a context never attaches when it attached and was green.
 
-**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest — the read returns a real item, plausibly shaped, and simply wrong. On issue #657 (33 comments) `.[-1]` unpaginated returned a comment 11.5 hours older than the actual latest. Select by the property you actually care about (an id, a SHA, an author, a timestamp) so the query states its own intent and cannot be silently satisfied by the wrong record. **Where the query is a control gate you will act on — "did my write land?" — one property is usually not enough.** Ask what else could satisfy this selector, and constrain that too: a SHA in a comment body proves the SHA was mentioned, not that *you* posted it, so a reviewer quoting it passes the gate while your failed write goes unnoticed. Pin the identity as well.
+**2. Never pair a positional index with a list.** `.[-1]` on a truncated list is the 30th-oldest item, not the newest — the read returns a real item, plausibly shaped, and simply wrong. Select by the property you actually care about (an id, a SHA, an author, a timestamp) so the query states its own intent and cannot be silently satisfied by the wrong record. **Where the query is a control gate you will act on — "did my write land?" — one property is usually not enough.** Ask what else could satisfy this selector, and constrain that too: a SHA in a comment body proves the SHA was mentioned, not that *you* posted it, so a reviewer quoting it passes the gate while your failed write goes unnoticed. Pin the identity as well.
 
 **3. Never reduce across pages inside `--jq`.** With `--paginate`, `gh` applies `--jq` to **each page separately**, so `length`, `sort_by`, `add`, `max`, `group_by` — anything that folds a whole list — silently answers per page. A count over four pages prints four numbers, none of them the total; a `sort_by` emits four separately-sorted arrays. Element-wise filters (`.[] | select(f)`, `.[] | f`) are safe, because their results simply concatenate. Bare `map(f)` is not — it builds an array per page; use `map(f) | .[]` or `.[] | f` instead. When the operation folds, drop `--jq` and slurp the page stream with `jq -s`, indexing pages with `.[][]`.
 
@@ -89,7 +89,7 @@ gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
 
 If `completed success`, the stuck commit-status is the redundant external bot — classify as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
 
-The pagination is not optional and the completeness assertion is not hygiene — see [Reading GitHub list APIs](#reading-github-list-apis). This query is the one that made a required context look like it never attached.
+The pagination is not optional and the completeness assertion is not hygiene — see [Reading GitHub list APIs](#reading-github-list-apis).
 
 ### Gate 2: All failures evaluated
 
@@ -186,11 +186,11 @@ If ANY gate fails, present which gates failed and what action is needed. **Never
 
 In `full` mode, readiness gates are NOT relaxed. Only difference: transition from monitor → merge is automatic **when all gates pass**. If any gate fails, `full` mode pauses and reports — it does not skip gates.
 
-## Anti-patterns (from an observed incident)
+## Recap
 
-These specific failures must never recur:
+The four failures the gates above exist to prevent:
 
-1. **Merging with FAILURE check runs** — an observed PR had two FAILURE check runs visible in `gh pr checks` and was merged anyway. Monitor must NEVER suggest merge when any check shows FAILURE without explicit classification
-2. **Ignoring security scan results** — a security scanner posted both a check run and a comment. Neither was evaluated before merge
-3. **Not waiting for comment-only actors** — a review bot posted 8 minutes after PR creation. Monitor declared readiness before bot had a chance to post
-4. **Treating "no comments" as "ready"** — "No comments" may mean reviewers haven't posted yet, not that there are no issues. Cooldown period prevents this race condition
+1. **Merging with FAILURE check runs.** Never suggest merge while any check shows FAILURE without explicit classification (Gate 2)
+2. **Ignoring security scan results.** A security actor's check run and comment are both evaluated before merge (Gate 3)
+3. **Not waiting for comment-only actors.** A review bot can post minutes after PR creation; the cooldown gives it time (Gate 5)
+4. **Treating "no comments" as "ready".** An empty comment list may mean reviewers have not posted yet (Gate 5)

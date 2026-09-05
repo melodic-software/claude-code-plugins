@@ -312,7 +312,7 @@
     {
       "id": 28,
       "name": "fix-pass-tolerates-legacy-scalar-source-findings",
-      "prompt": "[Scenario: the branch findings directory holds findings file A, whose date: is strictly older than the record's date:, and a fix-pass-record written by an older plugin version whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
+      "prompt": "[Scenario: the branch findings directory holds findings file A, whose date: is strictly older than the record's date:, and a legacy digest-less fix-pass-record whose source-findings is a bare scalar repo-relative path to A, plus a newer conforming file B.] /review:fanout fix",
       "expected_output": "The legacy scalar source-findings carries no digest, so it matches by name alone; A's date: is strictly older than the record's, so the entry is honored and A is subtracted, leaving the merge set as B only.",
       "files": [],
       "expectations": [
@@ -339,7 +339,7 @@
     {
       "id": 32,
       "name": "fix-pass-legacy-entry-does-not-retire-a-rewritten-file",
-      "prompt": "[Scenario: a conforming script detector writes ONE fixed file name with no timestamp in it — mutation-survivors.md — overwriting it on every run. A pre-0.20.0 fix-pass-record for this exact branch names that path as a bare scalar source-findings with no digest. The detector has since re-run, so the file on disk holds entirely new findings and declares a date: later than the record's date:.] /review:fanout fix",
+      "prompt": "[Scenario: a conforming script detector writes ONE fixed file name with no timestamp in it — mutation-survivors.md — overwriting it on every run. A legacy digest-less fix-pass-record for this exact branch names that path as a bare scalar source-findings with no digest. The detector has since re-run, so the file on disk holds entirely new findings and declares a date: later than the record's date:.] /review:fanout fix",
       "expected_output": "The legacy entry matches by name but the candidate's date: is newer than the record's, so the entry is not honored: the rewritten file enters the merge set and its new findings are planned rather than silently retired forever.",
       "files": [],
       "expectations": [
@@ -353,7 +353,7 @@
     {
       "id": 35,
       "name": "fix-pass-legacy-entry-equal-date-keeps-candidate",
-      "prompt": "[Scenario: a conforming detector writes one fixed file name and derives its date: from the commit under review rather than from the moment of writing, so the value never changes between runs. A pre-0.20.0 fix-pass-record for this exact branch names that file as a bare scalar with no digest, and the record's own date: happens to equal the candidate's.] /review:fanout fix",
+      "prompt": "[Scenario: a conforming detector writes one fixed file name and derives its date: from the commit under review rather than from the moment of writing, so the value never changes between runs. A legacy digest-less fix-pass-record for this exact branch names that file as a bare scalar with no digest, and the record's own date: happens to equal the candidate's.] /review:fanout fix",
       "expected_output": "Equal dates do not subtract: the digest-less entry is honored only for a candidate strictly older than the record, so the rewritten file stays in the merge set and its new findings are planned.",
       "files": [],
       "expectations": [
@@ -366,7 +366,7 @@
     {
       "id": 33,
       "name": "fix-pass-legacy-entry-undated-candidate-stays-in-set",
-      "prompt": "[Scenario: a minimally conforming producer wrote a findings file carrying type:, branch: and a parseable ## Findings table but NO date: field at all. A pre-0.20.0 fix-pass-record for this exact branch names that file as a bare scalar source-findings with no digest.] /review:fanout fix",
+      "prompt": "[Scenario: a minimally conforming producer wrote a findings file carrying type:, branch: and a parseable ## Findings table but NO date: field at all. A legacy digest-less fix-pass-record for this exact branch names that file as a bare scalar source-findings with no digest.] /review:fanout fix",
       "expected_output": "The not-newer test cannot be evaluated without the candidate's date:, so the digest-less entry is not honored and the candidate stays in the merge set — failing toward re-admission rather than toward a silent drop.",
       "files": [],
       "expectations": [

@@ -18,9 +18,6 @@
       }
     ]
   },
-  "worktree": {
-    "baseRef": "head"
-  },
   "enabledPlugins": {
     "actionlint@melodic-software": true,
     "adhd@melodic-software": true,

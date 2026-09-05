@@ -13,9 +13,8 @@ metadata:
 ## Purpose
 
 Usage guidance adapted from Dometrain's own official Claude Code plugin
-(github.com/Dometrain/mcp, MIT licensed): search Dometrain's course content before settling on
-an approach when the task touches something its courses cover, then cite what shaped the
-answer with a timestamped deep link so the user can watch the source.
+(github.com/Dometrain/mcp, MIT licensed). Cite what shaped the answer with a timestamped deep link
+so the user can watch the source.
 
 The Dometrain MCP server exposes curated documents for Dometrain's video-course lessons:
 summaries, key concepts, cleaned lesson notes, and the exact code shown on screen, each with a
@@ -31,7 +30,7 @@ elsewhere.
 
 ## When to consult Dometrain
 
-Search Dometrain BEFORE settling on an approach when the task touches something its courses
+Search Dometrain before settling on an approach when the task touches something its courses
 cover. Coverage is deepest across the .NET ecosystem: C# language internals, ASP.NET Core
 (REST and minimal APIs, gRPC, GraphQL, SignalR, Blazor, authentication), EF Core and Dapper,
 testing (unit, integration, TDD), design patterns and SOLID, clean code and refactoring. It also
@@ -77,11 +76,9 @@ here (they change independently of this plugin).
 
 - Do not repeat an identical search in the same session. Reuse what you already fetched.
 - Prefer one `get_lesson` over re-searching for more snippets of the same lesson.
-- Responses include a `quota_note` once ≥90% of the monthly quota is used; slow down when
-  you see it. (This trigger percentage is a fixed API behavior, not the volatile quota total
-  itself, so it's precise here rather than described generically.) On a `429`, the response carries the reset date. Call `get_usage()` if the user
-  asks where they stand, and do not retry until reset (burst-cap `429`s can be retried after a
-  short pause).
+- Responses include a `quota_note` once ≥90% of the monthly quota is used; slow down when you see
+  it. On a `429`, the response carries the reset date. Call `get_usage()` if the user asks where
+  they stand, and do not retry until reset (burst-cap `429`s can be retried after a short pause).
 
 ## Boundaries
 

@@ -8,7 +8,7 @@
 - [Override flags](#override-flags)
 - [Hand-off](#hand-off)
 
-`/docs-hygiene:rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/docs-hygiene:rename-references audit` (no sub-mode) defaults to **Blast** for backward compatibility.
+`/docs-hygiene:rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/docs-hygiene:rename-references audit` (no sub-mode) defaults to **Blast**.
 
 | Sub-mode | Charter | Pair required? | Output |
 |---|---|---|---|
@@ -42,7 +42,7 @@ Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`
 
 **Output format:** identical to audit.md "Phase 4: Report". Counts table + top-5 affected files + pattern-form breakdown. Inline only.
 
-**Defaults / aliasing:** bare `/docs-hygiene:rename-references audit` (no sub-mode keyword) routes to blast — Blast preserves the original audit behavior verbatim.
+**Defaults / aliasing:** bare `/docs-hygiene:rename-references audit` (no sub-mode keyword) routes to blast, the cheapest sub-mode and the one that needs no rename pair.
 
 **Why no file artifact:** Beck (Tidy First, 2024) and Fowler (Refactoring, 2nd ed.) explicitly reject upfront-analysis artifacts in favor of inline IDE Find Usages. Inline is the right primitive; a plan-file artifact is deferred until cross-team review demand surfaces.
 

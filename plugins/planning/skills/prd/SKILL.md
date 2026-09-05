@@ -1,5 +1,5 @@
 ---
-description: "Produce a Product Requirements Document that locks product intent. Problem, users, success metrics. Before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /planning:plan)."
+description: "Produce a Product Requirements Document that locks product intent. Problem, users, success metrics. Before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /planning:interview or /planning:plan)."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,11 +9,23 @@ metadata:
   summary: Lock product intent. Problem, users, success metrics. Before planning
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -5`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 

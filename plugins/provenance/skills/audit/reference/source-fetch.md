@@ -42,9 +42,9 @@ where the doc says none occurs, or an identity check the doc's two tests do not 
 ## Three rules that bind every read
 
 - **No verbatim quote, no claim.** A verdict about a source states the quoted span it matched.
-  This is not a formality here: the research phase recorded one incident where a summarizer's
-  paraphrase was written down as page text, and a fingerprint comparison against a paraphrase of
-  the source measures the summarizer, not the copy. The fingerprint module compares two concrete
+  This is not a formality here: a summarizer's paraphrase written down as page text turns the
+  fingerprint comparison into a measurement of the summarizer rather than of the copy. The
+  fingerprint module compares two concrete
   texts, so the source text handed to it is the fetched bytes or the comparison does not run.
 - **A truncated read supports no absence claim, ever.** If a fetch stops short, say so and mark
   the candidate unverified. "Not in the response" is never "not on the page", and this audit is

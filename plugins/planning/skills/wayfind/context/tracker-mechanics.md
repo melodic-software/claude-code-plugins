@@ -7,10 +7,11 @@ through a bot identity or wrapper, follow that project's own rules — with one 
 claim assignment (`--add-assignee "@me"`) always runs on the session identity, never a shared
 bot, or the collision check silently breaks.
 
-Native primitives (gh ≥ 2.94): sub-issues via `--parent`, dependency edges via
-`--add-blocked-by` (or `--blocked-by` at create time), both queryable as JSON fields.
-**Shape gotcha (verified live):** `subIssues` and `blockedBy` are objects — `{"nodes": [...],
-"totalCount": N}` — NOT flat arrays. Use `.subIssues.nodes[]` and read blockers from
+Native primitives (gh ≥ 2.94; the flags and the JSON shapes below were verified on gh 2.97.0 on
+2026-09-02, recheck when `gh issue create --help` stops listing `--parent`): sub-issues via
+`--parent`, dependency edges via `--add-blocked-by` (or `--blocked-by` at create time), both
+queryable as JSON fields. **Shape gotcha:** `subIssues` and `blockedBy` are objects,
+`{"nodes": [...], "totalCount": N}`, NOT flat arrays. Use `.subIssues.nodes[]` and read blockers from
 `.blockedBy.nodes[]`; `.blockedBy | length` returns the key count (always 2), never the
 blocker count. (`assignees` and `labels` ARE flat arrays — `| length` is correct for those.)
 **A closed blocker stays in the edge set** — `blockedBy.totalCount` still counts it after it

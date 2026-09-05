@@ -84,9 +84,8 @@ to the human with the guard's own reason.
    stamped record, or a vendored tree is not edited, even if a finding reached this point.
 
 One gap is flagged here rather than guarded: a corpus file can be the rendered output of a
-generator whose source of record lives outside the markdown corpus (a sweep of this marketplace
-repository found one stale string whose authoritative home is `docs/native-surfaces/records.json`,
-with its rendering marked never-hand-edit). A fix applied to such a rendering edits a file its
+generator whose source of record lives outside the markdown corpus, in a data file whose
+rendering carries a never-hand-edit marker in its own header. A fix applied to such a rendering edits a file its
 own header forbids editing, and the next regeneration overwrites it. Check the file head for a
 generated-output marker before applying any disposition; when one is present, route the finding
 to the human and name the generator's input as the real fix site. No script enforces this check.
@@ -119,9 +118,8 @@ worth more than the report they appeared in, and both are lost unless the loop b
 and, where the case needs one, `source.md`. Each directory is named for what its case tests, which
 means the name states the case's answer; a case is relabelled, and its harness scaffolding
 dropped, before any subagent reads it, per `reference/nomination.md` "Neutral labels
-(required)". It starts at 10 cases and grows toward 20 to 50; every class stays report-only
-until the growth carries it past `min_n_per_class` at or above the precision bar, `verbatim`
-first.
+(required)". The set grows toward 20 to 50 cases; every class stays report-only until the set
+carries it past `min_n_per_class` at or above the precision bar, `verbatim` first.
 
 Convert like this, in order:
 

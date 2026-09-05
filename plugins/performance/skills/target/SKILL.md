@@ -1,5 +1,5 @@
 ---
-description: "Identify and rank optimization targets by EVIDENCE QUALITY rather than by suspicion, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts targets from the current session's own pain, a named path or component, a telemetry store, or an open-ended 'what is slow here'. Ranks each candidate by how well its cost is actually attributed, names the drift-immune counter that would settle it, and refuses to rank an unmeasured candidate above a measured one however plausible its mechanism. Use when: 'what should we optimize', 'what is slow here', 'find the bottleneck', 'where is the time going', 'this feels slow', 'pick a performance target', 'is X worth optimizing'. Entry point for the measurement-first optimization workflow; hands off to /performance:goal. Skip when the target is already chosen and measured (go straight to /performance:goal), or when a specific failure needs root-causing rather than a candidate ranking (that is debugging)."
+description: "Identify and rank optimization targets by EVIDENCE QUALITY rather than by suspicion, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts targets from the current session's own pain, a named path or component, a telemetry store, or an open-ended 'what is slow here'. Ranks each candidate by how well its cost is actually attributed, names the drift-immune counter that would settle it, and refuses to rank an unmeasured candidate above a measured one however plausible its mechanism. Use when: choosing what to optimize, locating a bottleneck, or judging whether a suspected target is worth the work: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Entry point for the measurement-first optimization workflow; hands off to /performance:goal. Skip when the target is already chosen and measured (go straight to /performance:goal), or when a specific failure needs root-causing rather than a candidate ranking (that is debugging)."
 user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>] (e.g. /performance:target plugins/disk-hygiene/hooks)"
 disable-model-invocation: false
@@ -12,13 +12,12 @@ metadata:
 
 Answers **"what should we optimize, and how much do we actually know about it?"**
 
-The failure this prevents is picking a target because its mechanism sounds expensive. In the source
-run behind this plugin, a parallel session diagnosed WDAC code-integrity enforcement as the cause of
-slow process spawns. The mechanism was real and the policy was genuinely enabled. It was still the
-wrong answer, and had to be retracted: a spread of min 180.5 ms / median 1107.7 ms / max 2841.3 ms
-across *identical* no-op spawns is a contention signature, because a fixed policy check cannot
-produce a 15x spread. **The bimodality was the diagnosis; the plausible mechanism was a
-distraction.**
+The failure this prevents is picking a target because its mechanism sounds expensive. Take a
+diagnosis of WDAC code-integrity enforcement as the cause of slow process spawns: the mechanism is
+real and the policy may genuinely be enabled, and it is still the wrong answer when the data says
+otherwise. A spread of min 180.5 ms / median 1107.7 ms / max 2841.3 ms across *identical* no-op
+spawns is a contention signature, because a fixed policy check cannot produce a 15x spread.
+**The bimodality is the diagnosis; the plausible mechanism is a distraction.**
 
 So this skill ranks by evidence, and says so when there is none.
 
@@ -51,9 +50,10 @@ cheapest instrument that would reach E2. That IS the answer; do not substitute a
 When a candidate spans layers (a shell wrapper around a Python program; a route through an ORM
 through a driver), attribute cost *across the layers* before picking one to optimize.
 
-The source run's first instinct was to optimize a 1903-line Python guard body. Measurement showed
-the 125-line shell wrapper around it was roughly 88% of the cost and the Python was not the
-bottleneck. Layer attribution is cheap and reorders the candidate list.
+The instinct is to optimize the largest layer: a 1903-line Python guard body over the 125-line shell
+wrapper that execs it. Measurement routinely inverts that, and a wrapper this size can carry roughly
+88% of the cost while the body it wraps is not the bottleneck. Layer attribution is cheap and
+reorders the candidate list.
 
 ## Name the counter, not just the duration
 
@@ -99,9 +99,9 @@ candidate must say so.
 
 ## Gotchas
 
-- **A plausible mechanism is not evidence.** The retracted WDAC diagnosis above is the worked
-  example. Ask what the mechanism predicts, then check whether the data shows it. A fixed cost cannot
-  produce a variable spread.
+- **A plausible mechanism is not evidence.** The WDAC diagnosis above is the worked example. Ask what
+  the mechanism predicts, then check whether the data shows it. A fixed cost cannot produce a
+  variable spread.
 - **Anecdote from this session is a candidate source, not a ranking basis.** "It felt slow" gets a
   candidate onto the list at E4 and no higher.
 - **The biggest file is not the bottleneck.** Line count is not a cost model. Attribute across the

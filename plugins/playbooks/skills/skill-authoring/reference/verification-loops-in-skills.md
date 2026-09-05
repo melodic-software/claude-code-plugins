@@ -42,12 +42,9 @@ shows — but for a narrower reason than it first appears.
   only command — which is why namespacing means plugin skills cannot collide, and why a plugin copy
   and a same-named original both stay reachable rather than one overriding the other
   ([Skills — how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
-  [Plugins](https://code.claude.com/docs/en/plugins)). Note this is current behavior: before
-  v2.1.216 a frontmatter `name` replaced the whole command name, a history the skills page no
-  longer states and the official [changelog](https://code.claude.com/docs/en/changelog) now pins
-  (its v2.1.216 entry: "Fixed plugin skills with a `name` frontmatter field losing their plugin
-  prefix in slash-command autocomplete"; verified 2026-08-31, recheck trigger: a changelog fetch
-  no longer matching that entry).
+  [Plugins](https://code.claude.com/docs/en/plugins)).
+  (Verified 2026-08-31 against the Skills page; recheck trigger: a re-read of that page no longer
+  stating that the qualified form always resolves.)
 - **Directory-scoped namespace** (`apps/web:deploy`): the bare name resolves to the project-root
   variant, and the qualified form reaches the nested one
   ([Skills — where skills live](https://code.claude.com/docs/en/skills#where-skills-live)).

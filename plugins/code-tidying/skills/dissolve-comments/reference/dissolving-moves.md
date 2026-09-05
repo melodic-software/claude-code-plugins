@@ -1,6 +1,7 @@
 # Dissolving moves — comment shape → named refactoring
 
-All names are Fowler-catalog names (refactoring.com/catalog), verified current at authoring time.
+All names are Fowler-catalog names. Basis: <https://refactoring.com/catalog/>, read 2026-08-17.
+Recheck trigger: a move name in the table below failing to resolve on that page.
 The first three rows are Fowler's own prescription in the Comments smell entry; the rest apply the
 same logic with catalog names. Every move is behavior-preserving in Fowler's sense, but they do
 not share one proof of it: each sits in a tier of [safety.md](safety.md) that names the strongest

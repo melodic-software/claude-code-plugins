@@ -1,5 +1,5 @@
 ---
-description: "Reach Anthropic's first-party playground capability in one step: verify the upstream playground plugin is installed, invoke its skill for interactive single-file HTML explorers (controls beside a live preview, output is a prompt you paste back), or emit the exact install commands when it is absent. Use when: 'make me a playground', 'interactive explorer for X', 'let me tweak parameters and see the result', 'sliders to balance this', 'tune this visually', 'explore this parameter space', 'install the playground plugin', 'critique this document with approve/reject controls'. Also carries field-tested prompt recipes, delivery guidance for cloud and remote sessions where a local browser cannot open, and known-limitation notes. This wrapper generates nothing itself; the upstream skill owns generation. Not for choosing a visual form for conversation content (a visualization capability owns that) or for throwaway variations of your own project's UI (a prototyping capability owns that)."
+description: "Reach Anthropic's first-party playground capability in one step: verify the upstream playground plugin is installed, invoke its skill for interactive single-file HTML explorers (controls beside a live preview, output is a prompt you paste back), or emit the exact install commands when it is absent. Use when: 'make me a playground', 'interactive explorer for X', 'install the playground plugin', 'critique this document with approve/reject controls', or any ask to tune a parameter space visually and see the result (sliders, balancing, exploring parameters). Also carries field-tested prompt recipes, delivery guidance for cloud and remote sessions where a local browser cannot open, and known-limitation notes. This wrapper generates nothing itself; the upstream skill owns generation. Not for choosing a visual form for conversation content (a visualization capability owns that) or for throwaway variations of your own project's UI (a prototyping capability owns that)."
 argument-hint: "[what to explore] e.g. 'balance the Inferno hero deck'"
 user-invocable: true
 disable-model-invocation: false
@@ -115,7 +115,7 @@ generated playground for anything beyond personal exploration.
   as advisory.
 - The copy-prompt button is the product; a sandboxed page (an Artifact) can restrict
   clipboard access, so confirm the round trip once before a long exploration.
-- A summarizing fetch of the upstream marketplace has misreported its contents;
+- A summarizing fetch of the upstream marketplace can misreport its contents;
   verify upstream facts against raw files or the install record, never a summary.
 
 ## Boundary

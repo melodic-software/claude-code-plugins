@@ -31,7 +31,7 @@ Clip length, 2-minute auto-selection, verification, and privacy rows verified 20
 
 > **Drop gender/tone descriptors from the style prompt.** They conflict with the cloned voice and degrade output quality.
 
-**MEDIUM confidence, community-derived; Suno does not publish a recommendation for clip count or target length.** For best clone quality, record one continuous 90-120s acapella clip covering the full dynamic range, which sits within the 15-second-to-4-minute input limit and 2-minute auto-selection behavior above. An earlier revision advised three separate clips and that guidance was deliberately retired, so do not reintroduce it. Full detail, with the mechanism, in [voices.md](voices.md#best-practice-recording-session).
+**MEDIUM confidence, community-derived; Suno does not publish a recommendation for clip count or target length.** For best clone quality, record one continuous 90-120s acapella clip covering the full dynamic range, which sits within the 15-second-to-4-minute input limit and 2-minute auto-selection behavior above. Do not substitute three separate clips: community reports say Suno's auto-selection favors the most-frequent dynamic, so variety inside one clip beats several flat-dynamic ones. Full detail, with the mechanism, in [voices.md](voices.md#best-practice-recording-session).
 
 ### 2. Custom Models (fine-tune on your catalog)
 
@@ -113,9 +113,9 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 
 (Verify against current Suno pricing page — tier feature lists drift.)
 
-- Studio row corrected 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
-- Audio-upload row verified 2026-07-18 against <https://suno.com/pricing>: Free up to 8 minutes, Pro/Premier up to 30 minutes (the earlier 60s/120s figures were stale).
-- **Stem rows corrected 2026-08-08** against <https://suno.com/pricing>. Free reads "No stem separation" — the previous "2-track stems: Free ✓" row was false. Pro carries "2 stem separation types (Auto; Split from mix)"; Premier carries "3 stem separation types (… and Advanced split)". Naming correction too: Auto Split / Split from Mix / Advanced Split are three **modes**, not track counts — "12-track stems" was a misnomer for Auto Split, which yields up to 12 stems.
+- Studio row verified 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
+- Audio-upload row verified 2026-07-18 against <https://suno.com/pricing>: Free up to 8 minutes, Pro/Premier up to 30 minutes.
+- **Stem rows verified 2026-08-08** against <https://suno.com/pricing>. Free reads "No stem separation". Pro carries "2 stem separation types (Auto; Split from mix)"; Premier carries "3 stem separation types (… and Advanced split)". Auto Split / Split from Mix / Advanced Split are three **modes**, not track counts; Auto Split yields up to 12 stems.
 - Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).
 
 **Recheck trigger:** Suno publishes a release note or blog post naming a model version after v5.5 (superseding the March 26 2026 baseline this file is pinned to), **or** `suno.com/pricing` changes any row in the Subscription tier matrix above (Voices, Custom Models, Studio, stem separation, audio upload), **or** `suno.com/release-notes` resolves the Free-plan Voices trial's missing `Web` tag one way or the other, **or** the hookgenius / aimusicapi character-limit consensus this file cites revises its figures, **or** an official Suno page states field-length limits directly. Not a date.

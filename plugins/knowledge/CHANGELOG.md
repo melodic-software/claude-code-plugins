@@ -4,6 +4,33 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.45]
+
+### Changed
+
+- **book-distill:** replaced the unsourced routing-precision figures with the reason a
+  per-discipline skill routes better than a catch-all.
+- **course-digest:** resolved the conflicting Mux JWT lifetimes into one rule that reads the
+  remaining time from the token; replaced the unsourced OCR, slide-OCR, and ASR benchmark figures
+  with their mechanisms; generalized one past course's frame counts, instructor, and lesson titles;
+  scoped the Dometrain player selector and referer to the adapter; removed the session and task
+  references and the credential-storage justification; gave the Pluralsight and Udemy rows a
+  behavior instead of "(future)"; and made the analysis template stack-neutral.
+- **docpage-digest:** removed the past-run incident narration from the Anthropic profile and the
+  dual-verification and pipeline-hardening spokes; moved the recorded doc queue into a new
+  `context/anthropic-docs-queue.md` spoke with a pointer from the profile and the skill;
+  dropped the campaign-owned amendment labels and the per-slice retag work items; and replaced the
+  version-gated `INDEX.md` rule with an unconditional one.
+- **map-corpus:** removed the past-gate clause from the inventory gate's exit-code note.
+- **setup:** renamed the YouTube pipeline and the yt-dlp probe label to video digest.
+- **video-digest:** removed the tracker, ADR, and plan-phase references from the liveness lane doc;
+  dropped the routing to the unbuilt `/knowledge:apply` skill and the roadmap phrasing in the output
+  contract; retitled six source-agnostic spokes off "YouTube"; replaced the retired-file gotcha with
+  the current rule; replaced the undefined "A+" grade with the concrete requirement; and moved the
+  queue evolution breadcrumbs to `reference/ingest-deferred-decisions.md` section 6.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.13.44]
 
 ### Changed

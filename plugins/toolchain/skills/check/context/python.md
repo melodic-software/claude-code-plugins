@@ -45,7 +45,6 @@ pyright is a **hard prerequisite** of the python default once ruff config opts t
 - **E501 (line-too-long) is not auto-fixable** — the formatter handles code wrapping, but docstrings/comments/string literals exceeding the configured `line-length` must be shortened manually
 - **pyright runs in its default standard mode absent a `pyrightconfig.json` or `pyproject.toml [tool.pyright]`** — on an untyped or partially-typed project this can surface genuine type errors; set `typeCheckingMode` (e.g. `basic` or `off`) or add project config to tune the strictness rather than suppressing findings ad hoc
 - **Run from project directory** — each `pyproject.toml` defines an independent project root. Always `cd` to the directory containing `pyproject.toml` before running commands
-- **`encoding='utf-8'`** — always specify on Windows `open()` calls
 
 ## Project discovery
 

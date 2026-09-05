@@ -38,8 +38,7 @@ Omit `-Settings` when the repo has no `PSScriptAnalyzerSettings.psd1`.
 
 ## Gotchas
 
-- **PSScriptAnalyzer has NO `-ExcludePath`** — pre-filter with `-notlike` patterns (NOT `-notmatch` — regex escaping breaks through bash→pwsh)
-- **Use `-notlike` with wildcards**, not `-notmatch` with regex — bash→pwsh escaping makes regex unreliable
+- **PSScriptAnalyzer has no `-ExcludePath`.** Pre-filter with `-notlike` wildcard patterns, not `-notmatch` regex: regex escaping is unreliable across the bash to pwsh boundary
 - **No production `.ps1`/`.psm1` files may exist** — if none found after filtering, report as `skip` with note
 - **Settings file** — `PSScriptAnalyzerSettings.psd1` at repo root configures rules when present
 

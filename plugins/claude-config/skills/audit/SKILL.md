@@ -97,7 +97,7 @@ plugin, resolved through the installed-plugin registry so no version-directory g
 involved, plus the levers (`disableAllHooks`, `allowManagedHooksOnly`,
 `strictPluginOnlyCustomization`) that switch hooks off wholesale.
 
-Two categories depend on it and neither could take this inventory before:
+Two categories depend on it:
 
 - **Category D** writes rules for `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` placeholders, which
   only ever appear in a plugin-provided hook.
@@ -163,8 +163,7 @@ External verification against current documentation.
 
 **Read every page in this phase verbatim, not through a summarizer.** These pages are long, with `settings`
 and `env-vars` running to hundreds of KB, and a summarizing fetch truncates, then reports the rows past the
-cutoff as *absent*. That false negative has already been observed on the `settings` page: three keys
-reported NOT FOUND that raw `curl` + `grep` found. So for each fetch below,
+cutoff as *absent*. So for each fetch below,
 `curl https://code.claude.com/docs/en/<page>.md` to a file and grep the file, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
 **A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is

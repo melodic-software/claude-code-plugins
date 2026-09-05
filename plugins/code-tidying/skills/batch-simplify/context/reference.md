@@ -75,20 +75,8 @@ Include the group's verification step in each simplifier agent's prompt so the a
 
 ## Why narrowing is a path, not a lane (Arguments)
 
-`repo <lane>` was the other candidate narrowing surface, and it is deliberately
-rejected.
-
-A lane in the sibling `/code-tidying:tidy` is a seven-part object: scope globs,
-merge semantics, watch-for patterns, lane-specific extra exclusions,
-verification commands, a Conventional Commits type, and preferred research
-sources. This skill would consume exactly one of those parts — the scope globs
-— and ignore the other six. Reusing the word for "a place to get globs from"
-would leave `lane` meaning two different things in sibling skills of one
-plugin, which is the kind of drift that makes a vocabulary stop carrying
-information.
-
-A path also composes where a lane does not. Lanes are defined per project in
-`.claude/tidy-lanes/`, so a lane-only surface would be unusable in any repo
-that has not set them up, while every repo has paths. Anyone who does want
-lane-shaped sweeps already has the surface for it: `/code-tidying:tidy` owns
-lane rotation under a scope budget, and this skill owns the wide sweep.
+`repo <lane>` was the other candidate narrowing surface and is deliberately rejected. A lane in
+`/code-tidying:tidy` is a seven-part object and this skill would consume only its scope globs,
+leaving `lane` meaning two things in sibling skills of one plugin. A path also composes where a
+lane does not: lanes are defined per project under `.claude/tidy-lanes/`, and every repo has
+paths.

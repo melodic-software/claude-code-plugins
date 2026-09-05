@@ -1,5 +1,5 @@
 ---
-description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use when: 'write tests', 'test this', 'where should this test go', 'add test coverage', 'write a unit test for this', or when code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
+description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code ('test this', 'write a unit test'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /testing:write organize)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,10 +9,22 @@ metadata:
   summary: Write and place tests with TDD cadence across ecosystems
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 

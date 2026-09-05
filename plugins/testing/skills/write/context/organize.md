@@ -46,21 +46,10 @@ Where a process-global singleton, expensive lifecycle, or framework-side limitat
 
 ## Web SDK child-directory pitfall (.NET-specific)
 
-`Microsoft.NET.Sdk.Web` recursively includes all `.cs` files in subdirectories. **Never** place a test project as a child directory of a Web SDK app. App integration tests go under `integration-test-location` per ecosystem.
+`Microsoft.NET.Sdk.Web` recursively includes all `.cs` files in subdirectories. **Never** place a test project as a child directory of a Web SDK app. App integration tests go under the project's integration-test location instead.
 
 ## Naming
 
 - Test class: the project's documented test-class naming; when undocumented, mirror the ecosystem's idiom (`{ClassUnderTest}Tests` illustrates the .NET convention)
 - Test project: the project's unit-test naming convention (e.g. `{Project}.Tests` for .NET co-located)
 - Test file mirrors the structure of the code it tests
-
-## Current state
-
-Track per-repo via the repo's own testing-conventions documentation — architecture test project (if any), integration root, and fixture inventory live there.
-
-## Marketplace plugin skills (invoke only when installed)
-
-These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed:
-
-- **`dotnet-test:crap-score`** — calculate CRAP (Change Risk Anti-Patterns) scores to prioritize which untested code is riskiest, when the `dotnet-test` plugin is installed. Combines cyclomatic complexity with coverage data to identify methods where tests would have the highest impact. For any other lane, or without that plugin, invoke `/code-metrics:audit-coverage` when the `code-metrics` plugin is installed (CRAP per function from the build's existing coverage artifact, never a test run); otherwise read cyclomatic complexity beside the coverage report by hand
-- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state), when the `dotnet-test` plugin is installed. Use when assessing test quality during reorganization; without it, invoke `/testing:audit` for the assertion-free and tautological cases and review the rest against an explicit test-smell checklist

@@ -1,4 +1,4 @@
-# YouTube watch — synthesis contract
+# Video digest watch — synthesis contract
 
 SSOT for what belongs in `key-frames/frames/`. Applies to any `/knowledge:video-digest watch` slice. Cite by heading; do not duplicate floors from `quality-gates.md`.
 

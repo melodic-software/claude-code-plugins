@@ -1,14 +1,13 @@
 # Multi-Modal Gap Evaluation
 
 Evaluation of audio processing and multi-modal gaps in the course digest pipeline.
-Produced by Task 23 (Session 7, 2026-04-01).
 
 ## Current Pipeline Modalities
 
 | Modality | Source | Processing | Used in Summaries |
 |----------|--------|-----------|-------------------|
 | Text transcripts | Dometrain DOM panel | Timestamped markdown | Yes |
-| Video frames | ffmpeg scene detection + interval | Raw PNG files, contact sheets, dedup | No (TDD has 992 frames, MCP has 0) |
+| Video frames | ffmpeg scene detection + interval | Raw PNG files, contact sheets, dedup | No (frame counts range from zero on slide-free courses to roughly a thousand on code-heavy ones) |
 | Audio | Not extracted | None | No |
 | Code from video | Not extracted | None | No |
 | Slide text | Not extracted | None | No |
@@ -21,11 +20,11 @@ Produced by Task 23 (Session 7, 2026-04-01).
 misses actual syntax, variable names, import statements, function signatures, file structure.
 For programming tutorials, this is 70%+ of visual content.
 
-**Evidence**: Research (MDPI 2024, Springer 2026) confirms code extraction from screenshots
-captures information absent from transcripts. LLMs outperform Tesseract (~95% vs 70-80%) but
-cost more.
+**Why**: code shown on screen carries syntax, identifiers, imports, and file structure the
+transcript never states. OCR recovers most of it cheaply; a vision model reads it more accurately
+at higher cost.
 
-**Solution**: Run Tesseract OCR (with image preprocessing) on existing 992 TDD course frames.
+**Solution**: Run Tesseract OCR (with image preprocessing) on a course's already-extracted frames.
 For higher accuracy on specific frames, Claude's vision can read PNG files directly during
 summarization phase.
 
@@ -34,7 +33,7 @@ selectively send high-value frames (code-heavy keyframes) to Claude vision durin
 
 **Output**: `code-snippets.md` per lesson, containing extracted code blocks.
 
-**Cost**: ~5 min to run OCR on 992 frames. Zero API cost for Tesseract pass.
+**Cost**: minutes of local CPU for a full course's frames. Zero API cost for Tesseract pass.
 
 ### P2: Slide Content Extraction — MEDIUM VALUE, LOW EFFORT
 
@@ -42,8 +41,9 @@ selectively send high-value frames (code-heavy keyframes) to Claude vision durin
 but not processed. Text on slides contains structured information (definitions, comparisons,
 workflows) not present in spoken transcript.
 
-**Evidence**: Panopto, FIZ Karlsruhe research confirms slide OCR adds 5-15% content over
-transcripts alone. Most valuable for conceptual/architectural content.
+**Why**: slides carry structured text (definitions, comparisons, workflows) that the spoken
+transcript summarizes rather than states, so slide OCR adds content transcripts alone do not.
+Most valuable for conceptual/architectural content.
 
 **Solution**: Detect slide boundaries (frame-diff threshold) and extract per-slide text via OCR
 with deduplication. Not yet built.
@@ -65,13 +65,13 @@ transition points first.
 **Problem**: Platform-provided transcripts may have auto-generated errors (names, technical
 terms, acronyms). Whisper could provide higher accuracy.
 
-**Evidence**: BrassTranscripts benchmark shows Whisper WhisperX large-v3 achieves 88-93%
-accuracy. But Dometrain transcripts from DOM panel appear to be 90%+ already (manual spot
-check of MCP course transcripts shows clean, readable text with proper terminology).
+**Why**: a modern ASR model can beat an auto-generated platform transcript on names and technical
+terms, but platform transcripts here are already clean enough that the margin does not pay for the
+compute (spot checks show clean, readable text with proper terminology).
 
 **Recommendation**: SKIP. DOM transcripts are sufficient. Only reconsider if a platform's
-transcript quality degrades noticeably (add to validator checks — Task 22 already monitors
-transcript quality via chars-per-minute ratios).
+transcript quality degrades noticeably; the extraction validator already monitors transcript
+quality via chars-per-minute ratios.
 
 ### P5: Audio Analysis (Pacing, Emphasis, Speaker ID) — LOW VALUE, HIGH EFFORT
 
@@ -111,7 +111,7 @@ During Phase 3 (Synthesize), when generating module summaries, include selected 
 as images in Claude prompt. Claude's multimodal vision reads code from frames directly.
 
 **Advantage**: Zero pipeline changes. Just pass PNG paths to Claude during summarization.
-**Challenge**: 992 frames is too many for a single context window. Need keyframe selection
+**Challenge**: a code-heavy course's full frame set is too many images for a single context window. Need keyframe selection
 (contact sheets or manifests already do this via classify-frames.js).
 
 ### Recommendation

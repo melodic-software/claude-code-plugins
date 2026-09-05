@@ -45,8 +45,8 @@ of the form "redirect when it is long" is unevaluable at the moment the command 
 context and truncates the content it was supposed to deliver. Redirect always; read a bounded slice
 when the file is large.
 
-A metadata probe first was the alternative and was rejected: it doubles the egress this plugin
-discloses and adds a request whose own response has the same unknown size.
+Do not probe for metadata first: it doubles the egress this plugin discloses and adds a request
+whose own response has the same unknown size.
 
 **Spooling bounds the read, it does not shorten the article.** The file holds the whole response, so
 one bounded slice is a window onto it, not the content. Read successive slices, and only then delete.
@@ -78,7 +78,7 @@ both:
 - **Double-quoted is still unsafe.** The path is pasted in as literal text, and bash expands `$name`,
   executes a backtick or `$(…)` substitution, and consumes a backslash *inside* double quotes.
   Verified: a spool path under a directory named ``lit$name-`whoami`.txt`` resolved to
-  `litINJECTED-AzureAD+KyleSexton.txt` — the variable expanded and the command substitution ran —
+  `litINJECTED-<user>.txt` — the variable expanded and the command substitution ran —
   while the single-quoted form opened the correct file.
 
 If the resolved path contains an apostrophe, close the quoted run, escape that one character, and
@@ -127,7 +127,9 @@ the exit status is checked before the body — see "Step 1 — xtomd status hand
 disagreement is the dangerous case: `-w` prints the status line curl already received, so a transfer
 that dies afterwards still reports `200`.
 
-Verified against curl 8.19.0 — an over-cap response printed `200` on stdout **and exited 63**:
+Verified against curl 8.19.0, as of 2026-07-25. An over-cap response printed `200` on stdout **and
+exited 63**. Recheck when the step-1 flag set changes, or when a curl release notes a change to
+`--max-filesize` or to exit-code semantics:
 
 ```console
 $ curl -q -sS --max-filesize 5000 -o spool.md -w '%{http_code}' https://example.invalid/big

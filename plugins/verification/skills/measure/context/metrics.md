@@ -19,10 +19,12 @@ Quality is partly subjective, but some aspects ARE measurable:
 | Test fault-detection | Covered-code mutation score | Your ecosystem's mutation tool, diff-scoped (see below) |
 | API surface | Public member count | Count `public` declarations |
 
+Produce every count with a command or script whose output goes into the report (a line counter, a grep count, the project's complexity or coverage tool). A figure tallied by reading the code is an estimate, not a measurement, and the Before and After columns carry measurements only.
+
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy** — "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (a report whose `status` is `empty` on either side makes the comparison INCONCLUSIVE); otherwise the manual counts above (line count from `git show <base>:<file>` piped to a line counter — `wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (a report whose `status` is `empty` on either side makes the comparison INCONCLUSIVE); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
@@ -86,11 +88,3 @@ unknown amount. Never present it as a pass/fail bar.
 - **"Fewer lines" isn't always better** — extracting a 5-line inline block into a 20-line file just moves complexity.
 - **More abstractions isn't always better** — a `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
 - **Don't confuse motion with progress** — renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.
-
-## Marketplace plugin skills (invoke only when installed)
-
-These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise draw the same evidence from the project's own complexity/coverage tooling:
-
-- **CRAP scores** — `dotnet-test:crap-score` combines cyclomatic complexity + coverage into one risk metric ("safer to change" evidence).
-- **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements; if absent, use the project's own test-quality analyzer or an explicit test-smell review checklist — the complexity/coverage fallback above won't surface over-mocking, flakiness, or tautological tests.
-- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence; if absent, use the project's own query logging, database profiling, or ORM diagnostics — the complexity/coverage fallback above won't reveal N+1 or query plans.
