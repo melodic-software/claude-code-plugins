@@ -87,7 +87,7 @@ firecrawl interact -c "await page.title()" -o <path>
 firecrawl interact stop
 ```
 
-Replaces the deprecated MCP `browser_create/execute/close` family. Flags: `-p/--prompt` is the long form of the positional prompt; `-c/--code` switches to code execution; `-s/--scrape-id` overrides the cached last-scrape. There is no `<url>` positional and no `--instructions`/`--format` flags.
+Flags: `-p/--prompt` is the long form of the positional prompt; `-c/--code` switches to code execution; `-s/--scrape-id` overrides the cached last-scrape. There is no `<url>` positional and no `--instructions`/`--format` flags.
 
 ## agent — natural-language web research task
 
