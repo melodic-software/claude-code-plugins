@@ -482,7 +482,7 @@ Files:
 - `grep -c 'code-metrics' docs/CATALOG.md` prints at least 1
 - `python3 -c 'import json; e=[p for p in json.load(open(".claude-plugin/marketplace.json"))["plugins"] if p["name"]=="code-metrics"][0]; assert e["category"]=="quality" and "skill" in e["tags"]'` exits 0
 
-### Phase 10: Cross-plugin pointers [TODO]
+### Phase 10: Cross-plugin pointers [DONE]
 
 Announce the three files to the peer sessions first, and take each plugin's next patch version at
 edit time. The announcement mechanics, for a resumed session: `mcp__Claude_Code_Remote__list_sessions`
@@ -495,9 +495,9 @@ Files:
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/verification/skills/measure/context/metrics.md` | MODIFY | in the proxy table's "How to check" cells and the `baseline` step: "invoke `/code-metrics:audit-<measure>` when the `code-metrics` plugin is installed, treating a report whose `status` is `empty` on either side as INCONCLUSIVE; otherwise the manual counts above" |
-| [ ] `plugins/verification/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Changed entry |
-| [ ] `plugins/testing/skills/write/context/organize.md` | MODIFY | lines 63-66: add the missing gate and fallback to the two `dotnet-test` references, and point CRAP at `/code-metrics:audit-coverage` when that plugin is installed |
+| [x] `plugins/verification/skills/measure/context/metrics.md` | MODIFY | in the proxy table's "How to check" cells and the `baseline` step: "invoke `/code-metrics:audit-<measure>` when the `code-metrics` plugin is installed, treating a report whose `status` is `empty` on either side as INCONCLUSIVE; otherwise the manual counts above" |
+| [x] `plugins/verification/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Changed entry |
+| [x] `plugins/testing/skills/write/context/organize.md` | MODIFY | lines 63-66: add the missing gate and fallback to the two `dotnet-test` references, and point CRAP at `/code-metrics:audit-coverage` when that plugin is installed |
 | [ ] `plugins/testing/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Fixed entry |
 | [ ] `plugins/mutation-testing/skills/principles/SKILL.md` or `reference/metrics.md` | MODIFY | one gated sentence: cross-metric caveats (coverage, CRAP, complexity) are owned by `/code-metrics:principles` when that plugin is installed; the oracle-gap material stays here |
 | [ ] `plugins/mutation-testing/{.claude-plugin/plugin.json,CHANGELOG.md}` | MODIFY | next patch, Changed entry |
