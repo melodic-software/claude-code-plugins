@@ -207,14 +207,21 @@ ARMED_FILE="$STATE_DIR/$SESSION.armed"
 # redirection turns the fast-path read back into a null command and the
 # marker reads as empty on every fire.
 last=""
+zone_on_disk=""
 if [[ -r "$STATE_FILE" ]]; then
   { last=$(<"$STATE_FILE"); } 2>/dev/null || last=""
+  # The raw bytes, before normalization. The write block compares the new
+  # value against these, so a marker in a legacy format is still rewritten in
+  # the current one even when its normalized zone is unchanged.
+  zone_on_disk="$last"
   last=${last//[^[:lower:]]/}
   last=${last:0:16}
 fi
 armed=""
+armed_on_disk=""
 if [[ -r "$ARMED_FILE" ]]; then
   { armed=$(<"$ARMED_FILE"); } 2>/dev/null || armed=""
+  armed_on_disk="$armed"
   armed=${armed//[^[:lower:]]/}
   armed=${armed:0:16}
 fi
@@ -283,20 +290,37 @@ umask 077
 # guard pays the process once per session instead of once per tool batch.
 # `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
 [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# A marker whose on-disk value already matches is not rewritten. This hook
+# fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
+# turn that stays in one zone fired four times and rewrote both files four
+# times to the values they already held. `zone_on_disk` and `armed_on_disk`
+# are the raw reads before normalization, so an absent marker and a marker in
+# a legacy format both still get written. Everything below is unchanged:
+# `.zone` moves first, `.armed` only after it lands, and a failed `.armed`
+# write rolls `.zone` back only if this fire was the one that moved it.
 persist_failed=""
-if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
-  persist_failed="zone"
-elif ! printf '%s\n' "$next_armed" >"$ARMED_FILE" 2>/dev/null; then
+wrote_zone=""
+if [[ "$zone" != "$zone_on_disk" ]]; then
+  if printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
+    wrote_zone=1
+  else
+    persist_failed="zone"
+  fi
+fi
+if [[ -z "$persist_failed" && "$next_armed" != "$armed_on_disk" ]] &&
+  ! printf '%s\n' "$next_armed" >"$ARMED_FILE" 2>/dev/null; then
   persist_failed="armed"
   # Roll the label back to what it said before, so the message the next
   # successful call emits names the zone the session was really in rather than
   # the one it is in now. Best-effort: if the rollback itself fails the label is
   # stale, which mislabels one message — never a lost or repeated notice,
   # because the gate did not move either way.
-  if [[ -n "$last" ]]; then
-    printf '%s\n' "$last" >"$STATE_FILE" 2>/dev/null || :
-  else
-    rm -f "$STATE_FILE" 2>/dev/null || :
+  if [[ -n "$wrote_zone" ]]; then
+    if [[ -n "$last" ]]; then
+      printf '%s\n' "$last" >"$STATE_FILE" 2>/dev/null || :
+    else
+      rm -f "$STATE_FILE" 2>/dev/null || :
+    fi
   fi
 fi
 if [[ -n "$persist_failed" ]]; then

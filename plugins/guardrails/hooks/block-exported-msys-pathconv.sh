@@ -150,8 +150,7 @@ emit_tel() {
   hook::telemetry_enabled || return 0
   local subject data
   subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
-  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$subject" --arg form "$2" \
-    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-exported-msys-pathconv" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
