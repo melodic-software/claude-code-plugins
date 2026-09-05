@@ -99,7 +99,7 @@ One row per applied plugin. "Applied" and "Withheld" name finding ids from `.wor
 | 2 | testing | e502b6d3c | 0.7.16 (renumbered from 0.7.14 before the PR, above main's 0.7.14; the branch's earlier 0.7.13 entry became 0.7.15) | F1 to F4, F9 to F24, F27 (`apply-modified`) | F5 to F8, F25, F26, F28 |
 | 2 | discipline | 0bb0e9c1f | 0.13.3 (renumbered from 0.13.2 before the PR, above main's 0.13.2) | F1 to F11, setup-lane T1 and T2 (F5, part of F2, F1's `batched-pass.md:76` clause, and T1's `point-dont-copy:49` clause subsumed by neighbouring hunks) | F12 to F15 |
 | 3a | playbooks | d7b8900f7 | 0.9.7 | F1 to F12 (F1 `apply-modified`: new `reference/model-adaptation/fable-5-1.md` re-verified against the live Fable 5.1 prompting page on 2026-09-03, two claims attributed to the bundled migration reference instead; fable-5 eval case 4 added) | F13 to F16 |
-| 3a | claude-ops | 371004078 | 0.42.8 (renumbered from 0.41.12 before the PR, above main's 0.42.6; the branch's earlier 0.41.6 entry became 0.42.7) | F1 to F25 | F26 to F38 |
+| 3a | claude-ops | 371004078 | 0.42.9 (renumbered from 0.41.12 before the PR, above main's 0.42.7; the branch's earlier 0.41.6 entry became 0.42.8) | F1 to F25 | F26 to F38 |
 | 4b | tdd | a643f73b1 | 0.4.7 | F1 (applied by the lead) | none |
 | 4b | domain-driven-design | 53bbeaa37 | 0.3.2 | F1 to F3 (applied by the lead; F1 also corrects the README's install note) | F4 |
 | 4b | coupling | 3822d48e7 | 0.1.6 | F1, F2 (applied by the lead) | F3 (fleet gather-block wording), F4 |

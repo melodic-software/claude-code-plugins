@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.8]
+## [0.42.9]
 
 ### Changed
 
@@ -33,7 +33,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Windows CRLF and `--ids current-project` notes drop their incident tallies and version diffs.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
-## [0.42.7]
+## [0.42.8]
 
 ### Fixed
 
