@@ -3,6 +3,21 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.15]
+
+### Changed
+
+- **manage:** the drift-report sample in `references/sources.md` shows the five lines
+  `check-drift.sh` emits and names the two sources with no probe; the `update` table lists only
+  probed sources; the drift-check troubleshooting entry covers the unreachable-article case the
+  script can produce; `references/workflow.md` names the extracted DeDRM_tools directory by its
+  resolved tag instead of a stale literal and states the re-pin rule without the paywall history;
+  `references/versions.md` points at `sources.md` for the tutorial article's status; the pinned tag
+  has one home in `versions.md`; the state probe section is named for what it is; the description
+  names intent categories with two example phrases.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.11]
 
 ### Fixed

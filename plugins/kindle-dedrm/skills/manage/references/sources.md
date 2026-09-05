@@ -49,7 +49,7 @@ If Amazon revokes the URL, this skill is significantly compromised — alternate
 | Purpose | DeDRM_plugin.zip + KFX extractors |
 | Drift signal | Latest pre-release tag differs from `references/versions.md` pin |
 | Last-fetched | 2026-05-10 |
-| Last-fetched latest tag | `v10.0.20` (pre-release, asset `DeDRM_tools.zip`) |
+| Pinned tag | See `references/versions.md`, "DeDRM_tools (Satsuoni fork)". That file is the single home for the pin and its SHA256 |
 | Auth | None for public read |
 
 `gh api repos/Satsuoni/DeDRM_tools/releases` (jq filtered) returns the live release list. Fork ships pre-releases as the user-facing channel — most recent `prerelease: true` tag is the one to pin.
@@ -92,11 +92,14 @@ Avoid Microsoft Store version (sandboxed, blocks file access). `Run_keyfinder.ba
 
 ```text
 [OK]      Kindle for PC installer URL          (HEAD 200, 285 MB unchanged)
-[OK]      DeDRM_tools latest pre-release       (v10.0.20 == pinned)
-[OK]      Kindle_Key_Finder zip URL            (HEAD 200 on pinned direct URL; roll-forward discovery paywalled)
-[OK]      Tutorial article body                (page hash unchanged)
-[STALE]   Tool support matrix                  (utils.py adds 2.9.2 — KFXARCHIVER_TOOL_MAP grew)
+[OK]      DeDRM_tools latest pre-release       (tag matches the pin in versions.md)
+[OK]      Kindle_Key_Finder zip URL            (HEAD 200 on the pinned direct URL)
+[NOTE]    Tutorial article                     (slug resolves; body paywalled, not diffable)
+[OK]      Local downloads                      (SHA256 matches versions.md for files present)
 ```
+
+The tool-support matrix has no automated probe. If one is wanted, add it under "How to add a new
+source" rather than showing it as existing output.
 
 User then decides:
 

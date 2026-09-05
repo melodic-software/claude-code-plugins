@@ -233,23 +233,19 @@ icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates" /remove:d "AzureAD\<user>"
    rm "${APPDATA}/calibre/plugins/dedrm.json"
    ```
 
-## Drift check shows tutorial article hash changed but content looks the same
+## Drift check reports the tutorial article unreachable
 
-**Symptom:** `update` action reports the techy-notes.com article body hash changed, but on visual inspection nothing has materially changed.
+**Symptom:** `update` reports a non-200 on the techy-notes.com article URL.
 
-**Diagnosis:** Article likely got a minor edit (typo, ad rotation, footer update) that doesn't affect the procedure. WebFetch processes the page through a slightly non-deterministic model summarization step.
+**Diagnosis:** The article moved or was removed. `references/sources.md` records that this has
+already happened twice and that the article is subscriber-gated, so its body is not a usable drift
+signal either way.
 
 **Recovery:**
 
-1. Re-fetch with a more targeted prompt that asks ONLY for the version pins and download URL:
-
-   ```text
-   /context7 (or equivalent webfetch) — fetch URL, extract:
-   - Kindle for PC version required
-   - DeDRM_tools version required
-   - Kindle_Key_Finder zip URL
-   ```
-
-2. If the targeted facts are unchanged, accept the drift signal as cosmetic and update the page-hash baseline in `references/sources.md`.
-
-3. If the targeted facts changed, propagate to `references/versions.md` and re-run `setup` portions affected.
+1. The pinned direct zip URL in `references/versions.md` is the live signal. If its HEAD probe is
+   still 200, the workflow is unaffected and no action is needed.
+2. To find a replacement article, walk `https://techy-notes.com/sitemap-posts.xml` and update the
+   URL in `references/sources.md`.
+3. If no replacement exists, the epubor secondary in `references/sources.md` is the only walkable
+   source. Record what it confirms and what it contradicts.
