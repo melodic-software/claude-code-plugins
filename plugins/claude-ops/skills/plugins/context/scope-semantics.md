@@ -291,6 +291,16 @@ is not a trigger.
 against the recorded commit in the marketplace clone, which is the only check that separates this
 state from a healthy one. It reports and never repairs; see `SKILL.md`'s "Cache content" section.
 
+**A marketplace clone is shallow, so most installs are unverifiable most of the time.** The clone
+under `installLocation` carried a `.git/shallow` file and a three-commit history when this was
+measured, so an install record naming any commit older than that window has no object to compare
+against. Verified 2026-09-05 on **Claude Code 2.1.261**: 11 of 74 user-scope installs on the
+authoring machine reported `sha-not-local` for exactly this reason, on a fleet with nothing wrong
+with it. That is the steady state, not an edge case, and it caps how much any single run of the
+check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
+it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
+clones a marketplace, which would move the depth this number rests on.
+
 ## `autoUpdate` is a background complement, not a substitute
 
 Official-Anthropic marketplaces default `autoUpdate: true`; third-party and local-dev marketplaces

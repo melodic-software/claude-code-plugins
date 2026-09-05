@@ -87,6 +87,11 @@
 #                         marketplace.json, or its `source` is not a plain path
 #                         string (a remote-source entry has no local tree here)
 #   install-path-missing  the record's `installPath` is not a directory
+#   hash-batch-misaligned `git hash-object --stdin-paths` returned fewer hashes
+#                         than it was given paths, so the two sides can no
+#                         longer be lined up. Contract-breaking and not expected;
+#                         reported rather than compared, because a shifted table
+#                         reports healthy files as differing
 #
 # Output (stdout), default and with --json: one JSON object.
 #   {marketplace, scope, checked, match, stale_content, unverifiable,
@@ -454,18 +459,32 @@ check_marketplace() {
         done < <(find "$install_path_native" -type f \
           -not -path '*/.git/*' -not -path '*/.in_use/*' 2>/dev/null | sort)
 
+        # The batch's output is positional: line N is the hash of input path N.
+        # If it ever comes back short, every entry after the gap is filed under
+        # the WRONG path and the run reports files as differing that are fine.
+        # `hash-object` is one line per input by contract, so this is a guard
+        # against a broken contract rather than an expected branch — and the
+        # answer to a broken contract is to say so, not to compare a table that
+        # may be shifted.
+        local hash_misaligned=""
         if [[ -n "$cache_list" ]]; then
           local hash_out="" hi=0
           if git_to hash_out -C "$install_loc_native" hash-object --stdin-paths <<<"${cache_list%$'\n'}"; then
             while IFS= read -r line; do
               [[ -n "$line" ]] || continue
+              [[ $hi -lt ${#cache_paths[@]} ]] || break
               cache_hash_by_path["${cache_paths[hi]}"]="$line"
               hi=$((hi + 1))
             done <<<"$hash_out"
           fi
+          [[ $hi -eq ${#cache_paths[@]} ]] || hash_misaligned="yes"
         fi
 
         local i
+        if [[ -n "$hash_misaligned" ]]; then
+          verdict="hash-batch-misaligned"
+          tree_paths=()
+        fi
         # Direction 1: every tree path must exist in the cache with the same
         # blob id.
         for ((i = 0; i < ${#tree_paths[@]}; i++)); do
@@ -511,6 +530,7 @@ check_marketplace() {
         local -a extras=()
         local cp
         for cp in "${cache_paths[@]:-}"; do
+          [[ -z "$hash_misaligned" ]] || break
           [[ -n "$cp" ]] || continue
           [[ -z "${tree_hash_by_path[$cp]+set}" ]] || continue
           extras+=("$cp")
@@ -534,7 +554,9 @@ check_marketplace() {
           done
         fi
 
-        if [[ $((n_differ + n_missing + n_extra)) -gt 0 ]]; then
+        if [[ -n "$hash_misaligned" ]]; then
+          : # verdict already set to hash-batch-misaligned; counts stay at zero
+        elif [[ $((n_differ + n_missing + n_extra)) -gt 0 ]]; then
           verdict="stale-content"
         else
           verdict="match"
