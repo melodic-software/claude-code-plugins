@@ -3,6 +3,47 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.7]
+
+### Changed
+
+- **Re-verified the `plugins` skill's empirical claims against Claude Code 2.1.261 and
+  updated the stamps to match what was actually re-run.** Confirmed unchanged on 2.1.261:
+  `update -s project` still writes no committed settings file; the full
+  install/uninstall/enable/disable project-scope write matrix, including the key being
+  created when absent and the whole file being re-serialized so sibling keys move;
+  `enable -s project` still gating on the merged effective value with the same error
+  string and writing nothing when it refuses; `-s project` still keying on the literal
+  current directory with no path flag; and `claude plugin --help` still listing no verb
+  that reaps an install record by path, with `prune` still a dependency axis. Re-fetched
+  the plugins-reference, discover-plugins, and plugin-marketplaces pages plus the
+  published plugin-manifest JSON Schema, all unchanged on the claims this skill carries:
+  monitors still require a session restart, `userConfig` still has no `enum` type, and
+  automatic rename migration still names v2.1.193.
+- **Corrected two claims that no longer hold as written.** A bare plugin name no longer
+  fails for `claude plugin update` on 2.1.261, so the gotcha now records the change and
+  rests the always-use-the-full-id rule on ambiguity across marketplaces rather than on a
+  version-specific failure. The `--ids` refusal of `--all` was attributed to Claude Code
+  2.1.240; it is `fleet-state.sh`'s own argument guard, and the attribution is now
+  corrected rather than restamped.
+- **Marked what was not re-run, with reasons, instead of advancing its stamp.** The
+  `userConfig` unset-key placeholder probe was attempted and came back inconclusive: in a
+  throwaway plugin loaded from a local marketplace, `${CLAUDE_PLUGIN_ROOT}` substituted in
+  the rendered skill body while both a set and an unset `userConfig` token stayed literal,
+  so the positive control failed and the result cannot distinguish the documented
+  behaviour from substitution not reaching skill content on that path. The remaining
+  discriminator would require writing real user settings, which the probe was not
+  permitted to do. Mid-session update path resolution, the `/reload-plugins` warning
+  behaviour, and the install-summary activation line need an interactive session and were
+  not re-run; their documentation was re-fetched and is unchanged. The `claude plugin
+  prune` v2.1.121 gate and the `/reload-plugins --force` v2.1.163 gate were not
+  re-verified because the current docs state neither version. All of these keep their
+  older stamps.
+- **Added the manifest requirement that every `userConfig` option carries a `title`.**
+  The published schema requires `type`, `title`, and `description`, and `claude plugin
+  validate` on 2.1.261 rejects an option that omits `title`. This plugin's own manifest
+  already satisfies it.
+
 ## [0.42.6]
 
 ### Added

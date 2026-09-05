@@ -199,7 +199,9 @@ ERROR: --ids cannot be combined with --all
   Run --ids once per marketplace with --marketplace <name>.
 ```
 
-(Verified on Claude Code 2.1.240.) `--all` exists for the JSON report, which nests one block per
+(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behaviour — the earlier
+"verified on Claude Code 2.1.240" attribution was a category error. Re-verified 2026-09-05 by
+running the command: the script exits 2 with exactly this text.) `--all` exists for the JSON report, which nests one block per
 marketplace; `--ids` projects a single block, so it takes one marketplace at a time. Loop it.
 
 The per-marketplace failure rule from Step 1 carries through: a marketplace whose iteration fails is
@@ -502,7 +504,8 @@ guarantee is "this id matches the version in the local checkout"; that is only a
 staleness when the checkout is current.
 
 `--ids` emits the fully-qualified `<name>@<marketplace>` form, one per line, CR-free — a bare name
-fails with "Plugin not found" even when unambiguous, and on Windows a hand-written
+is ambiguous across marketplaces and has failed with "Plugin not found" on earlier CLI versions,
+and on Windows a hand-written
 `jq -r ... | while read` silently appends a `\r` to every id but the last, which fails with the
 *same* "Plugin not found" text and so misreads as the bare-name problem. Both are
 [gotchas.md](gotchas.md); `--ids` is why neither can happen here.
