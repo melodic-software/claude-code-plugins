@@ -21,13 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fires only when this call was the one that moved `.zone`. No change to when
   the notice is emitted: the armed-rank gate already suppressed the extra
   fires, so this removes wasted I/O rather than duplicate injection.
-- **All four `hooks.json` rows drop `timeout` from 60 to 10.** The hooks
-  reference lowers the command-hook default to 30 on `UserPromptSubmit`, so the
-  explicit 60 was above the event default. The scripts measure at roughly 30 ms
-  on a quiet host; a stalled advisory hook should fail fast rather than hold a
-  turn for a minute.
 - **`hooks.json` carries a top-level `description`.** A documented field the
-  plugin omitted.
+  plugin omitted. The four `timeout: 60` values are unchanged: the 0.4.8 entry
+  and the README size that cap from a 22.0 s measurement on Windows 11 / Git
+  Bash with Defender real-time protection, and nothing here re-measured that
+  profile.
 
 ## [0.7.41]
 
