@@ -437,14 +437,27 @@ carried `delta`, which the tags did not, so the sync added `delta` alongside `ju
 - `grep -cE 'all three skills' plugins/overengineering/README.md` prints `0`.
 - `test "$(grep -cE 'overengineering:' docs/SKILL-CHEAT-SHEET.md)" -eq 4 && echo OK` prints `OK`.
 
-### Phase 6: Gate sweep, peer announcement, PR [TODO]
+### Phase 6: Gate sweep, peer announcement, PR [DONE]
 
-- [ ] `bash scripts/affected-tests.sh --explain --run` exit 0.
-- [ ] Listing budget: `bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/ > .work/justify-existence/listing-budget-after.txt`; compare the aggregate line against the one pasted in Phase 3's notes and record the delta here; the `justify` entry may add, the aggregate must not exceed the budget.
-- [ ] `bash scripts/check-purged-em-dashes.sh --check` exit 0 (covers `README.md` and `skills/*/SKILL.md`, including the new one).
-- [ ] `/ai-slop:audit` scoped to **created files and added lines only**: the new `SKILL.md`, `justification-lane.md`, `evals.json`, fixtures, and `git diff -U0 origin/main...HEAD -- <each modified file> | grep '^+'` for modified context docs, which carry pre-existing em dashes outside this plan's scope.
-- [ ] **Peer announcement, before the PR exists.** Several sessions work this repo in parallel. Discover live peers via the remote-session list; message each via a persistent-session trigger (create, fire, delete) stating: this branch, the PR title, the full file list, that no contended file (`lib/hook-utils.sh` and copies, `plugins/*/hooks/**`, `docs/conventions/hook-*`, `docs/adr/**`, `scripts/check-*.sh`) is touched, and that `plugins/overengineering/**` is this lane's. Note the two shared generated files (`docs/CATALOG.md`, `docs/SKILL-CHEAT-SHEET.md`) and `.claude-plugin/marketplace.json`, which the later-landing PR regenerates or re-merges after rebase. Wait for no reply.
-- [ ] Commit per phase via `/source-control:commit`; open the PR as **draft** via `/source-control:pull-request create` with a body meeting `.claude/rules/pr-body-contract.md` (`No related issue: <reason>` or `Closes #<n>`; `## Summary`, `## Fix`, `## Verification` including the discovery measurement numbers and the listing-budget delta, `## Related`). Flip to ready once CI is green.
+**Executed 2026-09-05.** Every gate green. Two corrections and one footprint addition are recorded
+against the individual items below.
+
+- [x] `bash scripts/affected-tests.sh --explain --run` exit 0. **This is where the four `.txt` eval
+  fixtures surfaced.** `--explain` reported them UNMAPPED, which this repository treats as an error
+  rather than as nothing to run, so the fix was the one the contract names: record the path class
+  with its covering lane. `scripts/affected-tests-no-suite.txt` gains one glob,
+  `plugins/*/evals/fixtures/*.txt`, with a comment naming the skill-quality gate
+  (`check-orphaned-fixtures.sh` and `check-evals-quality.sh` both read every file under an
+  `evals/fixtures/` tree). **That path is outside the footprint this plan declared**, so it is called
+  out here and in the peer announcement; it is a data file rather than a `check-*.sh` script, so it
+  is not on the do-not-touch list. Result: 157 suites selected, 150 shell suites passed, and the 7
+  `NOT RUN` ecosystem suites the repository documents were selected but not executed by this runner.
+- [x] Listing budget, with the same root correction Phase 3 records (`plugins/*/skills`, not
+  `plugins/`). Compared against Phase 3's baseline; the delta is below.
+- [x] `bash scripts/check-purged-em-dashes.sh --check` exit 0 (covers `README.md` and `skills/*/SKILL.md`, including the new one).
+- [x] `/ai-slop:audit` scoped to **created files and added lines only**: the new `SKILL.md`, `justification-lane.md`, `evals.json`, fixtures, and `git diff -U0 origin/main...HEAD -- <each modified file> | grep '^+'` for modified context docs, which carry pre-existing em dashes outside this plan's scope.
+- [x] **Peer announcement, before the PR exists.** Several sessions work this repo in parallel. Discover live peers via the remote-session list; message each via a persistent-session trigger (create, fire, delete) stating: this branch, the PR title, the full file list, that no contended file (`lib/hook-utils.sh` and copies, `plugins/*/hooks/**`, `docs/conventions/hook-*`, `docs/adr/**`, `scripts/check-*.sh`) is touched, and that `plugins/overengineering/**` is this lane's. Note the two shared generated files (`docs/CATALOG.md`, `docs/SKILL-CHEAT-SHEET.md`) and `.claude-plugin/marketplace.json`, which the later-landing PR regenerates or re-merges after rebase. Wait for no reply.
+- [x] Commit per phase via `/source-control:commit`; open the PR as **draft** via `/source-control:pull-request create` with a body meeting `.claude/rules/pr-body-contract.md` (`No related issue: <reason>` or `Closes #<n>`; `## Summary`, `## Fix`, `## Verification` including the discovery measurement numbers and the listing-budget delta, `## Related`). Flip to ready once CI is green.
 
 **Sanity Check:**
 
@@ -453,7 +466,36 @@ carried `delta`, which the tags did not, so the sync added `delta` alongside `ju
 - `test -s .work/justify-existence/listing-budget-after.txt && echo OK` prints `OK`; the delta is recorded here.
 - The PR exists as a draft; its body's first non-empty line matches `^(No related issue: |Closes #|Fixes #|Resolves #)` and `grep -cE '^## (Summary|Fix|Verification|Related)$'` over the body prints `4`.
 
-Notes (filled at execution): listing-budget aggregate after: `<pasted line>`; delta: `<value>`.
+Notes (filled at execution), 2026-09-05.
+
+Listing-budget aggregate after, over the same `plugins/*/skills` roots as the Phase 3 baseline:
+
+```text
+Shared listing-budget estimate over 183 listing-eligible skill(s) across 74 root(s):
+  aggregate: 136421 chars
+  budget:    8000 chars (documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback))
+CHECK-LISTING-BUDGET: WARN — aggregate 136421/8000 chars over budget by 128421 at the configured budget.
+```
+
+| Measure | Before | After | Delta |
+|---|---|---|---|
+| Listing-eligible skills | 182 | 183 | +1 |
+| Aggregate entry chars | 135465 | 136421 | **+956** |
+
+The delta is the `justify` entry's own size and nothing else, which is the check this phase wanted:
+no existing entry grew. The `WARN` line is unchanged in kind from the baseline. The marketplace was
+already 127465 chars past the documented default before this change, so the meaningful test is the
+delta against the recorded baseline rather than the budget line, exactly as Phase 3's note says.
+
+**Footprint check, honestly reported.** The Sanity Check's footprint grep does **not** print nothing:
+it prints `scripts/affected-tests-no-suite.txt`, the one file added beyond the declared footprint,
+for the reason recorded against the first item above. Everything else it would catch is absent. The
+footprint is otherwise exactly what the plan declared.
+
+**Gate results:** `affected-tests.sh` list mode exit 0 and printed 157 suites; `--run` exit 0 with
+150 passing. `check-purged-em-dashes.sh --check` exit 0. The `ai-slop` detector reported 0 findings
+across every created file and every modified file, and a rubric read of the two authored instruction
+surfaces found no metaphor jargon, promotional tone, or mechanism-free claims.
 
 ### Files Affected (whole plan)
 
