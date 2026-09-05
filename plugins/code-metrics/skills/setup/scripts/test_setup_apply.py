@@ -12,6 +12,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# One test builds a git fixture: clear the inherited git environment so an
+# absolute GIT_DIR can never redirect that fixture into the caller's clone.
+os.environ.pop("GIT_DIR", None)
+os.environ.pop("GIT_WORK_TREE", None)
+os.environ.pop("GIT_CONFIG", None)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "setup-apply.py"
 YAML_SUBSET = SCRIPT_DIR.parents[2] / "scripts" / "yaml_subset.py"
@@ -90,10 +96,7 @@ class SetupApplyTests(unittest.TestCase):
 
     def test_no_dir_targets_the_repository_root_from_a_subdirectory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            env = {**os.environ, "GIT_DIR": "", "GIT_WORK_TREE": ""}
-            env.pop("GIT_DIR")
-            env.pop("GIT_WORK_TREE")
-            subprocess.run(["git", "init", "-q", tmp], check=True, env=env)
+            subprocess.run(["git", "init", "-q", tmp], check=True)
             sub = Path(tmp) / "sub"
             sub.mkdir()
             result = run("size.file_lines=500", cwd=str(sub))

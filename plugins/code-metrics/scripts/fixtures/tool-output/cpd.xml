@@ -22,7 +22,7 @@
             begintoken="40" endtoken="150"
             path="internal/beta/orchard.go"/>
       <codefragment><![CDATA[func harvest(basket string) int {
-	return len(basket)
+    return len(basket)
 }]]></codefragment>
    </duplication>
    <duplication lines="3" tokens="52">
@@ -31,7 +31,7 @@
       <file column="1" endcolumn="2" endline="90" line="88"
             path="internal/beta/orchard.go"/>
       <codefragment><![CDATA[func label() string {
-	return "harvest"
+    return "harvest"
 }]]></codefragment>
    </duplication>
    <error filename="internal/gamma/broken.go" msg="LexException: unexpected token">stack trace elided</error>
