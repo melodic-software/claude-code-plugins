@@ -96,6 +96,9 @@ The hint this lane reads comes from gopls's own `unusedfunc` analyzer, not from 
 | `//go:linkname elsewhere` | hint suppressed, but `go build` then fails: `//go:linkname only allowed in Go files that import "unsafe"` — unusable |
 | `var _ = deadHandler` (or `_ = deadHandler` in a func) | hint gone because the symbol is now genuinely **referenced** — that is not suppression, it defeats the audit, and the referencing wrapper becomes the next run's candidate (measured) |
 
+Recorded 2026-08-23 on the versions named above. Recheck trigger: a gopls minor release, or
+`unusedfunc` gaining a suppression directive.
+
 `gopls check` takes only `-severity`; the analyzer on/off switch is the editor-side [`analyses`
 setting](https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md), which the CLI run this
 lane makes does not read — and it would disable `unusedfunc` for the whole workspace, not for one

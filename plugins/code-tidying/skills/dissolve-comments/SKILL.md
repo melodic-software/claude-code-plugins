@@ -156,11 +156,10 @@ deterministic default is to proceed, but to take any widened scope (rungs 2–3)
 - Introduce Assertion covers only machine-checkable state claims; a comment stating an
   unverifiable assumption about an external system stays a comment (class C).
 - The SSOT / materialized-copy header check lives in Workflow step 1 because the path-exclusion
-  tier alone does not catch this shape, a hand-run of the repo-wide fallback surfaced a
-  settings-wired bootstrap script declaring itself a materialized SSOT copy.
+  tier does not catch this shape: a file can declare itself a materialized copy while sitting at
+  a path no exclusion covers.
 - A tests/ directory near the target is not a net until it demonstrably covers the touched
-  file. Import/source it, or exercise it via CLI. This fired on the first file of the
-  skill's first live run.
+  file. Import/source it, or exercise it via CLI.
 
 ## Sources
 

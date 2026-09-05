@@ -3,6 +3,34 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.7]
+
+### Changed
+
+- **`audit-comment-residue`:** dropped the two extra restatements of read-only status; the `Hard
+  rules` bullet and the description carry it.
+- **`audit-dead-code`:** replaced the pre-filter measurement narration in the knip lane with the
+  present-tense reason, added verification records to the lane numbers, the gopls directive table,
+  and the four-lane Measured character column, and dropped the duplicated read-only bullet.
+- **`batch-simplify`:** consolidated the near-synonym trigger phrases into a named scope intent,
+  lowered the shouted emphasis in the spawn contract and the deferral rules, collapsed the two
+  settled-decision essays in `context/repo-mode.md` and `context/reference.md` to the decision plus
+  its reason, restated the subagent concurrency cap as the documented
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` default with a verification record, and cut the
+  duplicated gate justification from the checklist template.
+- **`dissolve-comments`:** removed the first-live-run and hand-run incident narration from two
+  gotchas, keeping each rule and its reason, and gave the Fowler catalog reference a verification
+  record.
+- **`setup`:** dropped the issue number from the declared config-cascade deviation.
+- **`tidy`:** dropped the issue number from the declared deviation, widened the self-update lane
+  scope and its frontmatter protection to every skill this plugin ships, kept the re-read-exclusions
+  instruction at two entry points instead of seven, removed the stacked emphasis on Phase C and the
+  "read carefully" and superlative framings, cut the migration-relative phrasing from lane
+  resolution and the Phase H comment rule, dropped the "most aggressive prose hunts" coaching from
+  the docs-prose lane, and stopped restating the CodeScene figure the repo cannot source.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.15.3]
 
 ### Fixed

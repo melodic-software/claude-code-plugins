@@ -34,7 +34,7 @@ narration of what the code used to be, references to the plan/session/changeset 
 asides addressed to the requester, and back-references to a ticket, PR, or branch no future reader
 will ever open. Version control owns history; the comment describes the present. A comment that only
 makes sense inside the chat thread that produced it is dead. This skill is a read-only classifier: it
-surfaces candidates with treatment guidance; the author hand-applies every deletion.
+surfaces candidates with treatment guidance.
 
 It detects residue on the COMMENT portion of a line only, so a residue-shaped word sitting in an
 identifier or string literal is never flagged. The positive question, *does this comment capture
@@ -104,7 +104,6 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 - **Not "delete all comments."** It targets residue, not comments that carry a non-obvious why or an interface/design-intent contract. Those stay.
 - **Not `/code-tidying:tidy`.** `tidy` APPLIES structural tidyings (including Beck's "Delete Redundant Comment" for comments that restate the code); `audit-comment-residue` is a read-only CLASSIFIER for the out-of-context residue class. Different concern, different mode.
 - **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
-- **Not an Edit operation.** Read-only: it surfaces findings; the author applies deletions.
 
 ## Sources
 
