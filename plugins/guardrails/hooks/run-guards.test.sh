@@ -223,7 +223,7 @@ assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated
 distinct_cmds=$(jq -r '[.[] | [.command, .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
 assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
 gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
-  sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^\s*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
+  sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
 }
 if_exts=$(jq -r '.[] | .if | capture("^Edit\\(\\*\\.(?<e>[a-z0-9]+)\\)$") | .e' <<<"$post_rows" | sort -u | tr '\n' ' ')
 gate_exts=$(for v in cli-flag-verify skill-reference-verify stale-path-verify; do gate_exts_of "$v"; done | sort -u | tr '\n' ' ')
