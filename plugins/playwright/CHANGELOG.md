@@ -3,6 +3,21 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.9]
+
+### Changed
+
+- **playwright:** the description names intent categories instead of ten quoted phrases;
+  `reference/tracing-and-video.md` replaces the six-step capture checklist with the two mechanics
+  the flow does not make obvious and gives the frame-size measurements a dated verification record
+  with a recheck trigger; `reference/windows-quirks.md` drops the section rebutting third-party
+  speculation about the Unix-socket daemon, with the socket-error recovery kept on the `kill-all`
+  line in `reference/sessions.md`; the login examples in `reference/storage-and-auth.md`,
+  `reference/running-code.md`, and `reference/test-generation.md` read the password from
+  `E2E_TEST_PASSWORD` instead of a literal, matching the file's own security invariant.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.6.8]
 
 ### Changed

@@ -8,7 +8,7 @@
 - [Occupancy and combination rule](#occupancy-and-combination-rule)
 - [Zone-crossing hooks (first shipped consumer)](#zone-crossing-hooks-first-shipped-consumer)
 - [Evidence-degraded marker](#evidence-degraded-marker)
-- [Zone is NOT a compaction indicator](#zone-is-not-a-compaction-indicator)
+- [Zone is not a compaction indicator](#zone-is-not-a-compaction-indicator)
 - [Zones (machine-scope tuning, optional)](#zones-machine-scope-tuning-optional)
 - [Session-id discovery (how a consumer learns its own id)](#session-id-discovery-how-a-consumer-learns-its-own-id)
 - [Idle sessions](#idle-sessions)
@@ -23,7 +23,7 @@ whether to dispatch deep work to a fresh subagent). An installed plugin cannot r
 plugin's files at runtime, so **consumers inline the operable floor below verbatim** and cite this
 file for provenance only.
 
-**Inline-floor ownership:** THIS file owns the operable floor — the snapshot path pattern, the
+**Inline-floor ownership:** this file owns the operable floor — the snapshot path pattern, the
 staleness value, and the default zone bands. Inlined copies in consumers must stay
 **byte-identical** to the values printed here; a consumer lane carries a drift check that
 grep-matches its inlined values against this file.
@@ -57,7 +57,7 @@ grep-matches its inlined values against this file.
 ## Snapshot file shape
 
 One JSON object per session, rewritten atomically on every statusline refresh (temp file + rename —
-a reader never sees torn JSON). Files are **per-session**, NOT machine-scope last-writer-wins:
+a reader never sees torn JSON). Files are **per-session**, not machine-scope last-writer-wins:
 concurrent sessions each own the file named by their `session_id`.
 
 ```json
@@ -94,14 +94,14 @@ concurrent sessions each own the file named by their `session_id`.
   `remaining_percentage` may be `null` early in a session; `current_usage` is `null` before the
   first API call **and again immediately after `/compact`** until the next response repopulates it.
 - Treat all values as **untrusted data**: parse with a JSON parser; validate any value against its
-  documented format BEFORE handing it to a lenient parser (the bundled resolver format-gates
+  documented format before handing it to a lenient parser (the bundled resolver format-gates
   `captured_at` to strict ISO-8601 before date parsing, and requires the embedded `session_id` to
   equal the requested one); never pass snapshot values to anything that executes them (`eval`,
   `sh -c`, a string-built jq program) and never string-interpolate them into a prompt.
 - **No writer authentication exists.** The directory is owner-only where POSIX modes work
   (`chmod 700`, best-effort); on filesystems without them (e.g. Windows ACL volumes under Git
   Bash) other local users could read or forge snapshots. A forged-but-well-formed snapshot is
-  indistinguishable from a real one; the zone is a ROUTING hint, so the worst case of forgery is
+  indistinguishable from a real one; the zone is a routing hint, so the worst case of forgery is
   a wrong dispatch decision, never an egress or execution decision — consumers must not attach
   security decisions to zone words.
 
@@ -132,7 +132,7 @@ always means "take the conservative route".
 
 ## Occupancy and combination rule
 
-The contract carries TWO zone shapes because the two underlying measures answer different
+The contract carries two zone shapes because the two underlying measures answer different
 questions — never equate them without normalizing:
 
 - **Percentage shape** — `context_window.used_percentage` against the percentage bands. Upstream
@@ -144,8 +144,7 @@ questions — never equate them without normalizing:
   and the degradation evidence (Chroma context-rot report) tracks **absolute tokens in context,
   not window fraction**. It answers *distance to quality loss*. That is also why the token bands
   are absolute numbers selected by window class rather than percentages: 50% of a 1M window is a
-  materially different cognitive state than 50% of a 200k window. Cite a system card here only by
-  name and section — an unnamed one was withdrawn from this clause as unresolvable (0.4.5).
+  materially different cognitive state than 50% of a 200k window.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row — the token
@@ -167,45 +166,37 @@ statusline payload's top-level `version` field (Claude Code version — statusli
 2026-08-10). **The token shape is computable only when `cli_version` is present, purely numeric
 dotted, and ≥ 2.1.132**; absent, malformed, or older leaves the percentage shape to stand alone.
 
-> **Sourcing status of the 2.1.132 floor (re-checked 2026-08-10).** This doc previously quoted the
-> statusline page as saying "Before v2.1.132 these were cumulative session totals". That sentence is
-> **no longer on the page**: the current text states only the present-tense semantics this floor
-> depends on — "Token counts currently in the context window, from the most recent API response"
-> and "**Combined totals** (`total_input_tokens`, `total_output_tokens`): tokens currently in the
-> context window". The historical note and the version number are gone with it. The floor is
-> therefore a **retained claim with no current upstream source** — a conservative lower bound kept
-> deliberately, not doc-backed. It stays because dropping it can only *widen* which payloads the
-> token shape trusts, and the failure it guards is silent; re-source it before any change that
-> relaxes it. The verbatim quote was re-checked against the complete raw page
-> (`https://code.claude.com/docs/en/statusline.md`), not a summarized fetch, so this is a real
-> removal rather than a truncated read.
+> **Sourcing status of the 2.1.132 floor.** Claim: `total_input_tokens` / `total_output_tokens`
+> mean current occupancy only from Claude Code 2.1.132. Basis: no current upstream source. The
+> statusline page (`https://code.claude.com/docs/en/statusline.md`, complete raw page, re-checked
+> 2026-08-10) states only the present-tense semantics this floor depends on: "Token counts
+> currently in the context window, from the most recent API response" and "**Combined totals**
+> (`total_input_tokens`, `total_output_tokens`): tokens currently in the context window". The
+> floor is therefore a retained claim, a conservative lower bound kept deliberately: dropping it
+> can only *widen* which payloads the token shape trusts, and the failure it guards is silent.
+> Recheck trigger: re-source it before any change that relaxes it.
 
 **Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
 also marks the token shape not-computable** — that is corrupt or forged data, and it catches what
 a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
 every other snapshot value). The bundled resolver implements both gates.
 
-**Percentage-key retirement trigger:** the percentage vocabulary is retained because it answers a
-question the token shape cannot (distance to compaction) and because shipped consumers inline its
-floor today. It retires when no shipped consumer inlines the percentage floor any longer —
-recorded here so back-compat alone never makes the second vocabulary permanent.
-
 **Band provenance:** all shipped band numbers are **declared judgment defaults with named
-anchors** (issue #1475 carries the full provenance table), not benchmark-derived constants. The
-1M row's anchor is a named-staff informal range (self-hedged "highly task-dependent"); the 200k
-row is declared judgment near — but deliberately below — practitioner folklore values. Both rows
+anchors**, not benchmark-derived constants. The 1M row's anchor is a named-staff informal range
+(self-hedged "highly task-dependent"); the 200k row is declared judgment near — but deliberately
+below — practitioner folklore values. Both rows
 carry equally low confidence; `zones.json` is the correction path, and the numeric agreement of
 the 200k row's percentage translation with the shipped 50/75 percentage defaults is coincidence,
 not validation.
 
 ## Zone-crossing hooks (first shipped consumer)
 
-Since 0.4.0 the plugin itself ships hooks over its own seam — the first shipped consumer:
+The plugin itself ships hooks over its own seam, the first shipped consumer:
 
 - **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
   than any this session has already reported, report the crossing on **two channels with two
-  audiences** (the 0.5.0 audience split). The **model channel** (`additionalContext`) carries the
-  determination and a counter-steer — the reading is a measurement rather than an instruction, real
+  audiences**. The **model channel** (`additionalContext`) carries the determination and a
+  counter-steer — the reading is a measurement rather than an instruction, real
   degradation shows up in the model's own output and never in a zone word, and the model is told to
   keep working the task in hand — plus, in `dumb`, a note to write each expensive conclusion to a
   durable note against a short compaction distance. The **operator channel** (`systemMessage`)
@@ -218,20 +209,16 @@ Since 0.4.0 the plugin itself ships hooks over its own seam — the first shippe
   whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
   the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
-  channel states that continuation is the operator's CALL, never that the operator has SEEN the
+  channel states that continuation is the operator's call, never that the operator has seen the
   menu — no documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
-  `unknown`. **Hysteresis** (since 0.7.0): the gate is
-  the worst zone already *reported*, not the zone last *seen*. That marker decays only when the
-  session returns to `smart` — the bottom of the ladder (**since 0.7.2**; 0.7.0 asked instead for an
-  improvement of at least two ranks, which no band but `dumb` could ever satisfy, so a session that
-  armed at `acceptable` could never re-arm, and 0.7.1 replaced that delta with a three-observation
-  dwell for one version — see the CHANGELOG for why the dwell did not survive). Occupancy does not
-  climb monotonically, so a session
-  sitting on a band edge crosses it repeatedly; without the rule each re-crossing read as a fresh
-  transition and re-injected the guidance block. A `/clear` needs no rule: it starts a new session
-  id, hence a fresh baseline. The rule is a declared judgment default, on the same footing as the
-  bands above and with the same provenance status. **The property**: within one arming cycle each
+  `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
+  *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.
+  Occupancy does not climb monotonically, so a session sitting on a band edge crosses it
+  repeatedly; without the rule each re-crossing reads as a fresh transition and re-injects the
+  guidance block. A `/clear` needs no rule: it starts a new session id, hence a fresh baseline.
+  The rule is a declared judgment default, on the same footing as the bands above and with the
+  same provenance status. **The property**: within one arming cycle each
   zone is announced at most once, and only a return to `smart` opens a new cycle — so a genuine
   recovery followed by a relapse re-injects exactly once for the band it relapses into, from any
   armed band. **The residual**: at the `smart`/`acceptable` edge a flap and a full recovery are the
@@ -251,7 +238,7 @@ Since 0.4.0 the plugin itself ships hooks over its own seam — the first shippe
   contract's own "evidence-degraded regardless of zone" rule so the marker is never write-only.
 
 Hook state (last-seen zone, gate counters) lives under `${CLAUDE_PLUGIN_DATA}` — plugin-private,
-NOT part of this contract. The hooks consume the seam through the same resolver consumers
+not part of this contract. The hooks consume the seam through the same resolver consumers
 re-implement; they add no new snapshot semantics.
 
 ## Evidence-degraded marker
@@ -273,19 +260,15 @@ markers older than 14 days on each write — the same cutoff the tee applies to 
 above any live session's horizon, so a marker is never deleted out from under the session it
 describes.
 
-**Do not differentiate on `trigger` — the field is recorded for a future decision, not a current
-one.** Evidence degradation is trigger-independent: the marker's rationale is that the evidence is
-already gone from the model-visible context, which holds identically for a steered `/compact` and
-an auto-compact. Consumers therefore treat all three values the same, and that sameness is
-deliberate, not an omission. The field is captured anyway (`hooks/post-compact-mark.sh`) so the
-stance is falsifiable: it is the observable for a **track-on-event** condition recorded in
-[`docs/upstream/aihero-course.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/aihero-course.md)
-lane 3 — revisit consumer differentiation ONLY on real evidence that steered, boundary-timed
-compactions preserve enough to grade work on, never on the intuition that a steered summary must
-be better. A hook cannot observe intent, and a marker written conditionally stops being evidence,
-so there is no boundary-timed carve-out in the writer either (as-of 2026-08-17).
+**Do not differentiate on `trigger`.** Evidence degradation is trigger-independent: the marker's
+rationale is that the evidence is already gone from the model-visible context, which holds
+identically for a steered `/compact` and an auto-compact. Consumers therefore treat all three
+values the same, and that sameness is deliberate, not an omission. The writer
+(`hooks/post-compact-mark.sh`) records the field and writes the marker unconditionally: a hook
+cannot observe intent, and a marker written conditionally stops being evidence, so there is no
+boundary-timed carve-out.
 
-## Zone is NOT a compaction indicator
+## Zone is not a compaction indicator
 
 A compacted session's `used_percentage` **resets downward** while the evidence in its
 conversational context is already gone. A consumer that knows its session was compacted (or
@@ -293,32 +276,27 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No official auto-compaction threshold exists to ground the bands on.** Verified 2026-07-23
-(how-Claude-Code-works, context-window, settings `autoCompactEnabled`, costs pages) and re-verified
-2026-08-10 (costs + statusline pages): the docs say only that compaction triggers "when approaching
-context limits". The empirical check (2026-07-24, execution session): no auto-compact event exists
-in the producing machine's entire transcript history — the largest session ran to 308k total input
-tokens uncompacted on a 1M-class window — so the shipped bands are **declared judgment defaults**
-with a declared margin (if compaction triggers at ≥ 90% as its phrasing implies, the dumb band
-leads it by ≥ 15 points), not doc-derived constants. `zones.json` is the correction path if
-compaction is ever observed earlier.
-
-*Refinement, verified 2026-08-19 (model-config, "Default auto-compact thresholds"):* the docs are
-now more specific than "when approaching context limits" — with no window configured, compaction
-fires **at the model's context limit**, with enumerated exceptions that fire earlier (cloud
-sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without extended
-context, and Opus 4.8 / Opus 5 running on a 200K window, compact at the 200K boundary; a
+**No published default auto-compaction threshold grounds the bands.** Verified 2026-08-19
+(model-config, "Default auto-compact thresholds"; the how-Claude-Code-works, context-window,
+settings `autoCompactEnabled`, costs, and statusline pages, checked 2026-07-23 and 2026-08-10,
+say only that compaction triggers "when approaching context limits"). With no window configured,
+compaction fires **at the model's context limit**, with enumerated exceptions that fire earlier:
+cloud sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without
+extended context, and Opus 4.8 / Opus 5 running on a 200K window, compact at the 200K boundary; a
 `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` session on a native-1M model likewise; **Sonnet 5 compacts at
-the threshold for its configuration — "about 967K tokens by default" on its 1M window, i.e. before
-the window fills**; an unrecognized model ID compacts at whatever window Claude Code assumes for
-it). That Sonnet 5 figure is the one published number in the set, and it sits at ~97% of the
-window — comfortably above the shipped `dumb` band, so it does not disturb the margin that the
+the threshold for its configuration, "about 967K tokens by default" on its 1M window, before the
+window fills**; an unrecognized model ID compacts at whatever window Claude Code assumes for it.
+That Sonnet 5 figure is the one published number in the set, and it sits at about 97% of the
+window, comfortably above the shipped `dumb` band, so it does not disturb the margin that the
 bands-below-the-trigger rule protects, the way a lowered window does. A *percentage* default is
-implied by
-`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored" but is still
-not published as a number — so the conclusion is unchanged: the bands remain declared judgment
-defaults. What this does change is that the trigger is **model- and environment-dependent**, so no
-single band set is correct everywhere.
+implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored"
+but is not published as a number. The empirical check (2026-07-24, execution session): no
+auto-compact event exists in the producing machine's entire transcript history; the largest
+session ran to 308k total input tokens uncompacted on a 1M-class window. So the shipped bands are
+**declared judgment defaults** with a declared margin (if compaction triggers at 90% or above, as
+its phrasing implies, the dumb band leads it by 15 points or more), not doc-derived constants. The
+trigger is **model- and environment-dependent**, so no single band set is correct everywhere;
+`zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated" — the value is as-of the last API response, not
@@ -326,7 +304,7 @@ the next request; and with `autoCompactEnabled: false` no compaction ever fires 
 hard-stops at the window instead), which makes the dumb band the *only* tripwire — strictly more
 load-bearing, never less.
 
-### The trigger has no documented threshold, but it IS operator-tunable
+### The trigger has no documented threshold, but it is operator-tunable
 
 No *default* threshold is published as a number (above), yet the point at which auto-compact fires
 is a configured value the operator can read and set. **Four** surfaces govern it. Verified
@@ -359,7 +337,7 @@ One consequence is load-bearing enough to state on its own, and it is the docs' 
 context window**, so once the auto-compact window is lowered, *the percentage no longer indicates
 when compaction will run*. A consumer reading only the percentage will not see the trigger coming.
 
-**Tune bands BELOW the effective trigger, never above it.** Whatever the trigger resolves to on a
+**Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
 boundary decision — finish the phase, `/clear`, write a handoff — while that decision is still
 being made deliberately; if auto-compact fires first, the harness has already made a lossy choice
@@ -393,7 +371,7 @@ judgment defaults; `zones.json` is the tuning path.
 ## Zones (machine-scope tuning, optional)
 
 `~/.claude/context-guard/zones.json` — the single source of truth for band tuning on a machine.
-The operator's own statusline display MAY read the same file, which eliminates band drift between
+The operator's own statusline display may read the same file, which eliminates band drift between
 what the human sees and what consumers decide on. Zones say *where you are*; consumers decide
 *what to do*.
 
@@ -411,14 +389,14 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
 Validity is **per shape, independently**:
 
 - **Percentage keys:** both values numeric, `0 < smart_max < acceptable_max ≤ 100`. Malformed
-  (unparsable file, non-numeric, inverted, out of range) → shipped percentage defaults with a
-  visible stderr notice from the resolver (unchanged v1 behavior, including when the keys are
-  simply absent from an otherwise-parsable file).
+  (unparsable file, non-numeric, inverted, out of range, or the keys simply absent from an
+  otherwise-parsable file) → shipped percentage defaults with a visible stderr notice from the
+  resolver.
 - **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
   string and every value carries numeric `smart_max_tokens` and `acceptable_max_tokens` with
   `0 < smart < acceptable ≤ class`. Malformed as a whole → shipped token bands with its own
-  visible stderr notice. **Absent is zero-config** (shipped token bands, silently) — a v1
-  percentage-only file keeps working unchanged.
+  visible stderr notice. **Absent is zero-config** (shipped token bands, silently): a
+  percentage-only file is valid.
 
 Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
 file idempotently; the resolver only reads it).
@@ -441,7 +419,7 @@ content (<https://code.claude.com/docs/en/skills>, substitution table, verified 
 skill body interpolates it into the snapshot path directly.
 
 **Fallback:** when the substitution is unavailable (older Claude Code, non-skill context, or the
-literal string `${CLAUDE_SESSION_ID}` survives unexpanded), the consumer must NOT guess a session
+literal string `${CLAUDE_SESSION_ID}` survives unexpanded), the consumer must not guess a session
 id — it takes the **unknown/conservative path** exactly as if the snapshot were absent.
 
 ## Idle sessions
@@ -507,9 +485,8 @@ and managed settings, where `statusLine` is also a valid key.
   if one is deployed and otherwise skips yours *without warning*. This state looks exactly like a
   broken install unless it is checked first.
 - **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
-  (cloud, headless `claude -p`, other terminal-less) is also structural. The command exists and
-  is not policy-disabled, and is still never invoked — measured 2026-08-21, a `statusLine`
-  written into a live cloud session's own user settings was never invoked. Report as "no
+  (cloud, headless `claude -p`, other terminal-less) is also structural: the command exists, is
+  not policy-disabled, and is still never invoked (the measurement above). Report as "no
   instrument in this environment", never as a defect.
 - **A `statusLine` configured, not disabled, in an environment that runs a statusline, and no
   fresh snapshot** is a real defect (wiring, installed shim, or `jq`) — invoke
@@ -530,7 +507,7 @@ and managed settings, where `statusLine` is also a valid key.
   until it stabilizes.
 - **Fixed staleness constant.** The 10-minute value is a contract constant, deliberately not
   configurable: cross-plugin consumers inline the documented value, so a per-user override would
-  silently split writer and readers. Band NUMBERS are the one tunable — via `zones.json`, which
+  silently split writer and readers. Band numbers are the one tunable — via `zones.json`, which
   display and consumers share.
 
 ## Consumers

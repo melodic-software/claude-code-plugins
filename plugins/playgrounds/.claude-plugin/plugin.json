@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "playgrounds",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One-step access to Anthropic's first-party playground plugin: declares the cross-marketplace dependency, routes playground-shaped requests to the upstream skill when it is installed, emits the install commands when it is not, and carries field-tested prompt recipes, cloud-session delivery guidance, and consumer cautions. Generates nothing itself.",
   "author": {
     "name": "Melodic Software",

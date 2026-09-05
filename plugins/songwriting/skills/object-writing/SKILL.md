@@ -80,25 +80,21 @@ Dispatch rules:
    ask if the consumer's settings export a tier above the fleet default before spawning.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
-   name, which goes stale at the next release. Today that tier is Opus: the directive recorded in the
-   consuming workspace's `research/plugin-gaps.md` (2026-08-12) is *"creative fan-out fleets run on
-   Opus (`opts.model: 'opus'` per agent call), reserving the expensive model for the judge stage at
-   most."* Across the only two runs on record the accepted-candidate rate tracked the tier: a fleet
-   that inherited the session's premium tier spent ~383k subagent tokens on a batch he rejected
-   wholesale, while the Opus re-run with voiceprint-first judging produced his only accepted
-   candidates. When a new tier appears, it becomes eligible by clearing that same bar, not by being
-   newer.
+   name, which goes stale at the next release. Resolve it from the consuming project's own
+   configuration for creative fan-out; where the project states none, ask before spawning rather
+   than inheriting. Reserve any tier priced above that default for a judge or verifier stage,
+   where one call reads many writes. When a new tier appears it becomes eligible by clearing the
+   same bar, not by being newer.
 
    **Never run a fleet on a tier priced above the fleet default.** Premium tiers cost a multiple per
    token in both directions, and a fan-out multiplies that by the agent count. A tier above the
    default belongs at a judge or verifier stage at most, where one call reads many writes.
 
-   **Reach for effort before reaching for a cheaper tier.** Official guidance: *"Tuning effort is
-   often a better lever than switching models."* Effort scales the tokens one agent spends; tier
-   scales the price of every token AND changes which model wrote the lines. Across a fleet both
-   multiply, but only one of them changes the writing. Lever availability differs by surface: a bare
-   agent spawn takes a model and has no effort parameter, so a fan-out that needs the effort lever
-   belongs in a workflow, whose per-agent call takes both.
+   **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
+   spends; tier scales the price of every token AND changes which model wrote the lines. Across a
+   fleet both multiply, but only one of them changes the writing. Lever availability differs by
+   surface: a bare agent spawn takes a model and has no effort parameter, so a fan-out that needs
+   the effort lever belongs in a workflow, whose per-agent call takes both.
 
    **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, meaning rhyme-field enumeration, word-pool merge, syllable counting, and dedup, are reading-heavy and
    low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the

@@ -1,7 +1,9 @@
 # Official source record
 
-Fetched and re-verified 2026-07-16. These sources define the runtime and evidence contracts; the
-plugin does not rely on remembered behavior.
+Fetched and re-verified 2026-07-16. Recheck trigger: any GitHub GraphQL or REST rate-limit change,
+any change to the Git commands or porcelain fields the collector parses, and each Claude Code
+minor release that touches skills, plugins, or `allowed-tools`. These sources define the runtime
+and evidence contracts; the plugin does not rely on remembered behavior.
 
 ## Claude Code
 

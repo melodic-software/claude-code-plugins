@@ -11,8 +11,8 @@ Computer use has no consumer-project configuration and no `userConfig`. Everythi
 is either an external prerequisite (the MCP server, the plan, OS permissions) or a system
 setting this contract forbids setup to mutate (power, screensaver, lock policy).
 
-That makes this a **check-only setup** by the plugin contract's carve-out, not by preference:
-there is nothing an `apply` could conformingly write. `check` probes, reports, and hands every
+That makes this a **check-only setup** under the plugin contract's carve-out: there is nothing
+an `apply` could conformingly write. `check` probes, reports, and hands every
 remediation to the operator with the exact value it measured.
 
 Non-interactive: never prompt. Run the probes, print the table, stop.
@@ -27,7 +27,9 @@ run them and report. Emit a PASS / FAIL / INFO table with one remediation line p
 
 Determine which surface is in play, because the answer changes what is even possible:
 
-- **Windows** → necessarily the Claude Desktop surface; the CLI's computer use is macOS-only.
+- **Windows** → necessarily the Claude Desktop surface; the CLI's computer use is macOS-only
+  (CLI computer-use page, <https://code.claude.com/docs/en/computer-use>, verified 2026-09-02;
+  recheck when that page's "Differences from the Desktop app" table changes).
 - **macOS** → either surface; check whether `computer-use` is enabled in `/mcp` (CLI) or in
   Settings → General (Desktop).
 
@@ -41,7 +43,10 @@ allowlist and the active grant flags.
 
 - Tools reachable → PASS, and report the current allowlist and grant flags as INFO.
 - Tools absent → FAIL. Remediation: enable the `computer-use` MCP server for this project, and
-  confirm the plan supports it (research preview, Pro or Max; not Team or Enterprise).
+  confirm the session is eligible: research preview on a Pro or Max plan (not Team or Enterprise),
+  authenticated through claude.ai rather than a third-party provider, and an interactive session
+  (not `-p`). Eligibility per the CLI and Desktop pages, verified 2026-09-02; recheck when either
+  page's eligibility note changes.
 
 Do **not** call `request_access` during a check. That raises a consent dialog, which is not
 read-only behavior.
@@ -63,7 +68,8 @@ configured, not that one is on screen now. Report both.
 reference ships verified probe commands for Windows only. On macOS, no verified probe set ships:
 report this step as INFO-unverified, name the three settings the operator must read from System
 Settings themselves (screensaver idle delay, display sleep, require-password-on-wake), and state
-that the hazard is unchanged. Synthesized input does not reset the idle timer on any platform.
+that the hazard is unchanged: the idle-timer behavior was measured on Windows, no platform has
+been shown to reset the idle timer on synthesized input, so treat it as live on macOS as well.
 Never silently omit the step, and never substitute an unverified command as though it were
 checked.
 

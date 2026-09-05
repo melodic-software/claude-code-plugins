@@ -1,5 +1,5 @@
 ---
-description: "Construct a performance goal the data can actually settle: the metric and the exact command that produces it, a REALISTIC target and an IDEAL target held separately, and the irreducible FLOOR computed BEFORE any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front and makes the human decide, instead of silently failing the goal at the end. Human-gated always: this is the one phase that may never run unattended. Use when: 'set a performance target', 'how fast should this be', 'what is a realistic goal', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. Runs after /performance:target and before /performance:snapshot. Skip when the work is exploratory with no claim to defend, or when the target is a correctness fix that happens to also be faster."
+description: "Construct a performance goal the data can actually settle: the metric and the exact command that produces it, a REALISTIC target and an IDEAL target held separately, and the irreducible FLOOR computed BEFORE any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front and makes the human decide, instead of silently failing the goal at the end. Human-gated always: this is the one phase that may never run unattended. Use when: setting or sanity-checking a performance target, judging whether a target is reachable at all, or defining done for an optimization: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. Runs after /performance:target and before /performance:snapshot. Skip when the work is exploratory with no claim to defend, or when the target is a correctness fix that happens to also be faster."
 user-invocable: true
 argument-hint: "[<target>] (e.g. /performance:goal the destructive-guard PreToolUse hook)"
 disable-model-invocation: false
@@ -12,10 +12,10 @@ metadata:
 
 Answers **"what would count as done, and is it reachable at all?"**
 
-The failure this prevents: the source run behind this plugin set a goal of p50 <= 250 ms for a hook
-on a host that charged 0.3-2.8 s for a single irreducible process spawn. The goal was **unreachable
-by any code change**, and that was discovered at the end, after the work. Knowing it up front would
-have reframed the entire task from "make it fast" to "remove the spawn or accept the floor".
+The failure this prevents: a goal of p50 <= 250 ms on a host that charges 0.3-2.8 s for a single
+irreducible process spawn is **unreachable by any code change**, and a goal agreed before the floor
+is computed does not surface that until the work is already spent. Computing the floor first
+reframes the task from "make it fast" to "remove the spawn or accept the floor".
 
 ## Human-gated, always
 
@@ -38,8 +38,8 @@ A metric nobody can re-run is not a metric.
 
 Name the **drift-immune counter** alongside it (spawns, syscalls, queries, allocations, round trips)
 and rank the counter above the duration. On a host that cannot support a wall-clock claim, the
-counter is what survives; in the source run the durable result was a spawn census of 4 -> 1, and the
-milliseconds were not reproducible by an independent verifier on the same machine an hour later.
+counter is what survives: a spawn census of 4 -> 1 still reproduces when the milliseconds behind it
+do not, because an independent verifier on the same machine an hour later meets different load.
 
 ### 2. The floor, computed before any work
 
@@ -123,7 +123,7 @@ Evidence tier of the target: <E1..E4 from /performance:target>
 ## Gotchas
 
 - **Compute the floor before agreeing the target, not after.** This is the entire point. A goal
-  agreed first and floored second is the failure that produced this skill.
+  agreed first and floored second discovers "unreachable" only after the work is spent.
 - **The floor is a property of the host, not of the code.** Re-measure it on a different machine;
   never carry a floor across hosts.
 - **"Faster" is not a metric.** If the user cannot name the command, the goal is not yet a goal.

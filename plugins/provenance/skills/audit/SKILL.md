@@ -10,9 +10,20 @@ metadata:
   summary: Find prose copied from external sources and convert it into pointers
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh" --show-config 2>/dev/null | head -10; :; } || echo "detector unavailable"`
 Stamp config: !`"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh" --show-config 2>/dev/null | tail -3; :; } || echo "detector unavailable"`
 

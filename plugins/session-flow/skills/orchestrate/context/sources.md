@@ -125,13 +125,11 @@ page's narrower controls (`crossSessionInbound`) instead of the deny rule.
 
 ## Imperative 5 — NESTED SUBAGENTS
 
-Re-verified 2026-08-10 against two official surfaces — the prose page
+Re-verified 2026-08-10 against two official surfaces: the prose page
 <https://code.claude.com/docs/en/sub-agents> ("Let subagents spawn their own subagents") and the
 release changelog <https://code.claude.com/docs/en/changelog> (raw markdown at `changelog.md`,
-which is byte-exact where the rendered page summarizes), current through **v2.1.220**. The two
-surfaces contradicted each other on 2026-07-26 and **agree as of 2026-07-29**; the resolved-drift
-note below records what the split was, so a reader who meets an older copy of either surface knows
-which way it broke.
+which is byte-exact where the rendered page summarizes), current through **v2.1.220**. Recheck
+trigger: a changelog entry touching subagent nesting, depth, or concurrency.
 
 - Shipped, **not** experimental. Changelog v2.1.172 *(verbatim, verified 2026-08-10)*:
   "Sub-agents can now spawn their own sub-agents (up to 5 levels deep)." **This version number is a
@@ -162,20 +160,11 @@ which way it broke.
   limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
   count drops below the limit" (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+), plus the depth
   limit above. "A fork can't spawn further forks."
-  **Empirical fork→non-fork child probe (2026-08-15) — inconclusive (fixture
-  failure).** Auditor remediation on the narrowed fork-claim sentence asked
-  whether a below-limit Agent-tool fork can spawn a non-fork subagent (the
-  depth-limit carve-out implies a below-limit fork keeps `Agent`, but the docs
-  never state the child-type outcome). A headless `claude -p` probe on Claude
-  Code **2.1.232** was attempted in this environment to settle it; the CLI
-  exited immediately with `Not logged in · Please run /login` and never reached
-  an Agent-tool dispatch. That is a **fixture failure / authentication gap**,
-  not evidence that the spawn succeeds or fails — do not read "no result" as a
-  null finding about fork parenting. Until a logged-in re-run records YES/NO
-  with the child type and error text, keep treating the below-limit
-  fork→non-fork path as **docs-implied, behavior-unconfirmed**. Recheck
-  trigger: an authenticated probe session, or a sub-agents page edit that states
-  the child-type rule explicitly.
+  **Below-limit fork parenting a non-fork child: docs-implied, behavior-unconfirmed.** The
+  depth-limit carve-out implies a below-limit fork keeps `Agent`, but the docs never state the
+  child-type outcome, and no authenticated probe has recorded it. Keep treating the path as
+  unconfirmed. Recheck trigger: an authenticated probe session, or a sub-agents page edit that
+  states the child-type rule explicitly.
   Three riders on the concurrency limit (first two new since the 2026-07-29 read; third new since
   the 2026-08-10 read, verified 2026-08-15): "Sessions with
   [ultracode](https://code.claude.com/docs/en/model-config#adjust-effort-level) active are exempt:
@@ -184,37 +173,22 @@ which way it broke.
   without checking the limit, so resumes can push the running count past it."
   Also verified 2026-08-15: these Agent-tool caps do not govern other spawn surfaces — "Agents that
   other features run, such as workflow agents and agent team teammates, follow their own limits
-  instead" (sub-agents page). Changelog v2.1.232 (2026-08-13): subagent forking is now on by
-  default, and non-teammate agent spawns in interactive sessions run in the background by default —
-  postdates the captures above; fold into the next full re-verify.
-  **Superseded:** this entry previously recorded a third cap — "at most 200 subagents per session"
-  via `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (v2.1.212+), read 2026-07-29. Week 32 removed it:
-  "The 200-subagent-per-session cap is removed, so long-running sessions no longer refuse new
-  subagents; the concurrency and depth limits still apply"
-  ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), v2.1.220–v2.1.224). The variable
-  and the cap are both gone from the sub-agents page; a long-running orchestration should no longer
-  be planned around a session total.
+  instead" (sub-agents page).
+  Changelog v2.1.232 *(paraphrase, read 2026-08-13)*: subagent forking is on by default, and
+  non-teammate agent spawns in interactive sessions run in the background by default. Recheck
+  trigger: the next full re-verify of this section.
 - **A permission gate can deny a spawn before depth is ever consulted.** Changelog v2.1.178
   *(verbatim, verified 2026-08-10)*: "Improved auto mode: subagent spawns are now evaluated by the
   classifier before launch, closing a gap where a subagent could request a blocked action without
   review." So a failed spawn needs its error text read before it counts as evidence about depth: a
   depth rejection names depth, a permission refusal names permission.
 
-**Resolved-drift note — the prose page lagged the changelog by one release, and has since caught
-up.** Between v2.1.219 and 2026-07-26 the sub-agents page still described the v2.1.217–2.1.218 state
-*(page text as captured 2026-07-26 — no longer reproducible upstream)*: "By default, a subagent
-can't spawn subagents of its own… While nesting is off, Claude Code withholds the `Agent` tool from
-every subagent except a fork." So the changelog was treated as authoritative for the default and
-the page as authoritative for the env-var mechanism and cap semantics. That call was corroborated
-empirically on Claude Code **2.1.220**: a non-fork
-`general-purpose` subagent one layer below a subagent held a fully-schema'd `Agent` tool with
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` unset in its environment — which the page's account at the
-time forbade and the changelog's allowed. (The exact live ceiling was **not** pinned; the probe that
-would have measured it was denied by the auto-mode classifier, a different gate.) As of 2026-07-29
-the page states the depth-3 default itself and carries a version-history note covering all three
-regimes, so no surface needs to be chosen over the other. The split is recorded because the page
-carries no dated revision history: a cached, vendored, or offline copy can still be showing the old
-account, and this note is how a reader tells that apart from a real behavior change.
+**Stale copies of the sub-agents page.** The page carries no dated revision history, and it has
+lagged the changelog by a release before, so a cached, vendored, or offline copy can still describe
+nesting as off by default with the `Agent` tool withheld while nesting is off. When a copy of the
+page and the changelog disagree, treat the changelog as authoritative for the default and the page
+as authoritative for the env-var mechanism and cap semantics, and confirm with the behavioral probe
+in `gotchas.md`.
 
 The brief's "never author a tree that needs a specific or deep nesting level" is justified by
 reliability degradation with depth, by the caps above, and — most of all — by the fact that the

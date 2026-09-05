@@ -2,7 +2,7 @@
 
 `apply` runs this pass at **step 5**, immediately after the capability-tier axis pass. It is
 load-bearing on upgrade: triage refuses to re-triage already-triaged output, so items stamped in-body
-before #1716 need the provider-permissioned label applied here. Pattern semantics and the script path
+before the label axis existed need the provider-permissioned label applied here. Pattern semantics and the script path
 live in the reference's "Legacy body stamps" subsection.
 
 Resolve the script:

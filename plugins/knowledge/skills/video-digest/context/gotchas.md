@@ -1,4 +1,4 @@
-# YouTube skill — gotchas
+# Video digest — gotchas
 
 Observed failure modes and their recovery behavior. Terse operational directives live at their decision points in `SKILL.md`; this file explains the *why*.
 
@@ -18,6 +18,6 @@ Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When
 
 `watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed — do not run watch**; route to the prerequisites fix path instead of producing a frameless run.
 
-## Retired `watch-progress.json`
+## Phase state lives only in `watch.json`
 
-`run-state/watch.json` (phase-map + `tempSession`) subsumes the old `watch-progress.json`, retired in Phase 4. Do not look for or write the old file — phase state lives only in `watch.json`.
+`run-state/watch.json` holds the phase map and the `tempSession` paths, and it is the only phase-state file. A slice that carries a `watch-progress.json` is stale: read neither it nor into it, and never write one.

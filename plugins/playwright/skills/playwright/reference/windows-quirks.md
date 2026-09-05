@@ -71,12 +71,6 @@ Chromium under Playwright control has a fingerprint that Google, Cloudflare, and
 - For smoke-tests: use `example.com` or similar
 - For search flows: DuckDuckGo is more bot-friendly than Google
 
-## Unix socket daemon works on Windows (despite third-party speculation)
-
-Some third-party blog posts warn that CLI's Unix-socket daemon architecture may fail on Windows. **Empirically verified 2026-04-24 on v0.1.8:** works fine under MSYS2 socket emulation. No intervention needed.
-
-**If you do hit socket errors:** `playwright-cli kill-all` to reap zombie daemons, then retry.
-
 ## Cloud session limitation (inherited from infrastructure)
 
 In Claude Code cloud sessions (Ubuntu 24.04 sandbox), `playwright-cli install-browser` fails — the sandbox blocks browser downloads to `storage.googleapis.com/chrome-for-testing-public`. Local sessions on Windows/macOS/Linux are unaffected because they auto-detect system Chrome.

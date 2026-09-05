@@ -9,11 +9,23 @@ metadata:
   summary: Explore code, history, tests, and config before changing anything
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Project root, `git rev-parse --show-toplevel`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 These values orient this session only. The project root is an absolute machine path. Use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
 
@@ -62,9 +74,9 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
    **The `index=` path in that output is authoritative** downstream: the verifier's target and the handoff pointer both come from it, not from `artifact:`. `pointer=mismatch` means the payload named a file this gate never graded, a defect in the payload, not a naming preference to reconcile.
 
-**Any non-zero exit halts the workflow, and a gate that could not run at all is a FAIL, never a skip.** An invocation above that is denied, prompts and is declined, or errors out halts exactly as a non-zero exit does; do not fall back to reading the directory. (This plugin ships no `allowed-tools` grant, and that is a sourced conclusion rather than an omission: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).) Do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen. Proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
+**Any non-zero exit halts the workflow, and a gate that could not run at all is a FAIL, never a skip.** An invocation above that is denied, prompts and is declined, or errors out halts exactly as a non-zero exit does; do not fall back to reading the directory. Do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen. Proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
 
-**One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write, the one failure the ladder previously had no rung for, and the one where a re-dispatch pays full price to reproduce the same refusal. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch (on that path the payload's `artifact:` value is a *destination* the agent names, never the anchor), and then **re-runs the identical gate command above**. The workflow proceeds only on a subsequent exit 0. If the second run is non-zero, the halt stands and the ladder resumes at the rung it was on. The freshness check needs nothing special: the parent writes after its own pre-dispatch `touch`, so the index is strictly newer than the baseline.
+**One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write, the one failure where a re-dispatch pays full price to reproduce the same refusal. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch (on that path the payload's `artifact:` value is a *destination* the agent names, never the anchor), and then **re-runs the identical gate command above**. The workflow proceeds only on a subsequent exit 0. If the second run is non-zero, the halt stands and the ladder resumes at the rung it was on. The freshness check needs nothing special: the parent writes after its own pre-dispatch `touch`, so the index is strictly newer than the baseline.
 
 Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md). It carries the two conditions that bind the write (filename checking and the collision rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
 
@@ -72,11 +84,9 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Purpose
 
-Exploration is the prerequisite for everything. You cannot change what you do not understand. Goal: **maximum local knowledge** before any action. Skipping exploration leads to wrong assumptions, missed patterns, broken conventions, and rework.
+Read the code before changing it. This skill builds the local knowledge a change depends on: the code, its neighbours, its history, its tests, and the build and tool configuration that constrains the solution. The six dimensions below say what to read; the outcome gate says when it is enough.
 
 Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what IS, `/discovery:research` for what SHOULD BE.
-
-**Philosophy**: invest in understanding before acting. Reading 20 files takes seconds; fixing a wrong assumption takes minutes to hours. When in doubt, read more code.
 
 **Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
@@ -189,7 +199,7 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Every Output-format section populated with specifics**. Each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap**. Nothing the task plausibly depends on is silently unexplored.
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit**. Anything a downstream decision rests on came from reading the file or code.
-- **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the pre-computed project root); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
+- **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the project root gathered above); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
 - **Open questions handed off, never dropped**. Surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
 
 ## Final step: persist artifact for handoff

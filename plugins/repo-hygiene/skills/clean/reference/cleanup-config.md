@@ -83,4 +83,4 @@ Three classes:
 
 ## Extending the protected set
 
-The protected-path list above is enforced by the bash scripts, which do **not** read `CLAUDE.md` or `.claude/rules` (only a plugin's skill/agent components see those in model context). A consumer that needs to protect an additional path from the selective tiers relies on the git-tracked guarantee (any tracked file is never cleaned) or the `tree` tier's default-preserve classes. A declared per-consumer override for the script-enforced list is a known extension point, not yet exposed as configuration.
+The protected-path list above is enforced by the bash scripts, which do **not** read `CLAUDE.md` or `.claude/rules` (only a plugin's skill/agent components see those in model context). A consumer that needs to protect an additional path from the selective tiers relies on the git-tracked guarantee (any tracked file is never cleaned) or the `tree` tier's default-preserve classes.

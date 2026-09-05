@@ -71,11 +71,11 @@ contract, an explicit invocation argument, or an optional namespaced skill invoc
 surface, so this skill does not invoke it directly. In priority order:
 
 1. **A documented public reader, when the consumer exposes one** — a namespaced skill invocation
-   that returns item fields, or a path handed in as an explicit invocation argument. Note as of
-   this writing `/work-items:track` exposes no item-fetch action, so this path is available only
-   where a consumer has added one; it is listed first because it is the doctrine-preferred surface,
-   not because it is the common one.
-2. **The provider mechanic** — the operative path today, and independent of `work-items` being
+   that returns item fields, or a path handed in as an explicit invocation argument.
+   `/work-items:track` exposes no item-fetch action, so this path is available only where a
+   consumer has added one; it is listed first because it is the doctrine-preferred surface, not
+   because it is the common one.
+2. **The provider mechanic**, the operative path, and independent of `work-items` being
    installed at all. Provider mechanics are raw provider commands that run unbound
    (`work-items/reference/tracker-seam.md` "Operation routing"), which is why this rung still works
    with no tracker plugin present.
@@ -84,8 +84,8 @@ surface, so this skill does not invoke it directly. In priority order:
 
 **The body is not a seam field anyway.** The normalized item object is `schema_version, id, title,
 state, assignees, labels, type, blocked_by_count, parent_id, url` — there is **no `body` field**,
-and `--body` exists only as a write parameter on `create-item`. Spec text was always going to come
-from the provider mechanic:
+and `--body` exists only as a write parameter on `create-item`. Spec text comes from the provider
+mechanic:
 
 ```bash
 # Always scope the read to the repo encoded in the promoted id — a bare number

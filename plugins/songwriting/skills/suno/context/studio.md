@@ -76,10 +76,8 @@ Studio's export menu has **3 scopes**:
 
 ### Stem separation modes (v5.5)
 
-**Corrected 2026-08-11** against <https://suno.com/pricing>. The old table here
-read "Free: 2-track stems", which is **false** — Free reads "No stem
-separation". The naming was wrong too: these are three **modes**, not track
-counts.
+Verified 2026-08-11 against <https://suno.com/pricing>: Free reads "No stem
+separation", and these three are **modes**, not track counts.
 
 | Mode | What it yields | Tier |
 |------|----------------|------|

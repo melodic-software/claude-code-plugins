@@ -1,6 +1,6 @@
 ---
 description: "Deduplicate repeated markdown content, rule files, skill bodies, ADRs, docs, into a single named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept appears (or is reworded) across files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching several files. Reports duplication at every multiplicity in rule-of-one / rule-of-two / rule-of-three buckets, offering only non-abstracting remedies below three. Creating a NEW SSOT artifact still refuses below the Rule of Three."
-argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes]"
+argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -87,11 +87,12 @@ Accepted by `identify` and `batch` (the roster-producing surfaces); `batch` pass
 
 | Flag | Default | Behavior |
 |------|---------|----------|
-| `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=3` is the regression guard. It reproduces the pre-bucket behavior where sub-three clusters never reach the user |
+| `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=3` rosters only N≥3 clusters, so sub-three candidates never reach the user |
 | `--buckets=<list>` | all | Filter the roster to the named buckets, e.g. `--buckets=1,2` for the non-abstracting work only |
 | `--fix` | off | Apply ONLY the non-abstracting remedies (`trim-to-citation`, `normalize-wording`). Never writes a new artifact; still honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful with `--fix` |
+| `--parallel-waves` | off | `batch` only. Permit parallel dispatch within a wave whose candidates the overlap matrix proves disjoint. Without it every wave runs sequentially, because there is no file-level locking |
 
 Bare invocation (no flags) stays read-only: it reports the buckets and stops, matching `/docs-hygiene:audit-noise` and `/docs-hygiene:audit-derivability`. Full flag semantics: `actions/identify.md`.
 

@@ -73,4 +73,4 @@ escalation rules.
 
 The proven manual pattern: a hand-written weekly engineering status update. Productized
 precedent: workflow-metadata digest bots and scheduled narrative status reports over
-repository and delivery activity. Precedent record: routine-catalog research, row 29.
+repository and delivery activity.

@@ -3,6 +3,43 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.3]
+
+### Changed
+
+- **`implement`:** Step 0 states the scope discipline directly (simplest change, surgical edits,
+  no unrequested additions) and drops the "think before coding" scaffold and the external
+  karpathy-guidelines invocation; the divergence ladder says "research before declaring something
+  impossible" at normal volume; the caps emphasis in the orchestration-mode note, the scope-fence
+  table, the over-correction guard, and the mark-then-commit rule is lowered to plain prose; Step 4
+  keeps the task granularity and completion criterion and drops the task-list mechanics; the
+  Step 5 self-review gains two items (no scratch scripts committed as tests, no changes outside
+  the task); the Gotchas section routes new failure patterns to the project's memory slice instead
+  of the plugin's own file; the pre-compute note and the plugin-split note no longer narrate
+  history. `context/gotchas.md` drops the one-line reminders block and the append-here footer and
+  states its intake rule; `context/bugfix.md` and `context/refactor.md` drop the `dotnet-diag` and
+  `dotnet-msbuild` skill pointers, which name plugins no installed marketplace provides. Eval 4
+  asserts the new wording.
+- **`implement-dispatch`:** the eight caps `MUST` markers become plain statements; the
+  resident-vs-clear rule now defaults to staying resident and clears on a harness or operator
+  signal, never on the orchestrator polling its own context statistics; cadence step 2 tells the
+  orchestrator to keep working while a wave runs; the convention-registry aside leaves the
+  deviation-log section.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.16.2]
+
+### Fixed
+
+- **`implement`:** the git pre-compute lines moved out of `## Pre-computed context` into a
+  "Repository context. Gather first" body section of individual Bash calls, one command per call,
+  each `head` bound kept inside its command and a failure read as an unknown value. The harness
+  composes a skill's whole pre-compute block into one shell invocation, and a worktree-isolated
+  session refuses a git-bearing compound command, which blocked these skills from loading inside a
+  worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
+  they were. The pre-flight branch check names the gathered branch.
+
 ## [0.16.1]
 
 ### Changed

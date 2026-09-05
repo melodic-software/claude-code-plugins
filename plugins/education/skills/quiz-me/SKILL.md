@@ -45,9 +45,9 @@ documented unset behavior.
 
 Configure via the `/plugin` dialog, or headless with `claude plugin install
 education@<marketplace> --config KEY=VALUE` (your installed marketplace name). A literal
-non-home `report_library_dir` may be blocked by the hardcoded-path
-guardrails, the same collision knowledge's `library_dir` hits (#798); adopt that issue's
-path-indirection scheme for literal-path overrides once it lands.
+non-home `report_library_dir` may be blocked by the hardcoded-path guardrails. When a write is
+blocked, report the block and fall back to the `${CLAUDE_PLUGIN_DATA}` default rather than
+working around the guardrail.
 
 ## Action router
 

@@ -28,7 +28,7 @@ emission. §2's boxes are then cycled inside
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md), the full cycle per
 candidate before it is shown. Line emission belongs to `/songwriting:co-write`, and its input gate
 travels with the lines: route there, or check the same gate here. Do not emit lines on the strength
-of having named §2. *(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+of having named §2. *(Plugin-authored, not Pat Pattison's.)*
 
 ## Purpose
 
@@ -111,7 +111,7 @@ dive. Every scenario routes through
   [voiceprint](../../context/pat-pattison/research/voiceprint.md).
 - When this skill emits or coaches on candidate LINES directly (rather than routing), show them as
   full section blocks in context. Changed lines marked `►`, one labeled block per variation, 3-4
-  per chat menu, deeper analysis in the song's `variations/` file. Writer-requested, 2026-08-12. See [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates — chat vs file".
+  per chat menu, deeper analysis in the song's `variations/` file. See [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates — chat vs file".
 - Coaching stops generating when execution keeps missing: after the writer rejects the EXECUTION in
   one slot twice, hand the concept back instead of a third batch (`/songwriting:co-write` Handlers
   specifies what that handoff contains). Two misses in the same slot say the brief is wrong, not

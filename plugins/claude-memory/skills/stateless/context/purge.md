@@ -61,8 +61,8 @@ Present to the user:
   can set — confirm the user intends to delete from that absolute path before proceeding, since
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
-  If the intent is the full per-project wipe, point to `claude project purge` (Claude Code
-  v2.1.124+) instead, and state its scope to the user (what it deletes and what it leaves alone)
+  If the intent is the full per-project wipe, point to `claude project purge` instead, and state
+  its scope to the user (what it deletes and what it leaves alone)
   from the verbatim quotes in
   [reference/official-guidance.md](../reference/official-guidance.md) rather than from memory —
   <https://code.claude.com/docs/en/claude-directory> owns the deletion plan and flags.
@@ -88,13 +88,6 @@ answer, a numbered menu selection (`"1"`) whose option happened to include the p
 "go stateless and purge" given before the manifest existed — is materially weaker than this
 gate's bar. The gate must restate the concrete, now-known scope (file count, directories)
 and receive a fresh confirmation that references that scope specifically.
-
-Worked anti-pattern: the user answers "go stateless and purge" in an early interview round;
-later the manifest turns out to be 198 files. A follow-up menu offers "1) purge all 198
-2) keep topic files", and the user replies `"1"`. That `"1"` is a menu selection made while
-weighing other bundled concerns — not a scope-referencing confirmation of an irreversible
-delete. Correct handling: raise this gate anyway, quote the 198 files and their directories,
-and require a fresh "yes" (or "yes, with backup") before deleting anything.
 
 ## Step 4: Optional backup, then delete the captured manifest
 

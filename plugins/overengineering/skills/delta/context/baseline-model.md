@@ -20,7 +20,7 @@ sibling (`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, "Where it lives" 
 semantics"), and the audit writes **per layer as it walks**, so the prior content begins disappearing
 at the first layer, not at the end of the run. There is therefore **no previous artifact left to diff
 against after the audit has run**, and this lane can never be "run the audit, then diff the file". A
-separately persisted spine is mandatory. That reason is unchanged and still load-bearing.
+separately persisted spine is mandatory.
 
 **Second: the persisted spine has to be captured at the *end* of a cycle, not the start.** A cycle
 that captures its baseline from the artifact as it stands at the start of the run captures a file a

@@ -32,8 +32,7 @@ a repository that is usually the user profile and scanning it would walk the who
 exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`** — a sanctioned
 operator lever and the documented remedy for that exit 2, not a test-only seam. Its predecessor
 `$PERMISSION_HYGIENE_FIXTURE_DIR` still resolves as a back-compatible alias; the new name wins when
-both are set. The old name is what made an operator check whether using it in production was allowed,
-which is the friction the rename removes.
+both are set.
 
 `settings.local.json` is parsed for its `permissions.allow` array only — never read or echoed wholesale
 (it may hold tokens).
@@ -56,7 +55,7 @@ file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 202
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
 audited — project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
-plugin versions needs an `installed_plugins.json` oracle this detector does not consult (#2406).
+plugin versions needs an `installed_plugins.json` oracle this detector does not consult.
 An exclusion whose count is printed cannot suppress anything silently, which is the property that
 matters.
 
@@ -104,8 +103,8 @@ Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 **How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…` and `~/…` forms are not flagged — those
 genuinely expand per machine and per user — while only concrete usernames match.
 
-**`//…` is flagged, and this line used to say the opposite.** It previously grouped `//…` with the two
-expanding forms as a "portable anchor". It is not one: `//` is the *absolute* anchor.
+**`//…` is flagged.** It is not a portable anchor like the two expanding forms: `//` is the *absolute*
+anchor.
 <https://code.claude.com/docs/en/permissions>, § Read and Edit, fetched 2026-08-12, gives the pattern
 table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name>/secrets/**)` |
 `/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
@@ -114,10 +113,6 @@ absolute path. The single leading slash anchors at the settings source, not the 
 carries the username — it is the canonical *spelling* of the defect P2 exists to catch, not an
 exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
 shows the home segment being supplied per user, which is what makes it portable.
-
-Exempting `//` would have made this check blind to the documentation's own literal example of a
-hardcoded path, in the check graded `error`. The detector's behavior was right and this file was
-wrong; the file moved.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username — and after
 a skill migrates into a plugin, since the install path changes — and it leaks a username into version

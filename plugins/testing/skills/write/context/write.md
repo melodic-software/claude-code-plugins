@@ -4,7 +4,7 @@ Write tests following the TDD discipline: Red (failing test) -> Green (make it p
 
 ## Vertical slices, not horizontal layers
 
-**DO NOT write all tests first, then all implementation.** That is horizontal slicing — treating Red as "write all tests" and Green as "write all code." Horizontal slicing produces brittle tests: tests written in bulk test *imagined* behavior, not *actual* behavior. You end up testing the *shape* of things — data structures, function signatures — rather than user-facing behavior. You commit to test structure before understanding implementation, then tests become insensitive to real changes — they pass when behavior breaks, fail when behavior is fine.
+Write tests and implementation in vertical slices: one test, then its implementation, then the next. Writing all tests first and all implementation after is horizontal slicing, treating Red as "write all tests" and Green as "write all code." Horizontal slicing produces brittle tests: tests written in bulk test *imagined* behavior, not *actual* behavior. You end up testing the *shape* of things — data structures, function signatures — rather than user-facing behavior. You commit to test structure before understanding implementation, then tests become insensitive to real changes — they pass when behavior breaks, fail when behavior is fine.
 
 **Correct approach — vertical slices:** one test → one implementation → repeat. Each test responds to what you learned from the previous cycle.
 
@@ -25,10 +25,10 @@ This is the test-level instance of the same vertical-not-horizontal discipline `
 
 Before writing the first test, confirm the public interface design:
 
-- What interface changes are needed? Confirm with the user
+- What interface changes are needed? When the session is interactive and the change is material (a new public surface, a changed contract), confirm with the user; otherwise state the interface you assume and proceed
 - Identify opportunities for deep modules — can methods be reduced, params simplified, complexity hidden behind the interface?
 - Design interfaces for testability — prefer returning results over producing side effects (testable interfaces return values, making output-based testing possible)
-- Get user approval on the plan before writing test code
+- Proceed once the interface is settled; an autonomous run states its interface assumption in the summary instead of waiting
 
 When invoked from `/implementation:implement` (plan already approved) or as part of a `/testing:write` focused on a single function, scale this step to a quick self-check rather than a full Q&A loop.
 
@@ -59,7 +59,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
 4. **Make it pass** (Green) — write minimum code. Don't design, don't abstract, don't optimize. Make the test green
 
-5. **Refactor** — now make it clean. Both test and production code. **Run tests after each refactor step** — all tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty — you cannot distinguish refactor breakage from the original failure. Consider what new code reveals about existing code — new code is a lens on old code; refactoring is the time to act on what you see. Refactor candidates beyond duplication extraction:
+5. **Refactor** — now make it clean. Both test and production code. **Run tests after each refactor step** — all tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty — you cannot distinguish refactor breakage from the original failure. Refactor within the slice you just wrote; if the new code reveals a problem in existing code, note it as a follow-up rather than acting on it in this cycle. Refactor candidates beyond duplication extraction:
    - Deepen shallow modules — combine or push complexity behind a simpler interface (Ousterhout: can I reduce methods? simplify params? hide more complexity?)
    - Feature envy (Fowler) — logic that sends more messages to another object than its own → Move Method
    - Primitive obsession (Fowler) — raw strings/ints representing domain concepts → introduce Value Object
@@ -118,7 +118,7 @@ If the only way to verify is by reaching around the interface (querying DB direc
 
 - **Backend (domain + application layers)** — follow the test pyramid (Fowler): many unit tests, moderate integration, few E2E. Domain logic is well-suited to isolated unit testing
 - **Frontend / API boundary (endpoints, middleware, UI)** — lean toward the testing trophy (Dodds): weight integration tests more heavily. "Write tests. Not too many. Mostly integration." Component interactions at the boundary are where bugs actually hide
-- **Architecture rules** — always run an architecture-rules test suite when the ecosystem has one configured (`architecture-test-project` per ecosystem). Cheap, fast, catches structural drift before it compounds
+- **Architecture rules**. Always run the architecture-rules test suite when the project has one. Cheap, fast, and it catches structural drift before it compounds
 
 ## When NOT to write tests
 
@@ -147,11 +147,3 @@ decision; a decline with silence is a gap nobody can see.
 - **Failing test committed** (optional but valuable) — proves the bug/requirement exists in git history
 - **Fix + green test committed together** — the fix and its proof are atomic
 - **Commit before refactoring** — separate structural from behavioral commits
-
-## Marketplace plugin skills (invoke only when installed)
-
-These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
-
-- **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive test generation (researcher → planner → implementer → builder → tester → fixer → linter). Invoke for complex test scenarios requiring gap analysis and structured implementation
-- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state) as a detection layer for the per-cycle checklist above
-- **`dotnet-test:assertion-quality`** — flag tautological and weak assertions where expected values are recomputed the same way the code under test computes them

@@ -30,6 +30,10 @@ report that presents them as equals is wrong even when every finding in it is ri
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`). That is the lane's declared coverage, not a defect | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**. False **NEGATIVES**, the opposite of knip. Never describe the two degradations with one shared phrase |
 | **grep** | Shell and other symbol languages: function definitions with no reference anywhere | **4/4 true positives, 0 false positives** over 546 `.sh` / 177,793 lines; shellcheck found 0 of the same 4 | High precision, **acknowledged low recall**. `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and quietly saves a symbol that may be dead |
 
+Every figure in the Measured character column comes from this plugin's own trap fixtures under
+`evals/fixtures/`, as recorded on 2026-08-23. Recheck trigger: a major version bump in any lane's
+detector, or a change to the fixture corpus. Re-measure before quoting one to a user.
+
 Orphaned-**file** coverage is **TS/JS only**. Rust and .NET are permanently out of scope: their
 detectors build the project. Per-lane invocation, flags, and degradation detail live in
 [context/lanes.md](context/lanes.md) "Lane reference".
@@ -174,7 +178,6 @@ under a consumer's ruff config. Say so when you emit one.
 - **Not `/code-tidying:batch-simplify`.** That sweeps recently changed files; this deliberately
   targets the long-untouched ones a recency window excludes.
 - **Not a dependency, asset, or feature-flag auditor**, and not coverage-based runtime detection.
-- **Not an Edit operation.** It surfaces findings; the author applies every deletion.
 
 ## Gotchas
 

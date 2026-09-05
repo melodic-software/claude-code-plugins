@@ -9,8 +9,7 @@ disable-model-invocation: true
 
 One maintainer-facing entry point for keeping every vendored pack in the `playbooks`
 plugin in sync with its upstream source. It dispatches to each pack's own
-self-locating update script; it performs no update by itself. Do NOT auto-fire this
-skill, it is user/maintainer-invoked only.
+self-locating update script; it performs no update by itself.
 
 ## Invocation
 

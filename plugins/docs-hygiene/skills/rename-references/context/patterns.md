@@ -26,7 +26,7 @@
 
 Or jump by form: `grep -n '^## Form' context/patterns.md`.
 
-The load-bearing component of `/docs-hygiene:rename-references`. Each pattern catches references that pure-token grep misses. Empirically derived from a real skill-rename incident where 11 stale references survived 3 sweep passes; each pass found a new form.
+The load-bearing component of `/docs-hygiene:rename-references`. Each pattern catches references that pure-token grep misses. A rename leaves stale references in every form below, and a sweep reaches only the forms whose patterns it runs.
 
 ## How to read this file
 
@@ -331,7 +331,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **Case on title shapes only:** the ATX and Setext alternatives carry a `(?i)` flag — a
   title-cased heading (`# Re-Anchor` for a container named `re-anchor`) is the same reference as
   a lowercase one and keeps Form 14's scope rule. Declaration alternatives stay case-sensitive:
-  manifest and catalog registrations are exact identifiers (#1394).
+  manifest and catalog registrations are exact identifiers.
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
   names the thing — a `name` / `title` / `id` declaration in YAML frontmatter, a JSON manifest or
   catalog, or a TOML manifest — and a catalog entry KEYED by the container rather than declaring
@@ -522,8 +522,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **`[Tt]he` — sentence-initial is the common shape.** Container prose routinely opens a sentence
   with "The `<old>` plugin ships…", which a lowercase-only `the` misses; the token's only hit is
   then Form 2, which container mode suppresses as residue, so apply mode finishes with the stale
-  reference in place. Only the article is case-flexible — the token itself stays case-sensitive
-  (see `#1394`).
+  reference in place. Only the article is case-flexible — the token itself stays case-sensitive.
 - **Hyphen boundary, same reason as Form 13.** A word boundary counts a hyphen as a boundary, so
   the possessive would fire inside a kebab-case superstring — renaming `guard` would match
   `` `context-guard` ``'s. The leading `(^|[^\w-])` excludes an adjacent hyphen. The appositive

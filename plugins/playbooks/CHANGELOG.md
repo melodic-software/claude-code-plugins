@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.7]
+
+### Changed
+
+- `fable-5`: added a Fable 5.1 model-adaptation chapter, routed to it from meta-rule 3 and the
+  description, replaced the arrow-chain format for the unbriefed-decision block with three plain
+  clauses, dropped the numeric floor from the delegation trigger, and kept search narration that
+  explains the answer.
+- `skill-authoring`: replaced the "injection failure semantics are undocumented" claim with the
+  documented failure, timeout, stderr, and output-size behavior, dropped the changelog-version
+  archaeology behind the `$`-free brace-group rule and the pre-v2.1.216 `name` history, and removed
+  the version pin from the re-render claim.
+- `boris`: removed the maintainer comment about the refactored form and the `when_to_use`
+  frontmatter key, whose phrases the description already carries.
+- `update`: removed the "do NOT auto-fire this skill" sentence, which `disable-model-invocation`
+  already enforces.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.9.6]
 
 ### Fixed

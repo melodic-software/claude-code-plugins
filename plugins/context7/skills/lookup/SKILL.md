@@ -1,5 +1,5 @@
 ---
-description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server, same backend). Use when: 'look up the docs for X', 'what's the API for X', 'how do I configure X', 'latest docs for X', 'check context7 for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. Actions: lookup <library> <query> (default) | update (CLI upgrade + upstream drift check). For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
+description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server, same backend). Use when: 'look up the docs for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. Actions: lookup <library> <query> (default) | update (CLI upgrade + upstream drift check). For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
 argument-hint: "[lookup <library> <query> | update] (default: lookup, e.g., /context7:lookup react \"useEffect cleanup\")"
 user-invocable: true
 disable-model-invocation: false
@@ -47,14 +47,14 @@ ctx7 library "<name>" "<question>"
 MSYS_NO_PATHCONV=1 ctx7 docs "<libraryId>" "<question>"
 ```
 
-Equivalent via MCP when the consuming project has the Context7 MCP server configured (no Windows gotcha, cleaner output, returns ~1.5-2× more content):
+Equivalent via MCP when the consuming project has the Context7 MCP server configured (no Windows gotcha, cleaner output, more content per call; measured ratio in [context/mcp.md](context/mcp.md)):
 
 ```text
 mcp__context7__resolve-library-id(libraryName: "...", query: "...")
 mcp__context7__query-docs(libraryId: "/org/project", query: "...")
 ```
 
-You MUST call `library` / `resolve-library-id` first to get a valid ID, UNLESS the user provides one in `/org/project` format. One concept per query. When a question spans several independent topics, run a separate lookup per topic. Do not run more than 3 lookup commands per topic. If you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
+Call `library` / `resolve-library-id` first to get a valid ID; `docs` / `query-docs` reject anything else, unless the user supplies an ID in `/org/project` format. One concept per query. When a question spans several independent topics, run a separate lookup per topic. Do not run more than 3 lookup commands per topic. If you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
 
 **Do not include sensitive information** (API keys, passwords, credentials) in queries. Sent to the Context7 backend.
 
@@ -67,7 +67,7 @@ Both read the same backend. Results equivalent in substance. Pick by workflow.
 | Use the CLI (`ctx7`) when | Use the MCP (`mcp__context7__*`) when |
 |---|---|
 | Piping into `grep`, `jq`, `head`, a file | Conversational lookup where the model picks the tool naturally |
-| Dumping large docs to disk (`> docs.md`) instead of context | Default docs depth matters (MCP returns ~1.8× more content per call) |
+| Dumping large docs to disk (`> docs.md`) instead of context | Default docs depth matters (MCP returns more content per call; see [context/mcp.md](context/mcp.md)) |
 | Scripting, loops, Bash one-liners | Clean markdown output (no ANSI codes) |
 | No MCP server configured, or `mcp.context7.com` blocked | Zero Windows Git Bash ceremony (no `MSYS_NO_PATHCONV=1`) |
 | Structured extraction (`--json`) | Auto-discoverable from the model's tool list |
@@ -93,12 +93,12 @@ Full protocol (merge strategy, what to preserve, maintainer-only baseline refres
 
 - **Does not replace multi-source research**. Use your research workflow for architecture decisions or anything needing cross-referenced sources. This skill is library-doc retrieval only
 - **Does not refactor code**. Retrieves docs. User's question shapes what comes back
-- **Does not cache content locally**. Docs fetched fresh each call. `vendor/` baseline is verbatim upstream for skill-content drift detection only, not doc retrieval (do NOT read `vendor/` for normal lookup invocations; only when running the `update` action)
+- **Does not cache content locally**. Docs fetched fresh each call. `vendor/` baseline is verbatim upstream for skill-content drift detection only, not doc retrieval, so read it when running the `update` action and not on a normal lookup
 - **Does not auto-overwrite on update**. `update` is advisory. User approves any merge before changes land
 
 ## Gotchas
 
 - **Windows Git Bash**: `ctx7 docs /org/project "..."` gets path-mangled to `C:/Program Files/Git/org/project`. Always prefix with `MSYS_NO_PATHCONV=1`. `ctx7 library` is unaffected. Full detail: [context/cli.md](context/cli.md)
 - **Prefer the `CONTEXT7_API_KEY` env var over `ctx7 login`**: `ctx7 login` triggers browser OAuth and writes a token to `~/.ctx7/`. The env var is simpler and portable across machines. See [context/cli.md](context/cli.md)
-- **No content tuning**: CLI has no `--tokens` / `--limit` flag. Default depth is server-controlled. For more content per call, prefer MCP (returns ~1.8× more by default)
+- **No content tuning**: CLI has no `--tokens` / `--limit` flag. Default depth is server-controlled. For more content per call, prefer MCP (measured ratio in [context/mcp.md](context/mcp.md))
 - **Don't run `ctx7 skills install` into `.claude/skills/`**: this plugin owns the Context7 lookup surface. Installing Upstash's `find-docs` skill alongside creates a parallel surface that fragments lookups and drifts independently

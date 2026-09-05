@@ -149,7 +149,7 @@ playwright-cli run-code "async page => {
 playwright-cli run-code "async page => {
   await page.goto('https://example.com/login');
   await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
-  await page.getByRole('textbox', { name: 'Password' }).fill('secret');
+  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.E2E_TEST_PASSWORD!);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/dashboard');
   await page.context().storageState({ path: 'auth.json' });

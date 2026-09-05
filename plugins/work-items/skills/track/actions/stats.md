@@ -37,5 +37,5 @@ fi
 
 ## Notes
 
-- If the repo has >100 open items, the `--limit 500` aggregation cap means counts are approximate. Add a note: "Showing top 100. Use `/work-items:track list` with filters for the full set."
+- The aggregation projections page to the `--limit` the adapter README sets for each count. When the repo holds more open items than that limit, the counts are approximate. Say so and point at `/work-items:track list` with filters for the full set.
 - For the category breakdown, items with no `category:*` label are counted as "uncategorized."

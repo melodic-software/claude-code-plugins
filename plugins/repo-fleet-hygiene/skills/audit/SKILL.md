@@ -1,5 +1,5 @@
 ---
-description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
+description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories across a fleet', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches still on origin', 'moved or renamed GitHub repos'."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]... [--skip <name>]... [--max-depth <1..12>] [--detail] [--plan-file <path>] | --apply-plan <path>"
@@ -18,10 +18,8 @@ checkout resolution, fleet-scale evidence collection, rollup, and action-plan ro
 **not** own per-repository cleanup decisions or execution; those belong to `repo-hygiene` and
 `source-control`.
 
-The currently shipped collector produces the detailed read-only report described below, including
-the compact machine-readable rollup and action-plan artifact from
-[#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608) /
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609). Tell the user to run
+The collector produces the detailed read-only report described below, including the compact
+machine-readable rollup and action-plan artifact. Tell the user to run
 `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run by default; `--apply` plus confirmation or
 `--yes` to mutate). Do not add an execute flag to this audit script.
 
@@ -71,8 +69,7 @@ If no scope resolves, no bare path, no `--root`, no `--repo`, and no config-supp
 `fleet.root`/`fleet.repo`, the run **stops** and names the ways to supply scope plus
 `/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
 yourself. The project directory is **not** a fallback scope: auditing the session's incidental
-working directory was removed because it silently audited whatever tree the shell happened to sit
-in. Config
+working directory would silently audit whatever tree the shell happens to sit in. Config
 resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
@@ -128,10 +125,9 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match, never the search
    API's prefix-matching `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate.
    Measured rate cost stays 1 per call (nodeCount equals the alias count); that stays well under
-   GitHub's documented 500,000-node ceiling and 5,000-point/hour primary limit. This retires the REST
-   `merged-pr-window-truncated` disclosure and the privacy-gated per-branch `--head` fallback:
-   every non-default local branch the operator asked about is queried by exact name, including
-   heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
+   GitHub's documented 500,000-node ceiling and 5,000-point/hour primary limit. There is no merged-PR
+   result window and no per-branch fallback: every non-default local branch the operator asked
+   about is queried by exact name, including heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
    unavailable. Emit `github-pr-evidence-unavailable` and never infer unmerged from a missing
    row after a failed page. Identical branch names in another repository are unrelated. `HIGH`
    requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
@@ -201,7 +197,7 @@ Pass `--detail` when the operator needs evidence: targets are collapsed (one ent
 carrying every applicable finding), never duplicated across confidence groups. Never collapse
 same-named branches across repositories.
 
-`ACKNOWLEDGED` remains a prominence demotion, not a fifth confidence tier: the evidence stays exactly
+`ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly
 as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
 candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
 repository, not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
@@ -217,11 +213,9 @@ per-repository skills by hand.
 This section defines how audit relates to the execute verb; it does not add a mutation command to
 the audit argument grammar.
 
-The cleanup-plan consumer is `/repo-fleet-hygiene:apply`. It takes only the machine-readable rollup
-artifact tracked by [#2608](https://github.com/melodic-software/claude-code-plugins/issues/2608).
-Never parse this skill's human report into executable operations. The apply verb
-([#2597](https://github.com/melodic-software/claude-code-plugins/issues/2597) /
-[#2609](https://github.com/melodic-software/claude-code-plugins/issues/2609)):
+The cleanup-plan consumer is `/repo-fleet-hygiene:apply`. It takes only the machine-readable
+rollup artifact. Never parse this skill's human report into executable operations. The apply
+verb:
 
 1. rejects an incomplete, invalid, or non-audit artifact and preserves every repository-qualified
    target, confidence, evidence gap, and disposition;
@@ -232,16 +226,15 @@ Never parse this skill's human report into executable operations. The apply verb
 4. re-derives mutable facts, including relevant branch/worktree OIDs, at execution time. An old
    artifact is evidence, not authorization.
 
-On this release, the rollup, `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` ship. Do not
+The rollup, the `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` all ship. Do not
 invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`. Return the
 report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for execution. A
 `HIGH` evidence tier is never itself permission to delete a branch or worktree.
 
 Related fleet contracts that remain separate:
 
-- merged remote branches with a distinct safety gate:
-  [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607) (reporting shipped;
-  remote deletion is not part of `:apply`).
+- merged remote branches carry a distinct safety gate: this skill reports them, and remote
+  deletion is not part of `/repo-fleet-hygiene:apply`.
 
 ## Graceful degradation
 
@@ -263,8 +256,7 @@ Related fleet contracts that remain separate:
   repository: discovery `add_target`s it and **returns without descending into its children**. A
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
-- A symlinked or junctioned intermediate directory under `--root` is not followed (same non-following
-  bound as before) but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
+- A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
   the discovery-skips header line. Windows directory junctions test as symlinks under Git Bash, so
   they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
   (configured).

@@ -3,6 +3,36 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.23]
+
+### Changed
+
+- **co-write, diagnose, workflow, meter-prosody, song-form:** removed the session
+  archaeology beside live rules. The rules and their reasons stay; the past coaching
+  session, its date stamps, and the pilot narration are gone.
+- **setup:** corrected the template-to-skill example (`metaphor-recipe-prompt` is loaded
+  by `/songwriting:metaphor`, not `/songwriting:object-writing`), and replaced the
+  hardcoded template count with a count-free statement of the same anti-pattern.
+- **object-writing:** the fleet-tier rule now resolves the default from the consuming
+  project's configuration instead of pinning a model name, and the effort-versus-tier
+  guidance drops an unattributed quotation while keeping the advice.
+- **suno:** removed the version-diff narration from the context spokes, so each file
+  states its current standing instead of comparing itself to past releases. The closing
+  confidence note in `context/power-tips.md` no longer re-asserts the blanket per-file
+  rung the top of the file retracts.
+- **suno:** the `~90%` numeric-BPM adherence figure is gone from `SKILL.md`,
+  `context/troubleshoot.md`, and `context/style.md`, which had it as bare fact with no
+  source. The qualitative claim stays, `context/style.md` gains a recheck trigger, and
+  ledger row S21 records the removal.
+- **suno:** `context/research-recipes.md` no longer names MCP tool IDs for servers this
+  marketplace does not ship. The research routes are stated as capabilities with a
+  presence-gated plugin route and a stated fallback.
+- **suno:** `reference/suno-drift-audit-ledger.md` drops the tracker numbers, the three
+  rows whose only claim was a tracker citation, and the `## History` section the
+  CHANGELOG already carries.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [1.4.22]
 
 ### Changed

@@ -138,8 +138,8 @@ The extraction is in `scripts/inventory.py`, and [reference/extraction.md](refer
 explains every choice in it. Read that before changing the script or when a run reports a layout
 error. The one thing worth knowing at the call site: the script resolves minified registrar names,
 the bundle location, and each command's field boundaries **at runtime**, because all three change
-between releases. Two earlier regex-only passes over this bundle produced lists that were wrong in
-different ways, which is what the runtime resolution and the integrity block exist to prevent.
+between releases. A regex-only pass over this bundle produces a list that is wrong in ways that look
+complete, which is what the runtime resolution and the integrity block exist to prevent.
 
 The script opens the binary read-only. It never writes to it and never executes it.
 

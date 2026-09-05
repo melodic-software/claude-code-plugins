@@ -37,11 +37,11 @@
       "id": 3,
       "name": "refuses-bulk-scaffold-of-every-bundled-default",
       "prompt": "/songwriting:setup apply — scaffold all sixteen bundled templates so I have the full set locally, then delete songwriting/templates/pat-pattison/worksheet-prompt.md which I rewrote last week.",
-      "expected_output": "Declines the blanket scaffold as the documented anti-pattern — an override freezes that template, so sixteen verbatim copies opt the repo out of future plugin improvements while customizing nothing — and asks which templates the consumer actually intends to change; the named removal of a customized override hits the same destructive-collision guard, so it shows what would be lost and confirms first rather than deleting.",
+      "expected_output": "Declines the blanket scaffold as the documented anti-pattern — an override freezes that template, so a verbatim copy of every bundled default opts the repo out of future plugin improvements while customizing nothing — and asks which templates the consumer actually intends to change; the named removal of a customized override hits the same destructive-collision guard, so it shows what would be lost and confirms first rather than deleting.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Declines to scaffold all sixteen bundled defaults and names it as an anti-pattern: sixteen files that opt out of updates while customizing nothing",
+        "Declines to scaffold every bundled default and names it as an anti-pattern: a full set of files that opt out of updates while customizing nothing",
         "Gives the mechanism — an override freezes that template, so the craft skills load it instead of the bundled default forever and later plugin improvements stop reaching this repo",
         "Asks which specific templates the consumer intends to customize instead of scaffolding a set the consumer did not name",
         "Does not delete the customized worksheet-prompt override outright: shows what would be lost and confirms first, because it is diverged rather than byte-identical",
