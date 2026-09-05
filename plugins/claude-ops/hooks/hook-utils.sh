@@ -1638,10 +1638,13 @@ hook::buffer_stdin() {
   if ((validated == 0)) && command -v jq >/dev/null 2>&1; then
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
-    # a hook payload routinely exceeds it. jq's diagnostic is kept (stdout
-    # dropped, stderr captured): it is the verdict below that tells a payload
-    # cut short from text that was never JSON.
-    jq_err=$(printf '%s' "$input" | jq -e . 2>&1 >/dev/null) || jq_rc=$?
+    # a hook payload routinely exceeds it. A direct probe, not a command
+    # substitution: this is the hot path (every closed-pipe payload on POSIX
+    # lands here), and `$(...)` would add a subshell fork to it on every hook
+    # invocation. jq's diagnostic is fetched by a second run below, only once
+    # this probe has failed and the stall and whitespace arms have been
+    # decided, so a valid payload pays for exactly one jq.
+    printf '%s' "$input" | jq -e . >/dev/null 2>&1 || jq_rc=$?
   fi
   if ((jq_rc != 0 && jq_rc != 127)); then
     # STALLED stays fail-closed, and is decided FIRST — before the
@@ -1687,7 +1690,13 @@ hook::buffer_stdin() {
     # valid JSON") legitimate tool calls were blocked with a message that
     # pointed at the command. Should jq's wording change, an unrecognized
     # diagnostic falls through to rc 2 — the pre-#3507 behavior, never a wider
-    # allow.
+    # allow. The diagnostic is read here, by a second jq over the same buffer
+    # (stdout dropped, stderr captured), and nowhere earlier: this arm is only
+    # reached once the probe above has failed on a non-stalled, non-blank
+    # payload, so the re-run is a cold-path cost and the stall and whitespace
+    # verdicts above never depend on it. Same bytes, same parser, same
+    # verdict; should the re-run fail to produce one, the fall-through is rc 2.
+    jq_err=$(printf '%s' "$input" | jq -e . 2>&1 >/dev/null) || true
     if [[ "$jq_err" == *Unfinished* ]]; then
       echo "hook stdin was cut short: ${#input} characters of a JSON payload arrived, then the pipe closed before the document was complete (a transport fault, not a property of the tool call)." >&2
       return 3
