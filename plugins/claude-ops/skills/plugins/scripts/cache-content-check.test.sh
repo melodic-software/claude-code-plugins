@@ -13,7 +13,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/cache-content-check.sh"
 # Never /tmp: on Windows that is a drive-root path that accumulates silently.
-# $TEMP there is a NATIVE path (`C:\Users\…\Temp`), and its backslashes would be
+# $TEMP there is a NATIVE Windows path spelled with drive letter and backslash
+# separators, and those backslashes would be
 # embedded raw into the fixture JSON, where a backslash is an escape character —
 # the state files would be malformed and every case would read as the script
 # correctly rejecting schema drift. Folded to forward slashes, which Git Bash
@@ -79,7 +80,8 @@ write() {
 #   commit 1: plugins/alpha/{hooks/run.sh, lib/util.sh, gone.txt}
 #   commit 2: run.sh changed, gone.txt deleted, lib/new.sh added
 # Both commits carry the same marketplace.json, so a version number that never
-# moves — the exact condition issue #3681 turns on — is what the fixture models.
+# moves — the exact condition the reported cache-staleness mechanism turns on —
+# is what the fixture models.
 seed_market_repo() {
   local case_dir="$1" repo="$1/market"
   mkdir -p "$repo"
@@ -115,14 +117,15 @@ seed_cache_from() {
   local case_dir="$1" sha="$2" repo="$1/market" cache="$1/cache/alpha/1.0.0"
   rm -rf "$cache"
   mkdir -p "$cache"
+  # `-z`, and NUL-delimited reads, because a non-ASCII name comes back QUOTED
+  # from a plain ls-tree and `git show` would then be handed the quoted
+  # spelling — the fixture would fail to build rather than exercise the case.
   local rel
-  while IFS= read -r rel; do
+  while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
-    mkdir -p "$cache/${rel#plugins/alpha/}" 2>/dev/null
-    rmdir "$cache/${rel#plugins/alpha/}" 2>/dev/null
     mkdir -p "$(dirname "$cache/${rel#plugins/alpha/}")"
     git -C "$repo" show "$sha:$rel" >"$cache/${rel#plugins/alpha/}"
-  done < <(git -C "$repo" ls-tree -r --name-only "$sha" -- plugins/alpha)
+  done < <(git -C "$repo" ls-tree -r -z --name-only "$sha" -- plugins/alpha)
   echo "$cache"
 }
 
@@ -182,8 +185,9 @@ assert_eq "match: the record carries its recorded sha back" "$SHA2" "$(jq -r '.i
 
 # ============================================================================
 # Case: the cache holds the OLDER commit's build while the record's sha points
-# at the newer one. This is issue #3681's exact shape, and the version number
-# is identical across both commits, so a version-and-sha check sees nothing.
+# at the newer one. This is the reported failure's exact shape, and the version
+# number is identical across both commits, so a version-and-sha check sees
+# nothing.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -453,6 +457,260 @@ assert_eq "read-only: the marketplace clone's work tree is still clean" "" "$git
 assert_eq "read-only: the clone's HEAD did not move" "$SHA2" "$(git -C "$case_dir/market" rev-parse HEAD)"
 
 # ============================================================================
+# Case: an install record with NO gitCommitSha field at all. Decoded with a
+# whitespace separator the empty column would vanish and installPath would
+# slide left into the sha, yielding install-path-missing with a fabricated sha.
+# The honest answer is no-git-commit-sha, and the installPath must come back
+# intact.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
+seed_cache_from "$case_dir" "$SHA2" >/dev/null
+seed_state "$case_dir" "$SHA2"
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\":\"user\",\"version\":\"1.0.0\",\"installPath\":\"$case_dir/cache/alpha/1.0.0\"}
+    ]
+  }
+}"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "absent gitCommitSha: exit 0" 0 "$rc"
+assert_eq "absent gitCommitSha: verdict names the missing field" \
+  "no-git-commit-sha" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "absent gitCommitSha: the sha comes back empty, never fabricated" \
+  "" "$(jq -r '.installs[0].gitCommitSha' <<<"$out" 2>/dev/null)"
+assert_eq "absent gitCommitSha: the installPath did not slide into another column" \
+  "$case_dir/cache/alpha/1.0.0" "$(jq -r '.installs[0].installPath' <<<"$out" 2>/dev/null)"
+assert_eq "absent gitCommitSha: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# Case: the plugin's source directory is RENAMED after the recorded commit.
+# Resolving the source from the current checkout would look an older tree up
+# under a path it does not contain, and `git ls-tree` reports a pathspec that
+# matches nothing as success with EMPTY output — so every cache file becomes an
+# extra and a perfectly matching cache reports stale-content. Reading the
+# manifest at the recorded sha is what makes this a match.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+repo="$case_dir/market"
+mkdir -p "$repo"
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email fixture@example.invalid
+git -C "$repo" config user.name fixture
+git -C "$repo" config commit.gpgsign false
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
+write "$repo/plugins/alpha/hooks/run.sh" 'echo v1'
+write "$repo/plugins/alpha/lib/util.sh" 'echo util'
+git -C "$repo" add -A
+git -C "$repo" commit -q -m one
+RENAME_SHA1=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" mv plugins/alpha plugins/alpha-renamed
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha-renamed"}]}'
+git -C "$repo" add -A
+git -C "$repo" commit -q -m rename
+# The cache holds the recorded commit's build, under the name that commit used.
+cache="$case_dir/cache/alpha/1.0.0"
+mkdir -p "$cache/hooks" "$cache/lib"
+git -C "$repo" show "$RENAME_SHA1:plugins/alpha/hooks/run.sh" >"$cache/hooks/run.sh"
+git -C "$repo" show "$RENAME_SHA1:plugins/alpha/lib/util.sh" >"$cache/lib/util.sh"
+seed_state "$case_dir" "$RENAME_SHA1"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "renamed source: exit 0" 0 "$rc"
+assert_eq "renamed source: the source path is read at the recorded sha, so it is a match" \
+  "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "renamed source: nothing is called extra-in-cache" \
+  "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
+assert_eq "renamed source: nothing is called missing-from-cache" \
+  "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# Case: the manifest at the recorded sha names a source directory that commit
+# does not contain. That is its own verdict — an empty expected tree would
+# otherwise make every cache file an extra and report a healthy cache stale.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+repo="$case_dir/market"
+mkdir -p "$repo"
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email fixture@example.invalid
+git -C "$repo" config user.name fixture
+git -C "$repo" config commit.gpgsign false
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/ghost"}]}'
+write "$repo/plugins/other/keep.txt" 'unrelated'
+git -C "$repo" add -A
+git -C "$repo" commit -q -m ghost
+GHOST_SHA=$(git -C "$repo" rev-parse HEAD)
+cache="$case_dir/cache/alpha/1.0.0"
+mkdir -p "$cache"
+write "$cache/whatever.sh" 'echo hi'
+seed_state "$case_dir" "$GHOST_SHA"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "no-source-at-sha: exit 0" 0 "$rc"
+assert_eq "no-source-at-sha: verdict names the condition" \
+  "no-source-at-sha" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "no-source-at-sha: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
+assert_eq "no-source-at-sha: not counted as stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
+assert_eq "no-source-at-sha: no cache file is called extra" "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# Case: a tracked filename carrying non-ASCII bytes. Without `-z`, git QUOTES
+# and escapes such a pathname in ls-tree output, and the line-oriented compare
+# then reads the quoted spelling and the raw one as two different files — an
+# unchanged file reported as BOTH missing-from-cache and extra-in-cache.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+repo="$case_dir/market"
+mkdir -p "$repo"
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email fixture@example.invalid
+git -C "$repo" config user.name fixture
+git -C "$repo" config commit.gpgsign false
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
+write "$repo/plugins/alpha/plain.sh" 'echo plain'
+write "$repo/plugins/alpha/café.txt" 'accented'
+git -C "$repo" add -A
+git -C "$repo" commit -q -m one
+NONASCII_SHA=$(git -C "$repo" rev-parse HEAD)
+seed_cache_from "$case_dir" "$NONASCII_SHA" >/dev/null
+seed_state "$case_dir" "$NONASCII_SHA"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "non-ASCII path: exit 0" 0 "$rc"
+assert_eq "non-ASCII path: an unchanged accented filename is a match, not a finding" \
+  "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "non-ASCII path: it is not reported missing from the cache" \
+  "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
+assert_eq "non-ASCII path: nor extra in the cache" \
+  "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
+# ...and a genuine edit to that same file is still caught, so the fix is a fix
+# and not a blanket exemption for awkward names.
+printf '%s' 'edited' >"$case_dir/cache/alpha/1.0.0/café.txt"
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "non-ASCII path: an edited accented file is still stale-content" \
+  "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "non-ASCII path: and is counted as differing, not as missing+extra" \
+  "1" "$(jq -r '.installs[0].differing' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# Case: a tracked SYMLINK. git stores it as a blob holding the target text,
+# while `find -type f` excludes it entirely — so an unchanged link would be
+# reported missing-from-cache forever. Guarded by a capability check: creating
+# a symlink on Windows may need a privilege this host does not have, and a
+# silent pass there would be a green run of a case that never executed.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+repo="$case_dir/market"
+mkdir -p "$repo/plugins/alpha"
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email fixture@example.invalid
+git -C "$repo" config user.name fixture
+git -C "$repo" config commit.gpgsign false
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
+write "$repo/plugins/alpha/real.sh" 'echo real'
+symlink_ok=""
+if ln -s real.sh "$repo/plugins/alpha/link.sh" 2>/dev/null && [[ -L "$repo/plugins/alpha/link.sh" ]]; then
+  git -C "$repo" add -A
+  git -C "$repo" commit -q -m one
+  case "$(git -C "$repo" ls-tree -r HEAD -- plugins/alpha/link.sh)" in
+  120000*) symlink_ok="yes" ;;
+  *) symlink_ok="" ;;
+  esac
+fi
+if [[ -z "$symlink_ok" ]]; then
+  printf 'SKIP: symlink case — this host cannot create a git-recorded symlink (Windows without the privilege, or core.symlinks=false)\n' >&2
+else
+  SYM_SHA=$(git -C "$repo" rev-parse HEAD)
+  cache="$case_dir/cache/alpha/1.0.0"
+  mkdir -p "$cache"
+  git -C "$repo" show "$SYM_SHA:plugins/alpha/real.sh" >"$cache/real.sh"
+  ln -s real.sh "$cache/link.sh"
+  seed_state "$case_dir" "$SYM_SHA"
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "symlink: an unchanged tracked link is a match" \
+    "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+  assert_eq "symlink: it is not reported missing from the cache" \
+    "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
+  # A link pointing somewhere else IS a difference, so the link is compared
+  # rather than excused.
+  rm -f "$cache/link.sh"
+  ln -s elsewhere.sh "$cache/link.sh"
+  out=$(run_check "$case_dir" --marketplace market1)
+  assert_eq "symlink: a link retargeted in the cache is stale-content" \
+    "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+fi
+
+# ============================================================================
+# Case: `git hash-object --stdin-paths` returns fewer hashes than it was given
+# paths. Every entry after the gap would be filed under the WRONG path, so the
+# run must refuse to compare rather than report healthy files as differing. A
+# stub `git` earlier on PATH truncates that one subcommand's output and
+# delegates everything else to the real binary.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
+seed_cache_from "$case_dir" "$SHA2" >/dev/null
+seed_state "$case_dir" "$SHA2"
+REAL_GIT="$(command -v git)"
+mkdir -p "$case_dir/stub"
+# The stub must call the real binary by ABSOLUTE path: a script named `git`
+# that runs `git` would find itself first on PATH and recurse forever.
+write "$case_dir/stub/git" "#!/usr/bin/env bash
+case \"\$*\" in
+*'hash-object --stdin-paths'*)
+  '$REAL_GIT' \"\$@\" | head -n -1
+  exit 0
+  ;;
+esac
+exec '$REAL_GIT' \"\$@\"
+"
+chmod +x "$case_dir/stub/git"
+# PATH entries must be POSIX-spelled. The fixture root is derived from $TEMP,
+# which on Windows is a drive-letter path, and a `C:/…` entry in PATH is not
+# searched at all — the stub would be silently ignored and the case would report
+# a plain match, which is exactly the vacuous pass it exists to prevent.
+STUB_PATH_ENTRY="$case_dir/stub"
+if command -v cygpath >/dev/null 2>&1; then
+  STUB_PATH_ENTRY="$(cygpath -u "$case_dir/stub")"
+fi
+out=$(env PATH="$STUB_PATH_ENTRY:$PATH" \
+  CACHE_CONTENT_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  CACHE_CONTENT_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  bash "$SCRIPT" --marketplace market1 2>&1)
+rc=$?
+assert_exit "hash-batch-misaligned: exit 0" 0 "$rc"
+assert_eq "hash-batch-misaligned: verdict names the broken contract" \
+  "hash-batch-misaligned" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "hash-batch-misaligned: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
+assert_eq "hash-batch-misaligned: not counted as stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
+assert_eq "hash-batch-misaligned: nothing is reported differing" \
+  "0" "$(jq -r '.installs[0].differing' <<<"$out" 2>/dev/null)"
+assert_eq "hash-batch-misaligned: nothing is reported missing from the cache" \
+  "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
+assert_eq "hash-batch-misaligned: nothing is reported extra in the cache" \
+  "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
+# The same fixture without the stub is a plain match, so the verdict above came
+# from the truncation and not from the fixture being broken.
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "hash-batch-misaligned: the same fixture with the real git is a match" \
+  "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
 # Process budget: a clean install costs a FIXED number of process creations,
 # never one per file. Each creation is a fork() emulation plus a CreateProcess
 # on Windows Git Bash (roughly 120 ms on a quiet host, seconds on a contended
@@ -464,6 +722,12 @@ assert_eq "read-only: the clone's HEAD did not move" "$SHA2" "$(git -C "$case_di
 # fleet-state.test.sh counts it: `bash -x` with PS4 carrying $BASHPID, so every
 # subshell shows up as a distinct pid, plus every external exec. Two fixtures
 # differing only in FILE COUNT must cost the same.
+#
+# The probe is itself asserted, not just its result. `count_creations` returns
+# `forks - 1 + execs`, so a trace it cannot parse at all yields -1 — which would
+# satisfy any ceiling and turn this whole section into a test that cannot fail.
+# The floor below makes a broken probe a FAILURE, and the measured number is
+# printed either way so a silent drift in what the trace looks like is visible.
 # ============================================================================
 count_creations() {
   local trace="$1" forks execs
@@ -520,10 +784,19 @@ assert_eq "process budget: the thirty-file run still reports a match" \
   "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "process budget: the count does not grow with the file count (2 files vs 30)" \
   "$small" "$large"
-if [[ "$large" -le 24 ]]; then
-  pass "process budget: a one-install report costs at most 24 process creations (measured $large)"
+# Floor first: a probe that parses nothing counts -1 and would pass every
+# ceiling below it, so the ceiling assertion is only meaningful once the count
+# is known to be real.
+if [[ "$large" -ge 1 ]]; then
+  pass "process budget: the trace probe actually counted something (measured $large)"
 else
-  fail "process budget: a one-install report costs at most 24 process creations" \
+  fail "process budget: the trace probe actually counted something" \
+    "measured $large — the pid-stamped PS4 did not reach the traced shell, so the ceiling below is vacuous (trace: $case_dir/trace-large.log)"
+fi
+if [[ "$large" -ge 1 && "$large" -le 26 ]]; then
+  pass "process budget: a one-install report costs at most 26 process creations (measured $large)"
+else
+  fail "process budget: a one-install report costs at most 26 process creations" \
     "measured $large (trace: $case_dir/trace-large.log)"
 fi
 

@@ -32,6 +32,31 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   condition the verdict exists to report. A project-scope record whose `projectPath` is not on this
   machine is counted as skipped rather than verdicted, on the same reasoning the skill already
   applies to stale project records: absent is not dead.
+- **The compare reads the plugin's source path from the RECORDED commit, not from the marketplace
+  clone's current checkout.** A plugin directory renamed or moved after the recorded commit was
+  otherwise looked up under its present-day path against an older tree, and `git ls-tree` treats a
+  pathspec that matches nothing as success with empty output rather than an error — so every file in
+  a perfectly healthy cache became an extra and the install reported `stale-content`. The manifest is
+  now read with `git show <sha>:.claude-plugin/marketplace.json`, with no fallback to the checkout,
+  so the source path and the expected tree describe the same revision. A pathspec that still matches
+  nothing at that sha gets its own `no-source-at-sha` verdict, counted unverifiable, so an empty
+  expected tree can never be reported as a content difference. The manifest read is cached per
+  distinct sha rather than paid per install record.
+- **Pathnames travel NUL-separated end to end.** `ls-tree -z`, `find -print0` and `check-ignore -z`
+  replace their line-oriented forms. Without `-z`, git quotes and escapes any pathname carrying
+  non-ASCII, a tab, a newline or a backslash, and the compare then read that quoted spelling and the
+  raw path as two different files — an unchanged accented filename was reported as both
+  missing-from-cache and extra-in-cache. `git hash-object --stdin-paths` has no `-z` switch, so a
+  cache path containing a newline, and only that character, is hashed by its own process instead.
+- **Tracked symlinks are compared mode-aware instead of reported missing.** A symlink is an ordinary
+  blob whose content is the link target text, but `find -type f` excluded it, so every tracked link
+  read as permanently missing from the cache. The cache walk now enumerates links as well as regular
+  files and hashes a link's `readlink` output, which is what git itself stores.
+- **Install records are decoded with a US (0x1f) separator rather than a tab.** Bash treats tab as
+  IFS whitespace, so an empty middle column collapsed: a record carrying no `gitCommitSha` shifted
+  its `installPath` into the sha field and reported `install-path-missing` with a fabricated sha
+  instead of the honest `no-git-commit-sha`. This is the separator `fleet-state.sh` already uses for
+  its own internal records.
 - **Route (b) of the three the issue offered, taken deliberately.** Route (a), a repo rule that
   every plugin change bumps the version, prevents nothing already delivered and depends on every
   future author remembering it; route (c), an upstream report, has no delivery date this repo
