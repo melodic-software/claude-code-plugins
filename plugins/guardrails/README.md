@@ -379,6 +379,40 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.2, the two PostToolUse verifiers.** 2026-09-05, Linux CI host. The 0.31.1
+table below still carries the pre-fix figures for `skill-reference-verify` (287.2)
+and `cli-flag-verify` (32.0); this entry supersedes those two rows. Neither hook
+changed what it checks. `skill-reference-verify` read every plugin manifest through
+four processes each before deciding whether the write cited a skill at all, and
+`cli-flag-verify` spawned its verifier script to read a cache file it could have read
+itself.
+
+*Method.* Mean wall time of 15 runs per row on an otherwise idle host,
+`HOOK_TELEMETRY_SINK` unset. Milliseconds, with the spawn-equivalent alongside where the
+spawn floor S was measured in the same pass (2.52 ms before, 1.83 ms after; the
+host moved between passes, which is why the ratio, not the millisecond, is the
+comparable figure). The `cli-flag-verify` probe is a markdown `Write` naming `gh`,
+`claude`, `docker` and `kubectl`, three of the four installed, timed on three warm
+runs with an `strace -f` pass counting `execve`.
+
+| Row | before | after |
+|---|---|---|
+| `skill-reference-verify`, a `.md` citing a skill | 642.9 ms (334.8 S) | 63.8 ms (33.8 S) |
+| `skill-reference-verify`, a `.md` citing nothing | 47.1 ms | 47.3 ms |
+| ` ` the manifest index loop, isolated (74 manifests) | 468.5 ms | 5.2 ms |
+| `cli-flag-verify`, warm cache | 119 to 136 ms | 55 to 79 ms |
+| `cli-flag-verify`, cold cache (four `--help` calls) | 980.5 ms | 461.6 ms |
+| ` ` `execve` per warm run, total / failed | 152 / 88 | 34 / 11 |
+
+The no-reference path was never the cost, and it is unchanged. Of the 88 failed
+`execve` before, every one was `env` walking `PATH` for `bash` on behalf of a
+`#!/usr/bin/env bash` exec: four verifier spawns plus the telemetry sink, each
+failing once per `PATH` entry ahead of `/usr/bin`. The 11 left are the sink's one
+walk, which this plugin does not own. The cold-cache figure is host-bound (it is the
+four binaries answering `--help`) and halves here only because the verifier's own
+setup work shrank; a Windows Git Bash cold run has been reported at over 11 s and
+is not reproduced on this host.
+
 **0.32.0, the GitHub MCP write lane.** 2026-09-04, Linux CI host. The lane is a NEW
 `hooks.json` row rather than a widening of the `Write|Edit|MultiEdit|NotebookEdit`
 matcher, which is the whole point of its shape: an MCP matcher on the existing row

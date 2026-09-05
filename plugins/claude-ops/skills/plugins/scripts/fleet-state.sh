@@ -530,8 +530,14 @@ fi
 # a comparison done in the shell would never see. Keep it in jq.
 norm_root=""
 norm_root_parent=""
+phys_root=""
 if [[ "$MODE" == "default" ]]; then
   hook::_physical_cached_to phys_tmp "$plugin_root" || true
+  # Stage 3a walks the filesystem, so it needs the PHYSICAL spelling, not the
+  # comparison-normalized one (which lower-cases the drive remainder on
+  # Windows). Kept alongside norm_root so both forms come from the one
+  # already-primed realpath answer.
+  phys_root="$phys_tmp"
   hook::normalize_path_to norm_root "$phys_tmp"
   norm_root="${norm_root%/}"
   norm_root_parent="${norm_root%/*}"
@@ -548,13 +554,19 @@ fi
 #   MP<US><name><US><installLocation><US><autoUpdate><US><lastUpdated>
 #                                          every key whose entry is truthy
 #   PP<US><projectPath>                    every distinct project/local path
-#   TARGET<US><marketplace>                the default marketplace (default
-#                                          mode only; empty when unresolved)
+#   TARGET<US><marketplace>                the default marketplace from the
+#                                          installPath stages (default mode
+#                                          only; empty when unresolved)
+#   LOCHIT<US><marketplace>                the marketplace whose installLocation
+#                                          contains the running plugin root
+#                                          (stage 3b; default mode only, empty
+#                                          when no marketplace matches)
 # The settings files are read as raw text so a malformed one surfaces as its
 # own error instead of an empty capture that only fails several steps later.
 #
 # Default-marketplace resolution is the one this plugin was installed from: a
-# two-stage match against installed_plugins.json's version-pinned installPath.
+# three-stage match, the first two against installed_plugins.json's
+# version-pinned installPath.
 #   1. exact: installPath == this plugin's normalized root (the precise case).
 #   2. version-agnostic fallback: installPath and the running root differ ONLY
 #      by their trailing `/<version>` segment. This is common, not an edge case:
@@ -565,6 +577,24 @@ fi
 #      matches the version-stripped `…/cache/<marketplace>/<plugin>` prefix, which
 #      still carries the marketplace (so two marketplaces shipping the same plugin
 #      stay distinguishable).
+#   3. out-of-cache root. Every installPath lives under
+#      ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>, so a root loaded
+#      from anywhere else — a local dev checkout, --plugin-dir, or the
+#      marketplace checkout itself — is unrepresentable in that join and misses
+#      both stages above. Two sub-stages cover it:
+#        3a. marketplace manifest walk-up (in the SHELL, below): walk up a
+#            bounded number of levels from the running root looking for
+#            .claude-plugin/marketplace.json and read its `.name`, accepted ONLY
+#            when it is a key in known_marketplaces.json.
+#        3b. installLocation prefix (emitted here as LOCHIT): the root equals or
+#            sits under a known marketplace's installLocation, which covers
+#            <installLocation>/plugins/<name>. installLocation is recorded in
+#            native Windows form, so it gets the same backslash folding and
+#            case-insensitivity treatment as installPath — and, like them, the
+#            comparison stays in jq: MSYS rewrites a mount-alias argv such as
+#            /tmp/... into the drive-letter spelling the records carry, a
+#            rewrite a comparison done in the shell would never see.
+#      A root that resolves through none of the three fails loud; it never guesses.
 settings_args=()
 [[ -f "$USER_SETTINGS" ]] && settings_args+=(--rawfile us "$USER_SETTINGS")
 if [[ -n "$PROJECT_ROOT" ]]; then
@@ -622,7 +652,21 @@ PASS1_PROGRAM='
                               if $cib then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
                      | .key] | .[0] // "")
               end) as $hit
-           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; ""))
+           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; "")),
+           # Stage 3b, emitted unconditionally so the shell can consult it only
+           # after stage 3a has had its turn. The value is already a bare
+           # known_marketplaces.json key, so it gets NO `sub(".*@"; "")`.
+           (if $root == "" then "" else
+              ([$mk | to_entries[] | select(.value)
+                | ((.value.installLocation // "") | gsub("\\\\"; "/") | rtrimstr("/")) as $loc
+                | select($loc != "")
+                | select(if $cib
+                         then ($root | ascii_downcase) == ($loc | ascii_downcase)
+                              or (($root | ascii_downcase) | startswith(($loc | ascii_downcase) + "/"))
+                         else $root == $loc or ($root | startswith($loc + "/")) end)
+                | .key] | .[0] // "")
+            end) as $lochit
+           | "LOCHIT" + ([31] | implode) + $lochit
          else empty end)
     end'
 
@@ -648,6 +692,7 @@ mp_au=()
 mp_lu=()
 pp_lines=()
 resolved_target=""
+location_target=""
 while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
   case "$tag" in
   ERR)
@@ -664,6 +709,7 @@ while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
     ;;
   PP) pp_lines+=("$f1") ;;
   TARGET) resolved_target="$f1" ;;
+  LOCHIT) location_target="$f1" ;;
   *) ;;
   esac
 done <<<"$pass1"
@@ -1046,17 +1092,66 @@ emit_one() {
   return 0
 }
 
+# --- Stage 3a: marketplace manifest walk-up ----------------------------------
+# Stages 1 and 2 both key on installPath, and every installPath lives under
+# .../cache/<marketplace>/<plugin>/<version>, so a root loaded from anywhere
+# else is unrepresentable in that join. Walk up from the physical root to the
+# filesystem root looking for a marketplace manifest, and accept its `.name`
+# ONLY when known_marketplaces.json actually has that key: an unregistered name
+# is a guess, and this resolver never guesses. The nearest manifest is the
+# answer — finding one ends the walk whether or not its name is accepted, so a
+# further-up unrelated manifest can never be claimed as this plugin's. The walk
+# assumes NOTHING about how deep the plugin sits below its marketplace root: a
+# monorepo can nest it arbitrarily (packages/extensions/plugins/<name>/...). The
+# 32-level cap is a runaway guard against a pathological or cyclic path, not a
+# maximum source depth; the walk normally ends at the nearest manifest or at the
+# filesystem root, whichever comes first.
+if [[ "$MODE" == "default" && -z "$resolved_target" && -n "$phys_root" ]]; then
+  mk_probe="$phys_root"
+  for ((walk_level = 0; walk_level < 32; walk_level++)); do
+    mk_manifest="$mk_probe/.claude-plugin/marketplace.json"
+    if [[ -f "$mk_manifest" ]]; then
+      mk_candidate=""
+      jq_to mk_candidate -r '.name // "" | if type == "string" then . else "" end' \
+        "$mk_manifest" 2>/dev/null || mk_candidate=""
+      if [[ -n "$mk_candidate" ]]; then
+        for mk_known in ${mp_names[@]+"${mp_names[@]}"}; do
+          if [[ "$mk_known" == "$mk_candidate" ]]; then
+            resolved_target="$mk_candidate"
+            break
+          fi
+        done
+      fi
+      break
+    fi
+    mk_parent="${mk_probe%/*}"
+    [[ -n "$mk_parent" && "$mk_parent" != "$mk_probe" ]] || break
+    mk_probe="$mk_parent"
+  done
+fi
+
+# --- Stage 3b: the running root sits under a known installLocation -----------
+# Computed in pass 1's jq (see PASS1_PROGRAM) so every path comparison stays on
+# the jq side; consulted only here, after 3a, so the ordering of the stages is
+# 1, 2, 3a, 3b.
+if [[ "$MODE" == "default" && -z "$resolved_target" ]]; then
+  resolved_target="$location_target"
+fi
+
 case "$MODE" in
 default)
   TARGET="$resolved_target"
   if [[ -z "$TARGET" ]]; then
     echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
     echo "  ${norm_root:-<unresolved>}" >&2
-    echo "matched no installed_plugins.json entry — searched by exact installPath and by" >&2
-    echo "version-agnostic .../cache/<marketplace>/<plugin> prefix. This usually means the" >&2
-    echo "session's loaded version differs from the installed one AND the cache layout is" >&2
-    echo "not the expected .../cache/<marketplace>/<plugin>/<version> shape. Pass" >&2
-    echo "--marketplace <name> explicitly." >&2
+    echo "resolved through none of the three stages: exact installPath, version-agnostic" >&2
+    echo ".../cache/<marketplace>/<plugin> prefix, and (for a root outside the cache) a" >&2
+    echo ".claude-plugin/marketplace.json walk-up or a known marketplace installLocation." >&2
+    echo "Either the session's loaded version differs from the installed one and the cache" >&2
+    echo "layout is not the expected .../cache/<marketplace>/<plugin>/<version> shape, or" >&2
+    echo "the root is not under the cache at all (a local dev checkout, --plugin-dir, or a" >&2
+    echo "marketplace checkout) and carries no marketplace.json naming a marketplace that" >&2
+    echo "known_marketplaces.json knows. Pass --marketplace <name> explicitly." >&2
     exit 1
   fi
   emit_one "$TARGET" || exit $?
