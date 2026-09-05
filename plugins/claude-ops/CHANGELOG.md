@@ -37,7 +37,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   directory as its argument; the set is deleted on the first run after 24 h.
 - **`setup apply` writes the root's guard; `retirements.yaml` gains `claude-ops-r001`.**
   The setup skill leaves the check-only carve-out: probe 5 reports the hook log
-  root, its containment, and its self-ignoring `.gitignore` (`*`), and `apply`
+  root, its containment (checked lexically and physically: a root whose
+  existing component is a symlink out of the project, or back to the project
+  root, is refused by every hook that writes or deletes under it), and its
+  self-ignoring `.gitignore` (`*`), and `apply`
   writes exactly that one file, then reads back the tracked-versus-ignored pair.
   The hooks heal an absent guard on their first write too, so a fresh clone or
   worktree needs no setup run; a guard an operator edited is respected and the

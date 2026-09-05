@@ -96,8 +96,14 @@ while :; do
     tail="${buf##*[![:space:]]}"
     body="${buf%"$tail"}"
     if [[ "$body" == *'}' && "$buf" == *'"hook_event_name"'* ]]; then
-      open="${body//[^{]/}"
-      close="${body//[^/}]/}"
+      # The brace characters come from variables: a literal `}` inside the
+      # bracket class ends the `${...}` expansion early (bash parses the
+      # expansion's closing brace before the pattern), so `[^}]` written out
+      # is not the class it looks like.
+      ob='{'
+      cb='}'
+      open="${body//[^$ob]/}"
+      close="${body//[^$cb]/}"
       ((${#open} == ${#close})) && break
     fi
     continue

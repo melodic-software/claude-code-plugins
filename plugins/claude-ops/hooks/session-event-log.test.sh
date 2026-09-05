@@ -134,6 +134,24 @@ assert_file_absent "uncontained roots write nothing (s7 never lands)" "$P/teleme
 assert_file_absent "the project root itself is refused" "$P/sessions"
 assert_file_absent "the project root gets no guard" "$P/.gitignore"
 
+# A lexically contained root whose existing component is a symlink can point
+# anywhere, and retention deletes under the root, so containment is also
+# physical: a link out of the project is refused, a link that stays inside is
+# followed, and a link back to the project root itself is refused like `.`.
+OUTSIDE="$TEST_TMPDIR/outside-target"
+mkdir -p "$OUTSIDE" "$P/inside-target"
+ln -s "$OUTSIDE" "$P/escape"
+ln -s "$P/inside-target" "$P/stays"
+ln -s "$P" "$P/loop"
+run "$P" "$(payload s7e PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=escape/claude >/dev/null
+assert_file_absent "a root through a symlink out of the project writes nothing" "$OUTSIDE/claude/sessions/s7e.jsonl"
+assert_file_absent "and leaves no guard outside the project" "$OUTSIDE/claude/.gitignore"
+run "$P" "$(payload s7i PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=stays/claude >/dev/null
+assert_eq "a root through a symlink inside the project is used" 1 "$(wc -l <"$P/inside-target/claude/sessions/s7i.jsonl" 2>/dev/null | tr -d ' ')"
+run "$P" "$(payload s7l PostToolUse)" "$ON" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=loop >/dev/null
+assert_file_absent "a root that resolves to the project itself is refused" "$P/sessions/s7l.jsonl"
+assert_file_absent "and the project root still gets no guard" "$P/.gitignore"
+
 # --- cwd is the project when CLAUDE_PROJECT_DIR is unset -------------------------
 P=$(project bycwd)
 printf '{"session_id":"s8","cwd":"%s","hook_event_name":"PostToolUse"}' "$P" |
@@ -187,8 +205,12 @@ elapsed_ms=$(
       awk -v a="$t0" -v b="$t1" 'BEGIN { printf "%d", (b - a) * 1000 }'
     }
 )
-if ((elapsed_ms < 1300)); then
-  ok "held-open pipe: returned in ${elapsed_ms} ms (idle bound 1 s + one slice)"
+# The whole payload (with its `/`-bearing paths) is in the first slice, so the
+# early stop must fire on that slice's timeout: about a quarter of the 1 s idle
+# bound plus startup, never the bound itself. A ceiling at the bound would pass
+# a broken early stop (1.26 s was measured with one), which is why it is 700.
+if ((elapsed_ms < 700)); then
+  ok "held-open pipe: returned in ${elapsed_ms} ms (one quarter-bound slice, early stop)"
 else
   bad "held-open pipe: took ${elapsed_ms} ms, expected under 1300"
 fi

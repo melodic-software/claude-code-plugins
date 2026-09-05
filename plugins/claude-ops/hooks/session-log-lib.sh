@@ -36,6 +36,13 @@ slog_contained() {
 # slog_root_to <var> <project-dir>: the absolute log root for <project-dir>,
 # or the empty string when the configured root is uncontained or resolves to
 # the project root itself (a `*` guard there would ignore the whole repository).
+#
+# Containment is checked twice: lexically (slog_contained) and physically. A
+# relative path whose existing component is a symlink can point anywhere, and
+# the retention hook deletes under this root, so the nearest existing ancestor
+# of the root is resolved with `cd -P` (a builtin; no process) and must sit
+# below the physically resolved project. A root that exists and resolves to
+# the project itself is refused for the same reason `.` is.
 slog_root_to() {
   local slog__var="$1" slog__project="$2"
   local slog__rel="${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR:-$SLOG_DEFAULT_ROOT}"
@@ -44,7 +51,27 @@ slog_root_to() {
     printf -v "$slog__var" '%s' ""
     return 0
   fi
-  printf -v "$slog__var" '%s' "${slog__project%/}/$slog__rel"
+  local slog__abs="${slog__project%/}/$slog__rel"
+  local slog__probe="$slog__abs" slog__saved="$PWD" slog__phys_project="" slog__phys_probe=""
+  while [[ -n "$slog__probe" && ! -d "$slog__probe" ]]; do
+    slog__probe="${slog__probe%/*}"
+  done
+  if [[ -z "$slog__probe" ]] || ! cd -P -- "$slog__project" 2>/dev/null; then
+    printf -v "$slog__var" '%s' ""
+    return 0
+  fi
+  slog__phys_project="$PWD"
+  if cd -P -- "$slog__probe" 2>/dev/null; then
+    slog__phys_probe="$PWD"
+  fi
+  cd -- "$slog__saved" 2>/dev/null || cd / || true
+  if [[ -z "$slog__phys_probe" ]] ||
+    [[ "$slog__phys_probe" != "$slog__phys_project" && "$slog__phys_probe" != "$slog__phys_project/"* ]] ||
+    [[ "$slog__phys_probe" == "$slog__phys_project" && "$slog__probe" == "$slog__abs" ]]; then
+    printf -v "$slog__var" '%s' ""
+    return 0
+  fi
+  printf -v "$slog__var" '%s' "$slog__abs"
 }
 
 # slog_in_checkout <project-dir>: 0 when the project is a git checkout (a .git
