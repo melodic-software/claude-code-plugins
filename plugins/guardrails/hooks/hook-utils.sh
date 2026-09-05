@@ -1644,14 +1644,15 @@ hook::buffer_stdin() {
     jq_err=$(printf '%s' "$input" | jq -e . 2>&1 >/dev/null) || jq_rc=$?
   fi
   if ((jq_rc != 0 && jq_rc != 127)); then
-    # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
-    # payload, not a malformed one — keep the silent rc=1 path advisory hooks
-    # treat as a no-op. Decided first: a whitespace-only read that then stalled
-    # is still an empty payload, not a stall to act on.
-    [[ -n "${input//[[:space:]]/}" ]] || return 1
-    # STALLED stays fail-closed, and is decided BEFORE the content split below.
-    # A pipe still open after a whole idle bound with an incomplete document
-    # is the pre-#3507 stall verdict, unchanged: rc 2. The narrowing is
+    # STALLED stays fail-closed, and is decided FIRST — before the
+    # whitespace-only check and before the content split below, the same
+    # precedence as before #3507. A pipe still open after a whole idle bound
+    # without a complete document is rc 2 whatever arrived, whitespace
+    # included: an earlier revision of #3740 tested for whitespace first,
+    # which turned a whitespace-only prefix followed by a stall from rc 2
+    # into a silent rc 1 (an allow) — not agent-reachable, since the harness
+    # never writes a whitespace-only prefix, but a block-to-allow shift on
+    # the stall arm all the same, and the suite now pins it. The narrowing is
     # deliberate (#3507, #3740): a stall is reachable from the agent's side —
     # a payload past 64 KiB splits the harness write, and host load from
     # earlier tool calls widens the gap between the halves — and the
@@ -1663,6 +1664,10 @@ hook::buffer_stdin() {
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
+    # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
+    # payload, not a malformed one — keep the silent rc=1 path advisory hooks
+    # treat as a no-op. Reached only at EOF, since a stall returned above.
+    [[ -n "${input//[[:space:]]/}" ]] || return 1
     # CUT SHORT AT EOF versus NOT JSON (#3507). jq names a document that ended
     # before it closed "Unfinished JSON term at EOF" / "Unfinished string at
     # EOF" (wording stable across jq 1.5 through 1.7; the suite pins it), while

@@ -1553,6 +1553,33 @@ else
   fail "buffer_stdin stall-vs-EOF discriminator: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
+# The whitespace-only row above, with the pipe HELD OPEN past the idle bound
+# instead of closed: still rc 2 `BLOCKED: ... timed out`, the pre-#3507
+# verdict. The stall check must come BEFORE the whitespace-only check inside
+# the verdict; an earlier revision of #3740 had them the other way round, and
+# a whitespace-only prefix followed by a stall came back as the silent rc 1
+# (an allow) instead of rc 2. Not agent-reachable (the harness never writes a
+# whitespace-only prefix), but a block-to-allow shift on the stall arm, and
+# the stall arm is fail-closed by decision. This row fails if that ordering
+# regresses.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{
+  printf ' \n'
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+# portability-ok: grep -q quiet match, not grep -P
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file"; then
+  ok "buffer_stdin: whitespace-only stdin with the pipe held open past the bound → rc 2 timed out (a stall is decided before the empty-payload check)"
+else
+  fail "buffer_stdin whitespace-only stall: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
 # The split leans on jq's own wording for a document that ended early. Pin it,
 # so a jq release that renames the diagnostic fails HERE — visibly — rather
 # than showing up as a return to blocking on truncated payloads (the fallback

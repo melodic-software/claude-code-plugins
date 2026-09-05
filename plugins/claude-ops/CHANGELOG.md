@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.3]
+## [0.42.4]
 
 ### Changed
 
@@ -19,6 +19,36 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   status the read returned, so their behavior is unchanged; the copy is bumped
   because `scripts/sync-hook-utils.sh` keeps every carrying plugin
   byte-identical.
+
+## [0.42.3]
+
+### Fixed
+
+- **`fleet-state.sh` resolves the default marketplace when the plugin root is
+  not under the cache.** Both existing stages key on `installed_plugins.json`
+  `installPath` values, and every one of those lives under
+  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, so a root loaded
+  from a local dev checkout, from `--plugin-dir`, or from the marketplace
+  checkout itself matched nothing and the bare (no `--marketplace`) call exited
+  1. A third stage now covers that root: a walk up from the running root to the
+  filesystem root for a `.claude-plugin/marketplace.json`, whose `.name` is accepted only
+  when `known_marketplaces.json` has that key, then a match of the root against
+  each known marketplace's `installLocation`. Stages 1 and 2 still run first, so
+  cache installs and version skew behave exactly as before, and a root that
+  resolves through none of the three still fails loud rather than guessing.
+- **The unresolved-default error names the out-of-cache case as its own
+  branch.** It previously reported version skew plus an unexpected cache layout,
+  which misdiagnosed every root that was never under the cache at all.
+
+  The walk follows ancestors to the filesystem root and stops at the nearest
+  manifest, so a plugin nested arbitrarily deep in a monorepo checkout resolves
+  like a shallow one; the level cap is a runaway guard, not a depth assumption.
+
+  The suite runs 82 cases, 0 failed, with new cases for a dev-checkout root, a
+  dev-checkout root nested five levels below the manifest, an
+  `installLocation` root, a manifest naming an unregistered marketplace, and the
+  precedence of an `installPath` match over a walk-up manifest naming a
+  different registered marketplace; shellcheck is clean at `-S warning`.
 
 ## [0.42.2]
 
