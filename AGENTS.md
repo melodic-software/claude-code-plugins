@@ -22,6 +22,8 @@ context, read the file directly.
 | `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it; read before editing any skill body |
+| `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
+| `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->
