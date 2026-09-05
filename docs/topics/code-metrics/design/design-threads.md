@@ -30,6 +30,7 @@ in and out), [`domain-model.md`](domain-model.md) (measures, lanes, collectors, 
 | T19 | The C# complexity lane | TAGGED-DEFERRED |
 | T20 | Cross-platform posture | RESOLVED |
 | T21 | Shared code inside the plugin | RESOLVED |
+| T22 | Reading YAML without a YAML library | RESOLVED |
 
 ## T1. Collector strategy and presence gating. RESOLVED
 
@@ -200,15 +201,23 @@ reading of "no standard sets a threshold" (Halstead 1977 sets none).
 
 ## T13. Test-seam posture. RESOLVED
 
-**Decision.** One seam: each script's command line. Tests run the script against fixtures under the
-plugin's `scripts/fixtures/` directory and assert on the JSON it prints (shape, values,
-`unavailable` rows) through co-located `*.test.sh` and `test_*.py` suites (see
-`module-boundary.md` for the file naming the repository's test discovery dictates). Collector presence is stubbed by prepending a fixture `bin/` to
-`PATH`, so the presence gate and the fallback order are tested without the real tools. No seam on
-SKILL.md prose beyond `skill-quality:check` and the skill's `evals/` file.
+**Decision.** One seam: each script's command line. Shell suites (`*.test.sh`) run the script
+against committed fixtures under the plugin's `scripts/fixtures/` directory and assert on the JSON
+it prints (shape, values, `unavailable` rows); Python suites (`test_*.py`) drive the pure functions
+(parsers, the CRAP formula, config merge, the YAML subset) through `subprocess` at the same
+command-line seam, loading a module directly only through
+`importlib.util.spec_from_file_location` where a function has no CLI (the repository's idiom for
+hyphenated script names). Collector presence is stubbed by **stubs the suite generates at
+runtime** in a temporary directory prepended to `PATH`, each replaying a committed capture from
+`scripts/fixtures/tool-output/`; no fake executable is committed, matching every existing suite in
+the repository. A suite whose case needs the real tool and cannot find it prints a visible `SKIP`
+line naming the tool and exits 0, never a silent pass. No seam on SKILL.md prose beyond
+`skill-quality:check` and the skill's `evals/` file.
 
 **Rationale.** The scripts are the only executable surface; the prose is instruction. Testing at the
 CLI seam keeps one seam per skill and exercises the JSON contract that downstream consumers read.
+Runtime stubs avoid committed executables, which have no precedent here, need preserved exec bits,
+and fall outside every `affected-tests.sh` mapping rule.
 
 ## T14. Prerequisite install policy. RESOLVED
 
@@ -267,8 +276,10 @@ detected and reported as `deferred` with that sentence, so the lane's absence is
 
 **Decision.** Entry points are bash scripts; parsers and the JSON assembly are Python 3 standard
 library only (`json`, `csv`, `xml.etree`, `re`, `pathlib`). Python 3 is a declared required
-prerequisite, probed at the entry point with a remediation message. Paths are handled as the
-repository's cross-platform contract prescribes (Git Bash on Windows, forward slashes in output).
+prerequisite, resolved by the repository's candidate loop (`python3`, then `python`, then `py -3`,
+first that runs and reports 3.9 or later) and probed at the entry point with a remediation
+message. Paths are handled as the repository's cross-platform contract prescribes (Git Bash on
+Windows, forward slashes in output).
 
 **Rationale.** The repository's own scripts are bash plus Python, the ruff wrapper is pinned for
 Python, and stdlib-only avoids a second dependency surface. Bash-only parsing of XML and lcov would
@@ -285,3 +296,21 @@ plugin.
 ordinary code reuse, and the vendoring-with-sync-gate pattern (ADR 0019) is for cross-plugin copies
 only. The path `plugins/code-metrics/lib/` is avoided so the branch stays clear of the `lib/`
 surfaces the hook lanes own.
+
+## T22. Reading YAML without a YAML library. RESOLVED
+
+**Decision.** The Python standard library has no YAML parser and T20 rules out a third-party one,
+so the plugin bundles `scripts/yaml_subset.py`, a parser for the documented subset every surface it
+reads is written in: block mappings, block sequences, flow sequences of scalars (`["*.sh", "*.bash"]`,
+the form the ecosystem-commands examples use), plain and quoted scalars (`str`, `int`, `float`,
+`true`/`false`, `null`), and `#` comments. Flow mappings (`{ a: 1 }`), anchors, aliases, multi-line
+scalars, and tags are outside the subset: the parser reports the line and the surface is treated
+as unreadable (`run[]` reason names the file and the construct), never silently partial. The config
+contract in `contracts.md` is written in block style so it never needs a flow mapping.
+
+**Rationale.** The fleet has no shared YAML reader (its only readers are flat-scalar shell helpers)
+and no `PyYAML` prerequisite anywhere; declaring one would make a required-for-correctness
+dependency out of a config file that is optional. The subset is small enough to test exhaustively
+and covers the consumer's ecosystem files, whose schema uses only these constructs. Switch
+condition: a consumer surface this plugin must read legitimately needs a construct outside the
+subset.

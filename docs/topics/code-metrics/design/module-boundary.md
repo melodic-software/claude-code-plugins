@@ -19,6 +19,7 @@ plugins/code-metrics/
 ├── scripts/                            # shared, plugin-level, public entry surface for the skills
 │   ├── dispatch.sh        + dispatch.test.sh          # resolve scope, lanes, collectors; assemble the report
 │   ├── resolve-config.py  + test_resolve_config.py    # cascade: user-global, team, overlay; per-key override
+│   ├── yaml_subset.py     + test_yaml_subset.py       # the YAML subset every surface the plugin reads is written in (T22)
 │   ├── detect-lanes.sh    + detect-lanes.test.sh      # extension map, consumer ecosystems globs
 │   ├── report.py          + test_report.py            # JSON assembly and markdown rendering
 │   ├── collectors/
@@ -27,7 +28,7 @@ plugins/code-metrics/
 │   │   │   type-coverage.sh, mypy-report.sh          # each with a co-located <tool>.test.sh
 │   ├── parsers/
 │   │   ├── lcov.py, cobertura.py, coverage_py_json.py # each with test_<stem>.py
-│   └── fixtures/                       # sample sources, tool outputs, coverage artifacts, a fake bin/ for probes
+│   └── fixtures/                       # sample sources, captured tool outputs, coverage artifacts, config layers, a registry; no executables (stubs are generated at test time)
 └── skills/
     ├── audit-complexity/  SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
     ├── audit-size/        SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
@@ -35,7 +36,7 @@ plugins/code-metrics/
     ├── audit-coverage/    SKILL.md, scripts/run.sh + run.test.sh, scripts/crap.py + test_crap.py, evals/evals.json
     ├── audit-type-debt/   SKILL.md, scripts/run.sh + run.test.sh, evals/evals.json
     ├── principles/        SKILL.md, reference/{measures.md,thresholds.md,crap.md,literature.md}, evals/evals.json
-    └── setup/             SKILL.md, scripts/check.sh + check.test.sh, templates/config-template.yaml, evals/evals.json
+    └── setup/             SKILL.md, scripts/check.sh + check.test.sh, scripts/apply.py + test_apply.py, templates/config-template.yaml, evals/evals.json
 ```
 
 `skills/<name>/scripts/run.sh` is a thin entry point: it parses the skill's arguments and calls
@@ -98,7 +99,15 @@ caveats. Each carries that plugin's version bump and changelog entry.
   entry points that should abort; `[[ ]]` per `.shellcheckrc`; no `which`; fixture git isolation
   (`unset GIT_DIR GIT_WORK_TREE GIT_CONFIG`) in every suite.
 - Python: `#!/usr/bin/env python3`, standard library only, `MIN_PYTHON = (3, 9)` floor, linted
-  through `scripts/run-ruff.sh check plugins/code-metrics`.
+  through `scripts/run-ruff.sh check plugins/code-metrics`. Shell entry points resolve the
+  interpreter with the repository's candidate loop (`python3`, `python`, `py -3`), never a bare
+  hardcoded name.
+- Fixtures: every fixture file's basename is spelled literally in at least one covering suite, so
+  `scripts/affected-tests.sh` maps it (its rule R3); sample sources are lint-clean or carry a
+  per-file `# ruff: noqa` or `# shellcheck disable=` header, because the repo's lint sweeps do not
+  exclude `scripts/fixtures/`; no executable is committed under fixtures.
+- Suites needing a real tool that is absent print a visible `SKIP <tool>` line and exit 0, the
+  shape `scripts/run-plugin-tests.sh` expects; a silent pass is a defect.
 - Every skill frontmatter states `disable-model-invocation` explicitly, carries `metadata.summary`
   under 100 codepoints, and quotes `Use when:` triggers in single quotes; SKILL.md stays under 200
   lines with a `## Gotchas` section.

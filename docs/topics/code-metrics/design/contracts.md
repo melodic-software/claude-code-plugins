@@ -50,12 +50,23 @@ type_debt:
   reference: null          # no standard or CWE anchors the measure
 
 lanes:
-  typescript: { enabled: true, collectors: {} }   # collectors: measure -> ordered tool list
-  python:     { enabled: true, collectors: {} }
-  bash:       { enabled: true, collectors: {} }
-  go:         { enabled: true, collectors: {} }
-  dotnet:     { enabled: true }                    # detected, reported as deferred in V1
+  typescript:
+    enabled: true
+    collectors:            # measure -> ordered tool list; absent means the bundled order
+      cyclomatic: [lizard, eslint-complexity]
+  python:
+    enabled: true
+  bash:
+    enabled: true
+  go:
+    enabled: true
+  dotnet:
+    enabled: true          # detected, reported as deferred in V1
 ```
+
+The file is written in the YAML subset the plugin reads (design thread T22): block mappings, block
+sequences, flow sequences of scalars, scalars, comments. No flow mappings, anchors, or multi-line
+scalars.
 
 Rules:
 
