@@ -1,5 +1,5 @@
 ---
-description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router: setup (first-time provisioning — download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases — disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check — upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission — per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: 'set up Kindle DRM removal', 'remove DRM from Kindle books', 'extract keys from my Kindle library', 'sync new Kindle books I bought', 'check if DeDRM setup is current', 'clean up Kindle DRM tools', 'undo DeDRM setup', 'convert Kindle books to EPUB', Calibre + Kindle mentioned together, or making Kindle library readable on a non-Kindle device."
+description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router: setup (first-time provisioning — download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases — disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check — upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission — per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Calibre and Kindle are mentioned together."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true
 disable-model-invocation: false
@@ -11,7 +11,7 @@ Personal-use Kindle DRM removal is a fragile multi-tool workflow with state muta
 
 Scope: Windows-only (Kindle for PC + KFXKeyExtractor are Windows binaries). Single-user. Books the user owns.
 
-## Pre-computed context
+## First step: probe current state
 
 Probe current state on every invocation. Run scripts/status.sh and read the JSON output before deciding which action applies.
 
@@ -90,8 +90,10 @@ Sources monitored:
 | `github.com/Satsuoni/DeDRM_tools` releases | Newest pre-release tag differs from baseline | Last-known-good tag in `reference/versions.md` |
 | `techy-notes.com/drm-removal-from-kindle-ebook-purchases-old-method/` article (subscriber-gated) | HEAD non-200 (article moved again) | Slug + status in `reference/sources.md` |
 | `techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` | HEAD non-200 on the pinned direct URL (revoked / rolled) | Pinned direct URL in `reference/versions.md` |
-| `epubor.com` companion article | Page hash differs | Secondary reference; lower priority |
-| KFXKeyExtractor / KFXArchiver supported Kindle versions (in Key_Finder source) | New entry in `code/modules/utils.py` `KFXARCHIVER_TOOL_MAP` | Captured in `reference/versions.md` |
+
+Two further sources are tracked in `reference/sources.md` but have no automated probe: the epubor
+companion article, and the supported-version list in Kindle_Key_Finder's `code/modules/utils.py`.
+Check those by hand when a drift report leaves a question open.
 
 Output: drift report listing each source's status (`current` / `stale` / `unreachable`) and recommended action (`re-download` / `update version pin` / `manual review`). User decides what to act on; update action itself does not apply changes.
 

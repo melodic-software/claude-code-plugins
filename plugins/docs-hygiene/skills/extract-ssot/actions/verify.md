@@ -24,7 +24,7 @@ Private surface — external consumers invoke `/docs-hygiene:extract-ssot verify
 | User typed `/docs-hygiene:extract-ssot verify <cluster>` directly | YES |
 | Pre-batch filter inside the `batch` action | YES — automatic |
 | You already have HIGH confidence the cluster passes the 6+5 gate | OPTIONAL — `plan` will re-verify Tier 0 |
-| Cluster has 1 or 2 instances | YES — `identify` no longer refuses these; `verify` assigns the bucket and returns the bucket-appropriate non-abstracting remedies |
+| Cluster has 1 or 2 instances | YES — `verify` assigns the bucket and returns the bucket-appropriate non-abstracting remedies |
 
 `verify` is OPTIONAL. It does NOT gate `plan`/`execute` automatically — preserves user agency. Skipping `verify` and going straight to `plan` is supported.
 
@@ -61,7 +61,7 @@ Status values:
 | Status | Meaning |
 |--------|---------|
 | `PROCEED` | All 6 gates pass. `permitted-remedies` lists what the assigned bucket allows: N=1 → `trim-to-citation` / `normalize-wording`; N=2 → `trim-to-citation` / `edit-existing-rule` / `name-an-owner` / `normalize-wording` (trim both recaps when a canonical home exists; name an owner when neither file is one); N≥3 → those plus `rule-file` / `new-skill` / `new-action` behind the 6-test gate. Safe to invoke `/docs-hygiene:extract-ssot plan <cluster>` |
-| `REFUSE-rule-of-three-fails` | An **artifact-creating** output (`rule-file` / `new-skill` / `new-action`) was suggested or requested at N < 3 (Gate 1). Fires ONLY against those three artifact-creating outputs below N≥3 — never against reporting, and never against any non-abstracting remedy. (The issue vocabulary calls this `REFUSE-premature`; the code here is the canonical one) |
+| `REFUSE-rule-of-three-fails` | An **artifact-creating** output (`rule-file` / `new-skill` / `new-action`) was suggested or requested at N < 3 (Gate 1). Fires ONLY against those three artifact-creating outputs below N≥3 — never against reporting, and never against any non-abstracting remedy. |
 | `REFUSE-already-cites-canonical` | All call sites already cite an existing canonical SSOT (Gate 2) |
 | `REFUSE-primary-source-citation-gate` | Sites cite a vendor/RFC/spec URL directly; internal SSOT can't improve (Gate 3) |
 | `REFUSE-source-of-truth-bifurcation` | **Intentional** bifurcation — top-tier instruction file ↔ rule-file pair both canonical at different tiers for different audiences; forcing a single citation = cycle (Gate 4). Accidental bifurcation does NOT refuse here; it is the N=2 bucket |
@@ -305,7 +305,7 @@ When a gate REFUSES with high confidence, the cluster may still warrant action �
 | `REFUSE-off-by-one-different-concern` | `Side note: <n> distinct concerns; consider /docs-hygiene:extract-ssot identify with a narrower discriminating phrase per concern.` |
 | `REFUSE-rule-of-three-fails` | `Side note: bucket <N=1\|N=2> — no new artifact, but <permitted remedies> still apply; the candidate stays on the roster.` |
 
-Hard limit ≤2 side notes per response. If multiple gates fire, batch the rest into the working-notes entry.
+Keep side notes to the ones a reader must act on now. Everything else goes into the working-notes entry rather than the reply.
 
 ## Audit trail (optional)
 

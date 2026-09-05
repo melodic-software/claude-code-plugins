@@ -379,7 +379,7 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
-**0.32.4, the PostToolUse `if` rows.** 2026-09-05, Linux CI host. The three
+**0.32.5, the PostToolUse `if` rows.** 2026-09-05, Linux CI host. The three
 PostToolUse verifiers accept five extensions between them (`cli-flag-verify` scans
 `.md`, `.sh`, `.bash`, `.ps1` and `.psm1`; the other two scan `.md`), and every
 other Write or Edit paid the dispatcher's spawn, library load and payload parse only

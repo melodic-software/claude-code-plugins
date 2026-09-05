@@ -11,10 +11,10 @@ metadata:
 ## Purpose
 
 The `autoMode` block is a natural-language prompt for a classifier, not a rule list the harness
-matches, so it fails in ways a config file does not. `claude auto-mode critique`, run against a real
-66 KB hand-authored block, found the pattern: the classifier is "an LLM doing a single pass under a
-'default is ALLOW' instruction", so "buried conditions in paragraph position 40 will be missed at a
-materially higher rate than conditions in a bullet list."
+matches, so it fails in ways a config file does not. `claude auto-mode critique` describes the
+classifier as "an LLM doing a single pass under a 'default is ALLOW' instruction", so "buried
+conditions in paragraph position 40 will be missed at a materially higher rate than conditions in a
+bullet list."
 
 This skill applies that finding at authoring time instead of reporting it afterwards.
 
@@ -38,9 +38,8 @@ thing this plugin exists not to do.
 The draft is built from **the interview plus the effective merge** (`audit-permission-state`), and
 nothing else.
 
-An earlier design read "the repo's observed prompt and denial history". That was dropped: it named no
-actual location, and an unnamed read surface in a skill shipped to consumers is unreviewable. Do not
-reintroduce a history input without re-opening that decision.
+There is no history input: a read of "the repo's observed prompt and denial history" names no actual
+location, and an unnamed read surface in a skill shipped to consumers is unreviewable.
 
 ## Phase 1: Read what already exists
 

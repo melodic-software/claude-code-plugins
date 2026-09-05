@@ -1,5 +1,5 @@
 ---
-description: "Maintainer-facing drift-check and upstream sync for the firecrawl plugin's wrapper skill. Tracks the firecrawl-cli npm release and the upstream SKILL.md source. Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and the bare full update (gated npm upgrade + advisory skill-content integration). Not for consumers. Consumers update via /plugin marketplace update."
+description: "Maintainer-facing drift-check and upstream sync for the firecrawl plugin's wrapper skill. Tracks the firecrawl-cli npm release and the upstream SKILL.md source. Run only from a working-tree checkout. Actions: --check (read-only drift report) and a bare invocation (the full gated update: npm upgrade plus advisory skill-content integration). Not for consumers. Consumers update via /plugin marketplace update."
 argument-hint: "[--check] (bare = full gated update pipeline)"
 user-invocable: true
 disable-model-invocation: true
@@ -24,13 +24,13 @@ rewrites `UPSTREAM.md` inside this skill directory, and consumers receive update
 `/plugin marketplace update`. Drift detection uses the sidecar `UPSTREAM.md` (SHA tracking): upstream
 `SKILL.md` is fetched fresh on `--check` and hashed; the sidecar records the prior hash for diff. No
 vendored snapshot is kept. The action is advisory, the two approval gates in Safety below keep every
-mutation behind an explicit yes. Do NOT auto-fire this skill. It is maintainer-invoked only.
+mutation behind an explicit yes.
 
 ## Invocation
 
 | Invocation | Effect |
 |---|---|
-| `/firecrawl:update --check` (default) | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. **No mutations.** |
+| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. **No mutations.** |
 | `/firecrawl:update` | Full update pipeline with two approval gates |
 
 **When to invoke, the modes, and the full update pipeline:** read `context/update-flow.md`. The

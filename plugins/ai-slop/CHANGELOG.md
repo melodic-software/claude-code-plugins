@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.11]
+
+### Changed
+
+- audit: the Purpose section keeps the two detection layers and leaves the relay-routing contract to audit step 6, which now also carries the rewrite-guide clause; the em-dash zero-tolerance rule is stated without the plan-approval provenance in SKILL.md and in the catalog entry, which carries the reason; the catalog's calibration record points at `detect.sh` for the shipped-rule count instead of a copied count, names the third pass without the pull-request number, and states the quotation exemption's input filter and tier rule as current facts; the rewrite guide drops the dogfood incident and the "now" from the quotation-exemption note.
+- setup: the `thresholds` key table lists the two density rules `detect.sh` reads; `rule_of_three` left the density table when it moved to the judgment rubric.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.5.10]
+
+### Fixed
+
+- **`audit`:** the git pre-compute lines moved out of `## Pre-computed context` into a "Repository
+  context. Gather first" body section of individual Bash calls, one command per call, each `head`
+  bound kept inside its command and a failure read as an unknown value. The harness composes a
+  skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
+  a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
+  shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
 ## [0.5.9]
 
 ### Changed

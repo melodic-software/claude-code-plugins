@@ -58,17 +58,16 @@ classes adversarially:
 
 - **Negative parallelism** ("not just X but Y", "not only X, but also Y"): the construction is
   ambiguous between "X alone is insufficient (X still counts)" and "X is excluded". A positive
-  restatement must pick one, and picking wrong inverts a criterion — a dogfood pass turned
-  "(not just facilitator)" into a blanket exclusion that external review caught. Resolve the
-  intended reading from surrounding context first; when the context does not settle it, keep
-  the original and flag the ambiguity to the author instead of guessing.
+  restatement must pick one, and picking wrong inverts the criterion. Resolve the intended
+  reading from surrounding context first; when the context does not settle it, keep the original
+  and flag the ambiguity to the author instead of guessing.
 - **Triad collapse**: keep the single strongest item ONLY when the surviving text still entails
   every deleted item. An enumeration whose items are independent claims ("no endpoint tables,
   no scope lists, no prices") loses assertions when collapsed; restate without the cadence
   ("no endpoint tables, scope lists, or prices") rather than dropping items.
 - **Quoted operative phrases**: a hedge, discriminator, or trigger phrase inside quotation
   marks is load-bearing verbatim text ("what could possibly happen" as one arm of a
-  read-vs-run discriminator). Never edit inside the quotes; the quotation exemption now keeps
+  read-vs-run discriminator). Never edit inside the quotes; the quotation exemption keeps
   wording rules out of them.
 
 ## Substitution guardrails

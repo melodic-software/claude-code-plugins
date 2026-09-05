@@ -135,22 +135,19 @@ measurement at all*, and the rest only apply once one exists.
 
 ### Measuring it in a repository (in-repo proxy, not the real population)
 
-Where the audited target is a repository that *publishes* skills, this marketplace already ships the
-aggregate measurement: `bash plugins/skill-quality/scripts/check-listing-budget.sh <skills-root> ...`,
-surfaced as `skill-quality:check`'s `listing-budget` action. Use it — and state plainly what it is and
-is not:
+Where the audited target is a repository that *publishes* skills, the `skill-quality` plugin ships the
+aggregate measurement as `skill-quality:check`'s `listing-budget` action. Use it when that plugin is
+installed, and state plainly what it is and is not:
 
 - **It measures a different population.** The script walks *skills roots in a repository*. Category G
   is asking about *the listing the consumer's running session assembled*, which is the installed
   plugin cache plus that machine's project and user skills. A repository's own roots are a **proxy**
   for that, useful when the audited repo is the publisher, and not a substitute for `/doctor` or
   `--debug` on the consumer's machine. Never present its number as the consumer's listing size.
-- **It is slow enough to matter for how you call it.** Measured on this Windows machine:
-  `check-listing-budget.sh plugins/claude-config/skills` → 8 skills in **5.98s real**. It scales
-  per-skill, so a marketplace-wide `plugins/*/skills` run is minutes, not seconds, and will exceed a
-  default Bash tool timeout (tracked in #2216). Scope it to the roots you need, or run it in the
-  background — do not make a Category G step depend on a marketplace-wide invocation completing
-  inline.
+- **It is slow enough to matter for how you call it.** It scales per skill: one plugin's skills root
+  takes seconds, and a marketplace-wide `plugins/*/skills` run takes minutes and exceeds a default
+  Bash tool timeout. Scope it to the roots you need, or run it in the background; do not make a
+  Category G step depend on a marketplace-wide invocation completing inline.
 
 ## H. Model and effort settings
 

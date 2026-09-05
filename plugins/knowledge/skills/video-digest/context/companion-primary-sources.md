@@ -1,4 +1,4 @@
-# YouTube watch — companion primary sources
+# Video digest watch — companion primary sources
 
 When an operator queues a video with a companion URL (blog post, doc, paper), the companion is **Tier 1/2 primary framing**; the video is Tier 2/3. Full protocol — cite by heading; do not duplicate bodies into `SKILL.md`.
 

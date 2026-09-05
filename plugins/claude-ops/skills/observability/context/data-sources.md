@@ -69,7 +69,7 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 | `mcp__ccusage__monthly` | none | per-month aggregates |
 | `mcp__ccusage__blocks` | none | 5-hour billing windows (current + recent) |
 
-**Fallback path: CLI** when MCP not yet wired.
+**Fallback path: CLI** when the ccusage MCP server is not configured.
 
 ```bash
 if command -v npx >/dev/null 2>&1; then
@@ -283,8 +283,6 @@ jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
 ' "${HOOK_FILES[@]}"
 ```
 
-Pattern detection across session JSONL transcripts (`~/.claude/projects/<slug>/*.jsonl`) is deferred — schema undocumented.
-
 ## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
 
 `cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>` — bin in clear (groupable), sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
@@ -338,7 +336,7 @@ grep -oE '`[a-zA-Z0-9_./-]+\.(cs|sh|ts|py|md|json)`' .claude/rules/*.md \
     done
 ```
 
-Out of scope for v1: function/symbol references (needs ctags or Roslyn).
+Function and symbol references are out of scope; the check covers file paths only.
 
 ## 6. Calibration signal — dismissed observations
 

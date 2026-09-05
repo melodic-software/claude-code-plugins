@@ -15,7 +15,7 @@ metadata:
 
 Consume the machine-readable action-plan JSON emitted by `/repo-fleet-hygiene:audit` and drive
 cleanup for N repositories behind **one** confirmation gate. This is the executing verb for the
-fleet cleanup contract (#2597 / #2609). It is a separate skill from `:audit` on purpose: the audit's
+fleet cleanup contract. It is a separate skill from `:audit` on purpose: the audit's
 `allowed-tools` grant matches any argv on `audit-fleet.sh`, so an execute flag there would widen
 mutation authority silently.
 

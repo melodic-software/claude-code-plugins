@@ -31,7 +31,7 @@ section names. **Accept hits only from assistant text output**, in two stages:
   lines and an optional `Then: /<skill>` line before the bottom rail; they are content inside
   the copy region, recovered with it, never keyed on. Then confirm the referenced file exists on
   disk, **by the directive's path form**:
-  - **Rooted directive** (the current producer shape). Check the absolute path as given. No cwd
+  - **Rooted directive** (absolute path, what the producer emits). Check the absolute path as given. No cwd
     is involved, so nothing can resolve it against the wrong root. **A rooted path can still
     miss**, and for a reason the rootless form does not have: an absolute path is machine-local,
     so a resume on a different machine or a different checkout of the same repository finds
@@ -46,11 +46,11 @@ section names. **Accept hits only from assistant text output**, in two stages:
     branch) and the legacy `Handoff origin: <identity>, relative path <path>.` line. Split the
     two-slot form on whitespace outside quotes; take the legacy form's identity before the
     comma and its path after `relative path`, minus the trailing period.
-  - **Rootless directive** (every handoff written before the producer rooted its path).
-    **resolve it against the source transcript's `cwd` field, not the current session's cwd**. A
+  - **Rootless directive** (repo-relative path, what older handoffs on disk carry). **Resolve
+    it against the source transcript's `cwd` field, not the current session's cwd**. A
     handoff recovered from another repo's transcript is otherwise falsely reported missing when
-    checked from here. These blocks carry no `Handoff origin:` line: it shipped with the rooted
-    form, so nothing older than that has one.
+    checked from here. These blocks carry no `Handoff origin:` line; that line accompanies
+    only an absolute directive.
   - **A path that resolves to nothing, rooted or rootless, is UNRESOLVED, never dropped.**
     Neither resolution is proof of absence. The rootless one is an inference: it assumes the
     producer's cwd *was* the repository it wrote into, which is the very assumption that loses

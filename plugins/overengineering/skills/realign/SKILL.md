@@ -1,5 +1,5 @@
 ---
-description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact `overengineering:audit` produced. It never scans or re-judges the surface itself. For each finding the operator accepts, it drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a bounded, time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when: 'realign our enforcement surface', 'act on the audit findings', 'execute the overengineering findings', 'retire the automation we agreed to retire', 'disable this gate and observe it', 'start the ablation window', 'peel back these hooks', 'the audit says retire it, do it'. This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
+description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact `overengineering:audit` produced. It never scans or re-judges the surface itself. For each finding the operator accepts, it drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a bounded, time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when the ask is to act on an enforcement-surface audit's findings ('realign our enforcement surface', 'the audit says retire it, do it'), to retire or peel back automation already judged, or to start or advance an ablation window ('disable this gate and observe it'). This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
 argument-hint: "[finding-id ...] [layer ...]. Default: every finding awaiting a decision, in the artifact's order"
 user-invocable: true
 disable-model-invocation: false
@@ -9,9 +9,20 @@ metadata:
   summary: Execute accepted audit findings down the rollback ladder behind a per-item human gate
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
 - Today (UTC): !`date -u +%Y-%m-%d 2>/dev/null || echo "unknown (no date command)"`
 
 ## Purpose
@@ -59,12 +70,10 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 
 ## Before anything: load the artifact
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
-   all, so where the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read
-   its exit status rather than assuming an identity. **`HEAD` is never accepted as a branch
-   identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output (detached HEAD or no checkout). Read its exit status rather than
+   assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is a failed
+   call. Where the call fails, prefer a logical ref
    if the environment supplies one that names a branch, after the same normalize-then-validate
    steps `audit` uses (strip a leading `refs/heads/`, then `git check-ref-format --branch`,
    refuse `.` / `..` segments); name where it came from. **Otherwise stop**. See "An unresolved
@@ -233,20 +242,20 @@ the two identities it compares, and `git rev-parse --abbrev-ref HEAD` answers th
 `HEAD` on a detached checkout, which compares equal to itself, so a `HEAD`-to-`HEAD` comparison
 passes by construction and authorizes mutations from an artifact that may describe another ref
 entirely. Scheduled and dispatched runners commonly check out detached, so this is an ordinary
-condition, not an exotic one. The precompute therefore uses `git symbolic-ref`, which fails rather
+condition, not an exotic one. The branch call therefore uses `git symbolic-ref`, which fails rather
 than inventing a name, matching the `audit` and `delta` lanes.
 
 **Two distinct unresolved states both refuse, and neither may reach the comparison:**
 
-- **This checkout has no branch identity**. The precompute yielded the sentinel and no logical ref
+- **This checkout has no branch identity**. The branch call failed and no logical ref
   was supplied. Stop before reading the artifact. Say so plainly: *"Detached checkout, no logical ref
   supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be
   executed."* Nothing is presented as a queue, no status transitions, nothing written anywhere.
 - **The artifact carries no branch identity**. Its `branch:` is absent, empty, or the literal
   `HEAD`. Refuse it by name, and say that `overengineering:audit` declines to write an artifact
-  without an identity, so one carrying `HEAD` was produced by an older audit or by something other
-  than this plugin. Do not repair the field, and do not fall back to the directory it sits in: the
-  slug mapping is lossy, so the home is not evidence of which ref the findings describe.
+  without an identity, so one carrying `HEAD` did not come from this plugin's audit as it stands. Do
+  not repair the field, and do not fall back to the directory it sits in: the slug mapping is lossy,
+  so the home is not evidence of which ref the findings describe.
 
 Refusing costs a re-run on an attached checkout. Passing costs a mutation nobody can attribute to a
 surface, and this is the only skill in the plugin that mutates anything, so the asymmetry is not

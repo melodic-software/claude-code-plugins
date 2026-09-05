@@ -126,6 +126,3 @@ question routes to a named leaf under `runner/`; depth is never answered from th
 | The full lifecycle state model and each transition's telemetry | [lifecycle](runner/lifecycle.md) |
 | The stop-criteria taxonomy, terminal-handoff escalation, and severity routing | [escalation](runner/escalation.md) |
 | Ownership seams, the launch backend set, and birth-time decisions | [topology](runner/topology.md) |
-
-The `lifecycle`, `escalation`, and `topology` leaves land with the pack's later phase; their
-forward links are expected within an in-progress design pack.

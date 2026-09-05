@@ -1,5 +1,5 @@
 ---
-description: "Fan out review across many finding-producing surfaces at once, this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins, then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use when: 'fan out review', 'breadth review', 'run all reviewers', 'review from every angle', 'review this from all sides', or 'fix the review findings' (the fix action applies the merged set of persisted findings)."
+description: "Fan out review across many finding-producing surfaces at once, this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins, then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
 argument-hint: "[mode] [--yes] (e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,13 +9,28 @@ metadata:
   summary: Fan review out across every reviewer surface into one ranked report
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Uncommitted diff size, `git diff --shortstat HEAD`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
 Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
 Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/fanout/scripts/diff-vs-base.sh" 2>/dev/null || echo "unavailable"`
-Uncommitted diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
 
@@ -61,12 +76,10 @@ Report every issue you find, including ones you are uncertain about or consider 
 not filter for importance or confidence at this stage, a separate normalization pass deduplicates
 and ranks findings downstream. For each finding, include your confidence level (high / medium /
 low) and an estimated severity." Current models follow a stated severity bar faithfully at the
-finding stage, they investigate fully, then withhold findings judged below the bar, so a harness
-with a downstream filter that does not say so converts investigations into silence (Sonnet 5
-prompting guide, "Code review harnesses",
-<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>;
-the Opus 4.8 guide states the same). The clause restores recall without moving the precision work:
-the pipeline's dedup and agreement/rank stages remain the filter.
+finding stage: they investigate fully, then withhold findings judged below the bar, so a harness
+with a downstream filter that does not say so converts investigations into silence (Anthropic's
+per-model prompting guides, "Code review harnesses"). The clause restores recall without moving
+the precision work: the pipeline's dedup and agreement/rank stages remain the filter.
 
 ## Pre-flight gate (both review modes)
 

@@ -11,7 +11,7 @@ has been run for this project and suggest running one.
 
 **This mode proposes edits to real instruction files, so an unattributable report is not usable
 input.** Do not fall back to an unkeyed location: a machine-global `audit/last-audit.md` or a
-pre-rename `health/last-audit.md` carries no project segment, so findings in it may describe a
+`health/last-audit.md` carries no project segment, so findings in it may describe a
 different repository's memory layer entirely. Name such a file to the user as a leftover and run a
 fresh audit instead of acting on it.
 
@@ -54,12 +54,8 @@ For lines flagged as potentially removable:
 
 ### C3 (Content Placement) fixes
 
-For content in the wrong layer:
-
-1. Identify the correct layer
-2. Draft content for the new location
-3. Remove from current location
-4. Verify no cross-references break
+Draft the content in its correct layer, remove it from the current location, and confirm no
+cross-references break.
 
 ### C5 (Non-obvious Only) fixes
 

@@ -9,11 +9,24 @@ metadata:
   summary: Sweep stale references after renames, including forms grep misses
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Rename pairs (git): !`{ git diff --name-status -M HEAD 2>/dev/null; git diff --cached --name-status -M 2>/dev/null; } | grep '^R' | head -15 || echo "none"`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Rename pairs (git), unstaged, `git diff --name-status -M HEAD | grep '^R' | head -15`
+- Rename pairs (git), staged, `git diff --cached --name-status -M | grep '^R' | head -15`
+- Current branch, `git branch --show-current`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -149,7 +162,10 @@ Paths skipped from sweeps automatically:
 
 ## Gotchas
 
-- **NEVER trust a single-pattern grep as "clean."** That was the bug this skill exists to prevent. In the skill-rename incident that motivated the pattern library, token-only grep returned 0 matches across 4 sweep passes; chain prose, comma-lists, numbered rows, and frontmatter forms surfaced one round at a time. Run all patterns or invoke `/docs-hygiene:rename-references audit`.
+- **A single-pattern grep is never evidence of a clean sweep.** Token-only grep reaches Forms 1 and
+  2 and nothing else; chain prose, comma-lists, numbered rows, and frontmatter forms each need their
+  own pattern, and each surfaces only when that pattern runs. Run the whole library, or invoke
+  `/docs-hygiene:rename-references audit`.
 - **Ambiguous bucket is mandatory triage, not optional.** English-verb collisions are the highest false-positive vector. If a token is in the blocklist, force into ambiguous regardless of position. Cost of one extra confirmation prompt is far lower than silently mangling prose.
 - **Re-sweep until the ACTIONABLE count is 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate. "Actionable" is load-bearing, and it excludes TWO categories the sweep leaves matching forever: the bare-token residue container-rename mode deliberately leaves unrenamed, and any match the user confirmed skipping in Phase 4. Gating on the RAW count means the loop never terminates; gating on residue alone means it never terminates whenever the user declines a match, which container mode makes routine by demoting Forms 4–12 to per-match prompts. Skips are keyed by occurrence span, REMAPPED as Phase 5's edits shift later columns on the same line (a pre-edit span does not survive an edit when `<old>` and `<new>` differ in length), and reported separately from residue in the hand-off. One was declined, the other was never proposed.
 - **Plan-doc exclusion is mandatory.** The active plan/work-notes document *documents the rename* and contains both old and new names by design. Editing it would break the documentation narrative.

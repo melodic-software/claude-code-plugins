@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.18]
+
+### Changed
+
+- audit: `reference/security-review.md` states the current posture with one dated review and a recheck trigger instead of four re-check narratives; the two facts only those narratives carried (remote-only head names in the egress list, the GraphQL and `ls-remote` allowlist shape) move into the review surfaces and adversarial checks. SKILL.md drops the issue links, "On this release", "This retires", "remains", and "as before"; the no-fallback rule is stated in the present tense; the description names five intents. `reference/confidence-model.md` drops the drift narration, the "27 of 506" figure, and the issue numbers; `reference/official-sources.md` gains a recheck trigger. Eval case 14 asserts the shipped `/repo-fleet-hygiene:apply` consumer instead of calling it unshipped.
+- apply: the contract sentence drops its issue numbers.
+- setup: the `check` config-presence step agrees with the audit that a bare no-scope run fails instead of defaulting to the current project; "now requires" and "currently no way" read as current rules; the `fleet.skip` replace semantics are stated once, in "Configuration grammar", with the two action paths pointing at it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.23.17]
 
 ### Changed

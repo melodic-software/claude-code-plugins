@@ -24,13 +24,11 @@ invocation:
 - Unstaged, `git status --short | head -20`
 - Recent commits, `git log --oneline -5`
 
-**The two pipes are the bound and belong in the command.** They were briefly restated as read-time
-prose ("read only the summary line", "read at most the first 20 entries"); that bounds nothing. The
-Bash tool returns a command's complete output into context before there is anything to decide about,
-so a read-time cap is advisory after the fact. `head` / `tail` truncate before the result exists.
-These are ordinary body Bash calls, not pre-compute: the shape #1619 is about is the harness
-composing the whole `## Pre-computed context` block into one shell invocation, which does not apply
-to a call the body tells you to make.
+**The two pipes are the bound and belong in the command.** The Bash tool returns a command's
+complete output into context before there is anything to decide about, so a read-time cap ("read
+only the summary line") bounds nothing; `head` and `tail` truncate before the result exists. These
+are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies to the
+`## Pre-computed context` block does not apply here.
 
 Then resolve the two repo-scoped config layers as separate calls. Each uses git's repo-root-relative
 magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
@@ -66,9 +64,9 @@ not run at all (git unavailable, not a repository) yields an unknown value to ca
 fold `present but UNTRACKED` into "unknown". They mean opposite things, and treating the untracked
 case as unknown is exactly what readmits a file the resolution rules exclude.
 
-The git lines above moved out of pre-compute in #1619, the harness composes that block into one
-shell invocation and a worktree-isolated agent refuses a git-bearing compound command it cannot
-statically verify. Do not fold them back into `## Pre-computed context`.
+Keep the git lines above out of `## Pre-computed context`: the harness composes that block into one
+shell invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot
+statically verify.
 
 **These are snapshots taken when they run, not substitutes for the checks.** The exec-bit
 line only sees what was already staged when the skill loaded; anything staged in step 2 below is
@@ -81,12 +79,11 @@ convention.
 **Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
 the session's current directory. A session started in a subdirectory would otherwise look for
 `<cwd>/.claude/` and report both repo-scoped layers absent. Silently dropping the team convention
-and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. The
-pathspec form also retires the older two-step (`git rev-parse --show-toplevel`, then substitute the
-literal path it printed into the probe): a repository root containing `$(…)`, a backtick, or a
-double quote is *not* made safe by wrapping the substituted text in double quotes, the substitution
-still evaluates, or the quote terminates the argument, and `:/` never substitutes the root at all.
-This matches the root-resolution requirement
+and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. Never
+substitute a resolved root path into a probe instead: a repository root containing `$(…)`, a
+backtick, or a double quote is *not* made safe by wrapping the substituted text in double quotes
+(the substitution still evaluates, or the quote terminates the argument), and `:/` never
+substitutes the root at all. This matches the root-resolution requirement
 [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md)
 already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
 anchors itself the same way.
@@ -262,17 +259,15 @@ The default template is:
 Co-authored-by: Claude <model> <noreply@anthropic.com>
 ```
 
-**The `<model>` placeholder is filled from your own knowledge of the running session** (e.g.
-`Opus 4.8`, `Fable 5`). If uncertain, invoke `/usage` to confirm before committing. There is no
+**The `<model>` placeholder is filled from your own knowledge of the running session**: the model
+family and version the harness reports for this session (the value `/usage` shows). If uncertain,
+invoke `/usage` to confirm before committing. There is no
 environment variable that auto-fills it, the trailer is part of the message body sent to
 `git commit`, not git config.
 
 **An optional context clause**, `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
 e.g. `(1M context)`, may be added when the context window is a genuinely distinguishing fact about
 the session and is known with confidence. It is **not** required, and its absence is not a defect.
-Earlier versions of this skill mandated it; the mandate was removed because it matched neither the
-harness's own injected guidance nor the observed practice in consuming repositories, so it was a
-default that was silently ignored rather than followed.
 
 ### Which authority wins
 
@@ -287,26 +282,21 @@ Four sources can specify a trailer. Resolve in this order:
 3. **Harness-injected commit guidance.** The Claude Code harness may inject its own commit
    instruction into the session, naming a `Co-Authored-By` trailer. Adopt its **shape**, this is why
    the context clause above is optional rather than mandatory, but **never copy its literal text**.
-   Observed first-hand: that injected guidance can carry a **hardcoded model name that does not match
-   the running session** (a `Fable 5` trailer injected into an Opus 5 session). Copying it verbatim
-   writes a false provenance claim into durable git history, which is precisely the harm this
-   template exists to avoid. Always fill `<model>` from actual session knowledge.
+   That injected guidance can carry a **hardcoded model name that does not match the running
+   session**. Copying it verbatim writes a false provenance claim into durable git history, which is
+   precisely the harm this template exists to avoid. Always fill `<model>` from actual session
+   knowledge.
 4. **This skill's default**, above.
-
-Rung 3 is the rung earlier versions of this skill omitted entirely: the harness guidance is neither a
-config layer nor a project convention, so a session receiving both it and this skill had no stated
-tiebreak and silently followed whichever it saw last.
 
 **Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's own documentation uses
 exclusively and the one GitHub itself writes when it appends co-author trailers to a squash-merge
-message. GitHub's attribution is not case-sensitive in practice (verified empirically: a commit
-carrying a `Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors`
-connection just the same, the docs do not state case sensitivity either way), so this is a
-consistency choice, not a correctness one: branch commits and the forge-written squash merges now
-agree. Git preserves a trailer key's case verbatim (`git interpret-trailers` does not normalize it,
-and no `trailer.*` config here changes that), so existing history keeps whatever spelling it was
-written with, this skill never rewrites it. A consumer who wants a different spelling expresses it
-as a `trailer_policy` template. Decision recorded in #1604.
+message. GitHub's attribution is not case-sensitive in practice (a commit carrying a
+`Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors` connection just the
+same; the docs do not state case sensitivity either way), so this is a consistency choice, not a
+correctness one: branch commits and the forge-written squash merges agree. Git preserves a trailer
+key's case verbatim (`git interpret-trailers` does not normalize it, and no `trailer.*` config here
+changes that), so existing history keeps whatever spelling it was written with; this skill never
+rewrites it. A consumer who wants a different spelling expresses it as a `trailer_policy` template.
 
 ## Unrelated uncommitted changes
 

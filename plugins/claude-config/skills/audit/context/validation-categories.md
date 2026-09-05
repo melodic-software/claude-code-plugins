@@ -55,7 +55,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 `scripts/check-hook-coverage.sh` — settings-declared hooks *and* every enabled plugin's own hook
 config, resolved through the installed-plugin registry. That matters for two of the rules below:
 `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` only ever appear in a plugin-provided hook, so
-before Phase 1.0 existed those rules were written against a surface the audit never opened. Where the
+those rules are decidable only against a plugin-inclusive inventory. Where the
 script exited 1, say which sources went unenumerated rather than reporting the inventory as the
 complete set.
 

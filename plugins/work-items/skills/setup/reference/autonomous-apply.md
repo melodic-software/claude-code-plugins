@@ -32,4 +32,4 @@ that binding exactly as it found it. Absent an opt-in, never infer and never int
 `--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
 step 7's per-item interview, so it is not a non-interactive seeding path unless `--accept-recommended`
 is also present. Pairing both flags tells step 8 to accept every inferred candidate with its
-recommended cadence/title fields and write the schedule without blocking on questions (#1302).
+recommended cadence/title fields and write the schedule without blocking on questions.

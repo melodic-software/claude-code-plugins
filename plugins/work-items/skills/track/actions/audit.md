@@ -11,10 +11,9 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 ## Checks
 
 Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` only when the file or entry is absent — and warn loudly when
-it defaults for that reason (surface it, never silent). Stop on a malformed, empty, or non-string
-configured value. Keep the resolved string for every recurring-item query and
-comparison in this audit.
+`config.role_labels`, using `recurring` when the file or entry is absent (the documented default,
+no warning). Stop on a malformed, empty, or non-string configured value. Keep the resolved string
+for every recurring-item query and comparison in this audit.
 
 ### 1. Stale claims
 
@@ -26,11 +25,11 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" reclaim "<id>"
 ```
 
-Present each item the verb reports `reclaimed: true` (released — the `reason` field says why); `reclaimed: false` means still-held or lease-renewed, left in place. Legacy label-based holds from before the seam are migrated by the label-reconciliation pass, not here.
+Present each item the verb reports `reclaimed: true` (released — the `reason` field says why); `reclaimed: false` means still-held or lease-renewed, left in place.
 
 Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`) — not an error; report zero stale claims for this pass instead of failing the audit.
 
-A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so neither an exit code nor the JSON the presentation step above consumes is produced (CONTRACT.md "Exit codes"; observed on `#1381`). Report the denial once and skip the stale-claim pass — reporting it as skipped, not as zero stale claims, since nothing was checked — then continue the audit's remaining passes. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer").
+A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so neither an exit code nor the JSON the presentation step above consumes is produced (CONTRACT.md "Exit codes"). Report the denial once and skip the stale-claim pass — reporting it as skipped, not as zero stale claims, since nothing was checked — then continue the audit's remaining passes. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer").
 
 ### 2. Orphaned recurring entries
 

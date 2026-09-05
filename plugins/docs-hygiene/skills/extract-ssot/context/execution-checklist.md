@@ -73,7 +73,7 @@ Final gates before the phase-boundary user gate.
 | 5 | The repo's own verification reports green for all changed ecosystems | Build + test + lint pass per the consuming repository's verification workflow | The consuming repository's verification conventions |
 | 6 | Working notes updated: phase marked done + next action recorded | Status entry in the working notes | SKILL.md "Phases per invocation" |
 | 7 | Handoff entry written so a fresh session can resume | Dated entry in the working notes: what changed, what's next | SKILL.md "Phases per invocation" |
-| 8 | Side observations surfaced | If new candidates were discovered during execution, surface as one-line callouts (≤2 per response; never block the current task) | `actions/verify.md` "Side observations" |
+| 8 | Side observations surfaced | If new candidates were discovered during execution, surface the ones a reader must act on now as one-line callouts; never block the current task | `actions/verify.md` "Side observations" |
 
 ## Sanity-check format for the working notes
 
@@ -103,7 +103,7 @@ If post-extraction gates fail:
 | Gate 4 (lint failure) | Fix lint; re-run |
 | Gate 5 (repo verification red) | The failure is not out of scope — fix it before proceeding, never defer |
 | Gate 6-7 (working notes not updated) | Update; re-run the gate |
-| Gate 8 (no side observations surfaced when new candidates were found) | Surface as one-line callouts at the end of the response (≤2 per response) |
+| Gate 8 (no side observations surfaced when new candidates were found) | Surface as one-line callouts at the end of the response |
 
 If failure compounds (3+ gates fail), invoke the `unwind` action and re-evaluate via `identify` — the extraction shape was probably wrong.
 

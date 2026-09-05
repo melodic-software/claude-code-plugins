@@ -57,7 +57,7 @@
       "id": 5,
       "name": "retirement-r002-overlay-warns-never-silent",
       "prompt": "/plugin-quality:setup check in a repo that still carries a pre-existing .claude/plugin-quality.local.md overlay from before the migration.",
-      "expected_output": "check reports the plugin-quality-r002 row as WARN — the overlay no longer has any effect and a convention-doc surface has no overlay channel — never silently ignoring the file, and never reading its values into the effective config. apply offers the gated --clean plugin-quality-r002 (action delete) and reports what was removed.",
+      "expected_output": "check reports the plugin-quality-r002 row as WARN — the overlay has no effect and a convention-doc surface has no overlay channel — never silently ignoring the file, and never reading its values into the effective config. apply offers the gated --clean plugin-quality-r002 (action delete) and reports what was removed.",
       "files": [],
       "expectations": [
         "The pre-existing overlay produces a visible WARN, not silence",

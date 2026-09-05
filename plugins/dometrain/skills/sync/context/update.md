@@ -3,7 +3,7 @@
 This skill tracks one upstream dependency: **Dometrain's own `dometrain-grounding` skill
 content** (`https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md`).
 
-It is not consumed verbatim as a live skill — this plugin's `grounding/` skill OWNS its own
+It is not consumed verbatim as a live skill — this plugin's `grounding/` skill owns its own
 usage surface. Upstream is advisory: watch for changes, evaluate, port anything worth keeping.
 
 ## The check action
@@ -37,14 +37,11 @@ frontmatter). The human in the loop decides what to port.
   bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh" --refresh-baseline
   ```
 
-  **On pinning `UPSTREAM_URL` to a commit SHA (considered, reverted):** an earlier revision of
-  this script pinned the fetch to a fixed commit for supply-chain integrity. A second independent
-  reviewer correctly caught the regression this caused: a pinned URL makes `check` compare the
-  baseline against the same frozen commit forever, so `/dometrain:sync` can never detect real
-  drift once Dometrain's `master` moves — defeating the report-only check's actual purpose. The
-  human diff-review a maintainer performs before choosing to run `--refresh-baseline` is already
-  the integrity gate; a URL pin adds ceremony without adding protection beyond that. Fetching
-  live `master` (matching `context7`'s established precedent) is correct here.
+  **`UPSTREAM_URL` tracks `master`, not a pinned commit.** A pinned URL makes `check` compare the
+  baseline against the same frozen commit forever, so `/dometrain:sync` can never detect real drift
+  once Dometrain's `master` moves. The integrity gate is the human diff review a maintainer performs
+  before choosing to run `--refresh-baseline`; a URL pin adds ceremony without adding protection
+  beyond that.
 
   This overwrites `vendor/SKILL.md` with current upstream (re-add the attribution comment
   afterward — `--refresh-baseline` writes raw upstream content, which never carries it) and
@@ -60,7 +57,7 @@ When porting upstream additions, **keep** this plugin's customizations:
 | Customization | Where it lives | Why |
 |---|---|---|
 | Frontmatter shape | `grounding/SKILL.md` | Plugin conventions (`user-invocable`, `argument-hint`, `disable-model-invocation`, `metadata`) |
-| The `grounding`/`sync` skill split | Both skills | `update` must stay non-model-reachable — a CRITICAL stress-test finding for this plan |
+| The `grounding`/`sync` skill split | Both skills | `/dometrain:sync` must stay non-model-reachable |
 | Standing untrusted-data instruction | `grounding/SKILL.md` | Prompt-injection defense this plugin adds; upstream's own skill doesn't carry it |
 | `userConfig`-driven setup pointer | `grounding/SKILL.md`, README | This plugin's native secure-credential-storage UX, absent from upstream's env-var auth |
 
@@ -76,12 +73,3 @@ If the drift check surfaces a substantive behavioral change — a new tool, a ne
 new quota policy — research primary sources (Dometrain's README, release notes, the MCP server
 card) before porting. Upstream's `SKILL.md` is not a changelog; it reflects the current state
 only.
-
-## What this action does NOT do
-
-- **Does not auto-merge upstream content** — the maintainer approves every port.
-- **Does not refresh the baseline automatically** — only on `--refresh-baseline` after manual
-  integration, so the baseline stays honest about "what was last reviewed."
-- **Does not run from the model's own initiative** — `sync/SKILL.md` is
-  `disable-model-invocation: true`; only a human's explicit `/dometrain:sync` invocation reaches
-  this script.

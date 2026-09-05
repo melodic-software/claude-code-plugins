@@ -12,7 +12,6 @@ Epic-level durable queue for batching public video URLs before `/knowledge:video
 - [Materialize `QUEUE.md`](#materialize-queuemd)
 - [Companion primary sources (optional at queue)](#companion-primary-sources-optional-at-queue)
 - [Preflight (every `queue` add)](#preflight-every-queue-add)
-- [Evolution breadcrumbs (do not pre-implement)](#evolution-breadcrumbs-do-not-pre-implement)
 
 ## Artifacts
 
@@ -23,6 +22,10 @@ Epic-level durable queue for batching public video URLs before `/knowledge:video
 | `templates/queue.md` | Empty table copied on first `queue` use |
 
 Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, slices). The queue answers **which URL next** — not phase internals.
+
+Deferred queue evolutions (a JSON queue, a CLI, leases, unattended drain) are recorded in
+`${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md`, section 6, "video-digest queue
+evolutions". Keep the `claims/<n>.json` shape stable so a later implementation can ingest it.
 
 ## Table columns
 
@@ -164,15 +167,3 @@ takes the `enqueue` / `ok` row like any other. Its `title` / `channel` cells may
 link post, whose text is not recoverable — see `../reference/sources/x.md`.
 
 `displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped — paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.
-
-## Evolution breadcrumbs (do not pre-implement)
-
-| Trigger | Next step |
-| --- | --- |
-| Claim races despite `queue-claim.js` | Single `watch-queue.json` + temp-file rename (compare-and-set) |
-| Queue > ~50 rows; table parse errors | `watch-queue.js` CLI: `add`, `list`, `claim` |
-| Team concurrent enqueue without discipline | SQLite or JSON queue lib with leases |
-| Unattended overnight drain | an agent-loop / unattended-runner prompt per row — one video per iteration |
-| Cross-machine workers | External queue — out of repo scope |
-
-Keep `claims/<n>.json` shape stable so a later lib can ingest or replace stubs without changing per-video slices.

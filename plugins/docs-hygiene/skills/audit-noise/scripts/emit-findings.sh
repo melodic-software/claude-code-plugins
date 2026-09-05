@@ -28,9 +28,10 @@
 # additionally drops any body row whose line quotes a `'trigger phrase'` that
 # also appears in the file's own `description:` or `when_to_use:`. The reason is
 # plugins/skill-quality/scripts/check-skill.sh's trigger-phrase drop check: it
-# hard-FAILs a dropped trigger phrase versus the base ref, so a remediation that
-# edits a description or a quoted trigger phrase is an auto-invocation
-# regression. Named rather than pinned to a line, because a line moves. A fence that
+# warns when a trigger phrase present at the base ref is missing from the working
+# tree, and a remediation that edits a description or a quoted trigger phrase is
+# an auto-invocation regression, because the description stops routing the intent
+# that phrase carried. Named rather than pinned to a line, because a line moves. A fence that
 # lives only in the caller is one caller away from being bypassed; findings that
 # reach an APPLY relay carry it in the writer.
 #

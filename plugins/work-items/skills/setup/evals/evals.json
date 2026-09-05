@@ -217,7 +217,7 @@
       "id": 17,
       "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-overlay",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is NOT tracked, and no .gitignore rule matches it.)",
-      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the ADR 0015 declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
+      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the one declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
       "files": [],
       "expectations": [
         "Appends the .work-item-tracker.local.json line to .gitignore and announces the edit",

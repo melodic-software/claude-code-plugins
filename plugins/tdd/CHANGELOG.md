@@ -3,6 +3,15 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Changed
+
+- **principles:** the description drops three trigger phrases that restated a neighbour's intent
+  ('what makes a good test', 'when to mock', 'TDD cycle'); the surviving phrases still name each
+  intent.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.4.6]
 
 ### Changed

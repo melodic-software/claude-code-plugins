@@ -130,12 +130,9 @@ Lock brief: confirmed scope becomes implementation contract.
 
 ### Phase 4. Plan
 
-Plan concrete edits with cross-cutting awareness:
-
-1. Group changes by file (multiple items may touch same file)
-2. Identify cross-cutting dependencies (e.g., a new hook event may need updates in every surface that documents hook events. Rules, hook scripts, and reference docs alike)
-3. Order edits to avoid conflicts
-4. For each file: specific section to edit, old text to replace, new text
+Plan the concrete edits for the confirmed scope, down to the section and text each file changes. One
+changelog item often touches several surfaces: a new hook event, for example, needs an update in
+every surface that documents hook events, rules, hook scripts, and reference docs alike.
 
 ### Phase 5. Implement
 

@@ -7,7 +7,7 @@ Sources: [Stryker — mutant states and
 metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/);
 [Infection — MSI](https://infection.github.io/guide/); [PIT](https://pitest.org/); Ojdanic et al.,
 *Mind the Gap: The Difference Between Coverage and Mutation Score Can Guide Testing Efforts*
-(<https://arxiv.org/abs/2309.02395>). Fetched 2026-08-10.
+(<https://arxiv.org/abs/2309.02395>). Fetched 2026-08-10. Recheck when Stryker, PIT, or Infection renames or redefines a metric on its own docs page, or at the next fleet audit; the two cited papers are fixed.
 
 ## The aggregates
 

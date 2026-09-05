@@ -148,7 +148,7 @@
       "id": 12,
       "name": "negation-remediation-never-touches-a-trigger-phrase",
       "prompt": "Declutter this file: read evals/fixtures/negation-trigger-fence.md relative to the skill directory and audit it for noise, then persist the findings for the review fix relay.",
-      "expected_output": "Reports both negations to the human, but routes only the plain one ('Do not emit a bare summary.') to the findings file. The sentence quoting 'sweep the negation fence' — a trigger phrase appearing in the file's own description — is reported to the human and declined from the relay, counted in `## Surfaces` as `reason=quoted-trigger-phrase`, because a remediation editing a quoted trigger phrase is the auto-invocation regression check-skill.sh hard-FAILs.",
+      "expected_output": "Reports both negations to the human, but routes only the plain one ('Do not emit a bare summary.') to the findings file. The sentence quoting 'sweep the negation fence' — a trigger phrase appearing in the file's own description — is reported to the human and declined from the relay, counted in `## Surfaces` as `reason=quoted-trigger-phrase`, because a remediation editing a quoted trigger phrase is the auto-invocation regression check-skill.sh warns on.",
       "files": ["evals/fixtures/negation-trigger-fence.md"],
       "expectations": [
         "The body line quoting the trigger phrase is NOT routed to the findings file",

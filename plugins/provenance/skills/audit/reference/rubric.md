@@ -1,49 +1,10 @@
 # The provenance rubric
 
 Rubric version **4**. This catalog is versioned with the plugin: a change to a carve-out or a
-criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to the
-prior version**. A precision figure measured against rubric 1 says nothing about rubric 4.
-
-**Version 4 narrows carve-out 5 with a span-level qualifier, and takes the invalidation.** Version
-3 asked only whether the surface's product is a distillation, a question almost any reference file
-carrying a link can answer yes to, and carve-outs are graded before the criteria and stop grading —
-so the broad reading suppressed C2 and C4 failures the criteria would have caught. Version 4 keeps
-the purpose test and adds the boundary a distilling file draws for itself: a lift its own
-attribution does not enumerate is not covered. **The golden set must be re-scored against version 4
-before any precision figure is cited against it**, and no class becomes fix-eligible on a
-measurement pinned to a superseded rubric.
-
-**Version 3 stated the scope at which C3 is graded, and wrote down C4's. It took the
-invalidation.** Version 2 left C3's scope implicit; two readers graded a real corpus case, agreed
-on the verdict, and disagreed on which scope produced it, which is what surfaced the gap. C4's
-scope was already passage-level in its worked examples and its replacement test, so recording it
-changes nothing. C3's is a substantive addition: file-scope attribution now discharges C3 on a
-file-wide derivation, which version 2's "a bare link at the bottom of a long file does not
-attribute a specific paragraph in the middle of it" cuts against.
-
-That changed what C3 tests, so the measurement version 2 stood on did **not** carry forward. The
-golden set was re-scored against version 3 and that outcome is in `CHANGELOG.md`. Version 4's
-carve-out change invalidates that re-score in turn; the live obligation is the one stated at the
-top of this file, against version 4.
-
-**Nothing about a measurement's result belongs in this file, and version 3 shipped a paragraph
-that broke that rule.** The pipeline inlines this whole file into every judge prompt at the
-judgment step, so anything recorded here is read by every judge before they grade. Version 3's
-first draft of the paragraph above also carried the expected tally, the panel size, and an
-enumeration of which golden case turns on which criterion, including the one case the scope change
-exists to restate. Thirty judges read it during the re-score, and the run that found this had to
-withdraw its claim of a blind panel. The prediction and the enumeration are changelog material and
-now live there. **Keep this file to the criteria, the carve-outs, the scope rule, the worked
-examples and the tier table: a judge should be able to read all of it and still not know the
-answer.**
-
-**Version 2 was the one exception to the invalidation rule**, kept here because the reasoning is
-the standard the next exception has to meet. It changed no criterion's substance and no carve-out;
-it corrected an inverted polarity in C3's and C4's question wording and worked-example labels,
-which contradicted the verdict rule stated three times elsewhere in this file. The version-1
-measurement was computed under the verdict rule, not under the inverted labels, and an independent
-blind adjudication returned the same eight positives reading it the same way. Version 3 cannot
-make that argument, which is why it does not try.
+criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to an
+earlier version**. **The golden set must be re-scored against the current version before any
+precision figure is cited against it**, and no class becomes fix-eligible on a measurement
+pinned to a superseded rubric.
 
 Read this at the judgment step. Judges apply it blind, three samples by default; unanimity
 renders the verdict and any split routes to the human.
@@ -179,8 +140,7 @@ STAND. A criterion that clears the candidate is a FAIL. This reads backwards for
 where the exculpatory answer is the intuitive "yes" — adequately attributed, genuinely
 transformative — so both are phrased below in the negative to keep the direction uniform. A
 rubric whose criteria disagree about which way PASS points cannot render a verdict at all: under
-the inverse reading nothing could ever stand. That inversion shipped in rubric version 1 and was
-caught by a blind adjudication pass, not by review.
+the inverse reading nothing could ever stand.
 
 **Scope, stated once because C3 and C4 are graded at different ones.** C1 and C2 are graded on
 the passage; nothing else would mean anything. The other two are not symmetric:
@@ -201,9 +161,7 @@ the passage; nothing else would mean anything. The other two are not symmetric:
 The asymmetry is the point, and it cuts both ways. Grade both at the file, and a majority-adapted
 file **that carries adequate file-level attribution** clears twice — the qualifier matters, since
 a file with no attribution anywhere still fails C3 at either scope. Grade both at the span, and a
-well-attributed derived file stands every time. Version 2 left this implicit; the addition is
-substantive for C3 and a written-down clarification for C4, which is why only C3's half carries
-the invalidation recorded above.
+well-attributed derived file stands every time.
 
 ### C1-span-correspondence
 

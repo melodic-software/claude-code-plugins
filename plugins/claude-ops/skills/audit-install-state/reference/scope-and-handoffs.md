@@ -25,8 +25,8 @@ catalog row of its own. If it later grows hooks or a kill switch, that decision 
 
 ## Report-only. No apply mode in v1
 
-The strong prior from the source audit was that audit and apply must be separate. The most defensible
-reading of "separate", for a first version, is that the write side does not ship at all.
+Audit and apply must be separate. The most defensible reading of "separate" is that the write side
+does not ship at all.
 
 Concretely: the engine never writes to, moves, or removes anything under the target root, and it is
 the `audit` verb, whose contract in this marketplace is a read-only findings report.
@@ -76,28 +76,23 @@ So: write the report outside the target root. If a destination inside it is unav
 
 ## Detect a deliberate state before classifying anything
 
-The largest near-miss in the source audit was not a bad check. It was a correct check run against a
-tree whose current state was **deliberate**: an experiment was live, and half the lanes were
-diagnosing its independent variable as damage. The experiment's only revert store lived under
-`plugins/data/`, a path a plugin-cleanup pass would plausibly prune.
+The largest hazard is not a bad check. It is a correct check run against a tree whose current state
+is **deliberate**: an experiment is live, and a staleness pass diagnoses its independent variable as
+damage. An experiment's only revert store can live under `plugins/data/`, a path a plugin-cleanup
+pass would plausibly prune.
 
 So the ledger sweep runs **first**, and anything it finds deny-lists its subtree before a single
 staleness verdict is produced.
 
-Two calibrations, both learned by running it:
+Two calibrations:
 
-- **An experiment's self-record is not authoritative.** One `RESTORE.md` claimed "all 68 keys set
-  false"; reality was 70 keys with one still true. Diff against the stored baseline copy.
-- **Match on strong names everywhere, weak names only in the hotspot.** A first version globbed
-  `manifest.json` and `*baseline*` across the whole tree and matched browser payloads, plugin-cache
-  fixtures, and subagent directories — deny-listing most of the install and rendering the signal
-  useless. Corroborating names now count only within three levels of `plugins/data/`, and vendored
-  `plugins/cache` and `plugins/marketplaces` are skipped entirely.
-
-A live worked example sits in this very repository: `AGENTS.md` and `CLAUDE.md` are **zero bytes** at
-`main`, reset by commit `8b411824` as the independent variable of a deliberate bare-baseline
-experiment. An empty instruction file reads as damage and is the point of the experiment. Recovering
-their content from git history is the correct move; "restoring" them is not.
+- **An experiment's self-record is not authoritative.** A `RESTORE.md` can misstate its own key
+  count. Diff against the stored baseline copy.
+- **Match on strong names everywhere, weak names only in the hotspot.** Globbing `manifest.json` and
+  `*baseline*` across the whole tree matches browser payloads, plugin-cache fixtures, and subagent
+  directories, deny-listing most of the install and rendering the signal useless. Corroborating
+  names count only within three levels of `plugins/data/`, and vendored `plugins/cache` and
+  `plugins/marketplaces` are skipped entirely.
 
 ## What this skill deliberately does not do
 

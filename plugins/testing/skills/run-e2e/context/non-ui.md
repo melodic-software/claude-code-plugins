@@ -10,8 +10,6 @@ Load on-demand when `/testing:run-e2e` is invoked for non-UI changes. UI changes
 - User asks "how do I live-test this?" for libs, MCP servers, hooks, scripts, infrastructure code
 - `/verification:confirm outcome` chains into surface-specific smoke tests beyond unit/build pass
 
-UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) MUST route to `e2e.md` instead — the UI evidence contract is mandatory there.
-
 ## Per-surface table
 
 Invocation commands come from `/toolchain:check`; framework, project-naming, and fixture detail come from the consuming project's testing conventions.

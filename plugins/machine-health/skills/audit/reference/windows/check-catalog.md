@@ -181,7 +181,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   The skill parses the text output into a structured list: `Name`, `Id`, `CurrentVersion`, `AvailableVersion`, `Source`.
 
 - **Severity rubric:**
-  - `CRIT` — any app whose `Id` or `Name` matches an entry in `catalog/cisa-kev.json` (vendor + product substring match is acceptable as a v1; refine over time).
+  - `CRIT` — any app whose `Id` or `Name` matches an entry in `catalog/cisa-kev.json`. Matching is
+    a case-insensitive substring test on vendor and product, which favors recall: a false match is
+    a CRIT the human dismisses, a missed match is an exploited vulnerability the report never
+    surfaces.
   - `WARN` — >10 apps behind.
   - `INFO` — 1–10 apps behind, none on KEV.
   - `OK` — no upgrades available.
@@ -360,10 +363,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
   `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
 
-- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch.
-  A User-scope `=1` silently freezes the installed binary — the defect that motivated
-  this check. Duplicate and missing PATH entries are INFO because presence is a shape,
-  not a verdict that the entry should be removed.
+- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch. A
+  truthy User-scope value silently freezes the installed binary at whatever version it holds,
+  with no error and no prompt, which is why a set value is a WARN. Duplicate and missing PATH
+  entries are INFO because presence is a shape, not a verdict that the entry should be removed.
 
 ---
 
@@ -384,11 +387,11 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
   ```
 
-- **What it detects:** entries at a fixed-volume root that nothing on the machine accounts
-  for — the class a disk audit once found as an empty `C:\tmp` path-translation artifact
-  and a 0-byte `C:\log.txt` dropped by an elevated process whose CWD was `C:\`. Both files
-  and directories are in scope; the listing is **non-recursive** (the root's own entries,
-  nothing below them).
+- **What it detects:** entries at a fixed-volume root that nothing on the machine accounts for.
+  Two representative shapes: an empty `tmp` directory left by a path translation, and a 0-byte
+  `log.txt` written by an elevated process whose working directory was the root. Both files and
+  directories are in scope; the listing is **non-recursive** (the root's own entries, nothing
+  below them).
 
 - **Baseline is data, not logic:** the expected-entry set lives in
   `reference/windows/drive-root-baseline.jsonc`. Admitting a newly legitimate entry is an
@@ -430,7 +433,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
 
 - **Notes:** owner (`Get-Acl`) and directory emptiness (first `EnumerateFileSystemEntries`
   hit only — the check never recurses into a stray directory) are best-effort diagnostic
-  context: the original `C:\log.txt` was attributed by its `BUILTIN\Administrators` owner.
+  context. An owner of `BUILTIN\Administrators` on a root entry identifies a dropping from an
+  elevated process, which is the attribution this field exists to supply.
   `Get-Volume` failing (Storage module unavailable) degrades to scanning the system drive
   alone rather than `UNKNOWN`. The check is Windows-only; a POSIX port would need its own
   baseline semantics (`/` has a very different expected set) and is not scaffolded.

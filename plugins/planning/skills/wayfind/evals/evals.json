@@ -43,7 +43,7 @@
       "id": 4,
       "name": "chart-refuses-noninteractive-session",
       "prompt": "/planning:wayfind chart the customer-data-platform overhaul. (This is running as an unattended autonomous batch job — no human is available to respond.)",
-      "expected_output": "Chart mode detects the non-interactive/autonomous session and STOPS, reporting that charting needs a human in the loop, rather than fabricating a decision map on its own.",
+      "expected_output": "Chart mode treats the caller's unattended declaration as the signal and STOPS, reporting that charting needs a human in the loop, rather than fabricating a decision map on its own.",
       "files": [],
       "expectations": [
         "Output does NOT create a work-map issue or fabricate decision items",
