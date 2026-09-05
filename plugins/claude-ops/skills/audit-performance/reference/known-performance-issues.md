@@ -137,6 +137,71 @@ Population trend matters as much as population size, and needs two samples: `con
 not accumulation. A single sample cannot tell the two apart, and the first reading of that bash
 series was written up as accumulation and had to be retracted.
 
+## The host-level floor: a kernel Token-object leak (suspect 5, Windows)
+
+Beneath the four suspects sits the floor the host itself imposes on every process creation, and
+one mechanism moves it by an order of magnitude while staying invisible to everything above: a
+leaked kernel reference to Token objects. Measured once, on a 24-core Windows 11 workstation
+(Intel Core Ultra 9 285K, 64 GB) at two days' uptime with 6 to 7% CPU and 26 to 30 GB free, then
+again two hours after a reboot (capture record: melodic-software/claude-code-plugins#3715):
+
+| probe | leaking (2 d uptime) | after reboot (2 h uptime) |
+|---|---|---|
+| `cmd /c exit 0`, absolute path, no window | 1,339 to 1,573 ms | 14 ms |
+| `bash -c true` (Git Bash) | 3,555 to 4,347 ms | not re-sampled |
+| kernel-side half of one `cmd.exe` creation (`CREATE_SUSPENDED`, then resume) | 668 ms | |
+| Token objects alive (`NtQueryObject`, `ObjectTypesInformation`) | 3,811,482 (high-water equal, 1,739 handles) | 25,623 (1,373 handles) |
+| paged pool | 9,894 MB | 1,092 MB |
+| `claude --version` | 4,113 ms | |
+
+The shape, not the numbers, is the transferable part:
+
+- **The cost is inside process creation itself.** Splitting one creation with `CREATE_SUSPENDED`
+  put 668 ms in the kernel-side create and 683 ms in resume-to-exit; the kernel half alone was
+  three times the whole healthy spawn. DLL loading, PATH search (36 entries, longest probe 14 ms),
+  the console layer, and desktop-heap limits were all measured and cleared.
+- **Millions of Token objects against a few thousand handles is the signature.** A Token object
+  that outlives every handle to it is alive only through a kernel reference, so `objects` minus
+  `handles` in the millions with high-water equal to current means references are taken and never
+  released. The type's default paged-pool charge is 88 bytes, but a live token carries its groups,
+  privileges, and SIDs, and at a realistic 2 to 3 KB each 3.8M of them account for the 10 GB.
+  Paged-pool pressure is what every creation then pays.
+- **The minter is continuous, not per spawn.** Twenty back-to-back `cmd /c exit` spawns did not
+  raise the rate above background, so it is impersonation-shaped: an RPC/ALPC or driver IOCTL
+  path that takes a token reference per call. The host runs three raw-I/O drivers (`AsIO3.sys`,
+  `IOMap64.sys`, `MsIo64.sys`) polled continuously by Armoury Crate and lighting services, which
+  is the profile that fits. That is a hypothesis, not a measurement.
+- **Reboot restores the floor; the leak re-arms immediately.** Two hours after the reboot the
+  count was 37,144 and climbing at 5.1/s averaged since boot, with a 60 s window reading 15/s and
+  a 3 s window reading 0/s (minting is bursty, so a short window under-reads it). At that average
+  the count re-crosses the engine's 250,000 threshold in about 12 hours and the two-day level in
+  days, not weeks. A reboot buys time; only attribution ends it.
+
+The engine reports this as `kernel_objects`: live and high-water counts per type, paged and
+nonpaged pool, system handle/process/thread totals, `token.per_second_since_boot` (the since-boot
+average, for the reason above), `token.hours_to_leak_threshold_at_boot_average`, and the findings
+`token-objects-leaked` (at or above 250,000 live Token objects) and `paged-pool-high` (at or above
+4,096 MB). Both thresholds are calibrated on this one host's two states, ten times its clean-boot
+count and a fifteenth of its leaking count. A second host's readings, healthy or leaking, are the
+recheck trigger for them.
+
+**Attribution runbook (elevated shell; the engine never does this).** Sample the Token count over
+60 s, then stop one candidate service at a time and re-sample; the one that drops the rate to
+about zero is the minter, and every stopped service is restarted afterwards. Candidates on the
+audited host, in order: `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`,
+`AsusFanControlService`, `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services,
+NVIDIA's `NvContainerLocalSystem`, and Wispr Flow. Growth that persists with all of them stopped
+points at a Windows component; on an Entra-joined account the CloudAP token path is the next
+suspect. Before any reboot of a leaking host, capture the pool tag (`poolmon -b`, or Process
+Explorer's kernel-memory view; expect `Toke` to dominate paged pool). It is the one measurement a
+reboot destroys, and it was missed on this host.
+
+Also cleared on that host, recorded so nobody re-derives them: session churn (suspending the four
+busiest orphaned shells moved the floor 15%, so they were victims, not cause); an unrelated
+174,378-handle registry-key leak in ASUS `ADU.exe` (suspending it changed nothing); antivirus and
+EDR (Defender stopped, `WdFilter` not loaded, no third-party minifilter); WDAC, Smart App Control,
+AppLocker, and AppInit DLLs (all off or empty); and tracing sessions (none running).
+
 ## Tested and cleared (record the negatives)
 
 A plausible cause ruled out by measurement is a finding. All four of these looked right on the
@@ -166,6 +231,9 @@ audited machine and all four were wrong; without the record, the next operator r
 3. **Verify config is live before attributing cost to it.**
 4. **Rule out by test, then record the negative.**
 5. **Prove a fix with a before and after under identical load.**
+6. **Take the host floor before attributing anything to Claude Code.** On Windows read
+   `kernel_objects` first; a leak there makes every fan-out number a multiple of a broken
+   denominator, and suspending the busiest shells moved that host's floor by 15%, not 90%.
 
 ## Surface scope: CLI versus desktop
 
@@ -198,6 +266,9 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
   non-elevated `Get-MpPreference` on Windows 11 — an empty non-admin read proves nothing.
 - Every running session polls `~/.claude.json` at 1 Hz (cheap stat; a full main-thread re-parse
   only when another process writes it), and concurrent sessions multiply all watcher/poll load.
+- A leaked kernel reference to Token objects, from a driver or service path, fills paged pool and
+  taxes every process creation system-wide at idle CPU; see "The host-level floor" above. A
+  reboot restores the floor, and only attribution of the minter ends the leak.
 - Claude **Desktop** (Electron) has its own distinct lag bugs (unbounded LocalStorage sync,
   #55149; idle disk-write churn, #58799) — do not import Desktop evidence into a CLI diagnosis
   or vice versa; say which surface the symptom was observed on.

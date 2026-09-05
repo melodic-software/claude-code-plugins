@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0]
+
+### Added
+
+- **audit-performance: `kernel_objects`, the host-level floor beneath the four suspects
+  (Windows).** A read-only census through `NtQueryObject(ObjectTypesInformation)` and
+  `GetPerformanceInfo`: live and high-water counts for Token, Process, Thread, Key, File,
+  Section, Event, and EtwRegistration objects, paged and nonpaged pool, system handle,
+  process, and thread totals, and uptime. Token leads because a Token object that outlives
+  every handle to it is held by a kernel reference, and a leaking driver or service path
+  accumulates them for the life of the boot: the host that motivated this carried 3.81M Token
+  objects and about 10 GB of paged pool at two days' uptime, every process creation on it cost
+  1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor (#3715). The section reports the
+  mint rate as `objects / uptime` (minting is bursty, so a short window under-reads it),
+  projects the hours until the leak threshold at that rate, and labels
+  `token-objects-leaked` and `paged-pool-high`. Off Windows the section says
+  `supported: false` with the reason rather than vanishing; the block parser is unit-tested
+  against a synthetic x64 layout on every platform, and the end-to-end contract asserts the
+  section ships. `known-performance-issues.md` records the signature, the ruled-out causes,
+  and the elevated attribution runbook; `SKILL.md` reads the section before the four suspects.
+
 ## [0.41.14]
 
 ### Changed
