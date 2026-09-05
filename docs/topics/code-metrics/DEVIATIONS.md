@@ -185,3 +185,17 @@ Append-only. Entries follow the implementation skill's contract: `plan-confirmed
   named `auditor` dispatch, autonomous contract, local `item.md` in the packet) and apply the
   confirmed findings on this branch under the plan's own authority, logging them here. Revisit:
   none.
+- **discovery.** (Phase 11) The fresh-context code review found one defect: a quoted number in
+  a configuration layer reached the assembler as a string and crashed the comparison with a raw
+  traceback; fixed at both layers (`e6f0bb27`). The plugin-quality audit (packet
+  `~/.claude/plugins/data/plugin-quality-melodic-software/evidence/<session>/code-metrics/20260905T173832Z/`,
+  seven findings, every harness claim grounded against the current docs) found one High: change
+  scope run from a subdirectory measured nothing because `git diff` names files from the root and
+  the dispatcher filtered them against the cwd. Fixed with a subdirectory case in the dispatcher
+  suite, together with the bash-4 floor (README line and a guard in `python-resolve.sh`),
+  `CODE_METRICS_HOME` documented, the setup template bound to the defaults by a test, the
+  coverage-join limits in the skill's Gotchas, and `setup apply` resolving the repository root
+  itself. Left as follow-ups in the packet's `item.md`: generating the config reference's key
+  table from the defaults file, root-relative `file` fields in the schema, reading every
+  Cobertura `<source>` prefix, and observing each skill through the Skill tool in a consumer
+  repository.

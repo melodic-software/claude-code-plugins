@@ -31,7 +31,9 @@ ignored file) widen it. Nothing depends on a framework, a build system, or the p
 
 ## Requirements
 
-- **Bash and Python 3.9 or later** (`python3`, `python`, or `py -3`), plus `git` for change scope.
+- **Bash 4 or later and Python 3.9 or later** (`python3`, `python`, or `py -3`), plus `git` for
+  change scope. macOS ships bash 3.2, so install a current bash (`brew install bash`); Windows
+  needs Git Bash. Every entry point checks the bash version and stops with that remediation.
   Python is required for correctness: every entry point stops with a remediation message when it
   is absent.
 - **Collectors, all optional.** A lane whose collector is absent reports `unavailable` with the

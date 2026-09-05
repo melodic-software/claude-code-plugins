@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Write or update the consumer's team configuration file, idempotently.
 
-  setup-apply.py (--dir <repo-root> | --file <path>) <key>=<value>...
+  setup-apply.py [--dir <repo-root> | --file <path>] <key>=<value>...
 
-The target is `<repo-root>/.claude/code-metrics.yaml` (or `--file`). Each
+The target is `<repo-root>/.claude/code-metrics.yaml` (or `--file`); with
+neither option the root is what `git rev-parse --show-toplevel` reports from
+the current directory, or the current directory outside a repository. Each
 `<key>=<value>` is a dotted key from the plugin's config contract and a value
 written in the YAML subset the plugin reads (`500`, `true`, `null`,
 `"quoted"`, `[a, b]`). The existing file is parsed, the keys are merged per
@@ -22,6 +24,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 from typing import Any
 
@@ -178,11 +181,19 @@ def main(argv: list[str]) -> int:
         assignments.append(arg)
         i += 1
     if target is None:
-        print(
-            "setup-apply.py: --dir <repo-root> or --file <path> is required",
-            file=sys.stderr,
-        )
-        return 2
+        # No --dir: the repository root when git resolves one, else the cwd,
+        # so the skill needs no command substitution in its allowed command.
+        try:
+            probe = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            root = probe.stdout.strip() if probe.returncode == 0 else ""
+        except OSError:
+            root = ""
+        target = os.path.join(root or os.getcwd(), ".claude", "code-metrics.yaml")
     if not assignments:
         print("setup-apply.py: at least one <key>=<value> is required", file=sys.stderr)
         return 2

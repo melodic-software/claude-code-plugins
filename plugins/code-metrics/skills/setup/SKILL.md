@@ -70,11 +70,13 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 3. **Persist.** One call per run, every value as `<key>=<value>` in the YAML subset:
 
    ```bash
-   "${CLAUDE_SKILL_DIR}/scripts/setup-apply.py" --dir "$(git rev-parse --show-toplevel)" size.file_lines=500 'scope.exclude=["vendor/**"]'
+   "${CLAUDE_SKILL_DIR}/scripts/setup-apply.py" size.file_lines=500 'scope.exclude=["vendor/**"]'
    ```
 
-   The script merges per key into `.claude/code-metrics.yaml`, writes block style, and prints
-   `already configured` without touching the file when nothing changes.
+   The script merges per key into the repository root's `.claude/code-metrics.yaml` (the root
+   git reports from the current directory; `--dir <root>` or `--file <path>` overrides it),
+   writes block style, and prints `already configured` without touching the file when nothing
+   changes.
 4. **Verify.** Re-run `check`; report the persisted values from its table, never from the write
    alone. The tracked-file pair decides the outcome: a WARN `written but untracked` means "commit
    it to share with the team", never success; an ignored team file is FAIL and the operator's

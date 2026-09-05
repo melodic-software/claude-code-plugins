@@ -226,10 +226,29 @@ change)
     BASE_SHA="$(git rev-parse --verify --quiet "$BASE" 2>/dev/null || true)"
     [[ -n "$BASE_SHA" ]] || die_usage "base ref not found: $BASE"
   fi
+  # Both listings are asked for root-relative names (`git diff` always prints
+  # them; `ls-files` prints cwd-relative ones and limits itself to the cwd
+  # without a pathspec), then rebased onto the cwd, so a run from a
+  # subdirectory keeps the whole change and every path stays cwd-relative
+  # like an explicitly named one.
+  root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  climb=""
+  if [[ -n "$root_prefix" ]]; then
+    slashes="${root_prefix//[^\/]/}"
+    for ((i = 0; i < ${#slashes}; i++)); do climb+="../"; done
+  fi
   {
     git diff --name-only --diff-filter=d "$BASE_SHA"
-    git ls-files --others --exclude-standard --modified
-  } >>"$FILES_LIST"
+    git ls-files --others --exclude-standard --modified --full-name -- ':/'
+  } | while IFS= read -r p; do
+    if [[ -z "$root_prefix" ]]; then
+      printf '%s\n' "$p"
+    elif [[ "$p" == "$root_prefix"* ]]; then
+      printf '%s\n' "${p#"$root_prefix"}"
+    else
+      printf '%s\n' "$climb$p"
+    fi
+  done >>"$FILES_LIST"
   ;;
 *)
   die_usage "unknown scope mode $MODE"

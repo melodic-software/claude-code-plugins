@@ -18,6 +18,12 @@
 # PY is consumed by the sourcing script, not here.
 # shellcheck disable=SC2034
 cm_resolve_python() {
+  # The scripts use mapfile and associative arrays, so bash 3.2 (the macOS
+  # default) stops here with the remediation instead of a syntax error later.
+  if ((BASH_VERSINFO[0] < 4)); then
+    printf 'code-metrics needs bash 4 or later (this is %s); macOS: brew install bash; Windows: run under Git Bash\n' "$BASH_VERSION" >&2
+    return 2
+  fi
   local here candidate resolved lower probe
   here="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
   CM_PYTHON_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$here/report.py")"

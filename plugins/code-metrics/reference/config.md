@@ -27,6 +27,11 @@ The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands co
 through the same three layers for their `globs` (which replace the bundled extension map for that
 lane) and `enabled` (a resolved `false` opts the lane out).
 
+The user-global layer is looked up under `$HOME`; `CODE_METRICS_HOME`, when set, replaces that
+directory for one run (the plugin's own suites use it to point at a scratch home, and a consumer
+can use it the same way to try a personal layer without touching `~/.claude`). It is the only
+environment variable the cascade reads; no key is settable from the environment.
+
 ## The YAML subset
 
 The plugin reads YAML with a bundled parser for a documented subset, because the standard library

@@ -48,6 +48,13 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 - **The dispatcher:** a failed collector probe's stderr is relayed into the run row's reason; a
   `not-applicable` row never withholds `status: complete`; `reference/collectors.md` carries one
   stamped row per collector and artifact format.
+- **Change scope from a subdirectory:** the diffed and untracked files are named from the
+  repository root and rebased onto the working directory, so a run from a subdirectory keeps the
+  whole change (it used to drop every file and report `empty`).
+- **Bash floor:** bash 4 or later is required and every entry point says so under an older bash;
+  `setup apply` resolves the repository root itself when `--dir` is omitted;
+  `CODE_METRICS_HOME` is documented; the setup template is bound to the bundled defaults by a
+  test; the coverage join's known limits are in the skill's Gotchas.
 - **Reference typing:** a quoted number in a configuration layer (`reference: "20"`) is refused
   by the resolver by key and layer (exit 2; a FAIL `config` row in `setup check`) instead of
   reaching the assembler as a string, and the assembler treats a non-numeric reference as no

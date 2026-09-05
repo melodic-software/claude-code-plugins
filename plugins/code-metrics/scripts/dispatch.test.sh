@@ -170,6 +170,20 @@ rc=$?
 assert_eq "change scope exits 0" 0 "$rc"
 assert_doc "change scope is the committed diff plus untracked files, base recorded" "$out" \
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and sorted(r["file"] for r in d["measures"])==["changed.py","untracked.sh"]'
+# 9b. Change scope from a subdirectory: git names diffed files from the
+#     repository root, so the dispatcher rebases them onto the cwd instead of
+#     dropping every file that is not under it.
+(
+  cd "$repo" || exit 1
+  mkdir -p sub
+  printf 'z = 3\n' >sub/inner.py
+  git add sub/inner.py && git commit -q -m inner
+)
+out="$(cd "$repo/sub" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+rc=$?
+assert_eq "change scope from a subdirectory exits 0" 0 "$rc"
+assert_doc "change scope from a subdirectory keeps the whole change, paths relative to the cwd" "$out" \
+  'sorted(r["file"] for r in d["measures"])==["../changed.py","../untracked.sh","inner.py"]'
 rm -rf "$repo"
 
 # 10. The config cascade: a team file sets the reference, an exclusion, and a

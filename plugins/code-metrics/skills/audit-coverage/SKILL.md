@@ -125,3 +125,8 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
   saying so. Re-run the tests before reading the numbers when the diff has moved lines.
 - Two artifacts covering one file are merged by keeping the larger hit count per line, so a line
   is never counted twice.
+- A Cobertura report with several `<source>` roots is read with the first one only; a class whose
+  filename resolves under a later root lands in the partial count rather than in an error.
+- Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to
+  each other's artifact region when the artifact carries only the short name; the file-level
+  numbers are unaffected.
