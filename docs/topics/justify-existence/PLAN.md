@@ -255,12 +255,18 @@ Mirror `context/product-code-lane.md`'s shape. Supplies the four things "Lane bi
 - No repo specifics: `grep -ciE 'hook-utils|adr 0019|melodic|docs/(adr|PLUGIN|conventions)|\.\./\.\./\.\./docs|17 (byte-identical )?copies|20 of 20|14 (ship|are)' plugins/overengineering/context/justification-lane.md` prints `0`.
 - `markdownlint-cli2 plugins/overengineering/context/justification-lane.md` exit 0; `grep -c $'\xe2\x80\x94' plugins/overengineering/context/justification-lane.md` prints `0`.
 
-### Phase 3: Evals first, red; listing-budget baseline [TODO]
+### Phase 3: Evals first, red; listing-budget baseline [DONE]
 
 Write the observable-behavior spec before the skill body. Fixtures are self-contained under `skills/justify/evals/fixtures/`; every fixture is named in at least one case's `files[]`, spelled `evals/fixtures/…` so both resolution roots `check-evals-quality.sh` accepts find it; shell-shaped fixtures use `.txt` so `scripts/check-shell-portability.sh` does not lint them; **no fixture is named `CLAUDE.md`**, because a nested `CLAUDE.md` loads as live instructions when a session reads files beside it (official memory docs).
 
-- [ ] Capture the listing-budget baseline before any listing entry changes: `bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/ > .work/justify-existence/listing-budget-before.txt`, then paste its aggregate line into this phase's notes below (the memory tier is ephemeral).
-- [ ] `skills/justify/evals/evals.json`, `skill_name: justify`, cases (ids 1-10):
+- [x] Capture the listing-budget baseline before any listing entry changes, then paste its aggregate line into this phase's notes below (the memory tier is ephemeral). **The root argument is corrected on 2026-09-05.** `check-listing-budget.sh` takes *skills roots*, directories that directly contain skill directories, so `plugins/` matched nothing and the command reported "0 skills, nothing to report", a green-looking result measuring an empty set. The working form passes every plugin's skills directory:
+
+  ```bash
+  bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills \
+    > .work/justify-existence/listing-budget-before.txt
+  ```
+
+- [x] `skills/justify/evals/evals.json`, `skill_name: justify`, cases (ids 1-10):
   1. `bare-invocation-does-not-sweep`: no target, no conversation context; expects the ladder stated, git-age discovery **offered** not run, no enumeration, no file written.
   2. `pointed-target-full-row`: `evals/fixtures/decision-0001.md`; expects one finding with a six-token verdict, `Basis`, tiers consulted with silent or unavailable marked, `Layer: decision-records`, `mode: targeted`, `targets` naming the fixture, `schema: 2`, `ablation: n/a`.
   3. `sanctioned-copies-are-not-debt`: `evals/fixtures/vendored/a/util.txt`, `evals/fixtures/vendored/b/util.txt` (byte-identical) plus `evals/fixtures/vendored/REGISTRY.txt` sanctioning them and naming a maintaining check; expects KEEP or UNPROVEN, never RETIRE or CONSOLIDATE, with the sanctioning record cited.
@@ -277,13 +283,29 @@ Write the observable-behavior spec before the skill body. Fixtures are self-cont
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/overengineering/skills/justify/evals/evals.json` exit 0.
 - `jq -r '.evals[].files[]' plugins/overengineering/skills/justify/evals/evals.json | sort -u | while read -r f; do test -f "plugins/overengineering/skills/justify/$f" || test -f "plugins/overengineering/skills/justify/evals/$f" || echo "MISSING $f"; done` prints nothing.
 - `bash scripts/check-orphaned-fixtures.sh --check` exit 0.
-- `bash scripts/check-shell-portability.sh` exit 0.
+- `bash scripts/check-shell-portability.sh --all` exit 0. (The `--all` flag is required; the script's usage is `<base-ref> | --all | --paths FILE...` and a bare invocation exits with usage.)
 - `find plugins/overengineering/skills/justify/evals -name CLAUDE.md` prints nothing.
 - `markdownlint-cli2 'plugins/overengineering/skills/justify/evals/fixtures/**/*.md'` exit 0.
 - `test -s .work/justify-existence/listing-budget-before.txt && echo OK` prints `OK`, and the aggregate line is pasted into this phase's notes.
 - Red: `test ! -f plugins/overengineering/skills/justify/SKILL.md && echo RED` prints `RED`.
 
-Notes (filled at execution): listing-budget aggregate before: `<pasted line>`.
+Notes (filled at execution). Listing-budget aggregate before, captured 2026-09-05 over
+`plugins/*/skills`:
+
+```text
+Shared listing-budget estimate over 182 listing-eligible skill(s) across 74 root(s):
+  aggregate: 135465 chars
+  budget:    8000 chars (documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback))
+CHECK-LISTING-BUDGET: WARN — aggregate 135465/8000 chars over budget by 127465 at the configured budget.
+```
+
+The marketplace is already far past the documented default budget, so "must not regress" is read
+against this 135465 number and not against the 8000 budget line: Phase 6 compares the aggregate
+before and after, and the `justify` entry is expected to add roughly its own entry size. Every other
+Phase 3 Sanity Check ran green, including the RED check, which is the point of the phase: the evals
+exist and `skills/justify/SKILL.md` does not. Two commands were corrected as noted above. Ten
+fixtures shipped, each named in at least one case's `files[]`; the two shell-shaped ones use `.txt`
+and no fixture is named `CLAUDE.md`.
 
 ### Phase 4: `skills/justify/SKILL.md`, thin slice, live tracer run, discovery measurement [TODO]
 
