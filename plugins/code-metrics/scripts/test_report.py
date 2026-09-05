@@ -267,6 +267,42 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(run_rows[1:], [], [])
         self.assertEqual(doc["status"], "empty")
 
+    def test_a_non_numeric_reference_never_compares_and_never_crashes(self) -> None:
+        # A string reference (a quoted number that slipped past the resolver)
+        # is no threshold at all: the row is not over it, and the assembler
+        # exits 0 with a document rather than a traceback.
+        doc = self.assemble(
+            [
+                {
+                    "lane": "python",
+                    "measure": "file_lines",
+                    "collector": "line-counter bundled",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            [
+                {
+                    "file": "a.py",
+                    "function": None,
+                    "lane": "python",
+                    "values": {"lines_non_blank": 1200},
+                }
+            ],
+            [
+                {
+                    "measure": "file_lines",
+                    "value_key": "lines_non_blank",
+                    "direction": "at_or_above",
+                    "reference": "1000",
+                    "provenance": "test",
+                    "layer": "team",
+                }
+            ],
+        )
+        self.assertEqual(doc["status"], "complete")
+        self.assertEqual(doc["measures"][0]["over_reference"], [])
+
     def test_not_applicable_rows_do_not_withhold_complete(self) -> None:
         doc = self.assemble(
             [

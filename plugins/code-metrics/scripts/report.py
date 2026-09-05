@@ -98,6 +98,10 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
         return False
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return False
+    # A reference that is not a number (a quoted number that reached a
+    # pre-resolved --config document) is no threshold at all.
+    if not isinstance(reference, (int, float)) or isinstance(reference, bool):
+        return False
     if threshold.get("direction") == "below":
         return value < reference
     return value >= reference

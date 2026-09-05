@@ -53,6 +53,12 @@ import sys
 from typing import Any
 
 MIN_PYTHON = (3, 9)
+
+
+class ConfigTypeError(ValueError):
+    """A resolved value has a type the plugin cannot compare (a quoted number)."""
+
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LAYER_NAMES = ("user-global", "team", "local")
 SURFACE = "code-metrics"
@@ -206,6 +212,22 @@ def resolve(
         key: {"value": value, "layer": layers.get(key, "bundled default")}
         for key, value in flat.items()
     }
+    # Every threshold reference is compared against a measured number, so a
+    # quoted number in a layer (`reference: "20"`, a string scalar) is refused
+    # here by key and layer rather than reaching the assembler as a TypeError.
+    for entry in config.get("thresholds") or []:
+        key = entry.get("config_key")
+        if not key:
+            continue
+        value = flat.get(key)
+        if value is None or (
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+        ):
+            continue
+        raise ConfigTypeError(
+            f"{key} (layer {layers.get(key, 'bundled default')}) must be a number "
+            f"or null, got {type(value).__name__} {value!r}"
+        )
     config["_layers"] = layers
     config["_provenance"] = provenance
     config["_files"] = files_read
@@ -316,6 +338,9 @@ def main(argv: list[str]) -> int:
             f"resolve-config.py: a config layer is outside the YAML subset: {exc}",
             file=sys.stderr,
         )
+        return 2
+    except ConfigTypeError as exc:
+        print(f"resolve-config.py: {exc}", file=sys.stderr)
         return 2
     except OSError as exc:
         print(f"resolve-config.py: {exc}", file=sys.stderr)

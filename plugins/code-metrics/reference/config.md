@@ -35,6 +35,9 @@ mappings, block sequences, flow sequences of scalars (`["*.sh", "*.bash"]`), pla
 scalars (`str`, `int`, `float`, `true`/`false`, `null`), and `#` comments. Outside it, reported
 with the file and line and never parsed partially: flow mappings (`{ a: 1 }`), anchors and
 aliases, tags, block scalars (`|`, `>`), document markers, tab indentation, and duplicate keys.
+Every reference value is a number or `null`; a quoted number (`reference: "20"`) is a string
+scalar, and the resolver refuses it by key and layer (exit 2, and a FAIL `config` row in
+`/code-metrics:setup check`) rather than letting an audit compare a number against it.
 
 ## Keys
 

@@ -83,6 +83,24 @@ class PositionalLayerTests(unittest.TestCase):
             )
             self.assertIn("'nonsense' is not in the ladder", result.stderr)
 
+    def test_a_quoted_reference_is_a_named_type_error(self) -> None:
+        # A YAML author who writes `reference: "20"` gets a string scalar, and
+        # the assembler would compare a number against it; the resolver names
+        # the key and layer instead of letting that reach a traceback.
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                'complexity:\n  cyclomatic:\n    reference: "20"\n',
+                encoding="utf-8",
+            )
+            result = run(USER, str(team))
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("complexity.cyclomatic.reference", result.stderr)
+            self.assertIn("number or null", result.stderr)
+            self.assertIn("team", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual(result.stdout, "")
+
     def test_a_layer_outside_the_subset_is_a_named_error(self) -> None:
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 2)
