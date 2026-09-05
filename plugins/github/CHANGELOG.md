@@ -3,6 +3,15 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.14]
+
+### Changed
+
+- **advise, audit:** the read-only contract's enumeration of `gh api` write-capable flags carries a
+  dated verification record with a recheck trigger.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.11]
 
 ### Changed
