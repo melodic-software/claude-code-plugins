@@ -859,7 +859,7 @@ fi
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
   wait
 )
-if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then
+if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then # portability-ok: grep -q quiet match, not grep -P
   ok "envelope: unprovable data falls back to jq (and fails open when jq fails)"
 else
   fail "envelope fallback: marker=$(cat "$SINK3B.err" 2>/dev/null) sink=$(cat "$SINK3B")"
@@ -1483,7 +1483,7 @@ bs_err_file="$(mktemp)"
   bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
   ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
 else
   fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
@@ -2138,6 +2138,12 @@ bs_unsliced='hook::resolve_read_slice() {
   local probe
   probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
+}
+hook::resolve_read_slice_to() {
+  local probe
+  probe=$(read -r -t "$1" discard </dev/null 2>&1)
+  printf -v "$2" "%s" "$1"
+  printf -v "$3" "%s" "1"
 }'
 bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 3.6' _ "$HOOK_DIR/hook-utils.sh")
 bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 3.6' \
@@ -3163,6 +3169,100 @@ if [[ "${bps_all[*]-}" == "echo x#y git reset --hard" ]]; then
 else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
+
+# --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
+# GNU Bash forks a subshell for $( ) and process substitution even when the
+# body is builtins only. The previous buffer_stdin startup paid two of those
+# (timeout + slice). The _to helpers must run in this shell; the print forms
+# must not be reached from buffer_stdin (that would be a regression to $( )).
+pin_dir="$(mktemp -d)"
+pin_file="$pin_dir/pids"
+eval "$(declare -f hook::resolve_read_timeout_to | sed '1s/^hook::resolve_read_timeout_to/__pin_timeout_to/')"
+eval "$(declare -f hook::resolve_read_slice_to | sed '1s/^hook::resolve_read_slice_to/__pin_slice_to/')"
+eval "$(declare -f hook::resolve_read_timeout | sed '1s/^hook::resolve_read_timeout/__pin_timeout_print/')"
+eval "$(declare -f hook::resolve_read_slice | sed '1s/^hook::resolve_read_slice/__pin_slice_print/')"
+hook::resolve_read_timeout_to() {
+  printf 'timeout %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_timeout_to "$@"
+}
+hook::resolve_read_slice_to() {
+  printf 'slice %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_slice_to "$@"
+}
+hook::resolve_read_timeout() {
+  printf 'PRINT_TIMEOUT\n' >>"$pin_file"
+  __pin_timeout_print
+}
+hook::resolve_read_slice() {
+  printf 'PRINT_SLICE\n' >>"$pin_file"
+  __pin_slice_print "$@"
+}
+# Redirect, not a pipe: a function on the right of `|` runs in a subshell, which
+# would make BASHPID != $$ even when the _to helpers are in-process. A here-doc
+# keeps buffer_stdin in this shell, which is the pin we want.
+hook::buffer_stdin >/dev/null <<'PIN_PAYLOAD'
+{"ok":true}
+PIN_PAYLOAD
+if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "buffer_stdin: resolve_*_to run in-process (no wrapper subshell)"
+else
+  fail "buffer_stdin resolve_*_to not in-process: $(tr '\n' ';' <"$pin_file")"
+fi
+if grep -q 'PRINT_' "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  fail "buffer_stdin reached the print-form resolve_* (regression to \$( )): $(tr '\n' ';' <"$pin_file")"
+else
+  ok "buffer_stdin: does not call the print-form resolve_* wrappers"
+fi
+# Restore the real functions so later cases (none today) see the originals.
+eval "$(declare -f __pin_timeout_to | sed '1s/^__pin_timeout_to/hook::resolve_read_timeout_to/')"
+eval "$(declare -f __pin_slice_to | sed '1s/^__pin_slice_to/hook::resolve_read_slice_to/')"
+eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::resolve_read_timeout/')"
+eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
+rm -rf "$pin_dir"
+
+# --- hook::json_str_object_to matches jq -nc --arg ... -----------------------
+jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_want="${jso_want//$'\r'/}"
+jso_got=""
+hook::json_str_object_to jso_got tool Bash subject "git status --short" form ""
+if [[ "$jso_got" == "$jso_want" ]]; then
+  ok "json_str_object_to: matches jq -nc for {tool,subject,form}"
+else
+  fail "json_str_object_to: got [$jso_got] want [$jso_want]"
+fi
+jso_esc_want=$(jq -nc --arg tool Bash --arg subject 'a"b\c' --arg form $'x\ny' \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_esc_want="${jso_esc_want//$'\r'/}"
+jso_esc_got=""
+hook::json_str_object_to jso_esc_got tool Bash subject 'a"b\c' form $'x\ny'
+if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
+  ok "json_str_object_to: matches jq escapes for quote, backslash, newline"
+else
+  fail "json_str_object_to escapes: got [$jso_esc_got] want [$jso_esc_want]"
+fi
+
+# --- hook::repo_root no longer execs tr --------------------------------------
+tr_shim="$(mktemp -d)"
+tr_log="$tr_shim/log"
+real_tr=$(type -P tr) || real_tr=""
+if [[ -n "$real_tr" ]]; then
+  cat >"$tr_shim/tr" <<EOF
+#!/usr/bin/env bash
+printf 'TR\\n' >>"$tr_log"
+exec "$real_tr" "\$@"
+EOF
+  chmod +x "$tr_shim/tr"
+  PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
+  if [[ -f "$tr_log" ]]; then
+    fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "repo_root: strips CR in-shell, does not exec tr"
+  fi
+else
+  fail "repo_root tr pin: no real tr on PATH to wrap"
+fi
+rm -rf "$tr_shim"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

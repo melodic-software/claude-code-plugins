@@ -146,8 +146,7 @@ export function checkTranscripts(course, modulesDir) {
         }
       }
 
-      const hasTimestamps = TRANSCRIPT_TIMESTAMP_MARKER.test(content);
-      if (!hasTimestamps) {
+      if (!TRANSCRIPT_TIMESTAMP_MARKER.test(content)) {
         results.push(
           check(false, WARN, `transcript.timestamps ${label}`, {
             lesson: lesson.title,
@@ -234,17 +233,14 @@ export function checkResourceFlags(course, modulesDir) {
       const lessonDir = join(modulesDir, mod.slug, lessonDirName(lesson.position, lesson.title));
       const label = formatLessonLabel(mod, lesson);
 
-      if (lesson.hasTranscript) {
-        const exists = existsSync(join(lessonDir, "transcript.md"));
-        if (!exists) {
-          results.push(
-            check(false, FAIL, `resources.transcript ${label}`, {
-              lesson: lesson.title,
-              flag: true,
-              fileExists: false,
-            }),
-          );
-        }
+      if (lesson.hasTranscript && !existsSync(join(lessonDir, "transcript.md"))) {
+        results.push(
+          check(false, FAIL, `resources.transcript ${label}`, {
+            lesson: lesson.title,
+            flag: true,
+            fileExists: false,
+          }),
+        );
       }
 
       if (lesson.hasScreenshots) {

@@ -223,11 +223,11 @@ SAMPLE_ENV="$(jq -r --arg d "WIT_${PROVIDER_UPPER}_TOKEN" '.api.auth_env_example
 [[ "$SAMPLE_ENV" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
   die_spec "api.auth_env_example must be a valid env var name (found: $SAMPLE_ENV)"
 
+default_sample_host="tracker.example.com"
 if [[ -n "$HOST_SUFFIX" ]]; then
-  SAMPLE_HOST="$(jq -r --arg d "example$HOST_SUFFIX" '.api.sample_host // $d' <<<"$SPEC_JSON")"
-else
-  SAMPLE_HOST="$(jq -r --arg d "tracker.example.com" '.api.sample_host // $d' <<<"$SPEC_JSON")"
+  default_sample_host="example$HOST_SUFFIX"
 fi
+SAMPLE_HOST="$(jq -r --arg d "$default_sample_host" '.api.sample_host // $d' <<<"$SPEC_JSON")"
 [[ "$SAMPLE_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
   die_spec "api.sample_host must be a bare hostname (found: $SAMPLE_HOST)"
 if [[ -n "$HOST_SUFFIX" && "$SAMPLE_HOST" != *"$HOST_SUFFIX" ]]; then

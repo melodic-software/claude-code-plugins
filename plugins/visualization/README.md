@@ -6,7 +6,7 @@ show it, then render it. It is a form-and-medium router, not a craft teacher.
 
 | Skill | What it does |
 |---|---|
-| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
+| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, code-shape sketch, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
 
 ## What it decides
 
@@ -20,7 +20,8 @@ Two decisions, then the output:
   | Attribute comparison | A markdown table |
   | Quantities | A chart |
   | A small structural sketch | ASCII or Unicode |
-  | A composite or interactive view | A rich rendered page |
+  | Logic, a call path, a component or file tree, types, or a delta over code | A code-shape sketch (pseudocode, call tree, component tree, shallow file tree, types and signatures, diff), a fenced text form that stays in the terminal by default |
+  | A composite or interactive view, an infographic, or a short slide deck | A rich rendered page |
   | A visual layout the user would rather tweak by hand | A hand-editable design canvas, via the bundled `design` skill when that presence-gated preview is available |
 
 - **Medium**. One of three ascending tiers, **inline terminal → local HTML file →
@@ -70,6 +71,12 @@ rendered diagram. These facts and their sources are documented in the catalog.
   available, else a local file, else terminal). An unrecognized value is reported
   and treated as `auto`. There is no native enum type for `userConfig`, so the
   allowed values are validated in-skill.
+- **`thin_context_prompt`** (`userConfig`, string, default `auto`). What the skill
+  does when code is pasted with little conversational context and no form named:
+  `auto` (ask one ranked question only when two or more code-shape forms fit about
+  equally; render when one form dominates), `always` (offer the ranked menu on any
+  bare code paste), or `never` (render the recommended form without asking). An
+  unrecognized value is reported and treated as `auto`; validated in-skill.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
@@ -92,6 +99,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium when the skill auto-selects. One of: 'auto' (decide by content and available surfaces), 'terminal' (always render inline, degrading richer forms to their best terminal approximation), 'file' (render richer forms as a self-contained local HTML file, never published off the machine), 'artifact' (prefer a published Artifact when that surface is available, else fall back to a local HTML file, else terminal). An unrecognized value is reported and treated as 'auto'. |
+| `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little conversational context and no form named. One of: 'auto' (ask one ranked question only when two or more code-shape forms fit about equally; render when one form dominates), 'always' (offer the ranked menu on any bare code paste), 'never' (render the recommended form without asking). An unrecognized value is reported and treated as 'auto'. |
 
 ### How to set these
 

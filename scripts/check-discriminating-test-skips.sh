@@ -35,12 +35,22 @@ for test_file in "${test_files[@]}"; do
     function is_annotated(l) { return l ~ /#[[:space:]]*discriminating-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_required(l) { return l ~ /#[[:space:]]*discriminating-skip-required:/ }
-    function is_bad_skip(l) {
-      return l ~ /skip_case/ &&
-        (l ~ /did not pair/ || l ~ /did not produce both/)
-    }
     function is_any_skip(l) {
       return l ~ /skip_case/
+    }
+    function is_bad_skip(l) {
+      return is_any_skip(l) &&
+        (l ~ /did not pair/ || l ~ /did not produce both/)
+    }
+    # Report a tracked block that closed (or hit EOF) with an unannotated
+    # discriminating skip in it.
+    function flag_block() {
+      if (block_bad && !block_annotated) {
+        if (block_required)
+          printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
+        else
+          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
+      }
     }
     function same_line_if_fi(l) {
       return l ~ /^[[:space:]]*if[[:space:]]/ &&
@@ -59,12 +69,7 @@ for test_file in "${test_files[@]}"; do
         if (is_bad_skip(line) && !is_annotated(line)) block_bad = 1
         if (block_required && is_any_skip(line) && !is_annotated(line)) block_bad = 1
         if (depth == 0) {
-          if (block_bad && !block_annotated) {
-            if (block_required)
-              printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
-            else
-              printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
-          }
+          flag_block()
           in_block = 0
         }
         next
@@ -121,12 +126,7 @@ for test_file in "${test_files[@]}"; do
       }
     }
     END {
-      if (in_block && block_bad && !block_annotated) {
-        if (block_required)
-          printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
-        else
-          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
-      }
+      if (in_block) flag_block()
     }
   ' "$test_file")
 

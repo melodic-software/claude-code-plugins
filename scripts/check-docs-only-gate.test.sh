@@ -373,6 +373,34 @@ f="$scratch/consumer-not-cancelled.yml"
 xform_insert_after "$base" "  gamma:" "    if: \${{ !cancelled() }}" "$f"
 expect "a consumer carrying !cancelled() is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
+# The one exemption: the contract-only gate, matched as a whole shape. It
+# carries no status-check function, so GitHub still requires the resolver to
+# have succeeded before it evaluates at all — the empty-output state the rule
+# above guards against cannot arise. Every case below shows the match is EXACT:
+# the literal passes, and two near-misses that would each mean something
+# different are rejected as any other job-level condition is.
+contract_gate="\${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}"
+
+f="$scratch/consumer-contract-gate.yml"
+xform_insert_after "$base" "  gamma:" "    if: $contract_gate" "$f"
+expect "a consumer carrying exactly the contract-only gate is allowed" 0 "scope resolved once" --check "$f"
+
+# One token added. `|| always()` reintroduces precisely the status-check
+# function the exemption rests on not having: the job would run with the
+# resolver skipped or failed, and the output empty.
+f="$scratch/consumer-contract-gate-always.yml"
+xform_insert_after "$base" "  gamma:" "    if: \${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || always() }}" "$f"
+expect "the contract-only gate widened with always() is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
+# The predicate itself drifted: this copy drops the fork clause, so it no longer
+# equals the copy every other gated job carries, nor the predicate the ci-status
+# composite resolves its carry-forward branch on. A fork pull request would skip
+# this lane while the composite aggregated it, turning a `skipped` into a pass
+# with nothing executed.
+f="$scratch/consumer-contract-gate-drifted.yml"
+xform_insert_after "$base" "  gamma:" "    if: \${{ !(contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}" "$f"
+expect "a drifted copy of the contract-only predicate is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
+
 # The aggregate's own job-level condition is not a consumer's, and must stand.
 expect "the aggregate's own job-level condition is untouched" 0 "scope resolved once" --check "$base"
 

@@ -244,7 +244,7 @@ if [[ "$CLEAN_RC" -ne 0 ]]; then
         CLEAN_NON_LOCKED_FAILURE=1
         break
       fi
-    done <<< "$CLEAN_STDERR"
+    done <<<"$CLEAN_STDERR"
   fi
 fi
 
@@ -261,7 +261,7 @@ RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 # tolerated locked-file warning, is a genuine clean failure; emit a distinct
 # failure line and a non-zero exit instead of a success line that misrepresents
 # the outcome.
-if [[ "$CLEAN_RC" -ne 0 && "${CLEAN_NON_LOCKED_FAILURE:-0}" -ne 0 ]]; then
+if [[ "$CLEAN_RC" -ne 0 && "$CLEAN_NON_LOCKED_FAILURE" -ne 0 ]]; then
   printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
   [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'

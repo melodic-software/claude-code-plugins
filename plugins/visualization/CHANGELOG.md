@@ -3,6 +3,88 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Code-shape sketches in `visualize`.** Seven new Step 2 form rows: pseudocode (for logic
+  described in prose or not yet written), call tree, component tree with file paths, shallow file
+  tree with one line of responsibility per entry, types and signatures, a diff-shaped delta over any
+  of those when the surrounding shape is already in the conversation, and the whole block as the
+  fallback when no sketch is smaller than the code. A code-vs-domain tie-break keeps them disjoint
+  from the mermaid row, and the smallest-view heuristic (pick the smallest view that makes the key
+  point clear, place it beside the short text it supports, keep only what the question needs, use
+  one form, sometimes several, rarely all) joins Step 2. One example per form lives in a new
+  `context/code-shapes.md` spoke, with real box-drawing glyphs and placeholder paths. The family is
+  inspired by and adapted from the humanlayer/skills `show-me` skill; the element-by-element
+  attribution table is `docs/upstream/humanlayer-skills.md` in the marketplace repository. The skill
+  body and its spokes carry no provenance by design.
+- **Context-driven prompting on a bare code paste, tunable.** Step 4's form-ambiguity rule now
+  covers pasted code with thin context: when two or more code-shape forms fit about equally the
+  skill asks one ranked question (two to four forms, recommended first) and renders nothing until
+  the answer; when one form dominates it renders without asking. A new `thin_context_prompt` option
+  (`auto` default, `always`, `never`) tunes that behavior.
+- **A new trigger and a form-list word.** `'show me the shape of this'` joins the quoted triggers
+  and "code-shape sketches" joins the form list in the description, paid for by shortening the
+  closing clause; every existing trigger is preserved and the description stays at the
+  1024-codepoint field maximum.
+- **Rich-page genres and product matching.** The rich-page row names an infographic and a short
+  slide deck; Step 5 matches a product's own colors, type, spacing, and components when the subject
+  is a product UI, uses real labels and data, and supports desktop and mobile.
+- **Evals 8-12** (pseudocode stays terminal; delta over a known shape picks a diff; smallest-view
+  restraint; thin-context paste offers one ranked menu; a pull-request diff with the `artifact`
+  argument stays a terminal fence). Eval 4's third expectation now reads "when the target is obvious
+  and one form dominates, or a form was named".
+- **Notice.** The example blocks in `skills/visualize/context/code-shapes.md` carry text from
+  humanlayer/skills (MIT). This paragraph travels with them, is the copy that ships with the
+  installed plugin, and must survive any future trim of this changelog:
+
+  ```text
+  Copyright (c) 2026 HumanLayer
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+  associated documentation files (the "Software"), to deal in the Software without restriction,
+  including without limitation the rights to use, copy, modify, merge, publish, distribute,
+  sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or
+  substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  ```
+
+### Changed
+
+- **Delivery rule for attacker-controlled content, stated once.** Code-shape sketches take the same
+  medium ladder as every other form (terminal under `auto`, `file`/`artifact` and the configured
+  preference honored), except that a pull-request diff, fetched content, or another repository's
+  files are never rendered to HTML until the rendered-views escape helper ships; that exception
+  overrides an explicit argument and the preference, with a one-line notice. The rendered-views
+  security baseline already governed this; the skill now says so.
+
+### Fixed
+
+- **Catalog: the artifact CSP is no longer described as blocking every external host.** The
+  current contract allows Google Fonts and scripts from four CDN hosts (cdnjs, jsDelivr `/npm/`
+  paths, the Tailwind and jQuery CDNs) and blocks everything else; corrected at five sites, with
+  "inline everything, no network calls" restated as this plugin's own policy rather than a platform
+  fact. Verified 2026-09-04 against the artifacts page.
+- **Catalog: the terminal-mermaid-is-source citation pointed at a page that does not say it.** The
+  `output-styles` citation is replaced by a scoped absence claim (the interactive-mode and fullscreen
+  pages and the docs corpus), the binary's lack of a terminal-side renderer, and the open issues that
+  request rendering.
+- **Catalog: the bundled mermaid runtime is recorded as a version-specific fact** (11.16.1, read from
+  the Claude Code 2.1.260 binary, with a per-release recheck) instead of "undocumented", and the
+  newest mermaid families are described as present upstream but unverified in the viewer.
+- **Catalog: public sharing of artifacts with mermaid, SVG data URIs, or AVIF** is listed as a
+  reported open issue (anthropics/claude-code#79824), mechanism unconfirmed, with its recheck
+  trigger.
+
 ## [0.4.2]
 
 ### Changed

@@ -61,6 +61,16 @@ emit_path_line() {
   TOTAL_BYTES=$((TOTAL_BYTES + ${kb:-0} * 1024))
 }
 
+# emit_tier CATEGORY TIER — one candidate path per stdin line. Redirected, never
+# piped, so emit_path_line's TOTAL_BYTES accumulation stays in this shell.
+emit_tier() {
+  local category="$1" tier="$2" abs
+  while IFS= read -r abs; do
+    [[ -z "$abs" ]] && continue
+    emit_path_line "$category" "$tier" "$abs"
+  done
+}
+
 REPO_ROOT="$(clean_repo_root)"
 TOTAL_BYTES=0
 
@@ -74,15 +84,8 @@ cd "$REPO_ROOT" || exit 0
 # Enumeration shares the single pruned-walk engine with the mutating caches/build
 # tiers (clean-common.sh) so the read-only inventory and the tiers that act on it
 # report the same targets from one walk that never descends .git/node_modules/.venv.
-while IFS= read -r abs; do
-  [[ -z "$abs" ]] && continue
-  emit_path_line "Caches" "caches" "$abs"
-done < <(clean_caches_candidates "$REPO_ROOT")
-
-while IFS= read -r abs; do
-  [[ -z "$abs" ]] && continue
-  emit_path_line "Build artifacts" "build" "$abs"
-done < <(clean_build_candidates "$REPO_ROOT")
+emit_tier "Caches" "caches" < <(clean_caches_candidates "$REPO_ROOT")
+emit_tier "Build artifacts" "build" < <(clean_build_candidates "$REPO_ROOT")
 
 WT_COUNT="$(git worktree list 2>/dev/null | wc -l | tr -d ' ')"
 echo "Git worktrees: ${WT_COUNT:-0}"

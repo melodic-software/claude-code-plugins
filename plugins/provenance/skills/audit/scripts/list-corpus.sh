@@ -142,11 +142,10 @@ EXCLUDED_GLOBS=()
 # but never clear one. `!= null` separates "key defined as empty" from "key
 # absent", which is what per-key override actually requires.
 cfg_array() {
-  local path="$1" layer v out=""
+  local path="$1" layer out=""
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
     jq -e "$path != null" "$layer" >/dev/null 2>&1 || continue
-    v="$(jq -r "($path // []) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
-    out="$v"
+    out="$(jq -r "($path // []) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   done
   printf '%s' "$out"
 }

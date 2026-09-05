@@ -86,7 +86,7 @@ export async function extractAnchorFrames(
     lastLogMs = Date.now();
   };
 
-  for (let index = 0; index < uniqueTimestamps.length; index++) {
+  for (let index = 0; index < total; index++) {
     const timestampSec = uniqueTimestamps[index];
     if (log && staleSilenceMs > 0 && Date.now() - lastLogMs >= staleSilenceMs && index > 0) {
       const warn = log.warn ?? log.info;

@@ -265,6 +265,24 @@ _rlg_set_now() {
   return 0
 }
 
+# Read one of this writer's epoch-second stamp files into the NAMED variable, or
+# 0 when the file is absent, unreadable, empty, or holds anything that is not a
+# plain integer. Five call sites read a stamp exactly this way, and the
+# validation is the load-bearing half: bash evaluates the TEXT of an arithmetic
+# operand, so a stamp shaped like `a[$(cmd)]` would run cmd on every render.
+# Naming it once keeps all five spelled identically, the same reason
+# _rlg_bash_at_least exists. Builtins throughout, so no call site pays a
+# process — every one of them is on the render path.
+_rlg_read_stamp() {
+  local _var="$1" _val=0
+  if [[ -f "$2" ]]; then
+    IFS= read -r _val <"$2" || _val=0
+    [[ "$_val" =~ ^[0-9]+$ ]] || _val=0
+  fi
+  printf -v "$_var" '%s' "$_val"
+  return 0
+}
+
 # Strip the leading captured_at member from a snapshot body into _RLG_BODY_KEY,
 # leaving the part of the body that a refresh is allowed to leave unchanged.
 # Returns 1 when the text is not a body this writer produced, which makes every
@@ -386,10 +404,7 @@ tee_snapshot() {
   if [[ -f "$target" ]] && _rlg_set_now; then
     local last_write=0 cur="" want="" floor="${RLG_TEE_NOCHANGE_FLOOR:-300}"
     [[ "$floor" =~ ^[0-9]+$ ]] || floor=300
-    if [[ -f "$dir/.last-write" ]]; then
-      IFS= read -r last_write <"$dir/.last-write" || last_write=0
-    fi
-    [[ "$last_write" =~ ^[0-9]+$ ]] || last_write=0
+    _rlg_read_stamp last_write "$dir/.last-write"
     if ((_RLG_NOW - last_write < floor)); then
       # Bash reads the file itself for `$(<file)`, without forking.
       cur="$(<"$target")"
@@ -899,10 +914,7 @@ _rlg_drain() {
   # Re-read the stamp UNDER the lock. Without this, every render that queued
   # behind the winner would drain again the moment the winner released.
   local last2=0
-  if [[ -f "$stamp" ]]; then
-    IFS= read -r last2 <"$stamp" || last2=0
-  fi
-  [[ "$last2" =~ ^[0-9]+$ ]] || last2=0
+  _rlg_read_stamp last2 "$stamp"
   if ((now - last2 < interval)); then
     release_drain_lock
     return 0
@@ -921,10 +933,7 @@ _rlg_drain() {
   # .last-drain, and an absent stamp reads as 0 so a cold machine sweeps on its
   # first drain.
   local sweep_stamp="$spool/.last-sweep" last_sweep=0
-  if [[ -f "$sweep_stamp" ]]; then
-    IFS= read -r last_sweep <"$sweep_stamp" || last_sweep=0
-  fi
-  [[ "$last_sweep" =~ ^[0-9]+$ ]] || last_sweep=0
+  _rlg_read_stamp last_sweep "$sweep_stamp"
   # Validated before the arithmetic for the reason the no-change floor gives:
   # bash evaluates operand text, and an environment value is not an integer
   # until it has been checked.
@@ -1036,8 +1045,7 @@ _rlg_spool_dispatch() {
   # claim below holds.
   [[ "$recheck" =~ ^[0-9]+$ ]] || recheck=300
   if [[ -f "$marker" ]]; then
-    IFS= read -r m <"$marker" || m=0
-    [[ "$m" =~ ^[0-9]+$ ]] || m=0
+    _rlg_read_stamp m "$marker"
     ((now - m < recheck)) && return 0
   fi
 
@@ -1051,10 +1059,7 @@ _rlg_spool_dispatch() {
 
   local interval="${RLG_TEE_DRAIN_INTERVAL:-30}" stamp="$spool/.last-drain" last=0
   [[ "$interval" =~ ^[0-9]+$ ]] || interval=30
-  if [[ -f "$stamp" ]]; then
-    IFS= read -r last <"$stamp" || last=0
-  fi
-  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  _rlg_read_stamp last "$stamp"
   ((now - last >= interval)) || return 0
 
   local steal=0

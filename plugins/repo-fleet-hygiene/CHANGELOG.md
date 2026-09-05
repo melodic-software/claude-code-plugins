@@ -3,6 +3,39 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.17]
+
+### Changed
+
+- **`audit/scripts/audit-fleet.sh` drops three per-call subshells.**
+  `select_remote`'s sole-remote fallback ran two pipelines over the same text,
+  `sed | wc | tr` to answer how many remotes there are and `sed` again to answer
+  which one; one read loop now collects the non-empty names into an array that
+  answers both, and empty input still yields zero names and returns 1. The
+  `GitHub evidence:` line's `$([[ ... ]] && echo available || echo unavailable)`
+  becomes an `elif` arm, so neither branch forks. The findings JSON prints
+  `${R_COUNTED[$ri]}` straight into `"audited": %s`, because that array already
+  holds the JSON literal: `begin_repo_record` seeds `false` and
+  `mark_repo_counted` writes `true`, so the subshell test was re-deriving the two
+  strings it had been handed.
+- **`apply/scripts/apply-plan.sh` reads two loops from herestrings.** The plan-line
+  split and the per-unit `IFS=$'\037' read` each fed on `< <(printf '%s\n' "$x")`,
+  a fork and a subshell to supply a trailing newline that `<<<"$x"` supplies for
+  free. One `append_decision` call also loses a stray `${tip}` brace form, matching
+  the sibling arm four lines above it.
+- **Six show-ref blocks in `apply-plan.test.sh` become two assert helpers.**
+  Whether a branch survived a run is the mutation evidence most cases in that
+  suite turn on, and it was written out as an if/else over
+  `git show-ref --verify --quiet` at six sites; `assert_branch_kept` and
+  `assert_branch_deleted` take the label/repo/branch shape the file's other
+  asserts already use, and each still reports through the same `pass`/`fail`.
+
+  Declined again, as in the earlier pass: `apply-plan.sh`'s guards, ordering,
+  confirmation gate and mutation invocations are untouched, including the
+  duplicated `skip "canonical path missing"` arm at two sites. Folding either
+  would restructure the code that decides which repositories get written to,
+  which is not a tidy.
+
 ## [0.23.16]
 
 ### Added

@@ -22,7 +22,7 @@ import { CELL_IDS, validateTriageSheet } from "../lib/watch-vision-validation.js
 export function mergeTriageJson(sliceDir, batchPaths) {
   const absSlice = path.resolve(sliceDir);
   const batchesDir = lanePath(absSlice, LANES.keyFrames, "triage", "batches");
-  let paths;
+  let paths = [];
   if (batchPaths && batchPaths.length > 0) {
     paths = batchPaths.map((p) => path.resolve(p));
   } else if (fs.existsSync(batchesDir)) {
@@ -31,8 +31,6 @@ export function mergeTriageJson(sliceDir, batchPaths) {
       .filter((n) => n.endsWith(".json"))
       .sort()
       .map((n) => path.join(batchesDir, n));
-  } else {
-    paths = [];
   }
 
   if (paths.length === 0) {

@@ -134,6 +134,19 @@ issue #836) that converts the 9 fleet sites currently relying on that leniency
 regresses between them. Once corrected, a quiet skip must use one of the sanctioned helper calls
 or an explicit `# silent-skip-ok: <reason>` annotation.
 
+**The annotation, precisely.** `# silent-skip-ok: <reason>` is a comment line placed directly
+above the quiet exit it sanctions (the `exit 0` behind a `command -v` gate, or the
+`|| exit 0` on a prerequisite test), with the reason stating why no notice channel exists or
+why silence is the correct outcome. `scripts/check-silent-skips.sh` reads the annotation: a
+gated skip it would otherwise reject passes when the line above it carries the marker, so the
+reason is reviewed once, in the diff, rather than re-litigated on every gate run. Two shapes
+use it today. A fire-and-forget process whose stdout and stderr the producer discards (the
+claude-ops telemetry sink: "the producer side owns prerequisite visibility"), and a hook that
+is off by design for the consumer who has not enabled it (the per-session event log's
+`session_event_log_enabled: false` default, where a notice would fire on every event of every
+session that never asked for logging). A hook that could speak and simply does not is not a
+candidate; give it a helper call.
+
 ### 3. OTel-style telemetry envelope
 
 Every wired producer hook emits one envelope per meaningful-outcome run via `hook::emit_telemetry`

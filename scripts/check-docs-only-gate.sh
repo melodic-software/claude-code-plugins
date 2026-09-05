@@ -57,17 +57,20 @@
 #                           aggregate); adding one for an UNGATED step is
 #                           fail-open, because it replaces that step's real
 #                           outcome with `success` on every docs-only diff.
-#   7. NO JOB-LEVEL IF    — a consumer carries no job-level condition at all. It
-#                           reaches the output through `needs`, so it runs only
-#                           when the resolver succeeded — which is what makes the
-#                           output's domain exactly {'true','false'} and the two
-#                           sanctioned forms exact complements. `if: always()` or
-#                           `if: ${{ !cancelled() }}` breaks that: the job runs
-#                           with an EMPTY output, both forms are false, and every
-#                           gated step and its not-applicable reporter skip
-#                           together — the lane reports success having run
-#                           nothing. The condition need not mention the output to
-#                           do this, so this check does not read what it says.
+#   7. NO JOB-LEVEL IF    — a consumer carries no job-level condition other than
+#                           the contract-only gate, pinned below as an exact
+#                           literal. It reaches the output through `needs`, so it
+#                           runs only when the resolver succeeded — which is what
+#                           makes the output's domain exactly {'true','false'}
+#                           and the two sanctioned forms exact complements.
+#                           `if: always()` or `if: ${{ !cancelled() }}` breaks
+#                           that: the job runs with an EMPTY output, both forms
+#                           are false, and every gated step and its
+#                           not-applicable reporter skip together — the lane
+#                           reports success having run nothing. Only a
+#                           status-check function can produce that state, and the
+#                           gate carries none; every other condition is rejected
+#                           without reading what it says.
 #   8. EDGE DECLARED      — a job that reads the output declares the resolving
 #                           job in its `needs`. Without the edge the expression
 #                           yields an empty string, with the same consequence.
@@ -144,6 +147,15 @@ run_workflows${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' 
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
 AGGREGATE_JOB="ci-status"
 LANE_OPT_OUT="lane-coverage-ok:"
+# The one sanctioned job-level condition on a required consumer: the
+# contract-only gate, which subtracts the label-flip and body-edit events where
+# `ci-status` carries the recorded `ci-lanes` verdict forward instead of
+# re-running the lanes. Pinned as a WHOLE SHAPE for the same reason the consumer
+# forms are: a variant is a different condition with different consequences, and
+# the equality is also what proves each job's copy has not drifted from the
+# others. See check 5c.
+CONTRACT_ONLY_PREDICATE="github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))"
+JOB_GATE="\${{ !(${CONTRACT_ONLY_PREDICATE}) }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
@@ -820,13 +832,35 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # skipped informational lane rather than a false green, and skipping the whole
 # job is the cheaper shape: it is why a non-required Windows lane may gate at
 # job level while every aggregated lane gates its steps.
+#
+# ONE EXEMPTION, PINNED AS A WHOLE SHAPE: `$JOB_GATE`, the contract-only gate.
+# The hazard above is specifically a condition that lets a job run when the
+# resolver did NOT succeed, and only a status-check function (`always()`,
+# `!cancelled()`, `failure()`, `success()`) can do that — without one, GitHub
+# still requires every `needs` job to have succeeded before it evaluates the
+# condition at all. The gate contains none, so the needs edge governs exactly as
+# it does with no condition: the job either runs with the resolver's real
+# outputs or does not run. What the gate subtracts is the label-flip and
+# body-edit events, where the lanes would re-answer a SHA the last full run
+# already answered and `ci-status` carries that verdict forward from the
+# `ci-lanes` commit status instead. The exemption is an exact-text match, not a
+# family of shapes: a variant is a different condition, and pinning the literal
+# is also what keeps every job's copy equal to each other. Their equality with
+# the `contract-only` default the `ci-status` composite resolves its
+# carry-forward branch on is NOT checked here and is checked nowhere else
+# either: ci-workflows tests its composite against its own ci.yml, not against
+# this repository's. It was verified by hand at pin
+# 449157aaa8e30f7b1457305d8048ebe6168e174a and must be re-verified whenever that
+# pin moves. A drifted copy that skipped the lanes while the composite still
+# aggregated would turn all-`skipped` into a pass with nothing executed.
 
 while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
   is_required "$refjob" || continue
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all."
+    [[ "$ctext" == "$JOB_GATE" ]] && continue
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level condition here is exactly: $JOB_GATE"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
 

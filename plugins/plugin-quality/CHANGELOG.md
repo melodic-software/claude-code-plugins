@@ -5,6 +5,16 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.8]
+
+### Changed
+
+- **`packet-seal.sh`: the seal loop's parallel counter removed.** `count` tracked exactly the
+  number of entries the loop wrote, so the reported total now reads `${#files[@]}` directly.
+  Output is identical because every arm of that loop that does not print a manifest line exits
+  non-zero, so reaching the summary means each enumerated entry was written. No output or exit
+  code changed.
+
 ## [0.7.7]
 
 ### Changed

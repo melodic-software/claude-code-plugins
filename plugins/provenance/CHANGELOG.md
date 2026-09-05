@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.4]
+
+### Changed
+
+- **`fingerprint.mjs`: `shingleAt`'s doc block now states why one spelling has to serve both
+  readers.** The set `shingles()` builds is exactly what `matchedSpans()` looks a local shingle
+  up in, so any divergence between the two constructions would move containment and the reported
+  spans together and silently. The parameter is renamed `i` to match both call sites. Comment and
+  parameter name only: fingerprint output is byte-identical, verified across both call sites and
+  over a 400-file corpus at eight window sizes.
+- **`list-corpus.sh`: `cfg_array` drops a single-use binding**, assigning the layer's joined
+  value straight to `out`. Last-writer-wins across config layers is unchanged, and so is the
+  `!= null` test that separates "key defined as empty" from "key absent".
+- Note for maintainers: no test pins the fingerprint algorithm. Changing the shingle join
+  separator or the window bound leaves the suite 40 of 40 green while altering every fingerprint
+  this plugin has ever emitted. A frozen input-to-fingerprint assertion would be worth adding.
+
 ## [0.5.3]
 
 ### Fixed

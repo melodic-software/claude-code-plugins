@@ -1,4 +1,5 @@
 {
+  "description": "Detects a rules index drifting out of step with the rule files it indexes, after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {

@@ -128,8 +128,8 @@ Claude Code substitutes `userConfig` values when it renders the **skill**. A con
 `${user_config.install_new}` in a spoke and it arrives as that literal token, with **no error and no
 warning**; the value simply never appears, and a step branching on it branches on a placeholder.
 
-This is why `SKILL.md` holds the `install_new` render and `sync.md` Step 4 branches on *that* line
-rather than on its own prose. Verified empirically: `context/sync.md` on disk shows the raw
+This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches on *that* line
+rather than on its own prose. Verified empirically: `context/sync-install-enable.md` on disk shows the raw
 `${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
 configured value. Nothing enforces this — a future spoke that inlines such a token fails silently,
 so it is a review-time rule, not a checkable one.
@@ -154,6 +154,13 @@ readable to the end of the run. And the
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
 (no `--marketplace`) path keeps working after the bump. Keep the two in step: if that fallback is
 ever changed, this gotcha and the resolver comment both describe it.
+
+A plugin root that is not under the cache at all — a local dev checkout, `--plugin-dir`, or the
+marketplace checkout itself — cannot match any `installPath`, so the resolver adds a third stage:
+walk up a bounded few levels for a `.claude-plugin/marketplace.json` and accept its `.name` only
+when `known_marketplaces.json` has that key, then fall back to matching the root against each known
+marketplace's `installLocation`. A root that resolves through none of the three still fails loud and
+names `--marketplace`; the resolver never guesses.
 
 What is missing without a deliberate report row is any *statement* of it — see `SKILL.md`'s
 self-update row.
@@ -214,8 +221,9 @@ while IFS= read -r id; do
 done < <(…/scripts/fleet-state.sh --ids installed-user)
 ```
 
-For anything `--ids` does not cover: route every `jq` call through the
-`jq() { command jq "$@" | tr -d '\r'; }`-style wrapper `fleet-state.sh` already uses, **and** strip
-`\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value captured from any other source before
-embedding it in a `claude plugin` command or a JSON argument. Don't rediscover this the hard way in
-a second script.
+For anything `--ids` does not cover: capture every `jq` call the way `fleet-state.sh`'s `jq_to`
+helper does, `out=$(command jq …)` followed by `${out//$'\r'/}`, which strips every carriage return
+with a parameter expansion and no `tr` process, **and** strip `\r` the same way from every value
+captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
+A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
+process per call. Don't rediscover this the hard way in a second script.

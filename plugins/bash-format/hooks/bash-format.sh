@@ -18,12 +18,15 @@ set -uo pipefail
 # resolve (ENOENT → silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
-hook::check_enabled "BASH_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
@@ -208,7 +211,6 @@ if shell_editorconfig_opt_in; then
     # hook::read_file_path guard can race a deleted scratch/worktree file, and
     # shfmt/ShellCheck then surface GHC's openBinaryFile error (#1817).
     if [[ -f "$TOOL_FILE" || -f "$FILE" ]]; then
-      probe_err=""
       _fmt_target="$TOOL_FILE"
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
       # Content-mutation disclosure (#1596): shfmt rewrites structural layout
@@ -265,7 +267,20 @@ if command -v shellcheck >/dev/null 2>&1; then
         CTX+="  $line"$'\n'
         findings_raw+="$line"$'\n'
       done <<<"$SC_OUTPUT"
-      if [[ -n "$findings_raw" ]]; then
+      # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the
+      # encode sits behind the sink opt-in, the same rule TOOL/FILE_REL above
+      # already follow. Without the guard a findings-bearing edit paid two jq
+      # spawns on the unwired default path for a value emit_tel then discards
+      # (measured with strace -f -e trace=execve: 3 jq execs per run, 1 with
+      # the guard).
+      #
+      # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
+      # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes
+      # the whole stream as a single string, so a truncated UTF-8 lead byte
+      # sitting immediately before a newline absorbs that newline into one
+      # U+FFFD and merges two ShellCheck findings into one array element. Line
+      # mode splits on the raw byte first and keeps them apart.
+      if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
         FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
       fi
     fi
@@ -281,15 +296,12 @@ fi
 CTX="${CTX%$'\n'}"
 SYSMSG="$HOOK_REWRITE_MESSAGE"
 if [[ -n "$NOTICE" ]]; then
-  AGENT_CTX="$CTX"
-  [[ -n "$AGENT_CTX" ]] && AGENT_CTX+=$'\n'
-  AGENT_CTX+="$NOTICE"
+  [[ -n "$CTX" ]] && CTX+=$'\n'
+  CTX+="$NOTICE"
   [[ -n "$SYSMSG" ]] && SYSMSG+=$'\n'
   SYSMSG+="$NOTICE"
-  hook::emit_channels PostToolUse "$AGENT_CTX" "$SYSMSG"
-else
-  hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 fi
+hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"

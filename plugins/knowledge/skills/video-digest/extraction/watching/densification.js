@@ -59,11 +59,10 @@ export function findDensificationWindows(
     for (const signal of signals) {
       if (!signal.pattern.test(cue.text)) continue;
 
-      const multiplier = signal.multiplier ?? defaultMultiplier;
       windows.push({
         startSec: Math.max(0, cue.startSec - paddingSec),
         endSec: cue.endSec + paddingSec,
-        densityMultiplier: multiplier,
+        densityMultiplier: signal.multiplier ?? defaultMultiplier,
         reason: signal.reason,
       });
       break;

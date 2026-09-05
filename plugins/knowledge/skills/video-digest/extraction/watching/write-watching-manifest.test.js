@@ -6,6 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { writeWatchingManifest } from "./write-watching-manifest.js";
 
+const TEMP_ROOT = join(tmpdir(), "yt-work");
+const TEMP_SESSION = {
+  workDir: join(TEMP_ROOT, "work"),
+  framesDir: join(TEMP_ROOT, "frames"),
+  contactSheetsDir: join(TEMP_ROOT, "sheets"),
+  acquiredAt: "2026-06-11T00:00:00.000Z",
+};
+
 describe("writeWatchingManifest", () => {
   let sliceDir;
 
@@ -18,14 +26,6 @@ describe("writeWatchingManifest", () => {
   });
 
   it("writes selection and coverage manifests without copying frames", async () => {
-    const tempRoot = join(tmpdir(), "yt-work");
-    const tempSession = {
-      workDir: join(tempRoot, "work"),
-      framesDir: join(tempRoot, "frames"),
-      contactSheetsDir: join(tempRoot, "sheets"),
-      acquiredAt: "2026-06-11T00:00:00.000Z",
-    };
-
     const watching = {
       targetMinFrames: 40,
       highVolume: false,
@@ -43,7 +43,7 @@ describe("writeWatchingManifest", () => {
       },
       selectedFrames: [
         {
-          path: join(tempRoot, "frames", "scene_0001.png"),
+          path: join(TEMP_ROOT, "frames", "scene_0001.png"),
           file: "scene_0001.png",
           timestampSec: 12.5,
           priorityScore: 3,
@@ -53,8 +53,8 @@ describe("writeWatchingManifest", () => {
       ],
       contactSheets: [
         {
-          outputPath: join(tempRoot, "sheets", "sheet_001.jpg"),
-          inputPaths: [join(tempRoot, "frames", "scene_0001.png")],
+          outputPath: join(TEMP_ROOT, "sheets", "sheet_001.jpg"),
+          inputPaths: [join(TEMP_ROOT, "frames", "scene_0001.png")],
           tile: "4x4",
           frameCount: 1,
         },
@@ -62,7 +62,7 @@ describe("writeWatchingManifest", () => {
       interleavedTimeline: [{ kind: "frame", timestampSec: 12.5 }],
     };
 
-    const result = await writeWatchingManifest(sliceDir, watching, tempSession);
+    const result = await writeWatchingManifest(sliceDir, watching, TEMP_SESSION);
 
     expect(result.frameCount).toBe(1);
     expect(existsSync(join(sliceDir, "media", "frames"))).toBe(false);
@@ -75,14 +75,6 @@ describe("writeWatchingManifest", () => {
   });
 
   it("strips frame.path from interleavedTimeline — no temp path leaks", async () => {
-    const tempRoot = join(tmpdir(), "yt-work");
-    const tempSession = {
-      workDir: join(tempRoot, "work"),
-      framesDir: join(tempRoot, "frames"),
-      contactSheetsDir: join(tempRoot, "sheets"),
-      acquiredAt: "2026-06-11T00:00:00.000Z",
-    };
-
     const watching = {
       targetMinFrames: 40,
       highVolume: false,
@@ -96,7 +88,7 @@ describe("writeWatchingManifest", () => {
           kind: "frame",
           timestampSec: 12.5,
           frame: {
-            path: join(tempRoot, "frames", "interval_0001.png"),
+            path: join(TEMP_ROOT, "frames", "interval_0001.png"),
             file: "interval_0001.png",
             timestampSec: 12.5,
           },
@@ -105,7 +97,7 @@ describe("writeWatchingManifest", () => {
       ],
     };
 
-    await writeWatchingManifest(sliceDir, watching, tempSession);
+    await writeWatchingManifest(sliceDir, watching, TEMP_SESSION);
 
     const raw = readFileSync(join(sliceDir, "key-frames", "selection.json"), "utf8");
     const selection = JSON.parse(raw);

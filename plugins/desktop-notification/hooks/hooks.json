@@ -1,4 +1,5 @@
 {
+  "description": "Raises a desktop notification when Claude Code needs attention on a permission or idle prompt.",
   "hooks": {
     "Notification": [
       {

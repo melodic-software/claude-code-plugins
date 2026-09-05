@@ -1,4 +1,5 @@
 {
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; and verifies CLI flags, skill references and cited paths after a write.",
   "hooks": {
     "PreToolUse": [
       {
@@ -9,6 +10,17 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
             "timeout": 60,
             "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__github__(push_files|create_or_update_file)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh",
+            "timeout": 60,
+            "statusMessage": "Checking content bound for GitHub for secrets and hardcoded paths..."
           }
         ]
       },

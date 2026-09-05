@@ -5,8 +5,11 @@ Run at the moment a machine or session feels slow. Captures, in one JSON
 report, the evidence needed to separate the four documented suspects behind
 Claude Code slowness: accumulated install-tree state, a version regression,
 component (plugin/MCP) bloat, and the fan-out layer (hooks, statusline,
-spawn cost, and subagent concurrency ceilings). Retention-sweep health and
-environment facts come with it. Every phase is timed, and the timings are
+spawn cost, and subagent concurrency ceilings). On Windows a kernel
+object-type census adds the host-level floor beneath all four: a Token-object
+leak that makes every process creation cost seconds whatever Claude Code
+does. Retention-sweep health and environment facts come with it. Every
+phase is timed, and the timings are
 themselves measurements: a census walk that takes minutes on the live tree
 is the same cost the product's own retention sweep pays on that tree.
 
@@ -118,6 +121,40 @@ CONCURRENCY_ENV_DEFAULTS = {
 #: "0" is truthy, so setting one of these to "0" reads like a disable and is a silent no-op:
 #: only ABSENCE disables them. Never advise setting one to 0.
 TRUTHINESS_GATED_ENV = frozenset({"CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS"})
+
+#: Kernel object types the Windows census reports, Token first. A Token object that outlives
+#: every handle to it is alive only through a kernel reference, and a reference leak in a
+#: driver or service path accumulates them for the life of the boot. The host that motivated
+#: this probe carried 3.81M Token objects and about 10 GB of paged pool at two days' uptime,
+#: every process creation on it cost 1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor.
+KERNEL_OBJECT_TYPES = (
+    "Token", "Process", "Thread", "Key", "File", "Section", "Event", "EtwRegistration",
+)
+#: Live Token objects at or above which the census reports a leak: ten times what the audited
+#: host carried two hours after a clean boot, a fifteenth of what it carried when spawns cost
+#: seconds. Calibrated on one host's two states; see known-performance-issues.md for the basis.
+TOKEN_LEAK_OBJECTS = 250_000
+#: Paged pool at or above which the census reports it as high. The leaking host sat near
+#: 10 GB; the same host after reboot near 1 GB. The figure is aggregate and unattributed
+#: (GetPerformanceInfo cannot say what charged it), so this finding never carries the
+#: Token-leak verdict on its own; `poolmon` is what attributes pool to a tag.
+PAGED_POOL_HIGH_MB = 4096
+
+# NtQueryObject(NULL, ObjectTypesInformation) block layout on x64. The information class is
+# unofficial but has been stable across Windows releases (it is what Process Explorer and
+# System Informer read). A ULONG count padded to pointer alignment leads the block; each
+# entry is a 0x68-byte OBJECT_TYPE_INFORMATION whose first 16 bytes are the UNICODE_STRING
+# type name, followed by that name's buffer padded to 8 bytes.
+_OBJECT_TYPES_INFORMATION = 3
+_OBJECT_TYPES_HEADER_BYTES = 8
+_OBJECT_TYPE_INFORMATION_BYTES = 0x68
+_OTI_NAME_LENGTH = 0x00
+_OTI_NAME_MAXIMUM_LENGTH = 0x02
+_OTI_NAME_BUFFER = 0x08
+_OTI_TOTAL_OBJECTS = 0x10
+_OTI_TOTAL_HANDLES = 0x14
+_OTI_HIGH_WATER_OBJECTS = 0x28
+_OTI_HIGH_WATER_HANDLES = 0x2C
 
 
 def utc_now() -> datetime:
@@ -311,6 +348,200 @@ def plugin_fleet(root: Path) -> dict:
             out[sub + "_entries"] = sum(1 for _ in d.iterdir())
     out["note"] = "counts only; enablement and scope verdicts belong to /claude-ops:plugins audit"
     return out
+
+
+def parse_object_types(base: int) -> dict[str, dict]:
+    """Walk the OBJECT_TYPES_INFORMATION block at address `base` into {type name: counters}.
+
+    Pure memory reads against the x64 layout, so a synthetic block exercises it on any
+    platform. Names are decoded as UTF-16LE bytes rather than through `wstring_at`, whose
+    `wchar_t` is four bytes on Linux and would misread the same block there.
+    """
+    import ctypes
+
+    def u16(address: int) -> int:
+        return ctypes.c_uint16.from_address(address).value
+
+    def u32(address: int) -> int:
+        return ctypes.c_uint32.from_address(address).value
+
+    table: dict[str, dict] = {}
+    offset = _OBJECT_TYPES_HEADER_BYTES
+    for _ in range(u32(base)):
+        entry = base + offset
+        name_length = u16(entry + _OTI_NAME_LENGTH)
+        name_maximum = u16(entry + _OTI_NAME_MAXIMUM_LENGTH)
+        name_buffer = ctypes.c_void_p.from_address(entry + _OTI_NAME_BUFFER).value
+        name = (
+            ctypes.string_at(name_buffer, name_length).decode("utf-16-le")
+            if name_buffer and name_length
+            else ""
+        )
+        table[name] = {
+            "objects": u32(entry + _OTI_TOTAL_OBJECTS),
+            "handles": u32(entry + _OTI_TOTAL_HANDLES),
+            "high_water_objects": u32(entry + _OTI_HIGH_WATER_OBJECTS),
+            "high_water_handles": u32(entry + _OTI_HIGH_WATER_HANDLES),
+        }
+        offset += _OBJECT_TYPE_INFORMATION_BYTES + ((name_maximum + 7) & ~7)
+    return table
+
+
+def _windows_object_type_table() -> dict[str, dict]:
+    """Query the kernel's object-type table. Read-only, unprivileged, one syscall."""
+    import ctypes
+
+    ntdll = ctypes.WinDLL("ntdll")
+    ntdll.NtQueryObject.restype = ctypes.c_long
+    ntdll.NtQueryObject.argtypes = [
+        ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    size = 1 << 20  # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare
+    block = ctypes.create_string_buffer(size)
+    needed = ctypes.c_uint32(0)
+    status = ntdll.NtQueryObject(None, _OBJECT_TYPES_INFORMATION, block, size, ctypes.byref(needed))
+    if status != 0:
+        raise OSError(f"NtQueryObject(ObjectTypesInformation) failed: NTSTATUS 0x{status & 0xFFFFFFFF:08X}")
+    return parse_object_types(ctypes.addressof(block))
+
+
+def _windows_performance_info() -> dict:
+    """Pool usage, system-wide handle/process/thread totals, and uptime via GetPerformanceInfo."""
+    import ctypes
+
+    class PERFORMANCE_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("cb", ctypes.c_uint32),
+            ("CommitTotal", ctypes.c_size_t),
+            ("CommitLimit", ctypes.c_size_t),
+            ("CommitPeak", ctypes.c_size_t),
+            ("PhysicalTotal", ctypes.c_size_t),
+            ("PhysicalAvailable", ctypes.c_size_t),
+            ("SystemCache", ctypes.c_size_t),
+            ("KernelTotal", ctypes.c_size_t),
+            ("KernelPaged", ctypes.c_size_t),
+            ("KernelNonpaged", ctypes.c_size_t),
+            ("PageSize", ctypes.c_size_t),
+            ("HandleCount", ctypes.c_uint32),
+            ("ProcessCount", ctypes.c_uint32),
+            ("ThreadCount", ctypes.c_uint32),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_info = getattr(kernel32, "K32GetPerformanceInfo", None)
+    if get_info is None:
+        get_info = ctypes.WinDLL("psapi", use_last_error=True).GetPerformanceInfo
+    info = PERFORMANCE_INFORMATION()
+    info.cb = ctypes.sizeof(info)
+    if not get_info(ctypes.byref(info), info.cb):
+        raise OSError(ctypes.get_last_error(), "GetPerformanceInfo failed")
+    kernel32.GetTickCount64.restype = ctypes.c_uint64
+    page = info.PageSize
+    return {
+        "paged_pool_mb": round(info.KernelPaged * page / 2**20),
+        "nonpaged_pool_mb": round(info.KernelNonpaged * page / 2**20),
+        "handles": info.HandleCount,
+        "processes": info.ProcessCount,
+        "threads": info.ThreadCount,
+        "uptime_s": kernel32.GetTickCount64() / 1000,
+    }
+
+
+def summarize_kernel_objects(types: dict[str, dict], perf: dict) -> dict:
+    """Turn the raw census into the report section, with its findings and label.
+
+    The rate reported is live Token objects divided by uptime, a population ratio rather
+    than a measured mint rate: it includes whatever population the boot started with (so it
+    overstates the rate early in a boot, and the projection errs short) and it cannot see
+    tokens created and destroyed in between. It is still the signal this engine reports
+    because it needs no sleep and cannot be gamed by a quiet moment: on the audited host a
+    3 s in-run window read 0/s while a 60 s window read 15/s, so any delta short enough for
+    an engine pass under-reads bursty minting. The 60 s manual sample in the reference is the
+    mint-rate measurement; this ratio's error shrinks as uptime grows.
+
+    The Token-leak verdict rests on the object count alone. Paged pool is aggregate and
+    unattributed, so `paged-pool-high` by itself is a separate finding with its own label.
+    """
+    token = types.get("Token") or {}
+    objects = int(token.get("objects", 0))
+    handles = int(token.get("handles", 0))
+    uptime_s = float(perf.get("uptime_s") or 0)
+    ratio = objects / uptime_s if uptime_s > 0 else None
+    findings = []
+    if objects >= TOKEN_LEAK_OBJECTS:
+        findings.append("token-objects-leaked")
+    if perf.get("paged_pool_mb", 0) >= PAGED_POOL_HIGH_MB:
+        findings.append("paged-pool-high")
+    hours_to_threshold = None
+    if ratio and objects < TOKEN_LEAK_OBJECTS:
+        hours_to_threshold = round((TOKEN_LEAK_OBJECTS - objects) / ratio / 3600, 1)
+    if "token-objects-leaked" in findings:
+        state_label = "token-leak"
+    elif "paged-pool-high" in findings:
+        state_label = "paged-pool-high"
+    else:
+        state_label = "nominal"
+    return {
+        "supported": True,
+        "source": "NtQueryObject(ObjectTypesInformation) + GetPerformanceInfo",
+        "uptime_hours": round(uptime_s / 3600, 2),
+        "pool": {
+            "paged_mb": perf.get("paged_pool_mb"),
+            "nonpaged_mb": perf.get("nonpaged_pool_mb"),
+        },
+        "system": {
+            "handles": perf.get("handles"),
+            "processes": perf.get("processes"),
+            "threads": perf.get("threads"),
+        },
+        "types": {name: types[name] for name in KERNEL_OBJECT_TYPES if name in types},
+        "token": {
+            "objects": objects,
+            "handles": handles,
+            "handleless_objects": objects - handles,
+            "high_water_objects": token.get("high_water_objects"),
+            "objects_per_uptime_second": round(ratio, 2) if ratio is not None else None,
+            "hours_to_leak_threshold_at_uptime_ratio": hours_to_threshold,
+            "basis": (
+                "live objects / uptime: includes the boot population (overstates early in a "
+                "boot, so the projection errs short) and cannot see destroyed tokens; the 60 s "
+                "manual sample in known-performance-issues.md is the mint-rate measurement"
+            ),
+        },
+        "thresholds": {
+            "token_leak_objects": TOKEN_LEAK_OBJECTS,
+            "paged_pool_high_mb": PAGED_POOL_HIGH_MB,
+        },
+        "findings": findings,
+        "state_label": state_label,
+    }
+
+
+def kernel_objects() -> dict:
+    """The host-level floor beneath the four suspects: a kernel object-type census (Windows).
+
+    A leaking kernel reference to Token objects fills paged pool and makes every process
+    creation on the host cost seconds, with CPU idle and memory free, before Claude Code
+    spawns anything. No suspect the rest of this engine measures can see it, and clearing
+    all four while it is present produces a confident and wrong diagnosis.
+    """
+    if sys.platform != "win32":
+        return {
+            "supported": False,
+            "reason": (
+                "the kernel object-type census is Windows-only (NtQueryObject); nothing "
+                f"equivalent is probed on {sys.platform}"
+            ),
+        }
+    import ctypes
+
+    if ctypes.sizeof(ctypes.c_void_p) != 8:
+        return {
+            "supported": False,
+            "reason": "the census reads the x64 OBJECT_TYPE_INFORMATION layout; this interpreter is 32-bit",
+        }
+    return summarize_kernel_objects(_windows_object_type_table(), _windows_performance_info())
 
 
 def _windows_process_table() -> list[dict]:
@@ -1033,6 +1264,7 @@ def main() -> int:
         ("history", history_state, (root,)),
         ("sessions", session_census, (root,)),
         ("plugin_fleet", plugin_fleet, (root,)),
+        ("kernel_objects", kernel_objects, ()),
     ):
         try:
             report[key], report["timings_seconds"][key] = timed(fn, *fnargs)
