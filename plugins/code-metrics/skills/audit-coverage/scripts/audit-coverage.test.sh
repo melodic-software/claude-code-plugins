@@ -183,15 +183,26 @@ assert_doc "the bash file row comes from the Cobertura report" "$out" \
   'any(r["file"].endswith("cm-sample.sh") and r["values"]["coverage_pct"]==80 for r in d["measures"])'
 assert_doc "the go profile joins by its unique basename" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["lines_executable"]==8 for r in d["measures"])'
-assert_doc "both lanes report ok and name their format" "$out" \
-  'len([r for r in d["run"] if r["status"]=="ok" and r["measure"]=="coverage"])==2'
+# Both lanes name the format they read. Go's single file is fully matched, so
+# it is `ok`; the Cobertura report covers one of Bash's three, which is neither
+# ok nor unavailable and must not let the document settle as complete.
+assert_doc "both lanes name the format they read" "$out" \
+  'sorted(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["lane"] in ("bash","go"))==["cobertura","go_cover"]'
+assert_doc "the fully matched lane is ok and the half-matched one is partial" "$out" \
+  'next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="go")=="ok" and next(r["status"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="bash")=="partial"'
+assert_doc "a lane measured in part keeps the document off complete" "$out" \
+  'd["status"]=="partial"'
 
 # 8. Every format at once, then the markdown the skill presents.
 out="$(run_json lcov-1x.info lcov-2.2.info cobertura.xml coverage-py.json go-cover.out)"
 assert_doc "--json is one code-metrics/v1 document for audit-coverage" "$out" \
   'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-coverage"'
+# All four measurable lanes read an artifact. Three match every scope file and
+# are ok; Bash matches one of its three and says so rather than claiming both.
 assert_doc "the four measurable lanes are all covered" "$out" \
-  'sorted({r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="ok"})==["bash","go","python","typescript"]'
+  'sorted({r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"] in ("ok","partial")})==["bash","go","python","typescript"]'
+assert_doc "only the lane matched in part is partial" "$out" \
+  '{r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="partial"}=={"bash"}'
 assert_doc "no threshold produced a finding or a severity" "$out" \
   'all(t["reference"] is None for t in d["thresholds"]) and all(not r["over_reference"] for r in d["measures"])'
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES" --artifacts "$COVERAGE/coverage-py.json" 2>/dev/null)"

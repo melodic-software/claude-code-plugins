@@ -38,7 +38,7 @@ from typing import Any
 
 MIN_PYTHON = (3, 9)
 SCHEMA = "code-metrics/v1"
-RUN_STATUSES = ("ok", "unavailable", "not-applicable", "deferred")
+RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
 
 
@@ -167,9 +167,11 @@ def assemble(
             if _over(threshold, values.get(threshold["value_key"]))
         ]
     # A `not-applicable` row implies nothing to run (the measure does not
-    # exist for that lane), so it never withholds `complete`; `unavailable`
-    # and `deferred` rows do, because something implied was not measured.
-    ok_rows = [row for row in run if row.get("status") == "ok"]
+    # exist for that lane), so it never withholds `complete`; `unavailable`,
+    # `deferred` and `partial` rows do, because something implied was not
+    # measured. `partial` still counts as having produced rows, so a run that
+    # measured part of a lane reads as `partial` rather than as `empty`.
+    ok_rows = [row for row in run if row.get("status") in ("ok", "partial")]
     settled = [row for row in run if row.get("status") in ("ok", "not-applicable")]
     if not ok_rows or not measures:
         status = "empty"

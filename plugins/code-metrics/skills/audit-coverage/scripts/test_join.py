@@ -86,6 +86,92 @@ class JoinCase:
         return json.loads(result.stdout)
 
 
+class ArtifactMergeTests(unittest.TestCase):
+    def test_two_artifacts_covering_one_function_are_folded_not_stacked(self) -> None:
+        # Two suites each report `classify`: the first never entered it, the
+        # second did. Kept as two records, the lookup returns whichever landed
+        # first, so the function reads 0 percent (and maximal CRAP) beside a
+        # file row the merged line table already shows as covered.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [complexity_row("src/a.py", "classify", 1, 4, "python", 3)]
+            )
+            for hit, lines in ((0, {"1": 0, "2": 0}), (1, {"1": 1, "2": 1})):
+                case.artifact(
+                    "lcov",
+                    {
+                        "src/a.py": {
+                            "lines": lines,
+                            "functions": [
+                                {
+                                    "name": "classify",
+                                    "start_line": 1,
+                                    "end_line": 4,
+                                    "hit": hit,
+                                    "lines": lines,
+                                }
+                            ],
+                        }
+                    },
+                )
+            document = case.join()
+        function = next(
+            row for row in document["measures"] if row["function"] == "classify"
+        )
+        self.assertEqual(function["hit"], 1)
+        self.assertEqual(function["values"]["coverage_pct"], 100.0)
+        # A fully covered function's CRAP is its complexity, not comp^2 + comp.
+        self.assertEqual(function["values"]["crap"], function["values"]["cyclomatic"])
+
+    def test_a_function_only_one_artifact_knows_the_end_of_keeps_that_range(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [complexity_row("src/a.py", "classify", 1, 4, "python", 2)]
+            )
+            case.artifact(
+                "lcov",
+                {
+                    "src/a.py": {
+                        "lines": {"1": 1},
+                        "functions": [
+                            {
+                                "name": "classify",
+                                "start_line": 1,
+                                "end_line": None,
+                                "hit": 0,
+                                "lines": None,
+                            }
+                        ],
+                    }
+                },
+            )
+            case.artifact(
+                "cobertura",
+                {
+                    "src/a.py": {
+                        "lines": {"2": 1},
+                        "functions": [
+                            {
+                                "name": "classify",
+                                "start_line": 1,
+                                "end_line": 4,
+                                "hit": 1,
+                                "lines": {"1": 1, "2": 1},
+                            }
+                        ],
+                    }
+                },
+            )
+            document = case.join()
+        function = next(
+            row for row in document["measures"] if row["function"] == "classify"
+        )
+        self.assertEqual(function["cov_source"], "artifact-region")
+        self.assertEqual(function["hit"], 1)
+
+
 class PathNormalizationTests(unittest.TestCase):
     def test_an_absolute_artifact_path_joins_to_the_relative_scope_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -185,7 +271,10 @@ class RunRowTests(unittest.TestCase):
                 "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
             ).join()
         row = [r for r in document["run"] if r["measure"] == "coverage"][0]
-        self.assertEqual(row["status"], "ok")
+        # Half the lane was measured and half was not, so the row is neither
+        # ok nor unavailable; reporting it ok let the assembler call the whole
+        # document complete while this row said 1 of 2.
+        self.assertEqual(row["status"], "partial")
         self.assertIn(
             "partial, 1 of 2 scope files present in the artifacts", row["reason"]
         )

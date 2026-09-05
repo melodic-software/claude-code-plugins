@@ -279,6 +279,14 @@ assert_doc "an empty collector list runs nothing for that lane and says so" "$ou
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base mark)"
 assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and d["scope"]["files"] < 4'
+# A named base is measured from the merge-base, not the ref's tip. `main` edits
+# `base.py` after `feature` diverged; a two-dot diff against the tip would call
+# that edit part of this change, which is a file the branch never touched.
+(cd "$repo" && git checkout -q main && printf 'x = 1\nx = 2\n' >base.py &&
+  git add base.py && git commit -q -m "main moves on" && git checkout -q feature)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main --print-scope)"
+assert_eq "a base branch's own later edit is not part of the change" "python	changed.py
+python	third.py" "$(printf '%s\n' "$out" | sort)"
 listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
 assert_eq "--print-scope prints each measurable file with its lane" "python	base.py
 python	changed.py

@@ -14,6 +14,9 @@
 # tracked or untracked-but-not-ignored file under the paths (or the whole
 # repository); with neither, the default is the change: files that differ from
 # the merge-base with the default branch plus uncommitted and untracked files.
+# `--base <ref>` names that branch instead; the merge-base with it is still
+# what the change is measured from, so commits the ref made after HEAD
+# diverged are not reported as this change's.
 # `--scope-file` reads the file list from a file (one path per line) instead.
 # Every path is emitted with forward slashes. `--print-scope` prints the
 # resolved scope as `lane<TAB>path` rows and stops, producing no document.
@@ -43,7 +46,7 @@ PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
 CONFIG=""
 
 usage() {
-  sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
 }
 
 die_usage() {
@@ -250,6 +253,12 @@ change)
   else
     BASE_SHA="$(git rev-parse --verify --quiet "$BASE" 2>/dev/null || true)"
     [[ -n "$BASE_SHA" ]] || die_usage "base ref not found: $BASE"
+    # The change is measured from the merge-base, for a named ref exactly as
+    # for the default branch. Diffing a branch tip that has moved on since
+    # HEAD diverged would report that branch's own commits as this change's.
+    base_merge="$(git merge-base HEAD "$BASE_SHA" 2>/dev/null || true)"
+    [[ -n "$base_merge" ]] || die_usage "no merge-base between HEAD and $BASE"
+    BASE_SHA="$base_merge"
   fi
   # Both listings are asked for root-relative names (`git diff` always prints
   # them; `ls-files` prints cwd-relative ones and limits itself to the cwd

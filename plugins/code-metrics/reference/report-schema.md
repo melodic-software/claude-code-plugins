@@ -11,7 +11,7 @@ read, so its shape is stable within the `v1` schema string.
 | `schema` | string | `code-metrics/v1` |
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
-| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable` or `deferred` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
+| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
 | `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count), `excluded` (count dropped by scope exclusions) |
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`) |
@@ -23,9 +23,14 @@ read, so its shape is stable within the `v1` schema string.
 ## `run[]` rows
 
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
-(`ok`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`). A run whose
-scope holds no measurable file carries one row `*/*` with status `not-applicable` and the reason
-`no measurable files in scope`.
+(`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`). A
+run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and the
+reason `no measurable files in scope`.
+
+`partial` means the row produced measurements for some of what it implied and not the rest, which
+`audit-coverage` emits when an artifact covers only some of a lane's scope files. It counts as
+having produced rows, so such a run is `partial` rather than `empty`, and it withholds `complete`,
+so a document can never read as complete while one of its own rows says `N of M`.
 
 ## `measures[]` rows
 

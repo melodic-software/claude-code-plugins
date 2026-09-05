@@ -77,10 +77,11 @@ otherwise keep the JSON beside your notes and compare by hand.
 - A lane whose resolved complexity collector reports no function end lines gets a `<lane>/crap`
   row with `status: not-applicable` and that reason. Bash is that lane in this version: no
   maintained Bash collector reports an end line, so Bash CRAP is a stated gap, not a null.
-- A lane matched by fewer than all of its scope files carries
+- A lane matched by fewer than all of its scope files carries `status: partial` and the reason
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
-  executable lines". A lane no artifact covers is `unavailable` with that count; when no artifact
-  was found at all, the reason lists every path searched.
+  executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
+  no artifact covers is `unavailable` with that count; when no artifact was found at all, the
+  reason lists every path searched.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
   `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;
@@ -129,7 +130,9 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 - An artifact older than the source it describes joins by line number and will be wrong without
   saying so. Re-run the tests before reading the numbers when the diff has moved lines.
 - Two artifacts covering one file are merged by keeping the larger hit count per line, so a line
-  is never counted twice.
+  is never counted twice. Two artifacts covering one function are folded the same way: the hit
+  flag is the larger of the two, so a suite that never entered the function cannot report it at 0
+  percent beside a file row the other suite already showed as covered.
 - A Cobertura report with several `<source>` roots is read with the first one only; a class whose
   filename resolves under a later root lands in the partial count rather than in an error.
 - Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to

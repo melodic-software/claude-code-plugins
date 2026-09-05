@@ -31,9 +31,10 @@ What comes out:
     `crap: null`, never 0, which would be a fabricated maximal CRAP.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
-    paths were searched; a lane matched in part carries
+    paths were searched; a lane matched in part is `partial` and carries
     `partial, N of M scope files present in the artifacts`, so a total miss
-    never reads as "no executable lines". A lane whose cyclomatic collector
+    never reads as "no executable lines" and a document whose own row says
+    `N of M` cannot settle as `complete`. A lane whose cyclomatic collector
     reports no function end lines (Bash in V1) gets a `not-applicable` CRAP
     row rather than a null that would hide the whole lane.
 
@@ -163,7 +164,8 @@ def merge_artifacts(
             for number, hits in _lines(section.get("lines")).items():
                 entry["lines"][number] = max(entry["lines"].get(number, 0), hits)
             for function in section.get("functions") or []:
-                entry["functions"].append(
+                _fold_function(
+                    entry["functions"],
                     {
                         "name": function.get("name"),
                         "start_line": function.get("start_line"),
@@ -172,9 +174,48 @@ def merge_artifacts(
                         "lines": _lines(function.get("lines"))
                         if function.get("lines")
                         else None,
-                    }
+                    },
                 )
     return merged, unmatched
+
+
+def _fold_function(functions: list[dict[str, Any]], incoming: dict[str, Any]) -> None:
+    """Merge one artifact's record for a function into the accumulated list.
+
+    Two artifacts covering the same function (two suites, two shards) each
+    carry their own record. Appended side by side, `_match_function` would
+    return whichever landed first, so a suite that never entered the function
+    could report it at 0 percent while the merged line table says otherwise,
+    and its CRAP would be the maximum for its complexity. The records are
+    folded the same way the line table is: the hit flag is the larger, the
+    per-line counts are the larger of the two, and a line range missing from
+    one record is taken from the other.
+    """
+    for existing in functions:
+        same_name = (
+            incoming["name"] is not None and existing["name"] == incoming["name"]
+        )
+        same_span = (
+            incoming["start_line"] is not None
+            and existing["start_line"] == incoming["start_line"]
+        )
+        if not (same_name or same_span):
+            continue
+        if existing["name"] is None:
+            existing["name"] = incoming["name"]
+        if existing["start_line"] is None:
+            existing["start_line"] = incoming["start_line"]
+        if existing["end_line"] is None:
+            existing["end_line"] = incoming["end_line"]
+        hits = [h for h in (existing["hit"], incoming["hit"]) if h is not None]
+        existing["hit"] = max(hits) if hits else None
+        if incoming["lines"]:
+            folded = dict(existing["lines"] or {})
+            for number, count in incoming["lines"].items():
+                folded[number] = max(folded.get(number, 0), count)
+            existing["lines"] = folded
+        return
+    functions.append(incoming)
 
 
 def _coverage(lines: dict[int, int]) -> tuple[int, int, float | None]:
@@ -355,7 +396,11 @@ def join(
                 f"({', '.join(formats)} read)"
             )
         elif len(matched) < len(files):
-            status = "ok"
+            # Some of the lane was measured and some was not, which is neither
+            # `ok` nor `unavailable`. Reporting it as `ok` let the assembler
+            # settle the whole document as `complete` while this very row said
+            # only N of M files were present.
+            status = "partial"
             reason = (
                 f"partial, {len(matched)} of {len(files)} scope files present "
                 "in the artifacts"
@@ -419,7 +464,7 @@ def join(
             {
                 "lane": lane,
                 "measure": "crap",
-                "collector": collector if crap_status == "ok" else None,
+                "collector": collector if crap_status in ("ok", "partial") else None,
                 "status": crap_status,
                 "reason": crap_reason,
             }

@@ -107,6 +107,49 @@ class PositionalLayerTests(unittest.TestCase):
                 run(USER, "--format", "dispatch-args").stdout,
             )
 
+    def test_a_value_carrying_a_line_break_cannot_inject_a_second_directive(
+        self,
+    ) -> None:
+        # The output formats are line oriented and the dispatcher reads them
+        # with `mapfile`, so a scalar holding a newline would arrive as two
+        # directives: one naming a base, one quietly disabling a lane. The
+        # YAML subset's double-quoted scalars carry a real \n, so the layer
+        # below is writable by hand.
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                'scope:\n  base: "auto\\n--disable-lane python"\n', encoding="utf-8"
+            )
+            result = run(str(team), "--format", "dispatch-args")
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("scope.base", result.stderr)
+            self.assertIn("newline", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            # The same guard holds on the --from-json path, which is the one
+            # the dispatcher actually calls and which never runs resolve().
+            resolved = Path(tmp) / "resolved.json"
+            resolved.write_text(
+                json.dumps({"scope": {"base": "auto\n--disable-lane python"}}),
+                encoding="utf-8",
+            )
+            through = run("--from-json", str(resolved), "--format", "dispatch-args")
+            self.assertEqual(through.returncode, 2, through.stdout)
+            self.assertNotIn("--disable-lane", through.stdout)
+
+    def test_a_tab_in_a_ladder_field_cannot_shift_a_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            resolved = Path(tmp) / "resolved.json"
+            resolved.write_text(
+                json.dumps(
+                    {"lanes": {"python": {"collectors": {"cyclomatic\tx": ["radon"]}}}}
+                ),
+                encoding="utf-8",
+            )
+            result = run("--from-json", str(resolved), "--format", "ladder-overrides")
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("tab", result.stderr)
+
     def test_a_quoted_reference_is_a_named_type_error(self) -> None:
         # A YAML author who writes `reference: "20"` gets a string scalar, and
         # the assembler would compare a number against it; the resolver names

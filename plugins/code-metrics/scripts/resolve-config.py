@@ -236,6 +236,37 @@ def resolve(
     return config
 
 
+def _field(config: dict[str, Any], key: str, value: Any, tabs: bool = False) -> str:
+    """One field of a line-oriented output format.
+
+    `dispatch-args`, `ladder-overrides` and `excludes` are read a line at a
+    time (the dispatcher uses `mapfile`, then dispatches on the first word),
+    and the ladder rows are tab separated. The YAML subset's double-quoted
+    scalars support a real `\\n` escape, so without this a layer could write
+    `base: "auto\\n--disable-lane python"` and have one scalar key arrive as
+    two directives, the second of them silently narrowing what gets measured.
+    A field that would break out of its line, or out of its column, is refused
+    by key instead of obeyed.
+    """
+    text = str(value)
+    bad = [
+        name
+        for ch, name in (("\n", "newline"), ("\r", "carriage return"))
+        if ch in text
+    ]
+    if tabs and "\t" in text:
+        bad.append("tab")
+    if not bad:
+        return text
+    layer = (config.get("_layers") or {}).get(key)
+    where = f" (layer {layer})" if layer else ""
+    raise ConfigTypeError(
+        f"{key}{where} must not contain a {' or '.join(bad)}: the resolver's "
+        f"output is line oriented, so {text!r} would reach the dispatcher as "
+        "more than one directive"
+    )
+
+
 def dispatch_args(config: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     # A configured `all` default and a configured base travel to the dispatcher,
@@ -248,41 +279,66 @@ def dispatch_args(config: dict[str, Any]) -> list[str]:
         lines.append(f"--scope-default {default}")
     base = scope.get("base")
     if isinstance(base, str) and base.strip() and base != "auto":
-        lines.append(f"--scope-base {base.strip()}")
+        lines.append(f"--scope-base {_field(config, 'scope.base', base.strip())}")
     lanes = config.get("lanes") or {}
     ecosystems = config.get("_ecosystems") or {}
     for lane in sorted(set(lanes) | set(ecosystems)):
         eco = ecosystems.get(lane) or {}
         plugin_enabled = (lanes.get(lane) or {}).get("enabled", True)
         enabled = eco.get("enabled", True) if eco else True
+        name = _field(config, "lanes.<lane>", lane)
         if plugin_enabled is False or enabled is False:
-            lines.append(f"--disable-lane {lane}")
+            lines.append(f"--disable-lane {name}")
             continue
         if eco.get("globs"):
-            lines.append(f"--lane-globs {lane}=" + ",".join(eco["globs"]))
+            globs = ",".join(
+                _field(config, f"ecosystems.{name}.globs", glob)
+                for glob in eco["globs"]
+            )
+            lines.append(f"--lane-globs {name}={globs}")
     return lines
 
 
 def ladder_overrides(config: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     for lane, lane_cfg in sorted((config.get("lanes") or {}).items()):
+        name = _field(config, "lanes.<lane>", lane, tabs=True)
         for measure, tools in sorted(
             ((lane_cfg or {}).get("collectors") or {}).items()
         ):
+            key = f"lanes.{name}.collectors.<measure>"
+            column = _field(config, key, measure, tabs=True)
             if not tools:
                 # An explicitly empty list is a closed value: no collector runs
                 # for this lane and measure, so the dispatcher gets the
                 # reserved `none` rung rather than falling back to the ladder.
-                lines.append(f"{lane}\t{measure}\tnone")
+                lines.append(f"{name}\t{column}\tnone")
                 continue
             for tool in tools:
-                lines.append(f"{lane}\t{measure}\t{tool}")
+                lines.append(
+                    f"{name}\t{column}\t{_field(config, key, tool, tabs=True)}"
+                )
     return lines
 
 
 def excludes(config: dict[str, Any]) -> list[str]:
     patterns = (config.get("scope") or {}).get("exclude") or []
-    return [str(p) for p in patterns if str(p).strip()]
+    return [_field(config, "scope.exclude", p) for p in patterns if str(p).strip()]
+
+
+def emit_or_fail(config: dict[str, Any], fmt: str) -> int:
+    """Write one format, turning a refused field into exit 2 with its message.
+
+    The `--from-json` path never runs `resolve()`, so a field guard that only
+    fired there would be skipped by exactly the caller the dispatcher uses.
+    Both entry points come through here instead.
+    """
+    try:
+        emit(config, fmt)
+    except ConfigTypeError as exc:
+        print(f"resolve-config.py: {exc}", file=sys.stderr)
+        return 2
+    return 0
 
 
 def emit(config: dict[str, Any], fmt: str) -> None:
@@ -321,8 +377,7 @@ def main(argv: list[str]) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"resolve-config.py: {args.from_json}: {exc}", file=sys.stderr)
             return 2
-        emit(config, args.format)
-        return 0
+        return emit_or_fail(config, args.format)
     if len(args.layers) > 3:
         print(
             "resolve-config.py: at most three positional layer files (user, team, local)",
@@ -364,8 +419,7 @@ def main(argv: list[str]) -> int:
         return 2
     for warning in config.get("_warnings", []):
         print(f"resolve-config.py: warning: {warning}", file=sys.stderr)
-    emit(config, args.format)
-    return 0
+    return emit_or_fail(config, args.format)
 
 
 if __name__ == "__main__":
