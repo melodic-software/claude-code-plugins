@@ -16,14 +16,31 @@ clean. Rule 3 closes a prior finding whose layer was walked and whose id is abse
 examines one target, so under those rules it would close every finding in that target's layer as a
 side effect of not having looked at them.
 
-Four things carry the change:
+Five things carry the change:
 
 - **A targeted-run clause placed AHEAD of the numbered merge rules and governing them.** It scopes
-  rules 1 to 3 to ids whose sites are in `targets`, carries everything else forward untouched, and
-  stops a targeted run rewriting the run-level `Evidence availability`, `Suppressed`, and
-  `Closed since last run` sections or re-disposing suppression entries it never examined. Ordering is
-  the mechanism: a clause placed after the rules reads as an exception to them, and an exception is
-  what a careless producer skips.
+  rules 1 to 3 to findings whose every site is in `targets`, carries everything else forward
+  untouched under rule 4, and stops a targeted run rewriting the run-level `Evidence availability`,
+  `Suppressed`, and `Closed since last run` sections or re-disposing suppression entries it never
+  examined. Ordering is the mechanism: a clause placed after the rules reads as an exception to them,
+  and an exception is what a careless producer skips.
+
+  **The membership test is defined on derived sites, not on a matching string**, and that is the part
+  the first draft got wrong. `targets` and `sites` are different value spaces: a target may be a
+  `path#heading`, whose site carries the file as its `surface` and the heading's ancestry in its
+  `anchor/v1`. Comparing a site's `surface` against a target entry fails in both directions. A
+  heading target matches no site at all, so a pointed run cannot write even its own finding; a file
+  or directory target matches every site beneath it, so rule 3 closes findings the run never opened,
+  which is the single loss the clause exists to prevent. A site is therefore in `targets` when this
+  run derived that site from a `targets` entry.
+- **Re-read before write, as a producer obligation on every writer.** Admitting a second producer is
+  what makes it load-bearing: a producer merging against a copy loaded earlier in its run drops the
+  other's rows, and drops them with no record, because a closure row is written only for a layer the
+  run walked and the two producers walk disjoint layers. It belongs in the shared contract rather
+  than in either lane's own binding, since neither lane can honour it alone. For the same reason the
+  walking lane's `all` layer scope means the ten enforcement layers explicitly: resolved against the
+  full fifteen it would record five layers it never walked, and close every pointed finding as a
+  deleted artifact.
 - **`mode` and `targets` frontmatter**, so a reader can tell a walk from a point without inferring it
   from which findings happen to be present.
 - **Five layer values for non-enforcement artifacts** (`decision-records`, `documents`,
