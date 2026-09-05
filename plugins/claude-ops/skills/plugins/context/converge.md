@@ -1,7 +1,7 @@
 # Converge — explicit scope consolidation
 
 `converge` is the **only** action that can rewrite a committed `.claude/settings.json`, and only
-after an explicit per-plugin confirm — [sync.md](sync.md) Step 5 keeps it that way by reporting a
+after an explicit per-plugin confirm — [sync-install-enable.md](sync-install-enable.md) Step 5 keeps it that way by reporting a
 `project`-scope enable gap instead of filling it. It never runs implicitly from `sync`: that report
 only names the `converge` command, and the user runs it explicitly.
 

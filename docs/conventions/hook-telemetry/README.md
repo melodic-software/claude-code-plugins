@@ -151,7 +151,7 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
-**Sink routing by session (reference sink, claude-ops 0.42.5).** The envelope's common fields carry
+**Sink routing by session (reference sink, claude-ops 0.42.6).** The envelope's common fields carry
 no session identity, and hooks receive none from their environment (only the payload's
 `session_id`), so a producer that wants its rows filed per session adds `data.session_id` (the
 payload value, verbatim) under the additive rule above. The claude-ops reference sink routes on it:
