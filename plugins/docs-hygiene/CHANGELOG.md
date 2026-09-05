@@ -1,5 +1,15 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.38]
+
+### Changed
+
+- **`extract-ssot`:** the inlined rate-limit-guard "Operable floor" block in
+  `context/orchestrated-mode.md` now states that the tee file carries an `account.email` field when
+  the writer could attribute the observation, replacing the claim that it carries no
+  account-identifier field. Synced from the reader contract that owns the block;
+  `scripts/check-loop-lane-floor-drift.sh` holds all six copies equal.
+
 ## [0.21.37]
 
 ### Changed
