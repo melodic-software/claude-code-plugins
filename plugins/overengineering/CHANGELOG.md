@@ -30,8 +30,10 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   sort-significant enum order is preserved. A non-spine `Basis` field records whether a verdict is
   `measured`, `class-inferred`, or `unexamined`, required only on rows a schema-2 run writes, so rows
   carried forward from schema 1 stay legal. Frontmatter gains `mode` and `targets`, and a
-  targeted-run clause governs the merge rules so a pointed run never closes, rewrites, or re-disposes
-  a finding it did not examine. That clause defines target membership on the sites a run actually
+  targeted-run clause governs the merge rules so a pointed run never closes a finding it did not
+  fully examine. Closing takes every site in `targets`; refreshing a verdict or a suppression
+  disposition takes any one of them, so a finding binding two artifacts is not frozen by a lane that
+  points at one at a time. That clause defines target membership on the sites a run actually
   derived rather than on a matching path string, because a target naming a heading matches no site's
   surface and a target naming a file or directory would otherwise sweep in sections nobody opened.
   Finding ids gain a producer segment, an `artifact-item` claim, a `package:<ecosystem>/<name>`
@@ -43,9 +45,11 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 - **The contract's obligations table carries a column per skill**, including the second producer, so
   the schema refusal, the branch refusal, the missing-artifact behaviour and the evidence-availability
   duty are stated for it rather than inferred.
-- **`realign` presents a `justify`-producer row and never executes it**, naming the owner from the
-  lane's boundary and offering no rung, because its rollback ladder is enforcement-shaped. One eval
-  covers it.
+- **`realign` presents a `justify`-producer row, judges it, and never remediates it here**, naming
+  the owner from the lane's boundary and offering no rung, because its rollback ladder is
+  enforcement-shaped. The operator still decides such a row: `REJECTED` records a keep and earns its
+  durable judgment entry, and `DELEGATED-EXTERNAL` stays available where custody is upstream. What is
+  withheld is the ladder, not the decision. One eval covers it.
 - **`delta` reports this lane's layers as not walkable rather than not walked**, since it composes
   `audit` and no cycle at any scope will compare them. `Basis` stays outside the spine and never
   enters the diff.

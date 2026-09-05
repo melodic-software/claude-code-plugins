@@ -97,9 +97,9 @@ leaves the walk's per-tier tokens untouched, so every token this lane compares w
 walk and a difference between two of them is a real move. That guarantee is what makes the
 comparison sound, because the detection is not reliably available: **the spine baseline** records
 `source-date` and `source-scope` and no mode, so the baseline alone never says whether a pointed run
-sat inside the span. The current artifact's own frontmatter does carry `mode`, and this lane reads it
-on a bootstrap cycle and when a baseline's provenance is in question, but that answers only what the
-latest write was, not what happened across the span. Rely on the guarantee rather than looking for the run, and never report an
+sat inside the span. The current artifact's frontmatter does carry `mode`, but it is present rather
+than consulted here, and it would answer only what the latest write was, never what happened across
+the span. Rely on the guarantee rather than looking for the run, and never report an
 availability move as uncertain on the grounds that one might have.
 
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's

@@ -522,10 +522,13 @@ names, so:
   heading target would match no site at all, stranding the pointed run so it could not write its own
   finding, and a directory or file target would sweep in findings about sections the run never
   opened, which rule 3 would then close.
-- **Rules 1 and 2 apply to a finding ANY of whose sites is in `targets`.** A run that examined one
-  site of a multi-site finding examined that finding: it derived the row from the target in front of
-  it, and the row names every site it binds. So the verdict is recomputed and the status carried.
-- **Rule 3 applies only to a prior id EVERY of whose sites is in `targets`** and whose item is now
+- **Rules 1 and 2 apply to a finding whose any site is in `targets`.** A run that examined one site
+  of a multi-site finding examined that finding: it derived the row from the target in front of it,
+  and the row names every site it binds. So the verdict is recomputed and the status carried. **The
+  row must be re-derived, never reconstructed from the prior artifact's site list.** Reproducing the
+  id requires naming every site, and copying them from the prior row instead of deriving them would
+  let a verdict computed from one site overwrite one computed from two.
+- **Rule 3 applies only to a prior id whose every site is in `targets`** and whose item is now
   absent. A pointed run at one artifact must never close a finding about another.
 - **The two quantifiers differ on purpose, and unifying them breaks the contract either way.** Rule 3
   closes a finding, so it must be conservative: closing on partial coverage would retire a finding
@@ -544,8 +547,9 @@ names, so:
   rest as **not evaluated this run**. This follows rules 1 and 2 rather than rule 3, for their
   reason: a disposition reports whether a live finding is currently suppressed, which is a refresh
   and not a closure, and an entry the run examined at one of its sites is one the run can speak to.
-  Stamping it `not evaluated this run` would be the same false staleness rule 4 would apply to the
-  row itself. `## Summary` is still recomputed from the spine actually written, as rule 6
+  Where the run derived a site but did not reproduce the finding, its row still carries rule 4's
+  `not re-evaluated this run`; the fresh disposition beside it is not a contradiction, because the
+  two report different things, the row's judgment and the suppression record's state. `## Summary` is still recomputed from the spine actually written, as rule 6
   requires.
 - **In a targeted run `scope` carries forward and grows; that run never overwrites it.** A walk still
   records exactly the layers it walked, which is what the `scope` frontmatter row defines and what
@@ -579,10 +583,15 @@ each finding:
    is **carried forward untouched**, prose and all, marked not re-evaluated this run and stamped
    with the `date` of the run that produced it. A layer-scoped pass must never read as a retirement
    of everything it did not look at.
-5. **A verdict that changed direction under a carried-forward judgment is surfaced, never applied.**
-   An `ACCEPTED` finding whose verdict recomputed to `KEEP`, or a `REJECTED` one that recomputed to
-   `RETIRE`, is flagged for the operator: the evidence moved under a decision they already made, and
-   that is precisely what they need to see.
+5. **A verdict that moved under a carried-forward judgment is surfaced, never applied.** An
+   `ACCEPTED` finding whose verdict recomputed to `KEEP`, or a `REJECTED` one that recomputed to a
+   retirement-direction verdict, is flagged for the operator: the evidence moved under a decision
+   they already made, and that is precisely what they need to see. **Direction is not the only
+   trigger.** Flag it equally where the recomputed verdict materially changes *what the acceptance
+   authorized* without flipping direction: an `ACCEPTED` `DOWNGRADE` recomputed to `CONSOLIDATE`
+   authorizes a different act on a different artifact, and the earlier yes was given to the old one.
+   The flag is the producers' to write on merge, and it is the only detection: consumers read it and
+   never re-derive it, so a trigger missing here is a move no consumer will surface.
 6. **The spine is authoritative over the prior artifact's own prose.** Only the fields in rule 1 are
    carried; a prior run's summary, counts, and narrative are **recomputed from the spine actually
    written this run** and never inherited. A prior summary that contradicts its own spine is a
@@ -641,7 +650,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Mutates anything outside the artifact | **never** | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
 | Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
-| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
+| Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
 | Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
 | Behavior when the artifact is missing | n/a | n/a — it creates one, since a first pointed run has nothing to merge against | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 | Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
