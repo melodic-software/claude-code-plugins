@@ -1,7 +1,8 @@
 # Topic-docs placement — where this plugin's artifacts land
 
-How `overengineering:audit`, `overengineering:realign`, and `overengineering:delta` resolve where
-this plugin's artifacts live in a consuming repo. All three skills read this one document; none
+How `overengineering:audit`, `overengineering:justify`, `overengineering:realign`, and
+`overengineering:delta` resolve where
+this plugin's artifacts live in a consuming repo. All four skills read this one document; none
 bakes its own paths.
 
 Implements the topic-docs convention:
@@ -82,7 +83,7 @@ follows the contract's "Non-interactive / forked mode" section, which is contrac
 here rather than redefined: skip the ask and persist rungs, take the resolved or documented default,
 and surface the assumption in the returned summary.
 
-**No project root.** The contract's fallback applies unchanged. All three skills read the
+**No project root.** The contract's fallback applies unchanged. All four skills read the
 repository's own enforcement surface, so a run outside a checkout has nothing to audit and stops
 before any write.
 
@@ -96,7 +97,7 @@ artifact belongs to a branch is its own `branch:` frontmatter, never the directo
 Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch —
 the directory alone is not evidence.
 
-**When no branch identity resolves, no home is keyed and nothing is written.** All three skills
+**When no branch identity resolves, no home is keyed and nothing is written.** All four skills
 resolve the branch with `git symbolic-ref --quiet --short HEAD`, which fails on a detached checkout
 rather than answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD` does.
 Where that fails and the environment supplies no logical ref naming a branch, there is no
