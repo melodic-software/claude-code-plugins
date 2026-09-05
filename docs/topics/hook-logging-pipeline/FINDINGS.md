@@ -278,3 +278,24 @@ loaded and the include guard makes their `source` about 0.05 ms, so their hoist 
 nothing on the live path; the standalone figure above is what their contract tests pay.
 `scripts/check-killswitch-hoist.sh` widened to PostToolUse reports 30 scripts (15 PreToolUse from
 PR #3727, 15 here) and its suite runs 16 cases.
+
+### Per-session pipeline (Phase 3 to 5, same day, same host)
+
+N = 15, payload on stdin, mean wall time, the hook invoked directly (no `env` wrapper, which adds
+one exec of its own and was inflating an earlier reading by about 1.2 ms):
+
+| Row | Result |
+| --- | --- |
+| `bash -c :` (spawn floor S) | 2.08 ms |
+| `session-event-log` disabled (the default) | 2.42 ms (1.16 S; acceptance bound 1.5 S) |
+| hoisted `markdown-format` disabled, same method | 2.66 ms |
+| `session-event-log` enabled, 2 KB payload | 5.75 ms through `env` (about 4.5 ms direct) |
+| `session-event-log` enabled, 512 KB `tool_response` | 35.7 ms: the 4 KB-slice read to the 64 KB cap plus a regex pass over the 64 KB buffer |
+| telemetry sink, envelope carrying `session_id` | 26.7 ms, off the critical path (fire-and-forget), two `jq` plus the library |
+| `session-retention`, 40 files, nothing doomed | 4.3 ms |
+| `session-retention`, 100 files, 70 pruned | 24 ms (suite reading), three processes |
+| held-open stdin (Win32 late-EOF shape), idle bound 1 s | producer returns in 260 ms (one quarter-bound slice); retention returns in under 500 ms because it reads no stdin |
+
+The 512 KB row is the one that grows with payload size; every spine key precedes `tool_input` in the
+payload, so a smaller cap (16 KB) would bound it without losing a field. Kept at 64 KB for
+`tool_use_id`, which follows `tool_input`; revisit if a consumer reports the cost.
