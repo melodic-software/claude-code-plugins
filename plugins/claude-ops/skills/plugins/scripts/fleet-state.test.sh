@@ -616,6 +616,28 @@ resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
 assert_eq "dev checkout: correct marketplace from the manifest" "market1" "$resolved_name"
 
 # ============================================================================
+# Case: deeply nested out-of-cache dev checkout — same shape as above, but the
+# plugin root sits FIVE levels below the marketplace manifest. The walk-up must
+# follow ancestors to the filesystem root rather than assuming a maximum source
+# depth, so a monorepo layout resolves exactly like a shallow one.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+deep_checkout="$case_dir/deep-checkout"
+deep_root="$deep_checkout/packages/extensions/plugins/x/this-plugin"
+mkdir -p "$deep_root" "$deep_checkout/.claude-plugin"
+write "$deep_checkout/.claude-plugin/marketplace.json" '{"name": "market1", "plugins": [{"name": "this-plugin", "source": "./packages/extensions/plugins/x/this-plugin"}]}'
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$deep_root")
+rc=$?
+assert_exit "deep dev checkout: resolves via marketplace.json walk-up" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "deep dev checkout: correct marketplace from the manifest" "market1" "$resolved_name"
+
+# ============================================================================
 # Case: stage precedence — an installPath match and a walk-up manifest naming a
 # DIFFERENT registered marketplace both point somewhere. The installPath match
 # (stage 1) must win; the manifest walk-up is a last resort for roots no

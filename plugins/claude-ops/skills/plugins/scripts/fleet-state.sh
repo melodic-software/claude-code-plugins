@@ -1095,15 +1095,20 @@ emit_one() {
 # --- Stage 3a: marketplace manifest walk-up ----------------------------------
 # Stages 1 and 2 both key on installPath, and every installPath lives under
 # .../cache/<marketplace>/<plugin>/<version>, so a root loaded from anywhere
-# else is unrepresentable in that join. Walk up a BOUNDED number of levels from
-# the physical root looking for a marketplace manifest, and accept its `.name`
+# else is unrepresentable in that join. Walk up from the physical root to the
+# filesystem root looking for a marketplace manifest, and accept its `.name`
 # ONLY when known_marketplaces.json actually has that key: an unregistered name
 # is a guess, and this resolver never guesses. The nearest manifest is the
 # answer — finding one ends the walk whether or not its name is accepted, so a
-# further-up unrelated manifest can never be claimed as this plugin's.
+# further-up unrelated manifest can never be claimed as this plugin's. The walk
+# assumes NOTHING about how deep the plugin sits below its marketplace root: a
+# monorepo can nest it arbitrarily (packages/extensions/plugins/<name>/...). The
+# 32-level cap is a runaway guard against a pathological or cyclic path, not a
+# maximum source depth; the walk normally ends at the nearest manifest or at the
+# filesystem root, whichever comes first.
 if [[ "$MODE" == "default" && -z "$resolved_target" && -n "$phys_root" ]]; then
   mk_probe="$phys_root"
-  for ((walk_level = 0; walk_level < 4; walk_level++)); do
+  for ((walk_level = 0; walk_level < 32; walk_level++)); do
     mk_manifest="$mk_probe/.claude-plugin/marketplace.json"
     if [[ -f "$mk_manifest" ]]; then
       mk_candidate=""

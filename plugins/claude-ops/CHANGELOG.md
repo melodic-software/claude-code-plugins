@@ -13,8 +13,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, so a root loaded
   from a local dev checkout, from `--plugin-dir`, or from the marketplace
   checkout itself matched nothing and the bare (no `--marketplace`) call exited
-  1. A third stage now covers that root: a bounded walk up from the running
-  root for a `.claude-plugin/marketplace.json`, whose `.name` is accepted only
+  1. A third stage now covers that root: a walk up from the running root to the
+  filesystem root for a `.claude-plugin/marketplace.json`, whose `.name` is accepted only
   when `known_marketplaces.json` has that key, then a match of the root against
   each known marketplace's `installLocation`. Stages 1 and 2 still run first, so
   cache installs and version skew behave exactly as before, and a root that
@@ -23,7 +23,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   branch.** It previously reported version skew plus an unexpected cache layout,
   which misdiagnosed every root that was never under the cache at all.
 
-  The suite runs 81 cases, 0 failed, with new cases for a dev-checkout root, an
+  The walk follows ancestors to the filesystem root and stops at the nearest
+  manifest, so a plugin nested arbitrarily deep in a monorepo checkout resolves
+  like a shallow one; the level cap is a runaway guard, not a depth assumption.
+
+  The suite runs 82 cases, 0 failed, with new cases for a dev-checkout root, a
+  dev-checkout root nested five levels below the manifest, an
   `installLocation` root, a manifest naming an unregistered marketplace, and the
   precedence of an `installPath` match over a walk-up manifest naming a
   different registered marketplace; shellcheck is clean at `-S warning`.
