@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.51]
+
+### Changed
+
+- **Two reference files stop citing the marketplace repository's own deleted
+  `pull_request_target` lanes.** `babysit-prs/reference/stuck-checks.md` used
+  those lanes as its worked example of which checks survive a conflicted PR;
+  the repository folded its whole pull-request contract into one `ci-status`
+  job and deleted the callers, so the example now describes the lane split in
+  general terms instead of naming workflows that no longer exist.
+  `pull-request/reference/readiness.md` referred to `do-not-merge /
+  do-not-merge` as a required status context in the present tense, in a
+  past-tense pagination anecdote; it now reads "then a required status
+  context". Guidance unchanged in both files.
+
 ## [0.55.50]
 
 ### Changed
