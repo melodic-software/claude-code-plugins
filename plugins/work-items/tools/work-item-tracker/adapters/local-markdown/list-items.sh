@@ -9,27 +9,26 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 wit_help_if_requested "usage: list-items [--state open|closed|all] [--repo <owner>/<repo>]" "$@"
 
-state="open" repo_override=""
+state="open"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --state)
-      [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
-      state="$2"
-      shift 2
-      ;;
-    --repo)
-      [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
-      repo_override="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --state)
+    [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
+    state="$2"
+    shift 2
+    ;;
+  # Parsed and discarded: the value has nothing to re-target (see the header).
+  --repo)
+    [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 case "$state" in
-  open | closed | all) ;;
-  *) wit_usage_error "--state must be open|closed|all (got: $state)" ;;
+open | closed | all) ;;
+*) wit_usage_error "--state must be open|closed|all (got: $state)" ;;
 esac
-: "${repo_override:=}" # accepted for parity; single-namespace store ignores it
 
 wit_need_storage
 limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.json")"

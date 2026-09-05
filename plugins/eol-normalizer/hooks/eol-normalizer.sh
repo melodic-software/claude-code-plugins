@@ -20,12 +20,25 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and reused for both
 # hook::read_file_path (file_path) and the tool_name parse; reading fd0 twice
 # would drain the pipe on the second call.
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
+#
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`, and resolved ONCE for all three sources. On the Windows Git Bash
+# host this hook is tuned for, an exec costs about a spawn and a command
+# substitution costs half of one, and this hook runs on every Write and Edit.
+# `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes;
+# the fallback covers the one shape it does not, a bare filename with no
+# separator, where the strip is a no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0
 
-hook::check_enabled "EOL_NORMALIZER"
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$HOOK_DIR/rewrite-guard.sh"
 
 # Capture $EPOCHREALTIME immediately after the kill switch so duration_ms covers
 # the work below. EPOCHREALTIME is Bash 5.0+; on older bash it is unset, so
@@ -49,7 +62,7 @@ emit_tel() {
 # The bundled EOL library (normalize_eol_file).
 # Sourced from the plugin's own hooks dir so it is self-contained on install.
 # shellcheck source=normalize-eol.sh
-source "$(dirname "${BASH_SOURCE[0]}")/normalize-eol.sh"
+source "$HOOK_DIR/normalize-eol.sh"
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
@@ -62,7 +75,19 @@ FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 # Resolve the repo root that anchors `git check-attr` (CWD-independent — the hook
 # process CWD is not guaranteed to be the repo root). File-anchored so it is
 # correct for clones, linked worktrees, and bare-hub clones.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+#
+# The directory hint is stripped with parameter expansion rather than `dirname`,
+# for the reason given at the source line above. FILE has already cleared
+# hook::read_file_path's `-f` test, so it names an existing regular file and
+# carries no trailing slash; the fallbacks cover the two shapes where the strip
+# and dirname disagree: a bare relative filename with no separator, where
+# dirname answers `.`, and a file directly under the filesystem root, where the
+# strip leaves an empty string that hook::repo_root would read as `.` (the hook
+# process CWD) while dirname answers `/`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
 # resolved only when a sink is wired: the unwired default path spawns zero
@@ -79,9 +104,13 @@ if hook::telemetry_enabled; then
   FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
 fi
 
-# Build the telemetry data object. jq is authoritative; the fallback is a fixed
-# empty-shape object (never an interpolation of TOOL/FILE_REL, which could inject
-# quotes or backslashes from a path and corrupt the envelope).
+# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
+# action taken. jq is authoritative. The fallback is a fixed empty-shape
+# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
+# backslashes from a path and corrupt the envelope. The fallback is essentially
+# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
@@ -91,17 +120,42 @@ build_data_json() {
     printf '{"tool":"","file":"","action":""}'
 }
 
-# The lib mutates the file in place (side effect persists past the subshell) and
-# echoes the action taken: lf | crlf | skip. Content-mutation disclosure
-# (#1596): line-ending normalization is a structural rewrite the user did not
-# request; name what changed on the user channel and stay silent on skip/no-op
-# paths. Snapshot lifecycle lives in the shared rewrite-guard lib (#3409); the
-# taken message doubles as the changed/unchanged verdict EFFECTIVE_ACTION needs.
-hook::rewrite_guard_begin "$FILE"
-ACTION=$(normalize_eol_file "$REPO_ROOT" "$FILE")
+# Content-mutation disclosure (#1596): line-ending normalization is a structural
+# rewrite the user did not request; name what changed on the user channel and
+# stay silent on skip/no-op paths. Snapshot lifecycle lives in the shared
+# rewrite-guard lib (#3409); the taken message doubles as the changed/unchanged
+# verdict EFFECTIVE_ACTION needs.
+#
+# The library's decision is taken FIRST, and the rewrite runs only when that
+# decision says the file has work to do. That ordering is what lets the
+# disclosure snapshot be skipped entirely on the overwhelmingly common path, an
+# already-LF file in a repository whose .gitattributes says `eol=lf`, where the
+# old code paid for a mktemp, a cp, a rewrite that changed no bytes, a cmp and an
+# rm to conclude nothing had happened. When no rewrite is attempted the guard is
+# never armed, so hook::rewrite_take_disclosure below finds no snapshot and
+# yields an empty message, which is exactly what the byte-identical comparison
+# yielded before.
+#
+# ACTION keeps its old meaning and its old value: it names the arm that APPLIES
+# to this file, not whether bytes moved. An already-LF file under `eol=lf` still
+# reports `lf`, and the emptiness of HOOK_REWRITE_MESSAGE is still the only thing
+# that decides EFFECTIVE_ACTION and the telemetry status.
+#
+# ONE DELIBERATE DEVIATION, and it is not a content or message difference: a file
+# that needs no rewrite is no longer opened for writing, so its mtime is no
+# longer touched by this hook. Nothing this hook reports changes.
+EOL_PLAN=$(normalize_eol_plan "$REPO_ROOT" "$FILE")
+ACTION="${EOL_PLAN%% *}"
+if [[ "${EOL_PLAN##* }" == 1 ]]; then
+  hook::rewrite_guard_begin "$FILE"
+  normalize_eol_apply "$ACTION" "$FILE"
+fi
+# `basename` is a builtin strip for the reason given at the source line above:
+# this runs on every Write and Edit, and FILE names an existing regular file, so
+# there is no trailing slash for basename to handle differently.
 case "$ACTION" in
-lf) EOL_MSG="eol-normalizer: normalized line endings to LF in $(basename "$FILE")." ;;
-crlf) EOL_MSG="eol-normalizer: normalized line endings to CRLF in $(basename "$FILE")." ;;
+lf) EOL_MSG="eol-normalizer: normalized line endings to LF in ${FILE##*/}." ;;
+crlf) EOL_MSG="eol-normalizer: normalized line endings to CRLF in ${FILE##*/}." ;;
 *) EOL_MSG="" ;;
 esac
 hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"

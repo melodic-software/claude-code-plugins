@@ -304,7 +304,6 @@ glob_to_ere() {
   exit 2
 }
 
-SUBCOMMAND=""
 case "${1:-}" in
 -h | --help)
   usage
@@ -364,7 +363,8 @@ fi
 # shared repository content, so a glob that only matches those matches nothing
 # that a teammate would see.
 TRACKED_FILE="$(mktemp)"
-trap 'rm -f "$TRACKED_FILE"' EXIT
+ROWS_FILE="$(mktemp)"
+trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git ls-files -z 2>/dev/null | tr '\0' '\n' | LC_ALL=C sort >"$TRACKED_FILE"
 else
@@ -407,8 +407,6 @@ fi
 
 INVALID=0
 OVERBROAD=0
-ROWS_FILE="$(mktemp)"
-trap 'rm -f "$TRACKED_FILE" "$ROWS_FILE"' EXIT
 
 # The brace budget belongs to a RULE'S WHOLE `paths:` LIST, not to each pattern
 # in it — "a rule's whole `paths:` list shares one budget of 1,000 expanded
@@ -460,16 +458,14 @@ for idx in "${!PATTERNS[@]}"; do
       fi
     fi
     if [[ "$status" != "over-budget" && ${#expansions[@]} -gt 0 ]]; then
-
       # Union of matches across every expansion, counted once per file.
-      matches_file="$(mktemp)"
-      for exp in "${expansions[@]}"; do
-        [[ -z "$exp" ]] && continue
-        ere="$(glob_to_ere "$exp")"
-        grep -E "^${ere}$" "$TRACKED_FILE" 2>/dev/null >>"$matches_file"
-      done
-      match_count=$(LC_ALL=C sort -u "$matches_file" | grep -c . || true)
-      rm -f "$matches_file"
+      match_count=$(
+        for exp in "${expansions[@]}"; do
+          [[ -z "$exp" ]] && continue
+          ere="$(glob_to_ere "$exp")"
+          grep -E "^${ere}$" "$TRACKED_FILE" 2>/dev/null
+        done | LC_ALL=C sort -u | grep -c . || true
+      )
 
       if ((match_count == 0)); then
         status="zero-match"

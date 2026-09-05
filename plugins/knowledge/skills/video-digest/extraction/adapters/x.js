@@ -214,8 +214,7 @@ export function parseXStatusUrl(url) {
     return null;
   }
   const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
-  const owned = X_OWNED_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
-  if (!owned) {
+  if (!X_OWNED_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))) {
     return null;
   }
   const match = X_STATUS_PATH_PATTERN.exec(parsed.pathname);
@@ -236,7 +235,7 @@ export function parseXStatusUrl(url) {
 }
 
 /**
- * Re-derive the canonical status URL from parsed parts (T10 (ii)): scheme and
+ * Re-derive the canonical status URL from parsed parts: scheme and
  * host pinned, tracking query/fragment dropped, handle lowercased (or `i/web`
  * when the URL carries none), pinned media index preserved as `/video/<n>`.
  *
@@ -746,10 +745,7 @@ export async function acquireXMedia(url, context) {
       entryCount: inspected.twitterVideos.length,
       countsAuthoritative: post.countsAuthoritative,
     });
-    if (!degradation) {
-      return null;
-    }
-    return failDegraded(degradation);
+    return degradation ? failDegraded(degradation) : null;
   };
 
   let gated = await inspectAndGate();
@@ -869,8 +865,7 @@ export async function acquireXMedia(url, context) {
   }
 
   const postInfo = post.info;
-  const firstVideoId = inspected.twitterVideos[0]?.info.id;
-  const resultIdRaw = firstVideoId ?? postInfo.id;
+  const resultIdRaw = inspected.twitterVideos[0]?.info.id ?? postInfo.id;
   const aliasingDelta = detectSnowflakeAliasing(
     statusId,
     typeof resultIdRaw === "string" ? resultIdRaw : null,
@@ -923,8 +918,8 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   capabilities: {
     comments: false,
     browserCookieFallback: false,
-    // A 0-media post is a well-formed metadata-only result (T6 D-A): every
-    // yt-dlp consumer — acquisition AND queue preflight — passes
+    // A 0-media post is a well-formed metadata-only result: every yt-dlp
+    // consumer — acquisition AND queue preflight — passes
     // --ignore-no-formats-error so such posts report metadata instead of erroring.
     mediaOptional: true,
   },

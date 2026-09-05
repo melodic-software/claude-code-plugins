@@ -3,6 +3,119 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.38]
+
+### Changed
+
+- **`hooks/go-format.sh` reads its kill switch before sourcing the library.**
+  `go_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.3.37]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.3.36]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.3.35]
+
+### Changed
+
+- **The generated-file scan breaks at the marker instead of one iteration
+  later.** Setting `GENERATED=1` was followed by a separate
+  `[[ $GENERATED -eq 1 ]] && break` on the next line; the flag is assigned at
+  exactly one place, so that test could never be false and the marker match now
+  breaks directly.
+- **`build_data_json`'s rationale comment is completed to the formatter
+  family's canonical text,** following the actionlint precedent. The truncated
+  version stopped where the jq fallback drops the tool and path values; it now
+  also says why losing them is harmless, since the fallback fires only when
+  `jq -n` fails and the envelope is discarded anyway when jq is absent.
+  Comment-only.
+
+  Spawn count is unchanged and no jq pipeline was swapped for a helper. The
+  suite was run for real rather than accepted as a skip: it no-ops entirely
+  when `goimports` is absent from PATH, so the sweep installed the binary and
+  ran all 54 assertions, with the baseline byte-identical.
+
+## [0.3.34]
+
+### Changed
+
+- **Two disclosure-take comments move to present tense,** at the syntax-error
+  and tool-break arms. Comment-only, proven mechanically rather than asserted:
+  two independent comment strippers, one built on shfmt's own bash parser and
+  one quote- and heredoc-aware, both yield byte-identical code from either
+  revision, and each stripper was shown sensitive by seeded code mutations.
+  A 23-case differential comparing both streams, exit code, fixture hashes, the
+  tool's argv and working directory, temporary-directory residue and the
+  telemetry envelope found zero divergences across 161 artifacts, and all ten
+  seeded mutants were caught.
+
+### Known issues
+
+- **The hook suite silently no-ops when `goimports` is absent from PATH,** and
+  `affected-tests.sh --run` reports a suite that printed only a skip line as
+  passing. The gate therefore cannot distinguish 54 assertions passing from none
+  running, so a green selector result is not evidence that this hook was
+  exercised. Naming the binary explicitly runs the full 54.
+
+## [0.3.33]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.3.32]
+
+### Changed
+
+- **The hook carries an `if` filter, `Edit(*.go)`.** That is the one extension the hook
+  formats, so a Write/Edit of any other file no longer spawns it; behavior on Go files
+  is unchanged.
+
+## [0.3.31]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.3.30]
 
 ### Changed

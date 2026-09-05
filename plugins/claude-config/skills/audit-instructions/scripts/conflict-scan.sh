@@ -213,7 +213,7 @@ mapfile -t rows < <(
       seen[key] = 1
       n = ++count[pol, ent]
       rec[pol, ent, n] = file SUBSEP lineno SUBSEP exc
-      if (!(ent in entities)) entities[ent] = 1
+      entities[ent] = 1
     }
     {
       # Filenames arrive on stdin so one awk process reads every file.

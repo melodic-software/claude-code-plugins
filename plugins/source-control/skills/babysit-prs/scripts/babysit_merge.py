@@ -1341,55 +1341,49 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    def _refuse(message: str, code: int, **envelope: object) -> int:
+        """Emit one refusal envelope on stdout and return its exit code.
+
+        `envelope` carries the extra fields a caller branches on before the
+        error text (`inScope`), so the key order every consumer already reads
+        is fixed here rather than restated per refusal.
+        """
+        print(json.dumps({"pr": args.pr, **envelope, "error": message}))
+        return code
+
     allowed = parse_allowed_owners(args.allowed_owners)
     if not allowed:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "inScope": False,
-                    "error": (
-                        "--allowed-owners is required and must be non-empty; "
-                        "refusing to act without an owner allowlist"
-                    ),
-                }
-            )
+        return _refuse(
+            "--allowed-owners is required and must be non-empty; "
+            "refusing to act without an owner allowlist",
+            3,
+            inScope=False,
         )
-        return 3
 
     try:
         repo, number = parse_repo_number(args.pr)
     except ValueError as exc:
+        # The one refusal that predates a usable `pr` value: `args.pr` is the
+        # string that failed to parse, so it is reported inside the message
+        # rather than echoed as a `pr` field naming a PR nobody can resolve.
         print(json.dumps({"error": str(exc)}))
         return 2
 
     if args.expected_head and not EXPECTED_HEAD_RE.match(args.expected_head):
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--expected-head must be a hex SHA prefix of at least "
-                        f"{MIN_HEAD_SHA_PREFIX_LENGTH} characters (a shorter prefix "
-                        "is ambiguous and could match an unvetted push)"
-                    ),
-                }
-            )
+        return _refuse(
+            "--expected-head must be a hex SHA prefix of at least "
+            f"{MIN_HEAD_SHA_PREFIX_LENGTH} characters (a shorter prefix "
+            "is ambiguous and could match an unvetted push)",
+            2,
         )
-        return 2
 
     owner = split_owner(repo)
     if owner not in allowed:
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "inScope": False,
-                    "error": f"owner {owner!r} out of scope; allowed: {sorted(allowed)}",
-                }
-            )
+        return _refuse(
+            f"owner {owner!r} out of scope; allowed: {sorted(allowed)}",
+            3,
+            inScope=False,
         )
-        return 3
 
     # The review-settle hold is paired configuration, resolved before any network
     # access. Both flags or neither: a reviewer set with no window would need this
@@ -1407,19 +1401,12 @@ def main() -> int:
             if value is None
         ]
         if missing:
-            print(
-                json.dumps(
-                    {
-                        "pr": args.pr,
-                        "error": (
-                            "the review-settle hold requires both "
-                            "--review-bot-logins and --review-settle-minutes; "
-                            "missing " + ", ".join(missing)
-                        ),
-                    }
-                )
+            return _refuse(
+                "the review-settle hold requires both "
+                "--review-bot-logins and --review-settle-minutes; "
+                "missing " + ", ".join(missing),
+                2,
             )
-            return 2
         reviewer_logins = normalize_login_set(parse_csv_set(args.review_bot_logins))
         try:
             settle_minutes = float(args.review_settle_minutes)
@@ -1435,20 +1422,13 @@ def main() -> int:
             else 0
         )
         if not reviewer_logins or settle_seconds < 1:
-            print(
-                json.dumps(
-                    {
-                        "pr": args.pr,
-                        "error": (
-                            "--review-bot-logins must be non-empty and "
-                            "--review-settle-minutes must be a finite number "
-                            "that converts to at least one second; refusing to "
-                            "run the hold under-specified"
-                        ),
-                    }
-                )
+            return _refuse(
+                "--review-bot-logins must be non-empty and "
+                "--review-settle-minutes must be a finite number "
+                "that converts to at least one second; refusing to "
+                "run the hold under-specified",
+                2,
             )
-            return 2
         settle = ReviewSettleConfig(
             reviewer_logins=reviewer_logins,
             settle_seconds=settle_seconds,
@@ -1473,37 +1453,23 @@ def main() -> int:
             if not value
         ]
         if missing:
-            print(
-                json.dumps(
-                    {
-                        "pr": args.pr,
-                        "error": (
-                            "--autopilot-merge-tier requires non-empty "
-                            + ", ".join(missing)
-                            + "; refusing to run the tier under-specified"
-                        ),
-                    }
-                )
+            return _refuse(
+                "--autopilot-merge-tier requires non-empty "
+                + ", ".join(missing)
+                + "; refusing to run the tier under-specified",
+                3,
             )
-            return 3
         tier = AutopilotMergeTierConfig(
             lane_logins=frozenset(lane),
             approver_bot_logins=frozenset(approver),
             block_labels=frozenset(block),
         )
     elif any((args.lane_logins, args.approver_bot_logins, args.block_labels)):
-        print(
-            json.dumps(
-                {
-                    "pr": args.pr,
-                    "error": (
-                        "--lane-logins / --approver-bot-logins / --block-labels "
-                        "are only meaningful with --autopilot-merge-tier"
-                    ),
-                }
-            )
+        return _refuse(
+            "--lane-logins / --approver-bot-logins / --block-labels "
+            "are only meaningful with --autopilot-merge-tier",
+            2,
         )
-        return 2
 
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed

@@ -15,13 +15,17 @@ SCRIPT = Path(__file__).parent / "parse_transcript.py"
 SESSION_ID = "test-session"
 
 
-def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[str]:
+def _run_multi(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), session_id, base_path],
+        [sys.executable, str(SCRIPT), *args],
         capture_output=True,
         text=True,
         timeout=10,
     )
+
+
+def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[str]:
+    return _run_multi([session_id, base_path])
 
 
 def _run_with_event(tmp_path: Path, event: dict) -> dict:
@@ -34,12 +38,7 @@ def _run_with_event(tmp_path: Path, event: dict) -> dict:
 
 def test_missing_args():
     """No arguments produces error status with exit code 2."""
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT)],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    result = _run_multi([])
     output = json.loads(result.stdout)
     assert output["status"] == "error"
     assert result.returncode == 2
@@ -415,7 +414,7 @@ def test_output_contract_has_required_keys(tmp_path):
 
 
 # -----------------------------------------------------------------------------
-# Multi-session tests (Phase C — retro-pre-commit-chain)
+# Multi-session tests
 # -----------------------------------------------------------------------------
 
 
@@ -439,15 +438,6 @@ def _write_assistant_event(
         },
     }
     (tmp_path / f"{session_id}.jsonl").write_text(json.dumps(event) + "\n")
-
-
-def _run_multi(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
 
 
 def test_multi_session_all_present(tmp_path):
@@ -792,6 +782,35 @@ def test_chain_from_walks_flat_layout_pointers(tmp_path):
     (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-middle\n"
         "previous_handoff: 20260520T100000Z-handoff-alpha.md\n"
+        "---\nbody\n"
+    )
+
+    base = tmp_path / "session-data"
+    base.mkdir()
+    _write_assistant_event(base, "sid-middle")
+    _write_assistant_event(base, "sid-oldest")
+
+    handoff_file = handoffs_dir / "20260521T110000Z-handoff-beta.md"
+    result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    sids = [s["id"] for s in output["sessions"]]
+    assert "sid-middle" in sids
+    assert "sid-oldest" in sids
+
+
+def test_chain_from_resolves_prefixed_pointer_by_basename(tmp_path):
+    """--chain-from resolves a handoffs/-prefixed repo-relative pointer by basename
+    in a flat dir."""
+    handoffs_dir = tmp_path / ".work" / "handoffs"
+    handoffs_dir.mkdir(parents=True)
+
+    (handoffs_dir / "20260520T100000Z-handoff-alpha.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-oldest\n---\nbody\n"
+    )
+    (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-middle\n"
+        "previous_handoff: .work/handoffs/20260520T100000Z-handoff-alpha.md\n"
         "---\nbody\n"
     )
 

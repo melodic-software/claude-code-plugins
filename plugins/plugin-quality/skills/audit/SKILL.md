@@ -129,7 +129,7 @@ several packets.
 Every resolved target gets one packet under
 `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`, written in step 1 and read by
 every later step. Read
-[`references/evidence-packet.md`](references/evidence-packet.md) before step 1 writes anything: it
+[`reference/evidence-packet.md`](reference/evidence-packet.md) before step 1 writes anything: it
 owns the directory layout and the file set, the `audit-notes.md` filename constraint and why
 `findings.md` is forbidden, and the write-once discipline that keeps a sibling `PostToolUse` hook
 from rewriting evidence underneath the run. Getting any of the three wrong silently corrupts the
@@ -141,7 +141,7 @@ audit rather than failing it.
 
 Only the main thread can see this session's own evidence; capture it before anything else touches
 context. Run this once **per resolved target**, into that target's own packet. Write to the packet
-(`evidence.md` + raw files as needed), then seal it per the write-once rules in `references/evidence-packet.md`:
+(`evidence.md` + raw files as needed), then seal it per the write-once rules in `reference/evidence-packet.md`:
 
 - The component invocation record: what was invoked, arguments, what it did/printed.
 - Hook failures/blocks, permission-prompt denials, MCP/tool errors observed this session.
@@ -178,7 +178,7 @@ this check exists to catch. The zone table's dumb/unknown row
 deliberately hands the user a packet pointer *instead of* the findings, so a packet whose
 grounded-findings file never landed leaves this thread's compactable context as the only surviving
 copy, the exact exposure the packet exists to prevent. Probe the closed set of grounded-findings
-basenames the Resume rule in `references/evidence-packet.md` defines (and, for its reasons, never a
+basenames the Resume rule in `reference/evidence-packet.md` defines (and, for its reasons, never a
 name taken from `evidence.md`):
 
 - **A closed-set file exists**. Proceed; present per the zone table.
@@ -193,14 +193,14 @@ name taken from `evidence.md`):
   entered the packet via this backstop, a marker-matched subagent return, with no independent
   confirmation a write was attempted and refused, so a later reader can weight them accordingly.
   **Seal once, last, after every write this step makes**, the findings, the provenance, and any
-  rewrite record a read-back forced, per rule 3 of `references/evidence-packet.md` ("when a step's
+  rewrite record a read-back forced, per rule 3 of `reference/evidence-packet.md` ("when a step's
   packet writes are complete").
   Sealing straight after the findings instead leaves the provenance written past the last seal, so
   the Resume rule's mandatory verify reports it UNSEALED (exit 3) on *every* backstop-recovered
   packet: the one packet class whose provenance most needs to be trustworthy would be the one class
   that always arrives partly unsealed. This is a backstop, not a relocation of the write. The
   dispatching session is not reliably outside the guardrail either, which is why the filename rule
-  in `references/evidence-packet.md` remains the primary defense, but wherever it is outside, one
+  in `reference/evidence-packet.md` remains the primary defense, but wherever it is outside, one
   write restores compaction survival for findings that would otherwise live only in conversation.
 - **Your own writes are refused too**. Terminal, and never a shrug: report it as a named blocker,
   reproduce the full findings inline in your visible answer, and stop before step 4. Locking a
@@ -315,7 +315,7 @@ the gate does not cover, because it produces no external effect; there is still 
 
 ## Recurring concerns. Apply every audit
 
-Walk `references/recurring-concerns.md` before finalizing findings, the accumulated
+Walk `reference/recurring-concerns.md` before finalizing findings, the accumulated
 design-failure checklist (silent bypass surfaces, enforcement scope/tiers, SSOT/drift, coupling,
 cross-platform, escape hatches, observability).
 
@@ -323,10 +323,10 @@ cross-platform, escape hatches, observability).
 
 | File | Load when |
 |------|-----------|
-| `references/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
-| `references/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
-| `references/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
-| `references/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
-| `references/component-types/agent.md` | Auditing an agent/subagent definition. |
-| `references/component-types/command.md` | Auditing a slash command. |
-| `references/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
+| `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
+| `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
+| `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
+| `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
+| `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
+| `reference/component-types/command.md` | Auditing a slash command. |
+| `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |

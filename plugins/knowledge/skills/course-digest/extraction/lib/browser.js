@@ -1,8 +1,6 @@
 /**
- * Shared browser infrastructure for course-extraction scripts.
- *
- * Consolidates duplicated browser launch, cookie injection, and auth age
- * checking from extract-course.js and discover-resources.js.
+ * Shared browser infrastructure for course-extraction scripts: browser
+ * launch, cookie injection, and auth age checking.
  */
 
 import { existsSync, mkdirSync, statSync } from "node:fs";
@@ -68,10 +66,7 @@ export async function launchBrowser({
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  let cookieCount = 0;
-  if (storageStatePath) {
-    cookieCount = await injectSavedCookies(context, storageStatePath);
-  }
+  const cookieCount = storageStatePath ? await injectSavedCookies(context, storageStatePath) : 0;
 
   return { browser, context, page, authDir, cookieCount };
 }

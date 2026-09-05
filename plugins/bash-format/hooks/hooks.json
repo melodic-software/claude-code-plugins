@@ -1,4 +1,5 @@
 {
+  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,6 +8,14 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "if": "Edit(*.sh)",
+            "timeout": 15,
+            "statusMessage": "Formatting shell script..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "if": "Edit(*.bash)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."
           }

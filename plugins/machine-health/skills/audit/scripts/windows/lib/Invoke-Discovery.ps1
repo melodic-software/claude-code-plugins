@@ -7,7 +7,7 @@ catalog, and propose up to 3 new check candidates. Shared framework; the
 Windows-specific probes live in Get-WindowsDiscoveryProbes.ps1.
 
 .DESCRIPTION
-Per references/shared/discovery-guide.md, discovery runs every invocation
+Per reference/shared/discovery-guide.md, discovery runs every invocation
 and surfaces proposals in the report. v1 is probe-and-report only -- no
 catalog mutations, no TODO.md writes. Catalog mutation is a v2 feature once
 probes and classifications are proven stable.

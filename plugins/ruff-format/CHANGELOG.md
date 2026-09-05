@@ -3,6 +3,84 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.35]
+
+### Changed
+
+- **`hooks/ruff-format.sh` reads its kill switch before sourcing the library.**
+  `ruff_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.6.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.32]
+
+### Changed
+
+- **`ruff-format.test.sh`: a dead RC capture removed.** The unused-import case captured `$?` into
+  `RC` after `OUT=$(run_hook ...)` and then asserted only on the file's contents, so the capture
+  was never read. Test-only; the hook is unchanged.
+
+## [0.6.31]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.6.30]
+
+### Changed
+
+- **The hook carries `if` filters, `Edit(*.py)` and `Edit(*.pyi)`.** These are exactly
+  the extensions the hook formats, so a Write/Edit of any other file no longer spawns it;
+  behavior on Python files is unchanged.
+
+## [0.6.29]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.6.28]
 
 ### Changed

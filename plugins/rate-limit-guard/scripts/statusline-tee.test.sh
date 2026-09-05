@@ -23,6 +23,7 @@ set -uo pipefail
 # what this suite proves. Every case supplies its settings through a scoped HOME.
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED
 unset RLG_TEE_ASYNC RLG_TEE_DISABLED_RECHECK
+unset RLG_TEE_NOCHANGE_FLOOR RLG_TEE_SWEEP_INTERVAL
 
 # The render path spools a per-session record with zero forks; ONE elected
 # render per cadence drains the batch into the contract file (see THE SPOOL in
@@ -278,16 +279,21 @@ if [[ "$(jq -r '.session_id' <"$TEEFILE")" == "sess-later" ]]; then ok "snapshot
 # Claude Code "cancels the in-flight script" when a new update arrives while
 # this one is still running, so a kill between the write and the rename is
 # routine rather than exceptional. Driven by an `mv` shim that parks, so the
-# signal lands inside the window deterministically.
+# signal lands inside the window deterministically. The shim announces that it
+# has parked by touching a marker, and the kill waits for that marker instead of
+# a fixed sleep; the park itself is short because bash defers a trap until the
+# foreground `mv` returns, so the shim's sleep is the floor on how long the
+# reclaim takes to run.
 HOME14="$WORK/home14"
 mkdir -p "$HOME14"
 SHIM14="$WORK/shim14"
 mkdir -p "$SHIM14"
-printf '#!/usr/bin/env bash\nsleep 10\n' >"$SHIM14/mv"
+printf '#!/usr/bin/env bash\n: >"%s/parked"\nsleep 2\n' "$SHIM14" >"$SHIM14/mv"
 chmod +x "$SHIM14/mv"
 printf '%s' "$(build_input)" | HOME="$HOME14" PATH="$SHIM14:$PATH" bash "$TEE" >/dev/null 2>&1 &
 TEE_PID=$!
-sleep 2
+tries=250
+while ((tries-- > 0)) && [[ ! -e "$SHIM14/parked" ]]; do sleep 0.02; done
 kill -TERM "$TEE_PID" 2>/dev/null
 wait "$TEE_PID" 2>/dev/null
 sleep 0.5
@@ -631,6 +637,12 @@ done
 
 SPOOL_REL=".claude/rate-limit-guard/spool"
 
+# Records currently in a spool directory. An absent directory counts 0, which is
+# the same answer as an empty one and the answer every caller below wants.
+count_spool_records() {
+  find "$1" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r'
+}
+
 # --- Case 22: a fresh stamp → the second render spools but does NOT drain ----
 HOME_EL="$WORK/home-elect"
 mkdir -p "$HOME_EL"
@@ -718,7 +730,7 @@ for bad in '../../pwned' 'a\"b' "$LONG_ID" '.hidden' 'has space'; do
     HOME="$HOME_HOSTILE" bash "$TEE" cat >/dev/null
   HOSTILE_N=$((HOSTILE_N + 1))
 done
-HOSTILE_JSON="$(find "$HOME_HOSTILE/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' \r')"
+HOSTILE_JSON="$(count_spool_records "$HOME_HOSTILE/$SPOOL_REL")"
 if [[ "$HOSTILE_JSON" == "1" && -f "$HOME_HOSTILE/$SPOOL_REL/misc.json" ]]; then
   ok "shard: $HOSTILE_N hostile session_ids all collapse to the single misc shard"
 else
@@ -753,14 +765,14 @@ if [[ -f "$DIS_MARKER" && ! -e "$HOME_DIS/$TEE_REL" ]]; then
 else
   fail "disabled: marker=$([[ -f $DIS_MARKER ]] && echo yes || echo no) snapshot=$([[ -e $HOME_DIS/$TEE_REL ]] && echo yes || echo no)"
 fi
-DIS_SPOOLED="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+DIS_SPOOLED="$(count_spool_records "$HOME_DIS/$SPOOL_REL")"
 if [[ "$DIS_SPOOLED" == "0" ]]; then
   ok "disabled: the drain drops what was already spooled"
 else
   fail "disabled: $DIS_SPOOLED spool record(s) retained while disabled"
 fi
 printf '%s' "$GATE_INPUT" | HOME="$HOME_DIS" bash "$TEE" cat >/dev/null
-DIS_SPOOLED2="$(find "$HOME_DIS/$SPOOL_REL" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+DIS_SPOOLED2="$(count_spool_records "$HOME_DIS/$SPOOL_REL")"
 if [[ "$DIS_SPOOLED2" == "0" ]]; then
   ok "disabled: a fresh marker stops the render spooling at all"
 else
@@ -816,6 +828,289 @@ if [[ ! -e "$TRACE_HOME/$TEE_REL" ]]; then
   ok "trace: the non-elected render wrote no snapshot, as elected"
 else
   fail "trace: the non-elected render drained anyway"
+fi
+
+# --- Case 28: the bounded no-change skip -------------------------------------
+# An unchanged payload must cost no rename. Proven by mtime rather than by
+# content: the body a skipped refresh would have written is byte-identical to
+# the one already there, so comparing content could not tell a skip from a
+# rewrite. The snapshot is backdated to 2000 and a sentinel is stamped at "now"
+# immediately before the second render, so `-ot` answers exactly one question:
+# did anything touch the file. `-ot` is strict, so a rewrite landing in the same
+# second as the sentinel still reads as "not older" and cannot pass by accident.
+HOME_NC="$WORK/home-nochange"
+mkdir -p "$HOME_NC"
+NC_SNAP="$HOME_NC/$TEE_REL"
+NC_SENTINEL="$WORK/nc-sentinel"
+run "$HOME_NC" "$(build_input)" cat >/dev/null
+if [[ -f "$NC_SNAP" ]]; then ok "no-change: the first render writes the snapshot"; else fail "no-change: first render wrote nothing"; fi
+if [[ -f "$HOME_NC/.claude/rate-limit-guard/.last-write" ]]; then
+  ok "no-change: a real write stamps .last-write"
+else
+  fail "no-change: .last-write missing after a real write"
+fi
+NC_CAP_BEFORE="$(jq -r '.captured_at' <"$NC_SNAP")"
+touch -t 200001010000 "$NC_SNAP"
+touch "$NC_SENTINEL"
+run "$HOME_NC" "$(build_input)" cat >/dev/null
+if [[ "$NC_SNAP" -ot "$NC_SENTINEL" ]]; then
+  ok "no-change: an identical payload inside the floor writes nothing"
+else
+  fail "no-change: identical payload rewrote the snapshot"
+fi
+if [[ "$(jq -r '.captured_at' <"$NC_SNAP")" == "$NC_CAP_BEFORE" ]]; then
+  ok "no-change: the skipped refresh left the snapshot byte-intact"
+else
+  fail "no-change: snapshot changed despite the skip"
+fi
+
+# --- Case 29: the skip does not misfire on a changed payload -----------------
+# The guard against a skip that always fires. Same HOME, same session, only the
+# window usage moves, which is the one thing a reader is watching.
+NC_CHANGED='{"session_id":"sess-42","model":{"id":"claude-opus-4-8","display_name":"Opus"},"context_window":{"used_percentage":8},"rate_limits":{"five_hour":{"used_percentage":77.5,"resets_at":1738425600},"seven_day":{"used_percentage":41.2,"resets_at":1738857600}}}'
+touch -t 200001010000 "$NC_SNAP"
+touch "$NC_SENTINEL"
+run "$HOME_NC" "$NC_CHANGED" cat >/dev/null
+if [[ ! "$NC_SNAP" -ot "$NC_SENTINEL" ]]; then
+  ok "no-change: a changed payload still rewrites the snapshot"
+else
+  fail "no-change: the skip swallowed a changed payload"
+fi
+if [[ "$(jq -r '.rate_limits.five_hour.used_percentage' <"$NC_SNAP")" == "77.5" ]]; then
+  ok "no-change: the changed window reached the snapshot"
+else
+  fail "no-change: snapshot window = $(jq -r '.rate_limits.five_hour.used_percentage' <"$NC_SNAP"), want 77.5"
+fi
+
+# --- Case 30: the floor expires, so captured_at never goes stale --------------
+# The bound the reader contract's staleness rule requires. An identical payload
+# past the floor MUST rewrite, or a live but idle session's snapshot would age
+# past the 10-minute budget and demote the whole guard to reactive-only. The
+# stamp is the seam: backdating it to 0 is exactly the state a machine reaches
+# after sitting on one unchanged payload for longer than the floor.
+HOME_FL="$WORK/home-floor"
+mkdir -p "$HOME_FL"
+FL_SNAP="$HOME_FL/$TEE_REL"
+FL_SENTINEL="$WORK/fl-sentinel"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ -f "$FL_SNAP" ]]; then ok "floor: the first render writes the snapshot"; else fail "floor: first render wrote nothing"; fi
+# Inside the floor the identical payload is skipped, which is what makes the
+# expiry assertion below meaningful rather than vacuous.
+touch -t 200001010000 "$FL_SNAP"
+touch "$FL_SENTINEL"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ "$FL_SNAP" -ot "$FL_SENTINEL" ]]; then
+  ok "floor: inside the floor the identical payload is skipped"
+else
+  fail "floor: identical payload was not skipped inside the floor"
+fi
+write_settings "$HOME_FL/.claude/rate-limit-guard/.last-write" "0"
+touch -t 200001010000 "$FL_SNAP"
+touch "$FL_SENTINEL"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ ! "$FL_SNAP" -ot "$FL_SENTINEL" ]]; then
+  ok "floor: past the floor the identical payload rewrites (captured_at stays fresh)"
+else
+  fail "floor: an expired floor still skipped the write, so captured_at can go stale"
+fi
+if jq -r '.captured_at' <"$FL_SNAP" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+  ok "floor: the refreshed snapshot carries a well-formed captured_at"
+else
+  fail "floor: captured_at = $(jq -r '.captured_at' <"$FL_SNAP")"
+fi
+
+# --- Case 31: the spool sweep runs on its own cadence, not every drain --------
+# The `find` the sweep spends is a process on a path that drains twice a minute
+# to enforce a fifteen-minute floor. It must still reclaim a dead session's
+# record, and must not re-spend the process on the very next drain.
+HOME_SW="$WORK/home-sweep"
+SW_SPOOL="$HOME_SW/$SPOOL_REL"
+mkdir -p "$SW_SPOOL"
+write_settings "$SW_SPOOL/sess-dead.json" '{"e":1,"p":{"session_id":"sess-dead"}}'
+touch -t 200001010000 "$SW_SPOOL/sess-dead.json"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ ! -e "$SW_SPOOL/sess-dead.json" ]]; then
+  ok "sweep: a dead session's aged record is reclaimed"
+else
+  fail "sweep: aged spool record survived the first drain"
+fi
+if [[ -f "$SW_SPOOL/.last-sweep" ]]; then
+  ok "sweep: the drain stamps .last-sweep"
+else
+  fail "sweep: .last-sweep missing after a sweep"
+fi
+write_settings "$SW_SPOOL/sess-dead2.json" '{"e":1,"p":{"session_id":"sess-dead2"}}'
+touch -t 200001010000 "$SW_SPOOL/sess-dead2.json"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ -e "$SW_SPOOL/sess-dead2.json" ]]; then
+  ok "sweep: a fresh stamp suppresses the next drain's sweep"
+else
+  fail "sweep: the sweep ran again on the very next drain"
+fi
+write_settings "$SW_SPOOL/.last-sweep" "0"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ ! -e "$SW_SPOOL/sess-dead2.json" ]]; then
+  ok "sweep: an expired stamp lets the sweep run again"
+else
+  fail "sweep: an expired stamp did not restore the sweep"
+fi
+
+# --- Case 32: a hostile tuning knob never reaches the arithmetic --------------
+# Bash evaluates the TEXT of an arithmetic operand, so `(( x < $KNOB ))` with an
+# unvalidated KNOB carrying a command substitution inside an array subscript
+# runs that command on every render. Every knob the tee reads from the
+# environment must fall back to its default on anything that is not a plain
+# integer, and run nothing. Three assertions per knob, because any one alone can
+# pass by accident: the file the hostile value would create must be absent, the
+# default behaviour must hold (a fix that merely broke the comparison would not
+# give that), and the wrapped statusline must still pass through (the tee runs
+# under `set -u`, so a shape that merely aborted the shell would leave every
+# file untouched and look like a pass). The shape used here subscripts an array
+# bash always sets, so it survives `set -u`, executes, and evaluates to 0, which
+# flips each default condition on an unpatched tee.
+# shellcheck disable=SC2016  # the $(...) must reach the tee LITERALLY; that is the attack
+hostile_knob() { printf 'BASH_VERSINFO[$(touch "%s/pwned-%s")0]*0' "$WORK" "$1"; }
+
+# RLG_TEE_NOCHANGE_FLOOR: an identical payload inside the default floor skips.
+HOME_HK1="$WORK/home-hostile-floor"
+mkdir -p "$HOME_HK1"
+HK1_SNAP="$HOME_HK1/$TEE_REL"
+HK1_SENTINEL="$WORK/hk1-sentinel"
+run "$HOME_HK1" "$(build_input)" cat >/dev/null
+touch -t 200001010000 "$HK1_SNAP"
+touch "$HK1_SENTINEL"
+HK1_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK1" RLG_TEE_NOCHANGE_FLOOR="$(hostile_knob floor)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK1_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR broke the passthrough (out=$HK1_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-floor" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR runs nothing"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR executed its value"
+fi
+if [[ "$HK1_SNAP" -ot "$HK1_SENTINEL" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR falls back to the default floor (skip still fires)"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR did not fall back, identical payload rewrote"
+fi
+
+# RLG_TEE_SWEEP_INTERVAL: a fresh .last-sweep suppresses the sweep by default.
+HOME_HK2="$WORK/home-hostile-sweep"
+HK2_SPOOL="$HOME_HK2/$SPOOL_REL"
+mkdir -p "$HK2_SPOOL"
+write_settings "$HK2_SPOOL/.last-sweep" "$(date +%s)"
+write_settings "$HK2_SPOOL/sess-dead.json" '{"e":1,"p":{"session_id":"sess-dead"}}'
+touch -t 200001010000 "$HK2_SPOOL/sess-dead.json"
+HK2_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK2" RLG_TEE_SWEEP_INTERVAL="$(hostile_knob sweep)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK2_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL broke the passthrough (out=$HK2_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-sweep" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL runs nothing"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL executed its value"
+fi
+if [[ -e "$HK2_SPOOL/sess-dead.json" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL falls back to the default cadence (fresh stamp still suppresses)"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL did not fall back, the sweep ran through a fresh stamp"
+fi
+
+# RLG_TEE_DISABLED_RECHECK: a fresh marker stops the render spooling by default.
+HOME_HK3="$WORK/home-hostile-recheck"
+HK3_DIR="$HOME_HK3/.claude/rate-limit-guard"
+mkdir -p "$HK3_DIR"
+write_settings "$HK3_DIR/.tee-disabled" "$(date +%s)"
+HK3_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK3" RLG_TEE_DISABLED_RECHECK="$(hostile_knob recheck)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK3_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK broke the passthrough (out=$HK3_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-recheck" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK runs nothing"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK executed its value"
+fi
+HK3_SPOOLED="$(count_spool_records "$HK3_DIR/spool")"
+if [[ "$HK3_SPOOLED" == "0" && ! -e "$HOME_HK3/$TEE_REL" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK falls back to the default interval (fresh marker still stops the render)"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK did not fall back (spooled=$HK3_SPOOLED snapshot=$([[ -e $HOME_HK3/$TEE_REL ]] && echo yes || echo no))"
+fi
+
+# --- Case 33: a CR on either side of the compare does not defeat the skip -----
+# A native jq on Windows ends every output line with CRLF. `read -r` splits on
+# LF only, so the payload keeps its CR and printf carries it into the file; what
+# the read-back side then holds depends on the bash build (MSYS bash drops a
+# trailing CRLF from `$(<file)`, a POSIX bash keeps the CR), and the snapshot on
+# disk may have been written under a different jq than the one producing this
+# payload. The compare strips a trailing CR from both sides, so a CR on one side
+# only must still read as no change. Driven by a PATH `jq` shim that re-emits
+# the real jq's output with CRLF line endings whatever endings the real jq uses,
+# so both directions are exercised on every platform.
+REAL_JQ="$(command -v jq)"
+CRLF_SHIM="$WORK/crlf-jq"
+mkdir -p "$CRLF_SHIM"
+cat >"$CRLF_SHIM/jq" <<EOF
+#!/usr/bin/env bash
+# Re-emit the real jq's output with CRLF line endings, as a native Windows jq does.
+"$REAL_JQ" "\$@" | while IFS= read -r l || [[ -n "\$l" ]]; do
+  l="\${l%\$'\\r'}"
+  printf '%s\\r\\n' "\$l"
+done
+exit "\${PIPESTATUS[0]}"
+EOF
+chmod +x "$CRLF_SHIM/jq"
+# `od -c`, not a grep for a CR: MSYS grep opens its input in text mode and
+# drops the CR before matching, so a grep would report none on the one
+# platform where the real jq emits them.
+if "$CRLF_SHIM/jq" -cn '{}' | od -c | grep -q '\\r'; then
+  ok "crlf: the jq shim emits CRLF line endings"
+else
+  fail "crlf: the jq shim emits no CR, so the cases below would be vacuous"
+fi
+
+# Payload side: a snapshot written under the real jq, then a CR-terminated payload.
+HOME_CR1="$WORK/home-crlf-payload"
+mkdir -p "$HOME_CR1"
+CR1_SNAP="$HOME_CR1/$TEE_REL"
+CR1_SENTINEL="$WORK/cr1-sentinel"
+run "$HOME_CR1" "$(build_input)" cat >/dev/null
+touch -t 200001010000 "$CR1_SNAP"
+touch "$CR1_SENTINEL"
+printf '%s' "$(build_input)" | HOME="$HOME_CR1" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if [[ "$CR1_SNAP" -ot "$CR1_SENTINEL" ]]; then
+  ok "crlf: a CR-terminated payload against a snapshot without one still skips"
+else
+  fail "crlf: a CR on the payload side defeated the no-change skip"
+fi
+
+# Disk side: a snapshot written under the CRLF jq, then a payload from the real jq.
+HOME_CR2="$WORK/home-crlf-disk"
+mkdir -p "$HOME_CR2"
+CR2_SNAP="$HOME_CR2/$TEE_REL"
+CR2_SENTINEL="$WORK/cr2-sentinel"
+printf '%s' "$(build_input)" | HOME="$HOME_CR2" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if [[ -f "$CR2_SNAP" ]] && od -c "$CR2_SNAP" | grep -q '\\r'; then
+  ok "crlf: the shim landed a CR-terminated snapshot"
+else
+  fail "crlf: no CR-terminated snapshot on disk, so the disk-side case would be vacuous"
+fi
+touch -t 200001010000 "$CR2_SNAP"
+touch "$CR2_SENTINEL"
+run "$HOME_CR2" "$(build_input)" cat >/dev/null
+if [[ "$CR2_SNAP" -ot "$CR2_SENTINEL" ]]; then
+  ok "crlf: a CR-terminated snapshot against a payload without one still skips"
+else
+  fail "crlf: a CR on the disk side defeated the no-change skip"
 fi
 
 echo

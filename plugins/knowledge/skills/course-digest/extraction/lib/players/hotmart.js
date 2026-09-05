@@ -22,6 +22,7 @@ import {
 
 const VIDEO_ID_PREFIX = /^(\w+)-\d+-/;
 const PNG_DATA_URL_PREFIX = /^data:image\/png;base64,/;
+const SUBTITLE_BATCH_SIZE = 15;
 const HLS_FIELDS = [
   "masterUrl",
   "masterUrlFull",
@@ -38,7 +39,6 @@ const HLS_FIELDS = [
 /** @type {Map<string, { hlsMasterUrl: string|null, subtitleManifestBody: string|null }>} */
 const capturedData = new Map();
 
-/** @type {boolean} */
 let interceptorsInstalled = false;
 
 function getOrCreateEntry(pageUrl) {
@@ -53,7 +53,12 @@ function findHotmartFrame(page) {
   return page.frames().find((f) => f.url().includes("player.hotmart.com"));
 }
 
-const SUBTITLE_BATCH_SIZE = 15;
+/** Record `url` as the page's HLS master when it matches the packaged-master pattern. */
+function captureMasterUrl(page, url) {
+  if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
+    getOrCreateEntry(page.url()).hlsMasterUrl = url;
+  }
+}
 
 async function fetchSubtitleBatch(hotmartFrame, batch) {
   return hotmartFrame.evaluate(async (urls) => {
@@ -61,8 +66,7 @@ async function fetchSubtitleBatch(hotmartFrame, batch) {
       urls.map(async (url) => {
         const resp = await fetch(url);
         if (!resp.ok) return { ok: false, status: resp.status };
-        const text = await resp.text();
-        return { ok: true, text, length: text.length };
+        return { ok: true, text: await resp.text() };
       }),
     );
     return responses.map((r) =>
@@ -79,7 +83,7 @@ async function fetchSubtitleSegmentBatches(hotmartFrame, absoluteUrls) {
     const batch = absoluteUrls.slice(start, start + SUBTITLE_BATCH_SIZE);
     const results = await fetchSubtitleBatch(hotmartFrame, batch);
     for (const result of results) {
-      if (result.ok && result.length > 0) {
+      if (result.ok && result.text.length > 0) {
         segmentBodies.push(result.text);
       } else {
         fetchFailed++;
@@ -322,10 +326,7 @@ export function installInterceptors(page, subtitleLang) {
   if (interceptorsInstalled) return;
 
   page.on("request", (request) => {
-    const url = request.url();
-    if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
-      getOrCreateEntry(page.url()).hlsMasterUrl = url;
-    }
+    captureMasterUrl(page, request.url());
   });
 
   page.on("response", async (response) => {
@@ -333,9 +334,7 @@ export function installInterceptors(page, subtitleLang) {
     if (response.status() !== 200) return;
 
     try {
-      if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
-        getOrCreateEntry(page.url()).hlsMasterUrl = url;
-      }
+      captureMasterUrl(page, url);
 
       if (url.includes(`textstream_${subtitleLang}`) && url.includes(".m3u8")) {
         const body = await response.text();
@@ -447,7 +446,7 @@ export async function getTranscript(page) {
     throw new Error("Subtitle manifest contained no WebVTT segment URLs.");
   }
 
-  const firstSeg = segmentUrls[0] ?? "";
+  const firstSeg = segmentUrls[0];
   const segmentsAreAbsolute = firstSeg.startsWith("http");
 
   let hlsBase = null;
@@ -467,18 +466,14 @@ export async function getTranscript(page) {
     throw new Error("Hotmart iframe not found — cannot fetch subtitle segments.");
   }
 
-  const absoluteUrls = segmentUrls.map((seg) => {
-    if (seg.startsWith("http")) return seg;
-    if (hlsBase) return `${hlsBase}${seg}`;
-    return seg;
-  });
+  const absoluteUrls = segmentUrls.map((seg) =>
+    seg.startsWith("http") || !hlsBase ? seg : `${hlsBase}${seg}`,
+  );
 
   writeStdout(
     `    Segments: ${segmentUrls.length}, absolute: ${segmentsAreAbsolute}, hlsBase: ${hlsBase ? "derived" : "none"}`,
   );
-  if (absoluteUrls.length > 0) {
-    writeStdout(`    First URL (truncated): ${absoluteUrls[0].substring(0, 100)}...`);
-  }
+  writeStdout(`    First URL (truncated): ${absoluteUrls[0].substring(0, 100)}...`);
 
   const { segmentBodies, fetchFailed } = await fetchSubtitleSegmentBatches(
     hotmartFrame,
@@ -507,8 +502,7 @@ export async function getTranscript(page) {
  * @returns {string}
  */
 export function getHlsUrl(page) {
-  const currentUrl = page.url();
-  const captured = capturedData.get(currentUrl);
+  const captured = capturedData.get(page.url());
 
   if (!captured?.hlsMasterUrl) {
     throw new Error("No HLS master URL captured. Ensure preparePage() ran and video played.");

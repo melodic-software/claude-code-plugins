@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Reliability Monitor stability index + recent records. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#9-reliability-monitor for rubric.
+See reference/windows/check-catalog.md#9-reliability-monitor for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
@@ -116,13 +116,13 @@ try {
         }
 
         $detail = @{
-            stability_days      = $metrics.Count
-            stability_min_7d    = $stabilityMin
-            stability_avg_7d    = $stabilityAvg
-            records_count       = $records.Count
+            stability_days       = $metrics.Count
+            stability_min_7d     = $stabilityMin
+            stability_avg_7d     = $stabilityAvg
+            records_count        = $records.Count
             hardware_crash_count = $hardwareCrashCount
-            repeat_crash_count  = $repeatCrashCount
-            top_events          = $topEvents
+            repeat_crash_count   = $repeatCrashCount
+            top_events           = $topEvents
         }
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

@@ -1,9 +1,7 @@
 """SKILL.md prose contract assertions.
 
-Ported near-verbatim from the monolith suite, retargeted to the plugin's
-current SKILL.md. Guards the merge-opt-in mode table, the zero-blocker
-check-only default, the pinned-head merge discipline, and the draft policy
-against silent prose drift.
+Guards the merge-opt-in mode table, the zero-blocker check-only default, the
+pinned-head merge discipline, and the draft policy against silent prose drift.
 """
 
 from __future__ import annotations

@@ -17,6 +17,463 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - work: removed issue numbers and the classifier-denial incident narrative; deleted the compatibility passage for an old implementation version; stated the claim-before-dispatch invariant once; dropped the roadmap and "no longer" phrasing; the workflow requirement is a plain statement; rewrote the description's trigger list as intent categories
 - work-loop: removed issue numbers; restored "Report and pace" as its own cycle step; the claim-before-dispatch gotcha is one sentence; moved the maintainer-only C3 gate check into a new `skills/work-loop/AGENTS.md`
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.39.62]
+
+### Changed
+
+- **`schema-check/fidelity.sh` merges its three-stage sed extraction into one
+  script.** The `WIT_LINEAR_ISSUE_FIELDS` block was extracted through a range
+  match piped into two more `sed` processes; one script now carries all three
+  commands, dropping two spawns. Exact for every input, not just the real one:
+  `sed` applies a script's commands in order per line and none of these adds or
+  removes a line, so the `1` and `$` addresses still select the same lines.
+  A tighter form that anchored the prefix strip to line 1 was written first and
+  then **withdrawn**, because it diverges from the original if a line inside the
+  block also begins with that prefix. Unreachable in the real file, but
+  refutable, and this file has no covering suite, so the stricter form won.
+- **The local-markdown adapter takes the house shfmt layout.** Layout only, in
+  two files: a trailing backslash continuation becomes a trailing `||`, and a
+  one-line `cleanup()` body becomes multi-line. Worth noting for a future reader
+  that `git diff -w` does NOT come back empty on this change, because the
+  formatter moves tokens across line boundaries and that reads as content;
+  the local-markdown conformance binding, which is the one binding that runs
+  without live credentials, passes 81 cases 0 failed.
+- **The gitea adapter's `create-item` suite folds a duplicated org-label
+  fixture.** Two cases built the same fixture inline; it is declared once now.
+  Test-side only: no adapter source changed, and all six gitea suites still pass.
+- **Three shell surfaces drop a duplicated branch or a redundant subshell.**
+  `evaluate-schedule-precondition.sh` reads its four fields with `jq <<<"$row"`
+  instead of `printf '%s' "$row" | jq`, one process each instead of two.
+  `generate-adapter.sh` hoists the sample-host default into one variable so the
+  two arms select the default rather than duplicating the whole `jq` call.
+  `preflight.sh` hoists a coverage-label default the same way.
+  The comment in `evaluate-schedule-precondition.sh` recording that emitting
+  jq's output directly would pass newlines through, measured over 7 prompt
+  shapes with 2 diverging, is kept: that `printf '%s\n' "$( ... )"` wrapper is
+  load-bearing and was not touched.
+  Nothing here uses a bash 4 construct. That is deliberate: an earlier sweep in
+  this repo replaced `tr '[:lower:]' '[:upper:]'` with `${VAR^^}` in
+  `generate-adapter.sh` and had to be reverted, because the case-folding
+  expansions are fatal on stock macOS bash 3.2 and `check-shell-portability.sh`
+  reasons about GNU-vs-BSD userland rather than bash version, so no gate here
+  catches it. None of the six `.tmpl` generator templates was touched either.
+
+- **`lib/binding.sh` resolves the container-label default the way its own sibling
+  does.** `wit_read_binding` spelled the absent-or-empty fallback as
+  `[[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"`, two lines
+  below the comment that says the resolution is the same one `wit_role_label`
+  performs. `wit_role_label` writes it as `${configured:-$3}`, and this site now
+  writes `${container:-$WIT_DEFAULT_CONTAINER_LABEL}`. Both forms fall back on
+  absent and on configured-empty alike, which is the distinction the comment
+  exists to protect, since jq's `//` would not.
+
+  Checked, not assumed: 918 differential cases over the pre-edit and post-edit
+  bindings, 0 mismatches, and two negative controls that mismatched 45 and 861
+  cases, which is what establishes that both branches of the changed line are
+  actually driven by the corpus rather than one of them being dead.
+- **`lib/verb-test-helpers.sh`: `assert_usage_error` declares its locals once.**
+  It opened `local script="$1"`, then `shift`, then `local name rc`; the three now
+  share one prologue in the shape `assert_help` uses directly above it, with the
+  `shift` after it. 260 differential cases, 0 mismatches, two negative controls.
+
+## [0.39.61]
+
+### Fixed
+
+- **`onboard-adapter/generate-adapter.sh` was simplified onto a bash 4.0+ expansion.**
+  An earlier commit on this branch replaced `tr '[:lower:]' '[:upper:]'` with
+  `${PROVIDER_FUNC^^}`. The case-folding expansions are bash 4.0+, this script
+  carries no version gate to keep one behind, and its shebang is `/usr/bin/env bash`
+  — so on a stock macOS, where that resolves to the system bash 3.2, `^^` is a fatal
+  expansion error and every valid spec aborts before an adapter is written. Reverted
+  to the `tr` form, which is what shipped. The rule is not new:
+  `scripts/check-drive-root-litter.sh` states it and gates its own `${var,,}` folds
+  behind a Windows host check for exactly this reason. Reported by an automated
+  reviewer on #3710; the code is now byte-identical to what it replaced, with a
+  comment naming the constraint so a later tidy does not re-apply it.
+
+### Known issues
+
+- **`scripts/check-shell-portability.sh` does not flag the case-folding expansions.**
+  The gate's vocabulary is GNU-vs-BSD *userland* (grep/sed/date/stat/mktemp/sort),
+  not bash *version*, so `${var^^}` and `${var,,}` pass it. That is why the change
+  above went green through every lane. Widening the gate is a change to the gate's
+  contract rather than a fix to this plugin, so it is recorded here rather than made
+  here.
+
+## [0.39.60]
+
+### Fixed
+
+- **`local-markdown/renew-lease.sh` reported a renewal it had not persisted.**
+  When the store rewrite could not run, `mktemp` failure left the temp path empty,
+  the redirect failed, `&&` short-circuited past the move, and the script's status
+  came from the trailing `jq`. Reproduced with a failing `mktemp`: **exit 0**, a
+  `renewed_at` on stdout, and a store still holding the older timestamp. It now
+  exits 1, which `CONTRACT.md` defines as internal/unexpected and which `claim.sh`
+  already used for this same class. The conformance suite is byte-identical at 81
+  cases, so this is a move toward the contract, not away from it.
+- **`local-markdown/renew-lease.test.sh` had an assertion comparing two empty
+  greps.** It derived the item path from the outer store variable; when that path
+  is wrong both greps return empty and "marker unchanged" compares `""` to `""`.
+  Pointing it at a nonexistent file leaves the pre-change suite green at exit 0
+  with 8 passing lines. Paths now come from each item's own reported url, and a
+  sentinel assertion fails first on that breakage. Stated precisely: the class can
+  no longer pass silently, but the trailing comparison is still empty-versus-empty
+  under a forced bad path, so this guards the suite rather than making that one
+  assertion self-sufficient.
+- **`local-markdown/common.sh`: a leading-zero item name broke allocation.** A
+  name like `08.md` passes the item filter, and bash read the bare `08` as an
+  invalid octal literal. This was **noisy, not silent**: the store walk emitted
+  `value too great for base` on stderr and allocation skipped the file, so a store
+  holding `08.md` and `7.md` allocated **8** and wrote `8.md` beside it, two files
+  with the same numeric identity and one of them unreachable. Base 10 is now
+  forced, and the maximum derives from the walk's numeric tail, which cannot
+  collide by construction.
+
+### Added
+
+- **Twenty-two assertions across five suites**, each closing a mutant verified to
+  survive the pre-change tree: `session_id` and `ttl_minutes` detached from the
+  store, `--type` discarded, a missing `--parent`/`--blocked-by` persisted as a
+  dead edge, a renewal never reaching the store, and a `--repo` arm consuming one
+  token.
+- **The store-walk fixture now straddles a digit-count boundary.** Allocation
+  derives its maximum from the tail of the walk, so the walk's numeric ordering is
+  load-bearing; a `{2,10}` fixture is required to pin it, because under a lexical
+  sort those return `1,10,2` and the next number is 3, an existing item. A
+  `{1,10}` fixture cannot tell the two apart, since its lexical and numeric orders
+  agree.
+
+### Changed
+
+- `claim.sh` derives its reported record from the lease just stored rather than
+  rebuilding it from the same inputs. Stdout is byte-identical, key order
+  included, across 28 flag and value shapes including a session id containing the
+  marker terminator, a ttl above 2^53, newlines, tabs and unicode.
+- `wit_next_number` walks the store through the shared enumerator instead of
+  carrying a second copy of the filter. Two copies of that filter remain, not one.
+- `list-items.sh` loses a write-only variable and the no-op that made it look read.
+
+### Known issues
+
+- **`renew-lease` reports a record that computes as expired while its own store
+  computes live.** Its projection hand-lists fields and drops `ttl_minutes`, which
+  `claim` reports and the store keeps. Pre-existing and identical before this
+  change, but `CONTRACT.md` says renew-lease emits the same shape as claim, and
+  this falsifies that.
+- **The same unchecked-write shape survives in two sibling verbs**:
+  `add-sub-item.sh` reports `"linked": true` after an unchecked field write, and
+  `link-blocks.sh` appends without checking. Both are outside this group's ten
+  changed files.
+- One suite came back red once in a 202-suite baseline and green in an identical
+  re-run, and could not be reproduced in 440 targeted runs under contention. It is
+  recorded rather than attributed.
+
+## [0.39.59]
+
+### Fixed
+
+- **`conformance/run-conformance.sh`: two concurrent conformance runs on one host
+  clobbered each other.** The overlay case derived its path from `dirname` of the
+  binding file, and every binding `mktemp`s that file straight into `$TMPDIR`, so
+  the overlay resolved to a single fixed path shared by every run on the machine:
+  `/tmp/.work-item-tracker.local.json`. The binding is now re-homed into a
+  run-private `mktemp -d` immediately after `cb_setup`, and the trap removes it.
+
+  Measured on separate extractions of the pre- and post-change trees: 8 jira plus
+  8 local-markdown in lockstep gave **9 of 16 red** before and 0 of 16 after; ten
+  jittered pairs gave **19 of 20 red** before and 0 of 20 after; a 40-way stress
+  run and a 25-round reproduction of the CI shape gave **0 red** after, against
+  **15 of 50 red** before. 130 runs on the fixed tree, none red, case counts
+  always 34 and 81. Planting a poisoned overlay at the shared path makes the
+  failure deterministic: 38 cases with 9 failed before, 34 with 0 after.
+
+  The failure is **whole-suite poisoning, not two cases**. Once one run leaves a
+  foreign provider at the shared path, every tracker invocation in every
+  concurrent run exits 3, the provider resolves empty, and `verb_supported` reads
+  every verb false, which changes the reported case count. Matching case counts is
+  therefore not by itself a sufficient regression guard.
+
+  **Scope of the attribution, stated precisely.** `scripts/run-plugin-tests-serial.txt`
+  lists two entries as unexplained failures under `--jobs 4`:
+  `plugins/discovery/agents/tool-honesty.test.sh` and this plugin's
+  `bindings/jira.test.sh`. This mechanism explains the **jira** entry only, and the
+  evidence for that is the asymmetry: under the CI shape jira loses the race 13
+  times in 25 while local-markdown loses 2, so the mechanism predicts which suite
+  gets listed. `tool-honesty.test.sh` is a markdown contract test with no
+  reference to the tracker, no `mktemp` and no shared path; this cannot explain it.
+  The record's own rule is that **both** entries come off the list when the cause
+  is found, so **#3694 stays open**. Note also that the collision cannot fire in
+  the lane as configured today, because `jira.test.sh` is serial-listed and never
+  runs beside the only other runner-invoker. This fix is a precondition for
+  delisting it, not a repair of a currently red lane.
+
+- `bindings/github.test.sh` gained the in-file note explaining that it does not
+  run the abstract suite, which its gitea and linear siblings already carry; for
+  github that reason had lived only in the sibling binding.
+
+### Changed
+
+- `run-conformance.sh`: a global assigned and read only inside one function is now
+  local; an assignment identical in both arms of an `if` is hoisted above it; and
+  a past-tense clause was rewritten present-tense after checking both adapters'
+  current wording.
+- `e2e-probe.sh`: a single-use variable inlined, matching the two sibling calls
+  twelve lines below. The `gh` argv is identical across nine id shapes.
+
+### Known issues
+
+- **`e2e-probe.sh`'s 16 assertions have never been executed by any suite**, and
+  the `reclaim` block's 13 assertions never run in CI, because only github and
+  linear declare `reclaim: true` and neither invokes the runner. Confirmed by
+  planting an early exit at both sites and observing no suite notice.
+- **`bindings/github.sh`'s success path is equally unexecuted**: its suite asserts
+  only that setup *refuses* without a target.
+- **Redirecting `e2e-probe.sh`'s `gh issue close` to a different repository leaves
+  every automated suite green.** That is the sharpest consequence of the item
+  above.
+- Two other surfaces are untested rather than defective: the new trap's cleanup
+  half, and the copied binding's filename, which nothing depends on since only its
+  directory matters.
+
+## [0.39.58]
+
+### Changed
+
+- **`skills/work/scripts/preflight.sh`: a two-call-site `normalize_path` wrapper
+  is gone**, replaced by the fork-free `norm_path`/`$NORM_OUT` protocol that ten
+  other call sites already use. The loop it sat in was paying exactly the fork the
+  function's own header says it exists to avoid. Checked over 30 hostile inputs:
+  27 identical, and the 3 that differ are all trailing-newline shapes that the
+  loop cannot produce, since `read -r` strips them. Across 24 newline shapes there
+  is **no fail-open case** in either direction: the new code only ever reports
+  more gaps, never fewer.
+- `lib/legacy-frontier-tier-signal.sh`: an `if grep …; then return 0; fi;
+  return 1` collapsed to the bare pipeline. Truthiness is identical everywhere and
+  all three callers use `if`; raw status differs only on an invalid-regex exit,
+  unreachable because the pattern is a hardcoded array.
+- `generate-adapter.sh`: `tr '[:lower:]' '[:upper:]'` became `${VAR^^}`. Locale
+  dependence is moot here: a `^[a-z][a-z0-9-]{0,31}$` gate upstream means the
+  input is already ASCII, and the only divergence constructible is rejected by
+  that regex.
+- `list-items.sh`: a write-only variable, and the no-op line that existed only to
+  make it look read, are deleted.
+
+### Added
+
+- **Three assertions that close mutants proven live.** Verified against isolated
+  pre-change trees: the needs-confirmation path's stdout was unasserted, the
+  generated upper-cased provider spelling was unpinned, and a `want`-from-`NORM_OUT`
+  detachment was invisible. All three mutants exit 0 before and 1 after.
+
+### Fixed
+
+- **Two tidies reverted before shipping, on a precedent this plugin already set.**
+  Version 0.39.24 records a `printf`-pipe conversion in
+  `evaluate-schedule-precondition.sh` being refuted and reverted for shifting a
+  line number into a stderr diagnostic on a reachable error path. Both of these
+  were the same class:
+  - Dropping the `printf '%s\n' "$( … )"` wrapper in that same file is **not**
+    newline-neutral. Command substitution collapses trailing newlines to one; the
+    direct pipeline passes them through, putting a blank line before the
+    `needs-confirmation` marker. Measured over 7 prompt shapes, 2 diverge. The
+    wrapper is restored with a comment saying why it is load-bearing.
+  - `$(cat "$file")` to `$(<"$file")` in `generate-adapter.sh` changes the
+    missing-template diagnostic from `cat: <path>: No such file or directory` to a
+    bash error carrying **this script's line number**, which is precisely what
+    0.39.24 rejected. Restored, with the precedent named in the comment.
+
+### Known issues
+
+- **`preflight.test.sh` and `generate-adapter.test.sh` degrade silently without
+  `jq`**, hand-rolling `echo "SKIP: …" >&2; exit 0`. `check-silent-skips.sh`
+  cannot see them: it scans hooks and top-level scripts, not plugin suites. CI
+  installs no jq explicitly, so their coverage rests on the runner image alone.
+- **`preflight.sh` selects 3 suites and 1 exercises it.** The other two are
+  basename collisions with `repo-hygiene`'s own `preflight.sh`.
+
+## [0.39.57]
+
+### Changed
+
+- **`github` adapter: seven `printf '%s\n' "$X" | jq …` pipelines became
+  `jq … <<<"$X"`**, the idiom the file and every seam lib already use, plus one
+  merged `local` declaration and one dropped stub variable that was unreachable
+  on the path it sat on. Byte-safety was established at the level of the bytes
+  reaching jq's stdin, across 17 payload shapes: a herestring appends exactly one
+  newline unconditionally, so it matches `printf '%s\n'` even for a value that
+  already ends in a newline, is empty, or is a lone newline. NUL is unreachable
+  because all seven sites take a value from a command substitution, which strips
+  it. No site reads `PIPESTATUS` or depends on an assignment surviving the
+  pipeline; the pipeline form in fact carried a latent `pipefail`-plus-SIGPIPE
+  hazard the herestring removes. Driving the real verbs against a stub over 8
+  payload shapes gives byte-identical stdout and identical exit codes in 32 of 32
+  cases, with 11 distinct output checksums proving the matrix discriminates.
+- **The `case`-body re-indentation is the repo's own formatter output**, not a
+  style choice: `bash-format.sh` runs `shfmt` with no layout flags, driven by
+  `.editorconfig`. Running that formatter over the pre-change files and diffing
+  against the result isolates the manual delta to 22 insertions and 18 deletions
+  across six files, out of a headline 95 and 91; four of the ten files are
+  whitespace-only.
+- `lease-coordination.test.sh`'s header claimed to cover two findings and listed
+  two, while a third has been in the file all along. The header now names it. No
+  assertion changed.
+
+### Known issues
+
+- **The lease protocol's three writing verbs have no assertion on what they
+  write.** The gh stub logs `PATCH <comment-id>` and a bare `POST_COMMENT` token
+  and never records the request body, so `renew-lease` can PATCH back a body whose
+  `renewed_at` was never bumped, which is the verb's entire purpose, and `reclaim`
+  can leave a reclaimed lease without `superseded_at`, active forever. Both
+  mutations pass every suite, at this change and equally before it.
+- **Two suites lose assertions silently when `jq` is absent.** `common.test.sh`
+  drops from 28 to 16 and `create-item.test.sh` from 10 to 4, both still exiting
+  0. A sibling suite in the same directory fails loudly under the same condition,
+  so the shape is not universal. Neither emits the repo's `SKIP:` convention, so
+  `--strict-skips` cannot see them, and `check-silent-skips.sh` cannot either: it
+  scans hooks rather than suites, and only the negated `if ! command -v` form.
+- **A redundancy in `wit_map_gh_error` is symmetric.** Deleting the `HTTP 404`
+  arm is uncaught, and so is deleting the `Not Found` arm, because the single
+  fixture string contains both. Killing the whole arm *is* caught, so the
+  assertion is live and the cause is neighbouring-arm masking rather than absent
+  coverage.
+- **`conformance/bindings/github.test.sh` is selected by none of these files.** A
+  change to a sibling adapter's `common.sh` pulls in four conformance bindings;
+  a github adapter edit pulls in none, and that suite's own header records that it
+  deliberately does not run the abstract suite. The github adapter has no
+  conformance lane reachable from a github adapter edit.
+- `--state` over-rejection is uncaught in two verbs, and a reclaim revalidation
+  check is redundantly covered. Both scored identically before this change.
+
+## [0.39.56]
+
+### Fixed
+
+- **`linear/schema-check/validate.mjs` carried 11 stale source pointers.** Eight
+  named lines in `common.sh` and three in `create-item.sh`, and every one landed
+  on a comment, a bare closing brace, or unrelated code: `issueCreate` claimed
+  line 151, which is a `while :; do`, against an actual 216. All 11 are corrected,
+  and the 7 pointers that were already right were confirmed right rather than
+  churned, so the file is 18 for 18. Both edited hunks are two lines for two, so
+  no pointer shifted underneath another.
+- **`linear/reclaim.test.sh`: two probes swallowed their own failure.** They
+  carried `2>/dev/null || echo 0` around a `jq` count whose expected value *is*
+  `0`, so a probe broken outright scored the same as a passing assertion.
+  Demonstrated: with the jq program deliberately broken, the old form reports 39
+  passing and exits 0, while the new form reports two failures and exits 1. The
+  legitimate empty and missing cases still yield `0`, so nothing over-rejects.
+
+### Changed
+
+- **`linear/create-item.sh`: two `jq … <<<'null'` calls became `jq -n`**, the
+  file's own dominant idiom. Re-proved for these programs rather than inherited
+  from the sibling adapter that made the same change: neither reads `.` even
+  indirectly (the only reachable identity is `select`'s pass-through, discarded by
+  the following `| $n`), and output is identical across a 560-pair matrix of
+  arguments and stdin values, including invalid JSON, a closed stdin, a blocking
+  FIFO and a 64 MiB stream. All 297 recorded GraphQL request bodies across the
+  nine verb suites are byte-identical before and after.
+- **`linear/schema-check/fidelity.sh`: a field parsed and discarded is gone** from
+  all five multiline entries, and a mismatch branch now matches the form its
+  sibling loop already used. The dropped field was a hardcoded filename the
+  checker never read.
+- `linear/mock.sh`: a variable renamed to what the comment explaining it said, and
+  the comment deleted.
+- History narration removed or re-tensed in two suites, each decision settled by
+  mutating the guard in question rather than by reading.
+
+### Known issues
+
+- **Four assertions in `linear/claim.test.sh` and both repaired probes share a
+  residual blind spot**: an assertion whose expected value equals what an *empty*
+  probe yields cannot distinguish "nothing was written" from "the right thing was
+  written". The suites as wholes do fail under that mutation, so this is
+  per-assertion rather than a blind suite, but a positive control asserting that
+  some update *was* recorded would close it.
+- **`linear/mock.sh` records the request body and 33 assertions read it**, unlike
+  the gitea and github mocks. What nothing here records is the HTTP method, the
+  header set including the API key, and the curl flag set.
+- Nothing guards the `loc:` pointers above, which is how 11 of 18 went stale.
+
+## [0.39.55]
+
+### Changed
+
+- **`gitea/create-item.sh`: the repo-label pagination walk stops recomputing a
+  value it already holds.** The short-page arm re-ran `jq 'length'` over the
+  response body to obtain the row count the previous iteration had already
+  recorded; `LABEL_GOT` is now seeded from page 1 and read directly, which is one
+  fewer jq process per label page (measured over a three-page walk: 45 total jq
+  spawns and 8 `jq 'length'` before, 42 and 5 after) and collapses three
+  spellings of "page length" to one. Behaviour is unchanged, established two
+  ways: 23 end-to-end scenarios run against both versions on the same mock,
+  comparing exit code, stdout, stderr and the full recorded request log with zero
+  divergence; and an instrumented probe that recomputes the old value at the top
+  of every iteration and compares, 22 iterations across 12 scenarios with zero
+  divergence, including the first iteration in every one.
+- **Two `jq … <<<'null'` calls became `jq -n`.** Neither program reads `.`:
+  `as $n |` does not rebind it, `select(...)` passes it through unindexed, and
+  the trailing expressions discard it, with no `input`, `inputs`, `$__loc__`,
+  `env` or `$ENV` anywhere in them. Output is byte-identical across five argument
+  values crossed with six stdin values; the only divergence is on empty stdin,
+  which the here-string form can never produce.
+
+### Added
+
+- **A discriminating case for the multi-page repo-label walk**, which had
+  literally zero coverage: instrumenting the loop body shows it executed **0
+  times** across the suite's 49 cases before, and once after. Three mutations of
+  the changed line all survive the old suite and are killed only by this case.
+
+### Known issues
+
+- **Dropping `-n` from the label-id `jq` call is not caught by any test.** It
+  leaves `LABEL_IDS` empty, the payload build then dies on invalid JSON, and the
+  issue is POSTed with no body at all while the suite still reports success. The
+  `-n` change above is carried by static proof of byte-identical output, not by
+  the test net.
+- **`gitea/mock.sh` records only method and URL, never a request body**, so no
+  assertion in any gitea suite observes the POST payload. Label-name to label-id
+  resolution, which is the whole purpose of that block and the adapter's flagged
+  divergence from GitHub's API, is asserted only indirectly through the exit code.
+- **Three further mutations adjacent to the walk survive the suite**: relaxing
+  the total-count header comparison, removing the empty-page break, and stopping
+  the accumulator from accumulating. All pre-existing.
+- **`create-item.sh` selects 202 suites, of which exactly one exercises it.**
+  One more references it only as a file-exists check that would pass against an
+  empty file, three are same-named suites in sibling adapter directories that
+  each run their own copy, and roughly 197 are transitive fan-out on generic
+  basenames. Ten of the 202 mention gitea at all.
+
+## [0.39.54]
+
+### Changed
+
+- **One tracker-suite comment recast (repo-wide tidy sweep).** `lib/frontier.test.sh`'s
+  history-narration fragment about the container-label default becomes a present-tense
+  invariant (explicit remap wins; the shipped default stops excluding). No code changes;
+  the dispatcher+lib layer needed nothing else after its recent simplify sweeps.
+
+## [0.39.53]
+
+### Changed
+
+- **`decompose` skill-listing entry tightened.** It was the marketplace's fourth largest listing
+  entry. The description now reads the source list as prose and drops repeated wording in the
+  re-decompose sentence while keeping every quoted trigger phrase and the sibling-skill
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.39.52]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.39.51]
 

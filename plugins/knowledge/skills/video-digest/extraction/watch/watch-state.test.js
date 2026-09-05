@@ -260,12 +260,7 @@ describe("watch state temp-path tokenization", () => {
   function stateWithTempSession() {
     const framesDir = path.join(os.tmpdir(), "video-frames-abc");
     const contactSheetsDir = path.join(os.tmpdir(), "video-sheets-abc");
-    let state = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-    });
+    let state = sampleTalk();
     state = {
       ...state,
       tempSession: {
@@ -418,12 +413,7 @@ describe("watch state persistence (real filesystem)", () => {
     // Unit tests above inject a fake writeFile, so they never exercised real fs.
     const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-state-"));
     try {
-      const state = createWatchState({
-        videoId: "abc",
-        videoSlug: "talk-abc",
-        sourceUrl: "https://youtube.com/watch?v=abc",
-        title: "Talk",
-      });
+      const state = sampleTalk();
       await writeWatchState(sliceDir, state);
       const raw = await realReadFile(watchStatePath(sliceDir), "utf8");
       expect(JSON.parse(raw).videoSlug).toBe("talk-abc");
@@ -435,12 +425,7 @@ describe("watch state persistence (real filesystem)", () => {
   it("creates the run-state lane dir when writing the continuation prompt", async () => {
     const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-state-"));
     try {
-      let state = createWatchState({
-        videoId: "abc",
-        videoSlug: "talk-abc",
-        sourceUrl: "https://youtube.com/watch?v=abc",
-        title: "Talk",
-      });
+      let state = sampleTalk();
       state = markPhaseComplete(state, "acquire");
       await writeContinuationPrompt(sliceDir, state);
       const raw = await realReadFile(continuationPromptPath(sliceDir), "utf8");

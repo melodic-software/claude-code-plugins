@@ -73,9 +73,9 @@ Describe 'Test-EventLogErrors -- benign noise allowlist' -Tag 'check' {
         Mock Get-WinEvent { $events }.GetNewClosure()
 
         $result = Invoke-EventLogAsObject
-        # Previous code flagged this WARN because 20 identical entries
-        # exceeded the repeat threshold. With DCOM 10016 on the noise
-        # allowlist, the whole set is filtered from the severity calc.
+        # DCOM 10016 is on the noise allowlist, so the whole set is
+        # filtered from the severity calc even though 20 identical
+        # entries exceed the repeat threshold.
         $result.severity | Should -Be 'OK'
         $result.detail.filtered_noise_count | Should -Be 20
     }

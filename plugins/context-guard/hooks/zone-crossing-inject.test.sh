@@ -531,6 +531,51 @@ else
   fail "warning lost or mislabelled after an armed-write failure: rc=$RC out=${OUT:0:200}"
 fi
 
+# 12c. A steady fire does not rewrite a marker that already holds the value.
+# Every other assertion in this suite reads stdout, which is identical whether
+# the markers were rewritten or skipped, so a revert to unconditional writes
+# would pass them all. This one reads the marker mtimes: both are backdated to
+# 2000-01-01 and a reference file to 2000-01-02, so a rewrite lands in the
+# present and reads as newer than the reference while a skip leaves it older.
+# `-nt` is a bash builtin, so no stat(1) dialect is involved, and mtimes are
+# untouched by root's permission bypass, which is why this is not a chmod test.
+write_snapshot "$H" sskip 90 # dumb — first observation, both markers get written
+run "$H" "$D" sskip
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && -f "$D/state/sskip.zone" && -f "$D/state/sskip.armed" ]]; then
+  ok "write skip: setup observation injects and writes both markers"
+else
+  fail "write skip setup: rc=$RC out=${OUT:0:120} zone=$(cat "$D/state/sskip.zone" 2>/dev/null) armed=$(cat "$D/state/sskip.armed" 2>/dev/null)"
+fi
+SKIP_REF="$WORK/skip-ref"
+touch -t 200001010000 "$D/state/sskip.zone" "$D/state/sskip.armed"
+touch -t 200001020000 "$SKIP_REF"
+run "$H" "$D" sskip # same zone, same gate: nothing to persist
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "write skip: the steady fire is silent"
+else
+  fail "write skip steady fire not silent: rc=$RC out=${OUT:0:120}"
+fi
+if [[ ! "$D/state/sskip.zone" -nt "$SKIP_REF" ]]; then
+  ok "write skip: .zone was not rewritten on a steady fire"
+else
+  fail "write skip: .zone was rewritten although it already held '$(cat "$D/state/sskip.zone" 2>/dev/null)'"
+fi
+if [[ ! "$D/state/sskip.armed" -nt "$SKIP_REF" ]]; then
+  ok "write skip: .armed was not rewritten on a steady fire"
+else
+  fail "write skip: .armed was rewritten although it already held '$(cat "$D/state/sskip.armed" 2>/dev/null)'"
+fi
+# Positive control: the same probe must see a write when one is owed, so a
+# broken probe cannot pass the two assertions above by never detecting anything.
+printf 'acceptable\n' >"$D/state/sskip.zone" # legacy-looking mismatch: a rewrite is owed
+touch -t 200001010000 "$D/state/sskip.zone"
+run "$H" "$D" sskip
+if [[ $RC -eq 0 && "$D/state/sskip.zone" -nt "$SKIP_REF" && "$(cat "$D/state/sskip.zone" 2>/dev/null)" == "dumb" ]]; then
+  ok "write skip: a marker that differs on disk is still rewritten (probe detects writes)"
+else
+  fail "write skip probe: mismatched marker not rewritten: rc=$RC zone=$(cat "$D/state/sskip.zone" 2>/dev/null)"
+fi
+
 # No resolvable state root → stay silent rather than key the last-seen zone to
 # the working directory, which would re-inject on every cd.
 write_snapshot "$WORK/nohome" snr 90
@@ -546,6 +591,72 @@ if [[ ! -e "./.claude/context-guard/state" ]]; then
   ok "no zone state written relative to the working directory"
 else
   fail "zone state leaked into the working directory"
+fi
+
+# --- The per-batch process budget, proven by trace -----------------------------
+# PostToolBatch fires once per tool batch, so every process this hook starts is
+# paid on the critical path of every batch. Reading the code cannot prove the
+# budget: `dirname`, `tr`, `head` and a per-field `jq` each look like one
+# harmless call at the call site and only add up in a trace. The assertion is on
+# EXACT COUNTS, not on absence, so a regression back to a second `jq` fails here
+# rather than showing up as a slow session.
+#
+# Budget on the steady non-crossing path, which is the common case:
+#   1 jq   : one pass over the payload for both envelope fields
+#   1 bash : scripts/context-zone.sh, the single band authority this hook must
+#            not re-implement; its own execs are in that process, not this trace
+# Anything else is a regression. The count is of commands in COMMAND POSITION
+# (anchored on the xtrace depth prefix), so `command -v jq` in hook::require_jq
+# is correctly not counted: it is a shell builtin and spawns nothing.
+#
+# HOOK_TELEMETRY_SINK is empty, as everywhere else in this file. With a sink
+# configured, hook::emit_telemetry adds mktemp, jq and rm inside hook-utils.sh,
+# which is a synced shared library and not this plugin's to change.
+TH="$WORK/home-trace"
+TD="$WORK/data-trace"
+mkdir -p "$TD"
+write_snapshot "$TH" strace 10
+# Prime: the first fire creates the state directory and the markers, so the
+# traced fire is the steady path a running session actually pays.
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" bash "$HOOK" >/dev/null 2>&1
+TRACE_LOG="$WORK/inject-xtrace.log"
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$TRACE_LOG"
+
+TRACE_PAT='^\++ (jq|git|date|mktemp|sed|grep|awk|cat|mkdir|mv|rm|tr|head|tail|cut|wc|uname|dirname|basename|readlink|sort|find|chmod|touch|sleep|expr|stat|cygpath|bash) '
+if [[ -s "$TRACE_LOG" ]]; then
+  ok "trace: the steady non-crossing path was traced"
+else
+  fail "trace: no usable xtrace captured"
+fi
+TRACE_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+TRACE_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$TRACE_SPAWNS" == "2" ]]; then
+  ok "trace: the steady path spawns exactly 2 processes"
+else
+  fail "trace: steady path spawns $TRACE_SPAWNS processes, budget is 2: $TRACE_DETAIL"
+fi
+TRACE_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_JQ" == "1" ]]; then
+  ok "trace: exactly one jq pass over the payload"
+else
+  fail "trace: $TRACE_JQ jq processes on the steady path, budget is 1"
+fi
+TRACE_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_BASH" == "1" ]]; then
+  ok "trace: exactly one resolver process (the band authority)"
+else
+  fail "trace: $TRACE_BASH bash processes on the steady path, budget is 1"
+fi
+# The specific pipelines this budget replaced, named so a revert is legible in
+# the failure message rather than only in the total.
+TRACE_GONE=$(grep -cE '^\++ (dirname|tr|head) ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_GONE" == "0" ]]; then
+  ok "trace: no dirname, tr or head on the steady path"
+else
+  fail "trace: $TRACE_GONE dirname/tr/head process(es) returned: $TRACE_DETAIL"
 fi
 
 echo

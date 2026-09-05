@@ -3,6 +3,52 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.30]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.29]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.28]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.6.27]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.6.26]
 
 ### Changed

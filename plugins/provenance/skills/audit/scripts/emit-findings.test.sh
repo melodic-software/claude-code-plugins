@@ -27,10 +27,19 @@ fi
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case whose subject this host cannot build is neither a pass nor a failure.
+# It prints its own visible line and carries its own counter, and never routes
+# through pass(), so a proof this host could not run can never be read off the
+# summary as one that did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -200,11 +209,10 @@ assert_contains "withheld judgment findings are counted, not dropped" "$BODY" "2
 
 # --- The not-found searched-surfaces schema check --------------------------------
 #
-# A `not-found` outcome names every surface it checked, and that listing used to be
-# prose-only. The sidecar now carries it as a `searched` array and this producer
-# refuses input without one, on the same input-refusal exit code as a sidecar with
-# no findings key: refusing beats composing from a sidecar whose neutral outcome
-# concludes nothing about anything.
+# A `not-found` outcome names every surface it checked. The sidecar carries that
+# listing as a `searched` array and this producer refuses input without one, on the
+# same input-refusal exit code as a sidecar with no findings key: refusing beats
+# composing from a sidecar whose neutral outcome concludes nothing about anything.
 #
 # The refusal validates the SIDECAR, never an emitted row. `not-found` is a
 # judgment verdict the relay boundary withholds, so a well-formed one is accepted
@@ -353,12 +361,12 @@ assert_contains "the unparsed finding keeps its raw text" "$(cat "$UNP")" "no ru
 
 # --- The relay boundary holds without a rule id ----------------------------------
 #
-# A judgment verdict used to escape the boundary whenever it carried no rule id:
-# nothing classified it, so it fell through to `## Unparsed` and was dumped
-# verbatim — tier name and payload included — into the very file the boundary
-# keeps it out of. Withholding is decided by the DECLARED TIER, ahead of any rule
-# lookup, so no verdict re-enters through the appendix. The finding is still
-# counted in `## Surfaces`: counting is not a silent drop.
+# A judgment verdict carrying no rule id escapes a rule-first boundary: nothing
+# classifies it, so it falls through to `## Unparsed` and is dumped verbatim — tier
+# name and payload included — into the very file the boundary keeps it out of.
+# Withholding is decided by the DECLARED TIER, ahead of any rule lookup, so no
+# verdict re-enters through the appendix. The finding is still counted in
+# `## Surfaces`: counting is not a silent drop.
 
 write_report withheld-nf.json '{
   "counts": {"files": 2},
@@ -436,8 +444,8 @@ write_report withheld-padded.json '{
 }'
 # These two declare `not-found` and so must name their searched surfaces like any
 # other not-found finding — the gate reads the same declared tier the boundary
-# does, so an evasive spelling no longer buys a pass through it. The listing is
-# input the gate consumes and never emits, so it gets a canary of its own.
+# does, so an evasive spelling buys no pass through it. The listing is input the
+# gate consumes and never emits, so it gets a canary of its own.
 write_report withheld-arraytier.json '{
   "findings": [{"tier": ["not-found"], "file": "a.md", "note": "ARRCANARY",
                 "searched": ["https://ARRSURFACE.example/u"]}]
@@ -504,12 +512,12 @@ assert_contains "a judgment tier on a stamp rule is counted" "$RULE_BODY" "1 jud
 
 # --- The gate and the boundary read ONE declared tier ------------------------------
 #
-# The searched-surfaces gate used to compare `.tier` to "not-found" exactly, at the
-# top level, while the boundary recognized four more shapes. A sidecar declaring the
-# verdict in any of those shapes therefore skipped the refusal and was counted as
-# withheld instead — the schema check silently not running is worse than it failing.
-# Both now read the same declared tier, so every shape the boundary withholds is a
-# shape the gate demands a `searched` listing for.
+# A gate comparing `.tier` to "not-found" exactly, at the top level, is laxer than a
+# boundary that recognizes four more shapes. A sidecar declaring the verdict in any
+# of those shapes then skips the refusal and is counted as withheld instead — the
+# schema check silently not running is worse than it failing. Both read the same
+# declared tier, so every shape the boundary withholds is a shape the gate demands a
+# `searched` listing for.
 
 write_report gate-capkey.json '{
   "findings": [{"Tier": "not-found", "file": "a.md", "note": "GATECAP"}]
@@ -687,9 +695,10 @@ for uu in "null:not-found:UNUSABLENULL" "empty:source-fetched-similar:UNUSABLEEM
   assert_contains "an unusable tier is counted, not dropped ($un)" "$UB" "1 judgment"
 done
 
-# The SAME rule applies one step in. An unusable `verdict.tier` used to make the whole
-# verdict unread, so the outcome beside it printed verbatim into `## Unparsed` and the
-# gate never ran — the identical defect at the identical position, one container down.
+# The SAME rule applies one step in. Let an unusable `verdict.tier` make the whole
+# verdict unread and the outcome beside it prints verbatim into `## Unparsed` while
+# the gate never runs — the identical hazard at the identical position, one container
+# down.
 write_report verdict-tier-unusable-word.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "provenance/audit/rule-nomination", "file": "vu.md",
@@ -787,10 +796,11 @@ assert_not_contains "and it is not counted as withheld" \
 # --- A record that is not an object carries no verdict into the appendix -----------
 #
 # The malformed-record route runs BEFORE any tier is read, so one array layer around
-# a verdict declaration used to bypass the boundary and the searched gate alike, and
+# a verdict declaration would bypass the boundary and the searched gate alike, and
 # print the tier name and the payload verbatim into `## Unparsed`. A record with no
-# declared tier to respect is withheld when a verdict name appears anywhere inside
-# it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper.
+# declared tier to respect is therefore withheld when a verdict name appears anywhere
+# inside it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong
+# wrapper.
 write_report record-wrapped-object.json '{
   "counts": {"files": 2},
   "findings": [[{"tier": "not-found", "excerpt": "WRAPOBJCANARY"}]]
@@ -922,8 +932,8 @@ assert_contains "non-JSON input says it is not a JSON object" \
 
 # --- A findings key that is not a list is named for what it is --------------------
 #
-# It used to fail inside the not-found gate and be refused under that gate's message,
-# reporting a cause the input does not have.
+# Left to the not-found gate, it fails inside that gate and is refused under that
+# gate's message, reporting a cause the input does not have.
 write_report findings-scalar.json '{"findings": "none"}'
 FSC="$OUTDIR/findings-scalar.md"
 FSC_ERR="$(run --report "$REPORTS/findings-scalar.json" --out "$FSC" 2>&1)"
@@ -1555,8 +1565,32 @@ write_report abs.json "{
 }"
 ABS="$OUTDIR/abs.md"
 run --report "$REPORTS/abs.json" --out "$ABS" >/dev/null 2>&1
-assert_contains "an absolute path is relativized" "$(cat "$ABS")" "| docs/page.md:7 |"
-assert_not_contains "the repo root does not survive into Location" "$(cat "$ABS")" "$REPO/docs"
+
+# The producer relativizes against two spellings of the root: git's toplevel, and
+# `cd`-then-`pwd` of it. `mktemp -d` here answers a THIRD, a mount alias git
+# never reports, so the finding path in this fixture matches neither anchor and
+# the row is declined as outside the root -- the producer working as designed on
+# a path it was never handed. Probe for that third spelling rather than skipping
+# on the OS name: where either anchor names the fixture, the case runs.
+provenance_root_spelling_reaches_an_anchor() {
+  local top alt
+  top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$top" ]] || return 1
+  [[ "$top" == "$REPO" ]] && return 0
+  alt="$(cd "$top" 2>/dev/null && pwd)" || return 1
+  [[ "$alt" == "$REPO" ]]
+}
+
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if provenance_root_spelling_reaches_an_anchor; then
+  assert_contains "an absolute path is relativized" "$(cat "$ABS")" "| docs/page.md:7 |"
+  assert_not_contains "the repo root does not survive into Location" "$(cat "$ABS")" "$REPO/docs"
+else
+  skip "an absolute path is relativized" \
+    'the fixture root has a third spelling git never reports, so no anchor names it'
+  skip "the repo root does not survive into Location" \
+    'the fixture root has a third spelling git never reports, so no anchor names it'
+fi
 
 # --- Write failures --------------------------------------------------------------
 #
@@ -1574,11 +1608,13 @@ assert_not_contains "a failed write never claims it wrote" "$OUT" "wrote"
 UNWRITABLE="$TEST_TMPDIR/unwritable"
 mkdir -p "$UNWRITABLE"
 chmod a-w "$UNWRITABLE"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if [[ ! -w "$UNWRITABLE" ]]; then
   assert_fails "an unwritable destination exits non-zero" \
     bash "$EMIT" --report "$REPORTS/full.json" --out "$UNWRITABLE/x.md"
 else
-  pass "an unwritable destination exits non-zero (SKIP: this user ignores mode bits)"
+  skip "an unwritable destination exits non-zero" \
+    'this user ignores mode bits, so the destination stays writable'
 fi
 chmod u+w "$UNWRITABLE"
 
@@ -1591,5 +1627,5 @@ run --report "$REPORTS/full.json" --out "$D2" >/dev/null 2>&1
 assert_eq "repeat runs differ only in their date line" \
   "$(diff <(grep -v '^date:' "$D1") <(grep -v '^date:' "$D2") >/dev/null && echo same)" "same"
 
-printf '\nPassed: %s  Failed: %s\n' "$((CASE_NUM - FAILED))" "$FAILED"
+printf '\nPassed: %s  Failed: %s  Host skips: %s\n' "$((CASE_NUM - FAILED))" "$FAILED" "$SKIPPED"
 [[ "$FAILED" -eq 0 ]]

@@ -39,6 +39,19 @@ All notable changes to the `implementation` plugin are documented here. Format f
   session refuses a git-bearing compound command, which blocked these skills from loading inside a
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were. The pre-flight branch check names the gathered branch.
+## [0.16.1]
+
+### Changed
+
+- **`implement` Step 4 item 2's absent-`session-flow` fallback now carries the engine-shaped
+  rails prompt.** The fallback described the note's sections and stopped, so it wrote a file and
+  printed nothing a fresh session could paste. It now ends with the copy region in exactly the
+  engine's shape: the copy-instruction line, the U+2500 rails, the `Read @` directive,
+  `Prior session:`, `Handoff origin:`, and `Next:` with its one to five headline lines (or
+  `Next: none (closed)` alone, for a closing handoff). The `Next:` block is not optional: the
+  engine's rails check requires it, so a fallback prompt without it fails validation. The
+  present-plugin sentence gains that the note is never written free-hand. Ritual item order
+  (1 to 5) is unchanged.
 
 ## [0.16.0]
 

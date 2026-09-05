@@ -444,7 +444,6 @@ else
   fail "stub/write-ext-deny: emitted a systemMessage without mutating anything"
 fi
 
-
 # --- Write opt-in + lockfile basename: report-only even for *.json (#2650 P2) -
 printf 'this has teh typo\n' >"$STUB_REPO/package-lock.json" # spellchecker:disable-line
 BEFORE_LOCK="$(cat "$STUB_REPO/package-lock.json")"
@@ -1711,6 +1710,181 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   fi
 else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
+fi
+
+# --- Benign path spawns no process it does not need (traced) -----------------
+# This hook fires on every Write, Edit and NotebookEdit, so the process count on
+# the path where the file is clean IS the cost. Five assertions guard it: that
+# the tracer marked any line at all, a set of commands that must not appear
+# anywhere in the run, an exact jq count, a CEILING on how many external
+# processes the hook's OWN code spawns, and an allowlist naming which ones they
+# may be.
+#
+# A total over the whole run would not be portable, because the shared path
+# resolver makes a different number of realpath and cygpath calls on Windows
+# than on Linux. A total over the hook's own code IS portable, and the trace
+# separates the two: the run is traced with a PS4 carrying ${FUNCNAME[0]}, and a
+# command substitution's subshell inherits FUNCNAME, so a `$(realpath ...)`
+# inside a shared library function is attributed to that function rather than to
+# its caller. Every function in hooks/hook-utils.sh is in the `hook::` namespace
+# and nothing in this plugin's own script is, so "the frame is not hook::" is
+# exactly "this hook's own code". Every host-dependent process lands on the
+# other side of that line.
+#
+# The ceiling is an upper bound rather than an equality so a later cut does not
+# fail it; the allowlist is what catches a swap that keeps the count.
+#
+# dirname and basename are parameter expansions. The jq count is 1: the shared
+# payload validation in hook::buffer_stdin. The notebook-normalizing filter runs
+# only for a payload carrying a notebook_path, and hook::read_file_path proves
+# the path with its builtin fast reader on a single-chunk payload, so neither
+# spends a process here.
+#
+# PS4 cannot reach the traced shell through the environment: bash rebinds PS4 to
+# its default "+ " at startup and ignores an inherited value, so an exported one
+# leaves every trace line unmarked and every assertion below matches an empty
+# word list: four of them then pass on no evidence and the fifth reports zero.
+# A BASH_ENV preload is read BY that shell before the hook, so the assignment
+# happens inside it. The instrument-live assertion is what keeps that arrangement
+# honest: a tracer marking no line fails loudly instead of vacuously passing.
+#
+# CLAUDE_PROJECT_DIR is SET here, unlike the cases above, because Claude Code
+# always sets it and with it unset the shared path resolver takes a git-
+# membership branch that spawns a dirname of its own. The telemetry sink is
+# cleared so an inherited one does not make the envelope the thing being counted.
+trace_words() {
+  awk -v scope="$2" '
+    /^\++@/ {
+      line = $0
+      sub(/^\++@/, "", line)
+      fn = line
+      sub(/@.*/, "", fn)
+      rest = line
+      sub(/^[^@]*@ ?/, "", rest)
+      while (rest ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "", rest) }
+      split(rest, a, " ")
+      if (a[1] == "") next
+      if (scope == "own" && fn ~ /^hook::/) next
+      print a[1]
+    }' "$1"
+}
+
+# The command words the hook's own frames run as EXTERNAL processes, reported by
+# basename so a tool reached through an absolute path counts as itself. A word
+# invoked through a path is external by construction; otherwise `type -t`
+# decides, which rejects every builtin and keyword along with this plugin's own
+# shell functions, since those are not defined in this test's shell.
+own_externals() {
+  trace_words "$1" own | while read -r w; do
+    if [[ "$w" == */* || "$(type -t "$w" 2>/dev/null)" == file ]]; then
+      printf '%s\n' "${w##*/}"
+    fi
+  done | sort
+}
+
+trace_execs() {
+  trace_words "$2" all |
+    awk -v c="$1" '{ w = $0; sub(/.*\//, "", w); if (w == c) n++ } END { print n + 0 }'
+}
+
+# The fixture is a clean Markdown file, the payload the README's accounting
+# section measures. This hook has no extension gate, by design, so `.md` and any
+# other extension take the same path; `.md` is used here because it is the file
+# class the three per-Write formatter hooks share.
+REPO_TRACE="$WORK/trace-consumer"
+new_typos_repo "$REPO_TRACE"
+printf '# sample\n\nthis is a clean document\n' >"$REPO_TRACE/clean.md"
+TRACE="$WORK/benign-trace.txt"
+PS4_PRELOAD="$WORK/ps4-preload.sh"
+# The quoted heredoc keeps ${FUNCNAME[0]} literal: it is the traced shell that
+# expands it, once per trace line.
+cat >"$PS4_PRELOAD" <<'PS4EOF'
+PS4='+@${FUNCNAME[0]:-MAIN}@ '
+PS4EOF
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_TRACE/clean.md" |
+    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO_TRACE" \
+      CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+      PATH="$(dirname "$REAL_TYPOS"):$PATH" \
+      BASH_ENV="$PS4_PRELOAD" \
+      bash -x "$HOOK" >/dev/null 2>"$TRACE"
+)
+# Same anchor trace_words consumes, so this counts exactly the lines the four
+# assertions below can see.
+MARKED="$(grep -cE '^\++@' "$TRACE")"
+if [[ "$MARKED" -gt 0 ]]; then
+  ok "traced benign: PS4 instrument live ($MARKED marked trace line(s))"
+else
+  fail "traced benign: PS4 instrument marked 0 trace lines; the spawn assertions below would pass on no evidence"
+fi
+for banned in dirname basename; do
+  N="$(trace_execs "$banned" "$TRACE")"
+  if [[ "$N" == "0" ]]; then
+    ok "traced benign: no $banned spawned"
+  else
+    fail "traced benign: $banned spawned $N time(s) on a clean file"
+  fi
+done
+N_JQ="$(trace_execs jq "$TRACE")"
+if [[ "$N_JQ" == "1" ]]; then
+  ok "traced benign: exactly 1 jq (the shared payload validation)"
+else
+  fail "traced benign: jq spawned $N_JQ time(s), expected 1"
+fi
+
+# One external, the typos binary, which is the point of the hook. The two
+# cygpath calls that build its repository-relative argument are inside
+# hook::repo_relative_path, which is shared library code.
+OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
+OWN_LIST="${OWN_LIST% }"
+OWN_N="$(own_externals "$TRACE" | grep -c .)"
+if [[ "$OWN_N" -le 1 ]]; then
+  ok "traced benign: the hook's own code spawns $OWN_N external(s), ceiling 1 [$OWN_LIST]"
+else
+  fail "traced benign: the hook's own code spawns $OWN_N externals, ceiling 1 [$OWN_LIST]"
+fi
+UNEXPECTED=""
+for w in $OWN_LIST; do
+  case "$w" in
+  typos | typos.exe) ;;
+  *) UNEXPECTED="$UNEXPECTED $w" ;;
+  esac
+done
+if [[ -z "$UNEXPECTED" ]]; then
+  ok "traced benign: every external the hook's own code spawns is allowlisted (typos)"
+else
+  fail "traced benign: the hook's own code spawns unallowlisted external(s):$UNEXPECTED"
+fi
+
+# --- Root-level file: FILE_DIR is `/`, never `.` (white-box) ------------------
+# A file directly under the filesystem root (`/README.md`) cannot be created
+# without privileges on any CI host, and hook::read_file_path's `-f` test runs
+# before FILE_DIR is computed, so no black-box input reaches that block. The
+# hook's own FILE_DIR lines are lifted from its source and run here instead.
+# The parameter-expansion strip leaves an empty string for such a path, and
+# hook::repo_root reads an empty hint as `.`, the hook process CWD, where the
+# `dirname` it replaced answered `/`. An empty extraction fails loudly so a
+# refactor that moves the block cannot pass by testing nothing.
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") == 1 { p = 1 } /^REPO_ROOT=/ { p = 0 } p' "$HOOK")"
+if [[ -z "$FILE_DIR_LINES" ]]; then
+  fail "root-level: FILE_DIR block not found in $(basename "$HOOK")"
+else
+  for pair in "/README.md=/" "README.md=." "/a/b.md=/a" "/a/b/c.md=/a/b"; do
+    IN="${pair%%=*}"
+    WANT="${pair#*=}"
+    # shellcheck disable=SC2034,SC2154  # the eval'd hook lines read FILE and assign FILE_DIR
+    GOT="$(
+      FILE="$IN"
+      eval "$FILE_DIR_LINES"
+      printf '%s' "$FILE_DIR"
+    )"
+    if [[ "$GOT" == "$WANT" ]]; then
+      ok "root-level: FILE_DIR of $IN is $GOT"
+    else
+      fail "root-level: FILE_DIR of $IN is '$GOT', want '$WANT'"
+    fi
+  done
 fi
 
 echo

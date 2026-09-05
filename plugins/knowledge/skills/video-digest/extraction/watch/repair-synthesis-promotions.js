@@ -128,15 +128,18 @@ function repairDestName(row, oldDest, reserved, renamePairs) {
 }
 
 /**
- * @param {string} absSlice
+ * @param {object} doc
+ * @returns {{ destName: string, sourceFile: string, gapNote?: string, session?: string }[]}
+ */
+function promotedDecisions(doc) {
+  return doc.decisions.filter((/** @type {{ verdict: string }} */ d) => d.verdict === "promote");
+}
+
+/**
  * @param {string} synthesisDir
  * @param {[string, string][]} renamePairs
- * @param {object} doc
  */
-function applyFileRenames(absSlice, synthesisDir, renamePairs, doc) {
-  const decisionsPath = lanePath(absSlice, LANES.keyFrames, "promotion-decisions.json");
-  fs.writeFileSync(decisionsPath, `${JSON.stringify(doc, null, 2)}\n`, "utf8");
-
+function applyFileRenames(synthesisDir, renamePairs) {
   for (const [oldName, newName] of renamePairs) {
     const oldPath = path.join(synthesisDir, oldName);
     const newPath = path.join(synthesisDir, newName);
@@ -151,11 +154,7 @@ function applyFileRenames(absSlice, synthesisDir, renamePairs, doc) {
  * @param {object} doc
  */
 function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
-  const promotedNames = new Set(
-    doc.decisions
-      .filter((/** @type {{ verdict: string }} */ d) => d.verdict === "promote")
-      .map((/** @type {{ destName: string }} */ d) => normalizeDestName(d.destName)),
-  );
+  const promotedNames = new Set(promotedDecisions(doc).map((d) => normalizeDestName(d.destName)));
 
   for (const name of fs.readdirSync(synthesisDir)) {
     if (!name.endsWith(".png")) {
@@ -172,9 +171,7 @@ function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
  * @param {object} doc
  */
 function writePromotionArtifacts(absSlice, doc) {
-  const promotes = doc.decisions.filter(
-    (/** @type {{ verdict: string }} */ d) => d.verdict === "promote",
-  );
+  const promotes = promotedDecisions(doc);
 
   /** @type {Record<string, { sourceFile: string, gapNote?: string, session?: string }>} */
   const promotionMap = {};
@@ -199,7 +196,7 @@ function writePromotionArtifacts(absSlice, doc) {
   const auditDoc = {
     reviewedAt: new Date().toISOString(),
     model: "repair-synthesis-promotions",
-    files: promotes.map((/** @type {{ destName: string, gapNote?: string }} */ row) => ({
+    files: promotes.map((row) => ({
       name: normalizeDestName(row.destName),
       pass: true,
       note: (row.gapNote ?? "vision-gated promotion").slice(0, 120),
@@ -278,7 +275,8 @@ export function repairSynthesisPromotions(sliceDir, { dryRun = false } = {}) {
   );
 
   if (!dryRun) {
-    applyFileRenames(absSlice, synthesisDir, renamePairs, doc);
+    fs.writeFileSync(decisionsPath, `${JSON.stringify(doc, null, 2)}\n`, "utf8");
+    applyFileRenames(synthesisDir, renamePairs);
     pruneUnpromotedSynthesisFiles(synthesisDir, doc);
     writePromotionArtifacts(absSlice, doc);
   }
@@ -291,11 +289,11 @@ const dryRun = process.argv.includes("--dry-run");
 
 if (isMainModule(import.meta.url)) {
   if (!sliceDir) {
-    writeStderr("Usage: node watch/repair-synthesis-promotions.js <slice-dir> [--dry-run]\n");
+    writeStderr("Usage: node watch/repair-synthesis-promotions.js <slice-dir> [--dry-run]");
     process.exit(2);
   }
   const result = repairSynthesisPromotions(sliceDir, { dryRun });
   writeStdout(
-    `${dryRun ? "DRY RUN" : "Applied"}: renamed=${result.renamed} rejected=${result.rejected} sessionsFixed=${result.sessionsFixed}\n`,
+    `${dryRun ? "DRY RUN" : "Applied"}: renamed=${result.renamed} rejected=${result.rejected} sessionsFixed=${result.sessionsFixed}`,
   );
 }

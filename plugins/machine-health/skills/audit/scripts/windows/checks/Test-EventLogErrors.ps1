@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Event Log critical errors + BSODs. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#3-event-log-critical-errors--bsods for rubric.
+See reference/windows/check-catalog.md#3-event-log-critical-errors--bsods for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
@@ -48,12 +48,12 @@ try {
 
     $events = @()
     try {
-        # Filter the 7-day window AND severity inside the query. A MaxEvents 500
-        # cap read the newest 500 records of ALL levels first, so on a busy host
-        # Error/Critical events older than the 500th-newest record fell outside
-        # the window silently. Numeric Level (1=Critical, 2=Error) is locale-
-        # independent; LevelDisplayName ('Error'/'Critical') is translated on
-        # non-English Windows and would match nothing there.
+        # Filter the 7-day window AND severity inside the query. A MaxEvents
+        # cap reads the newest records of ALL levels first, so on a busy host
+        # Error/Critical events older than the cap's newest records fall
+        # outside the window silently. Numeric Level (1=Critical, 2=Error) is
+        # locale-independent; LevelDisplayName ('Error'/'Critical') is
+        # translated on non-English Windows and would match nothing there.
         $events = @(Get-WinEvent -FilterHashtable @{
                 LogName   = 'System'
                 Level     = 1, 2

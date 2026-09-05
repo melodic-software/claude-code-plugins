@@ -224,8 +224,7 @@ assert_contains "a clean run still reports its summary" "$OUT" "lint summary fin
 # dead -- backslashes are ordinary in shell rules, so every escape became a
 # severity-error finding and the one true finding drowned).
 WINSHAPE=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings allow Bash(echo \n *)
 rule user settings allow Bash(sed 's/\./_/g' *)
@@ -236,11 +235,13 @@ EOF
 OUT=$(lint "$WINSHAPE")
 assert_eq "a backslash escape in a shell rule is not a Windows path" 0 "$(count_matching "$OUT" '\[C6-winPath\]')"
 
+# A quoted heredoc, not printf: a printf FORMAT string interprets backslash
+# escapes, which turned this rule's \a into a BEL byte and warned on stderr.
 WINREAL=$(
-  printf '%s
-' "$SURFACES"
-  printf 'rule user settings allow Read(C:\Users\alice\**)
-'
+  printf '%s\n' "$SURFACES"
+  cat <<'EOF'
+rule user settings allow Read(C:\Temp\alice\**)
+EOF
 )
 OUT=$(lint "$WINREAL")
 assert_eq "a drive-letter path still fires" 1 "$(count_matching "$OUT" '\[C6-winPath\]')"
@@ -265,8 +266,7 @@ assert_contains "and is named as UNC rather than given drive-letter advice" "$OU
 # mid-value there is documented and working. Firing on it called a working rule
 # broken. The documented mechanic names Bash prefix patterns specifically.
 COLON_PARAM=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings allow WebFetch(domain:*.example.com)
 rule user settings allow Bash(git:* push)
@@ -291,8 +291,7 @@ assert_not_contains "a documented domain wildcard is not called broken" "$OUT" "
 # is one scalar, so a parameter value never carries space-separated trailing
 # words; a dead command prefix is precisely a prefix followed by more words.
 DEAD_PREFIX=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings deny Bash(git:* push)
 rule user settings deny Bash(npm:* run build)
@@ -309,8 +308,7 @@ assert_contains "and an ask on PowerShell" "$OUT" "PowerShell(Get:* -Force)"
 # The parameter forms stay exempt in the same kinds -- the space predicate must
 # not undo the grammar exemption it refines.
 PARAM_KINDS=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings deny Agent(model:*-haiku)
 rule user settings ask Agent(isolation:*)
@@ -328,10 +326,8 @@ assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C
 # PREFIX, which Agent does not take. The rule is dead either way; only one of
 # the two findings says why.
 DOUBLE=$(
-  printf '%s
-' "$SURFACES"
-  printf 'rule user settings allow Agent(model:*-haiku)
-'
+  printf '%s\n' "$SURFACES"
+  printf 'rule user settings allow Agent(model:*-haiku)\n'
 )
 OUT=$(lint "$DOUBLE")
 assert_eq "the parameter-form allow draws exactly one finding" 1 "$(count_matching "$OUT" '^finding ')"
@@ -341,10 +337,8 @@ assert_not_contains "not a command-prefix explanation for a tool with no command
 # Suppression is scoped to the parameter shape: a real dead command prefix in an
 # allow rule still fires colonStar.
 NOT_SUPPRESSED=$(
-  printf '%s
-' "$SURFACES"
-  printf 'rule user settings allow Bash(git:* push)
-'
+  printf '%s\n' "$SURFACES"
+  printf 'rule user settings allow Bash(git:* push)\n'
 )
 OUT=$(lint "$NOT_SUPPRESSED")
 assert_contains "an allow-rule command prefix still fires colonStar" "$OUT" "[C6-colonStar]"
@@ -368,8 +362,7 @@ assert_not_contains "documented parameter forms stay silent" "$OUT" "[C6-colonSt
 # allow rules continue to use each tool own specifier syntax." An operator who
 # writes one believes they narrowed a grant and did not.
 ALLOW_PARAM=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings allow Agent(model:opus)
 rule user settings allow Bash(run_in_background:true)
@@ -387,8 +380,7 @@ assert_contains "the finding cites the deny/ask restriction" "$OUT" "documented 
 # `WebFetch(domain:host)` is documented as the WebFetch form and `Bash(npm:*)`
 # is a command prefix, so neither is distinguishable from a parameter by shape.
 PARAM_CLEAN=$(
-  printf '%s
-' "$SURFACES"
+  printf '%s\n' "$SURFACES"
   cat <<'EOF'
 rule user settings allow WebFetch(domain:example.com)
 rule user settings allow Bash(npm:*)
@@ -413,7 +405,13 @@ if command -v jq >/dev/null 2>&1; then
   # exactly the point: the reader decodes them, and the check has to match what
   # the reader emits rather than the source spelling.
   jq -n '{permissions:{allow:["Read(C:\\Users\\alice\\**)","Read(//c/**/.env)"]}}' >"$WPFX/home/.claude/settings.json"
-  E2E_WP=$(env -u CLAUDE_CONFIG_DIR HOME="$WPFX/home"     PERMISSION_STATE_FIXTURE_DIR="$WPFX/proj"     PERMISSION_STATE_STARTDIR="$WPFX/sd"     PERMISSION_STATE_MANAGED_PATH="$WPFX/pol/managed-settings.json"     PERMISSION_STATE_REGISTRY_KEYS=""     PERMISSION_STATE_PLIST_DOMAIN=""     bash "$STATE_SCRIPT" | bash "$SCRIPT")
+  E2E_WP=$(env -u CLAUDE_CONFIG_DIR HOME="$WPFX/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$WPFX/proj" \
+    PERMISSION_STATE_STARTDIR="$WPFX/sd" \
+    PERMISSION_STATE_MANAGED_PATH="$WPFX/pol/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$STATE_SCRIPT" | bash "$SCRIPT")
   assert_eq "the Windows path is caught through the real reader" 1 "$(count_matching "$E2E_WP" '\[C6-winPath\]')"
   assert_contains "and it is the backslash rule, not the POSIX one" "$E2E_WP" "Read(C:\Users\alice"
 else

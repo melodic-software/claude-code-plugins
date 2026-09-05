@@ -281,23 +281,31 @@ for (const [name, tokens] of Object.entries(table)) lines.push(`| ${name} | ${to
 process.stdout.write(lines.join('\n') + '\n');
 EOF
 case "$(uname -s)" in
-  MINGW* | MSYS* | CYGWIN* | Windows_NT*)
-    FAKE="$FAKEDIR/fake-claude.cmd"
-    printf '@node "%%~dp0fake-claude.js" %%*\r\n' >"$FAKE"
-    ;;
-  *)
-    FAKE="$FAKEDIR/fake-claude"
-    printf '#!/usr/bin/env node\n' >"$FAKE"
-    cat "$FAKEDIR/fake-claude.js" >>"$FAKE"
-    chmod +x "$FAKE"
-    ;;
+MINGW* | MSYS* | CYGWIN* | Windows_NT*)
+  FAKE="$FAKEDIR/fake-claude.cmd"
+  printf '@node "%%~dp0fake-claude.js" %%*\r\n' >"$FAKE"
+  ;;
+*)
+  FAKE="$FAKEDIR/fake-claude"
+  printf '#!/usr/bin/env node\n' >"$FAKE"
+  cat "$FAKEDIR/fake-claude.js" >>"$FAKE"
+  chmod +x "$FAKE"
+  ;;
 esac
+
+# attr <fake-mode> <out-file> <attribute-args...> — one hermetic attribute run
+# against the fake binary, from $WORK so the engine stays in cli-parse mode.
+attr() {
+  local mode="$1" out="$2"
+  shift 2
+  (cd "$WORK" && FAKE_MODE="$mode" node "$ENGINE" attribute "$@" --binary "$FAKE" --out "$out" >/dev/null)
+}
 
 # The bug (#3197): the combined deny empties the deferred bucket out of the
 # snapshot, its delta is null, and the verifier must publish the record as
 # incomparable with a null combinedSaved — never a coerced 0.
 avanish="$WORK/attr-vanish.json"
-if (cd "$WORK" && FAKE_MODE=vanish node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$avanish" >/dev/null); then
+if attr vanish "$avanish" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$avanish" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1400" \
     "per-tool rows with both buckets present still measure" "AlphaTool row wrong"
   assert_eq "$(jsonget "$avanish" 'j.additivity.sumOfParts')" "2100" \
@@ -319,7 +327,7 @@ fi
 
 # Control: all buckets present in every run — the verdict must be untouched.
 actl="$WORK/attr-control.json"
-if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$actl" >/dev/null); then
+if attr control "$actl" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$actl" 'j.additivity.combinedSaved')" "2100" \
     "normal additivity case still measures the combined saving" "control combinedSaved wrong"
   assert_eq "$(jsonget "$actl" 'j.additivity.additive')" "true" \
@@ -343,7 +351,7 @@ fi
 # A product interactive-only name that WAS a candidate this run is not
 # repeated as known-uncovered — it is measured (or unmeasured-but-candidate).
 aart="$WORK/attr-artifact-candidate.json"
-if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools Artifact --binary "$FAKE" --out "$aart" >/dev/null); then
+if attr control "$aart" --tools Artifact; then
   assert_eq "$(jsonget "$aart" 'j.knownUncovered.tools.includes("Artifact")')" "false" \
     "a candidate Artifact is not also listed as known-uncovered" "Artifact listed as both candidate and known-uncovered"
   assert_eq "$(jsonget "$aart" 'j.perTool.some((t)=>t.tool==="Artifact")')" "true" \
@@ -354,7 +362,7 @@ fi
 
 # A single deny that empties a bucket poisons that per-tool row the same way.
 agamma="$WORK/attr-gamma.json"
-if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools AlphaTool,GammaTool --verify-additivity --binary "$FAKE" --out "$agamma" >/dev/null); then
+if attr control "$agamma" --tools AlphaTool,GammaTool --verify-additivity; then
   assert_eq "$(jsonget "$agamma" 'j.perTool.find((t)=>t.tool==="GammaTool").savedTokens')" "null" \
     "per-tool row with a vanished bucket reports savedTokens null" "per-tool savedTokens fabricated from a null delta"
   assert_eq "$(jsonget "$agamma" 'j.perTool.find((t)=>t.tool==="GammaTool").comparable')" "false" \
@@ -368,7 +376,7 @@ fi
 # A bucket absent from BOTH runs is outside the binary's category vocabulary —
 # a non-event, not a missing measurement.
 anv="$WORK/attr-novocab.json"
-if (cd "$WORK" && FAKE_MODE=novocab node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$anv" >/dev/null); then
+if attr novocab "$anv" --tools AlphaTool,BetaTool --verify-additivity; then
   assert_eq "$(jsonget "$anv" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1000" \
     "bucket absent from both runs still measures the present bucket" "vocabulary-absent bucket broke the per-tool row"
   assert_eq "$(jsonget "$anv" 'j.perTool.find((t)=>t.tool==="AlphaTool").comparable')" "true" \

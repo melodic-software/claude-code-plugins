@@ -27,7 +27,7 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   return { ...actual, acquireMedia: vi.fn() };
 });
 
-const URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
+const VIDEO_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
 const METADATA = {
   id: "7zZy1QTvokM",
   title: "Fixture Video",
@@ -71,6 +71,19 @@ function sliceDir() {
   return path.join(workRoot, ".work", "youtube-watch", "fixture-video-7zZy1QTvokM");
 }
 
+/**
+ * Stage a successful acquisition of `entries` for the next CLI run.
+ *
+ * @param {object[]} entries
+ * @param {object} [metadata]
+ */
+function mockAcquiredEnvelope(entries, metadata = METADATA) {
+  vi.mocked(acquireMedia).mockResolvedValue({
+    success: true,
+    data: createAcquisitionEnvelope({ entries, metadata, workDir: fixtureDir }),
+  });
+}
+
 describe("runTranscriptCli envelope consumption", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-envelope-root-"));
@@ -89,16 +102,9 @@ describe("runTranscriptCli envelope consumption", () => {
 
   it("consumes a 1-entry envelope with the historical single-transcript layout", async () => {
     const vttPath = await writeVtt("7zZy1QTvokM.en.vtt");
-    vi.mocked(acquireMedia).mockResolvedValue({
-      success: true,
-      data: createAcquisitionEnvelope({
-        entries: [captionEntry(vttPath)],
-        metadata: METADATA,
-        workDir: fixtureDir,
-      }),
-    });
+    mockAcquiredEnvelope([captionEntry(vttPath)]);
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
@@ -117,21 +123,17 @@ describe("runTranscriptCli envelope consumption", () => {
 
   it("caption-absent X entry exits 0 with the named transcriptDegradation provenance field", async () => {
     const xUrl = "https://x.com/someone/status/1001551623938805763";
-    vi.mocked(acquireMedia).mockResolvedValue({
-      success: true,
-      data: createAcquisitionEnvelope({
-        entries: [
-          {
-            mediaPath: "",
-            captionPaths: [],
-            metadataPath: path.join(fixtureDir, "info.json"),
-            caption: null,
-          },
-        ],
-        metadata: { id: "1001551417340022785", title: "Fixture Post", description: "" },
-        workDir: fixtureDir,
-      }),
-    });
+    mockAcquiredEnvelope(
+      [
+        {
+          mediaPath: "",
+          captionPaths: [],
+          metadataPath: path.join(fixtureDir, "info.json"),
+          caption: null,
+        },
+      ],
+      { id: "1001551417340022785", title: "Fixture Post", description: "" },
+    );
 
     const code = await runTranscriptCli(["node", "run-transcript.js", xUrl]);
     expect(code).toBe(0);
@@ -146,7 +148,7 @@ describe("runTranscriptCli envelope consumption", () => {
     const code = await runTranscriptCli([
       "node",
       "run-transcript.js",
-      URL,
+      VIDEO_URL,
       "--transcript-strategy",
       "telepathy",
     ]);
@@ -155,12 +157,9 @@ describe("runTranscriptCli envelope consumption", () => {
   });
 
   it("consumes a 0-entry envelope as a well-formed metadata-only slice", async () => {
-    vi.mocked(acquireMedia).mockResolvedValue({
-      success: true,
-      data: createAcquisitionEnvelope({ entries: [], metadata: METADATA, workDir: fixtureDir }),
-    });
+    mockAcquiredEnvelope([]);
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
@@ -185,16 +184,9 @@ describe("runTranscriptCli envelope consumption", () => {
       ...captionEntry(second),
       mediaPath: path.join(fixtureDir, "second.mp4"),
     };
-    vi.mocked(acquireMedia).mockResolvedValue({
-      success: true,
-      data: createAcquisitionEnvelope({
-        entries: [captionEntry(first), primaryWithMedia, captionEntry(third)],
-        metadata: METADATA,
-        workDir: fixtureDir,
-      }),
-    });
+    mockAcquiredEnvelope([captionEntry(first), primaryWithMedia, captionEntry(third)]);
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));

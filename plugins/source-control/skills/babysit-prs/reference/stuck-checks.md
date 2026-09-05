@@ -59,12 +59,12 @@ scheduled — they are **absent**, not queued, not pending, not failing. Nothing
 reports them, because a check that was never created has no record to classify.
 
 What makes this actively misleading is that `pull_request_target` workflows run against the base
-commit and are therefore unaffected, as are external apps posting commit statuses. A conflicted PR
-in this repository still runs its `pull_request_target` lanes — `do-not-merge` and
-`pr-issue-linkage` — while `ci.yml`, which carries the great majority of the gates, does not
-schedule at all. The result is a short all-green check list with no failures anywhere: a PR that
-reads as "passing" or "not started yet" while nearly every gate is simply missing. Resolving the
-conflict makes the absent lanes appear and the count jumps by an order of magnitude.
+commit and are therefore unaffected, as are external apps posting commit statuses and any
+`schedule` or `push` lane. A conflicted PR in a repository that splits its lanes that way still
+runs the base-anchored ones while the `pull_request` workflow carrying the great majority of the
+gates does not schedule at all. The result is a short all-green check list with no failures
+anywhere: a PR that reads as "passing" or "not started yet" while nearly every gate is simply
+missing. Resolving the conflict makes the absent lanes appear and the count jumps.
 
 So read `mergeStateStatus` BEFORE reasoning about a check list that looks too short. `DIRTY`
 explains the absence completely, and the remedy is to merge the base branch or rebase, not to

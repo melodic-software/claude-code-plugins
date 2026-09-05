@@ -19,9 +19,13 @@
 #                                          (model, context, both windows).
 #
 # Tee contract (../reference/reader-contract.md is the authoritative reader
-# side): every refresh writes ~/.claude/rate-limit-guard/rate-limits.json —
-# one JSON object with captured_at (ISO-8601 UTC) plus, when present on
-# stdin, rate_limits and every session-distinguishing top-level field
+# side): the snapshot is ~/.claude/rate-limit-guard/rate-limits.json, written
+# by one elected refresh per drain cadence, and left untouched by a refresh
+# whose body has not changed since the last real write, for at most the
+# no-change floor (RLG_TEE_NOCHANGE_FLOOR, 300 s by default, half the reader
+# contract's staleness budget). A changed payload is written on the next
+# drain. The file holds one JSON object with captured_at (ISO-8601 UTC) plus,
+# when present on stdin, rate_limits and every session-distinguishing top-level field
 # (session_id, session_name, and any key whose name contains "account", so a
 # future account-identifier field is adopted automatically only when it
 # arrives under a top-level key of that shape; every other shape needs a
@@ -65,8 +69,9 @@
 # once per open session. The snapshot therefore runs in a DETACHED subshell and
 # the wrapper returns as soon as the wrapped command does.
 #
-# This skips no work: every refresh still takes the lock and writes a snapshot,
-# just without the render waiting on it. Detachment is threefold and each part is
+# Detaching skips no work of its own: a refresh still takes the lock and writes
+# a snapshot unless the bounded no-change skip in tee_snapshot applies, just
+# without the render waiting on it. Detachment is threefold and each part is
 # load-bearing: stdout and stderr go to /dev/null, or the background child would
 # hold the statusline pipe open and Claude Code would keep waiting for EOF long
 # after the render finished — cancelling out the entire point; stdin is closed so
@@ -240,6 +245,92 @@ acquire_tee_lock() {
   return 1
 }
 
+# Epoch seconds into _RLG_NOW with the printf builtin, or return 1 below bash
+# 4.2, where %(%s)T does not exist. A global rather than a printed value: every
+# caller is on a path whose whole point is to spend no process, and a command
+# substitution around this would fork one.
+#
+# Returning 1 rather than falling back to `date` is deliberate. The only callers
+# are the no-change skip and its stamp, both of which are pure optimizations; on
+# a shell that cannot answer for free the right answer is to skip the skip and
+# write.
+_RLG_NOW=""
+_rlg_set_now() {
+  _RLG_NOW=""
+  _rlg_bash_at_least 4 2 || return 1
+  printf -v _RLG_NOW '%(%s)T' -1 2>/dev/null || {
+    _RLG_NOW=""
+    return 1
+  }
+  return 0
+}
+
+# Read one of this writer's epoch-second stamp files into the NAMED variable, or
+# 0 when the file is absent, unreadable, empty, or holds anything that is not a
+# plain integer. Five call sites read a stamp exactly this way, and the
+# validation is the load-bearing half: bash evaluates the TEXT of an arithmetic
+# operand, so a stamp shaped like `a[$(cmd)]` would run cmd on every render.
+# Naming it once keeps all five spelled identically, the same reason
+# _rlg_bash_at_least exists. Builtins throughout, so no call site pays a
+# process — every one of them is on the render path.
+_rlg_read_stamp() {
+  local _var="$1" _val=0
+  if [[ -f "$2" ]]; then
+    IFS= read -r _val <"$2" || _val=0
+    [[ "$_val" =~ ^[0-9]+$ ]] || _val=0
+  fi
+  printf -v "$_var" '%s' "$_val"
+  return 0
+}
+
+# Strip the leading captured_at member from a snapshot body into _RLG_BODY_KEY,
+# leaving the part of the body that a refresh is allowed to leave unchanged.
+# Returns 1 when the text is not a body this writer produced, which makes every
+# unrecognized shape compare unequal and therefore write.
+#
+# captured_at is first by construction: _RLG_BODY_JQ builds the body as
+# `{captured_at: $ts} + (…)`, and jq's object addition emits the left operand's
+# keys first. The right operand can never carry a captured_at of its own, since
+# the projection selects only rate_limits, session_id, session_name and
+# account-shaped keys. An ISO-8601 timestamp contains no double quote, so
+# stripping to the next one lands exactly on the value's closing quote.
+#
+# Builtin parameter expansion throughout: this runs on the write path of every
+# drain, and a jq or a sed here would cost more than the rename it exists to
+# avoid.
+#
+# A trailing CR is stripped from BOTH operands first, so the compare is
+# insensitive to whether either side carries one. A native jq on Windows
+# terminates its output lines with CRLF; `read -r` in _rlg_absorb_jq_lines
+# splits on LF only, so the payload line keeps its CR, and printf carries it
+# into the file. What the read-back side then holds depends on the bash build:
+# MSYS bash drops a trailing CRLF from `$(<file)`, while a POSIX bash strips
+# trailing newlines only and keeps the CR. And the snapshot on disk may have
+# been written under a different jq than the one producing this payload. Any of
+# those leaves a CR on one side only, and the two sides would never compare
+# equal on the one platform this skip exists for. Normalizing the comparison
+# key, rather than the payload, keeps the bytes this writer emits exactly what
+# they were.
+_RLG_BODY_KEY=""
+_rlg_strip_captured_at() {
+  local body="${1%$'\r'}"
+  case "$body" in
+  '{"captured_at":"'*)
+    body="${body#\{\"captured_at\":\"}"
+    body="${body#*\"}" # the timestamp and its closing quote
+    body="${body#,}"   # the separator, absent when captured_at was the only key
+    _RLG_BODY_KEY="{$body"
+    return 0
+    ;;
+  *)
+    # Not a body this writer produced: torn, foreign, or written by a future
+    # projection. Returning 1 makes it compare unequal, so the refresh writes.
+    _RLG_BODY_KEY=""
+    return 1
+    ;;
+  esac
+}
+
 # Write one contract snapshot. Every failure path returns 0: the tee must
 # never propagate into the statusline pipeline.
 tee_snapshot() {
@@ -274,6 +365,57 @@ tee_snapshot() {
   # remain active would otherwise skip below on every refresh and never
   # reclaim the orphan a killed window-bearing session left behind.
   sweep_stale_tee_temps "$dir"
+
+  # NO-CHANGE SKIP. A refresh whose body is byte-identical to the snapshot
+  # already on disk, captured_at aside, has nothing to add, so it costs no lock,
+  # no temp file and no rename: three processes, roughly 130 ms on Windows, on a
+  # path that runs twice a minute per machine.
+  #
+  # BOUNDED, and the bound is the whole design. reference/reader-contract.md
+  # ("Staleness rule") makes a snapshot stale on captured_at older than ten
+  # minutes and says explicitly that the rule is written against that field and
+  # never against the file's mtime. An unbounded skip would therefore starve
+  # captured_at on a machine whose windows are genuinely fresh but unmoving (one
+  # idle session, refreshInterval still ticking) and silently demote the whole
+  # guard to reactive-only. The floor is half the staleness budget, so a skipped
+  # snapshot can never approach stale no matter how long the payload sits still.
+  #
+  # BEFORE the lock, not inside it, because a compare that ran under the lock
+  # would already have paid two of the three processes it exists to avoid. That
+  # is safe: the skip fires only when this write would be content-identical to
+  # what is already there, so a concurrent writer winning the rename produces
+  # the same last-writer-wins result as today, and a windowless payload can
+  # never compare equal to a window-bearing snapshot (the rate_limits key is
+  # part of the compared text), so the preservation check below still decides
+  # every case that matters.
+  #
+  # AFTER the sweep, for the reason the sweep is placed where it is: a refresh
+  # that skips its write must still reclaim an orphan left by a killed session.
+  #
+  # An absent stamp reads as 0, so the first refresh after this ships always
+  # writes; an unwritable or unparsable stamp costs a rename, never a stale
+  # snapshot.
+  #
+  # The floor is validated before it reaches the arithmetic, like every other
+  # operand here that arrives from a file or the environment. Bash evaluates the
+  # TEXT of an arithmetic operand, so an unvalidated value shaped like
+  # `a[$(cmd)]` would run cmd on every render; a value that is not a plain
+  # integer falls back to the default instead.
+  if [[ -f "$target" ]] && _rlg_set_now; then
+    local last_write=0 cur="" want="" floor="${RLG_TEE_NOCHANGE_FLOOR:-300}"
+    [[ "$floor" =~ ^[0-9]+$ ]] || floor=300
+    _rlg_read_stamp last_write "$dir/.last-write"
+    if ((_RLG_NOW - last_write < floor)); then
+      # Bash reads the file itself for `$(<file)`, without forking.
+      cur="$(<"$target")"
+      if _rlg_strip_captured_at "$payload"; then
+        want="$_RLG_BODY_KEY"
+        if _rlg_strip_captured_at "$cur" && [[ "$_RLG_BODY_KEY" == "$want" ]]; then
+          return 0
+        fi
+      fi
+    fi
+  fi
 
   # All writers take the lock around [check+]rename — serialization needs
   # both parties. On acquisition failure the windowless writer skips its
@@ -323,6 +465,14 @@ tee_snapshot() {
       # The temp path is the target now; clear it so the EXIT trap cannot
       # reclaim a name that no longer refers to this refresh's file.
       TEE_TMP=""
+      # Stamp the last REAL write, which is what bounds the no-change skip
+      # above. Written here rather than on entry so a skipped or failed refresh
+      # never extends the floor. Builtin redirection, no process, best effort:
+      # a stamp that cannot be written only means the next unchanged refresh
+      # pays a rename instead of skipping.
+      if _rlg_set_now; then
+        printf '%s\n' "$_RLG_NOW" >"$dir/.last-write" 2>/dev/null || true
+      fi
       release_tee_lock
       return 0
     fi
@@ -550,8 +700,9 @@ _rlg_tee_enabled() {
     return 0
   fi
   # User scope. _rlg_probe already read this file inside the one jq pass, so the
-  # normal path spends no process here. The unprobed fallback keeps a DIRECT
-  # call to this function (no main, hence no probe) behaving exactly as it did.
+  # normal path spends no process here. The unprobed fallback is what lets a
+  # DIRECT call to this function (no main, hence no probe) read the user scope
+  # for itself.
   if ((_RLG_USER_PROBED)); then
     if [[ -n "$_RLG_USER_VERDICT" ]]; then
       [[ "$_RLG_USER_VERDICT" == "false" ]] && return 1
@@ -763,10 +914,7 @@ _rlg_drain() {
   # Re-read the stamp UNDER the lock. Without this, every render that queued
   # behind the winner would drain again the moment the winner released.
   local last2=0
-  if [[ -f "$stamp" ]]; then
-    IFS= read -r last2 <"$stamp" || last2=0
-  fi
-  [[ "$last2" =~ ^[0-9]+$ ]] || last2=0
+  _rlg_read_stamp last2 "$stamp"
   if ((now - last2 < interval)); then
     release_drain_lock
     return 0
@@ -775,8 +923,27 @@ _rlg_drain() {
   # Records from sessions that are gone. The floor is 15 minutes — far past the
   # reader contract's 10-minute staleness budget, so nothing still usable is
   # ever swept, and far past any live session's refresh interval.
-  find "$spool" -maxdepth 1 -type f -name '*.json' \
-    -mmin +15 -exec rm -f {} + 2>/dev/null || true
+  #
+  # On its own cadence, not every drain. `find` is a process, the drain runs
+  # twice a minute by default, and draining every time would spend that process
+  # 29 times out of 30 to enforce a floor of fifteen minutes. Nothing this
+  # reclaims can become urgent inside the sweep window: a record it leaves for
+  # one more cycle is a dead session's, which no reader consumes and which the
+  # drain's own selection already loses to any live record. Same stamp idiom as
+  # .last-drain, and an absent stamp reads as 0 so a cold machine sweeps on its
+  # first drain.
+  local sweep_stamp="$spool/.last-sweep" last_sweep=0
+  _rlg_read_stamp last_sweep "$sweep_stamp"
+  # Validated before the arithmetic for the reason the no-change floor gives:
+  # bash evaluates operand text, and an environment value is not an integer
+  # until it has been checked.
+  local sweep_interval="${RLG_TEE_SWEEP_INTERVAL:-300}"
+  [[ "$sweep_interval" =~ ^[0-9]+$ ]] || sweep_interval=300
+  if ((now - last_sweep >= sweep_interval)); then
+    find "$spool" -maxdepth 1 -type f -name '*.json' \
+      -mmin +15 -exec rm -f {} + 2>/dev/null || true
+    printf '%s\n' "$now" >"$sweep_stamp" 2>/dev/null || true
+  fi
 
   local batch="" f line
   for f in "$spool"/*.json; do
@@ -852,7 +1019,8 @@ _rlg_drain() {
 _rlg_spool_dispatch() {
   [[ -n "${HOME:-}" ]] || return 0
   [[ -n "$INPUT" ]] || return 0
-  local dir="$HOME/.claude/rate-limit-guard" spool="$HOME/.claude/rate-limit-guard/spool"
+  local dir="$HOME/.claude/rate-limit-guard"
+  local spool="$dir/spool"
 
   # Cold start only, exactly as tee_snapshot guards its own directory. The
   # owner-only mode is asserted on the PARENT at creation; spool/ inherits its
@@ -871,11 +1039,14 @@ _rlg_spool_dispatch() {
   # Disabled: a drain wrote this marker after reading the real gate. Rechecking
   # costs a jq, so it happens on a cadence rather than per refresh; until then
   # this render does nothing at all.
-  local marker="$dir/.tee-disabled" m=0
+  local marker="$dir/.tee-disabled" m=0 recheck="${RLG_TEE_DISABLED_RECHECK:-300}"
+  # Validated before the arithmetic, like every stamp read here: bash
+  # evaluates operand text, and the regex test is a builtin, so the zero-fork
+  # claim below holds.
+  [[ "$recheck" =~ ^[0-9]+$ ]] || recheck=300
   if [[ -f "$marker" ]]; then
-    IFS= read -r m <"$marker" || m=0
-    [[ "$m" =~ ^[0-9]+$ ]] || m=0
-    ((now - m < ${RLG_TEE_DISABLED_RECHECK:-300})) && return 0
+    _rlg_read_stamp m "$marker"
+    ((now - m < recheck)) && return 0
   fi
 
   # JSON strings cannot contain a raw CR or LF, so stripping them cannot change
@@ -888,10 +1059,7 @@ _rlg_spool_dispatch() {
 
   local interval="${RLG_TEE_DRAIN_INTERVAL:-30}" stamp="$spool/.last-drain" last=0
   [[ "$interval" =~ ^[0-9]+$ ]] || interval=30
-  if [[ -f "$stamp" ]]; then
-    IFS= read -r last <"$stamp" || last=0
-  fi
-  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  _rlg_read_stamp last "$stamp"
   ((now - last >= interval)) || return 0
 
   local steal=0
@@ -954,7 +1122,7 @@ main() {
 }
 
 # Sourcing guard (the idiom already used by this repo's updater scripts): `main`
-# runs only on a direct invocation, so a direct run is byte-for-byte what it was,
+# runs only on a direct invocation, so a direct run is unaffected by the guard,
 # while the test suite can SOURCE this file to stub _rlg_managed_settings_files —
 # whose paths are fixed and root-owned by design, therefore unwritable from a
 # test — and then drive the real end-to-end path through `main`.

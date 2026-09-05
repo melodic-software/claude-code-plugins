@@ -6,7 +6,7 @@ Apply correlation rules to check results: pair related findings, upgrade
 severity where warranted, cross-link via notes. Cross-OS framework.
 
 .DESCRIPTION
-Rules defined in-code (here), documented in references/shared/correlation-rules.md.
+Rules defined in-code (here), documented in reference/shared/correlation-rules.md.
 Only upgrades severity; never downgrades. Nothing downgrades -- trend analysis
 upgrades too, so a severity this run raised stays raised for the run.
 
@@ -20,9 +20,9 @@ function Get-CorrelationRule {
 
     return @(
         [pscustomobject]@{
-            id = 'wu-reboot-retry-loop'
+            id          = 'wu-reboot-retry-loop'
             Description = 'Windows Update reboot pending + WUClient/20 install failures'
-            Apply = {
+            Apply       = {
                 param($Checks)
                 $wu = $Checks | Where-Object id -EQ 'windows-update' | Select-Object -First 1
                 $ev = $Checks | Where-Object id -EQ 'event-log-errors' | Select-Object -First 1
@@ -42,10 +42,10 @@ function Get-CorrelationRule {
                 if ($wuClientHits -lt 5) { return $null }
 
                 @{
-                    target = $wu
-                    partner = $ev
-                    note_primary = "related: event-log-errors has $wuClientHits WUClient/20 install failures"
-                    note_partner = 'related: windows-update reports reboot pending'
+                    target             = $wu
+                    partner            = $ev
+                    note_primary       = "related: event-log-errors has $wuClientHits WUClient/20 install failures"
+                    note_partner       = 'related: windows-update reports reboot pending'
                     upgrade_primary_to = 'WARN'
                 }
             }

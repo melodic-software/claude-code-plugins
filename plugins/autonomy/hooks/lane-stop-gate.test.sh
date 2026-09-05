@@ -810,11 +810,11 @@ elif ! command -v timeout >/dev/null 2>&1 ||
   ! timeout --help 2>&1 | grep -Fq -- '--kill-after'; then
   ok "GNU timeout unavailable; skip non-regular claim path hang case"
 else
-FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")
-FIFO_OUT="$WORK/fifo-out"
-FIFO_RC=0
-# shellcheck disable=SC2016 # bash -c program is single-quoted; \$1..\$4 expand in the child
-if timeout 5 bash -c '
+  FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")
+  FIFO_OUT="$WORK/fifo-out"
+  FIFO_RC=0
+  # shellcheck disable=SC2016 # bash -c program is single-quoted; \$1..\$4 expand in the child
+  if timeout 5 bash -c '
   cd "$1" && printf "%s" "$2" |
     env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
       -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
@@ -824,17 +824,17 @@ if timeout 5 bash -c '
       CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$3" \
       bash "$4" 2>/dev/null
 ' _ "$UNRELATED" "$FIFO_INPUT" "$ARM_ID_10" "$HOOK" >"$FIFO_OUT" 2>/dev/null; then
-  FIFO_RC=0
-else
-  FIFO_RC=$?
-fi
-if [[ "$FIFO_RC" -eq 124 ]]; then
-  fail "a planted FIFO at the claim path hung the Stop hook"
-elif is_block "$(cat "$FIFO_OUT" 2>/dev/null)"; then
-  ok "a non-regular file at the claim path neither hangs the hook nor loses the gate"
-else
-  fail "a planted FIFO at the claim path left the lane ungated"
-fi
+    FIFO_RC=0
+  else
+    FIFO_RC=$?
+  fi
+  if [[ "$FIFO_RC" -eq 124 ]]; then
+    fail "a planted FIFO at the claim path hung the Stop hook"
+  elif is_block "$(cat "$FIFO_OUT" 2>/dev/null)"; then
+    ok "a non-regular file at the claim path neither hangs the hook nor loses the gate"
+  else
+    fail "a planted FIFO at the claim path left the lane ungated"
+  fi
 fi
 
 # ============================================================================

@@ -9,15 +9,32 @@ observed on. Where a section carries no version of its own, it was last checked 
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
 loading/caching, or `userConfig` substitution — a date alone is not a trigger.
 
-## `claude plugin update <name>` (bare) fails "Plugin not found" — always pass the full id
+A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
+rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
+subdirectory-install section and the outlived-`projectPath` section. **Changed**, and saying how:
+the bare-name `update` section. **Not re-run on 2.1.261**: the mid-session self-update section,
+because observing it needs an interactive session, and the spoke-substitution section, for the
+reason it now states. The `plugin list` / `plugin details` section was not part of this pass and
+carries no version of its own.
 
-**Verified empirically** (`claude plugin update <name> -s user` → `Plugin "<name>" not found`;
-`claude plugin update <name>@<marketplace> -s user` → succeeds, same scope, same machine, back to
-back). A bare plugin name is not enough for `update` even when it's unambiguous on this machine —
-always pass the fully-qualified `<name>@<marketplace>` id, exactly as `fleet-state.sh`'s `installed[]`
-and `catalog`-joined ids already are. `sync.md`'s Step 3 and `converge.md`'s CLI examples already use
-the fully-qualified form for this reason — never shorten an id to the bare name when constructing an
-actual `claude plugin update|install|uninstall|enable` command, even for readability in a report.
+## Always pass the full id to `claude plugin update` — bare-name resolution is version-dependent
+
+**This claim changed under re-verification and the change is the point.** It was verified
+empirically on an earlier CLI that a bare name failed: `claude plugin update <name> -s user` →
+`Plugin "<name>" not found`, while `claude plugin update <name>@<marketplace> -s user` succeeded,
+same scope, same machine, back to back. **On Claude Code 2.1.261 the bare name resolved instead**:
+`claude plugin update <name> -s project` and the fully-qualified form both succeeded against the
+same install, back to back, in a throwaway repo. The 2.1.261 re-run was at `project` scope, not the
+`user` scope of the original probe, so it does not prove `user` scope also changed — what it does
+prove is that "a bare name always fails" is no longer a safe thing to assert.
+
+The rule is unchanged and does not depend on which way the CLI resolves: **always pass the
+fully-qualified `<name>@<marketplace>` id**, exactly as `fleet-state.sh`'s `installed[]` and
+`catalog`-joined ids already are. A bare name is ambiguous the moment two marketplaces carry the
+same plugin name, and a form that happens to resolve on one CLI version is not a contract.
+`sync.md`'s Step 3 and `converge.md`'s CLI examples already use the fully-qualified form for this
+reason — never shorten an id to the bare name when constructing an actual
+`claude plugin update|install|uninstall|enable` command, even for readability in a report.
 
 Caveat — same symptom, different cause: a `Plugin "<name>" not found` failure with the
 **fully-qualified** `<name>@<marketplace>` id passed is NOT this gotcha. On Windows that is almost
@@ -49,7 +66,7 @@ through the `currentProject` field `fleet-state.sh` already computed.
 Distinct from the spelling mismatch above: here both sides are spelled correctly and still never
 match, because they name *different directories*. Per
 [scope-semantics.md](scope-semantics.md), `claude plugin install -s project` records `projectPath` as
-the **literal cwd** — verified on Claude Code 2.1.228, where installing from
+the **literal cwd** — verified on Claude Code 2.1.228 and re-verified unchanged on 2.1.261, where installing from
 `<checkout>/nested/subdir` recorded that subdirectory and created its own
 `nested/subdir/.claude/settings.json`. `fleet-state.sh` resolves the project root to the **checkout
 root** instead.
@@ -99,7 +116,7 @@ action, and routes the user to `converge` for rows it would decline to change.
 ## A `projectPath` can outlive its directory
 
 A project/local install record keeps the `projectPath` it was created with. Delete the directory and
-the record stays — nothing in the `claude plugin` CLI reaps it (verified on Claude Code 2.1.240:
+the record stays — nothing in the `claude plugin` CLI reaps it (re-verified on Claude Code 2.1.261:
 `prune` is a *dependency* axis, and its own `-s project` has the same no-path-flag limitation that
 makes these records unreachable in the first place). Ephemeral checkouts turn this from an edge case
 into a bulk one: a throwaway worktree with a dozen project-scope installs strands a dozen records the
@@ -128,11 +145,20 @@ Claude Code substitutes `userConfig` values when it renders the **skill**. A con
 `${user_config.install_new}` in a spoke and it arrives as that literal token, with **no error and no
 warning**; the value simply never appears, and a step branching on it branches on a placeholder.
 
-This is why `SKILL.md` holds the `install_new` render and `sync.md` Step 4 branches on *that* line
-rather than on its own prose. Verified empirically: `context/sync.md` on disk shows the raw
+This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches on *that* line
+rather than on its own prose. Verified empirically: `context/sync-install-enable.md` on disk shows the raw
 `${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
 configured value. Nothing enforces this — a future spoke that inlines such a token fails silently,
 so it is a review-time rule, not a checkable one.
+
+**Not re-run on 2.1.261, and the 2026-09-05 pass weakened rather than confirmed the contrast this
+section rests on.** That pass loaded a throwaway plugin and found `${CLAUDE_PLUGIN_ROOT}`
+substituting in a rendered `SKILL.md` body while a `userConfig` token in the same body stayed
+literal even with a value supplied through `--settings` `pluginConfigs`. So the SKILL.md half of the
+contrast — that a skill body *does* receive `${user_config.*}` substitution — was not demonstrable
+on that path, and the spoke half was never separately probed. The rule below is still the safe way
+to write a spoke either way: keep the render in `SKILL.md` and branch on that line. See `SKILL.md`'s
+`install_new` section for the full account of the failed control.
 
 ## `sync` updates the plugin that provides `sync`
 
@@ -140,9 +166,11 @@ Step 3 sweeps every user-scope install, and `claude-ops` is one of them. When th
 mid-run, `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start, so every
 remaining step — including every later `fleet-state.sh` call — executes the **pre-update** script
 while the report describes a version the user now has installed but is not running. Per
-`code.claude.com/docs/en/plugins-reference` (fetched 2026-08-22): "When a plugin updates
+`code.claude.com/docs/en/plugins-reference` (re-fetched 2026-09-05, wording unchanged): "When a plugin updates
 mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
-version's path." Observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `claude-ops`
+version's path." The behaviour is **not re-run on 2.1.261** — observing it requires a live
+interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
+stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `claude-ops`
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at
 session start — and every `fleet-state.sh` call for the rest of that run came from the 0.33.2 tree.
 
@@ -154,6 +182,13 @@ readable to the end of the run. And the
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
 (no `--marketplace`) path keeps working after the bump. Keep the two in step: if that fallback is
 ever changed, this gotcha and the resolver comment both describe it.
+
+A plugin root that is not under the cache at all — a local dev checkout, `--plugin-dir`, or the
+marketplace checkout itself — cannot match any `installPath`, so the resolver adds a third stage:
+walk up a bounded few levels for a `.claude-plugin/marketplace.json` and accept its `.name` only
+when `known_marketplaces.json` has that key, then fall back to matching the root against each known
+marketplace's `installLocation`. A root that resolves through none of the three still fails loud and
+names `--marketplace`; the resolver never guesses.
 
 What is missing without a deliberate report row is any *statement* of it — see `SKILL.md`'s
 self-update row.
@@ -213,8 +248,9 @@ while IFS= read -r id; do
 done < <(…/scripts/fleet-state.sh --ids installed-user)
 ```
 
-For anything `--ids` does not cover: route every `jq` call through the
-`jq() { command jq "$@" | tr -d '\r'; }`-style wrapper `fleet-state.sh` already uses, **and** strip
-`\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value captured from any other source before
-embedding it in a `claude plugin` command or a JSON argument. Don't rediscover this the hard way in
-a second script.
+For anything `--ids` does not cover: capture every `jq` call the way `fleet-state.sh`'s `jq_to`
+helper does, `out=$(command jq …)` followed by `${out//$'\r'/}`, which strips every carriage return
+with a parameter expansion and no `tr` process, **and** strip `\r` the same way from every value
+captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
+A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
+process per call. Don't rediscover this the hard way in a second script.

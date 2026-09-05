@@ -26,6 +26,18 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   lines stay where they were. The branch call fails with no output on a detached checkout instead of
   printing a sentinel string, so the steps that read the sentinel now read the exit status, and
   delta no longer describes its block as deliberately one line.
+## [0.3.6]
+
+### Changed
+
+- **`audit` skill-listing entry tightened.** It was among the marketplace's ten largest listing
+  entries. The description now folds the surface list into a parenthetical and merges the
+  read-only sentences while keeping every quoted trigger phrase, the layer and `unattended`
+  arguments, and the `Not for` and sibling disambiguation. Claude Code truncates the combined
+  `description` and `when_to_use` text at 1,536 characters in the skill listing, and the shared
+  listing budget scales at 1% of the model's context window, so every character an entry spends
+  is a character another skill's description cannot. Hook-performance program, phase 6 (skill
+  listing budget).
 
 ## [0.3.5]
 

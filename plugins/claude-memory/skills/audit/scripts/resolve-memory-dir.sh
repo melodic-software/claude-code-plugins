@@ -43,11 +43,15 @@ EOF
   exit 0
 fi
 
-# cygpath -w yields the Windows form on Git Bash (so `C:/...` not `/c/...`, which is
-# how Claude Code names the project dir); falls back to raw rev-parse on macOS/Linux
-# where cygpath does not exist. tr -d '\r' guards Git Bash CRLF on piped git output.
-repo_root=$(cygpath -w "$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" 2>/dev/null ||
-  git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+# tr -d '\r' guards Git Bash CRLF on piped git output. cygpath -w then yields the
+# Windows form on Git Bash (so `C:/...` not `/c/...`, which is how Claude Code names
+# the project dir), falling back to the raw path on macOS/Linux where cygpath does not
+# exist, the same two-step the hub slug below takes. The conversion is guarded on a
+# non-empty root so a non-repo cwd never reaches cygpath at all.
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+if [[ -n "$repo_root" ]]; then
+  repo_root=$(cygpath -w "$repo_root" 2>/dev/null || printf '%s' "$repo_root")
+fi
 
 # Outside a git repo the cwd IS the project root Claude Code keys the memory dir on
 # (memory doc: "Outside a git repo, the project root is used instead") — same

@@ -97,8 +97,6 @@ git -C "$REPO" checkout -q "$BRANCH_BASE"
 TARGET="$REPO/notes.md"
 : >"$TARGET"
 
-RC=0
-
 # run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
 # code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
 #
@@ -708,7 +706,32 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-sta
 
 # The repo root is resolved from the written file, never from the process CWD, so
 # the hook is correct in a linked worktree and in a bare-hub clone.
-assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$(dirname "$FILE")"'
+# The directory comes from parameter expansion, not a `$(dirname …)` subshell:
+# this hook runs on every Write and Edit, and a command substitution is a fork
+# per call on Windows Git Bash. The anchor is still the FILE's directory, which
+# is what this case exists to hold.
+assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$FILE_DIR"'
+assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
+assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
+# The expansion must answer as `dirname` did for every shape. For a root-level
+# `/bar.md` the shortest `/*` suffix is the whole string, so the bare expansion
+# is EMPTY and hook::repo_root's `${1:-.}` would anchor on the process CWD, not
+# `/`. That shape cannot reach the hook end to end (hook::read_file_path needs
+# the file to exist and `/` is not writable), so the seam is lifted from the
+# hook source and evaluated against each shape; its answer must be dirname's.
+FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
+assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
+for fp in /bar.md bar.md /a/b/bar.md; do
+  # shellcheck disable=SC2034  # read by the eval below
+  FILE="$fp"
+  FILE_DIR=""
+  eval "$FILE_DIR_SEAM"
+  assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
+done
+
+# The whole-index `git ls-files` must not run for a write that cites nothing.
+assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
+  '((${#RAW_TOKENS[@]})) && ensure_tracked_files'
 
 # The behavioral rename case above is the real proof, but pin the flags too: a
 # refactor that drops either one changes the guard's meaning silently.

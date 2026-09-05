@@ -77,6 +77,11 @@ function twitterInfoJson(overrides = {}) {
   });
 }
 
+/** Probe pass every single-video fixture starts from: post info JSON + a clean caption. */
+const SINGLE_VIDEO_PROBE_PASS = {
+  addFiles: { [`${MEDIA_ID}.info.json`]: twitterInfoJson(), [`${MEDIA_ID}.en.vtt`]: CLEAN_VTT },
+};
+
 /**
  * In-memory acquisition fixture: each spawn call applies the next pass's
  * stderr + files, listFiles/readFile/writeFile/removeFile all resolve against
@@ -186,7 +191,7 @@ describe("x adapter declarations", () => {
   });
 });
 
-describe("x canonicalization (adapter-level, T10 (ii))", () => {
+describe("x canonicalization (adapter-level)", () => {
   it("re-derives the canonical status URL: pinned host, lowercased handle, no tracking params", () => {
     expect(adapter.matchUrl(`https://twitter.com/SomeUser/status/${TWID}?s=20&t=abc#m`)).toEqual({
       sliceKey: TWID,
@@ -419,7 +424,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
 
   it("single video (full): 1 -> single-entry collection, never a bare object", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
-      { addFiles: { [`${MEDIA_ID}.info.json`]: twitterInfoJson(), [`${MEDIA_ID}.en.vtt`]: CLEAN_VTT } },
+      SINGLE_VIDEO_PROBE_PASS,
       { addFiles: { [`${MEDIA_ID}.mp4`]: "binary" } },
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
@@ -455,7 +460,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
 
   it("transcript mode: single probe pass, no media download", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
-      { addFiles: { [`${MEDIA_ID}.info.json`]: twitterInfoJson(), [`${MEDIA_ID}.en.vtt`]: CLEAN_VTT } },
+      SINGLE_VIDEO_PROBE_PASS,
     ]);
     const result = await acquireXMedia(STATUS_URL, { workDir, mode: "transcript", deps });
 
@@ -604,7 +609,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.data.metadata["source:snowflakeAliasing"]).toBeUndefined();
   });
 
-  it("both 0-cases produce a text-only digest with populated provenance (T6 D-A)", async () => {
+  it("both 0-cases produce a text-only digest with populated provenance", async () => {
     const cases = [
       {
         name: "blocked-delegation",
@@ -842,7 +847,7 @@ describe("canonicalization reaches every entry path by construction", () => {
 
   it("transcript entry: acquireMedia dispatches the adapter's canonical URL", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
-      { addFiles: { [`${MEDIA_ID}.info.json`]: twitterInfoJson(), [`${MEDIA_ID}.en.vtt`]: CLEAN_VTT } },
+      SINGLE_VIDEO_PROBE_PASS,
     ]);
     const result = await acquireMedia(RAW_URL, { workDir, mode: "transcript" }, deps);
     expect(result.success).toBe(true);
@@ -851,7 +856,7 @@ describe("canonicalization reaches every entry path by construction", () => {
 
   it("watch entry: acquireMedia (full) probes and downloads against the canonical URL", async () => {
     const { deps, spawn } = createFixtureDeps(workDir, [
-      { addFiles: { [`${MEDIA_ID}.info.json`]: twitterInfoJson(), [`${MEDIA_ID}.en.vtt`]: CLEAN_VTT } },
+      SINGLE_VIDEO_PROBE_PASS,
       { addFiles: { [`${MEDIA_ID}.mp4`]: "binary" } },
     ]);
     const result = await acquireMedia(RAW_URL, { workDir, mode: "full" }, deps);
@@ -878,7 +883,7 @@ describe("canonicalization reaches every entry path by construction", () => {
     expect(args.at(-1)).toBe(STATUS_URL);
     expect(args[args.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
     // mediaOptional: a valid 0-video X post survives the queue probe as
-    // metadata-only and enqueues (T6 D-A text-only digest downstream).
+    // metadata-only and enqueues (text-only digest downstream).
     expect(args).toContain("--ignore-no-formats-error");
     expect(result.title).toBe("Fixture Post");
   });

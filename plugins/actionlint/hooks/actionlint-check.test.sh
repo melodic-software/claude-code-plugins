@@ -70,6 +70,21 @@ wait_for_sink() {
   return 1
 }
 
+# wrap_real_tools <dir> [extra-tool ...] -> fill <dir> with exec wrappers for
+# every tool the hook and the notice dedup need, plus any extras. A test shadows
+# ONE binary by pointing PATH at <dir>: jq may live in the same real directory as
+# actionlint, so keeping whole directories on PATH cannot isolate the shadow.
+wrap_real_tools() {
+  local dir="$1" t real_t
+  shift
+  for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink "$@"; do
+    real_t="$(command -v "$t" 2>/dev/null)" || continue
+    [[ -n "$real_t" ]] || continue
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$dir/$t"
+    chmod +x "$dir/$t"
+  done
+}
+
 new_repo() {
   local r="$1"
   mkdir -p "$r/.github/workflows"
@@ -195,12 +210,12 @@ else
 fi
 
 # --- Case 9: NO membership guard -- mismatched CLAUDE_PROJECT_DIR still lints
-# Regression for the silent-skip bug: the old hook::read_file_path membership
-# guard silently exited when the file path did not prefix-match
-# CLAUDE_PROJECT_DIR (its concrete trigger: Windows 8.3 short-form paths that
-# GNU realpath does not expand). An advisory PostToolUse linter must lint
-# regardless of project membership -- prove it with a deliberately unrelated
-# CLAUDE_PROJECT_DIR.
+# Regression for the silent-skip bug: hook::read_file_path's membership guard
+# exits silently when the file path does not prefix-match CLAUDE_PROJECT_DIR
+# (concrete trigger: Windows 8.3 short-form paths that GNU realpath does not
+# expand), which is why this hook parses the path itself. An advisory PostToolUse
+# linter must lint regardless of project membership -- prove it with a
+# deliberately unrelated CLAUDE_PROJECT_DIR.
 OUT=$(
   cd "$UNRELATED" || exit 1
   printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/violation.yml" |
@@ -241,15 +256,10 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 
 # --- Case 10: actionlint hard failure -> telemetry status error, never ok ----
-# Stub actionlint exits 3 (fatal) -- the lint DID NOT run; the old code read
-# empty-output-as-clean. PATH keeps real tools via exec wrappers.
+# Stub actionlint exits 3 (fatal) -- the lint DID NOT run, so empty output must
+# never read as a clean pass. PATH keeps real tools via exec wrappers.
 ERRBIN="$(mktemp -d "$WORK/errbin.XXXXXX")"
-for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
-  real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$ERRBIN/$t"
-  chmod +x "$ERRBIN/$t"
-done
+wrap_real_tools "$ERRBIN"
 printf '#!/bin/sh\necho "fatal: simulated actionlint failure" >&2\nexit 3\n' >"$ERRBIN/actionlint"
 chmod +x "$ERRBIN/actionlint"
 ERR_TEL="$(mktemp)"
@@ -331,20 +341,13 @@ fi
 rm -f "$TELC"
 
 # --- actionlint-absent -> exit 0, VISIBLE once-per-session notice, skipped ---
-# Shadow actionlint via a fake-bin dir of exec wrappers for every tool the hook
-# needs (jq may share a real dir with actionlint, so keeping whole dirs cannot
-# isolate the shadow). First run must emit the skip notice on both channels;
-# a second run in the same session (same CLAUDE_PLUGIN_DATA + session_id) must
-# be silent; telemetry still records status "skipped".
+# The fake-bin dir shadows actionlint. First run must emit the skip notice on
+# both channels; a second run in the same session (same CLAUDE_PLUGIN_DATA +
+# session_id) must be silent; telemetry still records status "skipped".
 ABSENT_TEL="$(mktemp)"
 ABSENT_SINK="$(make_sink "cat >\"$ABSENT_TEL\"")"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
-for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
-  real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
-  chmod +x "$FAKEBIN/$t"
-done
+wrap_real_tools "$FAKEBIN"
 ABSENT_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_absent() {
   (
@@ -422,12 +425,7 @@ fi
 # --- Minimal PATH: actionlint absent -> accurate degraded notice (#2732) ----
 # Rebuild FAKEBIN without actionlint; keep coreutils so the notice path runs.
 MINBIN="$(mktemp -d "$WORK/minbin.XXXXXX")"
-for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm; do
-  real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$MINBIN/$t"
-  chmod +x "$MINBIN/$t"
-done
+wrap_real_tools "$MINBIN" rm
 MIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_MIN=$(
   cd "$UNRELATED" || exit 1

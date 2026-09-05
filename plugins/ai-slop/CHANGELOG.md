@@ -18,6 +18,50 @@
   skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+## [0.5.9]
+
+### Changed
+
+- **`detect.sh` drops a redundant intermediate array copy.** The old code built
+  a `TARGETS` array from `EXPANDED` and then re-read it; one `mapfile` now
+  sources directly from `EXPANDED`. The deleted line was a faithful copy rather
+  than a word-splitting step: the inner quotes in
+  `${EXPANDED[@]+"${EXPANDED[@]}"}` survive the unquoted outer expansion, which
+  was confirmed by probe against elements holding spaces and glob
+  metacharacters. Output was compared across 11 input shapes and 11 end-to-end
+  invocations, on bash 5.2 and again on bash 4.3.
+- **`emit-findings.sh` loses a history-narration tail.** The two retained
+  sentences state the whole contract, preference order and fail-open; the
+  deleted sentence carried only the fact that today's behavior was once a bug's.
+- **`detect.test.sh` fixes a count that had already drifted.** The comment said
+  "all 14"; the roster is 15, a number that survives three lines above inside a
+  test-enforced assertion, so a wrong literal is replaced by a phrase the loop
+  below it makes exact.
+
+### Known issues
+
+- **Two rule patterns lack word boundaries and fire on unrelated words.** Left
+  unfixed deliberately: this detector is the instrument a repo-wide sweep is
+  being measured with, and changing what it matches mid-run would make earlier
+  and later groups incomparable. `challenges (remain|ahead|persist)` has no
+  boundary on either side, so it fires on "challenges remained", "challenges
+  remainder", "challenges remaining", "challenges persisted", "challenges
+  persistence", "challenges aheadroom" and "subchallenges remain"; it does not
+  fire on "challenges-adjacent". `not (just|only|simply|merely) [^.]{0,80}but`
+  fires on any following word beginning "but": "button", "buttress",
+  "butterfly", "rebuttal".
+
+## [0.5.8]
+
+### Changed
+
+- **`audit`: the four git-absent cases report a host skip instead of failing where `ln -s` copies.**
+  They share a minimal git-less PATH built out of links to the real binaries. Under MSYS without
+  `winsymlinks`, `ln -s` copies instead, and a copied `bash.exe` cannot find `msys-2.0.dll` beside
+  it, so the shell under test never starts and `detect.sh` emits nothing. Every assertion failed
+  about a detector that was never reached. The suite now probes the link round trip and prints a
+  visible `SKIP (host: ...)` line for each, counted apart from the pass total. Both the directory
+  walk (0.5.5) and the bare invocation (0.5.6) are covered.
 
 ## [0.5.7]
 

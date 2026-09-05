@@ -12,6 +12,157 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - check: the reachability row is introduced without "newest".
 - delta: the quiet-run report states the window and the suppressed count instead of a one-line ceiling; eval case 1 renamed and reworded to match.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.11.26]
+
+### Changed
+
+- **`hooks/index-drift.sh` reads its kill switch before sourcing the library.**
+  `index_drift_hook_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.11.25]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.11.24]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.11.23]
+
+### Changed
+
+- **`index-drift.sh` derives its own directory once.** The always-on hook called
+  `dirname "${BASH_SOURCE[0]}"` twice, once to source `hook-utils.sh` and once to locate the
+  renderer; `hook_dir` is now computed once and reused, removing one subshell from the fire path
+  and none from the early-exit path, which returns before the second use.
+- **Two dead `SUBCOMMAND=""` stores removed**, from `glob-tools.sh` and `render-index.sh`. Neither
+  script ever reads the name again; both dispatch on `"${1:-}"` directly.
+- **The shared-sort claim in `render-index.sh` is corrected in place, because measurement
+  contradicted it.** Sharing one sort between the listed head and the grouped tail removes a
+  `sort` from the grouped-tail path only, which had sorted the same rows twice, and costs a
+  subshell on the common path, where one sort already sufficed. The two-spawn saving the hook
+  sees comes from the marker-count change in `check` and `write`, not from this sort.
+- **`glob-tools.test.sh` names its over-budget row count.** Three budget cases repeated the same
+  awk-and-count pipeline; a comment now records why the cases assert on the count rather than on
+  a named pattern, since which of a rule's globs trips a shared budget is not part of the
+  contract.
+
+## [0.11.22]
+
+### Changed
+
+- **`glob-tools.sh` drops a temp-file lifecycle per pattern.** The match count
+  wrote grep output to a `mktemp`, sorted it and removed it; it now pipes
+  directly into the same `LC_ALL=C sort -u`. The old temp file was never in the
+  trap, so it leaked on an abort. Deduplication scope is unchanged, which was the
+  risk: the temp file was created inside the per-pattern block, so it was never
+  global. Confirmed across 88 micro-cases and 52 fixture runs under four locales.
+- **`lib/discover.sh` drops an unreachable awk guard** and the state variable
+  that fed it. Instrumented in the original rule set, it fired zero times across
+  20 input shapes including CRLF, CR-only, a missing closer and a byte-order
+  mark, with identical output over all 1,389 tracked markdown files.
+- **`detect.sh` merges two `trap ... EXIT` registrations** where the second
+  silently replaced the first, combines two `BEGIN` blocks, and collects section
+  markers directly instead of building a comma string and splitting it back to
+  sort. That round trip would have shredded any marker containing a comma; the
+  vocabulary happens never to contain one. Output byte-identical over the whole
+  repository, 25,689 lines.
+- **`render-index.sh` sorts its row array once** instead of up to three times per
+  render, and four smaller cleanups. The generated index is byte-identical across
+  80 render comparisons, and this repository's own index still reports IN-SYNC.
+- **`index-drift.sh`** replaces a two-branch `case` whose default was a bare
+  no-op with an `if`, keeping the rationale. Traced: identical external-command
+  counts, one builtin removed, 11 ms per run before and after.
+
+## [0.11.21]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.11.20]
+
+### Changed
+
+- **`index-drift` carries an `if` filter, `Edit(**/.claude/rules/*.md)`.** The hook only
+  ever acts on a rule file under `.claude/rules/`, which is also its own first check, so
+  every other Write/Edit no longer spawns it.
+
+## [0.11.19]
+
+### Fixed
+
+- **`render-index.sh` read a drive-letter `--file` and `--root` as relative, so the index-drift
+  hook was a no-op on every Windows write.** `git rev-parse --show-toplevel` answers `C:/repo`
+  under Git Bash, and that is the spelling `hooks/index-drift.sh` hands the renderer. The absolute
+  test looked only for a leading `/`, so the target was joined to the calling directory, `check`
+  died on an unreadable file, and the hook swallowed the error and exited 0. Nothing about the
+  repository looked wrong and no stale-index notice ever appeared. `[A-Za-z]:[\/]` is now absolute.
+
+- **`reachable` and `write`'s reachability warning stripped a root prefix that could not match.**
+  Both strip `"$PWD"/` from the target after entering `--root`, and `$PWD` is the shell's own
+  spelling (`/c/repo`) while the target stayed in git's (`C:/repo`), so the strip silently left the
+  path absolute: `reachable` asked about a target it could not name, and `write` warned that a
+  reachable index was unreachable. The target is now re-spelled through `cd "$dir" && pwd`, the
+  same call that produced `$PWD`, for those two comparisons only. The path the caller wrote is
+  untouched, so every read, write and status line still names it.
+
+- **A backslash drive-letter `--file` or `--root` (`C:\repo\AGENTS.md`) is re-spelled with forward
+  slashes at intake.** GNU `dirname` and `basename` do not treat `\` as a separator, so the target
+  split to `.` plus the whole string, the re-spelled target became `$PWD/C:\repo\AGENTS.md`,
+  `reachable` asked about a path that does not exist, and `write` could warn that a reachable
+  index was unreachable. Only the drive-letter shape is touched; a POSIX path carrying a literal
+  backslash passes through unchanged. Status lines for a backslash input now print the
+  forward-slash form.
+
+### Changed
+
+- **`scripts/lib/discover.test.sh` reports a host skip instead of failing on a copied symlink.**
+  Under MSYS without `winsymlinks`, `ln -s` copies its target. Most cases survive that, but the one
+  asserting a `CLAUDE.md` symlinked to `AGENTS.md` is reachable has no subject at all. It now
+  probes the link round trip and prints a visible `SKIP (host: ...)` line counted apart from the
+  pass total.
+
+## [0.11.18]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.11.17]
 

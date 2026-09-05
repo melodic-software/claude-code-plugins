@@ -139,7 +139,10 @@ unwatched. This mirrors the standards-repo "adopt by copy" seam.
 ## Consuming (sink side)
 
 A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (relative, committed in `settings.json`) to an
-executable that reads one envelope on stdin and maps the common fields into its own store. The sink:
+executable that reads one envelope on stdin and maps the common fields into its own store. The
+envelope arrives as one JSON document; since the shared library's 2026-09-02 builtin emitter it is a
+single compact line (`jq -c` shape, no trailing CR), where earlier producers wrote jq's
+pretty-printed form. A sink must parse the document as JSON, never by line or byte layout. The sink:
 
 - consumes only the common envelope unless it specifically handles a given `hook`'s `data`;
 - ignores unknown keys and treats an unrecognized `status` as a catch-all (see Forward compatibility);
@@ -147,6 +150,17 @@ executable that reads one envelope on stdin and maps the common fields into its 
 
 That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
+
+**Sink routing by session (reference sink, claude-ops 0.42.6).** The envelope's common fields carry
+no session identity, and hooks receive none from their environment (only the payload's
+`session_id`), so a producer that wants its rows filed per session adds `data.session_id` (the
+payload value, verbatim) under the additive rule above. The claude-ops reference sink routes on it:
+an envelope carrying a well-formed `data.session_id` is appended to
+`<root>/sessions/<session_id>.jsonl` beside the per-session event log, and an envelope without one
+goes to the shared `<root>/hook-events.jsonl` in the legacy shape. Today the nine claude-ops audit
+hooks send it. The fleet-wide addition to every producer, and promoting the key into the envelope
+spine as `schema_version` 1.1, are the follow-up tracked in #930; until then a whole-root report
+covers every producer and a per-session report covers the producers that send the key.
 
 ## Implementers
 

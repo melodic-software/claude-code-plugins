@@ -24,6 +24,12 @@
       "title": "Preferred delivery medium",
       "description": "Preferred delivery medium when the skill auto-selects. One of: 'auto' (decide by content and available surfaces), 'terminal' (always render inline, degrading richer forms to their best terminal approximation), 'file' (render richer forms as a self-contained local HTML file, never published off the machine), 'artifact' (prefer a published Artifact when that surface is available, else fall back to a local HTML file, else terminal). An unrecognized value is reported and treated as 'auto'.",
       "default": "auto"
+    },
+    "thin_context_prompt": {
+      "type": "string",
+      "title": "Prompt on a bare code paste",
+      "description": "What the skill does when code is pasted with little conversational context and no form named. One of: 'auto' (ask one ranked question only when two or more code-shape forms fit about equally; render when one form dominates), 'always' (offer the ranked menu on any bare code paste), 'never' (render the recommended form without asking). An unrecognized value is reported and treated as 'auto'.",
+      "default": "auto"
     }
   }
 }

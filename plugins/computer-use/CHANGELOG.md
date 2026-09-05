@@ -10,6 +10,13 @@ All notable changes to the `computer-use` plugin are documented here. Format fol
 - setup: the platform and plan-eligibility claims carry a verification date and a recheck trigger, and the FAIL remediation names the two further eligibility conditions the CLI page states (claude.ai authentication, interactive session); the macOS timeout step says the idle-timer hazard was measured on Windows and is treated as live on macOS instead of claiming a universal measurement; eval case 3 asserts that form; the check-only framing drops "not by preference".
 - diagnose: the macOS row and the verification-gap paragraph drop the roadmap and reviewer-facing wording; `reference/failure-diagnostics.md`, `reference/screenshots-and-zoom.md`, and `reference/windows-quirks.md` state each rule in the present tense without the session narrative that produced it; the `save_to_disk` note carries a recheck trigger.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.1.3]
+
+### Changed
+
+- **`diagnose`:** drop the em dash from `argument-hint`. The hint is the
+  closed enum `[screenshots|failures|quirks]`; omit-for-guide stays in
+  the Arguments body (#3542).
 
 ## [0.1.2]
 

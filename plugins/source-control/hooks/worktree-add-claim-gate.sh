@@ -31,10 +31,13 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "WORKTREE_ADD_CLAIM_GATE"
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
@@ -50,9 +53,7 @@ HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r'
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -d '\r')
 
 CLAIM="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/worktree-claim.sh"
-if [[ ! -f "$CLAIM" ]]; then
-  exit 0
-fi
+[[ -f "$CLAIM" ]] || exit 0
 
 # Set once a segment changes the working directory; every later segment then
 # resolves against a directory this hook cannot see (same rule as the
@@ -221,7 +222,6 @@ hook::bash_parse_segments "$COMMAND" collect_add
 
 claimed_any=0
 foreign_any=0
-notes=()
 
 for target in "${CLAIM_TARGETS[@]}"; do
   args=(claim "$target")
@@ -231,15 +231,12 @@ for target in "${CLAIM_TARGETS[@]}"; do
   err_file="$(mktemp "${TMPDIR:-/tmp}/worktree-add-claim.XXXXXX")" || continue
   claim_rc=0
   claim_out="$(bash "$CLAIM" "${args[@]}" 2>"$err_file")" || claim_rc=$?
-  claim_err="$(cat "$err_file" 2>/dev/null || true)"
   rm -f "$err_file"
   if [[ "$claim_out" == *"worktree-claim.sh: lane active"* && "$claim_rc" -eq 0 ]]; then
     claimed_any=1
-    notes+=("claimed ${target}")
   fi
   if [[ "$claim_rc" -eq 4 ]]; then
     foreign_any=1
-    notes+=("foreign claim on ${target}: ${claim_err}")
   fi
 done
 

@@ -52,8 +52,8 @@ expect_eq "median: odd count picks the middle" "$(printf '5\n1\n3\n' | median)" 
 expect_eq "median: even count picks the upper middle" "$(printf '1\n2\n3\n4\n' | median)" "3"
 expect_eq "median: empty input yields 0" "$(printf '' | median)" "0"
 
-# --- lib: pace_sleep_arg (regression: 0 spent must pad a FULL second; the old
-# --- inline "0.%03d" printed 1000 ms as "0.1000" = 0.1 s) --------------------
+# --- lib: pace_sleep_arg (regression: 0 spent must pad a FULL second; a bare
+# --- "0.%03d" prints 1000 ms as "0.1000" = 0.1 s) ----------------------------
 expect_eq "pace_sleep_arg: 0 ms spent pads a full second" "$(pace_sleep_arg 0)" "1.000"
 expect_eq "pace_sleep_arg: 999 ms spent pads 1 ms" "$(pace_sleep_arg 999)" "0.001"
 expect_eq "pace_sleep_arg: 600 ms spent pads 400 ms" "$(pace_sleep_arg 600)" "0.400"
@@ -89,16 +89,25 @@ else
   fail "bench-idle: smoke rc=$RC out=$OUT"
 fi
 
+# expect_render_abort LANE HOME SCRIPT [ARGS...] — a lane pointed at an entry
+# that exits nonzero must abort and say so, never fold the failure into its
+# numbers. Both lanes are checked the same way, against the same bad entry.
+expect_render_abort() {
+  local lane="$1" home="$2" out rc
+  shift 2
+  out="$(HOME="$home" STATUSLINE_ENTRY="$BAD" bash "$@" 2>&1)"
+  rc=$?
+  if [[ $rc -ne 0 && "$out" == *"render failed"* ]]; then
+    ok "$lane: failing render aborts instead of reporting numbers"
+  else
+    fail "$lane: failing render rc=$rc out=$out"
+  fi
+}
+
 # --- bench-idle: a failing render aborts the run, never becomes a sample -----
 BAD="$WORK/bad-entry.sh"
 printf '#!/usr/bin/env bash\nexit 7\n' >"$BAD"
-OUT="$(HOME="$HOME1" STATUSLINE_ENTRY="$BAD" bash "$BENCH_DIR/bench-idle.sh" 2 2>&1)"
-RC=$?
-if [[ $RC -ne 0 && "$OUT" == *"render failed"* ]]; then
-  ok "bench-idle: failing render aborts instead of reporting numbers"
-else
-  fail "bench-idle: failing render rc=$RC out=$OUT"
-fi
+expect_render_abort bench-idle "$HOME1" "$BENCH_DIR/bench-idle.sh" 2
 
 # --- bench-load: smoke run, 1 virtual session for 1 second -------------------
 HOME2="$WORK/home2"
@@ -113,13 +122,7 @@ else
 fi
 
 # --- bench-load: a failing render aborts the run -----------------------------
-OUT="$(HOME="$HOME2" STATUSLINE_ENTRY="$BAD" bash "$BENCH_DIR/bench-load.sh" 1 1 2>&1)"
-RC=$?
-if [[ $RC -ne 0 && "$OUT" == *"render failed"* ]]; then
-  ok "bench-load: failing render aborts instead of reporting numbers"
-else
-  fail "bench-load: failing render rc=$RC out=$OUT"
-fi
+expect_render_abort bench-load "$HOME2" "$BENCH_DIR/bench-load.sh" 1 1
 
 # --- trace-probe: prints the pre-passthrough trace of the repo tee -----------
 OUT="$(bash "$BENCH_DIR/trace-probe.sh" 2>&1)"

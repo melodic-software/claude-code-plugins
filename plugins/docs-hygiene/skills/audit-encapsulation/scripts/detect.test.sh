@@ -51,28 +51,44 @@ assert_silent() {
   fi
 }
 
-FIXTURE_REPOS=()
+# Fixture repos are tracked in a FILE rather than a shell array. Every
+# constructor below is called inside a command substitution to capture the path
+# it echoes, and an array append made in that subshell never reaches this
+# shell, so an array-based ledger silently cleans up nothing. A file append
+# survives the subshell, so the trap removes what the run actually created.
+FIXTURE_LIST="$(mktemp)"
+# Records are NUL-delimited, not newline-delimited: a newline inside TMPDIR
+# would otherwise split one path across two records, and the trap would rm -rf
+# the truncated prefix, which is a directory outside the fixture set.
 cleanup_fixtures() {
   local r
-  for r in "${FIXTURE_REPOS[@]:-}"; do
+  while IFS= read -r -d '' r; do
     [[ -n "$r" ]] && rm -rf "$r"
-  done
+  done <"$FIXTURE_LIST"
+  rm -f "$FIXTURE_LIST"
 }
 trap cleanup_fixtures EXIT
+
+# Create an empty throwaway git repo, register it for cleanup, echo its path.
+new_fixture_repo() {
+  local repo
+  repo="$(mktemp -d)"
+  git init --quiet "$repo"
+  printf '%s\0' "$repo" >>"$FIXTURE_LIST"
+  printf '%s' "$repo"
+}
 
 # Build a throwaway git repo carrying one file with the given content, and
 # echo its path. detect.sh scans the working tree of whatever repo it runs in.
 fixture_repo() {
   local file_relpath="$1" line_content="$2"
   local repo
-  repo="$(mktemp -d)"
-  git init --quiet "$repo"
+  repo="$(new_fixture_repo)"
   (
     cd "$repo" || exit 1
     mkdir -p "$(dirname "$file_relpath")"
     printf '%s\n' "$line_content" >"$file_relpath"
   )
-  FIXTURE_REPOS+=("$repo")
   printf '%s' "$repo"
 }
 
@@ -91,9 +107,7 @@ assert_exit "unknown arg exits 2" 2 "$code"
 assert_contains "unknown arg diagnostic" "$out" "unknown arg"
 
 # Empty repo (no in-scope surfaces at all) → environment error
-empty_repo="$(mktemp -d)"
-git init --quiet "$empty_repo"
-FIXTURE_REPOS+=("$empty_repo")
+empty_repo="$(new_fixture_repo)"
 out="$(cd "$empty_repo" && bash "$SCRIPT" 2>&1)"
 code=$?
 assert_exit "empty repo → exit 2 (no in-scope surfaces)" 2 "$code"
@@ -288,9 +302,7 @@ assert_contains "cross-plugin same-leaf summary keeps candidate" "$err" "candida
 
 # Sibling-skill relative cite with no `skills/` segment in the text —
 # resolution pass must catch it.
-sibling_repo="$(mktemp -d)"
-git init --quiet "$sibling_repo"
-FIXTURE_REPOS+=("$sibling_repo")
+sibling_repo="$(new_fixture_repo)"
 (
   cd "$sibling_repo" || exit 1
   mkdir -p plugins/demo/skills/alpha plugins/demo/skills/beta/reference
@@ -306,9 +318,7 @@ assert_contains "sibling relative cite emitted" "$out" "../beta/reference/"
 # Same-skill `../reference/deep/` from an actions/ file is self-citation under
 # --apply-filters (resolution lands in the citing skill). Assert raw>0 so a
 # silent miss cannot vacate the filter check.
-self_rel_repo="$(mktemp -d)"
-git init --quiet "$self_rel_repo"
-FIXTURE_REPOS+=("$self_rel_repo")
+self_rel_repo="$(new_fixture_repo)"
 (
   cd "$self_rel_repo" || exit 1
   mkdir -p plugins/demo/skills/alpha/actions

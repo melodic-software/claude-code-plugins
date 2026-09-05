@@ -12,8 +12,8 @@
     "use_emoji_question_markers": {
       "type": "boolean",
       "title": "Emoji anchors on interview round questions",
-      "description": "When enabled, each inline interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text.",
-      "default": false
+      "description": "When enabled, each inline interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: emoji anchors. Set false for plain text.",
+      "default": true
     }
   },
   "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",

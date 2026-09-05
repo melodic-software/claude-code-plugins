@@ -98,7 +98,7 @@ run_ab --a "$NOOP" --b "/nonexistent/definitely-not-here" --iterations 2 --warmu
 assert_eq "an arm exiting 127 is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the false-green shape" "classic false green" "$RUN_OUT"
 
-# --- 4. a missing high-resolution clock FAILS, it never falls back to date ---
+# --- 5. a missing high-resolution clock FAILS, it never falls back to date ---
 # PERF_AB_SIMULATE_NO_CLOCK can only force the failure, never suppress it, so
 # it cannot turn a genuinely broken host green.
 RUN_OUT="$(PERF_AB_SIMULATE_NO_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2 2>&1)"
@@ -169,7 +169,7 @@ else
   printf 'SKIP: no comma-decimal locale on this host; the real-locale arm of the clock check did not run\n' >&2
 fi
 
-# --- 5. argument preconditions ---
+# --- 6. argument preconditions ---
 run_ab --a "$NOOP" --b "$NOOP" --iterations 0
 assert_eq "zero iterations is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the empty sample set" "no percentile to report" "$RUN_OUT"

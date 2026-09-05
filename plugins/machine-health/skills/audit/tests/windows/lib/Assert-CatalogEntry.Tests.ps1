@@ -24,7 +24,7 @@ BeforeAll {
             category         = 'storage'
             os               = @('windows')
             script           = 'scripts/windows/checks/Test-DiskHealth.ps1'
-            severity_rules   = 'references/windows/check-catalog.md#2'
+            severity_rules   = 'reference/windows/check-catalog.md#2'
             needs_admin      = $false
             enabled          = $true
             deprecated       = $false
@@ -124,8 +124,8 @@ Describe 'Assert-CatalogEntry' -Tag 'lib' {
 Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'integration' {
     BeforeAll {
         $script:CatalogPath = Join-Path $script:SkillRoot 'catalog\checks.jsonc'
-        $script:Raw = Get-Content -LiteralPath $script:CatalogPath -Raw
-        $script:Catalog = ConvertFrom-Jsonc -InputText $script:Raw
+        $script:Catalog = ConvertFrom-Jsonc -InputText (
+            Get-Content -LiteralPath $script:CatalogPath -Raw)
     }
 
     It 'parses the real catalog as JSONC' {

@@ -30,10 +30,17 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
-# ~140 ms of fork() emulation on Windows Git Bash. Failure semantics are
-# unchanged: a missing jq or an unparsable payload yields rc 1 here, which exits 0
-# exactly as the both-fields-empty skip below did.
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+# A bash match over the buffered payload, no extra process; empty when the
+# payload carries none, and the key is then left out of data.
+SESSION_ID=""
+[[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] && SESSION_ID="${BASH_REMATCH[1]}"
+
+# Both payload fields in ONE jq process (hook::jq_fields), not two: a jq spawn is
+# ~140 ms of fork() emulation on Windows Git Bash. A missing jq or an unparsable
+# payload returns non-zero here and exits 0, the same silent skip the
+# both-fields-empty guard below takes.
 hook::jq_fields "$INPUT" '.file_path' '.load_reason' || exit 0
 FILE_PATH="${HOOK_JQ_FIELDS[0]}"
 LOAD_REASON="${HOOK_JQ_FIELDS[1]}"
@@ -62,7 +69,7 @@ fi
 
 SUBJECT="${FILE_DISP}:${LOAD_REASON}"
 
-DATA=$(jq -nc --arg subject "$SUBJECT" '{subject: $subject}')
+DATA=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "$SUBJECT" '{subject: $subject} + (if $session_id == "" then {} else {session_id: $session_id} end)')
 
 hook::emit_telemetry "instructions-loaded-audit" "InstructionsLoaded" "ok" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"

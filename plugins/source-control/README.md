@@ -160,6 +160,23 @@ invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the gate file and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
+The registration carries an `if` filter, `Bash(*gh *)`, the same shape as the
+`Bash(*worktree*)` filter on the worktree gates, so the hook process is spawned only
+for a command line that carries `gh` followed by a space somewhere in its text (Claude Code checks each
+subcommand of a compound command, and runs the hook regardless when it cannot tell what
+a command expands to). The leading wildcard is deliberate: the `if` field matches the
+command name, so the narrower `Bash(gh *)` never launched the gate for a wrapped call
+such as `env GH_TOKEN=x gh pr create`, `sudo gh pr create` or
+`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The wider filter is a
+superset of the hook's own first check (a `gh` word anywhere on the line), so nothing
+it would have judged is skipped; a plain `git status` still does not pay for it, and a
+non-`gh` line that happens to contain `gh` followed by a space (`echo high tide`) pays one bash start
+before the hook's own jq-free regex pre-filter dismisses it. What the filter still
+cannot see is a `gh` that only appears after a `$()`, a backtick or a `$VAR` expands;
+Claude Code spawns the hook regardless for such a command, so the gate still judges
+it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
+`$()` sample.
+
 #### Telemetry (opt-in)
 
 The hook emits one structured
@@ -206,6 +223,15 @@ can read; it does not block concurrent writes (git-worktree(1)).
 `check-enter <path> --session-id <id>` surfaces a foreign live claim and
 stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
 off; the script remains the documented gate.
+
+This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
+with the `if` filter `Bash(*worktree*)`: the hook process is spawned only for a command
+whose text carries `worktree`, which is also each hook's own first check, so every
+`git worktree add` spelling they judged before (including `git -C <dir> worktree add`
+and wrapped forms) still reaches them, and every other Bash call no longer pays for
+two hook processes. The same best-effort caveat applies: a command containing `$()`, a
+backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
+what the substitution expands to.
 
 ## Works in any repo
 
@@ -354,18 +380,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

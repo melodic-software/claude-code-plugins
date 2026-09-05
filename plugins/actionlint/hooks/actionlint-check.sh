@@ -16,10 +16,13 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "ACTIONLINT"
 
 # Capture $EPOCHREALTIME immediately after the kill-switch so duration_ms covers
 # the work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash
@@ -101,7 +104,8 @@ FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED
 # object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
 # backslashes from a path and corrupt the envelope. The fallback is essentially
 # unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway).
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
@@ -152,13 +156,28 @@ AL_STATUS=$?
 # as an error (output captured as findings for the sink), never as clean.
 if [[ "$AL_STATUS" -ge 2 ]]; then
   FINDINGS_JSON='[]'
-  if [[ -n "$AL_OUTPUT" ]]; then
+  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
+  # sits behind the sink opt-in, the same rule TOOL above already follows.
+  # Without the guard a run reaching this branch paid two jq spawns on the
+  # unwired default path for a value emit_tel then discards (measured with
+  # strace -f -e trace=execve: 5 jq execs per run, 3 with the guard).
+  #
+  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
+  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
+  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
+  # immediately before a newline absorbs that newline into one U+FFFD and
+  # merges two output lines into one array element. Line mode splits on the raw
+  # byte first and keeps them apart. That matters most here: this branch
+  # encodes actionlint's raw stdout+stderr, blank lines and all, with none of
+  # the per-line filtering the findings branch below applies.
+  if [[ -n "$AL_OUTPUT" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "error" "$FINDINGS_JSON"
   exit 0
 fi
 
+FINDINGS_JSON='[]'
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
   hook::ctx_append "actionlint: $(basename "$FILE") has findings:"
@@ -170,13 +189,12 @@ if [[ -n "$AL_OUTPUT" ]]; then
   done <<<"$AL_OUTPUT"
   hook::ctx_flush PostToolUse
 
-  FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
+  # Behind the sink opt-in, and the two-process jq shape kept, for the reasons
+  # recorded at the AL_STATUS >= 2 branch above.
+  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
-  exit 0
 fi
 
-emit_tel "ok" '[]'
+emit_tel "ok" "$FINDINGS_JSON"
 exit 0

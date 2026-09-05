@@ -1,4 +1,5 @@
 {
+  "description": "Formats JavaScript, TypeScript, JSON and CSS with Biome after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,6 +8,70 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.ts)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.tsx)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.js)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.jsx)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.mjs)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.cjs)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.mts)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.cts)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.json)",
+            "timeout": 15,
+            "statusMessage": "Formatting with Biome..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/biome-format.sh",
+            "if": "Edit(*.jsonc)",
             "timeout": 15,
             "statusMessage": "Formatting with Biome..."
           }

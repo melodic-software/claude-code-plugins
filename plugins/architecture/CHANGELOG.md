@@ -21,6 +21,17 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+## [0.6.8]
+
+### Changed
+
+- **`improve` skill-listing entry tightened.** It was among the marketplace's ten largest listing
+  entries. The description now sets off the friction examples and the cross-dimension routing
+  clause in parentheses instead of em dashes while keeping every quoted trigger phrase and the
+  `Skip when` disambiguation. Claude Code truncates the combined `description` and `when_to_use`
+  text at 1,536 characters in the skill listing, and the shared listing budget scales at 1% of the
+  model's context window, so every character an entry spends is a character another skill's
+  description cannot. Hook-performance program, phase 6 (skill listing budget).
 
 ## [0.6.7]
 

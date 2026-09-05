@@ -22,10 +22,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case whose subject this host cannot build is neither a pass nor a failure.
+# It prints its own visible line and carries its own counter, and never routes
+# through pass(), so a proof this host could not run can never be read off the
+# summary as one that did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+
+# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
+# it. Most cases below survive that -- a copied rule file is still a rule file to
+# discovery -- but a case that asserts on where a link POINTS has no subject at
+# all. Probe the round trip rather than the OS name: create a link and ask
+# readlink whether one was made.
+host_makes_symlinks() {
+  local d rc=1
+  d="$(mktemp -d)"
+  printf 'x\n' >"$d/target"
+  if ln -s target "$d/link" 2>/dev/null &&
+    [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
+    rc=0
+  fi
+  rm -rf "$d"
+  return "$rc"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -68,9 +94,7 @@ commit_all() {
 
 rule_file() {
   mkdir -p "$(dirname "$1")"
-  {
-    printf -- '---\npaths:\n  - "%s"\n---\n\n# %s\n' "$2" "$3"
-  } >"$1"
+  printf -- '---\npaths:\n  - "%s"\n---\n\n# %s\n' "$2" "$3" >"$1"
 }
 
 # ==========================================================================
@@ -270,14 +294,22 @@ else
   fail "and the reason is that it does not exist" "contains: does not exist" "$reason"
 fi
 
-# The documented symlink alternative to the import.
-symlinked="$(mktemp -d)"
-git -C "$symlinked" init -q .
-printf '# Shared agent instructions\n' >"$symlinked/AGENTS.md"
-ln -s AGENTS.md "$symlinked/CLAUDE.md"
-commit_all "$symlinked"
-ip_index_target_loaded "$symlinked" "AGENTS.md" >/dev/null 2>&1
-assert_eq "a CLAUDE.md symlinked to AGENTS.md makes it reachable" "0" "$?"
+# The documented symlink alternative to the import. Unlike the discovery cases
+# above, the link IS the subject here: reachability is decided by reading where
+# CLAUDE.md points, so a host that copies instead of linking has no fixture.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_makes_symlinks; then
+  symlinked="$(mktemp -d)"
+  git -C "$symlinked" init -q .
+  printf '# Shared agent instructions\n' >"$symlinked/AGENTS.md"
+  ln -s AGENTS.md "$symlinked/CLAUDE.md"
+  commit_all "$symlinked"
+  ip_index_target_loaded "$symlinked" "AGENTS.md" >/dev/null 2>&1
+  assert_eq "a CLAUDE.md symlinked to AGENTS.md makes it reachable" "0" "$?"
+else
+  skip "a CLAUDE.md symlinked to AGENTS.md makes it reachable" \
+    'ln -s copies rather than links here, so there is no link to follow'
+fi
 
 # An import inside a fenced code block is not a real import.
 fenced="$(mktemp -d)"
@@ -310,8 +342,8 @@ b="$(ip_discover_rules "$repo")"
 assert_lists "rules discovery is byte-identical across runs" "$a" "$b"
 
 # ==========================================================================
-rm -rf "$repo" "$sym" "$symroot" "$symclaude" "$pp" "$circ" "$track" "$root_files" "$chain" "$symlinked" "$fenced" "$alt"
+rm -rf "$repo" "$sym" "$symroot" "$symclaude" "$pp" "$circ" "$track" "$root_files" "$chain" "${symlinked:-}" "$fenced" "$alt"
 
-printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
+printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

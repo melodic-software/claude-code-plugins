@@ -30,6 +30,230 @@ only after that version increases.
   queue evolution breadcrumbs to `reference/ingest-deferred-decisions.md` section 6.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.13.44]
+
+### Changed
+
+- **Fifteen commits across the course-digest and video-digest extraction trees**, from the
+  repo-wide simplification sweep: duplicated locals folded, dead stores removed, suites deduped,
+  and the hotmart packaged-master URL capture, which the request and response interceptors spelled
+  out identically, consolidated into `captureMasterUrl`. `resolveResourceSelectors` in
+  `teachable.js` and the offline/live branch in `run-source-liveness.js` get the same treatment.
+  Float-sensitive frame and timestamp math was compared with `Object.is` semantics so `-0` and
+  `NaN` divergences could not hide; on-disk manifests were byte-compared rather than reasoned
+  about.
+- **`processLesson`'s fail-loud ordering was RESTORED after a hoist proved not
+  behavior-preserving.** Moving the skip guard above the two path joins looks free, but
+  `lessonDirName` throws on a non-string title and `join` throws on a non-string `module.slug`, so
+  the hoist converted a crash on a corrupt `course.json` into a silently skipped lesson and an
+  exit 0. `course.json` is hand-editable, so a typo reaches that path. 416 of 3,000 adversarial
+  cases diverged. The revert is now recorded as a comment at the site, so the next reader does not
+  re-derive the same false saving.
+- **`generate-manifests.js` was left untouched after its edits proved unverifiable.** Three
+  cosmetic changes were made and then reverted: a `!!`-coerced local inlined into the truthiness
+  test that consumed it, a `nextFrame`/`isLastInRun` pair collapsed into one optional-chained
+  expression, and an intermediate `screenshotsDir` folded into a three-argument `join`. Net four
+  lines. The file is a standalone ESM script exposed only as the `manifests` npm script: it exports
+  nothing, no module imports it, and no suite names it, so `scripts/affected-tests.sh` reports it
+  UNMAPPED and AGENTS.md treats that as an error rather than "nothing to run". Recording it in
+  `scripts/affected-tests-no-suite.txt` was rejected because that file's header defines an entry as
+  a claim that a named non-shell lane covers the class, and no lane covers this one. Changing
+  frame-classification logic that nothing exercises, for four lines, is the wrong side of that
+  trade.
+- **A key-order coupling introduced by this sweep is documented where it is created.** Deriving
+  `REQUIRED_METHODS` from `REQUIRED_METHOD_ARITY`'s keys closes the gap where a method could be
+  declared in one table and unchecked in the other, but it makes the arity table's key order
+  load-bearing: reordering it reorders `validateAdapter`'s violations array, which any caller
+  asserting on the whole array rather than on membership will see.
+
+### Notes for maintainers
+
+- Coverage here is thinner than the test counts suggest. `hotmart.test.js`'s mock never invokes
+  the `page.on` handler it registers; `acquire-staged.test.js` returns a constant listing so it
+  cannot see a changed relist; two `transcript/` branches survive constant changes; and mutations
+  planted in every region one course-digest commit touched left all 91 tests green.
+- **`acquisition/acquire.test.js` recursively walks the machine's shared `/tmp`** while asserting
+  only that the result is an array. It is boundary-flaky by construction and gets slower the
+  longer a machine lives; pointing it at a `mkdtemp` directory it owns would fix it.
+
+## [0.13.43]
+
+### Changed
+
+- **`digest_fences.py`: a captured group and a field nothing read are gone, and
+  two tick counters use one string operation.** `CLAIM_LABEL` no longer captures
+  the trailing `(.*)`, and `Claim.rest`, which only ever carried it, is dropped;
+  no caller read either. `parse_claims` now keeps each label's match object from
+  the first scan instead of re-matching every label line and asserting the result
+  is not `None`. The two hand-rolled leading-backtick loops become
+  `len(s) - len(s.lstrip("`"))`. An 18,142-probe differential against the prior
+  implementation found one input where the regexes differ, and it is unreachable
+  by construction: the pattern is only ever fed newline-free lines, and the
+  divergence needs an embedded newline.
+- **`check_linkmap.py`: `ground` is now `rungs_by_url`.** The old name needed a
+  comment to say what it held; the new one says it. Mechanical rename, five call
+  sites, no behaviour change.
+- **`check_inventory.py`: `rows_clean` was write-only.** It was incremented and
+  never read, so it is removed. The rest of the file's diff is `ruff format`
+  output, not hand edits: the pinned formatter reflowed 147 of 148 lines when the
+  hook ran on the edit. Reproduced byte-for-byte by running the pinned formatter
+  over the unmodified copy from `HEAD`, which differs from the committed result
+  by exactly the two `rows_clean` lines. Roughly 45 further repository `.py` files
+  are formatter-dirty at `HEAD` with no CI gate enforcing the formatter, so this
+  reflow will recur on the next file a hook touches.
+
+  Recorded, not fixed: `verification/lib/gate_common.py` reports zero coverage
+  from the suite selector, but tracing execution shows 190 of its 392 entries run
+  across two suites. That is a mapping gap in the selector, not a coverage gap in
+  the code.
+
+## [0.13.42]
+
+### Changed
+
+- **`dedupe-synthesis-dir.js` stops exporting an internal-only hash helper.** Two
+  references exist repo-wide, both inside the file; the module has no barrel, no
+  namespace importer, no dynamic import and no string-key access, and its package
+  is private with neither a `main` nor an `exports` field. Confirmed by loading
+  the module both ways, and by a 17-scenario differential over the deletion path
+  that carries near-miss keeps as well as removals: zero divergences, with four
+  seeded defects caught and two equivalence controls correctly spared.
+- **`merge-triage-json.js` binds its cell-count fallback to the registry** rather
+  than to a literal. This is tighter than the number it replaces, because the
+  validator it feeds slices that registry by the value, so the fallback now means
+  "the whole registry". No existing test reaches that path, so it was driven
+  deliberately with a purpose-built probe: ten cases, five of them on the
+  fallback, identical output and identical thrown messages on both sides.
+
+### Fixed
+
+- **Eight doubled newlines across four watch scripts.** The shared emit helpers
+  append a newline unconditionally, so each explicit one produced a blank line;
+  two files were internally inconsistent, with the sibling call in the same block
+  already omitting it. Measured per command: exactly one byte less per emission,
+  exit codes unchanged, artifacts byte-identical through the production
+  orchestrator, and no consumer parses these streams.
+
+  Removing them left four calls wrapping a single expression in a template that
+  no longer did anything, so those were reduced to a bare argument. That is not
+  cosmetic: the emit helper formats an `Error` as its stack and an object as
+  JSON, so bare and wrapped differ for anything but a string. All four
+  expressions are strings, proven by execution with every throw source
+  enumerated.
+
+### Known issues
+
+- **Which duplicate frame gets deleted can depend on directory iteration order.**
+  `synthesisNameQualityScore` is not a total order, so names that tie are
+  resolved by the order `readdirSync` returns them; forcing both orders deletes
+  opposite files. Left unfixed because choosing a tiebreak changes which file
+  survives, which is a product decision rather than a tidy.
+- **Two files disagree by one cell on a sheet's midpoint.**
+  `render-triage-log.js` hardcodes it while `export-sheet-frame-index.js`
+  computes it from the registry length, so they label the same sheet with
+  different timestamps.
+
+## [0.13.41]
+
+### Added
+
+- **`expand-visual-gaps.js` now has a test suite.** The script mapped to zero
+  suites, which `scripts/affected-tests.sh` reports as an error rather than an
+  empty selection, and the no-suite allowlist is for prose and manifests
+  explicitly not for code. The suite covers gap detection, both window
+  boundaries, window order, the minute-rounded region label and the
+  empty-window case. Mutation-tested against four seeded defects: inverting the
+  gap filter kills four of the five cases, rounding to a floor kills one, and
+  making either boundary exclusive kills three and one respectively.
+
+### Changed
+
+- **Video-digest watch frames and vision tidyings from the repo-wide sweep.**
+  `export-sheet-frame-index.js` drops its local 16-element cell array for the
+  `CELL_IDS` registry already imported elsewhere in the tree and names the bare
+  `inputFiles[8]` literal; the two lists were compared index by index and the
+  produced `sheet-frame-index.json` is byte-identical across cell counts of 2,
+  9, 16 and 20. `expand-visual-gaps.js` rewrites an accumulate-into-array loop
+  as `filter`/`map`, verified over 38 curated cases and 20,000 fuzz iterations
+  with zero mismatches. `repair-synthesis-promotions.js` extracts a
+  `promotedDecisions` helper, sheds two unused parameters from
+  `applyFileRenames` and hoists the decisions write to the caller, where it
+  remains the first statement of the `!dryRun` branch and so still precedes
+  every rename; an instrumented op-trace over six `sliceDir` spellings and
+  crash injection at eight boundaries leave the resulting trees identical.
+  `rebuild-visual-frames.js` drops a row field nothing reads and
+  `list-promotion-candidates.js` names the per-session candidate floor.
+
+### Fixed
+
+- **Eighteen doubled newlines across nine watch scripts.** `writeStdout` and
+  `writeStderr` append a newline unconditionally, so every explicit `\n` passed
+  to them emitted a stray blank line. Measured per CLI, each delta is exactly
+  one byte per emission executed; exit codes are unchanged and the text is
+  identical once blank lines collapse. No consumer parses these streams.
+
+## [0.13.40]
+
+### Fixed
+
+- **`fetch-deck-attachments.js` no longer emits doubled newlines.** Three calls
+  passed an explicit `\n` to the shared stderr/stdout helpers, which already
+  append one, so the usage message, the result JSON and the error line each ended
+  with a stray blank line. Exactly one trailing byte is removed per emission;
+  the JSON payload is byte-identical and output still ends in a single newline.
+  All three sites are terminal (each is immediately followed by process exit or
+  the end of the promise chain), so nothing runs together, and no consumer of
+  either CLI exists in the repo.
+
+### Changed
+
+- **Video-digest acquisition, adapter, transcript and watch tidyings from the
+  repo-wide sweep.** `acquisition/acquire.js` drops write-only `files` state (a
+  return field its only caller never read, and an outer `let` whose every write
+  was dead or read on the next line); its two suites collapse duplicated spawn
+  stubs into a `spawnOk` helper and reuse the existing `makeStale` helper.
+  `watch/run-watch.js` unwraps a try/finally that held only a comment, moving
+  the temp-dir retention note to the mkdtemp calls it describes, and drops a
+  redundant `harvestedLinks` field from an internal closure's return.
+  `transcript/write-transcript.js` names its duplicated paragraph-count
+  expression `countParagraphs()`; `transcript/run-transcript.test.js` renames a
+  `const URL` that shadowed the global constructor. Comment passes across the
+  adapter, liveness and transcript layers rewrite history narration as
+  present-tense rationale and remove design-plan tokens that no document in the
+  repository defines. Vitest 12/100 acquisition, 8/131 adapters and liveness,
+  6/54 transcript, 21/106 watch, and the full package 71/509 green before and
+  after; `tsc --noEmit` clean.
+
+## [0.13.39]
+
+### Changed
+
+- **Course-digest pipeline and adapter tidyings (third wave).**
+  `extract-course-run.js` collapses a double-negative boolean pair via De Morgan;
+  `utils.js` drops a dead export; `extract-course.js` documents the existing
+  `--show-browser` flag; six non-interpolated template literals become plain strings;
+  `adapters/dometrain.js` chains its landing-URL replacements and both adapters merge
+  double-JSDoc blocks. Full extraction package 91/91 and tsc clean before and after.
+- **Course-digest extraction lib tidyings (second wave).** `players/hotmart.js` drops
+  two provably dead guards in `getTranscript` (the vendor manifest parser returns only
+  dense arrays of non-empty strings), a redundant boolean annotation, and hoists a
+  batch-size constant; `browser.js` and `auth-store.js` headers rewritten from history
+  narration to present-tense rationale. Vitest 41/41 and full package 91/91 before and
+  after.
+- **Video-digest extraction lib tidyings from the repo-wide sweep.**
+  `synthesis-filename.js` removes a provably dead stub-token set in
+  `isStubQualityAuditNote` (every token sat under the function's 20-character
+  early-return floor); `work-root.js` rewrites a history-narration JSDoc line to
+  present tense; `watch-slice-sessions.js` reduces a block-bodied map callback to a
+  concise arrow; one restating comment dropped from `run-args.test.js`. Vitest lib
+  suites 50/50 and the whole extraction package 501/501 before and after.
+
+## [0.13.38]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.13.37]
 

@@ -72,19 +72,33 @@ else
   fail "sink unset: unexpected output: $out"
 fi
 
-# --- Test 2: jq absent → fail-open (returns 0, no output) -------------------
-# Make `command -v jq` genuinely fail by running with a PATH that contains no
-# jq. A shell-function shadow does NOT exercise the guard: `command -v jq`
-# reports a defined function as present, so the absence branch is never taken.
-# emit_telemetry uses only shell builtins until its jq calls, so an empty PATH
-# is sufficient. Scoped to the command so PATH/sink never leak into the suite.
+# --- Test 2: jq absent → the envelope is still delivered ---------------------
+# This case used to assert the opposite ("jq absent returns 0 with no output"):
+# the envelope was built by a jq process, so no jq meant no telemetry. The
+# envelope is now assembled with shell builtins and jq is only the fallback
+# for a data object the builtin compactor cannot prove, so with jq gone from
+# PATH a plain envelope must still reach the sink. Two probes:
+#   (a) PATH holds nothing at all. The sink stub uses an absolute shebang and
+#       only builtins, so the delivery cannot lean on any external program.
+#   (b) a shell function shadows `jq` and fails loudly; the envelope arriving
+#       intact proves the builtin path never invoked it.
+# Both keep the fail-open contract on stdout: return 0, nothing on fd1.
 EMPTY_BIN="$(mktemp -d)"
+SINK_FILE2="$(mktemp)"
+STUB2="$(mktemp)"
+cat >"$STUB2" <<EOF
+#!/bin/bash
+while IFS= read -r line || [[ -n "\$line" ]]; do printf '%s\n' "\$line"; done >"$SINK_FILE2"
+EOF
+chmod +x "$STUB2"
 # shellcheck disable=SC2030,SC2031
 out_nojq=$(
-  export HOOK_TELEMETRY_SINK="cat"
+  export HOOK_TELEMETRY_SINK="$STUB2"
   PATH="$EMPTY_BIN" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null
+  wait
 )
 rc_nojq=$?
+wait_for_sink "$SINK_FILE2" || true
 rmdir "$EMPTY_BIN" 2>/dev/null || true
 if [[ $rc_nojq -eq 0 ]]; then
   ok "jq absent: returns 0"
@@ -92,10 +106,33 @@ else
   fail "jq absent: expected 0, got $rc_nojq"
 fi
 if [[ -z "$out_nojq" ]]; then
-  ok "jq absent: no output"
+  ok "jq absent: nothing on stdout"
 else
   fail "jq absent: unexpected output: $out_nojq"
 fi
+if [[ -s "$SINK_FILE2" ]] && grep -q '"hook":"sample-hook","hook_event":"PostToolUse","status":"ok"' "$SINK_FILE2"; then
+  ok "jq absent (empty PATH): envelope still delivered by the builtin path"
+else
+  fail "jq absent (empty PATH): envelope not delivered: $(cat "$SINK_FILE2" 2>/dev/null)"
+fi
+: >"$SINK_FILE2"
+# shellcheck disable=SC2030,SC2031,SC2329  # subshell-local by design; jq is invoked through the lib
+(
+  jq() {
+    echo "jq was invoked on the builtin path" >&2
+    return 127
+  }
+  export HOOK_TELEMETRY_SINK="$STUB2"
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}'
+  wait
+) 2>"$SINK_FILE2.err"
+wait_for_sink "$SINK_FILE2" || true
+if [[ -s "$SINK_FILE2" ]] && ! grep -q 'jq was invoked' "$SINK_FILE2.err"; then
+  ok "jq shadowed: envelope delivered without invoking jq"
+else
+  fail "jq shadowed: delivered=$([[ -s "$SINK_FILE2" ]] && echo yes || echo no) stderr=$(cat "$SINK_FILE2.err")"
+fi
+rm -f "$SINK_FILE2" "$SINK_FILE2.err" "$STUB2"
 
 # --- Test 3: envelope shape matches schema (7 required common fields + data) --
 SINK_FILE="$(mktemp)"
@@ -711,6 +748,233 @@ else
   fail "json_escape: wrong residual-C0 handling: $(printf '%q' "$esc2")"
 fi
 
+# --- Test 14b: hook::json_escape_jq matches jq's own string escaping ----------
+# The telemetry envelope's string fields are escaped by this function instead
+# of by jq; the corpus covers every class jq treats specially (backslash,
+# quote, the five short-form controls, the other C0 bytes, DEL) plus the
+# classes it passes through (non-ASCII, slash).
+corpus14b=(
+  'plain'
+  'he said "hi" \ path'
+  $'tab\tnl\ncr\rbs\bff\f' # portability-ok: bash ANSI-C backspace byte, not a GNU grep word boundary
+  $'esc\033one\001us\037del\177'
+  'slash/and é😀 and -- dash'
+  ''
+)
+for s in "${corpus14b[@]}"; do
+  want=$(jq -cn --arg s "$s" '$s' | tr -d '\r')
+  got="\"$(hook::json_escape_jq "$s")\""
+  if [[ "$got" == "$want" ]]; then
+    ok "json_escape_jq: matches jq for $(printf '%q' "${s:0:24}")"
+  else
+    fail "json_escape_jq: bash=$got jq=$want"
+  fi
+done
+
+# --- Test 14c: hook::json_compact_to matches jq -c on jq's own output ---------
+# The data object spliced into the envelope must be the bytes jq would print.
+# jq -c output, jq -n (pretty) output and the compact literal fallbacks the
+# hooks carry all compact identically; anything the compactor cannot prove
+# (a \u or \/ escape, a raw control byte, a non-object, invalid JSON) returns 1
+# so the caller runs jq instead.
+compact_is() { # <desc> <input> <want>
+  local got=""
+  if hook::json_compact_to got "$2" && [[ "$got" == "$3" ]]; then
+    ok "json_compact_to: $1"
+  else
+    fail "json_compact_to ($1): got [$got] want [$3]"
+  fi
+}
+compact_refuses() { # <desc> <input>
+  local got=""
+  if hook::json_compact_to got "$2"; then
+    fail "json_compact_to ($1): accepted [$got], must fall back to jq"
+  else
+    ok "json_compact_to: $1 falls back"
+  fi
+}
+pretty14c=$(jq -n --arg tool Bash --arg subject 'git commit -m "x"' --arg form '' '{tool:$tool,subject:$subject,form:$form,n:[1,2,{a:null,b:true}],e:{},f:[]}')
+compact_is "pretty jq -n object" "$pretty14c" "$(jq -c . <<<"$pretty14c" | tr -d '\r')"
+compact_is "compact jq -c object is unchanged" '{"tool":"Write","file":"a b.py","findings":["x: [1] {2}"]}' '{"tool":"Write","file":"a b.py","findings":["x: [1] {2}"]}'
+compact_is "escaped quotes and backslashes kept verbatim" '{ "p": "C:\\repo\\a \"q\"" }' '{"p":"C:\\repo\\a \"q\""}'
+compact_is "empty object" '{}' '{}'
+compact_is "integer literals verbatim" '{ "n": -15, "m": 0, "k": 123456789012345 }' '{"n":-15,"m":0,"k":123456789012345}'
+compact_refuses "fraction (jq releases render it differently)" '{"k":1.0}'
+compact_refuses "exponent" '{"n":-1.5e3}'
+compact_refuses "16-digit integer" '{"big":1234567890123456}'
+compact_refuses "unicode escape" '{"a":"\u00e9"}'
+compact_refuses "escaped slash" '{"a":"x\/y"}'
+compact_refuses "raw control byte in a string" "$(printf '{"a":"x\001y"}')"
+compact_refuses "array root" '[1,2]'
+compact_refuses "trailing comma" '{"a":1,}'
+compact_refuses "bad literal" '{"a":tru}' # spellchecker:disable-line
+compact_refuses "split literal" '{"a":tr ue}' # spellchecker:disable-line
+compact_refuses "unterminated string" '{"a":"x}'
+compact_refuses "invalid escape" '{"a":"x\qy"}'
+compact_refuses "trailing backslash escape" '{"a":"x\\\"}'
+compact_refuses "bad \\u hex digits" '{"a":"\uZZZZ"}'
+
+# --- Test 3b: builtin envelope is jq's compact rendering, byte for byte -------
+# The sink receives exactly one line, and re-rendering it with jq -c yields the
+# same bytes: field order, spacing and escapes are jq's. Also: the fallback
+# fires (and delivers, through jq) for a data object the compactor refuses.
+SINK3B="$(mktemp)"
+STUB3B="$(make_sink "$SINK3B")"
+hook_event3b=$'Post\tTool\001Use'
+# shellcheck disable=SC2030,SC2031  # subshell-local by design
+(
+  export HOOK_TELEMETRY_SINK="$STUB3B"
+  hook::emit_telemetry "sam\"ple" "$hook_event3b" 'ok é' "$EPOCHREALTIME" "$pretty14c" 2>/dev/null
+  wait
+)
+wait_for_sink "$SINK3B" || true
+if [[ -s "$SINK3B" ]]; then
+  lines3b=$(wc -l <"$SINK3B" | tr -d ' ')
+  rerender=$(jq -c . "$SINK3B" 2>/dev/null | tr -d '\r')
+  raw=$(tr -d '\r' <"$SINK3B")
+  if [[ "$lines3b" == 1 && "$raw" == "$rerender" ]]; then
+    ok "envelope: one compact line, byte-identical to jq -c of itself"
+  else
+    fail "envelope: lines=$lines3b raw=[$raw] jq -c=[$rerender]"
+  fi
+  if [[ "$raw" == '{"schema_version":"1.0","timestamp":"'*'","hook":"sam\"ple","hook_event":"Post\tTool\u0001Use","status":"ok é","duration_ms":'*',"data":{"tool":"Bash","subject":"git commit -m \"x\"","form":"","n":[1,2,{"a":null,"b":true}],"e":{},"f":[]}}' ]]; then
+    ok "envelope: field order, escapes and compacted data are jq's"
+  else
+    fail "envelope: unexpected bytes: $raw"
+  fi
+else
+  fail "envelope (3b): sink empty"
+  fail "envelope (3b): bytes not verifiable"
+fi
+: >"$SINK3B"
+# shellcheck disable=SC2030,SC2031,SC2329  # subshell-local by design; jq is invoked through the lib
+(
+  # The lib discards jq's stderr, so the shadow records its invocation in a
+  # marker file instead.
+  jq() {
+    echo "fallback invoked jq" >"$SINK3B.err"
+    return 127
+  }
+  export HOOK_TELEMETRY_SINK="$STUB3B"
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
+  wait
+)
+if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then # portability-ok: grep -q quiet match, not grep -P
+  ok "envelope: unprovable data falls back to jq (and fails open when jq fails)"
+else
+  fail "envelope fallback: marker=$(cat "$SINK3B.err" 2>/dev/null) sink=$(cat "$SINK3B")"
+fi
+: >"$SINK3B"
+# shellcheck disable=SC2030,SC2031  # subshell-local by design
+(
+  export HOOK_TELEMETRY_SINK="$STUB3B"
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
+  wait
+)
+wait_for_sink "$SINK3B" || true
+if [[ "$(jq -r '.data.a' "$SINK3B" 2>/dev/null)" == "é" ]]; then
+  ok "envelope: the jq fallback delivers the decoded data"
+else
+  fail "envelope fallback with jq: $(cat "$SINK3B")"
+fi
+rm -f "$SINK3B" "$SINK3B.err" "$STUB3B"
+
+# --- Test 12g: read_file_path fast path answers exactly what jq answers -------
+# hook::_fast_file_path_to is compared with the jq filter it replaces on a
+# corpus of payload shapes: 0 must carry jq's value, 1 must mean jq printed
+# nothing, and 2 (fall back) is always allowed. Includes the shapes that must
+# NOT be taken from the wrong place: a top-level file_path, a tool_input
+# nested in another object, two keys, a non-string value.
+fast_is_jq() { # <desc> <payload>
+  local got="" rc=0 want
+  hook::_fast_file_path_to got "$2" || rc=$?
+  want=$(printf '%s' "$2" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+  case "$rc" in
+  0) if [[ "$got" == "$want" ]]; then ok "fast file_path: $1 (proven: $(printf '%q' "$got"))"; else fail "fast file_path ($1): got [$got] jq [$want]"; fi ;;
+  1) if [[ -z "$want" ]]; then ok "fast file_path: $1 (proven absent)"; else fail "fast file_path ($1): said absent, jq says [$want]"; fi ;;
+  2) ok "fast file_path: $1 (falls back to jq)" ;;
+  *) fail "fast file_path ($1): rc=$rc" ;;
+  esac
+}
+fast_is_jq "Write payload" '{"session_id":"s","tool_name":"Write","tool_input":{"file_path":"src/app.py","content":"x = {\"a\": [1,2]}\n"},"tool_response":{"filePath":"src/app.py","success":true}}'
+fast_is_jq "Edit payload with escapes" '{"tool_input":{"file_path":"C:\\repo\\a \"b\".md","old_string":"a\nb","new_string":"","replace_all":false}}'
+fast_is_jq "pretty-printed payload" "$(jq -n '{tool_input:{file_path:"docs/x.md"}}')"
+fast_is_jq "ASCII unicode escape in the value" '{"tool_input":{"file_path":"\u0041.md"}}'
+fast_is_jq "trailing CR and newline stripped" '{"tool_input":{"file_path":"x.md\r\n"}}'
+fast_is_jq "keys spelled with unicode escapes" '{"tool\u005finput":{"file\u005fpath":"esc.md"}}'
+fast_is_jq "non-ASCII value" '{"tool_input":{"file_path":"é/日本.md"}}'
+fast_is_jq "empty value" '{"tool_input":{"file_path":""}}'
+fast_is_jq "top-level file_path only" '{"file_path":"top.md","tool_input":{"content":"y"}}'
+fast_is_jq "tool_input nested in another object" '{"outer":{"tool_input":{"file_path":"deep.md"}}}'
+fast_is_jq "file_path as a string value, not a key" '{"tool_input":{"content":"x"},"y":"file_path"}'
+fast_is_jq "no file_path (Bash payload)" '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+fast_is_jq "two file_path keys" '{"file_path":"top.md","tool_input":{"file_path":"in.md"}}'
+fast_is_jq "nested object inside tool_input" '{"tool_input":{"file_path":"in.md","meta":{"a":1}}}'
+fast_is_jq "non-string value" '{"tool_input":{"file_path":123}}'
+fast_is_jq "non-ASCII unicode escape" '{"tool_input":{"file_path":"\u00e9.md"}}'
+fast_is_jq "truncated payload" '{"tool_input":{"file_path":"in.md"},"tool_response":{"filePath'
+fast_is_jq "array root" '[{"tool_input":{"file_path":"arr.md"}}]'
+fast_is_jq "invalid escape in an unrelated string" '{"tool_input":{"file_path":"in.md"},"z":"a\qb"}'
+fast_is_jq "bad \\u hex in an unrelated string" '{"tool_input":{"file_path":"in.md"},"z":"\uZZZZ"}'
+# The two cases above must not be PROVEN present: jq rejects the whole text.
+rc12g=0
+hook::_fast_file_path_to got12g '{"tool_input":{"file_path":"in.md"},"z":"a\qb"}' || rc12g=$?
+if [[ "$rc12g" -eq 2 ]]; then
+  ok "fast file_path: an invalid escape anywhere in the payload falls back to jq"
+else
+  fail "fast file_path: invalid escape elsewhere rc=$rc12g got=[${got12g:-}] (want 2)"
+fi
+# The top-level key must never be taken: the case above proves parity with jq
+# (absent); this pins the verdict itself.
+rc12g=0
+hook::_fast_file_path_to got12g '{"file_path":"top.md","tool_input":{"content":"y"}}' || rc12g=$?
+if [[ "$rc12g" -eq 1 ]]; then
+  ok "fast file_path: top-level file_path is proven absent, never taken"
+else
+  fail "fast file_path: top-level file_path rc=$rc12g got=[${got12g:-}]"
+fi
+# The size threshold: a payload over 64 KiB is handed to jq unconditionally.
+# Built in the shell, not through jq's argv: a 70 KB argument to a native
+# Windows jq is truncated by the process command-line cap (see Test 19b), and
+# a truncated payload would fall back for the wrong reason. The size is
+# asserted before the verdict so a short payload cannot pass vacuously.
+printf -v pad12g 'y%.0s' $(seq 1 70000)
+big12g="{\"tool_input\":{\"file_path\":\"big.md\",\"content\":\"$pad12g\"}}"
+rc12g=0
+hook::_fast_file_path_to got12g "$big12g" || rc12g=$?
+if ((${#big12g} > 65536)) && [[ "$rc12g" -eq 2 ]]; then
+  ok "fast file_path: ${#big12g}-byte payload falls back to jq"
+else
+  fail "fast file_path: ${#big12g}-byte payload rc=$rc12g (want 2 on a payload over 65536 bytes)"
+fi
+# Just under the cap, the same shape is proven by the fast path.
+printf -v pad12g 'y%.0s' $(seq 1 60000)
+big12g="{\"tool_input\":{\"file_path\":\"big.md\",\"content\":\"$pad12g\"}}"
+rc12g=0
+hook::_fast_file_path_to got12g "$big12g" || rc12g=$?
+if ((${#big12g} <= 65536)) && [[ "$rc12g" -eq 0 && "$got12g" == "big.md" ]]; then
+  ok "fast file_path: ${#big12g}-byte payload under the cap is proven by the fast path"
+else
+  fail "fast file_path: ${#big12g}-byte payload rc=$rc12g got=[${got12g:-}] (want 0/big.md)"
+fi
+unset got12g rc12g big12g pad12g
+
+# --- Test 12h: hook::dirname_to, the builtin dirname of a resolver answer -----
+dirname_is() { # <path> <want>
+  local got=""
+  hook::dirname_to got "$1"
+  if [[ "$got" == "$2" ]]; then
+    ok "dirname_to: $1 -> $2"
+  else
+    fail "dirname_to: $1 -> [$got] want [$2]"
+  fi
+}
+dirname_is /a/b/c.md /a/b
+dirname_is /c.md /
+dirname_is c.md .
+dirname_is C:/repo/x.md C:/repo
+dirname_is /c/x.md /c
+
 # --- Test 15: hook::emit_skip_notice — valid JSON, both channels, jq-free -----
 notice=$(hook::emit_skip_notice PostToolUse 'my-plugin: tool "x" missing — skipped')
 if jq -e '.hookSpecificOutput.hookEventName == "PostToolUse"
@@ -1219,7 +1483,7 @@ bs_err_file="$(mktemp)"
   bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
   ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
 else
   fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
@@ -1474,7 +1738,18 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 # returns 1 regardless. Same spawn, opposite verdict.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-if bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
+# HOOK_UTILS_TIMING gates the two interleaved-pair CLOCK comparisons in this
+# suite (this late-EOF one and the stall-overshoot one in Test 18g). Each is
+# six pairs of two arms waiting out real bounds, about 80 s of wall time on a
+# hosted runner, and both are advisory by their own terms: the load-independent
+# probes beside them (the chunk-boundary engagement check and the stall
+# read-count check) are the regression guards (#2105). Unset, which is every
+# ordinary run, the comparison is reported as deferred and the probes carry the
+# coverage; the weekly `hook-utils-timing` workflow sets HOOK_UTILS_TIMING=1
+# and runs the comparisons on both operating systems.
+if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
+  ok "buffer_stdin: late-EOF clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the chunk-boundary engagement probe is the regression guard)"
+elif bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
   bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
     400 fast slow
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
@@ -1863,6 +2138,12 @@ bs_unsliced='hook::resolve_read_slice() {
   local probe
   probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
+}
+hook::resolve_read_slice_to() {
+  local probe
+  probe=$(read -r -t "$1" discard </dev/null 2>&1)
+  printf -v "$2" "%s" "$1"
+  printf -v "$3" "%s" "1"
 }'
 bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 3.6' _ "$HOOK_DIR/hook-utils.sh")
 bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 3.6' \
@@ -2126,7 +2407,10 @@ rm -f "$bs_stall_read_file"
 # Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
 # (#2105, #2080). The idle-slice probe above is the load-independent guard; this
 # relative check is advisory — fail only when every timed pair contradicts slicing.
-if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
+# Gated on HOOK_UTILS_TIMING like the late-EOF comparison (see Test 18b).
+if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
+  ok "buffer_stdin: stall overshoot clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the read-count probe above is the regression guard, #2105)"
+elif bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
   bs_rel_ok=1
   bs_rel_detail="deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
   bs_rel_neg=0
@@ -2885,6 +3169,100 @@ if [[ "${bps_all[*]-}" == "echo x#y git reset --hard" ]]; then
 else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
+
+# --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
+# GNU Bash forks a subshell for $( ) and process substitution even when the
+# body is builtins only. The previous buffer_stdin startup paid two of those
+# (timeout + slice). The _to helpers must run in this shell; the print forms
+# must not be reached from buffer_stdin (that would be a regression to $( )).
+pin_dir="$(mktemp -d)"
+pin_file="$pin_dir/pids"
+eval "$(declare -f hook::resolve_read_timeout_to | sed '1s/^hook::resolve_read_timeout_to/__pin_timeout_to/')"
+eval "$(declare -f hook::resolve_read_slice_to | sed '1s/^hook::resolve_read_slice_to/__pin_slice_to/')"
+eval "$(declare -f hook::resolve_read_timeout | sed '1s/^hook::resolve_read_timeout/__pin_timeout_print/')"
+eval "$(declare -f hook::resolve_read_slice | sed '1s/^hook::resolve_read_slice/__pin_slice_print/')"
+hook::resolve_read_timeout_to() {
+  printf 'timeout %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_timeout_to "$@"
+}
+hook::resolve_read_slice_to() {
+  printf 'slice %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_slice_to "$@"
+}
+hook::resolve_read_timeout() {
+  printf 'PRINT_TIMEOUT\n' >>"$pin_file"
+  __pin_timeout_print
+}
+hook::resolve_read_slice() {
+  printf 'PRINT_SLICE\n' >>"$pin_file"
+  __pin_slice_print "$@"
+}
+# Redirect, not a pipe: a function on the right of `|` runs in a subshell, which
+# would make BASHPID != $$ even when the _to helpers are in-process. A here-doc
+# keeps buffer_stdin in this shell, which is the pin we want.
+hook::buffer_stdin >/dev/null <<'PIN_PAYLOAD'
+{"ok":true}
+PIN_PAYLOAD
+if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "buffer_stdin: resolve_*_to run in-process (no wrapper subshell)"
+else
+  fail "buffer_stdin resolve_*_to not in-process: $(tr '\n' ';' <"$pin_file")"
+fi
+if grep -q 'PRINT_' "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  fail "buffer_stdin reached the print-form resolve_* (regression to \$( )): $(tr '\n' ';' <"$pin_file")"
+else
+  ok "buffer_stdin: does not call the print-form resolve_* wrappers"
+fi
+# Restore the real functions so later cases (none today) see the originals.
+eval "$(declare -f __pin_timeout_to | sed '1s/^__pin_timeout_to/hook::resolve_read_timeout_to/')"
+eval "$(declare -f __pin_slice_to | sed '1s/^__pin_slice_to/hook::resolve_read_slice_to/')"
+eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::resolve_read_timeout/')"
+eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
+rm -rf "$pin_dir"
+
+# --- hook::json_str_object_to matches jq -nc --arg ... -----------------------
+jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_want="${jso_want//$'\r'/}"
+jso_got=""
+hook::json_str_object_to jso_got tool Bash subject "git status --short" form ""
+if [[ "$jso_got" == "$jso_want" ]]; then
+  ok "json_str_object_to: matches jq -nc for {tool,subject,form}"
+else
+  fail "json_str_object_to: got [$jso_got] want [$jso_want]"
+fi
+jso_esc_want=$(jq -nc --arg tool Bash --arg subject 'a"b\c' --arg form $'x\ny' \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_esc_want="${jso_esc_want//$'\r'/}"
+jso_esc_got=""
+hook::json_str_object_to jso_esc_got tool Bash subject 'a"b\c' form $'x\ny'
+if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
+  ok "json_str_object_to: matches jq escapes for quote, backslash, newline"
+else
+  fail "json_str_object_to escapes: got [$jso_esc_got] want [$jso_esc_want]"
+fi
+
+# --- hook::repo_root no longer execs tr --------------------------------------
+tr_shim="$(mktemp -d)"
+tr_log="$tr_shim/log"
+real_tr=$(type -P tr) || real_tr=""
+if [[ -n "$real_tr" ]]; then
+  cat >"$tr_shim/tr" <<EOF
+#!/usr/bin/env bash
+printf 'TR\\n' >>"$tr_log"
+exec "$real_tr" "\$@"
+EOF
+  chmod +x "$tr_shim/tr"
+  PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
+  if [[ -f "$tr_log" ]]; then
+    fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "repo_root: strips CR in-shell, does not exec tr"
+  fi
+else
+  fail "repo_root tr pin: no real tr on PATH to wrap"
+fi
+rm -rf "$tr_shim"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -27,6 +27,231 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   longer; back-compat alone never makes the second vocabulary permanent.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.7.42]
+
+### Changed
+
+- **`zone-crossing-inject.sh` no longer rewrites a state marker that already
+  holds the value.** The hook fires once per `UserPromptSubmit` and once per
+  `PostToolBatch`, so a three-batch turn that stayed in one zone fired four
+  times and rewrote both `.zone` and `.armed` four times to the values they
+  already held. Each marker is now written only when its on-disk value differs
+  from the new one. The comparison uses the raw `.armed` read, not the value
+  seeded from `.zone` when `.armed` is absent, so a missing marker still
+  latches on the first fire. Write ordering, the fail-open posture, and the
+  `.zone` rollback on a failed `.armed` write are unchanged; the rollback now
+  fires only when this call was the one that moved `.zone`. No change to when
+  the notice is emitted: the armed-rank gate already suppressed the extra
+  fires, so this removes wasted I/O rather than duplicate injection. A new
+  contract-test case pins the skip by marker mtime, with a positive control
+  that a mismatched marker is still rewritten; it fails against the previous
+  hook on exactly the two skip assertions.
+- **`hooks.json` carries a top-level `description`.** A documented field the
+  plugin omitted. The four `timeout: 60` values are unchanged: the 0.4.8 entry
+  and the README size that cap from a 22.0 s measurement on Windows 11 / Git
+  Bash with Defender real-time protection, and nothing here re-measured that
+  profile.
+
+## [0.7.41]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.7.40]
+
+### Changed
+
+- **`zone-gate.sh` reads its kill switch before sourcing the library.** It read
+  `context_guard_hooks_enabled` through `hook::check_enabled`, a function that
+  exists only once `hook-utils.sh` is sourced, so a DISABLED gate parsed the
+  whole 2,684-line library before finding out it had nothing to do. The gate
+  runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
+  gate's ~5.3 ms on the reference host. The predicate is inlined with the same
+  semantics as `hook::is_enabled`, pinned by the new fleet gate
+  `scripts/check-killswitch-hoist.sh`. Behaviour of an ENABLED gate is
+  unchanged; `hooks/hooks.json` is untouched. (#3719)
+
+## [0.7.39]
+
+### Changed
+
+- **The blocking gate's deny reason now names `/session-flow:handoff` and nothing else.** The
+  routing clause used to close by offering a second, free-hand route: a resume file the model
+  composes itself, at any path containing 'handoff'. That licensed a hand-written save-point at
+  exactly the moment the session is least able to write one well. The clause now reads "run
+  /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from
+  this gate". The `*handoff*` path-exemption LOGIC is untouched, and the gap that leaves is
+  recorded rather than closed: a consumer without `session-flow` installed is offered no free-hand
+  route in the reason text, while a hand-written file whose path contains `handoff` still passes
+  the gate. Reason text only, no behavior change; a new `zone-gate.test.sh` assertion pins the
+  deny reason against the old clause returning.
+
+## [0.7.38]
+
+### Changed
+
+- **`zone-crossing-inject.sh` spends three fewer subshells per fire.** `rank` and
+  `unrank` printed their result, so each of the three call sites paid a
+  command-substitution subshell; they now set `REPLY` and the callers read it,
+  with `unrank` hoisted out of an `elif` condition. Measured with `strace`, not
+  asserted: forks drop from 11 to 8 on the steady path and 24 to 21 on a
+  crossing, with an identical exec census. Behavior proven byte-identical over
+  1,152 payload cases, 576 failure-path cases and 144 telemetry cases, repeated
+  under bash 4.3 and 5.2. The hazards the conversion introduces, a clobber
+  between call and use and an accidental `local`, are both caught by the suite.
+- **Smaller tidyings.** `zone-gate.sh` drops a `shopt -u nocasematch` that sat
+  immediately before an unconditional exit; `zone-gate.test.sh` reshapes an array
+  so its expansion is never empty, which errors under `set -u` on bash below 4.4;
+  `statusline-tee.sh` renames an unused loop variable and drops the pragma that
+  had suppressed a finding for it. Comment passes across five files trade history
+  narration for the present-tense mechanism, keeping every measured budget.
+
+## [0.7.37]
+
+### Changed
+
+- **The statusline-tee cancellation cases park their `mv` shim for two seconds
+  instead of ten.** Bash defers the TERM trap until the foreground `mv`
+  returns, so the shim's own sleep was the floor for both cancellation cases
+  and the suite spent most of its wall time waiting on a delay that proved
+  nothing. Two seconds exercises the same cancellation window behind the same
+  readiness marker. Test-side only; no hook, script or shipped behaviour
+  changes.
+
+## [0.7.36]
+
+### Changed
+
+- **README carries the hook budget accounting rows.** The 0.7.34 process counts for the
+  PostToolBatch, PreToolUse, PostCompact rows and the zone resolver, and the kept 60-second timeout
+  rationale, now sit under Requirements, per the hook-budget convention's rule 1. Documentation
+  only.
+
+## [0.7.35]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.7.34]
+
+### Changed
+
+- **The zone-crossing hook's steady PostToolBatch path drops from 11 processes to 2.** PostToolBatch
+  fires once per tool batch, so every process `zone-crossing-inject.sh` started was paid on the
+  critical path of every batch. Removed: three `dirname` calls (two sources plus the resolver path),
+  replaced by `${BASH_SOURCE[0]%/*}` with dirname's own `.` answer for a slash-free invocation; a
+  second `jq`, by reading `hook_event_name` and `session_id` in one pass instead of one call each;
+  `tr -cd '[:lower:]' | head -c 16` on both state markers, replaced by `$(<file)` plus parameter
+  expansion that keeps the `[:lower:]` class so the result stays locale-independent; and the
+  per-batch `mkdir -p` on the state directory, behind a `-d` guard so it is paid once per session.
+  Measured on Windows 11 under Git Bash, 12 trials against a `bash -c :` floor: 18.9
+  spawn-equivalents to 10.8. The accounting table is in the plugin README.
+- **`zone-gate.sh` spawns nothing in the default advisory posture.** Its two `dirname` calls were
+  its entire cost there, since the gate exists only in blocking mode and otherwise starts, sources
+  and exits. 2.5 spawn-equivalents to 1.4.
+- **The PostCompact marker drops from 9 processes to 4.** Two `dirname` calls went the same way;
+  `date -u` became printf's `%()T` format, the idiom the shared telemetry helper already uses, for
+  an identical string and no process; and the `mkdir` and the blocking-mode counter `rm` are behind
+  existence guards, both no-ops on the steady path. The prune, the atomic rename and the permission
+  repair on the shared contract directory stay: PostCompact fires once per compaction, not per tool
+  batch.
+- **The zone resolver drops from six processes to one.** `scripts/context-zone.sh` is the band
+  authority the hooks call once per resolve, so its cost lands on the PostToolBatch path too. It
+  spent one `jq` for the snapshot, two `date` for the staleness arithmetic, and three `awk` for the
+  two band comparisons and the version gate. The band resolution now runs ahead of the snapshot
+  pass and the resolved bands are handed to that one `jq` as data, so the comparisons happen where
+  the snapshot is already parsed; the two `zones.json` passes became one over the same file, still
+  validating the percentage and token shapes independently and still emitting their own separate
+  notices; and `date -u +%s` became printf's `%()T`. A `zones.json` override costs exactly one
+  additional `jq`. Measured with old and new interleaved in one loop against the same floor: 9.5
+  spawn-equivalents to 2.3.
+- **The resolver's `captured_at` gate keeps its strictness on purpose.** jq's `fromdateiso8601`
+  NORMALIZES a structurally well-formed but calendar-invalid timestamp instead of refusing it, so
+  February 30th would have become March 2nd and second 60 would have rolled into the next minute.
+  That would have quietly widened the staleness gate the strict format test exists to hold. The
+  parsed epoch is formatted back and required to equal the input byte for byte, which restores
+  `date -u -d`'s answer on every value in that class.
+- **What did not change: any decision, any emitted text, any state file.** An eleven-scenario
+  capture covering both events, both crossing directions, hostile and absent session ids and an
+  empty payload diffs byte-identical on stdout, exit code and every state file. For the resolver, a
+  differential harness compares the old and new implementation over 103 inputs on stdout, stderr
+  and exit code: both band shapes at every boundary, the window-class selection, the plausibility
+  guard, the version gate either side of 2.1.132, the combination rule, the staleness window either
+  side, the whole calendar-invalid `captured_at` class, all four trust gates, and every
+  `zones.json` variant including both malformed-notice paths. Zero differences across three runs.
+  A whole steady PostToolBatch fire is now 3 processes, down from 15.
+- **The resolver still runs as its own process rather than being sourced.** It is a documented seam
+  that `zone-gate.sh` and its test suite invoke as an executable, and it signals through `exit`.
+  Making it sourceable would change a public interface to save one process, and it is the only
+  structural cut left on this path.
+- **The `%()T` clock keeps `date` as its fallback on a shell without it.** printf's `%()T`
+  conversion arrived in bash 4.2, and stock macOS ships 3.2, which this plugin supports. There the
+  builtin fails and binds nothing, so without a fallback every resolve answered `unknown`, which
+  silently disabled both the zone-crossing notice and the blocking gate, and the PostCompact marker
+  recorded an empty `compacted_at`. Both sites now try the builtin first and run the exact `date`
+  invocation they replaced only when it fails. On 4.2 and later the fallback is never reached, so
+  the process budgets above stand; both suites emulate the 3.2 printf with an exported shim and
+  assert by trace that `date` runs exactly once there.
+- **The state-marker reads are silent again when the file vanishes between the `-r` test and the
+  read.** `$(<file)` had lost the `2>/dev/null` the `tr` pipeline carried, so bash's own "No such
+  file" reached the hook's stderr in that window. The redirect now sits on a brace group around the
+  read. It cannot sit inside the substitution: a second redirection there turns the fast-path read
+  into a null command, and the marker would read as empty on every fire.
+
+### Added
+
+- **`zone-crossing-inject.test.sh` asserts the per-batch process budget by trace.** Reading the code
+  cannot prove it: `dirname`, `tr`, `head` and a per-field `jq` each look like one harmless call at
+  the call site and only add up in a trace. The new cases assert exact counts rather than absence,
+  so a regression back to a second `jq` fails a test instead of quietly slowing every tool batch.
+- **`context-zone.test.sh` asserts the per-resolve process budget the same way.** A zero-config
+  resolve must spawn exactly one process and exactly one `jq`, with no `date` and no `awk`; a
+  `zones.json` override must cost exactly one more `jq`, pinning the single-pass read so a future
+  change cannot quietly go back to one pass per shape.
+
+## [0.7.33]
+
+### Changed
+
+- **The two advisory zone-crossing rows stay at their 60-second timeout; the cap was evaluated
+  and kept.** A 15-second cap on both `zone-crossing-inject.sh` registrations (PostToolBatch and
+  UserPromptSubmit) was proposed on the grounds that they sit on the prompt path and are advisory.
+  It was rejected in review. The 0.4.8 measurement stands: on Windows 11 / Git Bash with Defender
+  real-time protection enabled, this script reached 22.0 s on a small UserPromptSubmit payload, and
+  nothing in this change re-measured it. A timeout only caps a hook that has already stalled and
+  saves nothing on a normal fire, so a lower cap buys no latency on the median path. On the
+  measured profile it would instead cancel the hook on essentially every fire, which drops the
+  advisory always rather than only when the hook is stuck. Both rows keep 60 until a re-measurement
+  on that profile shows headroom. A hook blocked on stdin is bounded separately by
+  `cg::read_payload` in `hooks/payload.sh`, which reads to EOF under a 5-second `read -t` and which
+  both rows already use. All four rows in `hooks/hooks.json` remain at 60. No script changed.
+
+## [0.7.32]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.7.31]
 

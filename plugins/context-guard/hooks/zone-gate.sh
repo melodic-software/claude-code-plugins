@@ -33,12 +33,24 @@
 
 set -uo pipefail
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-# shellcheck source=payload.sh
-source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
+# Hook directory by parameter expansion, never `dirname`. This hook matches
+# Write, Edit, NotebookEdit, Agent and Workflow, so in the default advisory
+# posture it starts, sources, and exits: the two source lines are its entire
+# cost, and a `dirname` on each would make both of them processes. The `.`
+# fallback reproduces dirname's own answer for a bare, slash-free invocation.
+CG_DIR=${BASH_SOURCE[0]%/*}
+[[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
+# shellcheck source=hook-utils.sh
+source "$CG_DIR/hook-utils.sh"
+# shellcheck source=payload.sh
+source "$CG_DIR/payload.sh"
 
 MODE="${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}"
 # Pure inapplicability: the gate exists only in blocking mode; the advisory
@@ -46,8 +58,10 @@ MODE="${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}"
 [[ "$MODE" == "blocking" ]] || exit 0
 
 START_EPOCH=${EPOCHREALTIME:-0}
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
+# Not absolutized through `cd … && pwd`: this path is only ever handed to
+# `bash`, which resolves it against the same working directory the hook started
+# in, and the hook never changes directory.
+RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: no stdin payload → no session_id → fail-open (a gate that
 # cannot identify its session must never block). Chunked reader: a large
@@ -102,7 +116,6 @@ fi
 target=$(hook::jq_field "$INPUT" '.tool_input.file_path // .tool_input.notebook_path') || target=""
 shopt -s nocasematch
 if [[ -n "$target" && "$target" == *handoff* ]]; then
-  shopt -u nocasematch
   exit 0
 fi
 shopt -u nocasematch
@@ -151,7 +164,7 @@ if ((count <= GRACE)); then
 fi
 
 TOOL=$(hook::jq_field "$INPUT" '.tool_name') || TOOL="tool"
-reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed), or write a resume file whose path contains 'handoff'. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
+reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from this gate. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
 jq -n --arg reason "$reason" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
 hook::emit_telemetry "zone-gate" "PreToolUse" "blocked" "$START_EPOCH" \

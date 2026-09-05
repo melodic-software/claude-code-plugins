@@ -43,13 +43,6 @@ assert_contains() {
   *) fail "$1" "contains: $3" "$2" ;;
   esac
 }
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "absent: $3" "present" ;;
-  *) pass "$1" ;;
-  esac
-}
-
 # --- Fixtures --------------------------------------------------------------------
 
 DIR_A="$TEST_TMPDIR/topic"
@@ -307,10 +300,11 @@ assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
 #
 # may_form() reports two signals through one RSTART, and is_stamp() reads that
 # RSTART to decide whether the match it accepted began inside the window. So the
-# function has to hand back the LEFTMOST of the two: a digit-adjacent "may" out
-# in the 9 characters of slack used to be tested first and returned first, so a
-# capital "May" sitting inside the window was never consulted and the line left
-# this inventory. A weaker second date signal REMOVED the stamp line.
+# function has to hand back the LEFTMOST of the two: test the digit branch first
+# and return on it, and a digit-adjacent "may" out in the 9 characters of slack
+# keeps a capital "May" sitting inside the window from ever being consulted, so
+# the line leaves this inventory. A weaker second date signal REMOVING the stamp
+# line is the direction this inventory must not move in.
 #
 # Offsets are measured, not eyeballed. The keyword match ends at column 9 of the
 # line, so window offset = column - 8, wlen is 60 and the slice is wlen + 9 = 69
@@ -321,8 +315,8 @@ assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
 # rather than typed so the 52 above is the number in the file.
 #
 # The cross-script count below is pinned to a number as well as to agreement:
-# both scripts inherited this defect identically, so agreement alone was blind to
-# it, which is how it survived the last two fixes in this area.
+# both scripts carry this rule identically, so agreement alone is blind to a
+# defect they share, and the two agree on the wrong count.
 
 SLACK_DIR="$TEST_TMPDIR/slack-may"
 mkdir -p "$SLACK_DIR"

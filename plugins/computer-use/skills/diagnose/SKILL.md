@@ -1,7 +1,7 @@
 ---
 description: "Diagnose unexpected behavior from Claude Code's built-in computer-use MCP server (desktop screen control). Use when: 'computer use', 'control my screen', 'screenshot is blurry', 'why is the screenshot low resolution', 'zoom in on the screen', 'screenshot capture failed', 'empty capture', 'clicks are landing in the wrong place', 'the screensaver killed the session', 'UIPI', 'app is not in the allowed applications', 'escape is not closing this menu', or before driving a native desktop app. Resolves a symptom to a cause instead of retrying: the fixed screenshot pixel budget and when zoom recovers detail, the capture and input failure ladders, and the per-OS quirks that make synthesized input behave unlike a human's. Not for: browser work (use Claude in Chrome), shell work (use Bash), or a service with its own MCP server."
 when_to_use: "a screenshot, click, or keystroke did not do what you expected; sizing up the hazards before driving a native app unattended"
-argument-hint: "[screenshots|failures|quirks] — omit for the symptom guide"
+argument-hint: "[screenshots|failures|quirks]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

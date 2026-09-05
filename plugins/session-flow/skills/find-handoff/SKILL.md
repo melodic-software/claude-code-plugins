@@ -47,7 +47,9 @@ resolution input, `Handoff origin:`, described after them:
    for a **file-based** handoff. **Two path forms qualify:** an absolute path (what the producer
    emits) and a repo-relative path (what older handoffs on disk carry). Match the directive on its
    `…handoffs/<TS>-handoff-…` shape, which both forms share, and let them diverge only at the
-   existence check (step 3).
+   existence check (step 3). The shape-2 directive
+   continues past `then continue them.` with an invoke-the-skill sentence; older directives end
+   there. Neither the sentence's presence nor its absence is a signal.
 2. **The dashed rails + instruction line**, the two `─` (U+2500) rails and the literal
    `` `/clear`, then copy everything between the dashed lines `` line. For a **prompt-only** handoff
    there is no file and no directive; the resume content is inline between the rails, and the
@@ -64,7 +66,17 @@ note holds below. What the ladder depends on it for is step 3's existence check:
 repository and repo-relative path that let a ROOTED directive survive a machine or checkout change,
 which is the one failure an absolute path has that a relative one does not. Only the file-mode
 shape emits it, and only alongside an absolute directive, so its absence disqualifies nothing:
-prompt-only never emits it, and a repo-relative directive never has one.
+prompt-only never emits it, and a repo-relative directive never has one. It
+has two forms on disk and both are read: the shape-2 two-slot form
+`Handoff origin: <remote URL> <repo-relative path>` (a slot with whitespace double-quoted) and the
+legacy form `Handoff origin: <identity>, relative path <path>.`.
+
+**A shape-2 file stores its own resume prompt.** Files carrying `handoff_shape: 2` end with a
+`## Resume prompt` section holding the rails block exactly as it was emitted, so rung 1 can hand
+back the prompt from the file alone, without a transcript
+(`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
+that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
+is named as such and never presented as the lost handoff.
 
 **The resume prompt this skill recovers is the rails block PLUS every below-rail `/loop` re-arm
 message** (save-point.md "Detection contract"). Everything else the producer arms lives between the
@@ -84,10 +96,11 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
    never the literal `.work`. Read
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
-   the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the mtime
-   ranking, the short-circuit bar and where a short-circuit jumps to, and the repo-correlation check
-   that stops a merely recent candidate from being presented as this work's. A strong, recent
-   candidate ends the ladder here.
+   the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
+   unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
+   jumps to, how a shape-2 candidate's stored `## Resume prompt` is printed, and the
+   repo-correlation check that stops a merely recent candidate from being presented as this
+   work's. A strong, recent candidate ends the ladder here.
 
 2. **Transcript scan. Bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
    project dirs (the lost session may have run in a **different** repo, so scan all of them, not

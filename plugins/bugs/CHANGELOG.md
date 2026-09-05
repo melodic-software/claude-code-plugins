@@ -34,6 +34,19 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   session refuses a git-bearing compound command, which blocked these skills from loading inside a
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were.
+## [0.9.8]
+
+### Changed
+
+- **`setup`:** spell the argument hint `check | apply` to match sibling
+  setup skills (#3542).
+
+## [0.9.7]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.9.6]
 

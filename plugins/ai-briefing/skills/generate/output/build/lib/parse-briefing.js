@@ -17,7 +17,7 @@
 //   ...
 //
 // Output:
-//   { meta: { meetingNumber, window, items_count, sources_line }, buckets: { Anthropic: { HIGH:[…], MED:[…], LOW:[…] }, ... } }
+//   { meta: { meetingNumber, window, sourcesLine }, buckets: { Anthropic: { HIGH:[…], MED:[…], LOW:[…] }, ... } }
 
 import { unified } from "unified";
 import remarkParse from "remark-parse";
@@ -29,11 +29,8 @@ import fs from "node:fs/promises";
 function flattenInline(nodes) {
   let out = "";
   for (const n of nodes ?? []) {
-    if (n.type === "text") out += n.value;
+    if (n.type === "text" || n.type === "inlineCode") out += n.value;
     else if (n.type === "break") out += "\n";
-    else if (n.type === "inlineCode") out += n.value;
-    else if (n.type === "strong" || n.type === "emphasis") out += flattenInline(n.children);
-    else if (n.type === "link") out += flattenInline(n.children);
     else if (n.children) out += flattenInline(n.children);
   }
   return out;
@@ -45,7 +42,7 @@ function stripMetadataLabel(text, label) {
 
 /**
  * Split a bullet's text on the ' — ' (em-dash space) sentinel that separates
- * body from URL list. Returns { headline, body, urls }.
+ * body from URL list. Returns { headline, body, urls, date }.
  *
  * Heuristics:
  *   - First child of listItem is paragraph; first inline run typically begins

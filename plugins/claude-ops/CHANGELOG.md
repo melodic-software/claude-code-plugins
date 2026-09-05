@@ -44,6 +44,519 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
   loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
   lines stay where they were.
+## [0.42.7]
+
+### Changed
+
+- **Re-verified the `plugins` skill's empirical claims against Claude Code 2.1.261 and
+  updated the stamps to match what was actually re-run.** Confirmed unchanged on 2.1.261:
+  `update -s project` still writes no committed settings file, re-proved against a real
+  version bump rather than a no-op — a throwaway local marketplace served `probe-plugin`
+  at `0.1.0`, a project-scope install dirtied the scratch repo's committed
+  `.claude/settings.json`, that file was reverted to clean, and the update then advanced
+  the `installed_plugins.json` record to `0.1.1` (new `lastUpdated` and `installPath`)
+  while `git status` stayed empty; a second `0.1.1` → `0.1.2` cycle hash-compared both
+  `.claude/settings.json` and `.claude/settings.local.json` across the update and found
+  both unchanged. Also confirmed unchanged: the full
+  install/uninstall/enable/disable project-scope write matrix, including the key being
+  created when absent and the whole file being re-serialized so sibling keys move;
+  `enable -s project` still gating on the merged effective value with the same error
+  string and writing nothing when it refuses; `-s project` still keying on the literal
+  current directory with no path flag; and `claude plugin --help` still listing no verb
+  that reaps an install record by path, with `prune` still a dependency axis. Re-fetched
+  the plugins-reference, discover-plugins, and plugin-marketplaces pages plus the
+  published plugin-manifest JSON Schema, all unchanged on the claims this skill carries:
+  monitors still require a session restart, `userConfig` still has no `enum` type, and
+  automatic rename migration still names v2.1.193.
+- **Corrected two claims that no longer hold as written.** A bare plugin name no longer
+  fails for `claude plugin update` on 2.1.261, so the gotcha now records the change and
+  rests the always-use-the-full-id rule on ambiguity across marketplaces rather than on a
+  version-specific failure. The `--ids` refusal of `--all` was attributed to Claude Code
+  2.1.240; it is `fleet-state.sh`'s own argument guard, and the attribution is now
+  corrected rather than restamped.
+- **Marked what was not re-run, with reasons, instead of advancing its stamp.** The
+  `userConfig` unset-key placeholder probe was attempted and came back inconclusive: in a
+  throwaway plugin loaded from a local marketplace, `${CLAUDE_PLUGIN_ROOT}` substituted in
+  the rendered skill body while both a set and an unset `userConfig` token stayed literal,
+  so the positive control failed and the result cannot distinguish the documented
+  behaviour from substitution not reaching skill content on that path. The remaining
+  discriminator would require writing real user settings, which the probe was not
+  permitted to do. Mid-session update path resolution, the `/reload-plugins` warning
+  behaviour, and the install-summary activation line need an interactive session and were
+  not re-run; their documentation was re-fetched and is unchanged. The `claude plugin
+  prune` v2.1.121 gate and the `/reload-plugins --force` v2.1.163 gate were not
+  re-verified because the current docs state neither version. All of these keep their
+  older stamps.
+- **Added the manifest requirement that every `userConfig` option carries a `title`.**
+  The published schema requires `type`, `title`, and `description`, and `claude plugin
+  validate` on 2.1.261 rejects an option that omits `title`. This plugin's own manifest
+  already satisfies it.
+
+## [0.42.6]
+
+### Added
+
+- **A per-session hook event log, off by default.** `hooks/session-event-log.sh`
+  appends one JSON line per hook event to
+  `<session_event_log_dir>/sessions/<session_id>.jsonl` (default root
+  `.observability/claude`, project-relative) on every one of the 30 events the
+  generated registry marks observable: a fixed spine (`ts`, `session_id`,
+  `hook_event_name`, `category`, `status`, `source`, `duration_ms`) plus the
+  correlation keys the payload carries (`prompt_id`, `tool_use_id`, `agent_id`,
+  `tool_name`, a repo-relative `file_path`, `reason`, `traceparent`). It sources
+  no library, reads stdin in bounded 4 KB slices and stops early only when the
+  buffer ends in `}`, carries the event name and has balanced braces (the
+  Win32 late-EOF stall costs one idle slice, not the read bound; a writer that
+  pauses after a nested `}` is read to the bound, never cut short), records a
+  file outside the project by its last segment after either separator, and the switch
+  `session_event_log_enabled` is read before anything else. Measured on the
+  Linux CI host, N = 15: 2.42 ms disabled against a 2.08 ms bare spawn floor,
+  4.5 to 5.75 ms enabled on a 2 KB payload, 35.7 ms on a 512 KB `tool_response`.
+  `session_event_log_categories` filters by category; `hooks/hook-events.registry.json`
+  is generated from a live fetch of the hooks reference by
+  `scripts/gen-hook-event-registry.sh`, which also regenerates the producer rows
+  in `hooks.json` and excludes `WorktreeCreate`, `MessageDisplay` and `FileChanged`
+  (each replaces or holds native behavior when registered).
+- **`SessionEnd` retention inside the 1.5 s budget.** `hooks/session-retention.sh`
+  keeps a session file when it is among the newest `session_log_keep_sessions`
+  (30) OR younger than `session_log_keep_days` (14), in four processes and no
+  stdin read (4.3 ms over 40 files, 24 ms over 100 with 70 pruned). With
+  `session_log_pre_prune_command` set, doomed files are moved to
+  `prune-pending/<epoch>-<pid>/` and the command runs detached with that
+  directory as its argument; the set is deleted on the first run after 24 h.
+- **`setup apply` writes the root's guard; `retirements.yaml` gains `claude-ops-r001`.**
+  The setup skill leaves the check-only carve-out: probe 5 reports the hook log
+  root, its containment (checked lexically and physically: a root whose
+  existing component is a symlink out of the project, or back to the project
+  root, is refused by every hook that writes or deletes under it), and its
+  self-ignoring `.gitignore` (`*`), and `apply`
+  writes exactly that one file, then reads back the tracked-versus-ignored pair.
+  The hooks heal an absent guard on their first write too, so a fresh clone or
+  worktree needs no setup run; a guard an operator edited is respected and the
+  write refused. The retirement record names the old shared-file location
+  (`.claude/observability/hook-events.jsonl`, `migrate`) with a successor that
+  appends the old rows under the new root; one eval per record, helper copy
+  synced by `scripts/sync-check-retirements.sh`.
+- **The observability skill reads the root and reports per session.** Every
+  whole-root query reads `sessions/*.jsonl` plus the shared `hook-events.jsonl`
+  through one normalizing prelude; `session` (newest file by mtime) and
+  `session:<id>` render a per-session report (hooks fired, blocked, rewrote,
+  per-hook duration, the event timeline); every report ends with the toggles,
+  retention, guard state and stale prune sets in effect, from
+  `probe-observability-state.sh --pipeline`. `clean` gains `--hook-root`, removes
+  session files untouched for the window, and sweeps stale `prune-pending/`
+  sets whether or not the logging switch is on.
+
+### Changed
+
+- **The reference sink routes by session.** `hooks/hook-telemetry-sink.sh` (and
+  the repo-local copy) writes under the hook log root: an envelope carrying a
+  well-formed `data.session_id` goes to `sessions/<session_id>.jsonl` in the
+  spine shape (`source: "envelope"`, a `changed` boolean when a producer sends
+  one), any other envelope to the shared `hook-events.jsonl` in the legacy shape
+  under its lock. The nine audit hooks now send `data.session_id` (their data
+  schemas gain the optional key); the fleet-wide addition is #930's follow-up.
+- **`hooks.json`** carries 40 handlers: the nine audit hooks, 30 generated
+  producer rows and the retention row (no `timeout`: a plugin cannot raise the
+  `SessionEnd` budget and would only lower it).
+
+### Fixed
+
+- **A racing guard heal no longer drops a line.** Two producers on one event
+  raced to create the root's `.gitignore`; the second read the empty file the
+  first had opened, took it for an operator's, and refused its write (the
+  33-parallel-fires case caught 32). An empty guard file is healed like an
+  absent one.
+
+## [0.42.5]
+
+### Added
+
+- **`fleet-state.sh --ids <selector> --from <report.json>` projects a selector from a
+  report the script already emitted.** `sync` re-reads the full JSON report before
+  each mutating step, and every selector is derivable from it, so the separate
+  live `--ids` process was paying a second process to re-parse
+  `installed_plugins.json`, re-walk the catalog manifests, and re-run `realpath`
+  in order to recompute a block the caller was already holding. `--from` reads no
+  Claude Code state file at all and runs the SAME jq projection the live mode
+  runs, so the CR-free, TAB-separated output contract is unchanged, which is the
+  reason the selector exists instead of a hand-written `jq` at each call site.
+  Refused with exit 2 and an EMPTY stdout, so a `< <(…)` consumer can never read
+  an error as a plugin id: `--from` with `--all`, `--from` without `--ids`, a
+  missing or malformed file, an `--all` envelope (valid JSON that every selector
+  projects to nothing, refused by name rather than silently returning an empty
+  list), a `--marketplace <name>` disagreeing with the report's own
+  `marketplace.name`, and a report that carries the baseline `.marketplace.name`
+  and `.installed` fields but not the field the CHOSEN selector reads. That last
+  one is per-selector: each selector declares the fields its branch of the
+  projection program consumes (only `update-candidates-user` reads
+  `catalog_versions`), and a missing or wrong-typed one is exit 2 naming the file
+  and the field, because `{"marketplace":{"name":"m"},"installed":[]}` otherwise
+  evaluated the absent array with `[]?`, emitted nothing, and exited 0 — a
+  silently-empty id list read as "nothing to do". A field that is present but
+  empty still exits 0 with empty output, so the exit status is a usable
+  discriminator. `--marketplace` under `--from` is an optional consistency check,
+  never a second read. New regression cases cover per-selector equality with the
+  live projection, each rejection's exit code and empty stdout, the incomplete
+  and present-but-empty reports, and a projection run with every state file
+  absent. (#3728)
+- **`sync` writes a per-run journal.** At run start it creates
+  `${CLAUDE_PLUGIN_DATA}/plugins-sync/runs/<UTC timestamp>.XXXXXX/` with
+  `mktemp -d` (atomically, so two sessions starting in the same UTC second cannot
+  share a directory and interleave their snapshots and logs), saves the pre-sweep,
+  mid-sweep, and post-sweep `fleet-state.sh` reports there, and appends every
+  mutating CLI call and its output to `journal.log`. Step 6 reads the
+  `<old>`/`<new>` pairs and the three `divergences[]` snapshots out of those files instead
+  of out of conversation, so a sweep of several dozen mutations is no longer one
+  context compaction away from being unable to emit its own report, and `converge`
+  or a later audit gets a real before-state. This does not reverse the deferred
+  `--run-log` finding, it honors its reasoning: the journal is agent-executed shell
+  around calls the algorithm already makes, and `fleet-state.sh` stays the
+  read-only inspector its own header advertises. The path is substituted in
+  `SKILL.md` because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and not in a
+  `context/*.md` spoke, which is read raw. (#3728)
+- **New spoke `context/sync-install-enable.md` carrying sync Steps 4 and 5.**
+  Roughly a hundred lines of install policy branches, the `--setting-sources`
+  caveat, the reinstall-recurrence caveat, the normalizer contract,
+  `defaultEnabled` precedence, and the project-scope enable-gap suppression
+  ordering used to load on every run, and are unreachable when
+  `missing_from_user_install` and `missing_from_enabled` are both empty, the
+  common case on a current fleet. `sync.md` keeps a pointer with the read
+  condition, the same progressive-disclosure pattern the hub already uses for
+  `converge.md` and `scope-semantics.md`. The Report template and the
+  `install_new` render stay in `SKILL.md`, which documents them as deliberate
+  hub-only exceptions. The spoke loads on the FRESH pre-Step-4 re-read's arrays,
+  not on Step 1's older report: another session can uninstall a plugin or change
+  enable state in between, and a gate keyed on the stale report would skip the
+  live pre-install and pre-enable reads the spoke mandates and leave the new gap
+  unresolved. Step 4 reuses that re-read; Step 5 still takes its own, because
+  Step 4 mutates in between. (#3728)
+
+### Changed
+
+- **`sync.md`'s Step 2 and Step 3 loops project their id lists with `--from`**
+  against the report each step already read, rather than launching a second
+  `fleet-state.sh`. Each step now shows the redirect that creates its saved
+  report, and projects to a file whose exit status is checked before the loop:
+  a `--from` rejection is exit 2 with empty stdout, which a `while read` consumer
+  cannot tell apart from an empty id list, so the check is what keeps a failed
+  projection from being reported as "nothing to do". The mandate to take ids from
+  the script and never from a hand-written `jq` is unchanged, and so is every
+  selector's output. Cross-file references in `converge.md`, `gotchas.md`, and
+  `scope-semantics.md` that named `sync.md` Step 4 or Step 5 now point at the new
+  spoke. (#3728)
+- **Every `tee`-journaled mutating call captures `rc=${PIPESTATUS[0]}`.** A
+  pipeline's own `$?` is `tee`'s status, and `tee` succeeds whenever it can write
+  the log, so the documented snippet reported success for a `claude plugin update`
+  that failed and never emitted the "Action needed" row the failure earned. The
+  capture must be the statement immediately after the pipeline, since any
+  intervening command clobbers `PIPESTATUS`. `sync.md`'s "Run journal" section
+  carries the one canonical shape; `sync-install-enable.md` points at it for its
+  install and enable calls rather than restating it. (#3728)
+- **`audit` uses a throwaway `mktemp -d` scratch directory for its reports.**
+  `audit` runs the same algorithm, whose steps project with `--from` against a
+  saved report, so forbidding it from saving reports at all left it choosing
+  between violating its read-only contract and taking exit 2 from `--from` and
+  omitting its predictions. It now writes to a scratch directory under
+  `${TMPDIR:-${TEMP:-.}}` (never a hardcoded `/tmp`, which is an MSYS mount alias
+  on Windows) and removes it when the run ends, so one algorithm serves both
+  actions and only `sync` writes the durable journal. (#3728)
+
+## [0.42.4]
+
+### Changed
+
+- **`hooks/skill-usage-audit.sh` reads its kill switch before sourcing the library.**
+  `skill_usage_audit_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.42.3]
+
+### Fixed
+
+- **`fleet-state.sh` resolves the default marketplace when the plugin root is
+  not under the cache.** Both existing stages key on `installed_plugins.json`
+  `installPath` values, and every one of those lives under
+  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, so a root loaded
+  from a local dev checkout, from `--plugin-dir`, or from the marketplace
+  checkout itself matched nothing and the bare (no `--marketplace`) call exited
+  1. A third stage now covers that root: a walk up from the running root to the
+  filesystem root for a `.claude-plugin/marketplace.json`, whose `.name` is accepted only
+  when `known_marketplaces.json` has that key, then a match of the root against
+  each known marketplace's `installLocation`. Stages 1 and 2 still run first, so
+  cache installs and version skew behave exactly as before, and a root that
+  resolves through none of the three still fails loud rather than guessing.
+- **The unresolved-default error names the out-of-cache case as its own
+  branch.** It previously reported version skew plus an unexpected cache layout,
+  which misdiagnosed every root that was never under the cache at all.
+
+  The walk follows ancestors to the filesystem root and stops at the nearest
+  manifest, so a plugin nested arbitrarily deep in a monorepo checkout resolves
+  like a shallow one; the level cap is a runaway guard, not a depth assumption.
+
+  The suite runs 82 cases, 0 failed, with new cases for a dev-checkout root, a
+  dev-checkout root nested five levels below the manifest, an
+  `installLocation` root, a manifest naming an unregistered marketplace, and the
+  precedence of an `installPath` match over a walk-up manifest naming a
+  different registered marketplace; shellcheck is clean at `-S warning`.
+
+## [0.42.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.42.1]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.42.0]
+
+### Added
+
+- **audit-performance: `kernel_objects`, the host-level floor beneath the four suspects
+  (Windows).** A read-only census through `NtQueryObject(ObjectTypesInformation)` and
+  `GetPerformanceInfo`: live and high-water counts for Token, Process, Thread, Key, File,
+  Section, Event, and EtwRegistration objects, paged and nonpaged pool, system handle,
+  process, and thread totals, and uptime. Token leads because a Token object that outlives
+  every handle to it is held by a kernel reference, and a leaking driver or service path
+  accumulates them for the life of the boot: the host that motivated this carried 3.81M Token
+  objects and about 10 GB of paged pool at two days' uptime, every process creation on it cost
+  1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor (#3715). The section reports
+  `objects_per_uptime_second`, a population ratio that names its own bias (it includes the
+  boot population and cannot see churn; a 3 s in-run delta read 0/s against a 60 s window's
+  15/s, so the no-sleep ratio is the honest engine signal), projects the hours until the leak
+  threshold at that ratio, and carries two findings that are not one verdict:
+  `token-objects-leaked` alone yields `state_label: token-leak`, while `paged-pool-high` is an
+  unattributed pool signal routed to `poolmon`. Off Windows the section says
+  `supported: false` with the reason rather than vanishing; the block parser is unit-tested
+  against a synthetic x64 layout on every platform, and the end-to-end contract asserts the
+  section ships. `known-performance-issues.md` records the signature, the ruled-out causes,
+  and the elevated attribution runbook; `SKILL.md` reads the section before the four suspects.
+- **`lib/test_spawn_noise.py` proves the lib stands alone in an isolated interpreter.** The
+  stand-alone check asserted that the engine's script directory was absent from the current
+  process's `sys.path`, which CI's Python lane cannot guarantee: it collects this suite and the
+  engine's in one pytest process, and pytest prepends each suite's directory. The check now
+  runs in a `python -I` child that proves the exclusion itself before importing, so the suite
+  passes wherever it is collected.
+
+## [0.41.14]
+
+### Changed
+
+- **`install_state.py`'s `scan()` aggregates counts with a dict comprehension.**
+  The `setdefault` loop it replaces could never reach its already-present
+  branch: `counts` starts empty and `count_by_entry` returns unique keys, so
+  every iteration took the insert path.
+- **`overlap.py`'s quoted-scalar frontmatter branch strips once and drops a
+  dead conjunct.** `body.rstrip()` was computed three times, and the `!= ""`
+  test guarding it can never matter, since `"".endswith(quote)` is already
+  false. The join and split normalization at the return makes the value
+  byte-identical in every case.
+- **Three suites lose assertion helpers that had no callers.**
+  `claude-observability.test.sh` drops `skip_case`, `assert_exit` and
+  `assert_file_exists`; `prune-otel-store.test.sh` drops `assert_exit` and
+  `assert_file_exists` but keeps `skip_case`, which has eight duckdb-gated
+  callers; `check-all.test.sh` drops `skip_case` and `assert_eq`. The formatter
+  hook also reflowed two one-line `pass()` definitions and one `case` block's
+  labels.
+
+  The Python suites ran 50 and 77 tests and the shell suites 33 and 112 cases,
+  with the duckdb cases skipping locally and covered in CI; the pinned ruff
+  wrapper is clean.
+
+- **One candidate was reverted rather than shipped:** routing
+  `skill-usage-expansion-audit.sh`'s expansion-type extraction through
+  `hook::jq_field`. The verifier proved behavior equivalence across every input
+  class, and then `strace` measured one added fork per execution, because the
+  helper's nested command substitution costs a fork the inline form did not
+  pay. This is an always-on PostToolUse hook, and spawn count is the cost
+  driver the marketplace hook budget is written against, so the dedup's value
+  sits below its price. The reverted commit's own claim of an unchanged spawn
+  count was false. The candidate is recorded as a human decision, dedup against
+  fork cost, rather than quietly retried.
+
+## [0.41.13]
+
+### Changed
+
+- **`plugins` skill: `fleet-state.sh` computes the whole report in three `jq`
+  passes and two batched `realpath` calls instead of one process per catalog
+  entry.** The report used to cost 108 `jq`, 78 `realpath`, 23 `mktemp` and
+  about 460 subshells for a 74-plugin catalog: one `jq` per manifest to read
+  its version, one `realpath` per manifest for the containment check, one
+  `mktemp` per `--slurpfile` payload, and a `| tr -d '\r'` pipeline behind
+  every `jq`. Measured with `bash -x` and a `$BASHPID`-stamped `PS4` on the
+  authoring Windows host: 736 process creations and 17.0 minutes wall for one
+  default run, and `sync` calls the script six to eight times. The rewrite
+  reads every top-level input in one `jq` (validation, the merged
+  `enabledPlugins` context, every marketplace's fields, every recorded
+  `projectPath`, and the default marketplace this plugin was installed from,
+  matched inside that same `jq` because MSYS rewrites a mount-alias root such
+  as `/tmp/...` into the drive-letter spelling the install records carry only
+  when it crosses into a native binary's argv), lists a marketplace's entries
+  with a second, resolves
+  the checkout root and every manifest that exists with one
+  `hook::_physical_prime` call, reads each contained manifest with
+  `read -d ''`, and composes the block, or the `--ids` projection, with a
+  third `jq` whose shell-assembled payload (context, `projectPath` presence,
+  manifest text) travels on stdin, never on argv, so the #1336 ceiling stays
+  out of reach without a temp file. Carriage returns are stripped by
+  parameter expansion in the capture helper, so no `tr` runs. Same output
+  bytes for the default run, `--all`, `--marketplaces` and every `--ids`
+  selector against the same snapshot of the machine's state; the fail-open
+  contract, the containment gate and every error path are unchanged. Three
+  new test cases pin the budget: a `--marketplace` report and an `--ids`
+  projection each cost at most 12 process creations, and a 2-entry and a
+  12-entry catalog cost the same. The static `--argjson` guard now asserts
+  zero call sites.
+
+## [0.41.12]
+
+### Changed
+
+- **`restart-consumer.sh` gains four within-file helpers.** One predicate was
+  spelled two different ways in `require_gh` and `resolve_target_repo`, which
+  must never disagree about whether a run touches the forge; the two spellings
+  were checked against each other over a 47-row truth table and agree on every
+  row, and across the whole reachable domain all three forms agree. A
+  lock-directory removal duplicated in two places becomes one helper, verified
+  over 14 filesystem states plus four unprivileged permission cases. Two readers
+  that differed only in filename become one, compared against both originals
+  over 50 inputs including missing, empty, CRLF, leading-zero, huge, directory
+  and unreadable cases. A three-line report header duplicated between the
+  lock-skipped tick and a full run becomes one call.
+- **`telemetry-upsert.sh` replaces five copy-pasted argument guards** with one
+  helper. It is deliberately argc-based rather than emptiness-based, so an empty
+  marker still fails on the marker regex rather than reporting a missing value;
+  a mutant that switches to an emptiness check diverges exactly there.
+- **`machine-behavior.sh` renames a top-level loop variable** whose old name
+  implied a `local` it could not have, and `lane-launcher.sh` rewrites one
+  comment into the present tense, which is the accurate tense: the pre-move lane
+  layout is not history but a live path the config resolver still reads under a
+  deprecation warning.
+
+  A 73-case differential over both revisions, comparing stdout, stderr, exit
+  code, the lock file tree, the ledger and the launcher argv log, found zero
+  divergences; seven mutants confirm it discriminates. Suites are unchanged at
+  213, 26, 24, 153 and 91.
+
+## [0.41.11]
+
+### Changed
+
+- **`overlap.py` uses `Path.cwd()` and drops the import it needed only for
+  that.** These are the same expression rather than merely equivalent ones:
+  CPython 3.11's pathlib defines `cwd` as `cls(os.getcwd())`, and the file pins
+  a 3.11 minimum. An AST scan covering every import form, aliases, `del`,
+  `Global`/`Nonlocal` and every string constant found exactly two references to
+  the dropped name, and the file contains no dynamic-import or reflection
+  surface that could reach it. A 496-pair differential across four repository
+  shapes, seven working directories including two symlinked ones, and every
+  subcommand and flag, comparing exit code, both streams and a hash of the
+  resulting file tree, found zero divergences; eleven mutants confirm the corpus
+  discriminates, with the control that re-injects the original expression
+  correctly surviving.
+- **`test_install_state.py` uses one import form for one module.** The
+  module-level import was already present ten lines above the call site, and the
+  same-plugin sibling suite already spells it this way. The changed line was
+  shown to execute by a line-level trace naming the three tests that reach it.
+
+## [0.41.10]
+
+### Changed
+
+- **`hook-failure-audit.sh` reads its three class flags from one `jq` process
+  instead of three.** `HAS_LAUNCH`, `HAS_AMBIGUOUS` and `HAS_COMPLETED` came from
+  three separate invocations over the same document; they now arrive as one
+  TSV line through a single `read`. A `jq` spawn costs roughly 140 ms of `fork()`
+  emulation on Windows Git Bash and this is an always-on Stop hook, so the two
+  saved spawns are on a hot path. Measured with `strace`: three clone/execve
+  pairs before, one after. Verified equivalent over 23 payloads including zeros,
+  missing keys, nulls, very large and non-integer values, string-typed counts,
+  strings containing tab, newline, CR and backslash, and four malformed-document
+  shapes; all agree, including every error path.
+- **Three audit hooks trade history narration for present-tense rationale.**
+  `tool-failure-audit.sh`, `permission-denied-audit.sh` and
+  `instructions-loaded-audit.sh` each described how their current single-`jq`
+  read differs from a two-`jq` shape that no longer exists. The rewrite also
+  corrects a factual error: the old text claimed an unparsable payload yields
+  rc 1, where the helper actually returns rc 2.
+
+## [0.41.9]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.41.8]
+
+### Changed
+
+- **Skill-listing entries for `audit-performance`, `audit-skill-visibility`, and
+  `audit-native-overlap` tightened.** These three were the marketplace's first, second, and
+  seventh largest listing entries. Each description now drops mechanism narration (the suspect
+  labels, the verdict enumeration, the budget-drop explanation) while keeping every quoted trigger
+  phrase and every `Not for` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.41.7]
+
+### Changed
+
+- **The audit-hook table records why each row earns its spawn.** A new column states the reason
+  per row: event rarity for StopFailure, ConfigChange, PermissionDenied and PreCompact; matcher
+  scoping for the PostToolUse, UserPromptExpansion and PostToolUseFailure rows; and, for the Stop
+  row, that it is the only per-turn registration and the sole surface for a hook that failed to
+  launch while its guarded tool call proceeded.
+- **The InstructionsLoaded row records why it carries no matcher.** That event's matcher selects on
+  load reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its
+  subject, so scoping to the full documented set would skip nothing and would drop any reason a
+  later release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+  `session_start`, which the script already drops at write time behind
+  `instructions_loaded_audit_log_session_start`, so a matcher excluding it would leave that option
+  switched on but unable to log anything. Documentation only; no hook, script or registration
+  changed.
+
+## [0.41.6]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.41.5]
 

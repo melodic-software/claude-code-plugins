@@ -113,12 +113,8 @@ rule_title() {
       exit
     }
   ' "$file" 2>/dev/null)"
-  if [[ -z "$title" ]]; then
-    title="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^#[[:space:]]*//')"
-  fi
-  if [[ -z "$title" ]]; then
-    title="$(basename "$file" .md)"
-  fi
+  [[ -n "$title" ]] || title="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^#[[:space:]]*//')"
+  [[ -n "$title" ]] || title="$(basename "$file" .md)"
   # Pipes would break the markdown table row.
   printf '%s' "${title//|/\\|}"
 }
@@ -214,16 +210,22 @@ PREAMBLE
     # "these exist, go read them" contract at a bounded cost. What was collapsed
     # is stated rather than silently dropped: a truncated index that reads as
     # complete is the failure mode here.
+    # One ordering, reused by all three uses below. The listed head and the
+    # grouped tail are two halves of the SAME sort, so they read it from one
+    # place. Spawn effect, measured rather than assumed: this removes one `sort`
+    # from the grouped-tail path (which sorted the same rows twice) and costs a
+    # subshell on the <=MAX_ROWS path, where one sort already sufficed.
+    local sorted
+    sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort
-      printf '\n'
+      printf '%s\n\n' "$sorted"
     else
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | head -n "$MAX_ROWS"
+      printf '%s\n' "$sorted" | head -n "$MAX_ROWS"
       printf '\n'
       printf 'Plus %d further surface(s), grouped by location:\n\n' \
         $((${#rows[@]} - MAX_ROWS))
       # shellcheck disable=SC2016 # strips the markdown code span, not an expansion
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | tail -n +$((MAX_ROWS + 1)) |
+      printf '%s\n' "$sorted" | tail -n +$((MAX_ROWS + 1)) |
         sed 's/^| `//; s/`.*$//; s|/[^/]*$||' |
         LC_ALL=C sort | uniq -c |
         awk '{ printf "- `%s/` — %d surface(s)\n", $2, $1 }'
@@ -234,6 +236,22 @@ PREAMBLE
   printf '%s\n' "$END_MARKER"
 }
 
+# A drive-letter path may arrive with backslashes (`C:\repo\AGENTS.md`), the
+# spelling a PowerShell or cmd caller produces. GNU dirname and basename do not
+# treat `\` as a separator, so splitting that value yields `.` and the whole
+# string, TARGET_NORM becomes `$PWD/C:\repo\AGENTS.md`, `reachable` asks about
+# a path that does not exist, and `write` warns that a reachable index is
+# unreachable. Re-spell once at intake so every later use sees one form. Only
+# the drive-letter shape is touched: a POSIX path may legitimately carry a
+# literal backslash, and it is passed through untouched.
+normalize_drive_path() {
+  local p="$1"
+  if [[ "$p" =~ ^[A-Za-z]:[\\/] ]]; then
+    p="${p//\\//}"
+  fi
+  printf '%s' "$p"
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -242,7 +260,6 @@ PREAMBLE
   exit 2
 }
 
-SUBCOMMAND=""
 case "${1:-}" in
 -h | --help)
   usage
@@ -265,12 +282,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --root)
     [[ $# -lt 2 ]] && die "--root needs a path"
-    ROOT="$2"
+    ROOT="$(normalize_drive_path "$2")"
     shift 2
     ;;
   --file)
     [[ $# -lt 2 ]] && die "--file needs a path"
-    TARGET="$2"
+    TARGET="$(normalize_drive_path "$2")"
     shift 2
     ;;
   --max-rows)
@@ -291,17 +308,57 @@ fi
 
 # Resolve the target before entering --root, so a relative --file is read
 # relative to the caller's cwd rather than silently re-anchored.
-if [[ -n "$TARGET" && "$TARGET" != /* ]]; then
+#
+# A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
+# `C:/repo` under Git Bash, so that spelling is what the index-drift hook hands
+# `--file` and `--root` on every Windows write. Testing only the leading `/`
+# read it as relative and joined it to the calling directory, producing
+# `/d/cwd/C:/repo/AGENTS.md` -- unreadable, so `check` died, the hook swallowed
+# the error and exited 0. The production check was a no-op for every Windows
+# user until this test was widened.
+if [[ -n "$TARGET" && "$TARGET" != /* && ! "$TARGET" =~ ^[A-Za-z]:[\\/] ]]; then
   TARGET="$PWD/$TARGET"
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
 
+# One directory has several spellings on Git Bash: `C:/repo` from git, `/c/repo`
+# from `pwd`. After the `cd` above, `$PWD` holds the shell's own spelling of
+# ROOT, so a TARGET still written in git's spelling shares no prefix with it and
+# every `${TARGET#"$PWD"/}` strip below silently leaves the path absolute --
+# which makes `reachable` ask about a target it cannot name and `write` warn
+# about reachability it never actually tested.
+#
+# TARGET_NORM re-spells the target in the shell's own form by asking the
+# directory itself (`cd "$dir" && pwd`), which is the same call that produced
+# `$PWD`. TARGET itself is left as the caller wrote it, after the backslash
+# re-spelling at intake: every read, every write and every
+# `WROTE`/`DRIFTED`/`IN-SYNC` line still names the path the caller asked about.
+#
+# Residual, recorded rather than implied: this unifies spellings of the SAME
+# directory family. A `--root C:/repo` paired with a `--file` reached through an
+# unrelated alias (a mount whose `pwd` form differs from the target's) still
+# shares no prefix and stays absolute -- the fail-open direction, and not a
+# shape any caller in this repository produces.
+TARGET_NORM="$TARGET"
+if [[ -n "$TARGET" ]]; then
+  target_dir="$(dirname -- "$TARGET")"
+  target_base="$(basename -- "$TARGET")"
+  # `pwd` prints a trailing slash only for `/` itself, so stripping one keeps
+  # the root case from joining as `//base`.
+  if target_dir_norm="$(cd "$target_dir" 2>/dev/null && pwd)"; then
+    TARGET_NORM="${target_dir_norm%/}/$target_base"
+  fi
+fi
+
+# `reachable` and `write` both name the target relative to --root, which the
+# `cd` above made the working directory.
+REL_TARGET="${TARGET_NORM#"$PWD"/}"
+
 # `reachable` answers a question about wiring, not about content, so it runs
 # before the (comparatively expensive) block render.
 if [[ "$SUBCOMMAND" == "reachable" ]]; then
-  rel_target="${TARGET#"$PWD"/}"
-  ip_index_target_loaded "." "$rel_target"
+  ip_index_target_loaded "." "$REL_TARGET"
   exit $?
 fi
 
@@ -320,7 +377,7 @@ check)
       "$TARGET" "$begin_count"
     exit 3
   fi
-  if ! grep -qF "$BEGIN_MARKER" "$TARGET"; then
+  if [[ "$begin_count" -eq 0 ]]; then
     printf 'NO-BLOCK\t%s\n' "$TARGET"
     exit 3
   fi
@@ -351,7 +408,7 @@ write)
       "$TARGET" "$begin_count" >&2
     exit 1
   fi
-  if grep -qF "$BEGIN_MARKER" "$TARGET"; then
+  if [[ "$begin_count" -eq 1 ]]; then
     if ! grep -qF "$END_MARKER" "$TARGET"; then
       rm -f "$tmp"
       printf 'ERROR: %s has a begin marker with no end marker; refusing to guess its extent\n' \
@@ -381,8 +438,7 @@ write)
     printf 'WROTE\t%s\n' "$TARGET"
     # An index Claude Code never loads is the whole point silently not working,
     # so say so at the moment of writing rather than leaving it for a later gate.
-    rel_written="${TARGET#"$PWD"/}"
-    if ! reach="$(ip_index_target_loaded "." "$rel_written")"; then
+    if ! reach="$(ip_index_target_loaded "." "$REL_TARGET")"; then
       printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
     fi
     exit 0

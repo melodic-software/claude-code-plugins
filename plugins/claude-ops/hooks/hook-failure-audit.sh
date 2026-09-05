@@ -64,6 +64,10 @@ hook::require_jq Stop claude-ops "$INPUT"
 TRANSCRIPT=$(hook::jq_field "$INPUT" '.transcript_path') || exit 0
 [[ -f "$TRANSCRIPT" ]] || exit 0
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || SESSION="no-session"
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+SESSION_ID=""
+[[ "$SESSION" != "no-session" && "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]] && SESSION_ID="$SESSION"
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 
 # Bounded tail read: cost stays O(cap) regardless of transcript growth. When
@@ -211,9 +215,15 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
 # Computed from the per-record class counts, never from a collapsed single
 # value: a group whose only launch-failure record is not its last must still
 # raise the launch flag, and its own line above must still show the mix.
-HAS_LAUNCH=$(jq -rn --argjson new "$NEW" '[$new[] | .launchCount > 0] | any')
-HAS_AMBIGUOUS=$(jq -rn --argjson new "$NEW" '[$new[] | .ambiguousCount > 0] | any')
-HAS_COMPLETED=$(jq -rn --argjson new "$NEW" '[$new[] | .completedCount > 0] | any')
+#
+# All three flags come from ONE jq process over the same document rather than
+# three: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
+# assigns every name it is given even when the stream is short, so all three
+# stay defined under `set -u`.
+read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED < <(jq -rn --argjson new "$NEW" '
+  [([$new[] | .launchCount > 0]    | any),
+   ([$new[] | .ambiguousCount > 0] | any),
+   ([$new[] | .completedCount > 0] | any)] | @tsv')
 
 # The diagnosis and the remedy are per-class, so several sentences can appear
 # when one warning batches records of different classes; the per-registration
@@ -249,8 +259,8 @@ fi
 
 # Telemetry subjects stay hookName-only (privacy-safe); the command detail is
 # user-facing message content, not envelope data.
-DATA=$(jq -cn --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
-  '{subjects: ([$new[].hookName] | unique), total: $total}')
+DATA=$(jq -cn --arg session_id "$SESSION_ID" --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
+  '{subjects: ([$new[].hookName] | unique), total: $total} + (if $session_id == "" then {} else {session_id: $session_id} end)')
 hook::emit_telemetry "hook-failure-audit" "Stop" "error" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 

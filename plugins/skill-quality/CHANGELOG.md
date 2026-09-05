@@ -24,6 +24,74 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   check are unchanged. `check-skill.test.sh` cases that asserted a FAIL on a dropped phrase now
   assert a zero exit with the warning text; the sibling-move and coincidental-overlap cases still
   prove their distinct verdicts.
+## [0.20.13]
+
+### Changed
+
+- **`check-skill.sh` reads the base-ref frontmatter once instead of up to three
+  times.** Checks 3 (trigger-keyword preservation), 8 (vendor-sync pairing) and 9
+  (stale-tracking metadata) each opened with the same
+  `git cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md"` probe and then re-ran the same
+  `git show | skill_frontmatter::extract` pipeline over the same blob, under three
+  names, `BASE_FM_3`, `BASE_FM_V8` and `BASE_FM`. One hoisted read now serves all
+  three. Emptiness is not a usable proxy for absence here, so the probe's answer
+  is carried separately in `HAVE_BASE_FM`: that keeps "no base-ref version, this
+  is a new skill" distinct from "a base-ref file whose frontmatter block is
+  empty", which the three checks skip and report on differently. Check 8's guard
+  folds its `-d vendor` test and the hoisted flag into one condition. Every
+  message and skip reason is unchanged.
+- **`CUR_SUMMARY` is computed inside the guard that consumes it.** It was assigned
+  unconditionally on the line above `if skill_frontmatter::has_metadata_field
+  summary`, and discarded whenever the field is absent; it has no other reader.
+
+## [0.20.12]
+
+### Changed
+
+- **`check-skill.sh`: a dead line removed.** `[[ "$fe_file" == "$SKILL_MD" ]] &&
+  fe_rel="SKILL.md"` could never change anything: the preceding expansion already
+  yields exactly `SKILL.md`, since `SKILL_MD` is `$SKILL_DIR/SKILL.md` and both
+  are assigned once and never reassigned. Established three ways rather than by
+  reading: 374 adversarial root and name pairs replaying both real call sites with
+  zero divergence; a differential over 10 real skills with byte-identical output;
+  and the symmetric check that re-inserting the line changes nothing. The live
+  path is exercised by another plugin's audit skill, which also produces identical
+  output on both sides.
+- History narration rewritten as present-tense rationale in `check-skill.sh` and
+  `check-listing-budget.sh`, with no code change in the latter. Both files emit
+  byte-identical output over 182 skills across 74 roots.
+
+### Known issues
+
+- **The suite barely covers the deleted line's neighbourhood.** Two coarser
+  mutations of the surviving expansion also survive with zero failures; only a
+  gross one is caught. The deletion is safe on the evidence above, but the suite
+  is not what makes it safe.
+- **`check-skill.sh` selects 155 suites and 2 of them execute it.** Three more
+  name it only in a comment, and the remaining 150 arrive through the selector's
+  uncapped transitive basename closure; 76 of the 155 selection reasons name some
+  other file entirely. `check-listing-budget.sh` and `skill-frontmatter.sh` select
+  the same 155, byte-identical lists, 2 real each.
+
+## [0.20.11]
+
+### Changed
+
+- **`check` skill-listing entry tightened.** It was the marketplace's fifth largest listing entry.
+  The description now abbreviates the twenty-five-check enumeration and drops the eval-lint
+  sub-list (both live in the skill body) while keeping every quoted trigger phrase, the three
+  action names, and the `Not for` disambiguation. Claude Code truncates the combined
+  `description` and `when_to_use` text at 1,536 characters in the skill listing, and the shared
+  listing budget scales at 1% of the model's context window, so every character an entry spends
+  is a character another skill's description cannot. Hook-performance program, phase 6 (skill
+  listing budget).
+
+## [0.20.10]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.20.9]
 

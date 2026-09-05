@@ -4,7 +4,7 @@
 Check: persisted environment-variable and PATH health. Emits a CheckResult JSON
 on stdout.
 
-See references/windows/check-catalog.md#18-environment-and-path-health for rubric.
+See reference/windows/check-catalog.md#18-environment-and-path-health for rubric.
 
 .DESCRIPTION
 Detect-only. Reads HKCU:\Environment and (when readable)
@@ -235,8 +235,8 @@ try {
     foreach ($row in $allVars) {
         if ($row.name -ne 'DISABLE_AUTOUPDATER') { continue }
         $disableFindings.Add([pscustomobject]@{
-                scope           = $row.scope
-                set             = $true
+                scope            = $row.scope
+                set              = $true
                 disables_updates = Test-TruthyEnvValue $row.value
             })
     }
@@ -382,11 +382,9 @@ try {
         }
         if ($uniqueNorms.Count -lt 2) { continue }
         $winner = $hits[0]
-        $others = [System.Collections.Generic.List[pscustomobject]]::new()
         $otherScopes = [System.Collections.Generic.List[string]]::new()
         $otherPaths = [System.Collections.Generic.List[string]]::new()
         for ($i = 1; $i -lt $hits.Count; $i++) {
-            $others.Add($hits[$i])
             $otherScopes.Add($hits[$i].scope)
             $otherPaths.Add($hits[$i].path)
         }

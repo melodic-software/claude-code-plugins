@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -202,9 +201,9 @@ def frontmatter_description(frontmatter: str) -> str:
             parts = _indented_block()
         elif remainder[:1] in ('"', "'"):
             quote = remainder[0]
-            body = remainder[1:]
-            if body.rstrip().endswith(quote) and body.rstrip() != "":
-                parts = [body.rstrip()[:-1]]
+            body = remainder[1:].rstrip()
+            if body.endswith(quote):
+                parts = [body[:-1]]
             else:
                 # A quoted scalar may span lines; consume until the closing quote.
                 parts = [body]
@@ -1132,7 +1131,7 @@ def main(argv: list[str] | None = None) -> int:
 
     here = Path(__file__).resolve().parent
     default_pairs = here.parent / "reference" / "canonical-pairs.json"
-    parser = build_parser(Path(os.getcwd()), default_pairs)
+    parser = build_parser(Path.cwd(), default_pairs)
     args = parser.parse_args(argv)
 
     repo = Path(args.repo)

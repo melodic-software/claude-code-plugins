@@ -33,6 +33,12 @@ assert_contains() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
 }
 
+#   commit_all <dir> [<message>]
+commit_all() {
+  git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+  git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
+}
+
 # Build a fixture repo with a known tracked-file set.
 #   fixture_repo <relative-path> [<relative-path>...]
 fixture_repo() {
@@ -44,8 +50,7 @@ fixture_repo() {
     printf 'x\n' >"$dir/$rel"
   done
   git -C "$dir" init -q .
-  git -C "$dir" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-  git -C "$dir" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+  commit_all "$dir"
   printf '%s' "$dir"
 }
 
@@ -62,6 +67,14 @@ run() { bash "$SCRIPT" "$@" 2>&1; }
 row_field() {
   IP_ROW_PAT="$2" awk -F'\t' -v f="$3" \
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
+}
+
+# How many PATTERN rows in a run carry the over-budget status. The budget cases
+# below assert on the COUNT rather than on a named pattern, because which of a
+# rule's globs trips a shared budget is not part of the contract; that the rule
+# trips it at all, and that a separate rule does not, is.
+over_budget_rows() {
+  printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
 }
 
 # --------------------------------------------------------------------------
@@ -230,8 +243,7 @@ paths:
 Recursively discovered, and its glob matches nothing.
 EOF
 
-git -C "$rules_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$rules_repo" -c user.email=t@t -c user.name=t commit -qm rules >/dev/null 2>&1
+commit_all "$rules_repo" rules
 
 out="$(run rules --root "$rules_repo")"
 # `*.ts` must not match `b.tsx` — the extension boundary is anchored.
@@ -265,8 +277,7 @@ paths: ["src/*.{ts,tsx}"]
 
 # Inline flow with a brace group
 EOF
-git -C "$flow_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$flow_repo" -c user.email=t@t -c user.name=t commit -qm flow >/dev/null 2>&1
+commit_all "$flow_repo" flow
 
 out="$(run rules --root "$flow_repo")"
 assert_eq "the flow entry stays ONE pattern" "1" \
@@ -287,11 +298,10 @@ nine='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}'
   printf -- '  - "%s/y.ts"\n' "$nine"
   printf -- '---\n\n# Two 512-expansion globs in one rule\n'
 } >"$budget_repo/.claude/rules/budget.md"
-git -C "$budget_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$budget_repo" -c user.email=t@t -c user.name=t commit -qm budget >/dev/null 2>&1
+commit_all "$budget_repo" budget
 
 out="$(run rules --root "$budget_repo")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 if ((over >= 1)); then
   pass "512+512 expansions in one rule trips the shared budget"
 else
@@ -303,10 +313,9 @@ split_repo="$(fixture_repo "a.ts")"
 mkdir -p "$split_repo/.claude/rules"
 printf -- '---\npaths:\n  - "%s/x.ts"\n---\n\n# One\n' "$nine" >"$split_repo/.claude/rules/one.md"
 printf -- '---\npaths:\n  - "%s/y.ts"\n---\n\n# Two\n' "$nine" >"$split_repo/.claude/rules/two.md"
-git -C "$split_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$split_repo" -c user.email=t@t -c user.name=t commit -qm split >/dev/null 2>&1
+commit_all "$split_repo" split
 out="$(run rules --root "$split_repo")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
 
 # The same separation for `validate`. Tagging every CLI --glob with the same
@@ -314,7 +323,7 @@ assert_eq "the budget does not leak across separate rules" "0" "$over"
 # two independently-legal globs in one invocation would report the first
 # over-budget. A --glob is nobody's `paths:` list; each is its own unit of one.
 out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate --glob flags" "0" "$over"
 
 # ...and the real ceiling still fires, so the fix above cannot be a way of
@@ -360,8 +369,7 @@ paths:
 Command substitution in a paths value must be inert.
 EOF
 rm -f /tmp/glob-tools-pwned
-git -C "$rules_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$rules_repo" -c user.email=t@t -c user.name=t commit -qm evil >/dev/null 2>&1
+commit_all "$rules_repo" evil
 run rules --root "$rules_repo" >/dev/null 2>&1
 if [[ -e /tmp/glob-tools-pwned ]]; then
   fail "a crafted paths value does not execute" "no side effect" "command ran"

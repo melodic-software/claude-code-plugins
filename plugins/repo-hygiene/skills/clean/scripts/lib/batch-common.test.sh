@@ -110,6 +110,18 @@ else
   fail "read_lines_into strips CR and empties" "a,b" "${LINES[*]}"
 fi
 
+# expect_single_a <rc label> <case label> <rc> — the read reported success and
+# left exactly the one entry `a` in the global LINES the call populated.
+expect_single_a() {
+  local rc_label="$1" case_label="$2" rc="$3"
+  assert_exit "$rc_label" 0 "$rc"
+  if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
+    pass "$case_label"
+  else
+    fail "$case_label" "a" "${LINES[*]}"
+  fi
+}
+
 # --- 5b. empty file, trailing blank, missing final newline: all rc 0 ---
 : >"$TEST_TMPDIR/empty.txt"
 LINES=()
@@ -126,34 +138,19 @@ printf 'a\n\n' >"$TEST_TMPDIR/trail.txt"
 LINES=()
 rc=0
 batch_read_lines_into LINES "$TEST_TMPDIR/trail.txt" || rc=$?
-assert_exit "trailing blank line is success (rc 0)" 0 "$rc"
-if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
-  pass "trailing blank keeps the preceding entry"
-else
-  fail "trailing blank keeps the preceding entry" "a" "${LINES[*]}"
-fi
+expect_single_a "trailing blank line is success (rc 0)" "trailing blank keeps the preceding entry" "$rc"
 
 printf 'a' >"$TEST_TMPDIR/noeol.txt"
 LINES=()
 rc=0
 batch_read_lines_into LINES "$TEST_TMPDIR/noeol.txt" || rc=$?
-assert_exit "unterminated final line is success (rc 0)" 0 "$rc"
-if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
-  pass "unterminated final line is kept"
-else
-  fail "unterminated final line is kept" "a" "${LINES[*]}"
-fi
+expect_single_a "unterminated final line is success (rc 0)" "unterminated final line is kept" "$rc"
 
 # Stdin (`-`): ordinary EOF is success, including a trailing blank.
 LINES=()
 rc=0
 batch_read_lines_into LINES - < <(printf 'a\n\n') || rc=$?
-assert_exit "stdin trailing blank is success (rc 0)" 0 "$rc"
-if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
-  pass "stdin trailing blank keeps the preceding entry"
-else
-  fail "stdin trailing blank keeps the preceding entry" "a" "${LINES[*]}"
-fi
+expect_single_a "stdin trailing blank is success (rc 0)" "stdin trailing blank keeps the preceding entry" "$rc"
 
 # --- 5c. missing / non-regular / unopenable named sources return 1 ---
 LINES=()
@@ -190,7 +187,8 @@ chmod 644 "$UNREAD" 2>/dev/null || true
 # missing case on #3641 after `{fd}` failed under that ulimit.
 printf 'keep\n' >"$TEST_TMPDIR/lowfd.txt"
 if (ulimit -n 10) >/dev/null 2>&1; then
-  LINES=()
+  # The read runs in the subshell below (its own LINES); this case asserts on the
+  # subshell's stdout, so the outer LINES is deliberately not involved.
   rc=0
   out="$(
     bash -c '

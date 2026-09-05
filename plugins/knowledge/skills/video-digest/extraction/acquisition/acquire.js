@@ -212,7 +212,7 @@ async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitles
  * @param {string} videoId
  * @param {SourceAcquisitionDeclarations} source
  * @returns {Promise<
- *   {ok: true, files: string[], artifacts: MediaArtifacts, acquireMetrics: object} |
+ *   {ok: true, artifacts: MediaArtifacts, acquireMetrics: object} |
  *   {ok: false, error: string, acquireMetrics: object}
  * >}
  */
@@ -253,17 +253,14 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
     }),
   );
 
-  let files = videoPass.files;
   if (captionPass.spawnResult.success) {
-    files = await deps.listFiles(workDir);
-    artifacts = resolveMediaArtifacts(files, videoId);
+    artifacts = resolveMediaArtifacts(await deps.listFiles(workDir), videoId);
   }
 
   const captionPassMs = Date.now() - captionStarted;
 
   return {
     ok: true,
-    files,
     artifacts,
     acquireMetrics: { stagedAcquire: true, videoPassMs, captionPassMs },
   };
@@ -299,10 +296,8 @@ export async function acquireYouTubeMedia(
   const failVideo = (message) =>
     fail(message, "acquire-youtube-media", { label: videoId }, Date.now() - started);
 
-  /** @type {string[]} */
-  let files = [];
   /** @type {MediaArtifacts} */
-  let artifacts = { videoPath: "", captionPaths: [], metadataPath: "" };
+  let artifacts;
   /** @type {object | undefined} */
   let acquireMetrics;
 
@@ -312,7 +307,6 @@ export async function acquireYouTubeMedia(
     if (!staged.ok) {
       return failVideo(staged.error);
     }
-    files = staged.files;
     artifacts = staged.artifacts;
   } else {
     const single = await throttle(() =>
@@ -321,8 +315,7 @@ export async function acquireYouTubeMedia(
     if (!single.spawnResult.success) {
       return failVideo(single.detail || "yt-dlp failed");
     }
-    files = single.files;
-    artifacts = resolveMediaArtifacts(files, videoId);
+    artifacts = resolveMediaArtifacts(single.files, videoId);
   }
 
   let captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
@@ -336,8 +329,7 @@ export async function acquireYouTubeMedia(
       }),
     );
     if (captionRetry.spawnResult.success) {
-      files = await mergedDeps.listFiles(workDir);
-      artifacts = resolveMediaArtifacts(files, videoId);
+      artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);
       captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
     }
   }

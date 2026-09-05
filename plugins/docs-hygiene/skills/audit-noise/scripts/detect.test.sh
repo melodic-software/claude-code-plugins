@@ -56,6 +56,12 @@ fail_discriminating_skip() {
   FAILED=$((FAILED + 1))
   printf 'DISCRIMINATING SKIP: [%d] %s\n' "$CASE_NUM" "$1" >&2
 }
+# count_negations <detect-output>: how many negation findings a run emitted.
+# Several cases assert the COUNT rather than the shape alone, so a future
+# widening or narrowing of the scope gates cannot pass silently.
+count_negations() {
+  printf '%s\n' "$1" | grep -c '^Finding shape: negation'
+}
 
 # --- Fixtures (built inline; no shipped fixture files) ---------------------------
 
@@ -887,7 +893,7 @@ EOF
 neg_out="$(bash "$DETECT" "$NEG")"
 assert_contains "bare prohibition is a negation finding" "$neg_out" "Finding shape: negation"
 assert_contains "negation is Tier 2 (its treatment includes an edit)" "$neg_out" "Finding tier: 2"
-neg_count="$(printf '%s\n' "$neg_out" | grep -c '^Finding shape: negation')"
+neg_count="$(count_negations "$neg_out")"
 # THREE, not four. The fixture's fourth line is subject-led ("The agent must
 # not…"), so the imperative-only scope gate declines it — the rule is about
 # instructions, and a subject-led sentence is prose describing a component. The
@@ -945,7 +951,7 @@ Never emit a bare summary — because the log is huge.
 Never emit a bare summary, just.
 EOF
 bare_imp_neg_out="$(bash "$DETECT" "$BARE_IMP_NEG")"
-bare_imp_neg_count="$(printf '%s\n' "$bare_imp_neg_out" | grep -c '^Finding shape: negation')"
+bare_imp_neg_count="$(count_negations "$bare_imp_neg_out")"
 assert_contains "unpaired and function-word clauses still flag" \
   "count=$bare_imp_neg_count" "count=3"
 
@@ -1031,7 +1037,7 @@ Do not send it to the secretary.
 Never tokenize the payload by hand.
 EOF
 substr_out="$(bash "$DETECT" "$NEG_SUBSTR")"
-substr_count="$(printf '%s\n' "$substr_out" | grep -c '^Finding shape: negation')"
+substr_count="$(count_negations "$substr_out")"
 assert_contains "a longer word never satisfies a withholding marker" "count=$substr_count" "count=3"
 
 # The contraction wildcard must be an apostrophe CLASS: a bare `.` matches
@@ -1137,7 +1143,7 @@ Do not use markdown in your response.
 > Do not emit a bare summary.
 EOF
 forms_out="$(bash "$DETECT" "$NEG_FORMS")"
-forms_count="$(printf '%s\n' "$forms_out" | grep -c '^Finding shape: negation')"
+forms_count="$(count_negations "$forms_out")"
 assert_contains "plain, list, bolded and blockquoted imperatives all still flag" \
   "count=$forms_count" "count=4"
 
@@ -1207,7 +1213,7 @@ Do not use markdown
 in the summary body.
 EOF
 fence_wrap_out="$(bash "$DETECT" "$NEG_FENCE_WRAP")"
-fence_wrap_count="$(printf '%s\n' "$fence_wrap_out" | grep -c '^Finding shape: negation')"
+fence_wrap_count="$(count_negations "$fence_wrap_out")"
 assert_contains "a fenced wrap is skipped and the body wrap still flags once" \
   "count=$fence_wrap_count" "count=1"
 assert_contains "the body wrap is attributed past the fence" \
@@ -1225,7 +1231,7 @@ Do not use markdown
 in the summary body.
 EOF
 ignore_wrap_out="$(bash "$DETECT" "$NEG_IGNORE_WRAP")"
-ignore_wrap_count="$(printf '%s\n' "$ignore_wrap_out" | grep -c '^Finding shape: negation')"
+ignore_wrap_count="$(count_negations "$ignore_wrap_out")"
 assert_contains "an ignored wrap is skipped and the body wrap still flags once" \
   "count=$ignore_wrap_count" "count=1"
 
@@ -1240,7 +1246,7 @@ Do not use markdown.
 Never include XML.
 EOF
 two_wrap_out="$(bash "$DETECT" "$NEG_TWO_WRAP")"
-two_wrap_count="$(printf '%s\n' "$two_wrap_out" | grep -c '^Finding shape: negation')"
+two_wrap_count="$(count_negations "$two_wrap_out")"
 assert_contains "each imperative sentence in a paragraph flags" \
   "count=$two_wrap_count" "count=2"
 assert_contains "the first sentence is attributed to its own line" \
@@ -1345,7 +1351,7 @@ cat >"$NEG_MARKERS" <<'EOF'
 - [x] Do not emit a bare summary.
 EOF
 markers_out="$(bash "$DETECT" "$NEG_MARKERS")"
-markers_count="$(printf '%s\n' "$markers_out" | grep -c '^Finding shape: negation')"
+markers_count="$(count_negations "$markers_out")"
 assert_contains "both ordered-list delimiters and both checkbox states reach the cue" \
   "count=$markers_count" "count=4"
 

@@ -208,7 +208,7 @@ END {
   # entries that managed settings provide… a developer-added allow entry can
   # override an organization soft_deny entry: the combination is additive, not a
   # hard policy boundary."
-  if ((("managed") SUBSEP "autoModePresent") in conf) {
+  if (("managed" SUBSEP "autoModePresent") in conf) {
     print "managed loosenable autoMode a managed autoMode section is ADDITIVE, not a policy boundary: a developer cannot remove entries it provides, but a developer-added allow entry can override an organization soft_deny entry. For an action that must never run regardless of classifier configuration, use permissions.deny in managed settings, which cannot be overridden"
     n_loosenable++
   }

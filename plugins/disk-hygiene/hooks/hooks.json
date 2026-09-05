@@ -1,14 +1,29 @@
 {
+  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, and detects the guard silently failing to launch.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "if": "Bash(*hygiene.py*)",
+            "shell": "bash",
+            "timeout": 60,
+            "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "shell": "bash",
-            "timeout": 60
+            "timeout": 60,
+            "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           }
         ]
       }

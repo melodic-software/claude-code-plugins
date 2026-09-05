@@ -42,6 +42,145 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   into one shell invocation, and a worktree-isolated session refuses a git-bearing compound command,
   which blocked these skills from loading inside a worktree. Same shape as the worktree skill's fix
   in #1619. Non-git pre-compute lines stay where they were.
+## [0.16.0]
+
+### Added
+
+- **`scripts/change-shape.py`, a token-level proof for comment edits.** Compares the
+  comment-stripped parse-tree leaves of a file before and after an edit and carries the verdict
+  in its exit code: `COMMENT-ONLY` (0), `RENAME-ONLY` (10), `CODE-CHANGED` (20), `UNPROVABLE`
+  (21), tooling unavailable (3). The shebang is kept as a code leaf so a shebang deletion cannot
+  pass as comment-only. Co-located `test_change_shape.py`; grammar cases skip visibly when a
+  grammar is absent and the degradation case always runs.
+- **`scripts/comment-tooling-probe.sh`, a runtime probe of the comment-analysis layers**
+  (`scc`, `pygments`, `tree-sitter`, `ruff`, `ast-grep`). Every absent layer names the capability
+  lost. Probes `ast-grep`, never `sg`: both meanings of `sg` are live on a stock machine. Always
+  exits 0.
+- **`scripts/scope-code-files.sh`, the empty-argument ladder resolved by script.** Reports the rung
+  (`uncommitted`, `branch`, `repository`), the base it compared against, the count, and the paths;
+  advances on absence of a rung, never on emptiness, so a docs-only branch reports zero files
+  instead of widening. Co-located test.
+- **`scripts/comment-census.py`, the comment burden with a token estimate.** Comment lines and
+  bytes per file and per language from scc (lines, complexity) and pygments (bytes), byte-identical
+  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labelled as such,
+  `--baseline` for the delta between passes. Co-located test.
+- **`scripts/rank-comment-targets.py`, the repository-rung reading order.** Exposure (size-normalized
+  recency-weighted line churn, basename fan-in, raw churn, owner diffusion) times payload (comment
+  lines beyond the per-language median), rank-normalized, after gating administrative paths,
+  generated files, the size floor and bot commits, and collapsing byte-identical copies to one row
+  with an instance count. Bounded `git blame` drift column on the top rows. Shallow clones rank by
+  fan-in and payload with a printed notice. Co-located test on a synthetic repository.
+- **`scripts/commented-out-code.py`, cross-language commented-out-code detection.** Reparses each
+  comment (adjacent lines merged, per-line fallback) with the file's own grammar and accepts only a
+  clean parse containing structure prose cannot produce, so a Bash sentence that parses as a
+  command is not a finding. Directive comments are skipped. Co-located test.
+- **`userConfig`**: `comment_posture` (`strict` default, `balanced`, `conservative`),
+  `class_c_max_lines` (default 2), `apply_local_renames` (default true). Knobs move tiers; none
+  loosens a gate.
+- **`reference/tooling.md`, `reference/scope.md`, `reference/sources.md`.** The reading layers with
+  install commands and dated measurements, the scope ladder contract, and the doctrine sources
+  moved out of `SKILL.md`, which is back under its line target.
+- **Ten `dissolve-comments` evals (6-15)** covering the behaviors above and below, written to fail
+  against the previous skill.
+- **CI pins** for tree-sitter and one grammar wheel per mapped language in
+  `.github/requirements-ci.txt`, so the grammar-dependent suites run in CI instead of skipping.
+
+### Changed
+
+- **`dissolve-comments` holds kept comments to a line budget.** Class C over `class_c_max_lines` is
+  rewritten terser under `strict` with the narrative staged, reported under `balanced`, proposed
+  under `conservative`; the rewrite is certified like any deletion.
+
+- **`dissolve-comments` gates each edit by the strongest proof it admits instead of one test
+  run for everything.** Class-A deletions and function-local renames apply behind
+  `change-shape.py` (`COMMENT-ONLY`, `RENAME-ONLY`), so they act on a repository with no test
+  suite; additive local moves need a discovered test net; interface-creating moves need the net
+  and are proposal-first in non-interactive runs. `RENAME-ONLY` is documented as a shape claim,
+  not a safety claim. Safe mode keeps its posture and gains the deletion certification.
+- **`dissolve-comments` discovers repo-local machine-read comment markers before triage**
+  (whole-repository scan, test fixtures treated as live, absence reported explicitly, query form
+  varied before concluding absence) and exempts four more categories: units and sentinel values,
+  suppression justifications, negative information, operational information.
+- **`dissolve-comments` reads the tooling layer at scope time.** At grep precision a language
+  with heredocs or block comments gets no applied edits, because a line-prefix read cannot tell a
+  comment from string data; measured on this repository, that read counted 95 "comments" in a
+  test file whose real count was 64.
+- **Sources corrected and extended.** The Anthropic "self-evident" line is cited with its
+  surrounding anti-overengineering block, which constrains the refactoring half; Ousterhout's
+  cost asymmetry, Kernighan and Pike, Henney, Wayne, and Google's four-move ladder added.
+
+## [0.15.6]
+
+### Changed
+
+- **`detect.test.sh`'s parity loop iterates the array `mapfile` already
+  captured.** The forward loop re-ran the identical `printf | sed` pipeline
+  that had just filled `audited_paths`, extracting the audited-path list twice
+  from one `detect.sh` run. It now reads the array, guarded for the empty case,
+  keeping the same items in the same order and the same in-shell mutation of
+  `parity_ok` that a process-substitution loop was already careful to preserve.
+  Suites ran 162 and 53.
+
+## [0.15.5]
+
+### Changed
+
+- **`dead-code-scan.sh` loses a write-only `SCOPE` array,** genuine dead code
+  inside the dead-code scanner: declared once, appended to once, read nowhere in
+  the repository. The claim needed care because this file drives five namerefs,
+  which is exactly what could falsify "write-only"; every `local -n` was
+  enumerated and every call site passes a string literal. The script is never
+  sourced and the array was never exported, so no child process could read it
+  either. Proven by re-introducing a read into a pre-edit mirror, which diverged
+  on 54 of 76 invocations.
+- **All four scanner lanes now declare their `read` loop variables `local`.**
+  Only `lane_grep` already did; `lane_vulture`, `lane_gopls` and `lane_knip`
+  were leaking twelve names into the global namespace. None is read outside its
+  own lane body, and no lane recurses or runs in a subshell that relied on the
+  leak.
+- **`open-pr-count.sh` drops a redundant empty-string guard.** An empty string
+  cannot match `^[0-9]+$`, so that case already routed to `emit_unknown`; the
+  only side effect the short-circuit suppressed was `BASH_REMATCH`, which
+  nothing reads before exit. Checked over 41 invocations covering empty output,
+  a lone newline, CRLF, a lone CR, whitespace, leading zeros, negatives, floats,
+  JSON, three nonzero exits and gh absent from PATH.
+
+### Fixed
+
+- **`changed-code-files.test.sh` stops reporting line counts as exit codes.**
+  Two assertions compared counts through `assert_exit`, so a real failure
+  printed "expected: exit 1 / actual: exit 3" for a number of lines. They move
+  to a new `assert_equal` with the same predicate; both were mutation-tested and
+  go red with the corrected message.
+
+## [0.15.4]
+
+### Changed
+
+- **`dissolve-comments` skill-listing entry tightened.** It was among the marketplace's ten
+  largest listing entries. The description now folds the scope ladder into a parenthetical and
+  drops a redundant clause from the triage sentence while keeping every quoted trigger phrase and
+  the `Skip when` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.15.3]
+
+### Changed
+
+- **`audit-comment-residue`: four escaped-path cases report a host skip instead of failing on
+  Windows.** The cases name a file with a byte git's v1 porcelain escapes: a double quote, a
+  backslash, a `>` and a tab. Windows reserves all four, and MSYS hides that by substituting each
+  reserved byte with the private-use code point at U+F000 plus the byte, so the file exists to the
+  shell under the name asked for while git sees the substitute. A backslash is not substituted at
+  all, it is a separator, and the create simply fails. Either way the fixture is absent and the
+  assertion reported a detector defect that does not exist.
+
+  The suite now asks through git itself, the tool the cases are really about: `--porcelain -z`
+  emits raw bytes with no C-quoting, so a name that survives to git matches exactly and one that
+  does not, does not. A negative probe skips the fixture and prints a visible `SKIP (host: ...)`
+  line counted apart from the pass total.
 
 ## [0.15.2]
 

@@ -6,7 +6,7 @@ show it, then render it. It is a form-and-medium router, not a craft teacher.
 
 | Skill | What it does |
 |---|---|
-| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
+| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, code-shape sketch, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
 
 ## What it decides
 
@@ -20,7 +20,8 @@ Two decisions, then the output:
   | Attribute comparison | A markdown table |
   | Quantities | A chart |
   | A small structural sketch | ASCII or Unicode |
-  | A composite or interactive view | A rich rendered page |
+  | Logic, a call path, a component or file tree, types, or a delta over code | A code-shape sketch (pseudocode, call tree, component tree, shallow file tree, types and signatures, diff), a fenced text form that stays in the terminal by default |
+  | A composite or interactive view, an infographic, or a short slide deck | A rich rendered page |
   | A visual layout the user would rather tweak by hand | A hand-editable design canvas, via the bundled `design` skill when that presence-gated preview is available |
 
 - **Medium**. One of three ascending tiers, **inline terminal → local HTML file →
@@ -70,14 +71,20 @@ rendered diagram. These facts and their sources are documented in the catalog.
   available, else a local file, else terminal). An unrecognized value is reported
   and treated as `auto`. There is no native enum type for `userConfig`, so the
   allowed values are validated in-skill.
+- **`thin_context_prompt`** (`userConfig`, string, default `auto`). What the skill
+  does when code is pasted with little conversational context and no form named:
+  `auto` (ask one ranked question only when two or more code-shape forms fit about
+  equally; render when one form dominates), `always` (offer the ranked menu on any
+  bare code paste), or `never` (render the recommended form without asking). An
+  unrecognized value is reported and treated as `auto`; validated in-skill.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
 medium=<value>`. Against an already-installed plugin that prints `already
-installed` and still writes the value, verified on Claude Code 2.1.240 for a
-non-sensitive option at `user` scope. Never uninstall to reconfigure: that drops
+installed` and still writes the value. Never uninstall to reconfigure: that drops
 the whole stored `pluginConfigs` entry and resets every option to its manifest
-default. No persistent state; no external prerequisites; no network calls of
+default. The verified-version record lives in the
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md). No persistent state; no external prerequisites; no network calls of
 its own.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
@@ -92,6 +99,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium when the skill auto-selects. One of: 'auto' (decide by content and available surfaces), 'terminal' (always render inline, degrading richer forms to their best terminal approximation), 'file' (render richer forms as a self-contained local HTML file, never published off the machine), 'artifact' (prefer a published Artifact when that surface is available, else fall back to a local HTML file, else terminal). An unrecognized value is reported and treated as 'auto'. |
+| `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little conversational context and no form named. One of: 'auto' (ask one ranked question only when two or more code-shape forms fit about equally; render when one form dominates), 'always' (offer the ranked menu on any bare code paste), 'never' (render the recommended form without asking). An unrecognized value is reported and treated as 'auto'. |
 
 ### How to set these
 
@@ -107,18 +115,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

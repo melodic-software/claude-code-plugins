@@ -176,10 +176,11 @@ run_check() {
 }
 
 run_apply() {
-  local current latest upstream_sha previous_ver
+  local current upstream_sha previous_ver
 
   previous_ver=$(current_cli_version)
-  latest=$(latest_cli_version) || {
+  # Registry preflight — fail before npm install mutates the global CLI.
+  latest_cli_version >/dev/null || {
     err "failed to reach npm registry"
     return 2
   }
@@ -244,11 +245,6 @@ EOF
 main() {
   local mode="${1:---check}"
 
-  if [[ ! -f "${SKILL_DIR}/SKILL.md" ]]; then
-    err "SKILL.md not found at ${SKILL_DIR} — run from a plugin checkout"
-    exit 2
-  fi
-
   case "$mode" in
   -h | --help)
     cat <<'EOF'
@@ -270,6 +266,11 @@ EOF
     ;;
   *) ;; # other modes handled below after prerequisite checks
   esac
+
+  if [[ ! -f "${SKILL_DIR}/SKILL.md" ]]; then
+    err "SKILL.md not found at ${SKILL_DIR} — run from a plugin checkout"
+    exit 2
+  fi
 
   check_prereqs
 

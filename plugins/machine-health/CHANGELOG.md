@@ -22,6 +22,101 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   earlier version or the retirement-manifest rationale.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.12.12]
+
+### Changed
+
+- **Three hashtable literals aligned and `$matches` given its canonical casing.** The `detail`
+  literal in `Test-Reliability.ps1`, the finding literal in `Test-EnvironmentHealth.ps1` and the
+  correlation-rule literals in `Invoke-FindingCorrelation.ps1` had assignment operators at
+  inconsistent columns; `Get-DriverStoreInventory.ps1` reads the automatic variable as `$Matches`,
+  the spelling the rest of the tree uses. Whitespace and casing only: PowerShell resolves variable
+  names case-insensitively, so no key, value or emitted record changed. Three agents read all 67
+  files across the audit skill and changed six lines between them; almost everything here is
+  load-bearing, including guards that only look redundant, because `@($false)` unrolls falsy and a
+  companion `-and $x.Count -gt 0` clause is therefore not a duplicate test.
+
+### Notes for maintainers
+
+- **`Restart-StoppedService.ps1`'s `ShouldProcess` gate is untested.** Replacing it with
+  `if ($true)` breaks no test, and under `-WhatIf` the original skips `Start-Service` while the
+  mutant actually restarts the service. No test anywhere passes `-WhatIf` or `-Confirm`.
+- `detail` is a plain hashtable, so its JSON key order varies per process; anything comparing that
+  order across runs is relying on nondeterminism.
+
+## [0.12.11]
+
+### Fixed
+
+- **The test runner now pins Pester to v5 instead of taking the newest
+  installed.** `Invoke-MachineHealthTests.ps1` selected its module with
+  `Sort-Object Version -Descending | Select-Object -First 1` and imported it
+  with only a `-MinimumVersion`, so a machine carrying both 5.7.1 and 6.1.0
+  imported 6.1.0 for suites written against v5. Selection is now a version-range
+  filter with a matching `-MaximumVersion` on the import. Reproduced on a
+  two-version host before and after: the old runner imported 6.1.0, the new one
+  imports 5.7.1, and a v6-only host now fails loudly instead of running the
+  suites under the wrong major.
+
+### Changed
+
+- **Audit test-harness tidyings from the repo-wide sweep.**
+  `Clear-TempFiles.Tests.ps1` rewrites a history-narration comment as
+  present-tense rationale and states the reason the original omitted (deleting
+  through a reparse point would reach files outside the temp tree);
+  `Mock-Helpers.psm1` normalizes its one comment em dash to the `--` form used
+  elsewhere in this plugin. Both proven comment-only by AST token comparison.
+  Pester 5.7.1: 34 passed, 0 failed across the Linux-runnable suites.
+
+## [0.12.10]
+
+### Fixed
+
+- **The elevation banner's rerun command now uses a PowerShell backtick continuation.**
+  `Write-ElevationBanner.ps1` emitted a bash-only backslash line continuation in the
+  command it tells the user to paste into an elevated pwsh session; no environment
+  existed where that worked. Now matches the file's own docstring spec and
+  `references/windows/elevation-matrix.md`.
+
+### Changed
+
+- **`Invoke-AllowlistedWeb.ps1`** drops the no-op `UseBasicParsing` splat entry and a
+  dead `$parsed` initialization, and its copy-not-reference test gains
+  mutation-verified assertions (a reference-returning regression now fails the suite).
+
+- **Audit lib tidyings from the repo-wide sweep.** `Get-CisaKevCache.ps1` drops the
+  `UseBasicParsing` switch from its web-request splat (a documented no-op on the
+  PowerShell 7.4 floor the file requires); `Get-GpuDriverInfo.Tests.ps1` normalizes
+  two comment em dashes to the tree's double-hyphen form. Linux-runnable Pester
+  suites green before and after under the pinned Pester 5.
+- **Checks tidyings (third wave).** `Test-EnvironmentHealth.ps1` removes a dead
+  `$others` list (built, never read; suite 14/14); eight history-narration comment
+  blocks across four checks and four suites rewritten to present-tense rationale;
+  two detail-hashtable realignments; one stale It description corrected to match its
+  assertion. Before/after Pester result sets byte-identical on this host.
+
+## [0.12.9]
+
+### Changed
+
+- **audit:** add `argument-hint: "[weekly|on-demand|first-run] [--dry-run]"` so
+  autocomplete shows the RunMode and dry-run arguments the skill already
+  accepts (#3542).
+
+## [0.12.8]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546). Orchestrator, checks, catalog pointers,
+  and contributor docs (`AGENTS.md`, `README.md`) follow the new path.
+
+## [0.12.7]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.12.6]
 

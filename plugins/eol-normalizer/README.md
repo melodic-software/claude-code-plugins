@@ -47,6 +47,20 @@ The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while normalization
 still runs.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit`, so its cost on the path where there is
+nothing to rewrite is the figure that counts. Measured on Windows 11 under Git Bash, twelve
+interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, already-normalized `.md` | 1 | 41.0 before, 21.5 after (0.6.28) | sixteen of twenty-seven processes gone: one `git check-attr` for both attributes, `dirname` and `basename` as parameter expansions, the NUL sniff as one `read`, and no temp file, `cp`, `cmp` or `rm` for a file that needs no rewrite |
+
+The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.29 by the
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope).
+
 ## Install
 
 ```shell
@@ -101,18 +115,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -148,6 +160,61 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Hook cost accounting
+
+This plugin's PostToolUse hook matches every `Write` and `Edit`, so its cost is
+paid on every file the agent touches and it owes the marketplace's
+[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
+
+**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
+interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
+reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
+naming a scratch file inside a repository whose `.gitattributes` says `eol=lf`,
+already LF, so the hook has nothing to rewrite. That benign path is the one that
+runs on nearly every edit. Windows 11 + Git Bash, 2026-09-02.
+
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-seven of them
+are a large share of the run rather than a rounding error.
+
+**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
+before run and **77 ms** for the after run, against the convention's reference
+host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
+comparable; the spawn-equivalent ratio is the figure that holds.
+
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 | 32 |
+| After (0.6.28) | 21.5 | ≈ 1,720 ms | 11 | 27 |
+
+**A benign edit costs about half what it did: ≈ 21.5 spawn-equivalents,
+≈ 1,720 ms of reference-host work.** The cut is process count, not algorithm.
+Sixteen of the twenty-seven processes were doing work a shell builtin does: two
+`git check-attr` calls became one, four `dirname` and one `basename` became
+parameter expansions, two `tr` pipelines became a substitution, the NUL sniff's
+`head`-`tr`-`wc` became one `read`, and the rewrite itself plus the `mktemp`,
+`cp`, `cmp` and `rm` that disclosed it are no longer reached for a file that is
+already in the target shape.
+
+**Residual, and why it stays.** Eight to ten of the eleven remaining processes
+belong to the shared `hooks/hook-utils.sh`: payload validation, the `file_path`
+read and its project-membership scoping, and the repository-root lookup. That
+file is a registered byte-identical cross-plugin cluster, so changing it is a
+nine-plugin change and not this plugin's to make. Of what is left, one `git` is
+the repository root and one is the merged `check-attr`. A repository configured
+`eol=crlf` sees no cut on the files that arm touches: proving an LF-to-CRLF pass
+is unnecessary means finding a newline not preceded by a carriage return, which
+the chunked builtin probe cannot answer across chunk boundaries.
+
+**One deliberate deviation.** A file this hook finds nothing to rewrite in is no
+longer opened for writing, so the hook no longer touches its mtime. No content
+and no reported message changes.
 
 ## License
 

@@ -22,6 +22,40 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
   loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
   lines stay where they were.
+## [0.10.3]
+
+### Changed
+
+- **The three `detect-ecosystems` suites stop paying twice for one answer.**
+  `scripts/detect-ecosystems.test.sh` ran the empty fixture through the detector
+  twice, once to capture stdout and once, output discarded, to capture the exit
+  code; a single run now feeds both assertions. In the two skill-level wrapper
+  suites the multi-ecosystem expectation `$(printf '%s\n' App.sln package.json
+  go.mod)` was written out at four assertion sites each; it is computed once into
+  `multi_expected` beside the fixture it describes, which is three command
+  substitutions fewer per suite and one place to edit if the fixture gains a
+  marker file.
+- Test files only. The detector and both skill wrappers are byte-unchanged, as
+  are every assertion label and the order they run in.
+
+## [0.10.2]
+
+### Changed
+
+- **`scripts/allowed-tools-pairing.test.sh` was shfmt-formatted**, in step with
+  the `repo-fleet-hygiene` copy of the same suite so the two do not drift apart.
+  Formatting only: two independent quote- and heredoc-aware shell parsers agree
+  on the canonicalised form before and after, the comparison was proven sensitive
+  by nine seeded semantic mutations that it catches and two controls that it
+  correctly ignores, comment lines are identical at 35 each, and the suite's
+  runtime output is byte-identical at 9 lines with exit 0.
+
+  Recorded while checking the hazard list: `prototype` does **not** carry three
+  copies of a detector. `scripts/detect-ecosystems.sh` is the detector; the two
+  skill-level files are 17-line `exec` wrappers whose executable bodies are
+  byte-identical and differ only in a comment naming the sibling skill, and their
+  suites assert exactly that byte-identity plus the header's rationale phrases.
+  There was nothing drifting and nothing to consolidate.
 
 ## [0.10.1]
 

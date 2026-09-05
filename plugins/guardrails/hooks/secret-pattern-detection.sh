@@ -20,6 +20,13 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
@@ -30,8 +37,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/secret-detection/secret-patterns.sh
 source "$PLUGIN_ROOT/lib/secret-detection/secret-patterns.sh"
-
-hook::check_enabled "SECRET_PATTERN_DETECTION"
 
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
@@ -68,7 +73,8 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 # once per session.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
-  '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' || exit 0
+  '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
+  '.tool_input.path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
 # text across the byte, so a clean scan would not reflect the bytes carried.
@@ -81,10 +87,150 @@ fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
 
+# 0 when <slash-normalized path> is allowlisted. A function rather than the
+# inline case it replaced because the MCP lane asks the same question of a
+# repo-relative path: one list, two callers, no chance of the remote write path
+# drifting to a different set of holes than the local one.
+secret_path_allowlisted() {
+  case "$1" in
+  *.claude/hooks/*) return 0 ;;
+  *settings.local.json) return 0 ;;
+  *CLAUDE.local.md) return 0 ;;
+  # Dependency caches — anchored to a path-segment boundary (leading `/` or start
+  # of path) so a directory that merely CONTAINS the name (evil_node_modules/,
+  # .venv-backup/) is NOT exempted from the scan.
+  */.venv/* | .venv/*) return 0 ;;
+  */node_modules/* | node_modules/*) return 0 ;;
+  *.env.example | *.env.sample | *.env.template) return 0 ;;
+  *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) return 0 ;;
+  *.claude/skills/*/context/*) return 0 ;;
+  *.claude/skills/*/completed/*) return 0 ;;
+  *) return 1 ;; # proceed to content check
+  esac
+}
+
+# Scan every file a GitHub MCP write carries, and block the whole tool call if
+# any of them holds a secret. Exits 2 on a violation; returns for a clean call.
+#
+# WHAT THIS LANE DELIBERATELY DOES NOT REUSE, and why:
+#
+#   The project-scope guard. It exists because a LOCAL Write can target another
+#   checkout on this machine, which is that repo's policy to enforce. An MCP
+#   write names `owner/repo` and a repo-relative path; there is no local file,
+#   and CLAUDE_PROJECT_DIR says nothing about the destination. Applying the
+#   local test would skip every MCP write (a relative path is never under the
+#   project root), which is a silent hole, not a scope.
+#
+#   hook::normalize_path. It folds Windows drive letters and case for comparison
+#   against local paths. A GitHub path is already `/`-separated, case-sensitive,
+#   and never carries a drive letter.
+#
+# The ALLOWLIST is reused unchanged: `.env.example`, a test fixture tree or a
+# vendored node_modules is the same false positive whichever route writes it.
+mcp_lane() {
+  local count=1 i path content violations="" first_offender="" scan_out
+  local -a labels=()
+  # Captured before any further hook::jq_fields call: that helper overwrites
+  # HOOK_JQ_FIELDS in place, and the single-file shape's values are already in
+  # the array this function was reached through.
+  local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
+
+  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
+    count="${HOOK_JQ_FIELDS[0]}"
+    # A payload whose files array is absent or unreadable carries nothing this
+    # guard can scan; `null` and a non-numeric answer both land here.
+    [[ "$count" =~ ^[0-9]+$ ]] || return 0
+  fi
+
+  for ((i = 0; i < count; i++)); do
+    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+      # One jq process per file, on a lane that fires only on a GitHub MCP write
+      # — never on the Write/Edit path this guard runs on for every keystroke of
+      # authored content. Reusing hook::jq_fields rather than hand-rolling an
+      # extraction keeps this lane's NUL handling the same as the envelope's.
+      hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
+      path="${HOOK_JQ_FIELDS[0]}"
+      content="${HOOK_JQ_FIELDS[1]}"
+    else
+      path="$single_path"
+      content="$single_content"
+    fi
+
+    # Same fail-closed posture as the envelope: a NUL in scanned content means a
+    # clean scan would not reflect the bytes carried.
+    if ((HOOK_JQ_FIELDS_NUL)); then
+      echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
+      echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
+      echo "Fix: reissue the tool call without the embedded NUL." >&2
+      exit 2
+    fi
+
+    [[ -n "$path" && -n "$content" ]] || continue
+    secret_path_allowlisted "${path//\\//}" && continue
+
+    scan_out=$(
+      secrets::scan_text "$content"
+      printf x
+    )
+    scan_out=${scan_out%x}
+    [[ -n "$scan_out" ]] || continue
+
+    [[ -n "$first_offender" ]] || first_offender="$path"
+    violations+="$path:"$'\n'"$scan_out"$'\n'
+    while IFS= read -r _vline || [[ -n "$_vline" ]]; do
+      [[ -n "$_vline" ]] || continue
+      labels+=("${_vline%% (line *}")
+    done < <(printf '%s' "$scan_out")
+  done
+
+  [[ -n "$violations" ]] || return 0
+
+  {
+    printf 'Secret/credential pattern(s) detected in content bound for GitHub:\n\n'
+    printf '%s\n' "$violations"
+    printf 'This write goes straight to a repository — there is no local file to\n'
+    printf 'fix afterwards, and no pre-commit hook on this path. Remove the secret\n'
+    printf 'and reissue. If this is a test fixture or example, add its path to the\n'
+    printf 'allowlist in secret-pattern-detection.sh.\n'
+  } >&2
+
+  if [[ -n "$start" ]] && hook::telemetry_enabled; then
+    local labels_json data
+    labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+    # `file` carries the repo-relative path the MCP call named. It is authored
+    # content, not a local filesystem path, so it embeds no username and needs
+    # none of hook::repo_relative_path's redaction.
+    data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
+      '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+      data='{"tool":"","file":"","violations":[]}'
+    hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "blocked" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  fi
+  exit 2
+}
+
 case "$TOOL" in
-Write | Edit | NotebookEdit) ;;
+Write | Edit | NotebookEdit) IS_MCP=0 ;;
+# --- The GitHub MCP write lane (#3719) --------------------------------------
+# A Write|Edit matcher does not see a write issued through an MCP tool, so a
+# secret this session authored could reach a repository by a route this guard
+# never inspected. These two tools carry file CONTENT and are inspected below.
+#
+# mcp__github__delete_file is deliberately absent: its schema carries owner,
+# repo, path, message and branch, and NO content. There is nothing for a content
+# guard to scan, and a delete cannot introduce a secret. Naming it here would
+# claim coverage that consists of skipping every call.
+mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
+
+# The MCP lane resolves its own paths and content per file and never touches the
+# local filesystem, so it runs before the local-write handling below and exits
+# on its own. See mcp_lane for what it deliberately does not reuse.
+if ((IS_MCP)); then
+  mcp_lane
+  exit 0
+fi
 
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$FILE" ]] || exit 0
@@ -122,21 +268,7 @@ fi
 #     10+ chars after prefix so `sk_test_xxx`-style placeholders don't match
 #   - tests/fixtures, tests/testdata: scoped to test trees only
 #   - CC skill context/completed: research notes; code review is the backstop
-case "$ALLOW_FILE" in
-*.claude/hooks/*) exit 0 ;;
-*settings.local.json) exit 0 ;;
-*CLAUDE.local.md) exit 0 ;;
-# Dependency caches — anchored to a path-segment boundary (leading `/` or start
-# of path) so a directory that merely CONTAINS the name (evil_node_modules/,
-# .venv-backup/) is NOT exempted from the scan.
-*/.venv/* | .venv/*) exit 0 ;;
-*/node_modules/* | node_modules/*) exit 0 ;;
-*.env.example | *.env.sample | *.env.template) exit 0 ;;
-*tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) exit 0 ;;
-*.claude/skills/*/context/*) exit 0 ;;
-*.claude/skills/*/completed/*) exit 0 ;;
-*) ;; # proceed to content check
-esac
+secret_path_allowlisted "$ALLOW_FILE" && exit 0
 
 # --- Extract content to check ---
 case "$TOOL" in
@@ -163,7 +295,14 @@ emit_tel() {
   # rather than skipping), and an unanchored path can only degrade to a bare
   # basename, so resolve the file's own checkout for that case.
   local file_rel root="${CLAUDE_PROJECT_DIR:-}"
-  [[ -n "$root" ]] || root="$(hook::repo_root "$(dirname "$FILE")")"
+  # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
+  # is a fork per call on Windows Git Bash and this guard runs on every write.
+  # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
+  # rather than the empty string, which hook::repo_root would read as `.`.
+  local file_dir="${FILE%/*}"
+  [[ "$file_dir" == "$FILE" ]] && file_dir="."
+  [[ -n "$file_dir" ]] || file_dir=/
+  [[ -n "$root" ]] || root="$(hook::repo_root "$file_dir")"
   # The helper strips "$root/", so a root that already ends in a separator
   # makes the prefix "/repo//" and matches nothing: every in-project file
   # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
@@ -181,7 +320,6 @@ emit_tel() {
 # --- High-confidence secret patterns (shared lib) ---------------------------
 # Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
 # pre-commit content-invariants hook enforces the same set (#2731).
-VIOLATIONS=""
 LABELS=()
 
 # Capture stdout; empty means clean (secrets::scan_text's exit status is lost

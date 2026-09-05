@@ -2920,15 +2920,12 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
                 advisory = hygiene.os_autoclean_advisory(temp_root)
         self.assertIsNotNone(advisory)
         assert advisory is not None
-        expected = {
-            "win32": "windows-storage-sense",
-            "linux": "systemd-tmpfiles",
-        }.get(
-            "win32"
-            if hygiene.sys.platform == "win32"
-            else ("linux" if hygiene.sys.platform.startswith("linux") else "other"),
-            "not-detected",
-        )
+        if hygiene.sys.platform == "win32":
+            expected = "windows-storage-sense"
+        elif hygiene.sys.platform.startswith("linux"):
+            expected = "systemd-tmpfiles"
+        else:
+            expected = "not-detected"
         self.assertEqual(expected, advisory["mechanism"])
 
 
@@ -6352,8 +6349,37 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in cls._hook_argv(hook))
         ]
-        assert len(commands) == 1, commands
-        return cls._guard_argv_from_hook(commands[0], "destructive_guard.py")
+        # One registration per tool (``Bash`` with an ``if`` filter, ``PowerShell``
+        # without one), both carrying the same guard argv.
+        assert len(commands) == 2, commands
+        argvs = {
+            tuple(cls._guard_argv_from_hook(hook, "destructive_guard.py"))
+            for hook in commands
+        }
+        assert len(argvs) == 1, argvs
+        return list(argvs.pop())
+
+    def test_engine_gate_is_registered_once_per_tool(self) -> None:
+        """Lock the per-tool registration shape of the plugin-level engine gate.
+
+        An ``if`` filter is scoped to the tool it names: under a single
+        ``Bash|PowerShell`` matcher, ``Bash(...)`` filtered every PowerShell call
+        out of this kill-switch guard. The ``Bash`` entry keeps the filter; the
+        ``PowerShell`` entry carries none, because a PowerShell filter must match
+        every subcommand of a compound command and would skip the guard silently
+        on a mixed line.
+        """
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        by_matcher = {
+            entry.get("matcher"): hook
+            for entry in config["hooks"]["PreToolUse"]
+            for hook in entry.get("hooks", [])
+            if any("destructive_guard.py" in token for token in self._hook_argv(hook))
+        }
+        self.assertEqual({"Bash", "PowerShell"}, set(by_matcher))
+        self.assertTrue(by_matcher["Bash"].get("if", "").startswith("Bash("))
+        self.assertNotIn("if", by_matcher["PowerShell"])
 
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
@@ -7149,7 +7175,9 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in self._hook_argv(hook))
         ]
-        self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
+        # One registration per tool, both declaring the same timeout.
+        self.assertEqual(2, len(declared), declared)
+        self.assertEqual({guard._DECLARED_HOOK_TIMEOUT_SECONDS}, set(declared))
 
         skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         timeout_lines = [
@@ -7511,6 +7539,7 @@ class GuardTests(unittest.TestCase):
         self.assertNotEqual(1, completed.returncode)
         self.assertTrue(completed.stderr.strip())
         self.assertIn("1.5", completed.stderr)
+
     # --- watchdog expiry: "could not decide" is not "decided deny" (#3502) ---
     #
     # The deadline is WALL-CLOCK, so it measures contention as readily as it
@@ -7628,9 +7657,7 @@ class GuardTests(unittest.TestCase):
         )
         # A delivered decision is what keeps this fail-closed: the fail-open
         # this guard exists to prevent is a hook producing NO decision at all.
-        self.assertEqual(
-            "PreToolUse", payload["hookSpecificOutput"]["hookEventName"]
-        )
+        self.assertEqual("PreToolUse", payload["hookSpecificOutput"]["hookEventName"])
 
     def test_watchdog_expiry_on_an_engine_command_still_denies_at_exit_2(
         self,
@@ -7665,9 +7692,7 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual(0, completed.returncode)
         payload = json.loads(completed.stdout)
-        self.assertEqual(
-            "allow", payload["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("allow", payload["hookSpecificOutput"]["permissionDecision"])
 
     def test_decision_emission_is_latched_to_exactly_one_object(self) -> None:
         stdout = io.StringIO()
@@ -7681,9 +7706,7 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(first)
         self.assertFalse(second)
         payload = json.loads(stdout.getvalue())
-        self.assertEqual(
-            "allow", payload["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("allow", payload["hookSpecificOutput"]["permissionDecision"])
 
     def test_a_real_stall_past_the_deadline_asks_rather_than_blocks(self) -> None:
         """End-to-end through the REAL `threading.Timer`, not a direct call.
@@ -7724,9 +7747,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode)
         self.assertNotEqual(2, completed.returncode)
         decided = json.loads(completed.stdout)
-        self.assertEqual(
-            "ask", decided["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("ask", decided["hookSpecificOutput"]["permissionDecision"])
 
     def test_a_real_stall_on_an_engine_command_still_denies(self) -> None:
         program = (
@@ -7753,6 +7774,7 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual(2, completed.returncode)
         self.assertIn("internal deadline", completed.stderr)
+
     # --- the two ways the expiry downgrade could itself fail open -----------
 
     def test_watchdog_expiry_denies_in_belt_mode_even_without_a_marker(self) -> None:
@@ -7839,9 +7861,7 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual(0, completed.returncode)
         payload = json.loads(completed.stdout)
-        self.assertEqual(
-            "deny", payload["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("deny", payload["hookSpecificOutput"]["permissionDecision"])
         self.assertIn("main thread decided", completed.stdout)
 
     def test_watchdog_emits_at_most_one_object_across_every_expiry_branch(
@@ -7850,7 +7870,10 @@ class GuardTests(unittest.TestCase):
         """Whatever the branch, stdout holds zero or one JSON object, never two."""
         cases = [
             ('guard._COMMAND_UNDER_DECISION = "git status"', "engine-gate"),
-            ('guard._COMMAND_UNDER_DECISION = "python3 hygiene.py apply"', "engine-gate"),
+            (
+                'guard._COMMAND_UNDER_DECISION = "python3 hygiene.py apply"',
+                "engine-gate",
+            ),
             ('guard._COMMAND_UNDER_DECISION = "rm -rf /x"', "belt"),
             ("guard._COMMAND_UNDER_DECISION = None", "engine-gate"),
             (
@@ -7875,6 +7898,7 @@ class GuardTests(unittest.TestCase):
                     body[end:].strip(),
                     f"a second object followed the first: {body!r}",
                 )
+
     def test_a_watchdog_that_outlived_mains_cleanup_stands_down(self) -> None:
         """The cleanup race, driven deterministically rather than by timing.
 
@@ -7930,9 +7954,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             "", body[end:].strip(), f"a second JSON object reached stdout: {body!r}"
         )
-        self.assertEqual(
-            "allow", emitted["hookSpecificOutput"]["permissionDecision"]
-        )
+        self.assertEqual("allow", emitted["hookSpecificOutput"]["permissionDecision"])
         self.assertEqual(
             0,
             completed.returncode,
@@ -8137,7 +8159,6 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         )
 
     def test_legacy_argv_flag_is_ignored(self) -> None:
-        # The dropped --disk-hygiene-enabled flag no longer disables anything.
         self.assertTrue(
             self.resolve(
                 [*self.plugin_root_argv(), "--disk-hygiene-enabled", "false"], {}

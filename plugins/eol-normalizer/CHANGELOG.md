@@ -3,6 +3,153 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.35]
+
+### Changed
+
+- **`hooks/eol-normalizer.sh` reads its kill switch before sourcing the library.**
+  `eol_normalizer_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.6.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.32]
+
+### Changed
+
+- **`eol-normalizer.sh`'s `build_data_json` rationale comment is completed to
+  the formatter family's canonical text.** It stopped mid-argument, at the
+  point where the jq fallback drops the tool and path values rather than
+  interpolating them; it now also says why losing them is harmless, since the
+  fallback fires only when `jq -n` fails and `hook::emit_telemetry` discards
+  the envelope anyway when jq is absent. Adapted for this hook's `$1 = action`
+  argument. Comment-only: no code line in this plugin changed.
+
+  The code edits in this group landed on its other two members, a collapsed
+  guard in `go-format.sh` and two dead stores in `markdown-format.sh`. Nothing
+  in this hook met the bar. Suites stayed green at 51, 54 and 171 with
+  baselines byte-identical.
+
+## [0.6.31]
+
+### Changed
+
+- **The banned-process paragraph in the hook suite becomes present tense,**
+  stating why each named process must not appear rather than narrating the
+  refactor that removed it.
+- **One command substitution is reformatted to the repo formatter's canonical
+  multi-line form.** This was not intended: editing the file fired this repo's
+  own PostToolUse formatter, which reformatted it, and it cannot be reverted
+  without a git restore that would also discard the comment fix. It is inert,
+  which matters because the substitution wraps an `eval`: the whole file
+  minifies to byte-identical output, and a 25-probe differential over empty,
+  comment-only, blank-line and line-continuation bodies, a body writing to
+  stdout, one returning non-zero, one calling exit, and one unsetting a variable
+  under `set -u` found zero divergences in captured value, exit status, or the
+  outer variables afterwards. The file moves from shfmt-non-conforming to
+  conforming; the suite passes 51 assertions identically either way.
+
+## [0.6.30]
+
+### Changed
+
+- **README carries the hook budget accounting row.** The measured 41.0 to 21.5 spawn-equivalents
+  of 0.6.28 and the residual now sit under Requirements, per the hook-budget convention's rule 1.
+  Documentation only.
+
+## [0.6.29]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.6.28]
+
+### Changed
+
+- **A benign edit costs about half what it did.** This hook matches every
+  `Write` and `Edit`, so the process count on the path where there is nothing to
+  rewrite is the cost. Sixteen of twenty-seven processes are gone: `eol` and
+  `text` resolve in one `git check-attr` instead of two, four `dirname` and one
+  `basename` are parameter expansions, two `tr` pipelines are a substitution,
+  the NUL sniff's `head`-`tr`-`wc` is one `read`, and an already-normalized file
+  no longer reaches the rewrite or the `mktemp`, `cp`, `cmp` and `rm` that
+  disclosed it. Measured 41.0 to 21.5 spawn-equivalents on a Windows Git Bash
+  host, twelve interleaved trials against an interleaved `bash -c :` floor;
+  forks fall 32 to 27 over the same run, and a command substitution costs about
+  half a spawn here, so they are counted beside the execs. The README's
+  accounting section carries the method and the residual.
+- **The library separates deciding from rewriting.** `normalize_eol_plan`
+  answers which arm applies and whether the file has work to do;
+  `normalize_eol_apply` performs it. `normalize_eol_file` still exists and still
+  behaves as before for any caller that wants both in one call. The action a
+  plan reports names the arm that applies to the file, not whether bytes moved,
+  so telemetry `data.action`, the `ok`/`skipped` status and the mutation
+  disclosure all read exactly as they did.
+- **A file with nothing to rewrite is no longer opened for writing**, so this
+  hook no longer touches its mtime. Recorded as a deliberate deviation: no
+  content and no reported message changes, and the suite pins stdout, exit code
+  and the resulting bytes as byte-identical.
+- The suite gains a traced case pinning the benign path's shape on an already-LF
+  Markdown file in a repository whose `.gitattributes` says `eol=lf`: no
+  `dirname`, `basename`, `mktemp`, `cp`, `cmp`, `perl`, `head` or `wc`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  the merged `git check-attr`. The ceiling is portable because the trace
+  attributes each command to the function frame it ran in, so the shared
+  `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
+  outside the count.
+- The directory strip that replaced `dirname` answers `/` for a file directly
+  under the filesystem root, as `dirname` did. Without the guard the strip left
+  an empty string, which the repo-root resolver read as `.`, the hook process
+  CWD. The suite gains a white-box case that runs the hook's own directory
+  lines against a root-level path, because no CI host can create one.
+
+## [0.6.27]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.6.26]
 
 ### Changed

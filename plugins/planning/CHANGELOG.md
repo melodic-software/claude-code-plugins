@@ -40,6 +40,71 @@ All notable changes to the `planning` plugin are documented here. Format follows
   pre-compute block into one shell invocation, and a worktree-isolated session refuses a git-bearing
   compound command, which blocked these skills from loading inside a worktree. Same shape as the
   worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+## [0.36.2]
+
+### Fixed
+
+- **`check-open-questions.sh` could report a deferred question as ABSENT when it
+  was present.** The lookup was `printf '%s' "$ids" | grep -qE ...` under this
+  script's `set -uo pipefail`. `grep -q` exits the moment it matches, `printf` is
+  then killed by SIGPIPE, and `pipefail` promotes the whole pipeline to 141,
+  which the enclosing `if !` reads as "id absent". A Brief that was actually
+  correct then died ungradeable. It is a race against the 64 KB pipe buffer
+  rather than a size threshold, because `printf` only takes SIGPIPE if it still
+  has data to write when `grep` exits. Measured on this container with the id on
+  the deferred section's first line, 15 runs per size, counting runs where the
+  pipeline returned nonzero: 2/15 at 64 KB, 7/15 at 100 KB, then 15/15 from
+  128 KB. So small Briefs passed, mid-sized ones failed intermittently, and the
+  failure only became reliable once a plan grew past about 128 KB. The
+  intermittent band was the worst of it: a question that is present being
+  reported missing only sometimes reads as a transient and invites a re-run
+  rather than an investigation. No test covered it. The match is now a builtin
+  `[[ =~ ]]`, which reads the string directly and cannot SIGPIPE; a comment at
+  the site states why it must stay a builtin.
+
+### Changed
+
+- **A subprocess per register row dropped, and two duplicated suite blocks
+  named.** The malformed-row check counted fields with `printf | awk -F'|'` per
+  row; it now counts `|` characters with a parameter expansion, which is the
+  same quantity on a single record. `interview-defenses.test.sh` folds its two
+  case-presence blocks into `case_present` and its two fixture-declaration
+  blocks into `declares_both_fixtures`, keeping each assertion's label and
+  order.
+
+## [0.36.1]
+
+### Fixed
+
+- **`interview-defenses.test.sh`: one pin label overstated what it covers.** The
+  label read "unattended ladder rungs 4-5" above a pin that matches rung 4 only.
+  `pin_exact` takes a single whole-line argument, so it cannot cover two lines;
+  an instrumented run confirms one match. Rung 5 is pinned by the call directly
+  below, so coverage was never short, but the label is what a failing run prints
+  to name the lost defense, and an overstated one sends the reader to the wrong
+  line. Proven label-only by comparing the pinned line numbers on both sides:
+  identical, differing only in the label text.
+
+## [0.36.0]
+
+### Changed
+
+- **`interview`: emoji anchors on by default.** `use_emoji_question_markers`
+  stays a userConfig boolean and now defaults to `true`, matching the upstream
+  mattpocock/skills `grilling` ❓/➡️ shape. Inline rounds lead with those
+  prefixes when the option is true; set it false for plain text. The option
+  stays presentational: `Q<N>` is still the answer handle, and the ledger,
+  register, and Brief stay undecorated. An existing install that already stored
+  `false` keeps plain text until reconfigured. The Stance-section digest in
+  `tests/interview-defenses.test.sh` is refreshed for the same wording change;
+  the in-round no-silent-resolve defense is unchanged.
+
+## [0.35.4]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.35.3]
 

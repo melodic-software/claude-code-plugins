@@ -50,21 +50,20 @@ printf '%s\n' "$body" >>"$fix/bodies"
 # testing the pre-check twice.
 matched=""
 idx=0
-want=""
+prior_answers=""
 while IFS=$'\t' read -r pat status payload; do
   [[ -n "$pat" ]] || continue
   [[ "$query" == *"$pat"* ]] || continue
   if [[ -z "$matched" ]]; then
     matched="$pat"
-    # How many times this pattern has already answered.
     key="$(printf '%s' "$pat" | tr -c 'A-Za-z0-9' '_')"
-    want="$(cat "$fix/hits.$key" 2>/dev/null || echo 0)"
-    printf '%s' "$((want + 1))" >"$fix/hits.$key"
+    prior_answers="$(cat "$fix/hits.$key" 2>/dev/null || echo 0)"
+    printf '%s' "$((prior_answers + 1))" >"$fix/hits.$key"
   fi
   [[ "$pat" == "$matched" ]] || continue
-  # Remember every route for this pattern; the one at index `want` wins, and an index
-  # past the end falls back to the last (so a single route repeats, as before).
-  if ((idx <= want)); then
+  # Remember every route for this pattern; the one at index `prior_answers` wins, and an
+  # index past the end falls back to the last, so a single route repeats.
+  if ((idx <= prior_answers)); then
     chosen_status="$status"
     chosen_payload="$payload"
   fi

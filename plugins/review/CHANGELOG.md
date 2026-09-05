@@ -38,6 +38,21 @@ All notable changes to the `review` plugin are documented here. Format follows
   worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
   loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
   lines stay where they were.
+## [0.26.17]
+
+### Changed
+
+- **`diff-vs-base.test.sh`: five duplicated work-repo setup lines folded into one `init_work_repo`
+  helper.** Test-only tidy from the repo-wide simplification sweep; the same git commands run in
+  the same order at every call site, verified with an argv trace.
+
+## [0.26.16]
+
+### Changed
+
+- **`code-review` and `security-review`:** drop empty `argument-hint: ""`.
+  These skills take no user arguments; omit the key to match the other
+  no-arg skills (#3542).
 
 ## [0.26.15]
 

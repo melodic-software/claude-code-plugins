@@ -41,6 +41,100 @@
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were. rename-references gathers rename pairs as two calls, unstaged and staged, each bounded
   to 15. audit-progressive-disclosure names the gathered sample.
+## [0.21.35]
+
+### Changed
+
+- **`audit-encapsulation/detect.sh` merges three worktree filter arms into
+  one.** The `.worktrees/`, `.claude/worktrees/` and `.git/worktrees/` branches
+  each set `mech_filtered=1` and did nothing else, so the three `elif` arms
+  become one condition. Checked over 1,681 file and text pairs; the whole-repo
+  run in all four flag modes is byte-identical at 891 and 717 lines, and a
+  purpose-built `.worktrees/` fixture confirms the merged arm still filters.
+- **`compress/detect-caveman.sh` keeps its `head -1` truncation guard, now
+  placed after the CR strip rather than before it.** The sweep removed the
+  guard on the reasoning that the jq filter `.[0].id // empty` already emits at
+  most one line, then restored it when that reasoning was falsified: `jq -r`
+  prints a string containing a newline across several lines, so a plugin id
+  carrying a newline makes the script emit a third line and break the two-line
+  contract `compress/SKILL.md` Step A parses. The `\r\n` variant diverges too,
+  because the existing `tr -d '\r'` strips CR but not LF. No real plugin id
+  carries a newline and no fixture covers one, so the defect was latent rather
+  than operational, but the guard had been dropped on a proof that does not
+  hold. The new position is equivalent, since `tr` deletes characters without
+  touching line boundaries. Suite green at 14 cases.
+
+## [0.21.34]
+
+### Fixed
+
+- **Two suites cleaned up none of the fixture directories they created.** Both
+  registered fixtures in a bash array, but the constructor runs inside a
+  command substitution, so the append happened in a subshell and never reached
+  the trap. Measured with an isolated `TMPDIR`, `audit-encapsulation` leaked 27
+  directories per run and `audit-progressive-disclosure` 6; both now leak zero,
+  including on a forced-red run and on an interrupt. The ledger is now a file,
+  and its records are NUL-delimited: with newline-delimited records a newline
+  inside `TMPDIR` splits one path across two records and the trap removes the
+  truncated prefix, a directory outside the fixture set.
+- **The caveman suite left a stub directory behind in the plugin tree.** It now
+  builds under `mktemp -d`, so a run leaves the working tree unchanged.
+
+### Changed
+
+- **`audit-encapsulation/detect.sh` extracts `resolves_into_self()`** from two
+  branches that spelled the same relative-cite resolution twice; the bodies
+  differ by no code token once the one prefix is substituted. The absolute-cite
+  tests were deliberately left inline, because the `.claude/skills` branch
+  matches as a plain substring and the `plugins/*/skills` branch is
+  root-anchored, and that difference is load-bearing. Two file-non-empty guards
+  whose files are re-created immediately above each loop, and a dead alias, are
+  dropped.
+- **`audit-noise` extracts `no_targets()` and `count_negations()`,** the latter
+  replacing a pipeline written out eight times, and simplifies
+  `resolve_existing_path`. The `emit-findings.sh` change is comment-only: an
+  escaping note now sits above the function it describes, verified by numbering
+  and hashing the non-comment lines so no awk source line moved.
+- **`compress/audit-scan.sh` drops a default that could never apply,** since
+  `wc -l` prints a count on every path including a failed grep.
+
+  Both detector revisions were run over the same pristine tree of 3,523 files
+  to remove the self-scan confound; output is byte-identical across ten
+  invocations. The extracted predicate was compared against both original
+  bodies over 284 cases with zero mismatches, and the seven rewritten emission
+  blocks were reproduced by executing the originals and comparing with `cmp`.
+
+### Known issues
+
+- **`from the feature branch` in `noise-shapes.sh` has no trailing word
+  boundary,** where every sibling alternative terminates on a digit class, so it
+  also fires on "feature branching", "feature branches" and "feature
+  branchless". Left unfixed while the detector is in use as a measurement
+  instrument.
+- **Five `for (k in declined_*)` loops iterate awk associative arrays** over a
+  parsed contract surface, and POSIX leaves that order unspecified. Only one awk
+  implementation is present on the machine that measured this, so no order flip
+  could be exhibited; recorded as latent rather than observed.
+- **One awk program uses `\x27` a few lines after a comment** stating that `\x`
+  escapes are not portable across awks.
+
+## [0.21.33]
+
+### Fixed
+
+- **`audit-noise`: every finding was declined as outside the repository root on a Git Bash host.**
+  `emit-findings.sh` relativized Location against one anchor, `git rev-parse --show-toplevel`,
+  which answers `<drive>:/Users/<user>/.../t` while the caller reached the same directory as
+  `/tmp/t`. The producer fails closed, so each finding landed in the human-report-only column and
+  the decline count said so in a section nothing downstream reads. It now carries the three anchors
+  the `claude-config` sibling already had: the caller's own `pwd` spelling (derived by removing the
+  sub-path git reports for it), git's toplevel, and `cd`-then-`pwd`.
+
+- **A drive-letter path was treated as relative and joined to the root a second time.** The
+  absolute test was `substr(abs, 1, 1) != "/"`, so `D:/repo/doc.md` became `<root>/D:/repo/doc.md`
+  and was declined. The producer now shares the sibling's substr-based `is_absolute`, which admits
+  a POSIX path, a UNC or root-relative backslash path, and a drive-letter path, and is written
+  without a bracket expression holding `/` and `\` because the runner awk is mawk.
 
 ## [0.21.32]
 

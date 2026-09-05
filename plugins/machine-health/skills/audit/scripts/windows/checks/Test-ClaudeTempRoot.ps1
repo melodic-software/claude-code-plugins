@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Claude Code temp-root footprint. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#17-claude-code-temp-root for rubric.
+See reference/windows/check-catalog.md#17-claude-code-temp-root for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
@@ -159,19 +159,19 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'OK' -Summary 'Claude Code temp root not present.' -Commands $commands `
             -Detail @{
-            root_path              = $root.Path
-            root_source            = $root.Source
-            root_exists            = $false
-            total_bytes            = 0
-            total_gb               = [double]0
-            file_count             = 0
-            session_dir_count      = 0
-            project_key_count      = 0
-            largest_session_gb     = [double]0
+            root_path               = $root.Path
+            root_source             = $root.Source
+            root_exists             = $false
+            total_bytes             = 0
+            total_gb                = [double]0
+            file_count              = 0
+            session_dir_count       = 0
+            project_key_count       = 0
+            largest_session_gb      = [double]0
             oldest_session_age_days = 0
-            unreadable_dir_count   = 0
-            scan_truncated         = $false
-            remediation_route      = 'disk-hygiene:clean'
+            unreadable_dir_count    = 0
+            scan_truncated          = $false
+            remediation_route       = 'disk-hygiene:clean'
         } `
             -NeedsAdmin $false -RanSuccessfully $true `
             -DurationMs ([int]$sw.ElapsedMilliseconds)

@@ -23,6 +23,17 @@ All notable changes to the `improvement` plugin are documented here. Format foll
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were. The
   target-repo note names the gathered branch and log calls.
+## [0.1.7]
+
+### Changed
+
+- **`find` skill-listing entry tightened.** It was the marketplace's sixth largest listing entry.
+  The description now states the interactive default and the no-edit posture in two short
+  sentences while keeping every quoted trigger phrase and the `Skip when` disambiguation. Claude
+  Code truncates the combined `description` and `when_to_use` text at 1,536 characters in the
+  skill listing, and the shared listing budget scales at 1% of the model's context window, so
+  every character an entry spends is a character another skill's description cannot.
+  Hook-performance program, phase 6 (skill listing budget).
 
 ## [0.1.6]
 

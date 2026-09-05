@@ -3,6 +3,119 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.44]
+
+### Changed
+
+- **`hooks/markdown-format.sh` reads its kill switch before sourcing the library.**
+  `markdown_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.11.43]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.11.42]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.11.41]
+
+### Changed
+
+- **A dead `MDLINT=()` default removed from the hook.** All three arms of the linter-resolution
+  chain either assign the array or exit, so the empty initializer was never read. No probe order,
+  notice, remediation string or exit code changed.
+- **What was reverted, and why it is worth recording**: a `DIGEST_FILE=""` default removed in the
+  same pass was put back. With the digest write forced to fail, the status leaving the block goes
+  0 to 1 and the variable is left unset rather than empty, so the default is load-bearing. The
+  same file already treats a structurally identical defensive default that way.
+
+## [0.11.40]
+
+### Changed
+
+- **README carries the hook budget accounting rows.** The measured 41.6 to 32.0 spawn-equivalents
+  of 0.11.38, the `if`-row skip for non-Markdown files and the residual now sit under Requirements,
+  per the hook-budget convention's rule 1. Documentation only.
+
+## [0.11.39]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.11.38]
+
+### Changed
+
+- **A clean Markdown edit costs 23 percent less.** Seven of twenty-one
+  processes are gone: six `dirname` calls and one `basename` are parameter
+  expansions, including inside the config-discovery walk and the risky-config
+  walk, whose exec count grew with the edited file's depth below the repository
+  root. Measured 41.6 to 32.0 spawn-equivalents on a Windows Git Bash host,
+  twelve interleaved trials against an interleaved `bash -c :` floor; forks fall
+  33 to 29 over the same run, and a command substitution costs about half a
+  spawn here, so they are counted beside the execs. The README's accounting
+  section carries the method and the residual.
+- The suite gains a traced case pinning the benign path's shape on a clean
+  Markdown file two directories below the repository root, so a walk that
+  shelled out again would fail it: no `dirname`, no `basename`, and a ceiling of
+  four external processes spawned by the hook's own code, allowlisted to
+  `markdownlint-cli2`, `git` and `grep`. The ceiling is portable because the
+  trace attributes each command to the function frame it ran in, so the shared
+  `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
+  outside the count.
+- The directory strips that replaced `dirname` answer `/` for a file directly
+  under the filesystem root, as `dirname` did, both for the hook's own file
+  directory and for the start of the config-discovery walk. Without the guard
+  the strip left an empty string: the repo-root resolver read it as `.`, the
+  hook process CWD, and the walk's `cd` rejected it as a null directory, so a
+  root config could not opt such a file in. The suite gains two white-box
+  cases, because no CI host can create a root-level file: one runs the hook's
+  own directory lines against such a path, and one calls the lifted walk on it
+  and asserts the walk anchors on `/`.
+
+## [0.11.37]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.11.36]
 
 ### Changed

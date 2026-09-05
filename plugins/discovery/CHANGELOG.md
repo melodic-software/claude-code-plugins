@@ -40,6 +40,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   blocked these skills from loading inside a worktree. Same shape as the worktree skill's fix in
   #1619. Non-git pre-compute lines stay where they were. explore's outcome gate names the project
   root gathered by that call.
+## [0.19.3]
+
+### Changed
+
+- **A single-use alias, a dead reassignment and a redundant intermediate removed.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
 
 ## [0.19.2]
 

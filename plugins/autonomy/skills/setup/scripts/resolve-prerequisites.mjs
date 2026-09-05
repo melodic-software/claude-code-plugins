@@ -150,7 +150,6 @@ function loadBinding(repoRoot) {
     return {
       present: false,
       path: posixJoin(".claude", "autonomy", "binding.json"),
-      reason: result.reason,
       declarations: [],
       surfaces: {},
     };
@@ -651,7 +650,7 @@ function probeUpstreamChangelog(_repoRoot, _surface, machineContext) {
   };
 }
 
-function probeMergePath(repoRoot, surface, binding) {
+function probeMergePath(surface, binding) {
   const recorded = binding.surfaces[surface];
   if (recorded) {
     // A recorded scheduling surface that is not advisory-only can carry merge
@@ -718,7 +717,7 @@ function runNeedProbe(needId, ctx) {
     case "upstream_changelog":
       return probeUpstreamChangelog(ctx.repoRoot, ctx.surface, ctx.machineContext);
     case "merge_path":
-      return probeMergePath(ctx.repoRoot, ctx.surface, ctx.binding);
+      return probeMergePath(ctx.surface, ctx.binding);
     default:
       return {
         result: "unresolvable",

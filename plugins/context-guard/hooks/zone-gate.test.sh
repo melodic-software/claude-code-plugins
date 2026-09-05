@@ -49,11 +49,13 @@ OUT=""
 RC=0
 run() {
   local home="$1" data="$2" sid="$3" extra="$4" mode="${5:-blocking}" grace="${6:-}"
-  local env_grace=()
-  [[ -n "$grace" ]] && env_grace=(CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS="$grace")
+  # `env` leads the array so it is never empty: bash below 4.4 treats an empty
+  # "${arr[@]}" as unset under `set -u`, and these scripts support bash 3.2.
+  local env_grace=(env)
+  [[ -n "$grace" ]] && env_grace+=(CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS="$grace")
   OUT=$(printf '{"session_id":"%s","hook_event_name":"PreToolUse","tool_name":"Write"%s}' "$sid" "$extra" |
     HOME="$home" CLAUDE_PLUGIN_DATA="$data" HOOK_TELEMETRY_SINK="" \
-      CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE="$mode" env "${env_grace[@]}" bash "$HOOK" 2>/dev/null)
+      CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE="$mode" "${env_grace[@]}" bash "$HOOK" 2>/dev/null)
   RC=$?
 }
 
@@ -81,6 +83,7 @@ else
   fail "grace exhausted: rc=$RC out=$OUT"
 fi
 if [[ "$OUT" == *handoff* ]]; then ok "deny reason routes to a handoff"; else fail "deny reason lacks handoff routing: $OUT"; fi
+if [[ "$OUT" != *"write a resume file"* ]]; then ok "deny reason names only the skill"; else fail "deny reason still licenses a free-hand resume file: $OUT"; fi
 
 # 4. Handoff-path write exempt even past grace.
 run "$H" "$D" s1 ',"tool_input":{"file_path":"/work/.work/handoffs/20260726-handoff-x.md"}' blocking 2

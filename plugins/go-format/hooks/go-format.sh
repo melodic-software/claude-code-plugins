@@ -37,12 +37,15 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
-hook::check_enabled "GO_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
@@ -104,7 +107,10 @@ fi
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
 # object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope.
+# backslashes from a path and corrupt the envelope. The fallback is essentially
+# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
@@ -167,8 +173,8 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
   if [[ "$_line" == //* ]]; then
     if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
       GENERATED=1
+      break
     fi
-    [[ $GENERATED -eq 1 ]] && break
     continue # a different // comment line: still within the leading block
   fi
   if [[ "$_trimmed" == //* ]]; then
@@ -262,7 +268,7 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   fi
   emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm previously leaked (#3405).
+  # the take also releases the snapshot this arm would otherwise leak (#3405).
   hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
   hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
@@ -279,7 +285,7 @@ while IFS= read -r line; do
 done <<<"$STDERR"
 emit_tel "skipped" '[]'
 # goimports may have written the file before breaking; take the disclosure
-# (which also releases the snapshot this arm previously leaked, #3405) and
+# (which also releases the snapshot this arm would otherwise leak, #3405) and
 # compose it with the tool-break context as one document.
 hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
 hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"

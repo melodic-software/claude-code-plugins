@@ -83,6 +83,18 @@ skill always STOPS after emitting the save-point. Continuing would defeat the pu
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
+The handoff file is **shape 2** (`handoff_shape: 2`): one self-contained file per hop that carries
+the whole chain (`chain:` frontmatter plus a `## Prior sessions` table), the session's transcript
+path, the user's verbatim goal and opening ask, the cumulative sections (constraints, side effects,
+decisions, abandoned approaches, findings) copied forward with `[hN]` provenance tags, a one-line
+`## This session` record, and, as its final section, the resume prompt itself. A stdlib-only
+Python script, `scripts/save_point.py`, writes every deterministic field (`new`), validates the
+finished file before the rails are shown (`validate`, exit 0 gates the prompt), and prints the
+stored prompt (`emit`) so the on-screen rails and the file are the same bytes. The model fills
+only the reasoning slots. The resume prompt tells the next session to invoke this skill for its
+own save-point rather than writing a handoff file free-hand. Older shape-1 files are read as
+before and never rewritten.
+
 The response opens with a **"You are here" position panel** for the operator, a vertical rail with
 one line per unit of whatever the work is divided into (workflow stages, plan phases, a sub-issue
 chain, tasks, or completion criteria), the current position marked, a completeness read, and three
@@ -144,9 +156,13 @@ current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of 
 (excluding the current session's own file, since `/clear` opens a new transcript in the same project
 dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
 `reference/save-point.md` documents as a stable detection contract, then a confirm-before-resume
-gate. Handles both output modes (file-based and prompt-only, which writes no file). Read-only and
-redaction-aware: surfaces only the resume prompt and handoff metadata, never raw transcript content.
-Routes to `keep-going` when the recovered session ended mid-work rather than at a clean save-point.
+gate. Handles both output modes (file-based and prompt-only, which writes no file). A shape-2
+handoff file stores its own resume prompt as its final section, so the known-location rung hands
+it back from the file alone via `scripts/save_point.py emit`, no transcript needed; an unfinished
+skeleton (one still carrying fill slots) is named and skipped, never presented as the lost
+handoff. Read-only and redaction-aware: surfaces only the resume prompt and handoff metadata, never
+raw transcript content. Routes to `keep-going` when the recovered session ended mid-work rather
+than at a clean save-point.
 
 ```shell
 /session-flow:find-handoff            # locate → confirm → resume, or hand to keep-going
@@ -414,18 +430,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

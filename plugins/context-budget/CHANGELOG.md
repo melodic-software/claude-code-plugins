@@ -11,6 +11,66 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - audit: the description discloses the explicit `fix` override instead of claiming an unconditional read-only contract; the Gotchas section states the listing-signature guard as the current rule without the narrative of the run that motivated it; a new honesty bullet says the snapshot's free-space and window figures belong to the spawned headless session and are no reason to shorten the audit.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.6.22]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.21]
+
+### Changed
+
+- **`measure.test.sh` runs its hermetic engine invocations through one `attr`
+  helper.** Five near-identical calls each repeated the `cd "$WORK"` that keeps
+  the engine in cli-parse mode, the `FAKE_MODE` export, the `--binary` and
+  `--out` flags and the stdout redirect, differing only in fake mode, output
+  file and the attribute flags under test. The extraction changes flag order
+  only, and the engine's parser is order-insensitive; all 61 assertions are
+  untouched. The formatter hook also re-indented one `case` block's labels.
+
+## [0.6.20]
+
+### Changed
+
+- **`measure.mjs` sheds a `return null` the code itself declared unreachable,**
+  and hoists a per-call `flagOnly` list to a module-level `FLAG_ONLY`. The
+  unreachability was proven by execution rather than by reading: a tripwire
+  placed immediately after the preceding `degrade()` call never fired, and the
+  counterfactual that neuters `process.exit` shows the deleted line's only
+  observable effect lives on a path `degrade()` never takes. The hoist was
+  checked for evaluation-timing equivalence across 13 argv shapes. A ReDoS
+  comment moves to present tense.
+- **`levers.test.sh` extracts a `report_clean` helper** for three inline
+  reporting blocks, with failure text byte-identical to what it replaced.
+  Mutation-tested: inverting its comparison and breaking three levers both turn
+  the suite red, one failure per problem. `measure.test.sh` gets one shfmt
+  conformance fix.
+
+## [0.6.19]
+
+### Changed
+
+- **The settings checkpoint records why it carries no `if` gate.** An `if` gate was evaluated for
+  the PreToolUse row and rejected after a live probe: on Windows, Claude Code's `if` file rules do
+  not match an absolute path outside the working directory under any anchoring form tested,
+  including the home-relative, root-anchored, drive-letter and root-anchored recursive-glob
+  spellings. The probe logged every candidate rule as skipped on a write to the user-global settings
+  file and on a write to the managed-settings file, while the unconditioned row fired and returned
+  `ask` for both; only a settings file inside the working directory matched. A gate would therefore
+  drop the user-global and managed-settings checks silently, which is the opposite of what the
+  checkpoint exists to do, so the row stays unconditioned until upstream matching reaches those
+  paths. Documentation only; the registration and `settings-write-ask.mjs` are unchanged.
+
+## [0.6.18]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.6.17]
 

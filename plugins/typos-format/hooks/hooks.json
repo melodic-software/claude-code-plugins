@@ -1,4 +1,5 @@
 {
+  "description": "Corrects spelling in prose and code after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {

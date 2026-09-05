@@ -236,7 +236,7 @@ function New-MockEnvironmentKey {
     Export-Clixml in a form tests can rehydrate, so this factory is the
     fixture surface. Entries is Name -> @{ Kind = 'String'|'ExpandString';
     Value = '...' }. Credential tests plant a Value that the check must
-    never read — GetValue still returns it if called, so a leak is visible.
+    never read -- GetValue still returns it if called, so a leak is visible.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

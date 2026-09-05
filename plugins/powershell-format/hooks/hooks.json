@@ -1,4 +1,5 @@
 {
+  "description": "Formats PowerShell scripts, modules and manifests after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,6 +8,21 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "if": "Edit(*.ps1)",
+            "timeout": 30,
+            "statusMessage": "Formatting PowerShell..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "if": "Edit(*.psm1)",
+            "timeout": 30,
+            "statusMessage": "Formatting PowerShell..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "if": "Edit(*.psd1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
           }

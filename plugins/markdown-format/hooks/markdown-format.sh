@@ -24,10 +24,23 @@ set -uo pipefail
 # resolve (ENOENT → silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+#
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. On the Windows Git Bash host this hook is tuned for, an exec costs
+# about a spawn and a command substitution costs half of one, and this line runs
+# before the extension gate below can reject a non-Markdown edit.
+# `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes; the
+# fallback covers the one shape it does not, a bare filename with no separator,
+# where the strip is a no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
 
-hook::check_enabled "MARKDOWN_FORMAT"
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # formatting work (pre-format exits below do not emit telemetry). EPOCHREALTIME is
@@ -77,9 +90,25 @@ esac
 # so it is not an auto-discovery opt-in and does not open this gate. The walk
 # runs from $1's directory up to the repo root $2 — the same span the lint
 # run's own discovery covers for that file.
+#
+# Both `dirname` calls this walk used are parameter expansions, for the reason
+# given at the source line above: this hook runs on every Markdown Write and
+# Edit, and the walk's exec count grows with the file's depth below the repo
+# root. $1 names an existing regular file, so it carries no trailing slash and
+# the strip is exact; a path with no separator at all leaves the strip a no-op,
+# which the `.` fallback covers, and a file directly under the filesystem root
+# leaves it empty, which the `/` fallback covers (bash rejects `cd ""` as a
+# null directory, so an empty start would fail the walk closed and skip a
+# root-level file that a root config opts in). In the walk, an emptied strip
+# means the parent is the filesystem root. The walk terminates at the repo root
+# two lines above the step in every reachable case, so the root arm is defense,
+# not a path anything here takes.
 markdownlint_config_discoverable() {
-  local dir root candidate parent
-  dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  local dir root candidate parent start
+  start="${1%/*}"
+  [[ "$start" == "$1" ]] && start=.
+  [[ -n "$start" ]] || start=/
+  dir="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
   # Fail CLOSED when the root cannot be resolved: an empty root would never
   # terminate the equality check below and the walk would run to the
   # filesystem root — scanning directories above the repository that the lint
@@ -95,7 +124,8 @@ markdownlint_config_discoverable() {
       [[ -f "$dir/$candidate" ]] && return 0
     done
     [[ "$dir" == "$root" ]] && return 1
-    parent="$(dirname "$dir")"
+    parent="${dir%/*}"
+    [[ -n "$parent" ]] || parent=/
     [[ "$parent" != "$dir" ]] || return 1
     dir="$parent"
   done
@@ -293,7 +323,21 @@ physically_inside() {
 #
 # REPO_ROOT is resolved here because the scope needs it. It depends only on
 # FILE, and it is computed once for both.
-REPO_ROOT="$(resolve_repo_root "$(dirname "$FILE")")"
+#
+# FILE_DIR is FILE's directory as a parameter expansion rather than a `dirname`,
+# for the reason given at the source line above, and it is resolved once for
+# every consumer below rather than per call site. FILE has cleared
+# hook::read_file_path's `-f` test, so it names an existing regular file with no
+# trailing slash; the fallbacks cover the two shapes where the strip and
+# dirname disagree: a bare relative filename with no separator, where dirname
+# answers `.`, and a file directly under the filesystem root, where the strip
+# leaves an empty string that hook::repo_root would read as `.` (the hook
+# process CWD) while dirname answers `/`. CONFIG_TARGET_DIR below derives from
+# FILE_DIR, so it inherits the same answer.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(resolve_repo_root "$FILE_DIR")"
 
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL="$(hook::physical_path "$FILE")"
@@ -680,7 +724,6 @@ format_probed_path() {
   fi
 }
 
-MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
 elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
@@ -723,8 +766,8 @@ RISK_CONFIGS=()
 RISK_UNVERIFIABLE=0
 RISK_UNPINNABLE=0
 CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
-CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
-  CONFIG_TARGET_DIR="$(dirname "$FILE")"
+CONFIG_TARGET_DIR="$(cd "$FILE_DIR" 2>/dev/null && pwd -P)" ||
+  CONFIG_TARGET_DIR="$FILE_DIR"
 collect_risky_configs() {
   local cursor dir candidate config risky quoted_escape_re
   local dirs=()
@@ -734,7 +777,14 @@ collect_risky_configs() {
     # Guarded for bash 3.2 + `set -u`: expanding an empty array errs there.
     if ((${#dirs[@]} > 0)); then dirs=("$cursor" "${dirs[@]}"); else dirs=("$cursor"); fi
     [[ "$cursor" == "$CONFIG_ROOT" ]] && break
-    dir="$(dirname "$cursor")"
+    # Parameter expansion, not `dirname`, for the reason given at the source
+    # line above: this walk's exec count grows with the file's depth below the
+    # repo root, on every Markdown Write and Edit. CONFIG_TARGET_DIR comes from
+    # `pwd -P`, so every cursor is absolute and carries no trailing slash; an
+    # emptied strip means the parent is the filesystem root, which the walk
+    # cannot reach because it breaks at CONFIG_ROOT one line above.
+    dir="${cursor%/*}"
+    [[ -n "$dir" ]] || dir=/
     [[ "$dir" != "$cursor" ]] || return 0
     cursor="$dir"
   done
@@ -1171,7 +1221,10 @@ esac
 
 FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1)
 LINT_RC=$?
-BASE="$(basename "$FILE")"
+# Parameter expansion, not `basename`, for the reason given at the source line
+# above. FILE names an existing regular file, so it has no trailing slash for
+# basename to strip differently.
+BASE="${FILE##*/}"
 
 # Normalize carriage returns ONCE, here, before anything reads this output.
 # markdownlint-cli2 is a Node process whose stdout is CRLF-terminated on

@@ -42,10 +42,15 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "BLOCK_WINDOWS_DRIVE_TMP"
 
 # Non-Windows hosts: /tmp is the real POSIX temp, so this guard can never find a
 # violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
@@ -168,8 +173,7 @@ emit_tel() {
   # telemetry fields.
   local SUBJECT data
   SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
-  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
   hook::emit_telemetry "block-windows-drive-tmp" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 

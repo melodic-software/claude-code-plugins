@@ -34,7 +34,15 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
   Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget, fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
-  gated, so a durable handoff is always writable.
+  gated, so a durable handoff is always writable. All four hook rows, including the two advisory
+  `zone-crossing-inject.sh` rows (PostToolBatch and UserPromptSubmit), carry a 60-second timeout.
+  The 0.4.8 measurement sized that cap: on Windows 11 / Git Bash with Defender real-time protection
+  enabled, `zone-crossing-inject.sh` reached 22.0 s on a small payload. A timeout only caps a hook
+  that has already stalled and saves nothing on a normal fire, so a lower cap would not speed up
+  the prompt path; on that profile it would cancel the advisory on essentially every fire rather
+  than only on a stuck one. The rows stay at 60 until a re-measurement on that profile shows
+  headroom. A hook blocked on stdin is bounded separately by `cg::read_payload` in
+  `hooks/payload.sh`, which reads to EOF under a 5-second `read -t` and which both rows use.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
@@ -71,6 +79,83 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   modes work; on Windows ACL volumes the `chmod` is a no-op and other local users could forge
   snapshots. Zones are routing hints. Consumers must never attach security or egress decisions
   to a zone word. See the reader contract's untrusted-data section.
+
+### Hook cost accounting
+
+`zone-crossing-inject.sh` runs on PostToolBatch, which fires once per tool batch, so every process
+it starts is paid on the critical path of every batch. Measured 2026-09-02 on Windows 11 under Git
+Bash: 12 trials per row, each preceded by a `bash -c :` spawn floor so the floor and the hook see
+the same machine load, medians reported. Cost is given in spawn-equivalents (hook wall time divided
+by that run's floor) because the absolute figure moves with load: the measured floor ranged 36 to
+94 ms across the before rows and 46 to 56 ms across the after rows, against a 33 ms program
+baseline. Process counts are of commands in command position in the hook process, so a shell
+builtin such as `command -v jq` is correctly not counted.
+
+Counts below are processes started by the hook itself. The zone resolver is one of them, and it
+starts its own; the whole-fire total is in the paragraph after the table.
+
+| Path | Processes before | Processes after | Spawn-equivalents before | After |
+|---|---|---|---|---|
+| PostToolBatch, steady zone (the common case) | 11 | 2 | 18.9 | 10.8 |
+| PostToolBatch, no snapshot yet | 6 | 2 | 8.6 | 4.8 |
+| PostToolBatch, crossing into a worse zone | 11 | 2 | 16.5 | 11.8 |
+| UserPromptSubmit, steady zone | 11 | 2 | 18.4 | 11.8 |
+| PreToolUse gate, default advisory posture | 2 | 0 | 2.5 | 1.4 |
+| PostCompact marker | 9 | 4 | 9.4 | 5.7 |
+
+`scripts/context-zone.sh`, the band authority the hooks call once per resolve, was cut in the same
+pass. It spent six processes: one `jq` for the snapshot, two `date` for the staleness arithmetic,
+and three `awk` for the two band comparisons and the version gate. It now spends one, and a second
+only when a `zones.json` override is present. The band resolution moved ahead of the snapshot pass
+so the resolved bands are handed to that one `jq` as data, and the two `zones.json` passes became
+one over the same file. Measured with old and new interleaved in a single loop against the same
+floor, so machine load cannot skew the comparison:
+
+| Resolver, realistic snapshot | Processes | Spawn-equivalents |
+|---|---|---|
+| Before | 6 | 9.5 |
+| After | 1 | 2.3 |
+
+Whole steady PostToolBatch fire, end to end: 15 processes before this pass (17 when the snapshot
+carries the token fields), 3 after. Those three are one `jq` in the hook, the resolver's own
+process, and one `jq` inside it.
+
+What went: every `dirname` call, replaced by parameter expansion (three in the zone-crossing hook,
+two in each of the others); a second `jq`, by reading both envelope fields in one pass;
+`tr -cd | head -c` on each of the two state markers, by `$(<file)` plus parameter expansion; and
+`mkdir` and `rm` calls that the steady path had already made unnecessary, behind existence guards.
+`date -u` in the PostCompact marker became printf's `%()T` format under a `TZ=UTC` prefix, verified
+to produce the same string on a host whose local zone is not UTC, so the trailing `Z` stays honest.
+`%()T` arrived in bash 4.2, so on an older shell (stock macOS 3.2) that site and the resolver's
+clock fall back to the exact `date` invocation they replaced; the counts above are for 4.2 and
+later, where the fallback is never reached.
+No decision, no emitted text and no state file changed: an eleven-scenario capture covering
+both events, both crossing directions, hostile and absent session ids and an empty payload diffs
+byte-identical on stdout, exit code and every state file, and the contract tests assert the
+remaining process budget by trace so a regression fails a test rather than slowing a session.
+
+The resolver's own equivalence was proven the same way, at more depth, because its rewrite moved
+security-relevant gates. A differential harness runs the old and new resolver over 103 inputs and
+compares stdout, stderr and exit code byte for byte: both band shapes at every boundary, the
+window-class selection, the plausibility guard, the version gate either side of 2.1.132, the
+combination rule, the staleness window either side, the whole calendar-invalid `captured_at` class,
+all four trust gates, and every `zones.json` variant including both malformed-notice paths. Zero
+differences, stable across three runs.
+
+One subtlety is worth stating, because it would have been a silent widening. jq's
+`fromdateiso8601` is not `date -u -d`: it NORMALIZES a structurally well-formed but
+calendar-invalid timestamp rather than refusing it, so February 30th would have become March 2nd
+and second 60 would have rolled into the next minute. The strict ISO-8601 format test exists to
+stop a lenient parser accepting a forged `captured_at`, and normalizing there would have undone it.
+The parsed epoch is therefore formatted back and required to equal the input byte for byte, which
+restores `date`'s answer on every such value.
+
+What stays, and why: one `jq` pass in the hook, because a PostToolBatch payload carries every
+serialized tool result, so a regex for the envelope fields would be matching against tool output;
+one `jq` in the resolver, carrying every gate and both comparisons; and the resolver's own process.
+Running it rather than sourcing it is deliberate: it is a documented seam that `zone-gate.sh` and
+its test suite invoke as an executable, and it signals through `exit`. Making it sourceable would
+change a public interface to save one process, and that is the only structural cut left here.
 
 ## Install
 
@@ -110,6 +195,25 @@ Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows under G
 cost is process-spawn bound on `jq` and `date`, and correspondingly less on native POSIX shells. The statusline is not on
 the input path, so this is display latency, not typing latency; `refreshInterval` in your settings
 governs how often it runs.
+
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+the PostToolBatch and UserPromptSubmit rows are per-turn hooks and the PreToolUse row is
+per-tool-call, all always-on. Measured on Windows 11 under Git Bash, twelve trials against an
+interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolBatch, steady zone (`zone-crossing-inject.sh`) | 1 | 18.9 before, 10.8 after (0.7.34) | 11 processes to 2: one `jq` reading both payload fields, `dirname` and `tr` pipelines replaced by expansions, `mkdir -p` behind a `-d` guard |
+| UserPromptSubmit, steady zone (the same `zone-crossing-inject.sh`) | 1 | 18.4 before, 11.8 after (0.7.34) | same script, same cuts; measured separately because the payload differs |
+| PreToolUse `Write`/`Edit`, advisory mode (`zone-gate.sh`) | 1 | 2.5 before, 1.4 after (0.7.34) | no process spawned in the default posture |
+| PostCompact (`post-compact-mark.sh`) | 1 | 9.4 before, 5.7 after (0.7.34) | 9 processes to 4: `date` replaced by printf's clock with a `date` fallback; `mkdir` and `rm` behind existence guards |
+| Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
+
+The two advisory rows keep their 60-second timeout: the 0.4.8 measurement put this script at
+22.0 s on Windows with Defender real-time protection, and a timeout caps a stalled hook without
+speeding a normal one.
 
 ## Configuration
 
@@ -153,18 +257,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

@@ -150,6 +150,6 @@ under `.claude/ai-briefing/[<profile>/]` in the consumer repository.
 
 | File | Load when |
 |---|---|
-| `references/audience-defaults.md` | Step 6 ranking, when no profile `audience.md` supplies the lens or a profile only partly overrides it. |
-| `references/build-pipeline.md` | Step 8, running the build: commands, the `slides-data.js` schema, and its prerequisite checks. |
-| `references/slide-generation.md` | Step 8 for `--format slides`, deciding slide order, split rules, and brand tokens. |
+| `reference/audience-defaults.md` | Step 6 ranking, when no profile `audience.md` supplies the lens or a profile only partly overrides it. |
+| `reference/build-pipeline.md` | Step 8, running the build: commands, the `slides-data.js` schema, and its prerequisite checks. |
+| `reference/slide-generation.md` | Step 8 for `--format slides`, deciding slide order, split rules, and brand tokens. |

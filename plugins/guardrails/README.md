@@ -22,10 +22,25 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 ## The guards
 
+Since **0.31.0** the always-on guards are registered through one dispatcher per event,
+`hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
+process, and sources each guard in turn inside that one bash process. The table below
+still names every guard, and every guard still ships as its own script with its own
+contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
+standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the
+dispatcher line for its event, so the registration stays readable per guard. What the
+dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
+were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
+PostToolUse where there were three), the exit code (2 if any guard blocks, and every
+guard still runs so a command that trips two guards shows both reasons), and the merge
+of several guards' `additionalContext` into the one JSON document a hook process may
+emit. The [hook budget accounting](#hook-budget-accounting) carries the measurement.
+`workflow-resilience-check` is not always-on and is registered on its own.
+
 | Guard | Event / matcher | Behavior | What it catches |
 |-------|-----------------|----------|-----------------|
-| **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
-| **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths: Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
+| **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit **and** `mcp__github__push_files` \| `mcp__github__create_or_update_file` | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. Since **0.32.0** also in content bound for a GitHub repository through an MCP write, where there is no local file to fix afterwards and no pre-commit hook on the path. |
+| **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit **and** `mcp__github__push_files` \| `mcp__github__create_or_update_file` | **Blocks** (exit 2) | Hardcoded machine-specific paths: Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. Since **0.32.0** also on the GitHub MCP write lane, which catches the session's own checkout path leaking into pushed content. |
 | **block-no-verify** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and hook-manager disable env vars, a configurable prefix set defaulting to `lefthook`, `husky`, `pre_commit`, `simple_git_hooks` (e.g. `LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`), tunable via `block_no_verify_hook_manager_prefixes`, including inside compound `cd … && …` commands. |
 | **block-dangerous-git** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and the unsafe `--force-with-lease` spellings, in the two kinds git itself treats differently. **No expected value** (bare `--force-with-lease` or `=<refname>`) leases against the remote-tracking ref, which git documents as "trivially defeated" by a background fetch, blocked unless `--force-if-includes` is present, which git documents as the mitigation for exactly this form. **A movable `=<refname>:<expect>`**, such as `origin/main`, `HEAD`, a tag, an *abbreviated* object id, or hex of the wrong width for this repository's hash format, all of which git resolves at push time, and gitrevisions resolves a short hex word as a ref before trying it as an object-id prefix, is blocked unconditionally, because git declares `--force-if-includes` a no-op alongside an explicit `:<expect>`. A lease passes only when `<expect>` is immutable: a **literal** object id of the pushed repository's own hash width (detection never evaluates substitutions, so resolve it with `git rev-parse` as a separate step and pass the result) (40 hex under SHA-1, 64 under SHA-256, read from `git rev-parse --show-object-format` with the command's own `-C`/`--git-dir`/`--work-tree`/`--namespace` replayed onto it; undeterminable fails closed) or the empty string asserting the ref must not exist. The other width is a ref name there, not an object id. git ignores a ref whose name is full-width hex for its own format, but resolves one of the other width like any name. git scopes a pin to its own ref, so a bare fallback alongside a pinned entry still governs every other ref being updated; where the same ref carries several lease entries, git consults the first, and so does this guard. A trailing `--no-force-with-lease` cancels every previous lease, and a push dry-run disarms the check. Also blocked: `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)`; path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates: `cat > file`, `echo … > file`, inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`), and a same-command staged write whose effective redirect target is reused as an `mv`/`cp` source toward a non-scratch destination. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
@@ -169,21 +184,95 @@ out of scope until such a signal exists.
   a blocking safety control.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
-  accepted residual, same class as the unmonitored Bash forms above. There is
-  also no default scratch exemption: ordinary temp writes block until an
-  operator sets `block_hook_bypass_scratch_roots`.
-- **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
-  it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
-  takes a comma-separated list of absolute directories whose contents are
-  scratch, a session or job temp root, where a throwaway probe file is written
-  that no formatter, secret scanner or path check would ever process. Empty is
-  the default and exempts nothing. When set, the match is made on the
+  accepted residual, same class as the unmonitored Bash forms above. The two
+  CONTENT guards are the exception since **0.32.0** — see the next note.
+- **The content guards cover the GitHub MCP write lane; the scope is exactly two
+  tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
+  `mcp__github__push_files` (every entry of its `files` array, not just the
+  first) and `mcp__github__create_or_update_file`. This closes a real hole: a
+  `Write|Edit` matcher does not see an MCP write, so a session could be cleared
+  by these guards and still push the same secret to a repository by another
+  route, where there is no local file to fix afterwards and no `pre-commit`
+  layer on the path.
+
+  **`mcp__github__delete_file` is deliberately NOT covered.** Its schema carries
+  `owner`, `repo`, `path`, `message` and `branch`, and no content. There is
+  nothing for a content guard to scan, and a delete cannot introduce a secret or
+  a hardcoded path. Listing it would claim coverage that consists of skipping
+  every call.
+
+  Three local-only gates are deliberately not applied on this lane, because an
+  MCP write names `owner/repo` and a repo-relative path and has no local file:
+  the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
+  so applying it would skip every MCP write — a silent hole, not a scope), the
+  git-working-tree requirement, and `git check-ignore` (which answers what THIS
+  checkout ignores, not the destination repo). The path ALLOWLIST is the same
+  list, asked of the repo-relative path: an `.env.example` or a test fixture
+  tree is the same false positive whichever route writes it.
+  `hardcoded-path-check` still resolves its scan root, which is the most
+  valuable half of the lane — it catches this machine's own checkout path
+  appearing verbatim in content being pushed.
+- **`block-hook-bypass` ships one scratch root exempt, and takes more by
+  configuration.** Since **0.32.0** the guard exempts the host temp trees, which
+  the harness's own per-session scratchpad sits under. It is gated on
+  `CLAUDE_PROJECT_DIR` naming a project root **outside** the temp tree: with no
+  project root it does not fire, and when the project root is itself temp-rooted
+  a temp file is project content, so the default stands down. It is not spelled
+  as a static default, because it has no fixed spelling — the scratchpad path
+  carries a session id — so it resolves at run time.
+
+  **Exempting it gives up no protection**, which is the only reason a default is
+  defensible here: `hook::read_file_path`, the entry every `Write|Edit` content
+  guard reads its file through, already declines a temp-tree file from a non-temp
+  project, so those targets were never reachable by the gates this guard exists
+  to protect. Before 0.32.0 they blocked anyway, which cost false positives with
+  no true positive.
+
+  **The memory tier is deliberately NOT a second default.** `<memory_dir>/`
+  (default `.work/`) was exempted here during review and removed again, because
+  the argument above does not carry to it: `secret-pattern-detection` scans a
+  `Write` to `.work/notes.md` today, so exempting Bash redirects there would let
+  `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
+  `Write` stayed blocked — the same content-guard bypass the MCP lane above
+  exists to close. The consequence is that `printf '*' >> .work/.gitignore`
+  still blocks; that command is `session-flow`'s own documented procedure, so the
+  conflict routes to the skill (use `Write`, which is scanned) rather than to this
+  guard.
+
+  **The default is confirmed through symlink resolution before it grants.** The
+  lexical compare alone would exempt a redirect on its spelling, so a symlink
+  under an exempt root pointing into the repository (`/tmp/to-repo -> <repo>`)
+  would let `echo <secret> > /tmp/to-repo/tracked.py` through while the identical
+  direct path blocked. The configured roots document that as a residual on the
+  ground that an operator naming a root accepts that root's contents; a shipped
+  default has no operator to accept anything, so it resolves the target (or its
+  nearest existing ancestor) and re-checks containment before exempting. Cost
+  stays on the grant path only: the lexical test runs first, so a command that was
+  going to block spends no resolver process. A path with no existing component
+  holds no symlink and is exempted on its spelling, which is the same answer
+  resolution would give. Residual: the check inherits the axis's case-folding, so
+  on a case-sensitive filesystem a symlink whose real spelling carries capitals is
+  not resolved and stays exempt.
+- **`block-hook-bypass` takes additional target-scoped exemptions by
+  configuration.** `block_hook_bypass_scratch_roots` takes a comma-separated
+  list of absolute directories whose contents are scratch, a session or job temp
+  root, where a throwaway probe file is written that no formatter, secret scanner
+  or path check would ever process. The list is empty by default and **adds to**
+  the shipped root above rather than replacing it; the kill switch remains
+  the whole-guard lever. When set, the match is made on the
   **effective** stdout target (the last redirect wins, as with `/dev/null`) after
   lexical normalization, and containment is decided at a path-component
   boundary: `/tmp/scratchevil/f` is not under `/tmp/scratch`, a `..` escape is
   resolved away before the compare, `echo x > /tmp/scratch/f > real.txt` still
-  blocks, and a relative, unexpanded (`$VAR`, `~`) or glob target is never
-  exempt. A **quoted or escaped** operand is never exempt either, and that one
+  blocks, and an unexpanded (`$VAR`, `~`) or glob target is never exempt. A
+  **relative** target is exempt only when the guard can place it: since
+  **0.32.0** it is resolved against the tool call's own `cwd` from the payload,
+  and refused outright when the command carries a `cd`/`pushd`/`popd` (which
+  moves the directory the redirect resolves against, and whose target this guard
+  does not evaluate) or when the payload names no absolute cwd. That is what lets
+  `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
+  `cd /etc && echo x > .work/f` still block. A **quoted or escaped** operand is
+  never exempt either, and that one
   fails closed rather than being documented: the quote strip drops a kept
   target's quotes, and the segment split would then read a `;`, `|`, `&` or space
   *inside* the operand as syntax, so `> "/tmp/scratch/a;/../../etc/passwd"`,
@@ -289,6 +378,162 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.32.2, the two PostToolUse verifiers.** 2026-09-05, Linux CI host. The 0.31.1
+table below still carries the pre-fix figures for `skill-reference-verify` (287.2)
+and `cli-flag-verify` (32.0); this entry supersedes those two rows. Neither hook
+changed what it checks. `skill-reference-verify` read every plugin manifest through
+four processes each before deciding whether the write cited a skill at all, and
+`cli-flag-verify` spawned its verifier script to read a cache file it could have read
+itself.
+
+*Method.* Mean wall time of 15 runs per row on an otherwise idle host,
+`HOOK_TELEMETRY_SINK` unset. Milliseconds, with the spawn-equivalent alongside where the
+spawn floor S was measured in the same pass (2.52 ms before, 1.83 ms after; the
+host moved between passes, which is why the ratio, not the millisecond, is the
+comparable figure). The `cli-flag-verify` probe is a markdown `Write` naming `gh`,
+`claude`, `docker` and `kubectl`, three of the four installed, timed on three warm
+runs with an `strace -f` pass counting `execve`.
+
+| Row | before | after |
+|---|---|---|
+| `skill-reference-verify`, a `.md` citing a skill | 642.9 ms (334.8 S) | 63.8 ms (33.8 S) |
+| `skill-reference-verify`, a `.md` citing nothing | 47.1 ms | 47.3 ms |
+| ` ` the manifest index loop, isolated (74 manifests) | 468.5 ms | 5.2 ms |
+| `cli-flag-verify`, warm cache | 119 to 136 ms | 55 to 79 ms |
+| `cli-flag-verify`, cold cache (four `--help` calls) | 980.5 ms | 461.6 ms |
+| ` ` `execve` per warm run, total / failed | 152 / 88 | 34 / 11 |
+
+The no-reference path was never the cost, and it is unchanged. Of the 88 failed
+`execve` before, every one was `env` walking `PATH` for `bash` on behalf of a
+`#!/usr/bin/env bash` exec: four verifier spawns plus the telemetry sink, each
+failing once per `PATH` entry ahead of `/usr/bin`. The 11 left are the sink's one
+walk, which this plugin does not own. The cold-cache figure is host-bound (it is the
+four binaries answering `--help`) and halves here only because the verifier's own
+setup work shrank; a Windows Git Bash cold run has been reported at over 11 s and
+is not reproduced on this host.
+
+**0.32.0, the GitHub MCP write lane.** 2026-09-04, Linux CI host. The lane is a NEW
+`hooks.json` row rather than a widening of the `Write|Edit|MultiEdit|NotebookEdit`
+matcher, which is the whole point of its shape: an MCP matcher on the existing row
+would have put the new tools' cost on every authored write. As a separate row it
+fires only on `mcp__github__push_files` and `mcp__github__create_or_update_file`, so
+the always-on write path pays nothing for it.
+
+*Method.* Wall time of 20 to 30 dispatcher runs per payload, divided by the run
+count, on an otherwise idle host, `HOOK_TELEMETRY_SINK` unset. Absolute
+milliseconds rather than spawn-equivalents: this is a same-host before/after on one
+machine, and a spawn-equivalent only survives a host change for a spawn-dominated
+hook.
+
+| Per tool call | ms |
+|---|---|
+| `mcp__github__create_or_update_file` (1 file) | 47 |
+| `mcp__github__push_files` (2 files) | 72 |
+
+The per-file cost is one `jq` process, on a lane that fires only when a GitHub MCP
+write is issued. The single-file tool spends none: its path and content are already
+in the dispatcher's primed field set.
+
+*The always-on `Write` path is unchanged, and that took a fix.* Both guards now ask
+for `.tool_input.path`, and the dispatcher's cached `hook::jq_fields` is
+all-or-nothing per call — one filter it cannot serve sends the whole call to an
+uncached `jq`. Measured, that cost two extra spawns on EVERY Write/Edit: 50 ms to
+60 ms. Adding the field to `run-guards.sh`'s `PRIME_FILTERS` returns it to the
+dispatcher's single primed `jq`, now nine filters instead of eight: 51 ms before,
+52 ms after, as the median of three 30-run batches per tree.
+
+**0.31.1, the guard hot path.** 2026-09-02, Windows 11 + Git Bash. The dispatcher
+in 0.31.0 cut the number of hook processes; this cut what each guard spends inside
+one. Four guards did expensive setup before checking whether the payload could ever
+produce a finding, and a fifth re-derived a constant on every command.
+
+*Method.* The two trees are measured PAIRED: the base tree and the changed tree
+alternate within each repetition, 3 repetitions of 4 timed trials, each trial
+preceded by its own `bash -c :`. The host is shared, and its spawn floor moved from
+42 ms to over 100 ms during the work, so measuring one tree fully and then the other
+would attribute that drift to the change. Each case gets one plugin-data directory
+for the whole case plus a discarded warm-up run, because Claude Code hands a hook the
+same plugin-data directory for a whole session. `HOOK_TELEMETRY_SINK` was set, as it
+is on this host. Figures are spawn-equivalents (hook wall divided by the same-run
+spawn floor); S was 85.5 ms on the base pass and 101 ms on the changed pass.
+
+*Sample.* The `Write` payloads name a file INSIDE the repository. Every Write and
+verifier guard early-exits on a path outside the consuming repo, so an out-of-tree
+scratch file measures a no-op rather than the guards.
+
+| Per tool call | before | after | delta |
+|---|---|---|---|
+| PostToolUse `Write` (whole dispatcher) | 368.4 | 79.3 | 289.1 |
+| ` ` `skill-reference-verify` | 287.2 | 26.0 | 261.2 |
+| ` ` `stale-path-verify` | 33.8 | 24.4 | 9.4 |
+| ` ` `cli-flag-verify` | 32.0 | 20.7 | 11.3 |
+| PreToolUse `Bash` (whole dispatcher) | 72.8 | 52.6 | 20.2 |
+| ` ` `block-convention-violation` | 12.8 | 3.0 | 9.8 |
+| PreToolUse `Write` (whole dispatcher) | 38.6 | 28.5 | 10.1 |
+| ` ` `secret-pattern-detection` | 15.8 | 10.0 | 5.8 |
+
+All figures are spawn-equivalents. `skill-reference-verify` carried the whole
+PostToolUse cost: it built a plugin name-to-directory index from every plugin
+manifest, two `jq` processes each and 74 manifests here, before looking at whether
+the written content cited a skill at all. Guards this phase did not touch move by up
+to 1 spawn-equivalent between the two passes, which is the resolution of every figure
+in the table.
+
+*The PreToolUse `Write` line is not a gain.* A second paired pass on a quieter host,
+12 trials per tree at a 42 to 47 ms spawn floor, put that delta at -0.9 with the sink
+unset, -3.2 with it set, and -1.9 with it set and `CLAUDE_PROJECT_DIR` unset: at or
+below zero every time. Two of the three guards on that path are untouched by this
+phase and moved by 1.1 and 0.9 in the pass above, which is the same drift. The one
+line this phase changed in `secret-pattern-detection` sits inside `emit_tel`, on the
+branch taken only when `CLAUDE_PROJECT_DIR` is empty, so a session that sets it never
+reaches the change. The other two rows do reproduce: the second pass put PostToolUse
+`Write` at 307.5 and 341.9 against the 289.1 above, and PreToolUse `Bash` at 10.1 and
+11.5 against 20.2, the pair in each case being the sink unset and the sink set.
+
+**What remains, and why it is not reachable inside this plugin.** PreToolUse `Bash`
+is still 52.6 spawn-equivalents against the fleet target of 8. Three things account
+for nearly all of it, and none is a guardrails guard:
+
+- **Telemetry, remaining sink dispatch only on the string-field guards.**
+  `HOOK_TELEMETRY_SINK` is opt-in. The seven always-on Bash guards that emit
+  `{tool,subject,form}` now build that object with `hook::json_str_object_to`
+  (0 jq; byte-identical to `jq -nc --arg …` on this host). The envelope was
+  already builtin (#3678). What remains on a wired sink is the fire-and-forget
+  sink process itself, plus `jq` in the advisory guards that still pass
+  `--argjson` findings arrays. The unwired default path is still zero
+  telemetry spawns. The 0.31.1 paired figures above were taken before this
+  cut and are not re-stated as current.
+- **One subshell fork per guard.** Each guard runs in a `$(source ...)` subshell so
+  its `exit` and `trap` behave as they do standalone. A guard that does nothing at
+  all measures 0.6 to 0.9 spawn-equivalents, which is that fork. Eight guards on the
+  Bash path is an irreducible floor of roughly 7 while the dispatcher keeps that
+  isolation.
+- **Per-guard classification work.** `block-dangerous-git` and `block-hook-bypass`
+  parse the command text; that is the check itself, not overhead.
+
+Three further cuts were measured and deliberately not made, because each costs more
+in risk or churn than it returns: priming `hook::repo_root` in the dispatcher (worth
+about 1 spawn-equivalent per calling guard, against 4 for telemetry on the same
+path); replacing the `$(dirname ...)` in every guard's `source` line (the dispatcher
+already makes `dirname` a shell function, so what remains is a fork under the noise
+floor); and merging `hardcoded-path-check`'s two `git rev-parse` probes, which would
+rework a security guard's scope logic to save one process.
+
+**0.31.0, the dispatcher.** Measured with the fleet's hook fan-out harness
+(`dotfiles/common/measure-claude-hook-fanout.sh`, one hook process per line, median of
+3 runs, benign `git status --short` payload, Windows 11 + Git Bash, 2026-09-02, host
+under concurrent agent load). Before: the eight per-Bash-call guards were eight hook
+processes summing to **≈ 2,450 ms** (412 / 403 / 362 / 350 / 336 / 311 / 198 / 78 ms).
+After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices inside it
+as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
+remainder being fork cost, since each guard still runs in its own subshell so that its
+`exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
+CPU cost and a drop from eight process spawns to one; it is still above the
+convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
+the guards' own per-call work (the subshell fork itself, and the external programs a
+guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
+three PreToolUse processes to one, three PostToolUse processes to one.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
@@ -525,7 +770,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session); empty (the default) exempts nothing and leaves the guard's shipped behaviour unchanged. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the one root the guard already ships exempt — the host temp trees, which the harness scratchpad sits under — gated on CLAUDE_PROJECT_DIR naming a project root outside the temp tree. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed |
 
 ### How to set these
@@ -542,18 +787,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

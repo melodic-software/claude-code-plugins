@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: disk space + SMART health. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#2-disk-space--smart-health for rubric.
+See reference/windows/check-catalog.md#2-disk-space--smart-health for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

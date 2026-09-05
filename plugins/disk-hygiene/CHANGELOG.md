@@ -19,6 +19,75 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   managed settings are read first, then the user file, matching `lib/killswitch_config.py`.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.21.7]
+
+### Added
+
+- **Both PreToolUse rows carry a `statusMessage`.** The Stop row already had
+  one, so a silent destructive-guard failure was legible while the guard itself
+  ran unnamed: the spinner said nothing for up to 60 s on a Bash call that
+  could be blocked. Now "Checking the disk-hygiene delete against its authorized
+  roots..." on both the Bash and PowerShell rows. (#3719)
+- **`hooks/hooks.json` carries a top-level `description`.** One line naming what
+  this plugin's hook set does, on a field the hooks reference documents as
+  optional and every hook set here omitted. (#3719)
+
+## [0.21.6]
+
+### Changed
+
+- **`hook_telemetry.py` drops `telemetry_enabled()`, which had no caller.** The
+  search was repo-wide rather than plugin-local: the only live spelling is the
+  bash `hook::telemetry_enabled` elsewhere, the telemetry contract doc never
+  names the Python function, no test touches it, and `emit()` already
+  self-guards on an unset sink. The guard imports the module but never calls
+  it. Nothing else in this group moved, because the remaining files are
+  allow/deny and fail-closed surface that the sweep's safety boundary keeps out
+  of scope. The pinned ruff wrapper is clean and the telemetry suite ran 3 of 3.
+
+## [0.21.5]
+
+### Changed
+
+- **Test-harness tidyings from the repo-wide sweep.** The launcher's contract
+  suite drops a fake-interpreter stub that was written and made executable but
+  referenced nowhere, and folds its two remaining stub writes into the loop form
+  the same file already uses; its engine-read contract block trades history
+  narration for present-tense rationale, keeping both halves. The guard's
+  `main()` loses a comment paragraph that narrated the comment's own two earlier
+  revisions, with every mechanism fact it carried still stated in the paragraphs
+  either side of it. One test flattens a dict lookup fed by a nested conditional
+  key into a plain `if`/`elif`/`else`.
+  No allow/deny list, scope check, dry-run gate, delete-safety predicate,
+  symlink handling or kill-switch path was touched, and the cleanup engine and
+  hook shim are not in the diff at all. The guard change is proven inert at the
+  compiler level: identical AST and all 91 code objects equal across bytecode,
+  constants, names and flags. The platform rewrite was checked over 211,111
+  inputs with zero mismatches. Suites: 338, 3, 23 and 166 Python tests plus the
+  three shell suites, all green.
+
+## [0.21.4]
+
+### Changed
+
+- **The engine gate carries an `if` filter, `Bash(*hygiene.py*)`.** The gate only ever
+  judges a command that carries the engine's file name (`_engine_gate_relevant`), so the
+  filter is a superset of its own relevance check; every other Bash call no longer pays
+  a Python interpreter start to be told it is irrelevant.
+- **The engine gate is registered once per tool.** An `if` filter is scoped to the tool
+  it names, so the single `Bash|PowerShell` entry carrying a `Bash(...)` filter never
+  launched the gate for a PowerShell call. The `Bash` entry keeps the filter; a separate
+  `PowerShell` entry carries none, because PowerShell filtering must match every
+  subcommand of a compound command and would skip this kill-switch guard silently on a
+  mixed line. Every PowerShell call therefore still pays the interpreter start, as it
+  did before 0.21.4.
+
+## [0.21.3]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.21.2]
 

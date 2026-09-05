@@ -29,7 +29,7 @@ if [[ ! -e "${copies[0]}" ]]; then
 fi
 
 frontmatter_version() {
-  awk '/^standards-contract:/ {print $2; exit}' -
+  awk '/^standards-contract:/ {print $2; exit}'
 }
 
 mode="${1:-sync}"

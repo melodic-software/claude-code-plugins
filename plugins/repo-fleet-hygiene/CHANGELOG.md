@@ -11,6 +11,92 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 - apply: the contract sentence drops its issue numbers.
 - setup: the `check` config-presence step agrees with the audit that a bare no-scope run fails instead of defaulting to the current project; "now requires" and "currently no way" read as current rules; the `fleet.skip` replace semantics are stated once, in "Configuration grammar", with the two action paths pointing at it.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.23.17]
+
+### Changed
+
+- **`audit/scripts/audit-fleet.sh` drops three per-call subshells.**
+  `select_remote`'s sole-remote fallback ran two pipelines over the same text,
+  `sed | wc | tr` to answer how many remotes there are and `sed` again to answer
+  which one; one read loop now collects the non-empty names into an array that
+  answers both, and empty input still yields zero names and returns 1. The
+  `GitHub evidence:` line's `$([[ ... ]] && echo available || echo unavailable)`
+  becomes an `elif` arm, so neither branch forks. The findings JSON prints
+  `${R_COUNTED[$ri]}` straight into `"audited": %s`, because that array already
+  holds the JSON literal: `begin_repo_record` seeds `false` and
+  `mark_repo_counted` writes `true`, so the subshell test was re-deriving the two
+  strings it had been handed.
+- **`apply/scripts/apply-plan.sh` reads two loops from herestrings.** The plan-line
+  split and the per-unit `IFS=$'\037' read` each fed on `< <(printf '%s\n' "$x")`,
+  a fork and a subshell to supply a trailing newline that `<<<"$x"` supplies for
+  free. One `append_decision` call also loses a stray `${tip}` brace form, matching
+  the sibling arm four lines above it.
+- **Six show-ref blocks in `apply-plan.test.sh` become two assert helpers.**
+  Whether a branch survived a run is the mutation evidence most cases in that
+  suite turn on, and it was written out as an if/else over
+  `git show-ref --verify --quiet` at six sites; `assert_branch_kept` and
+  `assert_branch_deleted` take the label/repo/branch shape the file's other
+  asserts already use, and each still reports through the same `pass`/`fail`.
+
+  Declined again, as in the earlier pass: `apply-plan.sh`'s guards, ordering,
+  confirmation gate and mutation invocations are untouched, including the
+  duplicated `skip "canonical path missing"` arm at two sites. Folding either
+  would restructure the code that decides which repositories get written to,
+  which is not a tidy.
+
+## [0.23.16]
+
+### Added
+
+- **The target dedupe now has a test that can fail.** `audit-fleet.sh` collapses
+  a target carrying more than one finding into a single block, at three sites.
+  Instrumenting every call shows 152 calls across the suite with exactly **2
+  hits**, both from the one fixture that puts two findings on a single target, so
+  a dedupe that stops suppressing duplicates emits that target's whole 13-line
+  block twice and every count the suite checks still matches. The new assertion
+  pins the block to exactly one occurrence: it passes on the real code and fails
+  on the over-firing mutant. The match is whole-line, because the roll-up prints
+  the same path with a `(N linked)` suffix that a substring match counts as a
+  second block.
+
+### Changed
+
+- **`audit-fleet.sh`: three copies of an order-preserving linear scan became
+  `array_contains`, and the porcelain record flush became
+  `push_worktree_record`.** Checked against the pre-image over 15 adversarial
+  inputs, including glob metacharacters, empty strings in every position,
+  embedded newlines, a leading `-n` and interleaved duplicates: identical results
+  with order preserved. Two variables that had been implicit globals are gone
+  entirely.
+- **`apply/scripts/apply-plan.sh`: the five mutation sites share `git_mutate`.**
+  All five carried one spelling of the `GIT_TERMINAL_PROMPT=0
+  GIT_OPTIONAL_LOCKS=0 git -C` prefix, confirmed by extraction; `git_probe`'s
+  distinct prefix is untouched. The file-wide `SC2310` disable now names
+  `git_mutate` alongside `git_probe`, since the helper adds six sites the old
+  justification did not cover.
+- **Both `allowed-tools-pairing.test.sh` copies in this plugin's family were
+  shfmt-formatted in step.** Formatting only, established with two independent
+  shell parsers whose sensitivity was proven by nine seeded semantic mutations,
+  every one caught, against two controls that correctly did not fire.
+
+### Known issues
+
+- **The worktree-lane OID-drift gates have no coverage at either end.** Disabling
+  the plan-time gate and the execution-time gate *together* leaves the suite at 23
+  passing, 0 failing. The branch lane is covered by that pairing (2 failures), but
+  the worktree lane is not covered at all. Pre-existing; this is the first time it
+  was measured.
+- **Two `array_contains` over-fire mutants survive the suite**: a never-matching
+  scan at the `repo_verdict` site alone is genuinely equivalent (zero difference
+  in any artefact the suite writes), but a prefix-glob comparison escapes
+  undetected.
+- **Drift across the five-copy `allowed-tools-pairing.test.sh` family fell in
+  net** (252 differing lines to 228, with four copies now differing pairwise by
+  exactly their `SKILLS=` line) **but grew by 12 lines against the `repo-hygiene`
+  copy**, which is a genuine superset and now the family's only unformatted
+  member. No cross-plugin consolidation was made, and the drift gate still
+  reports the family as differing rather than identical, which is what keeps it
+  green.
 
 ## [0.23.15]
 

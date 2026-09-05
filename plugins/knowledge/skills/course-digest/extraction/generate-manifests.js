@@ -205,10 +205,10 @@ for (const module of course.modules) {
   }
 }
 
-log.info(`\n  ────────────────────────────`);
+log.info("\n  ────────────────────────────");
 log.info(`  Manifests: ${totalManifests}`);
 log.info(`  Kept:      ${totalKept} frames`);
 log.info(`  Discarded: ${totalDiscarded} frames`);
 log.info(
-  `  ${args["dry-run"] ? "(dry run — no files written)" : `Written to: */screenshots/manifest.json`}`,
+  `  ${args["dry-run"] ? "(dry run — no files written)" : "Written to: */screenshots/manifest.json"}`,
 );

@@ -21,6 +21,113 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
   a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
   shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+## [0.10.30]
+
+### Changed
+
+- **The clean skill's token and tier loops are now named helpers.** In
+  `resolve-clean-action.sh`, four sites that lower-cased a token and then resolved it become one
+  `resolve_token`; in `scan.sh`, the two identical candidate loops become `emit_tier`. Nothing
+  that decides which paths are selected, what is deleted, or when a removal becomes real was
+  altered. The tier enumeration deliberately keeps its input as a redirection rather than a pipe,
+  so `emit_path_line`'s byte accumulation still happens in the calling shell; a comment records
+  why, because a pipe there would silently zero the reported total.
+- **`git-tree-reset-batch.sh` reads its child's labels through one `child_label` helper and
+  resolves the child's mode once** outside the per-repo loop instead of re-deriving it with a
+  command substitution per repository. Three call sites previously spelled out the same
+  `printf | sed | head` pipeline.
+- **The two batch orchestrators' shared skip-list handling now lives in `lib/batch-common.sh`.**
+  `clean-batch.sh` and `git-tree-reset-batch.sh` each carried their own copy of the skip-list match
+  loop, the `SKIP_HITS` initialization and the unmatched-skip report loop; these become
+  `batch_skip_match`, `batch_reset_skip_hits` and `batch_report_unmatched_skips`. Both properties
+  the match loop relies on are preserved: the last matching entry is the one reported, and every
+  matching entry is marked hit. Each caller's own rationale comment stays at its call site rather
+  than moving into the helper.
+  The `SKIP_HITS` initialization was moved rather than dropped, because it is not a dead store:
+  replacing its zero-fill with a different value makes every `UnmatchedSkip` line disappear.
+- **`git-tree-reset-batch.sh` deliberately keeps its own repo-resolution loop** instead of adopting
+  `batch_resolve_repos`, and the header comment now records the input that shows why rather than
+  only the conclusion. For a git repository whose directory name contains a literal backslash, the
+  inline loop resolves it and would reset it, while the shared helper folds the name to a
+  non-existent path and reports it invalid. Silently dropping a repository the caller named is the
+  defect class this tier exists to close. The `--repos-from` and `--skip-from` contract text is
+  likewise kept per entry point: it lives in each `usage()` heredoc, so it is program output rather
+  than comment, and the two are not identical.
+- **Two redundant guards collapsed in `git-branch-audit.sh`**, where
+  `[[ -n "${PR_STATE[$b]:-}" && "${PR_STATE[$b]}" == "MERGED" ]]` tests emptiness before an
+  equality that already excludes it. Tier assignment for MERGED and CLOSED branches is unchanged.
+- **Four suite helpers named.** `mk_git_shim` replaces eight hand-rolled
+  mkdir/heredoc/chmod triples across the two tree-reset suites, `make_ignoring_repo` replaces
+  three copies of the pushed-repo-with-gitignore fixture in `remove-path.test.sh`,
+  `expect_single_a` replaces three copies of the same read assertion in `batch-common.test.sh`,
+  and `run_scan` replaces three copies of the exported-git-env invocation in `scan.test.sh`.
+- **Smaller shape cleanups**: `clean-batch.sh`'s `summary_line` reads a here-string instead of
+  spawning `printf` into `sed`, matching the `summary_field` beside it; `git-tree-reset.sh` drops
+  a `:-0` default on a variable initialized above it and normalizes one here-string's spacing;
+  and `cleanup-paths.test.sh` drops an awk clause that re-excluded the heading its own first rule
+  had already consumed with `next`.
+
+## [0.10.29]
+
+### Fixed
+
+- **`clean/scripts/scan.sh`: the documented output contract listed a category the
+  script cannot emit.** The header advertised
+  `Category: <Caches|Build artifacts|Git>`, but `emit_path_line` has exactly two
+  call sites, both passing string literals, and no variable, format string or
+  heredoc anywhere in the repository produces a third value. Walking every commit
+  that has ever touched the file shows `Category: Git` was never emittable in any
+  version. The git tier emits `Git worktrees:`, `Git stale refs dry-run:` and a
+  bare `Tier: git`, none of them preceded by a `Category:` line. The only consumer
+  asserts on the substring `Category:` and never on a value, so removing `|Git`
+  corrects the documented contract rather than narrowing it.
+
+### Changed
+
+- **`clean/scripts/lib/clean-common.sh`: a doc block sat above the wrong
+  function.** The comment describing `clean_manifest_target_valid` had drifted to
+  sit above the two one-line predicates that precede it; it now runs contiguously
+  into the signature it describes. Proven a pure move: identical byte size and
+  identical sorted-line checksum before and after, so no line was added, removed
+  or rewritten.
+
+  Both changes are comment-only in effect, established mechanically rather than by
+  reading: two independent quote- and heredoc-aware shell parsers (`shfmt -mn` and
+  `bash --pretty-print`) produce byte-identical output for both files before and
+  after, and the comparison was shown to be sensitive by 16 seeded mutations, 12
+  of which it detects and 4 of which it correctly reports as equivalent.
+
+## [0.10.28]
+
+### Changed
+
+- **The batch-common suite drops a dead array reset.** Its low-fd case runs the
+  read inside a subshell that declares its own array and asserts on that
+  subshell's stdout, so the outer reset was never read; it mimicked the sibling
+  cases that do assert on the outer array, which made it look load-bearing. A
+  comment now records why this case is the exception. Every other caller keeps
+  its reset, which is required because the read function appends rather than
+  assigns. Tested adversarially: with a stale array injected so the edited file
+  reaches the case populated, output is identical either way, and five mutants
+  of the library under test, including a restoration of the file-descriptor
+  defect this case guards, fail identically before and after.
+
+### Known issues
+
+- **No test covers the tier-token distinction in `clean-batch.sh`.**
+  `manifest_child_token` and `tier_repo_token` look like an obvious two-function
+  dedup, and merging them lets a plan built for the build tier be authorized
+  under `--tier git`, applying and removing build output that tier never gated.
+  The in-file comment saying they must stay distinct is correct, but the suite
+  has no case feeding a build record to `--tier git`, which is the only input
+  where the two functions differ.
+
+## [0.10.27]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.10.26]
 

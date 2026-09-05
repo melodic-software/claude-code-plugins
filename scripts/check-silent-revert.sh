@@ -410,22 +410,22 @@ declares_removal() {
   subject="$(printf '%s\n' "$msg" | head -n 1)"
 
   case "$subject" in
-    'Revert "'*)
-      printf 'the subject begins with a Revert quote, as git revert writes it\n'
-      return 0
-      ;;
-    *) ;;
+  'Revert "'*)
+    printf 'the subject begins with a Revert quote, as git revert writes it\n'
+    return 0
+    ;;
+  *) ;;
   esac
   # The Conventional-Commits revert type, and the ONLY revert spelling that can
   # reach main here (#2837). This repo is squash-only with
   # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
-  # and .github/workflows/pr-title.yml gates every title through a required
-  # Conventional-Commits check whose default type list is all-lowercase and
-  # contains `revert` but nothing a `Revert "…"` subject could match. Measured
-  # over every first-parent commit of main: `Revert "` 0, `revert:` 1. The
-  # corpus is deliberately named as "every" rather than as a total, because a
-  # total is stale the next time anything merges while the 0-and-1 result is
-  # what the pin is actually about.
+  # and the pr-contract step of .github/workflows/ci.yml's ci-status job gates
+  # every title through a required Conventional-Commits check whose type list is
+  # all-lowercase and contains `revert` but nothing a `Revert "…"` subject could
+  # match. Measured over every first-parent commit of main: `Revert "` 0,
+  # `revert:` 1. The corpus is deliberately named as "every" rather than as a
+  # total, because a total is stale the next time anything merges while the
+  # 0-and-1 result is what the pin is actually about.
   #
   # Kept exactly as constrained as the three forms around it: anchored at the
   # start of the SUBJECT, the literal lowercase type token, its optional
@@ -466,8 +466,8 @@ ack_reason() {
   # the two file readers cannot drift (#2874).
   while read -r recorded reason || [[ -n "$recorded" ]]; do
     case "$recorded" in
-      '' | '#'*) continue ;;
-      *) ;;
+    '' | '#'*) continue ;;
+    *) ;;
     esac
     if [[ "$recorded" = "$sha" ]]; then
       printf '%s\n' "${reason:-<no reason recorded>}"
@@ -643,47 +643,47 @@ attribute_file() {
     local binary_rc=0
     grep -q '^Binary files ' "$diff_out" || binary_rc=$?
     case "$binary_rc" in
-      0)
-        # The built-in `binary` macro unsets `diff` AND pins the path
-        # as binary. Blob-to-blob recovery would otherwise reclassify
-        # an ASCII-looking binary (no early NUL) as text -- the false
-        # positive `--text` would also create. Honor the attribute:
-        # recover only when `binary` is not set. `-diff` lock files
-        # have binary unspecified and still recover.
-        local binary_attr
-        binary_attr="$(git check-attr --source "$parent" binary -- "$file")" ||
-          die "git check-attr failed attributing $file at $parent"
-        case "$binary_attr" in
-          *': binary: set') ;;
-          *)
-            local old_blob new_blob blob_out
-            old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)" ||
-              die "could not resolve ${parent}:${file} after a Binary files header"
-            if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
-              # Deleted path: compare against the empty blob. hash-object
-              # -w is idempotent (always e69de29...) and does not touch
-              # the working tree.
-              new_blob="$(git hash-object -w --stdin </dev/null)" ||
-                die "could not hash empty blob attributing $file in $commit"
-            fi
-            if [[ "$old_blob" != "$new_blob" ]]; then
-              blob_out="$(mktemp)" || die "mktemp failed"
-              run_attributing_git "$blob_out" \
-                "git diff failed attributing blobs of $file in $commit" \
-                diff --no-ext-diff --no-textconv --unified=0 --no-color \
-                --diff-algorithm=myers "$old_blob" "$new_blob"
-              while read -r start count; do
-                [[ -n "$start" ]] || continue
-                [[ "$count" -gt 0 ]] || continue
-                ranges+=(-L "$start,$((start + count - 1))")
-              done < <(old_side_deleted_ranges "$blob_out")
-              rm -f "$blob_out"
-            fi
-            ;;
-        esac
+    0)
+      # The built-in `binary` macro unsets `diff` AND pins the path
+      # as binary. Blob-to-blob recovery would otherwise reclassify
+      # an ASCII-looking binary (no early NUL) as text -- the false
+      # positive `--text` would also create. Honor the attribute:
+      # recover only when `binary` is not set. `-diff` lock files
+      # have binary unspecified and still recover.
+      local binary_attr
+      binary_attr="$(git check-attr --source "$parent" binary -- "$file")" ||
+        die "git check-attr failed attributing $file at $parent"
+      case "$binary_attr" in
+      *': binary: set') ;;
+      *)
+        local old_blob new_blob blob_out
+        old_blob="$(git rev-parse --verify "${parent}:${file}" 2>/dev/null)" ||
+          die "could not resolve ${parent}:${file} after a Binary files header"
+        if ! new_blob="$(git rev-parse --verify "${commit}:${file}" 2>/dev/null)"; then
+          # Deleted path: compare against the empty blob. hash-object
+          # -w is idempotent (always e69de29...) and does not touch
+          # the working tree.
+          new_blob="$(git hash-object -w --stdin </dev/null)" ||
+            die "could not hash empty blob attributing $file in $commit"
+        fi
+        if [[ "$old_blob" != "$new_blob" ]]; then
+          blob_out="$(mktemp)" || die "mktemp failed"
+          run_attributing_git "$blob_out" \
+            "git diff failed attributing blobs of $file in $commit" \
+            diff --no-ext-diff --no-textconv --unified=0 --no-color \
+            --diff-algorithm=myers "$old_blob" "$new_blob"
+          while read -r start count; do
+            [[ -n "$start" ]] || continue
+            [[ "$count" -gt 0 ]] || continue
+            ranges+=(-L "$start,$((start + count - 1))")
+          done < <(old_side_deleted_ranges "$blob_out")
+          rm -f "$blob_out"
+        fi
         ;;
-      1) ;;
-      *) die "grep failed looking for a binary-files header attributing $file in $commit (exit $binary_rc)" ;;
+      esac
+      ;;
+    1) ;;
+    *) die "grep failed looking for a binary-files header attributing $file in $commit (exit $binary_rc)" ;;
     esac
   fi
   rm -f "$diff_out"
@@ -852,7 +852,6 @@ scan_commit() {
     diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha"
   local file
   while IFS= read -r -d '' file; do
-    : >"$file_attr"
     attribute_file "$parent" "$sha" "$file" >"$file_attr"
     awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' \
       "$file_attr" >>"$attributed"
@@ -1023,17 +1022,17 @@ parse_attribution_field() {
   # three empty-entry shapes here so the grammar is the same in every
   # position (#2875).
   case "$field" in
-    *, | ,* | *,,*)
-      die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
-      ;;
-    *) ;;
+  *, | ,* | *,,*)
+    die "malformed attribution field in $INCIDENTS_FILE (empty entry from a leading, trailing, or doubled comma)"
+    ;;
+  *) ;;
   esac
   local IFS=','
   for entry in $field; do
     case "$entry" in
-      '') die "empty attribution entry in $INCIDENTS_FILE (trailing or doubled comma?)" ;;
-      *=*) ;;
-      *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
+    '') die "empty attribution entry in $INCIDENTS_FILE (trailing or doubled comma?)" ;;
+    *=*) ;;
+    *) die "malformed attribution entry '$entry' in $INCIDENTS_FILE (want <40-char-sha>=<lines>)" ;;
     esac
     local culprit="${entry%%=*}" lines="${entry#*=}"
     [[ "$culprit" =~ ^[0-9a-f]{40}$ ]] ||
@@ -1087,13 +1086,13 @@ verify_known_incidents() {
   # is a green run that verified nothing (#2874).
   while read -r expect sha rest || [[ -n "$expect" ]]; do
     case "$expect" in
-      '' | '#'*) continue ;;
-      # Restoration markers (#2855) are a different assertion about the same
-      # incident and belong to --verify-restoration. Skipped HERE, above the
-      # reachability check, because a marker row's second field is a path
-      # rather than a sha -- reading it as one would die on every marker row.
-      marker) continue ;;
-      *) ;;
+    '' | '#'*) continue ;;
+    # Restoration markers (#2855) are a different assertion about the same
+    # incident and belong to --verify-restoration. Skipped HERE, above the
+    # reachability check, because a marker row's second field is a path
+    # rather than a sha -- reading it as one would die on every marker row.
+    marker) continue ;;
+    *) ;;
     esac
     verified=$((verified + 1))
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
@@ -1122,10 +1121,10 @@ verify_known_incidents() {
     : >"$expected_file"
     if [[ -n "$attribution" ]]; then
       case "$expect" in
-        fires | clean) ;;
-        *)
-          die "row for $sha in $INCIDENTS_FILE records an attribution on a '$expect' row; only 'fires' and 'clean' rows may carry one"
-          ;;
+      fires | clean) ;;
+      *)
+        die "row for $sha in $INCIDENTS_FILE records an attribution on a '$expect' row; only 'fires' and 'clean' rows may carry one"
+        ;;
       esac
       parse_attribution_field "$attribution" >"$expected_file"
       sort -o "$expected_file" "$expected_file"
@@ -1149,53 +1148,53 @@ verify_known_incidents() {
     sort -o "$observed_file" "$observed_file"
 
     case "$expect" in
-      fires)
-        if [[ "$status" -ne 1 ]]; then
-          printf 'FAIL %s should fire and did not  (%s)\n' "${sha:0:9}" "$note"
-          printf '%s\n' "$out"
-          rc=1
-        elif [[ -n "$attribution" ]] && ! cmp -s "$expected_file" "$observed_file"; then
-          printf 'FAIL %s fires, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
-          printf '     recorded attribution:\n'
+    fires)
+      if [[ "$status" -ne 1 ]]; then
+        printf 'FAIL %s should fire and did not  (%s)\n' "${sha:0:9}" "$note"
+        printf '%s\n' "$out"
+        rc=1
+      elif [[ -n "$attribution" ]] && ! cmp -s "$expected_file" "$observed_file"; then
+        printf 'FAIL %s fires, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
+        printf '     recorded attribution:\n'
+        sed 's/^/       /' "$expected_file"
+        printf '     what the detector reported:\n'
+        sed 's/^/       /' "$observed_file"
+        printf '     A row that fires for the wrong reason is not a reproduction.\n'
+        printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+        rc=1
+      elif [[ -n "$attribution" ]]; then
+        printf 'ok   %s fires as recorded, %s attribution(s) reproduced exactly  (%s)\n' \
+          "${sha:0:9}" "$(wc -l <"$expected_file" | tr -d '[:space:]')" "$note"
+      else
+        printf 'ok   %s fires as recorded  (%s)\n' "${sha:0:9}" "$note"
+      fi
+      ;;
+    clean)
+      if [[ "$status" -ne 0 ]]; then
+        printf 'FAIL %s should stay clean and fired  (%s)\n' "${sha:0:9}" "$note"
+        printf '%s\n' "$out"
+        rc=1
+      elif [[ -n "$attribution" ]]; then
+        largest_attributions "$all_attr_file" >"$observed_file"
+        sort -o "$observed_file" "$observed_file"
+        if ! cmp -s "$expected_file" "$observed_file"; then
+          printf 'FAIL %s stays clean, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
+          printf '     recorded largest sub-threshold attribution:\n'
           sed 's/^/       /' "$expected_file"
           printf '     what the detector reported:\n'
           sed 's/^/       /' "$observed_file"
-          printf '     A row that fires for the wrong reason is not a reproduction.\n'
+          printf '     A clean row whose figure has moved is not a reproduction.\n'
           printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
           rc=1
-        elif [[ -n "$attribution" ]]; then
-          printf 'ok   %s fires as recorded, %s attribution(s) reproduced exactly  (%s)\n' \
-            "${sha:0:9}" "$(wc -l <"$expected_file" | tr -d '[:space:]')" "$note"
         else
-          printf 'ok   %s fires as recorded  (%s)\n' "${sha:0:9}" "$note"
+          printf 'ok   %s stays clean as recorded, largest sub-threshold attribution reproduced exactly  (%s)\n' \
+            "${sha:0:9}" "$note"
         fi
-        ;;
-      clean)
-        if [[ "$status" -ne 0 ]]; then
-          printf 'FAIL %s should stay clean and fired  (%s)\n' "${sha:0:9}" "$note"
-          printf '%s\n' "$out"
-          rc=1
-        elif [[ -n "$attribution" ]]; then
-          largest_attributions "$all_attr_file" >"$observed_file"
-          sort -o "$observed_file" "$observed_file"
-          if ! cmp -s "$expected_file" "$observed_file"; then
-            printf 'FAIL %s stays clean, but NOT as recorded  (%s)\n' "${sha:0:9}" "$note"
-            printf '     recorded largest sub-threshold attribution:\n'
-            sed 's/^/       /' "$expected_file"
-            printf '     what the detector reported:\n'
-            sed 's/^/       /' "$observed_file"
-            printf '     A clean row whose figure has moved is not a reproduction.\n'
-            printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
-            rc=1
-          else
-            printf 'ok   %s stays clean as recorded, largest sub-threshold attribution reproduced exactly  (%s)\n' \
-              "${sha:0:9}" "$note"
-          fi
-        else
-          printf 'ok   %s stays clean as recorded  (%s)\n' "${sha:0:9}" "$note"
-        fi
-        ;;
-      *) die "unknown expectation '$expect' in $INCIDENTS_FILE" ;;
+      else
+        printf 'ok   %s stays clean as recorded  (%s)\n' "${sha:0:9}" "$note"
+      fi
+      ;;
+    *) die "unknown expectation '$expect' in $INCIDENTS_FILE" ;;
     esac
   done <"$INCIDENTS_FILE"
 
@@ -1321,90 +1320,94 @@ parse_incidents_file() {
     read -r kind sha path rest <<<"$line"
 
     case "$kind" in
-      '' | '#'*) continue ;;
-      fires | clean)
-        [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
-          die "incident sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
-        if [[ "$kind" = "fires" ]]; then
-          printf '%s\n' "$sha" >>"$fires_out"
-        fi
+    '' | '#'*) continue ;;
+    fires | clean)
+      [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+        die "incident sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
+      if [[ "$kind" = "fires" ]]; then
+        printf '%s\n' "$sha" >>"$fires_out"
+      fi
+      ;;
+    marker)
+      # The parsed view below is SEP-delimited, so a row already carrying
+      # that byte is refused up front rather than split at the wrong field
+      # boundary without anyone noticing. It is a
+      # control character no editor writes by accident; the check exists so
+      # the invariant is stated rather than assumed.
+      case "$line" in
+      *"$SEP"*) die "marker row for $sha in $INCIDENTS_FILE contains a control character" ;;
+      *) ;;
+      esac
+      [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+        die "marker row sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
+      [[ -n "$path" ]] ||
+        die "marker row for $sha in $INCIDENTS_FILE records no path"
+      # The path names a file INSIDE this repository, relative to its root.
+      # An absolute path or a `..` component would reach outside the tree the
+      # assertion is about, so a marker could be satisfied by content that is
+      # not on main at all. Refused here rather than at resolution time, so
+      # both modes are held to it identically.
+      case "$path" in
+      \[*) die "marker row for $sha in $INCIDENTS_FILE has a disposition where its path should be" ;;
+      /* | [A-Za-z]:[/\\]* | \\*)
+        die "marker path '$path' for $sha in $INCIDENTS_FILE is absolute -- use a path relative to the repository root"
         ;;
-      marker)
-        # The parsed view below is SEP-delimited, so a row already carrying
-        # that byte is refused up front rather than split at the wrong field
-        # boundary without anyone noticing. It is a
-        # control character no editor writes by accident; the check exists so
-        # the invariant is stated rather than assumed.
-        case "$line" in
-          *"$SEP"*) die "marker row for $sha in $INCIDENTS_FILE contains a control character" ;;
-          *) ;;
-        esac
-        [[ "$sha" =~ ^[0-9a-f]{40}$ ]] ||
-          die "marker row sha '$sha' in $INCIDENTS_FILE is not a full 40-character sha"
-        [[ -n "$path" ]] ||
-          die "marker row for $sha in $INCIDENTS_FILE records no path"
-        # The path names a file INSIDE this repository, relative to its root.
-        # An absolute path or a `..` component would reach outside the tree the
-        # assertion is about, so a marker could be satisfied by content that is
-        # not on main at all. Refused here rather than at resolution time, so
-        # both modes are held to it identically.
-        case "$path" in
-          \[*) die "marker row for $sha in $INCIDENTS_FILE has a disposition where its path should be" ;;
-          /* | [A-Za-z]:[/\\]* | \\*)
-            die "marker path '$path' for $sha in $INCIDENTS_FILE is absolute -- use a path relative to the repository root" ;;
-          .. | ../* | */../* | */..)
-            die "marker path '$path' for $sha in $INCIDENTS_FILE escapes the repository with '..'" ;;
-          # Glob and pathspec metacharacters are refused rather than resolved.
-          # They are the widening vectors, and refusing them at parse time is
-          # what keeps BOTH modes answering identically: `git cat-file` would
-          # simply not find such a path (absent, exit 1) while `git ls-files`
-          # would expand it (present, exit 0). A marker path is a literal file
-          # path or it is a corpus error.
-          :*)
-            die "marker path '$path' for $sha in $INCIDENTS_FILE uses pathspec magic -- a marker binds to one literal file path" ;;
-          *[*?[]*)
-            die "marker path '$path' for $sha in $INCIDENTS_FILE contains a glob character -- a marker binds to one literal file path" ;;
-          *) ;;
-        esac
-
-        reason=""
-        marker="$rest"
-        if [[ "$rest" == \[* ]]; then
-          [[ "$rest" == \[*\]* ]] ||
-            die "unterminated disposition on the marker row for $sha in $INCIDENTS_FILE (no closing ']'): $rest"
-          local disposition="${rest%%\]*}"
-          disposition="${disposition#\[}"
-          printf '%s\n' "$disposition" |
-            grep -Eq '^not-restored:[[:space:]]*[^[:space:]]' ||
-            die "disposition '[$disposition]' on the marker row for $sha in $INCIDENTS_FILE must be [not-restored: <non-empty reason>]"
-          reason="${disposition#not-restored:}"
-          reason="${reason#"${reason%%[![:space:]]*}"}"
-          # The disposition ends at the FIRST `]`. That is the grammar, stated
-          # up front, and it is why a reason may not itself contain `]`.
-          #
-          # It cannot be an after-the-fact check, and trying was a mistake worth
-          # recording. `[not-restored: see note (ref] for detail)] TEXT` (a
-          # truncated reason) and `[not-restored: reason] some ] text` (a
-          # perfectly good row whose MARKER happens to contain a bracket) are
-          # byte-indistinguishable in shape. Any rule that rejects the first
-          # also rejects the second, and the second is legitimate -- the header
-          # above promises marker text may contain any character.
-          #
-          # So the grammar is documented rather than policed, and the safety net
-          # is the report: a `noted` line prints the recorded reason verbatim,
-          # so a reason truncated at a stray `]` is visible to the human reading
-          # the audit trail. Dispositioned rows are the rare, hand-reviewed
-          # case; that is the right place for a documented restriction.
-          marker="${rest#*\]}"
-          marker="${marker#"${marker%%[![:space:]]*}"}"
-        fi
-        [[ -n "$marker" ]] ||
-          die "marker row for $sha in $INCIDENTS_FILE records no marker text"
-
-        printf '%s%s%s%s%s%s%s\n' \
-          "$sha" "$SEP" "$path" "$SEP" "$reason" "$SEP" "$marker" >>"$markers_out"
+      .. | ../* | */../* | */..)
+        die "marker path '$path' for $sha in $INCIDENTS_FILE escapes the repository with '..'"
         ;;
-      *) die "unknown row kind '$kind' in $INCIDENTS_FILE" ;;
+      # Glob and pathspec metacharacters are refused rather than resolved.
+      # They are the widening vectors, and refusing them at parse time is
+      # what keeps BOTH modes answering identically: `git cat-file` would
+      # simply not find such a path (absent, exit 1) while `git ls-files`
+      # would expand it (present, exit 0). A marker path is a literal file
+      # path or it is a corpus error.
+      :*)
+        die "marker path '$path' for $sha in $INCIDENTS_FILE uses pathspec magic -- a marker binds to one literal file path"
+        ;;
+      *[*?[]*)
+        die "marker path '$path' for $sha in $INCIDENTS_FILE contains a glob character -- a marker binds to one literal file path"
+        ;;
+      *) ;;
+      esac
+
+      reason=""
+      marker="$rest"
+      if [[ "$rest" == \[* ]]; then
+        [[ "$rest" == \[*\]* ]] ||
+          die "unterminated disposition on the marker row for $sha in $INCIDENTS_FILE (no closing ']'): $rest"
+        local disposition="${rest%%\]*}"
+        disposition="${disposition#\[}"
+        printf '%s\n' "$disposition" |
+          grep -Eq '^not-restored:[[:space:]]*[^[:space:]]' ||
+          die "disposition '[$disposition]' on the marker row for $sha in $INCIDENTS_FILE must be [not-restored: <non-empty reason>]"
+        reason="${disposition#not-restored:}"
+        reason="${reason#"${reason%%[![:space:]]*}"}"
+        # The disposition ends at the FIRST `]`. That is the grammar, stated
+        # up front, and it is why a reason may not itself contain `]`.
+        #
+        # It cannot be an after-the-fact check, and trying was a mistake worth
+        # recording. `[not-restored: see note (ref] for detail)] TEXT` (a
+        # truncated reason) and `[not-restored: reason] some ] text` (a
+        # perfectly good row whose MARKER happens to contain a bracket) are
+        # byte-indistinguishable in shape. Any rule that rejects the first
+        # also rejects the second, and the second is legitimate -- the header
+        # above promises marker text may contain any character.
+        #
+        # So the grammar is documented rather than policed, and the safety net
+        # is the report: a `noted` line prints the recorded reason verbatim,
+        # so a reason truncated at a stray `]` is visible to the human reading
+        # the audit trail. Dispositioned rows are the rare, hand-reviewed
+        # case; that is the right place for a documented restriction.
+        marker="${rest#*\]}"
+        marker="${marker#"${marker%%[![:space:]]*}"}"
+      fi
+      [[ -n "$marker" ]] ||
+        die "marker row for $sha in $INCIDENTS_FILE records no marker text"
+
+      printf '%s%s%s%s%s%s%s\n' \
+        "$sha" "$SEP" "$path" "$SEP" "$reason" "$SEP" "$marker" >>"$markers_out"
+      ;;
+    *) die "unknown row kind '$kind' in $INCIDENTS_FILE" ;;
     esac
   done <"$INCIDENTS_FILE"
 }
@@ -1468,13 +1471,13 @@ marker_present() {
     mode="$(git ls-tree "$rev" -- "$path" 2>/dev/null)"
     mode="${mode%% *}"
     case "$mode" in
-      100644 | 100755) ;;
-      120000)
-        die "marker path '$path' is a symlink at $rev -- bind a marker to the file that holds the content"
-        ;;
-      *)
-        die "marker path '$path' is not a regular file at $rev (mode '${mode:-unreadable}') -- bind a marker to exactly one file"
-        ;;
+    100644 | 100755) ;;
+    120000)
+      die "marker path '$path' is a symlink at $rev -- bind a marker to the file that holds the content"
+      ;;
+    *)
+      die "marker path '$path' is not a regular file at $rev (mode '${mode:-unreadable}') -- bind a marker to exactly one file"
+      ;;
     esac
     content="$(git cat-file blob "${rev}:${path}" 2>/dev/null)" ||
       die "could not read '$path' at $rev"
@@ -1502,9 +1505,9 @@ marker_present() {
   grep -qF -e "$marker" <<<"$content"
   status=$?
   case "$status" in
-    0) return 0 ;;
-    1) return 1 ;;
-    *) die "grep failed (status $status) resolving a marker in $path at ${rev:-the working tree}" ;;
+  0) return 0 ;;
+  1) return 1 ;;
+  *) die "grep failed (status $status) resolving a marker in $path at ${rev:-the working tree}" ;;
   esac
 }
 
@@ -1627,34 +1630,34 @@ main() {
   [[ $# -ge 1 ]] || usage
 
   case "$1" in
-    --verify-known-incidents)
-      verify_known_incidents
-      exit $?
-      ;;
-    --verify-restoration)
-      # The rev is optional and defaults to the working tree, which is what the
-      # canary workflow wants (is the content on main RIGHT NOW) while the
-      # explicit form is what lets a reviewer replay the assertion against the
-      # historical tree an incident was measured on.
-      [[ $# -le 2 ]] || usage
-      verify_restoration "${2:-}"
-      exit $?
-      ;;
-    --commit)
-      [[ $# -eq 2 ]] || usage
-      scan_commit "$2"
-      exit $?
-      ;;
-    -h | --help) usage ;;
-    -*) usage ;;
-    # Anything else is a range, handled below.
-    *) ;;
+  --verify-known-incidents)
+    verify_known_incidents
+    exit $?
+    ;;
+  --verify-restoration)
+    # The rev is optional and defaults to the working tree, which is what the
+    # canary workflow wants (is the content on main RIGHT NOW) while the
+    # explicit form is what lets a reviewer replay the assertion against the
+    # historical tree an incident was measured on.
+    [[ $# -le 2 ]] || usage
+    verify_restoration "${2:-}"
+    exit $?
+    ;;
+  --commit)
+    [[ $# -eq 2 ]] || usage
+    scan_commit "$2"
+    exit $?
+    ;;
+  -h | --help) usage ;;
+  -*) usage ;;
+  # Anything else is a range, handled below.
+  *) ;;
   esac
 
   local range="$1"
   case "$range" in
-    *..*) ;;
-    *) die "expected a commit range like A..B, got '$range'" ;;
+  *..*) ;;
+  *) die "expected a commit range like A..B, got '$range'" ;;
   esac
 
   local commits

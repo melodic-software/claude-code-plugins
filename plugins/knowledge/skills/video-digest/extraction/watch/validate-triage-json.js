@@ -17,11 +17,11 @@ import { validateTriageManifestForSlice } from "../lib/watch-vision-validation.j
 export function runValidateTriageJson(sliceDir) {
   const result = validateTriageManifestForSlice(sliceDir, { requireIndexMatch: true });
   if (result.valid) {
-    writeStdout("triage manifest: valid\n");
+    writeStdout("triage manifest: valid");
     return 0;
   }
   for (const error of result.errors) {
-    writeStderr(`triage manifest: ${error}\n`);
+    writeStderr(`triage manifest: ${error}`);
   }
   return 1;
 }
@@ -29,7 +29,7 @@ export function runValidateTriageJson(sliceDir) {
 if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
-    writeStderr("Usage: node watch/validate-triage-json.js <slice-dir>\n");
+    writeStderr("Usage: node watch/validate-triage-json.js <slice-dir>");
     process.exit(2);
   }
   process.exitCode = runValidateTriageJson(sliceDir);

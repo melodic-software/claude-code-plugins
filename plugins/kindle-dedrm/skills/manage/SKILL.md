@@ -28,7 +28,7 @@ Output reports: Kindle for PC version, firewall rule presence, ICACLS deny prese
 | (empty) | Default. Auto-detect from status | If pristine → recommend `/kindle-dedrm:setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
 | `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
 | `sync` | New books purchased after initial setup | Disable firewall, prompt user to sync in Kindle, delete cached installer, re-enable firewall, re-run keyfinder |
-| `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `references/sources.md`, emit drift report. No mutations |
+| `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `reference/sources.md`, emit drift report. No mutations |
 | `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
 | `status` | Diagnostic | Same as default empty action |
 
@@ -48,10 +48,10 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 
 First-time provisioning lives in the dedicated **`/kindle-dedrm:setup`** skill, which conforms to the
 uniform check/apply contract: `check` probes prerequisites and current state read-only, `apply` runs the
-full provisioning walkthrough (`references/workflow.md`). The gated artifact download, install,
+full provisioning walkthrough (`reference/workflow.md`). The gated artifact download, install,
 firewall block, ICACLS lock, Calibre plugins, and keyfinder. When this router's smart auto-detect finds
 a pristine machine, recommend `/kindle-dedrm:setup` rather than provisioning inline; the sequence has a
-single owner (`/kindle-dedrm:setup` → `references/workflow.md`).
+single owner (`/kindle-dedrm:setup` → `reference/workflow.md`).
 
 ## Action: sync
 
@@ -76,7 +76,7 @@ If user reports a cached installer popped up during step 3, that's expected. Ama
 
 ## Action: update
 
-Drift check. No mutations. Diffs upstream sources against captured baselines in `references/sources.md` + `references/versions.md`.
+Drift check. No mutations. Diffs upstream sources against captured baselines in `reference/sources.md` + `reference/versions.md`.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/check-drift.sh"
@@ -86,12 +86,12 @@ Sources monitored:
 
 | Source | Drift signal | Captured baseline |
 |---|---|---|
-| `kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe` | HEAD request returns non-200 | URL pinned in `references/versions.md`; alternate mirror needed if revoked |
-| `github.com/Satsuoni/DeDRM_tools` releases | Newest pre-release tag differs from baseline | Last-known-good tag in `references/versions.md` |
-| `techy-notes.com/drm-removal-from-kindle-ebook-purchases-old-method/` article (subscriber-gated) | HEAD non-200 (article moved again) | Slug + status in `references/sources.md` |
-| `techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` | HEAD non-200 on the pinned direct URL (revoked / rolled) | Pinned direct URL in `references/versions.md` |
+| `kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe` | HEAD request returns non-200 | URL pinned in `reference/versions.md`; alternate mirror needed if revoked |
+| `github.com/Satsuoni/DeDRM_tools` releases | Newest pre-release tag differs from baseline | Last-known-good tag in `reference/versions.md` |
+| `techy-notes.com/drm-removal-from-kindle-ebook-purchases-old-method/` article (subscriber-gated) | HEAD non-200 (article moved again) | Slug + status in `reference/sources.md` |
+| `techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` | HEAD non-200 on the pinned direct URL (revoked / rolled) | Pinned direct URL in `reference/versions.md` |
 
-Two further sources are tracked in `references/sources.md` but have no automated probe: the epubor
+Two further sources are tracked in `reference/sources.md` but have no automated probe: the epubor
 companion article, and the supported-version list in Kindle_Key_Finder's `code/modules/utils.py`.
 Check those by hand when a drift report leaves a question open.
 
@@ -108,7 +108,7 @@ edit bundled files in the cache. Consumers then receive the re-pin through
 
 In a checkout, when the user accepts a drift recommendation:
 
-1. Apply the change to `references/versions.md` (update pin, refresh page summary). The
+1. Apply the change to `reference/versions.md` (update pin, refresh page summary). The
    single source of truth; `check-drift.sh` parses its pins from that file, so no second
    copy needs editing.
 2. Run the affected portion of `setup` (e.g., re-download DeDRM_tools if a new pre-release is selected).
@@ -157,19 +157,19 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 
 | Reference | Load when |
 |---|---|
-| `references/workflow.md` | Walking a user through `setup`: the exact command, rationale, and check per step. |
-| `references/sources.md` | Running `update`, or an upstream URL stopped resolving and you need its drift baseline. |
-| `references/versions.md` | Verifying a downloaded artifact's SHA256, or checking whether an installed Kindle version is still supported. |
-| `references/troubleshooting.md` | A setup, sync, or cleanup step failed and you need the diagnosis and recovery path. |
+| `reference/workflow.md` | Walking a user through `setup`: the exact command, rationale, and check per step. |
+| `reference/sources.md` | Running `update`, or an upstream URL stopped resolving and you need its drift baseline. |
+| `reference/versions.md` | Verifying a downloaded artifact's SHA256, or checking whether an installed Kindle version is still supported. |
+| `reference/troubleshooting.md` | A setup, sync, or cleanup step failed and you need the diagnosis and recovery path. |
 | `scripts/` | Running a helper named above; these are executed, not read. |
 
 ## Recheck triggers
 
 | Condition | Action |
 |---|---|
-| Amazon revokes Kindle for PC 2.8.0.70980 from S3 | Find alternate mirror; update `references/versions.md`; widen the supported version pin if a newer version still works with KFXKeyExtractor |
-| Satsuoni archives the DeDRM_tools repo | Find current maintained fork; update repo URL in `references/sources.md` |
-| techy-notes.com tutorial 404s or moves | Pivot to epubor.com tutorial (secondary); update `references/sources.md` |
-| Kindle for PC ships a version > 2.9.1 not in `KFXARCHIVER_TOOL_MAP` | Wait for KFXArchiver update; document in `references/troubleshooting.md` |
-| Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `references/workflow.md` |
+| Amazon revokes Kindle for PC 2.8.0.70980 from S3 | Find alternate mirror; update `reference/versions.md`; widen the supported version pin if a newer version still works with KFXKeyExtractor |
+| Satsuoni archives the DeDRM_tools repo | Find current maintained fork; update repo URL in `reference/sources.md` |
+| techy-notes.com tutorial 404s or moves | Pivot to epubor.com tutorial (secondary); update `reference/sources.md` |
+| Kindle for PC ships a version > 2.9.1 not in `KFXARCHIVER_TOOL_MAP` | Wait for KFXArchiver update; document in `reference/troubleshooting.md` |
+| Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
 | User reports a sync that left a 2.9.x cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |

@@ -9,18 +9,24 @@ const BOT_ERROR = "ERROR: Sign in to confirm you're not a bot";
 /** The production derivation of a fallback-capable source's classification. */
 const FALLBACK_SOURCE = adapterSourceDeclarations(youtubeAdapter);
 
+/**
+ * @param {string} stderr
+ * @returns {import('@melodic/video-digestion/shared/process').SpawnResult}
+ */
+const failedSpawn = (stderr) => ({
+  success: false,
+  code: 1,
+  signal: null,
+  stdout: "",
+  stderr,
+  timedOut: false,
+});
+
 describe("spawnYtDlpWithAuthFallback", () => {
   it("retries with browser cookies after login-required classification", async () => {
     const spawn = vi
       .fn()
-      .mockResolvedValueOnce({
-        success: false,
-        code: 1,
-        signal: null,
-        stdout: "",
-        stderr: BOT_ERROR,
-        timedOut: false,
-      })
+      .mockResolvedValueOnce(failedSpawn(BOT_ERROR))
       .mockResolvedValueOnce({
         success: true,
         code: 0,
@@ -49,14 +55,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
   });
 
   it("never iterates browser profiles when the source lacks the capability", async () => {
-    const spawn = vi.fn().mockResolvedValue({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: BOT_ERROR,
-      timedOut: false,
-    });
+    const spawn = vi.fn().mockResolvedValue(failedSpawn(BOT_ERROR));
 
     const buildArgs = () => ["https://example.com"];
 
@@ -73,14 +72,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
   });
 
   it("does not retry cookies when explicit env is configured", async () => {
-    const spawn = vi.fn().mockResolvedValue({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: BOT_ERROR,
-      timedOut: false,
-    });
+    const spawn = vi.fn().mockResolvedValue(failedSpawn(BOT_ERROR));
 
     const buildArgs = () => ["--cookies-from-browser", "chrome", "https://example.com"];
 
@@ -93,14 +85,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
   });
 
   it("returns non-bot failures without cookie fallback", async () => {
-    const spawn = vi.fn().mockResolvedValue({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: "video unavailable",
-      timedOut: false,
-    });
+    const spawn = vi.fn().mockResolvedValue(failedSpawn("video unavailable"));
 
     const buildArgs = () => ["https://example.com"];
 

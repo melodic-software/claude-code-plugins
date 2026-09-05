@@ -92,7 +92,15 @@ enforces nothing. The launcher resolves Python itself instead (#1504).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
-switch and data-root authority; and the skill-scoped **belt** inside the `clean` skill's context,
+switch and data-root authority (since **0.21.4** the gate is registered once per tool: the `Bash`
+entry carries the `if` filter `Bash(*hygiene.py*)`, a superset of the gate's own relevance check,
+so a Bash command that does not name the engine no longer spawns the Python interpreter to be
+deferred, except that a command containing `$()`, a backtick or `$VAR` still spawns it, because
+the filter cannot see what the substitution expands to; the `PowerShell` entry carries no `if`,
+because an `if` filter is scoped to the tool it names, so a Bash filter would leave every
+PowerShell call unguarded, and a PowerShell filter must match every subcommand of a compound
+command, which would skip this kill-switch guard silently on a mixed line, so every PowerShell
+call still pays the interpreter start); and the skill-scoped **belt** inside the `clean` skill's context,
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only
@@ -106,7 +114,7 @@ that issue. PreToolUse hooks also fire inside subagents, so fanned-out workers r
 guards.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
-(`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
+(`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
 independent of the engine-gate guard itself) scans the session transcript for
 `hook_non_blocking_error` records naming the engine gate's own command string and warns once per
 session with the failure count and the most recent failure's exit code, duration, and stderr, so a
@@ -370,18 +378,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

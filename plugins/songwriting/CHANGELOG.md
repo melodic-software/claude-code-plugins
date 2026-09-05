@@ -32,6 +32,25 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   CHANGELOG already carries.
 
 Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [1.4.22]
+
+### Changed
+
+- **`pat-pattison/scripts/datamuse.sh`: one comment rewritten present-tense, and
+  the whole file reflowed by the `bash-format` hook.** The file was not
+  shfmt-clean before the edit (a 68-line diff), so the hook normalised it on
+  save. The reflow is hook output, not a hand edit, and it leaves the live API
+  contract untouched: verified four ways, including bash's own parse-tree
+  re-serialiser (78 lines, identical) and a 36-case harness with argv-capturing
+  `curl` and `jq` shims driving adversarial words (`&`, `?`, `=`, quotes, `$`,
+  `*`, `;`, backticks, percent escapes, unicode, leading dashes, spaces) with zero
+  divergence in exit code, output, or the argv multiset.
+
+### Known issues
+
+- **One mutation survives the suite**: raising the result cap in the `syllables`
+  arm from 5 to 50 produces no failure. Pre-existing, and it sits in the same arm
+  the reflow touched, so it is worth a case.
 
 ## [1.4.21]
 

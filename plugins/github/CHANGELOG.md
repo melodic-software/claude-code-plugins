@@ -11,6 +11,25 @@ All notable changes to the `github` plugin are documented here. Format follows
   dated verification record with a recheck trigger.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.3.13]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+  This plugin cites the in-repo path rather than the published URL, because the
+  agnosticism sweep forbids the publisher org name in shipped markdown.
+
+## [0.3.12]
+
+### Changed
+
+- **setup `check` reports PASS/FAIL/INFO.** The per-layer table used
+  exists/absent and "hard finding" instead of the setup-contract verdict
+  vocabulary. Rows are now PASS/FAIL/INFO with a remediation line per FAIL
+  (team: unignore or commit; overlay: `git rm --cached` plus rotate, or
+  recommend the gitignore line when present but unignored). All-layers-absent
+  is INFO, not FAIL. `user-invocable: true` was already explicit in 0.3.10.
 
 ## [0.3.11]
 

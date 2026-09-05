@@ -42,6 +42,19 @@ ok() {
   PASS=$((PASS + 1))
 }
 
+# Print the tally and exit on the suite's verdict, for the prerequisite skips
+# below: a run that stops early still reports the assertions it DID make and
+# still fails if any of them failed. The final report at the bottom keeps the
+# inline form on purpose. Ending the script with a call to a function that exits
+# costs ShellCheck the control-flow edge into the EXIT trap, and it then reports
+# `cleanup` as never invoked (SC2329).
+report_and_exit() {
+  echo
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+  exit $?
+}
+
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
@@ -339,17 +352,11 @@ if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceilin
 # ============================================================================
 if ! command -v pwsh >/dev/null 2>&1; then
   echo "SKIP: no pwsh on PATH -- powershell-format behavioral tests skipped"
-  echo
-  echo "PASS=$PASS FAIL=$FAIL"
-  [[ $FAIL -eq 0 ]]
-  exit $?
+  report_and_exit
 fi
 if ! pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { exit 0 } else { exit 1 }' >/dev/null 2>&1; then
   echo "SKIP: PSScriptAnalyzer module not installed -- powershell-format behavioral tests skipped"
-  echo
-  echo "PASS=$PASS FAIL=$FAIL"
-  [[ $FAIL -eq 0 ]]
-  exit $?
+  report_and_exit
 fi
 
 # --- Case 1: opt-in gate OFF (no settings) -> file left untouched -------------

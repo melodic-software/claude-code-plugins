@@ -24,18 +24,22 @@ fail() {
   printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
-skip_case() { printf 'SKIP: %s\n' "$1" >&2; }
 assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_exit() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi; }
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
-assert_file_exists() { if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "file exists: $2" "absent"; fi; }
 
-# --- Fixture: hook-events.jsonl ---
-HOOK_LOG="$TEST_TMPDIR/hook-events.jsonl"
+# --- Fixture: a hook log root ---
+# The shared file (legacy rows, `event` key) plus one per-session file whose
+# envelope rows carry `hook_event_name` and `source: "envelope"`. Every
+# whole-root query reads both through the HOOK_NORM prelude in data-sources.md.
+HOOK_ROOT="$TEST_TMPDIR/root"
+mkdir -p "$HOOK_ROOT/sessions"
+HOOK_LOG="$HOOK_ROOT/hook-events.jsonl"
+SESSION_LOG="$HOOK_ROOT/sessions/s-a.jsonl"
 SINCE_ISO="2026-01-01T00:00:00Z"
+HOOK_NORM='map(. + {event: (.event // .hook_event_name)})'
 
-# Append a single event to $HOOK_LOG. Schema mirrors observability/conventions.md fields;
+# Append a single legacy event to the shared file. Schema mirrors observability/conventions.md fields;
 # session_id/branch/cwd are constant across the fixture (no test asserts on them).
 # Args: <ts> <hook> <tool> <duration_ms> <exit_code> <subject> <status>
 emit_event() {
@@ -48,6 +52,28 @@ emit_event() {
       subject:$subject, status:$status,
       session_id:"s1", branch:"main", cwd:"/repo"}' \
     >>"$HOOK_LOG"
+}
+# Append one per-session envelope row (the reference sink's per-session shape).
+# Args: <ts> <hook> <event> <duration_ms> <exit_code> <subject> <status>
+emit_session_event() {
+  jq -nc \
+    --arg ts "$1" --arg hook "$2" --arg ev "$3" \
+    --argjson duration_ms "$4" --argjson exit_code "$5" \
+    --arg subject "$6" --arg status "$7" \
+    '{ts:$ts, session_id:"s-a", hook_event_name:$ev, status:$status,
+      duration_ms:$duration_ms, source:"envelope", hook:$hook,
+      exit_code:$exit_code, subject:$subject, tool:"Write"}' \
+    >>"$SESSION_LOG"
+}
+# Append one per-session event-log row (session-event-log.sh's shape). No hook.
+# Args: <ts> <event> <category> [tool_name] [file_path]
+emit_log_row() {
+  jq -nc --arg ts "$1" --arg ev "$2" --arg cat "$3" --arg tool "${4:-}" --arg file "${5:-}" \
+    '{ts:$ts, session_id:"s-a", hook_event_name:$ev, category:$cat, status:"ok",
+      source:"event-log", duration_ms:1, prompt_id:"p-1"}
+     + (if $tool == "" then {} else {tool_name:$tool} end)
+     + (if $file == "" then {} else {file_path:$file} end)' \
+    >>"$SESSION_LOG"
 }
 
 # Count lines in a JSONL fixture, stripping spaces and Git Bash CR.
@@ -71,9 +97,24 @@ emit_event "2026-04-29T11:05:00.000Z" sarif-diagnostics Edit 1200 2 b.cs error
 # Out-of-window event (should be filtered)
 emit_event "2025-01-01T00:00:00.000Z" old-hook Write 100 0 old.sh success
 
-# --- Test 1: latency p50/p95 per (hook,event) ---
-LAT_OUT=$(jq -s --arg since "$SINCE_ISO" '
-  map(select(.ts >= $since))
+# Per-session file: two more bash-format fires, one blocked guard, and event-log
+# rows (which carry no hook and must never count as a hook fire).
+emit_session_event "2026-04-29T12:01:00.000Z" bash-format PostToolUse 130 0 s.sh success
+emit_session_event "2026-04-29T12:02:00.000Z" bash-format PostToolUse 140 0 t.sh success
+emit_session_event "2026-04-29T12:03:00.000Z" block-dangerous-git PreToolUse 7 2 "Bash:git push --force" blocked
+emit_log_row "2026-04-29T12:00:59.000Z" PreToolUse tool Write s.sh
+emit_log_row "2026-04-29T12:01:00.500Z" PostToolUse tool Write s.sh
+emit_log_row "2026-04-29T12:05:00.000Z" Stop turn
+
+# The whole-root file set, as data-sources.md builds it.
+shopt -s nullglob
+HOOK_FILES=("$HOOK_ROOT"/sessions/*.jsonl)
+shopt -u nullglob
+[[ -f "$HOOK_LOG" ]] && HOOK_FILES+=("$HOOK_LOG")
+assert_eq "file set: one session file plus the shared file" "2" "${#HOOK_FILES[@]}"
+
+# --- Test 1: latency p50/p95 per (hook,event) across the root ---
+LAT_OUT=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
   | group_by(.hook + "|" + .event)
   | map({
       key: (.[0].hook + " " + .[0].event),
@@ -81,38 +122,74 @@ LAT_OUT=$(jq -s --arg since "$SINCE_ISO" '
       p50: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
       p95: (sort_by(.duration_ms) | .[(length*0.95)|floor].duration_ms),
       max: (max_by(.duration_ms).duration_ms)
-    })' "$HOOK_LOG")
+    })' "${HOOK_FILES[@]}")
 
 assert_contains "bash-format key present" "$LAT_OUT" "bash-format PostToolUse"
 assert_contains "sarif-diagnostics key present" "$LAT_OUT" "sarif-diagnostics PostToolUse"
+assert_contains "a per-session envelope row keys on hook_event_name" "$LAT_OUT" "block-dangerous-git PreToolUse"
 
 bash_format_n=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostToolUse") | .n')
-assert_eq "bash-format count = 12" "12" "$bash_format_n"
+assert_eq "bash-format count = 14 (12 shared + 2 per-session)" "14" "$bash_format_n"
 
 bash_format_max=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostToolUse") | .max')
 assert_eq "bash-format max = 6000" "6000" "$bash_format_max"
 
 # --- Test 2: error rate per hook ---
-ERR_OUT=$(jq -s --arg since "$SINCE_ISO" '
-  map(select(.ts >= $since))
+ERR_OUT=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
   | group_by(.hook)
   | map({
       hook: .[0].hook,
       n: length,
       errors: (map(select(.exit_code != 0)) | length)
     })
-  | map(select(.errors > 0))' "$HOOK_LOG")
+  | map(select(.errors > 0))' "${HOOK_FILES[@]}")
 
 assert_contains "sarif-diagnostics has errors" "$ERR_OUT" "sarif-diagnostics"
 sarif_err=$(echo "$ERR_OUT" | jq -r '.[] | select(.hook=="sarif-diagnostics") | .errors')
 assert_eq "sarif error count = 1" "1" "$sarif_err"
+assert_contains "a blocked per-session row counts as an error" "$ERR_OUT" "block-dangerous-git"
 
-# --- Test 3: window filter excludes 2025 event ---
-filtered_count=$(jq -s --arg since "$SINCE_ISO" \
-  'map(select(.ts >= $since)) | length' "$HOOK_LOG")
-assert_eq "window filter applied" "17" "$filtered_count" # 12 + 5 (excludes old-hook)
+# --- Test 3: window filter excludes 2025 event; event-log rows never count as hooks ---
+filtered_count=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null)) | length' "${HOOK_FILES[@]}")
+assert_eq "window filter applied" "20" "$filtered_count" # 12 + 5 + 3 (excludes old-hook and the 3 event-log rows)
 
 assert_not_contains "out-of-window event excluded" "$LAT_OUT" "old-hook"
+
+# --- Test 3.5: the per-session report (data-sources.md §2.5) ---
+SESSION_FILES=("$SESSION_LOG")
+FIRED=$(jq -s "$HOOK_NORM"' | map(select(.source == "envelope"))
+  | group_by(.hook)
+  | map({hook: .[0].hook, n: length,
+         events: (map(.event) | unique),
+         errors: (map(select(.exit_code != 0)) | length),
+         p50_ms: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
+         max_ms: (max_by(.duration_ms).duration_ms)})
+  | sort_by(-.n)' "${SESSION_FILES[0]}")
+assert_eq "per-session: two hooks fired" "2" "$(echo "$FIRED" | jq 'length')"
+assert_eq "per-session: bash-format fired twice" "2" "$(echo "$FIRED" | jq -r '.[] | select(.hook=="bash-format") | .n')"
+assert_eq "per-session: event-log rows are not hook fires" "0" "$(echo "$FIRED" | jq '[.[] | select(.hook == null)] | length')"
+
+BLOCKED=$(jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked") | {ts, hook, event, subject}' "${SESSION_FILES[0]}")
+assert_eq "per-session: one blocked row" "1" "$(printf '%s\n' "$BLOCKED" | grep -c .)"
+assert_contains "per-session: blocked row names the hook" "$BLOCKED" "block-dangerous-git"
+
+REWROTE=$(jq -sc "$HOOK_NORM"' | .[] | select(.changed == true) | {ts, hook, subject}' "${SESSION_FILES[0]}")
+assert_eq "per-session: rewrote is empty until a producer emits changed" "" "$REWROTE"
+
+TIMELINE=$(jq -sr '.[] | select(.source == "event-log")
+  | [.ts, .hook_event_name, .category, (.tool_name // ""), (.file_path // ""), (.agent_id // "")]
+  | @tsv' "${SESSION_FILES[0]}")
+assert_eq "per-session: timeline has the three event-log rows" "3" "$(printf '%s\n' "$TIMELINE" | grep -c .)"
+assert_contains "per-session: timeline carries the tool and file" "$TIMELINE" "PreToolUse	tool	Write	s.sh"
+
+# session:<id> names one file; `session` is the newest by mtime.
+sleep 1
+printf '%s\n' '{"ts":"2026-04-30T00:00:00Z","session_id":"s-b","hook_event_name":"Stop","category":"turn","status":"ok","source":"event-log","duration_ms":1}' >"$HOOK_ROOT/sessions/s-b.jsonl"
+SCOPE="session:s-a"
+assert_eq "session:<id> resolves the named file" "$SESSION_LOG" "$HOOK_ROOT/sessions/${SCOPE#session:}.jsonl"
+# shellcheck disable=SC2012  # mtime order is the documented resolution; names are hook-validated ids
+NEWEST="$(ls -t "$HOOK_ROOT"/sessions/*.jsonl 2>/dev/null | head -n 1)"
+assert_eq "session resolves the newest file by mtime" "$HOOK_ROOT/sessions/s-b.jsonl" "$NEWEST"
 
 # --- Test 4: redaction — token-shaped strings ---
 redact() {
@@ -290,6 +367,58 @@ assert_contains "clean wires OTEL prune (dry-run report)" "$otel_out" "cc-logs.j
 otel_after=$(lines_in "$otel_logs")
 assert_eq "clean --dry-run leaves OTEL store unchanged" "$otel_before" "$otel_after"
 
+# --- Test 9h: the hook log root — session files, stale prune sets, the new shared file ---
+NEW_ROOT="$clean_test_dir/.observability/claude"
+mkdir -p "$NEW_ROOT/sessions" "$NEW_ROOT/prune-pending/1000-old" "$NEW_ROOT/prune-pending/2000-fresh"
+printf '*\n' >"$NEW_ROOT/.gitignore"
+printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$OLD_45" >"$NEW_ROOT/hook-events.jsonl"
+printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$TODAY" >>"$NEW_ROOT/hook-events.jsonl"
+printf '{"a":1}\n' >"$NEW_ROOT/sessions/stale.jsonl"
+printf '{"a":1}\n' >"$NEW_ROOT/sessions/live.jsonl"
+touch -t 202601010000 "$NEW_ROOT/sessions/stale.jsonl" "$NEW_ROOT/prune-pending/1000-old"
+
+root_dry=$(cd "$clean_test_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --dry-run 2>&1)
+assert_contains "clean --dry-run names the hook log root" "$root_dry" "hook log root $NEW_ROOT"
+assert_contains "clean --dry-run counts stale session files" "$root_dry" "sessions/: 1 file(s) untouched for 30 days → would remove"
+assert_contains "clean --dry-run counts stale prune sets" "$root_dry" "prune-pending/: 1 set(s) older than 24 h → would sweep"
+if [[ -f "$NEW_ROOT/sessions/stale.jsonl" ]]; then
+  pass "clean --dry-run leaves the stale session file"
+else
+  fail "clean --dry-run leaves the stale session file" "present" "removed"
+fi
+
+(cd "$clean_test_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --quiet) >/dev/null 2>&1
+if [[ ! -e "$NEW_ROOT/sessions/stale.jsonl" && -e "$NEW_ROOT/sessions/live.jsonl" ]]; then
+  pass "clean removes the stale session file and keeps the live one"
+else
+  fail "clean removes the stale session file and keeps the live one" "stale gone, live kept" "$(ls "$NEW_ROOT/sessions")"
+fi
+if [[ ! -e "$NEW_ROOT/prune-pending/1000-old" && -e "$NEW_ROOT/prune-pending/2000-fresh" ]]; then
+  pass "clean sweeps the prune set older than 24 h and keeps the fresh one"
+else
+  fail "clean sweeps the prune set older than 24 h and keeps the fresh one" "old swept, fresh kept" "$(ls "$NEW_ROOT/prune-pending")"
+fi
+assert_eq "clean prunes the root's shared file line by line" "1" "$(lines_in "$NEW_ROOT/hook-events.jsonl")"
+assert_eq "clean leaves the root's guard alone" "*" "$(head -1 "$NEW_ROOT/.gitignore")"
+
+# --hook-root moves the root; an uncontained value is refused.
+ALT_ROOT="$clean_test_dir/telemetry/hooks"
+mkdir -p "$ALT_ROOT/sessions"
+printf '{"a":1}\n' >"$ALT_ROOT/sessions/old.jsonl"
+touch -t 202601010000 "$ALT_ROOT/sessions/old.jsonl"
+(cd "$clean_test_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --hook-root telemetry/hooks --quiet) >/dev/null 2>&1
+if [[ ! -e "$ALT_ROOT/sessions/old.jsonl" ]]; then
+  pass "clean --hook-root prunes the moved root"
+else
+  fail "clean --hook-root prunes the moved root" "old.jsonl removed" "present"
+fi
+rc=0
+(cd "$clean_test_dir" && bash "$CLEAN" --hook-root ../outside --quiet) >/dev/null 2>&1 || rc=$?
+assert_eq "clean refuses an uncontained --hook-root (exit 2)" "2" "$rc"
+rc=0
+(cd "$clean_test_dir" && bash "$CLEAN" --hook-root . --quiet) >/dev/null 2>&1 || rc=$?
+assert_eq "clean refuses a root-equivalent --hook-root (exit 2)" "2" "$rc"
+
 # --- Test 10: failed-then-fixed sequence detection (data-sources.md query) ---
 retry_log="$TEST_TMPDIR/retry-events.jsonl"
 printf '%s\n' \
@@ -298,8 +427,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T10:01:00Z","hook":"biome","exit_code":0}' \
   '{"ts":"2026-01-01T10:02:00Z","hook":"bash-format","exit_code":1}' \
   '{"ts":"2026-01-01T10:02:05Z","hook":"bash-format","exit_code":0}' >"$retry_log"
-retry_out=$(jq -s '
-  sort_by(.ts) as $e
+retry_out=$(jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
   | [range(1; $e | length)
      | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
      | $e[. - 1].hook]

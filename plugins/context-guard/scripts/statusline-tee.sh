@@ -234,9 +234,8 @@ tee_snapshot() {
   guard_ceiling=$(date -u -d '+5 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
     date -u -v '+5M' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || guard_ceiling=""
 
-  local _try existing_ts
-  # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
-  for _try in 1 2 3; do
+  local existing_ts
+  for _ in 1 2 3; do
     # Never regress the snapshot: an overlapping same-session refresh may
     # have landed a NEWER captured_at while this process was still building
     # its payload (ISO-8601 UTC compares lexically). Re-checked on every

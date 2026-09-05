@@ -371,6 +371,32 @@ case_json() {
   jq -c --arg n "$1" '.evals[] | select(.name == $n)' "$EVALS"
 }
 
+# case_present <arm> <case name> <case json>
+# The case must still be addressable by the name this suite grades it under: a rename
+# resolves the lookup to nothing, and every assertion guarded on it goes vacuously quiet.
+case_present() {
+  local arm="$1" name="$2" json="$3"
+  if [[ -n "$json" ]]; then
+    ok "case $arm present in evals.json: $name"
+  else
+    fail "case $arm missing from evals.json: expected an eval case named $name"
+  fi
+}
+
+# declares_both_fixtures <arm> <case json>
+# The case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
+# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
+declares_both_fixtures() {
+  local arm="$1" json="$2" declared
+  [[ -n "$json" ]] || return 0
+  declared="$(printf '%s' "$json" | jq -r '(.files // []) | length')"
+  if [[ "$declared" -eq 2 ]]; then
+    ok "case $arm declares both fixtures in files[]"
+  else
+    fail "case $arm declares $declared fixture(s) in files[]; expected 2"
+  fi
+}
+
 # graded_mention <label> <case json> <literal substring>
 # The case must still GRADE the thing it was written to grade, and grade it as a CHECKABLE
 # item: the phrase must appear in the `expectations` ARRAY, not merely in the
@@ -395,17 +421,8 @@ CASE_B_NAME="auto-residue-asked-or-user-reserved-never-assumed"
 CASE_A="$(case_json "$CASE_A_NAME")"
 CASE_B="$(case_json "$CASE_B_NAME")"
 
-for pair in "A:$CASE_A_NAME:$CASE_A" "B:$CASE_B_NAME:$CASE_B"; do
-  arm="${pair%%:*}"
-  rest="${pair#*:}"
-  name="${rest%%:*}"
-  json="${rest#*:}"
-  if [[ -n "$json" ]]; then
-    ok "case $arm present in evals.json: $name"
-  else
-    fail "case $arm missing from evals.json: expected an eval case named $name"
-  fi
-done
+case_present A "$CASE_A_NAME" "$CASE_A"
+case_present B "$CASE_B_NAME" "$CASE_B"
 
 # Fixture reachability: a planted-decision case whose plant is gone grades nothing.
 for fx in \
@@ -420,24 +437,8 @@ for fx in \
   fi
 done
 
-# Each case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
-# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
-if [[ -n "$CASE_A" ]]; then
-  declared="$(printf '%s' "$CASE_A" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case A declares both fixtures in files[]"
-  else
-    fail "case A declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
-if [[ -n "$CASE_B" ]]; then
-  declared="$(printf '%s' "$CASE_B" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case B declares both fixtures in files[]"
-  else
-    fail "case B declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
+declares_both_fixtures A "$CASE_A"
+declares_both_fixtures B "$CASE_B"
 
 # --- whole-section and whole-case digests (the outermost layer) ------------
 #
@@ -473,7 +474,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "17f65200af09042baf8b9d72fc7a1d705e15c67598bcb737347fa432bcf4156b"
+  "cab0c89255cdd2a360d00fbcbd2fb6a5ed939b655667f9b6aaef552f2f2eb8c6"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -760,7 +761,7 @@ pin_exact "loop.md's auto-guard line is byte-identical to the pinned defense" "$
   '**Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user'"'"'s (real tradeoffs, no codebase answer) is never synthesized silently — ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".'
 pin_exact "loop.md's unattended ladder rung 3 is byte-identical to the pinned defense" "$LOOP" \
   '3. **A decision that is genuinely the user'"'"'s** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief'"'"'s `### Deferred questions` led by its `Q<N>` id and tagged **arbiter: USER-RESERVED**, and name it as a blocker in the run'"'"'s output.'
-pin_exact "loop.md's unattended ladder rungs 4-5 are byte-identical to the pinned defense" "$LOOP" \
+pin_exact "loop.md's unattended ladder rung 4 is byte-identical to the pinned defense" "$LOOP" \
   '4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.'
 pin_exact "loop.md's unattended confirmation rung is byte-identical to the pinned defense" "$LOOP" \
   '5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.'

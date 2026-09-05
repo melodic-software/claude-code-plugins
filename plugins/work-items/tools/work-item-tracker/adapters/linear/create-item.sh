@@ -175,8 +175,8 @@ if [[ -n "$LABELS" ]]; then
       break
     fi
   done
-  MISSING="$(jq -rc --arg names "$LABELS" --argjson all "$ALL_LABELS" \
-    '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]' <<<'null')"
+  MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
+    '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
     # The ceiling changes what "not found" is allowed to mean. Stopping early makes an unseen
     # label indistinguishable from a nonexistent one, and telling someone to create a label
@@ -192,8 +192,8 @@ if [[ -n "$LABELS" ]]; then
     exit "$EX_NOT_FOUND"
   fi
   # first(...) — a name present both team-scoped and workspace-level resolves to one id, not two.
-  LABEL_IDS="$(jq -c --arg names "$LABELS" --argjson all "$ALL_LABELS" \
-    '[($names | split(",") | .[] | select(length > 0)) as $n | (first($all[] | select(.name == $n)) | .id)]' <<<'null')"
+  LABEL_IDS="$(jq -cn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
+    '[($names | split(",") | .[] | select(length > 0)) as $n | (first($all[] | select(.name == $n)) | .id)]')"
 fi
 
 # --type is accepted and cannot be honored: Linear has no issue-type axis in the

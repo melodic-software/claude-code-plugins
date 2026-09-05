@@ -29,6 +29,67 @@
   session refuses a git-bearing compound command, which blocked these skills from loading inside a
   worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
   they were. setup tests for the team config under the literal root the previous call returned.
+## [0.5.4]
+
+### Changed
+
+- **`fingerprint.mjs`: `shingleAt`'s doc block now states why one spelling has to serve both
+  readers.** The set `shingles()` builds is exactly what `matchedSpans()` looks a local shingle
+  up in, so any divergence between the two constructions would move containment and the reported
+  spans together and silently. The parameter is renamed `i` to match both call sites. Comment and
+  parameter name only: fingerprint output is byte-identical, verified across both call sites and
+  over a 400-file corpus at eight window sizes.
+- **`list-corpus.sh`: `cfg_array` drops a single-use binding**, assigning the layer's joined
+  value straight to `out`. Last-writer-wins across config layers is unchanged, and so is the
+  `!= null` test that separates "key defined as empty" from "key absent".
+- Note for maintainers: no test pins the fingerprint algorithm. Changing the shingle join
+  separator or the window bound leaves the suite 40 of 40 green while altering every fingerprint
+  this plugin has ever emitted. A frozen input-to-fingerprint assertion would be worth adding.
+
+## [0.5.3]
+
+### Fixed
+
+- **`emit-findings.test.sh` counted a host skip as a pass.** One case routed a
+  skip through `pass()`, contradicting the rule stated thirty lines above it in
+  the same file: a skip never routes through `pass()`, so a proof the host could
+  not run can never be read off the summary as one that did. The suite's honest
+  count on a host where `chmod a-w` does not bite is 384 passes and 1 skip, not
+  385 passes. The real assertion still runs wherever the subject can be built.
+- **`score-golden.sh` no longer scores an uncovered case as covered.** A
+  simplification during this sweep replaced an iterating membership test with
+  jq's `index`, which does SUBSTRING search when handed a string. Since
+  `cases_run` comes from a model-authored sidecar validated only as parseable
+  JSON, a string there is reachable: with `"cases_run": "c1-long"`, the script
+  scored case `c1` as covered and exited 0, where it had previously aborted with
+  a type error. Now uses `any(. == $id)`, which reads as well and still refuses
+  to guess. Caught by the group's refutation verifier before landing.
+
+### Changed
+
+- **Audit-script tidyings.** `fingerprint.mjs` extracts two expressions each
+  duplicated across two functions and drops a guard the surviving union check
+  already covers, returning literal 0 for two empty sets rather than NaN;
+  `extract-breadcrumbs.sh` drops a write-only awk global, safe because both forms
+  read the match position at the identical program point; a helper defined but
+  never called is removed; and sixteen history-narration comments become
+  present-tense hazard statements, keeping every measurement and the point that
+  agreement between two copies of one rule is blind to a defect they share.
+
+## [0.5.2]
+
+### Changed
+
+- **`audit`: the two absolute-path cases report a host skip instead of failing on a third root
+  spelling.** `emit-findings.sh` relativizes Location against two spellings of the repository root,
+  git's toplevel and `cd`-then-`pwd` of it. On a Git Bash host `mktemp -d` answers a third, a mount
+  alias git never reports, so the fixture's finding path matches neither anchor and the row is
+  declined as outside the root. That is the producer working as designed on a path it was never
+  handed, not a defect the cases can prove anything about.
+
+  The suite now probes for that third spelling directly: where either anchor names the fixture
+  root, the case runs; where neither does, it prints a visible `SKIP (host: ...)` line counted
+  apart from the pass total. The producer is unchanged.
 
 ## [0.5.1]
 

@@ -14,6 +14,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - auditor agent: dropped the hardcoded formatter count, stated the two-field citation rule once instead of four times, and lowered all-caps emphasis.
 - setup: removed the doctrine-pilot aside and the retirement-manifest justification, and restated the retired-layer and dual-read sentences without "no longer" or "still".
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.7.8]
+
+### Changed
+
+- **`packet-seal.sh`: the seal loop's parallel counter removed.** `count` tracked exactly the
+  number of entries the loop wrote, so the reported total now reads `${#files[@]}` directly.
+  Output is identical because every arm of that loop that does not print a manifest line exits
+  non-zero, so reaching the summary means each enumerated entry was written. No output or exit
+  code changed.
+
+## [0.7.7]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546).
 
 ## [0.7.6]
 

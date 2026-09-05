@@ -9,7 +9,7 @@
 #
 # Exit: 0 success (including dry-run / confirmation-stop); 2 usage/plan error; 3 apply aborted
 # by confirmation gate; 4 one or more mutations failed after the gate.
-# shellcheck disable=SC2310 # git_probe and status predicates return status in if/||/!; every false path is handled
+# shellcheck disable=SC2310 # git_probe, git_mutate and status predicates return status in if/||/!; every false path is handled
 set -euo pipefail
 
 PROG=${0##*/}
@@ -251,7 +251,7 @@ UNITS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] || continue
   UNITS+=("$line")
-done < <(printf '%s\n' "$PLAN_TSV")
+done <<<"$PLAN_TSV"
 
 is_tty_stdin() {
   [[ -t 0 ]]
@@ -261,6 +261,14 @@ git_probe() {
   # Read-only git with lazy-fetch and optional locks disabled.
   GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_LAZY_FETCH=1 \
     git -c protocol.file.allow=always "$@"
+}
+
+git_mutate() {
+  # The mutating counterpart to git_probe. It shares the prompt and optional-lock
+  # suppression but deliberately not the probe's GIT_NO_LAZY_FETCH or
+  # protocol.file.allow: those exist to keep a read-only probe from reaching the
+  # network or a file remote, and a delete/prune has no business doing either.
+  GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git "$@"
 }
 
 default_branch_of() {
@@ -523,7 +531,7 @@ refresh_worktree_cleanup() {
       append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
         delete-branch "worktree already gone; branch tip still matches plan OID" ""
     else
-      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "${tip}" \
+      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
         skip "worktree already absent; branch tip missing or drifted" ""
     fi
     return 0
@@ -565,7 +573,7 @@ refresh_worktree_cleanup() {
 for line in "${UNITS[@]:-}"; do
   [[ -n "${line:-}" ]] || continue
   phase="" op="" canonical="" ref="" expected="" kind="" target=""
-  IFS=$'\037' read -r phase op canonical ref expected kind target _ < <(printf '%s\n' "$line")
+  IFS=$'\037' read -r phase op canonical ref expected kind target _ <<<"$line"
   case "$op" in
   delete-merged-local-branches)
     refresh_branch_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"
@@ -667,7 +675,7 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
     ;;
   prune-worktrees)
     # Re-check nothing OID-sensitive; prune is metadata-only.
-    if GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C "$canonical" worktree prune; then
+    if git_mutate -C "$canonical" worktree prune; then
       printf 'APPLIED: worktree prune in %s\n' "$canonical"
       applied=$((applied + 1))
     else
@@ -690,7 +698,7 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       printf 'SKIP: %s (became worktree-attached before delete)\n' "$ref"
       continue
     fi
-    if GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C "$canonical" branch -D "$ref"; then
+    if git_mutate -C "$canonical" branch -D "$ref"; then
       printf 'APPLIED: deleted branch %s in %s (was %s)\n' "$ref" "$canonical" "$tip"
       applied=$((applied + 1))
     else
@@ -703,7 +711,7 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       # Fall back to branch-only if worktree vanished but tip still matches.
       tip="$(branch_tip "$canonical" "$ref")"
       if [[ -n "$tip" ]] && oids_match "$expected" "$tip"; then
-        if GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C "$canonical" branch -D "$ref"; then
+        if git_mutate -C "$canonical" branch -D "$ref"; then
           printf 'APPLIED: deleted branch %s in %s (worktree already gone)\n' "$ref" "$canonical"
           applied=$((applied + 1))
         else
@@ -728,7 +736,7 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       printf 'SKIP: %s (dirty or unpushed at execution)\n' "$ref"
       continue
     fi
-    if ! GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C "$canonical" worktree remove "$wt_path"; then
+    if ! git_mutate -C "$canonical" worktree remove "$wt_path"; then
       printf 'FAIL: worktree remove %s\n' "$wt_path" >&2
       failures=$((failures + 1))
       continue
@@ -737,7 +745,7 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
     tip="$(branch_tip "$canonical" "$ref")"
     if [[ -n "$tip" ]]; then
       if oids_match "$expected" "$tip"; then
-        if GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C "$canonical" branch -D "$ref"; then
+        if git_mutate -C "$canonical" branch -D "$ref"; then
           printf 'APPLIED: deleted branch %s in %s after worktree remove\n' "$ref" "$canonical"
           applied=$((applied + 1))
         else

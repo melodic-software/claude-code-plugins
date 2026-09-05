@@ -2,9 +2,9 @@
  * Resolve where a platform's Playwright session cookies persist.
  *
  * Auth state is a platform-level login session (reused across every course on
- * that platform), re-homed out of the consumer repo into the plugin's persistent
- * data directory so credentials survive plugin updates and never land in a
- * tracked course directory. Keyed by platform.
+ * that platform), stored in the plugin's persistent data directory so
+ * credentials survive plugin updates and never land in a tracked course
+ * directory. Keyed by platform.
  *
  * `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` under Claude Code; for
  * direct dev / test runs where the harness has not set CLAUDE_PLUGIN_DATA, a

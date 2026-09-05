@@ -11,6 +11,130 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
   that declared it first.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.8.35]
+
+### Changed
+
+- **`hooks/actionlint-check.sh` reads its kill switch before sourcing the library.**
+  `actionlint_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.8.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.8.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.8.32]
+
+### Changed
+
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `FINDINGS_JSON` was built with `printf | jq -R . | jq -s .` on every
+  findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for `TOOL`
+  and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 139/144/141 traced lines
+  become 130/124/127 and jq executions drop from 5 to 3. With the sink wired, jq
+  executions are unchanged at 7.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
+- **`actionlint-check.sh` reaches its telemetry emission from one place.** The
+  findings-present and findings-absent paths each ended in their own
+  `emit_tel "ok" ...` plus `exit 0`; hoisting `FINDINGS_JSON='[]'` above the
+  branch leaves a single emission point at the end of the file, so the two
+  paths can no longer drift in status, payload or exit code. No jq pipeline was
+  added, removed or swapped for a helper, so the spawn count this hook is
+  budgeted on is unchanged.
+- **The `build_data_json` rationale comment is completed to the formatter
+  family's canonical text.** It stopped mid-argument, at the point where the jq
+  fallback drops the tool and path values rather than interpolating them; it
+  now also says why losing them is harmless, since the fallback fires only when
+  `jq -n` fails and `hook::emit_telemetry` discards the envelope anyway when jq
+  is absent. Comment-only.
+
+  The three formatter hooks in this group stayed green at 45, 51 and 46
+  assertions, with hook-exec-form, silent-skips and cross-plugin-drift green
+  alongside.
+
+## [0.8.31]
+
+### Changed
+
+- **`actionlint-check.test.sh` collapses three identical fake-bin builder loops
+  into one `wrap_real_tools` helper.** Byte-identity was checked at all three
+  call sites, file contents and modes alike, including the site that passes an
+  extra tool. Mutation-tested: dropping a wrapped tool or wrapping into the
+  wrong directory both turn the suite red. One mutation stayed green and is
+  recorded rather than hidden, because nothing asserts on the extra-tool
+  argument; that gap predates the extraction and is covered here by direct byte
+  comparison instead. A comment on the actionlint-absent case is also corrected:
+  the membership guard it described as removed still exists, so the note now
+  says why this hook parses the file path itself.
+
+## [0.8.30]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.8.29]
+
+### Changed
+
+- **The hook carries `if` filters, `Edit(**/.github/workflows/*.yml)` and
+  `Edit(**/.github/workflows/*.yaml)`.** Those are the only paths the hook checks, so a
+  Write/Edit of any other file no longer spawns it; behavior on workflow files is
+  unchanged.
+
+## [0.8.28]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.8.27]
 

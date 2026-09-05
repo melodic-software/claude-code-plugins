@@ -63,9 +63,13 @@ assert_contains "degrades to unknown without claude/jq" "$out_nopath" "Caveman b
 assert_contains "plugin id none without claude/jq" "$out_nopath" "Caveman plugin id: none"
 
 # Enabled-field contract: a disabled caveman@ entry must not report available.
-FAKE_BIN="$SCRIPT_DIR/.fake-bin-$$"
-mkdir -p "$FAKE_BIN"
+# The stub lives under mktemp, never beside the script: a trap that does not
+# fire would otherwise leave an untracked directory inside the plugin tree.
+FAKE_BIN="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN"' EXIT
+# jq must stay reachable while the stub shadows `claude` at the front of PATH.
+JQ_DIR="$(dirname "$(command -v jq)")"
+STUB_PATH="$FAKE_BIN:$JQ_DIR:$PATH"
 cat >"$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == plugin && "${2:-}" == list && "${3:-}" == --json ]]; then
@@ -77,8 +81,7 @@ fi
 exit 1
 EOF
 chmod +x "$FAKE_BIN/claude"
-# jq must remain available from the real PATH.
-if out_disabled="$(PATH="$FAKE_BIN:$(dirname "$(command -v jq)"):$PATH" bash "$DETECT" 2>/dev/null)"; then
+if out_disabled="$(PATH="$STUB_PATH" bash "$DETECT" 2>/dev/null)"; then
   ok "disabled-install invocation exits 0"
 else
   fail "disabled-install invocation exits 0 (non-zero exit)"
@@ -95,7 +98,7 @@ JSON
 fi
 exit 1
 EOF
-if out_enabled="$(PATH="$FAKE_BIN:$(dirname "$(command -v jq)"):$PATH" bash "$DETECT" 2>/dev/null)"; then
+if out_enabled="$(PATH="$STUB_PATH" bash "$DETECT" 2>/dev/null)"; then
   ok "enabled-install invocation exits 0"
 else
   fail "enabled-install invocation exits 0 (non-zero exit)"

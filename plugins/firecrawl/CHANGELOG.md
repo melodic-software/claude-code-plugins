@@ -18,6 +18,18 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   read-only mode rather than a "default", matching the argument hint, and eval case 1 says so.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.5.8]
+
+### Changed
+
+- **`update.sh`: `--help` answers before the checkout guard, matching the vendor-update family.**
+  The `SKILL.md not found` check ran ahead of the mode dispatch, so `--help` exited 2 with that
+  error outside a plugin checkout instead of printing usage. It now runs after the help arm, which
+  is the one behavior this change alters deliberately: `--check` and `--apply` still hit the guard
+  in the same place, with the same message and the same exit 2.
+- **A dead local dropped from `run_apply`.** `latest` was assigned from `latest_cli_version` and
+  never read; the call stays as a registry preflight that must fail before `npm install` mutates
+  the global CLI, so its exit status is still what gates the run.
 
 ## [0.5.7]
 

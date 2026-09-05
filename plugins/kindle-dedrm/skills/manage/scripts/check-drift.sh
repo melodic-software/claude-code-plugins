@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# check-drift.sh — drift report against captured baselines in references/.
-# Walks every upstream source listed in references/sources.md and reports
+# check-drift.sh — drift report against captured baselines in reference/.
+# Walks every upstream source listed in reference/sources.md and reports
 # OK / STALE / UNREACHABLE for each. No mutations.
 #
 # Usage: check-drift.sh
 
 set -uo pipefail
 
-# Captured pins — parsed from references/versions.md (single source of truth;
+# Captured pins — parsed from reference/versions.md (single source of truth;
 # a re-pin edits that file once and this script follows). Parsing is fail-hard:
 # a pin this script cannot read is a pin it must not silently skip verifying.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSIONS_MD="${SCRIPT_DIR}/../references/versions.md"
-SOURCES_MD="${SCRIPT_DIR}/../references/sources.md"
+VERSIONS_MD="${SCRIPT_DIR}/../reference/versions.md"
+SOURCES_MD="${SCRIPT_DIR}/../reference/sources.md"
 
 # pin <file> <section-heading> <row-label> — value of `| label | `value` |`
 # within the named "## section", first match wins.
@@ -52,19 +52,25 @@ stale() { echo "  [STALE]   $*"; }
 unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
+# HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
+# %{http_code} emits its own "000" and the fallback appends another); "000" alone means
+# curl is not installed. Both land in the callers' catch-all arm, which is why the
+# doubled form has never mattered.
+http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
+
 echo "=== kindle-dedrm: drift report ==="
 echo
-echo "Captured baselines from references/versions.md (see each row's Captured date)."
+echo "Captured baselines from reference/versions.md (see each row's Captured date)."
 echo
 
 # --- Source 1: Kindle for PC installer URL ---
 echo "Kindle for PC installer:"
-HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KFC_URL}" 2>/dev/null || echo "000")
+HTTP=$(http_status "${PINNED_KFC_URL}")
 case "${HTTP}" in
 200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
 403 | 404)
   unreachable "${PINNED_KFC_URL} → HTTP ${HTTP} (Amazon may have revoked)"
-  note "Find alternate mirror — see references/sources.md 'How to add a new source'"
+  note "Find alternate mirror — see reference/sources.md 'How to add a new source'"
   ;;
 000) unreachable "${PINNED_KFC_URL} → no response (network or DNS issue)" ;;
 *) stale "${PINNED_KFC_URL} → HTTP ${HTTP} (unexpected)" ;;
@@ -80,23 +86,23 @@ elif [[ "${LATEST_TAG}" == "${PINNED_DEDRM_TAG}" ]]; then
   ok "latest pre-release ${LATEST_TAG} == pinned ${PINNED_DEDRM_TAG}"
 else
   stale "latest pre-release ${LATEST_TAG} != pinned ${PINNED_DEDRM_TAG}"
-  note "Update references/versions.md DeDRM section, re-fetch DeDRM_tools.zip, recompute SHA256"
+  note "Update reference/versions.md DeDRM section, re-fetch DeDRM_tools.zip, recompute SHA256"
 fi
 echo
 
 # --- Source 3: Kindle_Key_Finder zip — HEAD the pinned direct URL ---
 # Roll-forward auto-discovery via the tutorial article body is dead: the
-# article moved and is now subscriber-gated (see references/sources.md), so its
+# article moved and is now subscriber-gated (see reference/sources.md), so its
 # public body carries no zip link. HEAD the pinned direct URL as the
 # authoritative signal — a non-200 means the author revoked or rolled it, at
 # which point a subscriber must read the current article and re-pin by hand.
 echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
-KKF_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KKF_URL}" 2>/dev/null || echo "000")
+KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
 case "${KKF_HTTP}" in
 200) ok "${PINNED_KKF_URL} → HTTP 200 (${PINNED_KKF_FILENAME} still served)" ;;
 403 | 404)
   stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (revoked or rolled forward)"
-  note "Subscriber must read the current techy-notes article for the new zip URL, then re-pin references/versions.md + recompute SHA256"
+  note "Subscriber must read the current techy-notes article for the new zip URL, then re-pin reference/versions.md + recompute SHA256"
   ;;
 000) unreachable "${PINNED_KKF_URL} → no response (network or DNS issue)" ;;
 *) stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (unexpected)" ;;
@@ -108,13 +114,13 @@ echo
 # just confirms the current slug still resolves. A 404 here means the author
 # moved or unpublished the page again — re-discover via the site sitemap.
 echo "Tutorial article (techy-notes.com — subscriber-gated):"
-ART_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_TUTORIAL_URL}" 2>/dev/null || echo "000")
+ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
 case "${ART_HTTP}" in
 200) note "${PINNED_TUTORIAL_URL} → HTTP 200 (slug resolves; body paywalled, not diffable)" ;;
 000) unreachable "${PINNED_TUTORIAL_URL} → no response" ;;
 *)
   stale "${PINNED_TUTORIAL_URL} → HTTP ${ART_HTTP} (article moved again)"
-  note "Re-discover via https://techy-notes.com/sitemap-posts.xml, update references/sources.md"
+  note "Re-discover via https://techy-notes.com/sitemap-posts.xml, update reference/sources.md"
   ;;
 esac
 echo
@@ -149,5 +155,5 @@ echo
 echo "=== End drift report ==="
 echo
 echo "Action items: address any [STALE] or [UNREACH] entries by updating"
-echo "references/versions.md + references/sources.md, then re-running the relevant"
+echo "reference/versions.md + reference/sources.md, then re-running the relevant"
 echo "portion of setup."

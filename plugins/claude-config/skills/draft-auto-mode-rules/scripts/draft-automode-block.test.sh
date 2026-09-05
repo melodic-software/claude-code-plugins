@@ -209,21 +209,18 @@ covered something real
 EOF
 )
 rc=0
-ERR_UNKNOWN=$(printf '%s
-' "$UNKNOWN" | bash "$SCRIPT" 2>&1 >/dev/null) || rc=$?
+ERR_UNKNOWN=$(printf '%s\n' "$UNKNOWN" | bash "$SCRIPT" 2>&1 >/dev/null) || rc=$?
 assert_exit "an unknown section exits 2" 2 "$rc"
 assert_contains "the section is named" "$ERR_UNKNOWN" "bogus_section_name"
 assert_contains "and the four legal names are given" "$ERR_UNKNOWN" "environment, allow, soft_deny and hard_deny"
 assert_contains "and the caller is told nothing was drafted" "$ERR_UNKNOWN" "Nothing was drafted"
 
-OUT_UNKNOWN=$(printf '%s
-' "$UNKNOWN" | bash "$SCRIPT" 2>/dev/null)
+OUT_UNKNOWN=$(printf '%s\n' "$UNKNOWN" | bash "$SCRIPT" 2>/dev/null)
 assert_eq "no partial JSON is emitted" "" "$OUT_UNKNOWN"
 
 # The merged stream is the case this posture exists for: with nothing on stdout,
 # there is no JSON for the warning to corrupt.
-MERGED=$(printf '%s
-' "$UNKNOWN" | bash "$SCRIPT" 2>&1 || true)
+MERGED=$(printf '%s\n' "$UNKNOWN" | bash "$SCRIPT" 2>&1 || true)
 assert_not_contains "the merged stream carries no half-written JSON" "$MERGED" "{"
 
 # An empty section name is the same class.

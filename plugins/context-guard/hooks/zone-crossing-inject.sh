@@ -101,16 +101,27 @@
 
 set -uo pipefail
 
+# SPAWN DISCIPLINE (PostToolBatch fires on every tool batch, so every process
+# here is paid on the critical path of every batch). The hook directory comes
+# from parameter expansion rather than `dirname`, which this file needs three
+# times (two sources plus the resolver path) and would therefore cost three
+# processes before a single line of work. The `.` fallback reproduces dirname's
+# own answer for a bare, slash-free invocation; hooks.json always passes an
+# absolute path.
+CG_DIR=${BASH_SOURCE[0]%/*}
+[[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
-source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
+source "$CG_DIR/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
+# Not absolutized through `cd … && pwd`: this path is only ever handed to
+# `bash`, which resolves it against the same working directory the hook started
+# in, and the hook never changes directory. The `..` segment was already there.
+RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: without a stdin payload there is no session_id to key the
 # snapshot seam — nothing this hook could resolve or say. Chunked reader:
@@ -118,10 +129,35 @@ RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
 # exceed what a single bounded read survives on Windows pipes.
 INPUT=$(cg::read_payload) || exit 0
 
-EVENT=$(hook::jq_field "$INPUT" '.hook_event_name') || EVENT="PostToolBatch"
+# ONE jq for the whole payload rather than one per field. hook::jq_field spawns
+# a jq per call and this hook needs two fields; the payload is read once and
+# both fields come back as two lines in a FIXED ORDER (event, then session). An
+# absent field yields an empty line, which is what a per-field `// empty` plus
+# non-empty test yields too. `gsub("\r";"")` is carried over from
+# hook::jq_field for the Windows carriage-return case.
+#
+# Not regex-extracted: a PostToolBatch payload carries every serialized tool
+# result, so a pattern for these fields would be matching against tool output
+# rather than against the envelope. post-compact-mark.sh's regex path is safe
+# for its own payload shape; this one keeps jq as the parser.
+FIELDS=$(printf '%s' "$INPUT" | jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")' 2>/dev/null)
+# jq writes CRLF line endings on this host, and command substitution strips only
+# the TRAILING one, so with two lines the separator's carriage return survives
+# into the split and would ride along on the event name. The single-field helper
+# never saw this because its one and only line ending was the trailing one.
+# gsub above has already removed any CR belonging to a field's value, so nothing
+# left here is anything but jq's own terminators.
+FIELDS=${FIELDS//$'\r'/}
+EVENT=${FIELDS%%$'\n'*}
+SESSION=${FIELDS#*$'\n'}
+# No newline in FIELDS means jq emitted at most one line, so there is no
+# session field to take, and the expansion above would otherwise hand back the
+# event name.
+[[ "$SESSION" != "$FIELDS" ]] || SESSION=""
+[[ -n "$EVENT" ]] || EVENT="PostToolBatch"
 hook::require_jq "$EVENT" "context-guard" "$INPUT"
 
-SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
+[[ -n "$SESSION" ]] || exit 0
 # Same character class the tee/resolver enforce — also path containment for
 # the state file below.
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
@@ -157,10 +193,38 @@ else
 fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
 ARMED_FILE="$STATE_DIR/$SESSION.armed"
+# `$(<file)` plus parameter expansion instead of `tr -cd | head -c`, which cost
+# two processes per marker and four per fire. Same result on every input this
+# hook can see: `$(<f)` strips trailing newlines and keeps embedded ones, so a
+# corrupt two-line file still fuses exactly as the pipeline fused it (the
+# sibling-file note below depends on that). The class stays [:lower:] rather
+# than a-z so it remains locale-independent, and the 16-character truncation is
+# byte-identical to `head -c 16` once the content is lowercase-only.
+# The stderr redirect sits on the group, NOT inside the substitution: a file
+# removed between the -r test and the read makes bash print its own "No such
+# file" on the hook's stderr, which the old `2>/dev/null` on the pipeline
+# swallowed. `$(<file 2>/dev/null)` cannot take its place, because a second
+# redirection turns the fast-path read back into a null command and the
+# marker reads as empty on every fire.
 last=""
-[[ -r "$STATE_FILE" ]] && last=$(tr -cd '[:lower:]' <"$STATE_FILE" 2>/dev/null | head -c 16)
+zone_on_disk=""
+if [[ -r "$STATE_FILE" ]]; then
+  { last=$(<"$STATE_FILE"); } 2>/dev/null || last=""
+  # The raw bytes, before normalization. The write block compares the new
+  # value against these, so a marker in a legacy format is still rewritten in
+  # the current one even when its normalized zone is unchanged.
+  zone_on_disk="$last"
+  last=${last//[^[:lower:]]/}
+  last=${last:0:16}
+fi
 armed=""
-[[ -r "$ARMED_FILE" ]] && armed=$(tr -cd '[:lower:]' <"$ARMED_FILE" 2>/dev/null | head -c 16)
+armed_on_disk=""
+if [[ -r "$ARMED_FILE" ]]; then
+  { armed=$(<"$ARMED_FILE"); } 2>/dev/null || armed=""
+  armed_on_disk="$armed"
+  armed=${armed//[^[:lower:]]/}
+  armed=${armed:0:16}
+fi
 # A SIBLING file, not a second line in the existing one: `last` is read with
 # `tr -cd '[:lower:]'`, which strips the newline too, so a two-line state file
 # would fuse into "dumbacceptable" and rank as smart. Sessions already running
@@ -170,22 +234,27 @@ armed=""
 # and no state-format version are needed for that.
 [[ -n "$armed" ]] || armed="$last"
 
+# Both set REPLY rather than printing their answer: a command substitution
+# forks a subshell, and the ladder is walked on every fire of a hook that runs
+# once per tool batch.
 rank() {
   case "$1" in
-  acceptable) printf '1' ;;
-  dumb) printf '2' ;;
-  *) printf '0' ;; # smart, or no prior observation (baseline)
+  acceptable) REPLY=1 ;;
+  dumb) REPLY=2 ;;
+  *) REPLY=0 ;; # smart, or no prior observation (baseline)
   esac
 }
 unrank() {
   case "$1" in
-  2) printf 'dumb' ;;
-  1) printf 'acceptable' ;;
-  *) printf 'smart' ;;
+  2) REPLY=dumb ;;
+  1) REPLY=acceptable ;;
+  *) REPLY=smart ;;
   esac
 }
-new_rank=$(rank "$zone")
-armed_rank=$(rank "$armed")
+rank "$zone"
+new_rank=$REPLY
+rank "$armed"
+armed_rank=$REPLY
 
 # See the header. The armed rank rises to whatever this observation reports, and
 # decays only on a return to the BEST band — a target on the ladder, not a
@@ -195,6 +264,8 @@ next_armed_rank=$armed_rank
 if ((new_rank > armed_rank || new_rank == BEST_RANK)); then
   next_armed_rank=$new_rank
 fi
+unrank "$next_armed_rank"
+next_armed=$REPLY
 
 # Persist both markers regardless of direction — owner-only, atomic enough for
 # a single-writer-per-session file. A write failure (full or newly read-only
@@ -215,21 +286,41 @@ fi
 # either fails, the gate has not moved and the session is still owed its
 # injection, which the next observation issues.
 umask 077
-mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# The state directory exists on every fire after the session's first, so the
+# guard pays the process once per session instead of once per tool batch.
+# `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
+[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# A marker whose on-disk value already matches is not rewritten. This hook
+# fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
+# turn that stays in one zone fired four times and rewrote both files four
+# times to the values they already held. `zone_on_disk` and `armed_on_disk`
+# are the raw reads before normalization, so an absent marker and a marker in
+# a legacy format both still get written. Everything below is unchanged:
+# `.zone` moves first, `.armed` only after it lands, and a failed `.armed`
+# write rolls `.zone` back only if this fire was the one that moved it.
 persist_failed=""
-if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
-  persist_failed="zone"
-elif ! printf '%s\n' "$(unrank "$next_armed_rank")" >"$ARMED_FILE" 2>/dev/null; then
+wrote_zone=""
+if [[ "$zone" != "$zone_on_disk" ]]; then
+  if printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
+    wrote_zone=1
+  else
+    persist_failed="zone"
+  fi
+fi
+if [[ -z "$persist_failed" && "$next_armed" != "$armed_on_disk" ]] &&
+  ! printf '%s\n' "$next_armed" >"$ARMED_FILE" 2>/dev/null; then
   persist_failed="armed"
   # Roll the label back to what it said before, so the message the next
   # successful call emits names the zone the session was really in rather than
   # the one it is in now. Best-effort: if the rollback itself fails the label is
   # stale, which mislabels one message — never a lost or repeated notice,
   # because the gate did not move either way.
-  if [[ -n "$last" ]]; then
-    printf '%s\n' "$last" >"$STATE_FILE" 2>/dev/null || :
-  else
-    rm -f "$STATE_FILE" 2>/dev/null || :
+  if [[ -n "$wrote_zone" ]]; then
+    if [[ -n "$last" ]]; then
+      printf '%s\n' "$last" >"$STATE_FILE" 2>/dev/null || :
+    else
+      rm -f "$STATE_FILE" 2>/dev/null || :
+    fi
   fi
 fi
 if [[ -n "$persist_failed" ]]; then

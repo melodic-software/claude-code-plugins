@@ -595,12 +595,14 @@ cmd_lease_release() {
     die "no lease to release at: $run_dir/lease"
   fi
 
-  local run_id epoch started stale_after skew_grace iso
+  local run_id epoch started stale_after skew_grace heartbeat heartbeat_iso iso
   run_id=$(lease_field "$run_dir/lease" run_id)
   epoch=$(lease_field "$run_dir/lease" owner_epoch)
   started=$(lease_field "$run_dir/lease" started_at)
   stale_after=$(lease_field "$run_dir/lease" stale_after_s)
   skew_grace=$(lease_field "$run_dir/lease" skew_grace_s)
+  heartbeat=$(lease_field "$run_dir/lease" heartbeat_at)
+  heartbeat_iso=$(lease_field "$run_dir/lease" heartbeat_at_iso)
   iso=$(now_iso)
 
   # The tombstone, not a deletion. A run that finished normally while
@@ -613,8 +615,8 @@ state=released
 owner_epoch=$epoch
 started_at=$started
 released_at=$iso
-heartbeat_at=$(lease_field "$run_dir/lease" heartbeat_at)
-heartbeat_at_iso=$(lease_field "$run_dir/lease" heartbeat_at_iso)
+heartbeat_at=$heartbeat
+heartbeat_at_iso=$heartbeat_iso
 stale_after_s=$stale_after
 skew_grace_s=$skew_grace
 "

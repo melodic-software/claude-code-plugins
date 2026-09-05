@@ -37,6 +37,78 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   copy can reach it.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   (docs/specs/prompt-audit-skills-2026-09.md).
+## [0.40.34]
+
+### Changed
+
+- **`emit-findings.sh` composes its `## Surfaces` zero-result list through `rule_id()`**
+  instead of retyping the four rule-id strings that function already owns. Hand-copied
+  ids are the drift class `conflict-scan.sh`'s own `COORD_ERE` comment records a shipped
+  bug from, so a `split()` loop over the four ids now routes each one through the
+  accessor. Differential runs are byte-identical.
+- **`conflict-scan.sh` drops a guard that could never be false.** The `in` test before
+  `entities[ent] = 1` was redundant twice over: awk's `in` does not autovivify, and the
+  assigned value is always 1, so the guarded assignment is idempotent either way.
+- **`fix-plugin-drift.sh` builds its four action-plan lists through one `findings()`
+  helper.** The auto-remove, manual-orphan, auto-add and rename extractions repeated an
+  identical `select(.status == "ok")` and `sort -u` frame over `$INPUT_JSON`. The file's
+  injection posture is preserved on purpose: the composed suffix is always a static
+  literal from this file, never data, and plugin names stay `--argjson`-bound.
+- **`permission-state.test.sh` loses a guard dominated by the line above it.** After
+  `src="$(command -v "$tool")" || continue`, success already implies a non-empty `src`,
+  so the emptiness test beneath it could not fire. The suite's zero-writes proof is
+  untouched and still ran 12 of 12.
+
+## [0.40.33]
+
+### Changed
+
+- **Permission-state suite fixture repair and cleanups (tidy sweep, second wave).**
+  `permission-plane-lint.test.sh`'s WINREAL fixture was built through a printf format
+  string that corrupted `\a` into a BEL byte and warned on `\U` every run; it is now a
+  quoted heredoc matching intent. printf newline formats normalized, long `env`
+  invocations rewrapped, and a redundant awk paren layer dropped in two lints.
+  `audit-pass/run-state.sh` reads the two heartbeat lease fields into locals like its
+  siblings, and `permission-rule-check.test.sh` renames case-12 fixtures that shadowed
+  case 8's. No behavior or contract changes.
+- **Audit script cleanups from the repo-wide tidy sweep.** `check-hook-coverage.sh`
+  replaces three manual counter loops with the `for i in "${!ARR[@]}"` idiom;
+  `check-plugin-drift.sh` collapses the two-stage pairs_obj jq build into the single
+  `jq -nR` form its sibling calls use, which also silences a spurious stderr
+  diagnostic when a marketplace declares no enabled plugins; `fix-plugin-drift.sh`
+  drops a GNU-only `sed \?` quantifier from `--help` rendering (BSD-sed
+  compatibility, output byte-identical); three test files pick up shfmt case-label
+  normalization. No behavior or contract changes.
+
+## [0.40.32]
+
+### Changed
+
+- **`audit-prompting-postures` skill-listing entry tightened.** It was the marketplace's third
+  largest listing entry. The description now folds the component list into a parenthetical and
+  shortens the posture enumeration while keeping every quoted trigger phrase and the `Not for`
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.40.31]
+
+### Fixed
+
+- **`audit-instructions`: every restatement finding was declined on a Windows checkout under a
+  short-named path.** The I29 rows come from `restatement-scan.py`, a native Windows interpreter,
+  so MSYS converts its argv on the way in and the scanner echoes what it received: backslash
+  separators, and 8.3 short components such as `<drive>:\Users\<SHORT~1>\...`. None of the anchors
+  is spelled that way, the out-of-repo fence fails closed, and the findings stayed in the
+  human-report-only column. `emit-findings.sh` now re-spells such a path through `cygpath -l -m`,
+  which answers the long forward-slash form the anchors use, cached per distinct path.
+
+  The expansion cannot come from the anchor side instead: `cygpath -m -s` also shortens components
+  MSYS left long, so the two spellings do not meet in the middle. The path reaches `cygpath`
+  through a file the script owns rather than through a command line, so no scanner-supplied text is
+  ever interpolated into a shell word. Where `cygpath` is absent, awk normalizes separators alone
+  and the anchors behave exactly as before.
 
 ## [0.40.30]
 

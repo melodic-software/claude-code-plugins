@@ -1,4 +1,5 @@
 {
+  "description": "Formats Python with the pinned Ruff after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {
@@ -7,6 +8,14 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "if": "Edit(*.py)",
+            "timeout": 15,
+            "statusMessage": "Formatting Python with Ruff..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "if": "Edit(*.pyi)",
             "timeout": 15,
             "statusMessage": "Formatting Python with Ruff..."
           }

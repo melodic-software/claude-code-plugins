@@ -69,9 +69,14 @@ run_hook() {
   assert_exit "$label" "$expected" "$rc"
 }
 
-# Runtime-assembled machine paths (no contiguous path literal in source).
+# Runtime-assembled fixtures: neither a machine path nor a real-shape token
+# appears as a contiguous literal in this file's own bytes, so the guards under
+# test (and any external secret scanner) see no committed key and no hardcoded
+# path here. Same token-construction discipline as
+# hooks/secret-pattern-detection.test.sh. Never fold these back into literals.
 SL='/'
-FAKE_GHP='ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+FAKE_GHP="ghp_$(printf 'A%.0s' {1..36})"
+FAKE_OPENAI="sk-$(printf 'A%.0s' {1..20})"
 FAKE_LINUX="${SL}home${SL}alice${SL}projects${SL}demo${SL}src${SL}main.sh"
 
 r="$(newrepo)"
@@ -95,7 +100,7 @@ stage_file "$r" "tests/fixtures/path.txt" "see ${FAKE_LINUX} for details"
 run_hook "tests/fixtures path still scanned" "$r" 1
 
 r="$(newrepo)"
-stage_file "$r" ".env.example" "OPENAI_KEY=sk-AAAAAAAAAAAAAAAAAAAA"
+stage_file "$r" ".env.example" "OPENAI_KEY=${FAKE_OPENAI}"
 run_hook ".env.example allowlisted" "$r" 0
 
 r="$(newrepo)"

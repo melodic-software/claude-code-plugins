@@ -4,8 +4,7 @@
 BeforeAll {
     $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibPath = Join-Path $script:SkillRoot 'scripts\windows\lib\Get-PnpProblemDevices.ps1'
-    . $script:LibPath
+    . (Join-Path $script:SkillRoot 'scripts\windows\lib\Get-PnpProblemDevices.ps1')
 }
 
 Describe 'Get-PnpProblemDevice' -Tag 'lib' {

@@ -875,7 +875,7 @@
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@62bef7bab01e8532fedfa739879034a210e9e67d": {
       "routing": "runner-input",
       "runnerInput": "runner",
-      "allowedInputs": ["runner"],
+      "allowedInputs": ["runner", "pr-number", "timeout-minutes"],
       "allowedSecrets": {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
       },
@@ -940,7 +940,7 @@
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@0f8176e87e0be518f382664779655011bf95784a": {
       "routing": "runner-input",
       "runnerInput": "runner",
-      "allowedInputs": ["runner"],
+      "allowedInputs": ["runner", "pr-number", "timeout-minutes"],
       "allowedSecrets": {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
       },
@@ -1104,6 +1104,7 @@
   "managedLabelPatterns": [
     "(?:^|[^a-z0-9-])(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
   ],
+  "approvedManagedRunnerLabels": ["melodic-ubuntu-24.04-x64", "melodic-review-ubuntu-24.04-x64"],
   "hostedExceptionReasons": [
     "dependabot",
     "docker-socket",
