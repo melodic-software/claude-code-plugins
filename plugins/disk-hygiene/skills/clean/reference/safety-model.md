@@ -195,8 +195,10 @@ guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 layout. A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 `--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
-`--confirmed-large-scan` and `--root-children` are the valueless scan flags; the guard permits at
-most one of each and rejects any trailing value, so the scan grammar stays exact.
+`--confirmed-large-scan`, `--quiet` and `--root-children` are the valueless scan flags; the guard
+permits at most one of each and rejects any trailing value, so the scan grammar stays exact.
+`--quiet` is admitted because it shapes the engine's stdout only: it reaches no path, and skips no
+check, that the same invocation without it would not already reach.
 
 Deriving the data root from `${CLAUDE_PLUGIN_ROOT}` couples to the one undocumented part of that
 layout — the `cache/<marketplace>/<name>/<version>` shape of the installation root (the install root
@@ -441,6 +443,15 @@ NON-EMPTY child is not knowable without walking it, so every such child reads `d
 `null`. The bounded pass delivers the complete frontier, per-child coverage, and exact numbers for
 loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
 subtree.
+
+The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout
+and nothing else. The two copies are otherwise identical, and the snapshot is the copy the engine
+treats as the record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`,
+`status`, `target`, the three coverage terms, `empty_directory_count`, both byte totals,
+`truncated_paths`, `errors`, `policy_sources` and `os_autoclean`, so every field a keep-or-review
+decision rests on survives, and it replaces the closing note with a short one naming where the
+rows went. The default stays the full payload: a caller already parsing `children_rollup` off
+stdout must not be quietened by an upgrade.
 
 The `scan-complete` summary reports hint coverage in three terms — `entries`, `hinted_entries`, and
 `unhinted_entries` (`entries` minus `hinted_entries`). The third is what makes the first two

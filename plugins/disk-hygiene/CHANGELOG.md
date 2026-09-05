@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **clean:** `scan --quiet` omits `children_rollup` from stdout and shortens the closing note,
+  keeping `status`, `target`, `snapshot`, the three coverage terms, `empty_directory_count`, both
+  byte totals, `truncated_paths`, `errors`, `policy_sources` and `os_autoclean`. The snapshot file
+  carries the rollup in full in both modes, so the flag drops a duplicate rather than data. Default
+  output is unchanged: a caller already parsing the rollup off stdout keeps it. On a real
+  `--max-depth 1` home-directory scan the payload fell from 7,247 to 893 bytes (88 %); on a
+  200-child target, from 67,262 to 5,052 (93 %), because the rollup is the only part that grows
+  with the frontier.
+- **clean:** the Bash guard admits `--quiet` as a third valueless scan flag, at most one per
+  invocation and with no trailing value, so the flag is reachable without widening the grammar. No
+  pipe, redirect, or shell-operator allowance is added; that rejection is unchanged.
+
 ## [0.21.8]
 
 ### Changed
