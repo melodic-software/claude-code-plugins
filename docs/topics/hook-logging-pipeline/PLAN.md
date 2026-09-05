@@ -166,12 +166,39 @@ trigger that `docs/conventions/upstream-drift` requires.
 - A built-in archive tier (Q19). The extensibility point is shipped; the archiver is not.
 - Handoff integration beyond the shared `session_id` (Q21).
 
+**Confirmed after the interview closed (2026-09-05).**
+
+- **Q8. Kill-switch hoist ownership: split by plugin directory, confirmed by the operator.** This
+  lane takes the PostToolUse formatters, normalizers and verifiers; the PreToolUse lane
+  (`claude/pretool-validation-hooks-84d7ka`) takes its 17 guard scripts. Neither touches
+  `lib/hook-utils.sh` or its copies. Shape: a raw
+  `[[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0` hoisted above the
+  `source` line, existing `hook::check_enabled` left in place below. Measured recovery 55% of the
+  disabled cost (2.54 ms vs 5.66 ms). 40 call-sites fleet-wide, 40 of 40 currently after the source
+  line. `sync-hook-utils.sh` does not cover entry scripts, so a `scripts/check-killswitch-hoist.sh`
+  CI gate ships with this lane's PR covering both directory sets, or it drifts back.
+- **Verifier-lane performance fix, routed to this lane by the operator via the prompt-hooks
+  session and confirmed here.** The three PostToolUse verifiers on a markdown write citing a skill
+  and CLI commands cost about 825 ms (peer measurement, corroborated here at 601 to 622 ms for the
+  dominant guard alone). Four patch shapes, each measured by the prompt-hooks lane and to be
+  re-measured here before landing:
+  1. `skill-reference-verify.sh:200-213`, one batched `jq` over all manifests keyed by
+     `input_filename` in place of 2 `jq` + 2 `tr` per manifest. Independently measured here: 547.7 ms
+     to 5.7 ms.
+  2. `cli-flag-verify.sh` pre-gate: pure-bash substring test against `$BINS` in place of the
+     `*-*` glob that ordinary prose defeats. Peer: 41.5 ms to 8.7 ms on prose-only.
+  3. `cli-flag-verify.sh` loop: read the cache in-parent, spawn `verify-cli-flag.sh` only on a miss.
+  4. `plugins/guardrails/lib/verification/verify-cli-flag.sh` cache-hit path: `[[ -d ]]` before
+     `mkdir -p` (line 103), bash mtime compare in place of `find -mmin -1440 | grep -q .` (line 115),
+     `[[ =~ ]]` in place of `printf | grep -E` (line 163). Peer A/B: 68.4 to 51.1 ms, identical rc
+     on 11 cases. Line numbers verified here.
+  Also peer-reported and unverified here: a cold-cache first run of `cli-flag-verify` at 11,391 ms
+  (24 h TTL, so cold keys recur daily), and 126 failed `execve` PATH searches per warm run from 73
+  plugin `bin/` directories prepended to `PATH` (count verified here). Read ADR-0003 before touching
+  any of the three; it was written about exactly these guards.
+
 ### Deferred questions
 
-- **Q8. Ownership of the kill-switch hoist**, roughly 44 sites spanning two lanes. Split by plugin
-  directory is agreed by both lanes and both are holding. Asked three times during the interview
-  without an answer. Arbiter: **USER-RESERVED**. It allocates work across sessions and could change
-  which lane's acceptance criteria this belongs in.
 - **Q9. Does `docs/conventions/hook-observability` name the `# silent-skip-ok:` marker
   explicitly?** Raised because the operator reported not knowing what the marker meant, which is a
   defect in the convention doc rather than in any consumer of it. Arbiter: `/planning:plan`, this
