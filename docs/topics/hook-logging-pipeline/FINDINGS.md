@@ -299,3 +299,18 @@ one exec of its own and was inflating an earlier reading by about 1.2 ms):
 The 512 KB row is the one that grows with payload size; every spine key precedes `tool_input` in the
 payload, so a smaller cap (16 KB) would bound it without losing a field. Kept at 64 KB for
 `tool_use_id`, which follows `tool_input`; revisit if a consumer reports the cost.
+
+### Windows recheck owed (unmeasured on this host)
+
+Every figure above is from a Linux CI container. Three behaviors the design leans on are
+documented for Windows Git Bash but not measured there, and the binding host is Windows:
+
+| Claim | Why it matters | What to run there |
+| --- | --- | --- |
+| Concurrent `>>` appends of one line under 4 KB do not interleave | per-session files remove the shared write, but 33 producers still append to one session file in the same second | the suite's 33-parallel-fires case, then the same shape with 4 KB lines (Q17 measured zero corruption on Linux at 4 KB and 376 of 990 corrupt at 16 KB) |
+| `ls -t` orders by mtime at one-second resolution | retention's "newest N" and the reader's `session` scope both key on it | two files written in the same second on NTFS, confirm the newer sorts first or document the tie |
+| the late-EOF stall costs one idle slice, not the whole read bound | the producer reads 4 KB slices with a `}`-tail stop and a quarter-bound idle slice; retention reads no stdin | the held-open-pipe case on Git Bash; the 260 ms Linux figure is the target, the 1 s idle bound the ceiling |
+
+Also unmeasured: the cold `cli-flag-verify` run that a peer reported at over 11 s on Windows
+(Linux: 461.6 ms after the verifier-lane fix). The FINDINGS row stays a recheck item; nothing in
+this branch changes what that cold run does.

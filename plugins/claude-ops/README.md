@@ -189,6 +189,25 @@ flows into the same store. The sink is fire-and-forget and best-effort, a slow
 or absent sink silently drops the event; it is for observability, not
 audit-of-record.
 
+### The per-session hook event log (off by default)
+
+Independently of any sink, `session_event_log_enabled=true` turns on one
+producer row per observable hook event (30 events; the generated
+`hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
+`MessageDisplay` and `FileChanged` are left out). Each fire appends one line to
+`<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
+(`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
+and a repo-relative file path when present. A consumer who has not turned it on
+pays the kill-switch read and nothing else (2.42 ms against a 2.08 ms spawn
+floor on the Linux CI host); enabled, a 2 KB payload costs about 5 ms and a
+512 KB one 36 ms. `session_event_log_categories` narrows the set. At
+`SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
+or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
+hands an archiver the files about to go. The root carries its own `*`
+`.gitignore`, so nothing under it reaches `git status`; `/claude-ops:setup`
+reports the toggles and the guard, `/claude-ops:observability session` reads
+the result.
+
 ## Install
 
 ```shell
