@@ -1,5 +1,5 @@
 ---
-description: "Enforce self-describing, expressive code over a resolved scope (the uncommitted diff by default, widening to the branch diff and then the whole repository when the tree is clean): a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions are near-mechanical; refactors apply only behind a discovered test net, else they are proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed or repo-wide simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
+description: "Enforce self-describing, expressive code over a resolved scope (the uncommitted diff by default, widening to the branch diff and then the whole repository when the tree is clean): a three-way comment triage that deletes zero-information comments, dissolves code-expressible comments into names and structure via behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express (why, constraints, contracts). Applies edits: deletions and local renames behind a token-level proof, other refactors behind a discovered test net, else proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), lane-hunting structural tidyings (tidy), windowed or repo-wide simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding missing why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
 argument-hint: "[safe] [target]"
 disable-model-invocation: false
 user-invocable: true
@@ -13,6 +13,7 @@ metadata:
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Uncommitted code files (preview, first 10; empty = none matched or the probe returned nothing): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh" 10 2>/dev/null || echo "(git status unavailable)"`
+Tooling layer (present/absent per analysis layer; an absent row names the capability lost): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/comment-tooling-probe.sh" 2>/dev/null || echo "(probe unavailable)"`
 
 ## Variables
 
@@ -53,9 +54,12 @@ over-extraction cautions: [reference/dissolving-moves.md](reference/dissolving-m
 | `<path>` | Triage a single file or directory (already-committed code is fine here). |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment is emitted as a proposal, no code-structure change is applied. For codebases whose guardrails you do not know. |
 
-Default mode applies the full contract: class A applies; class B applies **only behind a
-discovered test net**, else it is proposed. The gate, the test-discovery procedure, and the mode
-ladder: [reference/safety.md](reference/safety.md).
+Default mode applies the full contract: class A applies, each deletion certified by a token-level
+proof that no code changed; class B applies **per its tier**: a function-local rename behind the
+same proof (RENAME-ONLY), an additive move behind a discovered test net, an interface-creating
+move behind the net and proposal-first. Whatever a tier's gate does not pass is proposed. The
+tiers, the proof tool, the test-discovery procedure, and the mode ladder:
+[reference/safety.md](reference/safety.md).
 
 ### Scope fallback (empty argument)
 
@@ -85,8 +89,14 @@ deterministic default is to proceed, but to take any widened scope (rungs 2–3)
   code *before* the comment goes. A removed class-C-adjacent narrative (rationale, justification)
   is staged in the output as a proposed commit-message block. Hand it to
   `/source-control:commit`, before the deletion is final. Text is never silently destroyed.
-- **Tests gate class-B application; lint never does.** A linter cannot attest behavior
-  preservation. No discovered runnable test coverage for the touched code → propose, don't apply.
+- **Every applied edit passes the gate its tier names; lint never opens one.** Deletions and
+  function-local renames are certified by `${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py`
+  (COMMENT-ONLY, RENAME-ONLY); additive and interface-creating moves need a discovered test net.
+  A verdict other than the tier's required one reverts the edit and demotes it to a proposal. A
+  linter cannot attest behavior preservation, so it never substitutes for either.
+- **RENAME-ONLY is a shape claim, not a safety claim.** It cannot see shadowing, outer-scope
+  collisions, reflection, or string-keyed access. A rename applied on its strength is reported
+  with a review line naming the mapping, never silently.
 - **Exempt surfaces are invisible to this skill** (full list in
   [reference/safety.md](reference/safety.md)): public-API doc comments (docstrings, C# XML docs,
   JSDoc on exported surfaces); legal/license headers; machine-read directives (lint pragmas,
@@ -116,12 +126,24 @@ deterministic default is to proceed, but to take any widened scope (rungs 2–3)
    invented per repository, so they must be found per run. Procedure, whole-repo scan and the
    test-fixture rule included: [reference/safety.md](reference/safety.md). Report what was found,
    and report finding nothing, so a reader can tell discovery ran.
+1b. **Read the tooling layer** from the pre-computed probe output (re-run
+   `${CLAUDE_PLUGIN_ROOT}/scripts/comment-tooling-probe.sh` if it is missing) and state it in the
+   report. The layer sets the ceiling on what may be applied: at grep precision, a language with
+   heredocs or block comments gets no applied edits at all, because a line-prefix read cannot
+   tell a comment from string data. For each absent layer, name the capability lost as the probe
+   phrases it, so the reader can decide whether to install it.
 2. **Triage**. Classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
-3. **Apply**. Class A deletions; class B per mode and gate ([reference/safety.md](reference/safety.md)):
-   pick the named move, apply it, run the discovered tests, then delete the now-superfluous
-   comment. A failing test run reverts the move and demotes the item to a proposal.
-4. **Report**, per file: counts per class, applied vs proposed, the staged commit-message block
-   for any removed narrative, and the class-C keeps with one-line reasons. A scope whose every
+3. **Apply**, one item at a time, each behind its tier's gate ([reference/safety.md](reference/safety.md)).
+   Class A: delete, then run `change-shape.py` on the before and after content; anything but
+   COMMENT-ONLY (exit 0) restores the comment. Class B: pick the named move, apply it, run the
+   tier's gate (RENAME-ONLY for a local rename; the discovered tests for the rest), and only then
+   delete the now-superfluous comment. A failed gate reverts the move, restores the comment, and
+   demotes the item to a proposal that quotes the verdict. Done means: the file's after-state
+   passed its gate, or the item is listed as a proposal with the reason.
+4. **Report**: the tooling layer the run operated at and any discovered marker families first;
+   then per file: counts per class, applied vs proposed with each applied item's gate verdict
+   (and the identifier mapping for every RENAME-ONLY apply), the staged commit-message block for
+   any removed narrative, and the class-C keeps with one-line reasons. A scope whose every
    enumerated file was dropped reports the exclusion tally instead of exiting silently. Total
    enumerated, 0 in scope, counts per reason (non-code, GLOBAL HARD path, exempt surface, SSOT
    copy), so a clean repo is distinguishable from a misconfigured run. The user reviews the

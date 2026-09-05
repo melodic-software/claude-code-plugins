@@ -1,21 +1,44 @@
 # Safety model — modes, gates, exclusions, staging
 
-The risk being managed: class-B treatments are code changes, and a behavior-preserving refactor is
-only verified behavior-preserving by tests. The layers below keep the default mode fully capable
-for codebases with guardrails while giving an explicit reduced-blast-radius mode for the rest.
+The risk being managed: every applied edit is a code change, and each kind of change has a
+different strongest available proof that it preserved behavior. The gates below match the proof to
+the change instead of demanding one proof (a test run) for all of them. Demanding the test run for
+everything is what left the skill inert on any repository without a test suite, which is most of
+them, and it was never the strongest proof available for a deletion anyway: a test suite samples
+behavior, while a token comparison is exhaustive over the file.
 
 ## Mode ladder
 
 | Mode | Class A | Class B | Class C |
 |---|---|---|---|
-| **Default** | Applied | Applied behind the test gate below; otherwise proposed | Earn-its-keep triage; narrative staging |
-| **`safe`** | Applied | Always proposed — no code-structure change is applied | Same triage; deletions of pure narrative still apply, with staging |
+| **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; narrative staging |
+| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage; deletions of pure narrative still apply, with staging |
 
-In **no mode** does the skill: apply a class-B refactor without a passing discovered test run,
-touch an exempt surface or excluded path, or delete text without a landing place (staging rule
-below).
+In **no mode** does the skill: apply an edit whose tier gate did not pass, touch an exempt surface
+or excluded path, or delete text without a landing place (staging rule below).
 
-## The class-B test gate
+## The gates, by what each can prove
+
+| Tier | Edit | Gate | Why this proof and not another |
+|---|---|---|---|
+| **0** | Class-A deletion | `change-shape.py` verdict **COMMENT-ONLY** | The comment-stripped token sequence is identical, so no code token moved. Exhaustive over the file; needs no tests, no build, no config |
+| **1** | Rename Variable / Rename Field on a function-local identifier | verdict **RENAME-ONLY** under one consistent mapping, and the identifier is neither exported nor public | A shape claim: every differing token is an identifier under one old→new mapping. It cannot see shadowing, outer-scope collisions, reflection, or string-keyed access, so it earns application plus a flagged review line in the report, never silence |
+| **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
+| **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
+
+`change-shape.py` is at `${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py` and carries its verdict in
+the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
+unavailable. Run it against the file's content before and after each edit, and before the comment
+is deleted. Any verdict other than the tier's required one reverts the edit and demotes the item to
+a proposal that quotes the verdict, including which token kinds differed. UNPROVABLE (a parse
+error on either side) is a revert, never a pass.
+
+When tree-sitter is unavailable (exit 3), tier 0 falls back to whatever reading layer the tooling
+probe reported: a pygments-level read may still apply deletions; a grep-level read applies nothing
+in a language with heredocs or block comments, because it cannot tell a comment from string data.
+Tier 1 without its proof is tier 2.
+
+## The test net (tiers 2 and 3)
 
 1. **Discover** a runnable test command for the touched code: the repo's declared conventions
    (`CLAUDE.md`, rules, a `test` script in the package manifest, `Makefile`/`justfile` targets,

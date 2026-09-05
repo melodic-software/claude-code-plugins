@@ -31,8 +31,11 @@ Signals: the comment names what a block does (extract it), what a vague identifi
 it), what a bare literal is (name the constant), what state must hold (assert it).
 
 Deleting a class-B comment without the refactor is the information-destroying failure this
-ordering exists to prevent. When the refactor cannot be applied (no test net, or the move would
-change behavior), the item is **proposed**, and the comment stays until the proposal lands.
+ordering exists to prevent. Whether the refactor applies depends on its tier in
+[safety.md](safety.md): a function-local rename applies behind the token proof even with no tests;
+an additive move needs a discovered test net; an interface-creating move needs the net and is
+proposed first. When the tier's gate does not pass, the item is **proposed**, and the comment stays
+until the proposal lands.
 
 ## Class C — information code cannot express: earn-its-keep, keep terse
 
