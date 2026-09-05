@@ -18,11 +18,7 @@ JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eva
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
-limit from `check`'s per-skill entry cap). Check 3 surfaces the drift static analysis sees best, a
-rewrite dropping a `description` trigger phrase, as an advisory warning that names each dropped
-phrase. It never fails the run: a drop is often a deliberate consolidation of near-synonym triggers
-into a named intent category, so the reviewer confirms the description still names that intent, or
-restores the phrase.
+limit from `check`'s per-skill entry cap).
 
 ## Skills-directory resolution
 
@@ -44,12 +40,14 @@ CHECK_SKILL_SKILLS_ROOT="${user_config.skills_root}" \
 When it is unset, invoke the script plain. It falls back to `${CLAUDE_PROJECT_DIR}/.claude/skills`.
 
 **Gating a marketplace-installed skill.** A `plugin:skill` name (e.g. `source-control:setup`) is
-NOT auto-resolved: the checker resolves a bare skill name under one root and deliberately does not
-reverse-engineer Claude Code's plugin-cache layout to locate an install. That layout is internal.
-Only the cache's existence is documented, the `<marketplace>/<plugin>/<version>` nesting is not, and
-the version dir changes on every update
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference)). To gate an installed skill,
-point the root at its installed skills dir explicitly:
+not auto-resolved: the checker resolves a bare skill name under one root and does not walk Claude
+Code's plugin cache to locate an install. The cache keeps each installed version of a copied plugin
+in its own directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, and the previous
+version stays on disk for a grace period after an update
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-09-02; recheck
+when that page's plugin-cache section changes), so more than one candidate can exist and the checker
+will not guess which one you mean. To gate an installed skill, point the root at its installed
+skills dir explicitly:
 
 ```shell
 CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
@@ -57,8 +55,9 @@ CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>
 ```
 
 The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
-vendor byte-identity, 9 stale-metadata) no-op against it. A "new skill / skipped" result is
-expected there, not a defect. Passing a `plugin:skill` name unresolved prints this exact guidance.
+vendor byte-identity, 9 stale-metadata, 13 committed-artifact scan) no-op against it. A "new skill /
+skipped" result is expected there, not a defect. Passing a `plugin:skill` name unresolved prints
+this exact guidance.
 
 ## Arguments
 
@@ -152,7 +151,7 @@ This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`
 <https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
 trigger: that page or the settings page moving either default re-derives this sentence and the
 scripts' constants): the shared budget every loaded skill draws from together
-(`skillListingBudgetFraction`, default 1% of the model's context window). It is always advisory.
+(`skillListingBudgetFraction`, default 1% of the model's context window).
 The script exits 0 regardless of overflow, because the live budget depends on the model's context window and a
 consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live
 session for the authoritative resolved cost.
@@ -181,7 +180,7 @@ and review against the invariant.
   skills root; without either and without a git toplevel, the script exits 2 naming the
   missing root.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
-  to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
+  to a WARN rather than failing, so a run on a machine without Node still gates on every other check.
 - **Check 6 defers to the repo's markdownlint config. Run it from inside that repo.** `markdownlint-cli2`
   discovers the nearest `.markdownlint-cli2.jsonc` from its working directory. Run the checker from
   *outside* the target repo (or against a marketplace-installed skill in the plugin cache, which has no
@@ -259,17 +258,15 @@ and review against the invariant.
   `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:
   Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case
   phrases the prohibition unusually can WARN despite covering it. Read the set before adding a
-  case. It deliberately does NOT flag low case count: the marketplace's low volume is a recorded
-  divergence from the evaluation guidance, revisited when the deferred eval runner lands.
+  case. It deliberately does not flag low case count: the marketplace's low eval volume is a recorded
+  divergence from the evaluation guidance.
 - `check-evals-quality.sh` resolves each case's `files` entries relative to the skill directory
   first, then the evals directory. An entry that is prose (environment description) rather than a
   real path FAILs Q4. Describe environment state in the case's `prompt` parenthetical instead,
   or ship a fixture. When `files` is empty/absent, path-shaped tokens in `prompt`/`expected_output`
   that resolve nowhere WARN under the same Q4 roots unless the case sets `narration: true`.
-- `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
-  are both consumer settings this static check cannot observe). It reports against a documented,
-  overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`
-  in a live session, not a guarantee nothing is dropped there. In this marketplace's own repo, each
-  plugin owns its own `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling
-  every plugin's root into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it
-  once per plugin in isolation. The repo's `check-changed-skills.sh` CI gate does this on every run.
+- A clean `listing-budget` report is a signal to investigate against `/doctor` in a live session,
+  not a guarantee nothing is dropped there. In this marketplace's own repo, each plugin owns its own
+  `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling every plugin's root
+  into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it once per plugin
+  in isolation. The marketplace's CI workflow runs that pooled call as a dedicated step on every run.

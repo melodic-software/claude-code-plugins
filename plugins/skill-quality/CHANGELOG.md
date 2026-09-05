@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.14]
+
+### Changed
+
+- check: restated the plugin-cache paragraph as the current documented layout with a dated recheck record; added check 13 (committed-artifact scan) to the git-backed check list so it matches the gotchas and the evals; named the marketplace CI workflow, not `check-changed-skills.sh`, as the site of the pooled listing-budget call; dropped the derived "other twenty" count from the markdownlint gotcha; removed the check-3 rule from Purpose and the duplicated always-advisory verdict, both of which the body states elsewhere with their reasons; dropped the eval-runner roadmap clause from the case-count gotcha
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.20.10]
 
 ### Changed
