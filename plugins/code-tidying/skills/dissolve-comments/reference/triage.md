@@ -49,9 +49,20 @@ A comment survives only if **all three** hold:
    *at this location*. Rationale discoverable from context or version control does not need
    restating here; a constraint whose violation silently breaks something does, because blame
    trails are fragile across refactors.
-3. **Terse — by default.** One to two lines is the posture, not a hard gate: a genuinely
-   load-bearing multi-line contract (a regex explanation, a concurrency invariant) stays. What
-   never survives is length spent on justification narrative.
+3. **Within the line budget.** A kept comment is held to `class_c_max_lines` (default 2, from the
+   plugin's user config). Over budget, the treatment is Henney's second verb, *rewritten*: keep
+   the durable constraint in one or two lines, stage the narrative for the commit message
+   ([safety.md](safety.md)), delete the rest. A genuinely load-bearing multi-line contract (a regex
+   explanation, a concurrency invariant, a rejected-alternative record paired with a regression
+   test) may exceed the budget when the report says why in one line. What never survives is
+   length spent on justification narrative. Posture `balanced` reports an over-budget comment
+   instead of rewriting it; `conservative` proposes the rewrite.
+
+A rewrite is an edit with a gate: the comment's replacement text is checked by
+`change-shape.py` like any deletion (COMMENT-ONLY, since only comment tokens changed), and the
+original wording is staged before the deletion is final. Prose quality of what remains can be
+linted by Vale where a repository runs it (tree-sitter-backed, about 25 languages, none of Bash or
+YAML); it is an optional lane, never a dependency.
 
 **Justification routing.** Rationale defaults to routing out of code — commit message, PR
 description, ADR — with a terse in-code why as the legitimate remainder. A lengthy why-comment is

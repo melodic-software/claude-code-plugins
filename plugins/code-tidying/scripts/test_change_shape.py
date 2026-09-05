@@ -53,10 +53,14 @@ run() { echo "$retry_count"; }
 """
 
 
-@unittest.skipUnless(grammar_available(".ts"), "tree-sitter typescript grammar not installed")
+@unittest.skipUnless(
+    grammar_available(".ts"), "tree-sitter typescript grammar not installed"
+)
 class TypeScriptVerdicts(unittest.TestCase):
     def test_comment_deletion_is_comment_only(self):
-        after = TS_BASE.replace("// leading comment\n", "").replace("  // increment x\n", "")
+        after = TS_BASE.replace("// leading comment\n", "").replace(
+            "  // increment x\n", ""
+        )
         code, out, _ = run(TS_BASE, after, ".ts")
         self.assertEqual(code, 0, out)
         self.assertTrue(out.startswith("COMMENT-ONLY"), out)
@@ -111,6 +115,124 @@ class BashVerdicts(unittest.TestCase):
     def test_value_change_that_orphans_the_comment_is_code_changed(self):
         after = SH_BASE.replace("retry_count=3", "retry_count=5")
         code, out, _ = run(SH_BASE, after, ".sh")
+        self.assertEqual(code, 20, out)
+
+
+PY_BASE = '''"""Module docstring stays: it is a doc comment, not a code token."""
+# explain the budget
+retry_budget = 3
+
+
+def run():
+    # narrate
+    return retry_budget
+'''
+
+CS_BASE = """/// <summary>Public doc.</summary>
+public class Widget {
+    // internal note
+    private int Count = 3;
+    public int Get() { return Count; }
+}
+"""
+
+JS_BASE = """// leading
+function helper(x) {
+  // increment
+  return x + 1;
+}
+module.exports = { helper };
+"""
+
+YML_BASE = """# top comment
+name: ci
+on: [push]  # trailing comment
+jobs:
+  build:
+    runs-on: ubuntu-latest
+"""
+
+
+@unittest.skipUnless(
+    grammar_available(".py"), "tree-sitter python grammar not installed"
+)
+class PythonVerdicts(unittest.TestCase):
+    def test_comment_deletion_is_comment_only(self):
+        after = PY_BASE.replace("# explain the budget\n", "").replace(
+            "    # narrate\n", ""
+        )
+        code, out, _ = run(PY_BASE, after, ".py")
+        self.assertEqual(code, 0, out)
+
+    def test_docstring_deletion_is_code_changed(self):
+        # A docstring is a string expression statement, not a comment node; removing
+        # it must never pass as COMMENT-ONLY.
+        after = PY_BASE.replace(
+            '"""Module docstring stays: it is a doc comment, not a code token."""\n', ""
+        )
+        code, out, _ = run(PY_BASE, after, ".py")
+        self.assertEqual(code, 20, out)
+
+    def test_rename_is_rename_only(self):
+        after = PY_BASE.replace("retry_budget", "max_attempts")
+        code, out, _ = run(PY_BASE, after, ".py", "--json")
+        self.assertEqual(code, 10, out)
+        self.assertIn('"retry_budget": "max_attempts"', out)
+
+
+@unittest.skipUnless(
+    grammar_available(".cs"), "tree-sitter c-sharp grammar not installed"
+)
+class CSharpVerdicts(unittest.TestCase):
+    def test_line_comment_deletion_is_comment_only(self):
+        after = CS_BASE.replace("    // internal note\n", "")
+        code, out, _ = run(CS_BASE, after, ".cs")
+        self.assertEqual(code, 0, out)
+
+    def test_xml_doc_deletion_is_comment_only_by_token_proof(self):
+        # The proof is about code tokens; exempting public XML docs is the
+        # skill's job (never touched), not the classifier's.
+        after = CS_BASE.replace("/// <summary>Public doc.</summary>\n", "")
+        code, out, _ = run(CS_BASE, after, ".cs")
+        self.assertEqual(code, 0, out)
+
+    def test_rename_is_rename_only(self):
+        after = CS_BASE.replace("Count", "Total")
+        code, out, _ = run(CS_BASE, after, ".cs", "--json")
+        self.assertEqual(code, 10, out)
+        self.assertIn('"Count": "Total"', out)
+
+
+@unittest.skipUnless(
+    grammar_available(".js"), "tree-sitter javascript grammar not installed"
+)
+class JavaScriptVerdicts(unittest.TestCase):
+    def test_comment_deletion_is_comment_only(self):
+        after = JS_BASE.replace("// leading\n", "").replace("  // increment\n", "")
+        code, out, _ = run(JS_BASE, after, ".js")
+        self.assertEqual(code, 0, out)
+
+    def test_rename_is_rename_only(self):
+        after = JS_BASE.replace("helper", "incrementByOne")
+        code, out, _ = run(JS_BASE, after, ".js", "--json")
+        self.assertEqual(code, 10, out)
+        self.assertIn('"helper": "incrementByOne"', out)
+
+
+@unittest.skipUnless(
+    grammar_available(".yml"), "tree-sitter yaml grammar not installed"
+)
+class YamlVerdicts(unittest.TestCase):
+    def test_comment_deletion_is_comment_only(self):
+        after = YML_BASE.replace("# top comment\n", "").replace(
+            "  # trailing comment", ""
+        )
+        code, out, _ = run(YML_BASE, after, ".yml")
+        self.assertEqual(code, 0, out)
+
+    def test_value_change_is_code_changed(self):
+        after = YML_BASE.replace("ubuntu-latest", "ubuntu-22.04")
+        code, out, _ = run(YML_BASE, after, ".yml")
         self.assertEqual(code, 20, out)
 
 

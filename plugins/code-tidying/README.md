@@ -9,11 +9,18 @@ Six skills, one capability:
 
 - **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
-  the whole repository with confirmation): deletes zero-information comments, dissolves
-  code-expressible comments into names and structure via behavior-preserving
-  refactoring (then deletes them), and keeps only terse, load-bearing comments
-  code cannot express. Refactors apply only behind a discovered test net;
-  `safe` mode restricts applied edits to removals.
+  the whole repository with confirmation, ranked by exposure and comment
+  payload): deletes zero-information comments, dissolves code-expressible
+  comments into names and structure via behavior-preserving refactoring (then
+  deletes them), and keeps only terse, load-bearing comments code cannot
+  express, held to a line budget. Deletions and function-local renames apply
+  behind a token-level proof (`change-shape.py`, so they act on a repository
+  with no test suite); additive refactors need a discovered test net;
+  interface-creating ones are proposal-first. `safe` mode restricts applied
+  edits to removals. Ships a comment census with a token estimate and a
+  cross-language commented-out-code detector, and probes its reading layers
+  (`scc`, `pygments`, `tree-sitter`, `ruff`, `ast-grep`) at run time, naming
+  what each absent one costs.
 - **`/code-tidying:audit-comment-residue`**. Read-only classifier for
   out-of-context comment residue (history narration, plan/session references,
   conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
@@ -106,7 +113,15 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Configuration
 
-No `userConfig`. Project-specific behavior routes through
+Three `userConfig` options, all for `dissolve-comments`; none loosens a gate:
+
+| Option | Default | Effect |
+|---|---|---|
+| `comment_posture` | `strict` | `strict` rewrites an over-budget kept comment terser and stages the removed narrative; `balanced` reports it instead; `conservative` applies class-A deletions only and proposes everything else. Doubt keeps the comment in every posture. |
+| `class_c_max_lines` | `2` | Line budget for a kept (class-C) comment before it is rewritten. |
+| `apply_local_renames` | `true` | Apply a function-local rename that `change-shape.py` certifies as RENAME-ONLY even with no test net; `false` proposes it. |
+
+Everything else routes through
 `.claude/tidy-lanes/` lane files and your project's own `CLAUDE.md` /
 `.claude/rules` (protected paths, verification commands). Run
 **`/code-tidying:setup apply`** to interview your repo and scaffold those lane files

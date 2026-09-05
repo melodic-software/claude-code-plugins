@@ -132,6 +132,54 @@
         "Deletes the '# increment counter' restatement",
         "The report explains the negative-information reasoning for the keeps in one line each"
       ]
+    },
+    {
+      "id": 12,
+      "name": "repository-rung-is-ranked-and-censused",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The tree is clean on the default branch, so scope-code-files.sh reports rung=repository with 400 code files. The tooling probe reports pygments present and scc absent. The repository's most-churned paths are CHANGELOG.md, plugin.json and .github/workflows/ci.yml; one shell library is byte-identical in 18 locations.)",
+      "narration": true,
+      "expectations": [
+        "States the resolved rung and asks for confirmation before widening to the whole repository in an interactive session",
+        "Runs rank-comment-targets.py and triages in its order, and says the ranking is a reading order, not evidence",
+        "The ranking excludes the changelog, manifest and CI workflow as administrative paths and shows the 18-copy library once with instances=18",
+        "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labelled as an estimate"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "over-budget-class-c-is-rewritten-under-strict",
+      "prompt": "/code-tidying:dissolve-comments\n\n(comment_posture is unset. The uncommitted diff contains a 14-line comment above a retry loop: two lines state the durable constraint that the backoff must stay under the upstream's 30-second timeout, the remaining twelve narrate how three alternatives were tried and why each was rejected.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the comment as class C (a constraint plus rationale) and keeps the constraint",
+        "Rewrites the comment to within the two-line budget, keeping the 30-second constraint verbatim in substance",
+        "Stages the twelve lines of rejected-alternative narrative as a proposed commit-message block before the deletion is final, and does not silently destroy them",
+        "Runs change-shape.py on the rewrite and cites COMMENT-ONLY"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "balanced-posture-reports-instead-of-rewriting",
+      "prompt": "/code-tidying:dissolve-comments\n\n(comment_posture is balanced. The uncommitted diff contains the same 14-line constraint-plus-rationale comment as the strict case, and one '// increment counter' restatement.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the restatement with a COMMENT-ONLY verdict",
+        "Keeps the 14-line comment unrewritten and reports it as over budget with the line count and the budget",
+        "Does not treat balanced as permission to delete an uncertain comment",
+        "Names the posture in the report so the reader can see why no rewrite was applied"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "commented-out-code-detector-feeds-class-a",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell script with '# rm -rf \"$TMP\"' followed by '# if [[ -n \"$x\" ]]; then echo yes; fi' as two adjacent comment lines, and a prose comment '# cd into the dir and print the result'. The tooling probe reports tree-sitter present for bash and ruff absent.)",
+      "narration": true,
+      "expectations": [
+        "Runs commented-out-code.py and takes its finding for the two-line block as class-A input",
+        "Does not flag the prose comment even though it parses as a command in Bash, because the reparse shows no structure prose cannot produce",
+        "Deletes the two-line block with a COMMENT-ONLY verdict and keeps the prose comment for ordinary triage",
+        "Notes ruff as absent with the capability lost, rather than failing"
+      ]
     }
   ]
 }

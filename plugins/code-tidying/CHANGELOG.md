@@ -17,10 +17,40 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   (`scc`, `pygments`, `tree-sitter`, `ruff`, `ast-grep`). Every absent layer names the capability
   lost. Probes `ast-grep`, never `sg`: both meanings of `sg` are live on a stock machine. Always
   exits 0.
-- **Six `dissolve-comments` evals (6-11)** covering the behaviors below, written to fail against
-  the previous skill.
+- **`scripts/scope-code-files.sh`, the empty-argument ladder resolved by script.** Reports the rung
+  (`uncommitted`, `branch`, `repository`), the base it compared against, the count, and the paths;
+  advances on absence of a rung, never on emptiness, so a docs-only branch reports zero files
+  instead of widening. Co-located test.
+- **`scripts/comment-census.py`, the comment burden with a token estimate.** Comment lines and
+  bytes per file and per language from scc (lines, complexity) and pygments (bytes), byte-identical
+  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labelled as such,
+  `--baseline` for the delta between passes. Co-located test.
+- **`scripts/rank-comment-targets.py`, the repository-rung reading order.** Exposure (size-normalized
+  recency-weighted line churn, basename fan-in, raw churn, owner diffusion) times payload (comment
+  lines beyond the per-language median), rank-normalized, after gating administrative paths,
+  generated files, the size floor and bot commits, and collapsing byte-identical copies to one row
+  with an instance count. Bounded `git blame` drift column on the top rows. Shallow clones rank by
+  fan-in and payload with a printed notice. Co-located test on a synthetic repository.
+- **`scripts/commented-out-code.py`, cross-language commented-out-code detection.** Reparses each
+  comment (adjacent lines merged, per-line fallback) with the file's own grammar and accepts only a
+  clean parse containing structure prose cannot produce, so a Bash sentence that parses as a
+  command is not a finding. Directive comments are skipped. Co-located test.
+- **`userConfig`**: `comment_posture` (`strict` default, `balanced`, `conservative`),
+  `class_c_max_lines` (default 2), `apply_local_renames` (default true). Knobs move tiers; none
+  loosens a gate.
+- **`reference/tooling.md`, `reference/scope.md`, `reference/sources.md`.** The reading layers with
+  install commands and dated measurements, the scope ladder contract, and the doctrine sources
+  moved out of `SKILL.md`, which is back under its line target.
+- **Ten `dissolve-comments` evals (6-15)** covering the behaviors above and below, written to fail
+  against the previous skill.
+- **CI pins** for tree-sitter and one grammar wheel per mapped language in
+  `.github/requirements-ci.txt`, so the grammar-dependent suites run in CI instead of skipping.
 
 ### Changed
+
+- **`dissolve-comments` holds kept comments to a line budget.** Class C over `class_c_max_lines` is
+  rewritten terser under `strict` with the narrative staged, reported under `balanced`, proposed
+  under `conservative`; the rewrite is certified like any deletion.
 
 - **`dissolve-comments` gates each edit by the strongest proof it admits instead of one test
   run for everything.** Class-A deletions and function-local renames apply behind

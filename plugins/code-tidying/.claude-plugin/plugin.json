@@ -19,5 +19,27 @@
     "self-documenting",
     "dead-code",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "comment_posture": {
+      "type": "string",
+      "title": "dissolve-comments posture",
+      "description": "How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed. Doubt keeps the comment in every posture. Any other value is read as strict.",
+      "default": "strict"
+    },
+    "class_c_max_lines": {
+      "type": "number",
+      "title": "Kept-comment line budget",
+      "description": "Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why.",
+      "default": 2,
+      "min": 1,
+      "max": 40
+    },
+    "apply_local_renames": {
+      "type": "boolean",
+      "title": "Apply proven local renames without a test suite",
+      "description": "When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed.",
+      "default": true
+    }
+  }
 }

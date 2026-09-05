@@ -38,6 +38,11 @@ probe reported: a pygments-level read may still apply deletions; a grep-level re
 in a language with heredocs or block comments, because it cannot tell a comment from string data.
 Tier 1 without its proof is tier 2.
 
+Two user-config knobs move tiers without changing any gate: `apply_local_renames=false` makes
+tier 1 a proposal even when RENAME-ONLY holds, and posture `conservative` makes every tier above 0
+a proposal (safe mode as a standing default). Nothing loosens a gate: no knob applies an edit its
+tier's proof did not pass.
+
 ## The test net (tiers 2 and 3)
 
 1. **Discover** a runnable test command for the touched code: the repo's declared conventions
