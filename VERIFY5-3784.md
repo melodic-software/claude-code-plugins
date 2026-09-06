@@ -1,0 +1,23 @@
+# Fifth verification pass, #3784 correlation-id spine
+
+Verified at `4c900dedb2340c5c430f4a80505adf5d5ca119e5`, clean tree. **No spoof reproduced against a well-formed payload:** 1555 targeted adversarial payloads plus 1200 length-swept ones put zero nested decoy on the spine. Two first-round "leaks" were my own generator splicing decoys at the ROOT; both retracted.
+
+## Findings
+
+**1. MINOR (REPRODUCED). A nested key reaches the spine when the payload does not open a container before its first quote.** The walk starts at depth 0, so the first `{` it meets is credited as the root and that object's keys read as depth 1. `,"n":{"session_id":"DECOYS"}`, `"abc",{"session_id":"DECOYS"}` and `1,{"session_id":"DECOYS"}` each yield `session_id=DECOYS`, above 65536 bytes too. Not reachable from tool-controlled content: the first structure field is `{` for every payload Claude Code emits, and `tool_input` can never be that field. Every well-formed shape is correct (root arrays, leading whitespace, a UTF-8 BOM which omits everything, truncated well-formed payloads at 270 cut points). So this is robustness on non-document input, not a forgeable audit-trail id, but it does falsify the README sentence in finding 3.
+
+**2. MINOR (REPRODUCED). Three mutations survive; two are real gaps.** Deleting the whole-payload odd-field guard `((corr_n % 2 == 1 && corr_n > 1)) || continue` leaves PASS=327 FAIL=0, and it is not cosmetic: with it gone, 14 of 980 small malformed payloads leak a genuinely nested decoy, so a regression removing it ships green. Changing `<= 65536` to `<= 65535` also leaves 327/0, so the whole/window boundary is unpinned. The third survivor, deleting `[[ $corr_mid == *\"* ]] &&`, survives correctly: it is a performance short-circuit, and with no quote in the middle neither following test can match, so it is an equivalent mutant rather than a gap (NIT).
+
+**3. MINOR (REPRODUCED). A SEVENTH way a key goes out of reach, and one false README sentence.** Seventh: a payload of 65536 bytes or less with an unbalanced quote count loses ALL FOUR keys, `session_id` included (`{"session_id":"REALS","prompt_id":"REALP","b":"x"` yields nothing). None of the six listed covers it, since all six are about the windowed path. The same truncated shape at 70 KiB keeps `session_id` and `prompt_id`, so the small path is strictly worse than the large one, which inverts the section's framing ("A key may be absent on a large payload"). False sentence, README "Correlation keys": "so the root-only guarantee above holds at every payload size, and on a payload that is malformed or cut off mid-write as well as on a well-formed one" (finding 1 breaks it). The CHANGELOG 1.1 sentence is narrower ("tool-supplied arguments cannot put a value on the spine") and is TRUE as written; I found nothing false in the 1.1 entry.
+
+## Executed
+
+Feature, driving `hook::emit_telemetry` with a stub sink: 300 consecutive byte lengths each at ~70 KiB, ~150 KiB and ~280 KiB gave four ids **300/300 (100%)** with no seam-dependent misses at all. Exactly 294912 gives four; 294913, 295000 and 310000 give exactly two. The 23.5% four-id rate in the 294000-294400 band is the cap, not a seam.
+
+Spoof: byte-class sweeps at both seams; backslash runs 1..70 ending at each seam with +/-2 shifts; a repeating quote/brace/colon/comma/digit/letter/backslash gadget shifted through 220 offsets; 200 openquote-at-seam cases with braces in the preceding structure field; every bracket combination of concatenated documents; `}{` in a structure field and in a string; root arrays; all-quote and all-backslash payloads; control bytes and invalid UTF-8 between root strings; 270 truncation points. Zero leaks. Plus an exhaustive check of the field-count parity rule the delta rests on (5460 strings, no mismatch).
+
+Mutations, on a copy in a scratch git repo with baseline PASS=327 FAIL=0: 18 run, 15 caught, 3 survived (finding 2). Caught includes both parity branches swapped, the last-byte test forced false and forced true, `corr_steps=$corr_n`, each `corr_carry=0`, the `corr_js` test, `corr_depth - corr_c` to `corr_depth + corr_o - corr_c`, all five middle/seam tests individually, and both cap changes.
+
+Gates all pass: `bash lib/hook-utils.test.sh` PASS=327 FAIL=0; `shellcheck lib/hook-utils.sh` clean; `sync-hook-utils.sh --check` 17/17; `validate-plugins.sh`; `check-changelog-parity.sh --check-bump origin/main` and `--check`; `check-shell-portability.sh origin/main`. `cache-content-check.test.sh`: I confirmed the same 2 failures on a clean `origin/main` worktree, so it is pre-existing.
+
+Nothing here blocks the delta. The branch it was asked to attack held.
