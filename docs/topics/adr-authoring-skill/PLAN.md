@@ -83,7 +83,7 @@ Files:
 |---|---|---|
 | `plugins/architecture/skills/record-decision/SKILL.md` | Create | the skill (contract below) |
 | `plugins/architecture/reference/adr-discovery.md` | Create | single owner of the ADR discovery ladder, numbering inference, template inference |
-| `plugins/architecture/skills/improve/actions/deepening.md` | Modify | line 24: replace the inline ladder with one sentence plus a link to `../../../reference/adr-discovery.md`, keeping "honor a declared location first" and "a single default glob misses most of them" |
+| `plugins/architecture/skills/improve/actions/deepening.md` | Modify | line 24: replace the inline directory list with one sentence plus a relative markdown link to `../../../reference/adr-discovery.md`, keeping the declared-location-first rule (the sentence beginning "If the consuming project declares where its decisions live") and the closing sentence "ADR placement varies widely; a single default glob misses most of them." |
 
 **SKILL.md contract.**
 
@@ -94,14 +94,15 @@ Frontmatter:
   chose'. Must state the discover-and-follow behavior and the no-convention offer-and-defer in
   the lead sentence, and a `Skip when` clause for supersession, index, and status lifecycle.
   Draft (edit freely, keep the phrases):
-  "Record an architecture decision into the consuming repository's existing ADR convention:
-  discovers the ADR directory, numbering scheme, and record shape already in use and writes one
-  record that follows them; when no convention exists it names what it searched, offers common
-  shapes, and writes nothing until the human chooses. Use when: 'record this decision',
-  'write an ADR', 'architecture decision record', 'capture this decision', 'document why we
-  chose X', or after a design handoff or interview resolves a decision worth keeping. Skip
-  when: the decision is easily reversed and unsurprising (no ADR earned), or the ask is
-  supersession, an index, or status lifecycle beyond what the convention already defines."
+  (696 codepoints as written; count again after any edit):
+  "Record an architecture decision into the repository's existing ADR convention: discovers
+  the ADR directory, numbering scheme, and record shape in use and writes one record that
+  follows them; when no convention exists it names what it searched, offers common shapes, and
+  writes nothing until the human chooses. Use when: 'record this decision', 'write an ADR',
+  'architecture decision record', 'capture this decision', 'document why we chose X', or after
+  a design handoff or interview resolves a decision worth keeping. Skip when: the decision is
+  easily reversed and unsurprising (no ADR earned), or the ask is supersession, an index, or
+  status lifecycle beyond what the convention already defines."
 - `argument-hint: "[decision and its rationale, or a path to a file holding them]"`
 - `user-invocable: true`, `disable-model-invocation: false`, `shell: bash`
 - `metadata:` with `workflow-stage: anytime` and, as a plain unquoted YAML scalar (the
@@ -114,8 +115,9 @@ Body sections, in order:
    calls, one command per call, never combined) with exactly two bullets: current branch
    (`git branch --show-current`) and working tree status (`git status --porcelain | head -10`,
    the pipe inside the command). No recent-commits bullet: a decision record does not need
-   commit history. Keep the two explanatory paragraphs that follow the bullets in `improve`
-   (the read-time cap sentence and the worktree-isolated-session sentence) word for word.
+   commit history. Copy word for word the two paragraphs that sit between the bullet list and
+   `## Variables` in `plugins/architecture/skills/improve/SKILL.md` (the one beginning "The
+   pipe is the bound" and the one beginning "Treat a failure").
 2. "Variables": `$ARGUMENTS`.
 3. "Purpose": three sentences at most.
 4. "Input contract": the paragraph above, restated for the model.
@@ -124,10 +126,10 @@ Body sections, in order:
    fails, say so once and offer to skip; the human's call wins.
 6. "Step 1. Discover the convention": read
    [`${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md`](${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md)
-   (the plugin-root-anchored form the fleet uses for bundled assets, as
-   `planning`'s close-out spoke cites its own `reference/topic-docs.md`; a `../../` form has no
-   runtime anchor because the session's cwd is the consumer repository) and walk the ladder
-   from the working area up to the repo root. Emit one paragraph naming the directory,
+   (rationale for the worker, not body text: this is the plugin-root-anchored form the fleet
+   uses for bundled assets, as `planning`'s close-out spoke cites its own
+   `reference/topic-docs.md`; a `../../` form has no runtime anchor because the session's cwd
+   is the consumer repository) and walk the ladder from the working area up to the repo root. Emit one paragraph naming the directory,
    numbering scheme, template source, and any duplicates or shape disagreement observed.
 7. "Step 2a. Convention found": derive the next identifier (highest existing + 1, preserve
    zero-pad width and separator), the filename in the observed form, and the section set from
@@ -187,13 +189,14 @@ keep the metadata block form, status vocabulary, and heading set exactly).
 
 - `test -f plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 1 today)
 - `test -f plugins/architecture/reference/adr-discovery.md` exits 0 (exits 1 today)
-- `grep -q "creativecommons.org/licenses/by-nc-sa/4.0" plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 1 today)
+- `grep -q "creativecommons.org/licenses/by-nc-sa/4.0" plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 2 today: file missing)
 - `grep -q "adr-discovery.md" plugins/architecture/skills/improve/actions/deepening.md` exits 0 (exits 1 today)
 - `! grep -q "docs/decisions/" plugins/architecture/skills/improve/actions/deepening.md` exits 0 (the inline ladder is gone; exits 1 today)
 - `grep -q 'CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md' plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 2 today: file missing)
 - `! grep -rqi "captures an important architectural decision" plugins/architecture/` exits 0 (a tripwire for one catalog sentence, not the phase's discriminating check; exits 0 today and must stay 0. Eval case 5 is the real guard)
 - `test -d plugins/architecture/skills/record-decision && test -f plugins/architecture/reference/adr-discovery.md && ! grep -rqiE "melodic|MELODIC_" plugins/architecture/skills/record-decision plugins/architecture/reference/adr-discovery.md` exits 0 (exits 1 today because the paths are absent; the `test` guards keep a missing path from passing the grep vacuously)
-- `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh record-decision` exits 0 (exits 1 today: no such skill; without `--require-evals` the absent evals are a WARN at this phase, and Phase 2 runs the strict form)
+- `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh record-decision` exits 0 (exits 1 today: no such skill; without `--require-evals` absent evals produce no finding for this skill shape, and Phase 2 runs the strict form)
+- Known red until Phase 4: `node scripts/generate-cheatsheet.mjs --check` and `node scripts/generate-catalog.mjs --check` fail from this commit until Phase 4 regenerates the docs. That is expected, not a divergence.
 - `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh improve` still exits 0 (exits 0 today, 1 warning)
 
 ### Phase 2: evals and fixtures for the new skill [TODO]
@@ -209,8 +212,10 @@ Files:
 | `.../evals/fixtures/no-convention/docs/README.md`, `.../no-convention/src/notes.md` | Create | a tree with a `docs/` directory and no ADR directory or declaration |
 
 Every fixture path appears in a case's `files[]` (the orphaned-fixtures gate keys on that). No
-fixture directory contains a `.git`. Each case carries an integer `id` (1 to 7) and a kebab-case
-`name` (the slugs below), matching the shape of every existing evals file in the fleet.
+fixture directory contains a `.git`. The file's top level is `{"skill_name": "record-decision",
+"evals": [...]}` (both keys required by the schema). Each case carries an integer `id` (1 to 7)
+and a kebab-case `name` (the slugs below), matching the shape of every existing evals file in
+the fleet; case 7 carries `"files": []`.
 
 Cases (id, name, fixture, what passes):
 
@@ -324,7 +329,7 @@ empty `files[]`):
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/planning/skills/interview/evals/evals.json` exits 0
 - `grep -q '"version": "0.36.6"' plugins/planning/.claude-plugin/plugin.json` exits 0 (exits 1 today)
 - `grep -q "^## \[0.36.6\]" plugins/planning/CHANGELOG.md` exits 0 (exits 1 today)
-- `CHECK_SKILL_SKILLS_ROOT=plugins/planning/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh interview` exits 0, and the same for `design-handoff`
+- `CHECK_SKILL_SKILLS_ROOT=plugins/planning/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh interview` exits 0, and the same for `design-handoff` and `plan`
 - `wc -l < plugins/planning/skills/interview/SKILL.md` prints a number below 500 (284 today)
 
 ### Phase 4: architecture plugin surfaces, regen, gates [TODO]
@@ -335,7 +340,7 @@ Files:
 |---|---|---|
 | `plugins/architecture/.claude-plugin/plugin.json` | Modify | `0.6.10` to `0.7.0`; description gains one clause naming decision recording; keywords add `adr`, `decision-record` |
 | `plugins/architecture/CHANGELOG.md` | Modify | `## [0.7.0]` entry: Added (record-decision, adr-discovery reference), Changed (deepening ladder pointer) |
-| `plugins/architecture/README.md` | Modify | "What it does" gains a numbered item for decision recording; "Invoke" gains `/architecture:record-decision`; "Configuration" paragraph already says it adapts to the project's ADRs, keep |
+| `plugins/architecture/README.md` | Modify | the lede paragraph gains one sentence naming the second skill; a new `## Record a decision` section after "What it does" (that section is the `improve` pipeline, so the new skill does not become its step 4) with two or three sentences on discover-and-follow, offer-and-defer, and the catalog cited by URL; "Invoke" gains `/architecture:record-decision`; "Configuration" paragraph already says it adapts to the project's ADRs, keep. No em dashes anywhere in the file (declared-clean surface) |
 | `.claude-plugin/marketplace.json` | Modify | architecture `tags` add `adr` and `decision-record`, keeping `tags` and `plugin.json` `keywords` the same set as they are today |
 | `docs/CATALOG.md` | Regenerate | `node scripts/generate-catalog.mjs` |
 | `docs/SKILL-CHEAT-SHEET.md` | Regenerate | `node scripts/generate-cheatsheet.mjs` |
@@ -351,12 +356,14 @@ Files:
 - `bash scripts/check-skill-leaf-names.sh --check` exits 0
 - `bash scripts/check-skill-count-claims.sh --check` exits 0
 - `bash scripts/check-orphaned-fixtures.sh --check` exits 0 (exits 0 today; about ten minutes of wall clock on this tree, so it is not hung)
-- `jq -S '.keywords' plugins/architecture/.claude-plugin/plugin.json` and `jq -S '.plugins[] | select(.name=="architecture").tags' .claude-plugin/marketplace.json` print the same list
+- `jq -c '.keywords | sort' plugins/architecture/.claude-plugin/plugin.json` and `jq -c '.plugins[] | select(.name=="architecture").tags | sort' .claude-plugin/marketplace.json` print the same list (sorted, so element order in the files does not matter)
+- `bash scripts/check-purged-em-dashes.sh --check` exits 0 (both READMEs are declared-clean surfaces; exits 0 today)
+- `bash scripts/check-skill-portability.sh` exits 0 (exits 0 today)
 - `node scripts/validate-plugin-contracts.mjs` exits 0
 - `bash scripts/validate-plugins.sh` exits 0
 - `bash scripts/check-changed-skills.sh origin/main` exits 0
 - `bash scripts/affected-tests.sh --run` exits 0
-- `npx markdownlint-cli2 "plugins/architecture/**/*.md" "plugins/planning/skills/interview/SKILL.md" "plugins/planning/skills/design-handoff/SKILL.md" "plugins/planning/README.md" "plugins/planning/CHANGELOG.md"` reports 0 issues
+- `npx markdownlint-cli2 "plugins/architecture/**/*.md" "plugins/planning/skills/interview/SKILL.md" "plugins/planning/skills/design-handoff/SKILL.md" "plugins/planning/skills/plan/context/close-out.md" "plugins/planning/README.md" "plugins/planning/CHANGELOG.md"` reports 0 issues
 
 ## Test strategy
 
