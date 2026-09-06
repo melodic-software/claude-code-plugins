@@ -3,6 +3,21 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Fixed
+
+- **A Cobertura class is no longer keyed under the wrong source root.** A multi-root build declares
+  several `<source>` roots and each class filename is relative to one of them, but the parser
+  collected all the roots and then applied the first one to every filename. A class belonging to a
+  later root was keyed under a path that does not exist, so its coverage never joined against the
+  measured file and the file read as uncovered or dropped out of the join. A relative filename now
+  takes the first declared root under which that path exists in the scanned tree, which the calling
+  skill passes as `CODE_METRICS_SCAN_ROOT` rather than leaving the parser to probe whatever
+  directory the session happens to sit in. With no candidate on disk the first root still applies,
+  a report declaring one root is resolved without reading the filesystem at all and is unchanged,
+  and absolute and drive-qualified filenames keep taking no prefix.
+
 ## [0.1.1]
 
 ### Fixed
