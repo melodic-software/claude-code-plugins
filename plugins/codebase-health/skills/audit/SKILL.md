@@ -72,10 +72,14 @@ This skill owns ONE kind of drift: the **factual claims a repo makes about itsel
 code, and architecture notes, verified against that repo's own ground truth. Seven adjacent lanes own
 the other kinds, and an operator who reached this skill is often standing in one of them.
 
-Each lane is optional collaboration, never a requirement of this skill. Route to one **when its
-plugin is installed**, invoking the skill via the Skill tool (the agent lane via the Agent tool).
-When the plugin is absent, say that dimension is out of scope for this run and report it as
-uncovered, rather than running claim-extraction over it here.
+This section is a router for the operator, not a dispatch list for this skill. A bare `audit` is
+READ-ONLY, and some of these lanes mutate: `/discipline:recheck-against-upstream` corrects
+divergences forward as it finds them, and several others carry an explicit fix mode. Invoking one
+from inside a read-only run would let this skill edit the repository through a sibling, which its own
+verb contract forbids. So a dimension that belongs to another lane is reported as **uncovered**, and
+the lane is **named as a suggestion the operator can run next**, whether or not its plugin is
+installed. Under `--fix` the operator has authorized mutation for this skill's own findings only;
+that authorization does not extend to running a sibling lane's remediation.
 
 - **Documentation freshness inside a review pass** → the `review` plugin's `doc-drift-detector`
   agent, a dispatchable reviewer for stale references, outdated conventions, and pages that no longer
