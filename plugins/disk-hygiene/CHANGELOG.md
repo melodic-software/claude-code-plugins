@@ -24,10 +24,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   guard, and no call the guard would have judged is skipped: the gate defers every command that
   is not `_engine_gate_relevant` before any deletion spelling is consulted, and relevance needs
   the engine's file name in the text or a path that is the same file as the bundled engine. That
-  second case, a symlink or hard link under another name, is the residual the filter cannot see,
-  and the Bash lane has accepted it since 0.21.4; text the PowerShell parser assigns to no
-  command (a comment naming the engine) is likewise invisible to the filter where the guard would
-  have failed closed on it. `test_engine_gate_is_registered_once_per_tool` now asserts both
+  second case, any spelling that reaches the engine without its own file name in the text (a
+  symlink or hard link under another name, a Win32 8.3 short name), is the residual the filter
+  cannot see, and the Bash lane has accepted it since 0.21.4; text the PowerShell parser assigns
+  to no command (a comment naming the engine) is likewise invisible to the filter where the guard
+  would have failed closed on it. `test_engine_gate_is_registered_once_per_tool` now asserts both
   filters; two new tests assert that a PowerShell call the filter skips is one the gate defers,
   and that every compound invocation shape the filter admits is still relevant and still denied.
   The launcher's contract suite gains a kernel-level spawn census (`strace -f`, skipped where

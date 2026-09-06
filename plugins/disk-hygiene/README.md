@@ -267,11 +267,11 @@ measurements below carry the conditions they were taken under.
   cannot see what the substitution expands to; for PowerShell, the matcher parses the command and
   runs the hook when any statement, pipeline element or nested command matches, so a mixed line
   such as `Get-Date; python hygiene.py` still reaches the guard (the every-subcommand rule applies
-  to allow decisions, not to `if`). Neither filter sees an engine reached without its file name in
-  the command text, a symlink or hard link under another name; the gate's relevance check could
-  catch that case by file identity, and the residual is accepted on both lanes, as it has been on
-  the Bash lane since 0.21.4, because the engine's own preview and approval-token containment
-  still answers for it.
+  to allow decisions, not to `if`). Neither filter sees an engine reached without its own file
+  name in the command text, any spelling such as a symlink or hard link under another name or a
+  Win32 8.3 short name; the gate's relevance check could catch that case by file identity, and the
+  residual is accepted on both lanes, as it has been on the Bash lane since 0.21.4, because the
+  engine's own preview and approval-token containment still answers for it.
   On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
