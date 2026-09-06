@@ -125,9 +125,12 @@ assert_eq "NUL flag reaches the guard through the real jq path" "nul=1 cmd=git x
 run "$PAYLOAD" "$TEST_TMPDIR/miss.sh"
 assert_eq "cache miss serves the right values" $'s-1\nBash' "$(cat "$SEEN")"
 
-# --- --lib preloads a shared library once ------------------------------------
+# --- --lib preloads a shared library once, and only on PowerShell ------------
 run "$PAYLOAD" --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh"
-assert_eq "--lib library is loaded before the guards run" "ps=1" "$(cat "$SEEN")"
+assert_eq "--lib is skipped on a Bash payload" "ps=unset" "$(cat "$SEEN")"
+PWSH_PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"PowerShell",cwd:"/x",tool_input:{command:"git status --short"}}')
+run "$PWSH_PAYLOAD" --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh"
+assert_eq "--lib library is loaded on a PowerShell payload" "ps=1" "$(cat "$SEEN")"
 
 # --- a dispatched guard sees the real dirname, not a dispatcher shadow -------
 run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
@@ -190,6 +193,13 @@ if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" ]]; then
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
   assert_eq "benign Bash dispatcher execs neither dirname nor sed" "" "$(cat "$SPAWN_LOG")"
 fi
+DISPATCH_XTRACE=$(bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
+  block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+  flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
+  block-convention-violation.sh block-windows-drive-tmp.sh \
+  block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
+assert_absent "benign Bash dispatcher never sources ps-command.sh" \
+  "$DISPATCH_XTRACE" "ps-command.sh"
 DISPATCH_SRC=$(cat "$DISPATCH")
 assert_absent "dispatcher copies jq_fields without a sed pipeline" "$DISPATCH_SRC" '| sed'
 assert_contains "dispatcher copies jq_fields via parameter expansion" "$DISPATCH_SRC" 'hook::jq_fields_uncached ()'

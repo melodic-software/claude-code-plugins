@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.8]
+
+### Changed
+
+- **The Bash dispatcher and the always-on git/commit guards parse
+  `ps-command.sh` only on a PowerShell payload.** `ps::classify_git_command`
+  returns 0 immediately on Bash after setting `PS_SAFE_COMMAND`, so a
+  file-scope `source` of that ~41 KB classifier was parse tax with no behaviour.
+  The dispatcher still accepts `--lib` on the command line (the include guard
+  still makes a later `source` a no-op) but defers the parse until `.tool_name`
+  is known, and skips it when that name is `Bash`. Each guard that still has to
+  run alone sources the classifier inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`,
+  the same shape `block-hook-bypass` already used. Isolation subshells do not
+  inherit the include guard unless the parent sourced first, so both the
+  dispatcher skip and the per-guard lazy source are required; dispatcher-only
+  would parse the file once per isolation fork on Bash.
+  Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK` unset,
+  benign `git status --short` payload: counted PATH-visible execs stay at
+  **5** (`3 git` + `2 jq`). `bash -x` `source …/ps-command.sh` lines: **5 → 0**.
+  Wall clock on this measurable Linux host (spawn floor 0.5 ms, spread 1.78×,
+  n=20 after 2 warmup): p50 51.9 → 46.8 ms, p95 53.8 → 48.1 ms. The milliseconds
+  are context; the durable figure is the five classifier parses that
+  disappeared. An unprimed payload still loads the library so a PowerShell
+  command whose jq cache missed cannot reach a guard with `ps::` unbound.
+  What each guard checks is unchanged.
+
 ## [0.32.7]
 
 ### Changed

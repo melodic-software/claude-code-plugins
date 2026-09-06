@@ -379,6 +379,33 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.8, `ps-command.sh` parse tax on the Bash dispatcher.** 2026-09-06,
+Linux CI host. The 0.32.6 table still carries the remaining five PATH-visible
+execs (`3 git` + `2 jq`); this entry does not change that count. `ps-command.sh`
+(~41 KB) was sourced on every Bash fire: once in the dispatcher because
+`hooks.json` passes `--lib`, and again inside each isolation subshell whose
+guard had a file-scope `source` (the include guard is process-local, so a
+parent `source` does not spare the forks). `ps::classify_git_command` returns
+0 immediately on Bash, so those parses were tax. After: the dispatcher skips
+`--lib` when `.tool_name` is `Bash`, and each guard sources the classifier only
+inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`. Neither guard's decision
+changed.
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload. `bash -x` counts
+`source …/ps-command.sh` lines. Wall clock is p50/p95 of 20 samples after 2
+warmup on a host `spawn_probe` characterised as measurable (min 0.5 ms, spread
+1.78×).
+
+| Counter | before | after |
+|---|---|---|
+| Counted PATH-shim spawns | 5 (`3 git`, `2 jq`) | 5 (`3 git`, `2 jq`) |
+| `source …/ps-command.sh` (`bash -x`) | 5 | 0 |
+| Wall p50 / p95 (n=20) | 51.9 / 53.8 ms | 46.8 / 48.1 ms |
+
+The remaining five execs are still the primed `jq` payload parse and the git
+probes the classification guards run on a `git` command.
+
 **0.32.6, remaining `dirname`/`sed` execs on the Bash dispatcher.** 2026-09-05,
 Linux CI host. The 0.31.1 paired table still carries the pre-cut figures for the
 whole Bash dispatcher (52.6 spawn-equivalents); this entry supersedes that

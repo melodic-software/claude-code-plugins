@@ -95,15 +95,6 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh"
 
-# Bundled PowerShell-command classifier — the git guards are matched on both the
-# Bash and the (opt-in) PowerShell tool, whose command arrives in the same
-# tool_input.command field with PowerShell grammar. Resolved under the plugin
-# root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract
-# tests working when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
-
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -969,13 +960,20 @@ check_segment() {
 # while leaving this guard on no longer blocks a git-shaped unparsable PowerShell
 # commit — the exposure that came with this deferral (#1858). The deferral emits
 # its own `form` so it stays distinguishable from an evaluated allow in telemetry.
-ps::classify_git_command "$TOOL_NAME" "$COMMAND"
-ps_rc=$?
-((ps_rc == 0)) || {
-  emit_tel "ok" "powershell-deferred"
-  exit 0
-}
-COMMAND="$PS_SAFE_COMMAND"
+# The ~41 KB classifier is sourced only on the PowerShell lane (#2663); the
+# Bash path is a no-op (COMMAND unchanged).
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+  ps_rc=$?
+  ((ps_rc == 0)) || {
+    emit_tel "ok" "powershell-deferred"
+    exit 0
+  }
+  COMMAND="$PS_SAFE_COMMAND"
+fi
 
 # Resolved-subcommand names already expanded in the CURRENT alias chain — git's
 # own alias-loop guard. Initialized here (not in check_segment, which recurses
