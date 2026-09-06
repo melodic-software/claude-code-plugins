@@ -215,6 +215,26 @@ the step UNKNOWN with remediation, never green.
      because a host safety classifier decides per call, at call time. Pair it with the
      [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
 
+   - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
+     the lane's own scripts reach the classifier; this one proves GitHub will answer them. Sandboxed
+     sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL
+     operations and refuse the rest with `HTTP 403`, and `gh pr view --json` is implemented entirely
+     over GraphQL. Probe it read-only against the repository itself:
+
+     ```bash
+     gh api graphql -f query='query{viewer{login}}' --jq '.data.viewer.login'
+     ```
+
+     A login means GraphQL is served and the lane runs at full fidelity. A `403`, or a message
+     saying the operation is not enabled for this session, is INFO rather than FAILED: the engine
+     re-sources the `gh pr view` bundle over REST by itself and keeps running. Report the one thing
+     the operator loses, because it is the thing that stops merges: review-thread **resolution** has
+     no REST equivalent, so the merge gate reports `threadResolutionProven: false` and holds every
+     PR as readiness UNPROVEN (`skills/babysit-prs/SKILL.md` "Engine and degrade"). Say so at
+     `check` time rather than letting a cycle discover it per PR. The 403 reads like an expired
+     token or a missing scope and is neither, so never remediate it by re-authenticating; the only
+     remedy is to run the merge half of the lane from a session that is served GraphQL.
+
    The remediation is always the operator's to apply, never write settings from this skill.
 
 ## `apply` (idempotent)

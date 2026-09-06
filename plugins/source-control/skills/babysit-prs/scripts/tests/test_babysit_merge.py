@@ -23,6 +23,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh as gh
 import babysit_merge as merge
 
 HEAD = "a" * 40
@@ -1042,6 +1043,119 @@ class NoAbbreviatedFlags(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 merge.main()
         self.assertEqual(ctx.exception.code, 2)
+
+
+class GraphQLRestrictionHarness(unittest.TestCase):
+    """Run `evaluate` with the gh seams stubbed, capturing the `gh pr view`
+    field list and letting a test decide whether GraphQL answers at all."""
+
+    def _evaluate(
+        self,
+        *,
+        tier: merge.AutopilotMergeTierConfig | None = None,
+        threads: list[dict[str, Any]] | None = None,
+        graphql_refused: bool = False,
+    ) -> tuple[dict[str, Any], list[str]]:
+        requested: list[str] = []
+        refusal = RuntimeError(
+            "gh pr view failed: gh: this GraphQL operation is not enabled for "
+            "this session (HTTP 403)"
+        )
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                requested.extend(args[args.index("--json") + 1].split(","))
+                if graphql_refused:
+                    raise refusal
+                return _pr()
+            if args[0] == "api":  # branch rules
+                return RULES
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        thread_seam: Any = (
+            mock.Mock(side_effect=merge.GraphQLUnavailableError("refused"))
+            if threads is None
+            else mock.Mock(return_value=threads)
+        )
+        with (
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "fetch_review_threads", thread_seam),
+            mock.patch.object(
+                merge, "fetch_pull_request_reviews", return_value=CLEAN_APPROVAL
+            ),
+            mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_review_comments", return_value=[]
+            ),
+            # The REST re-source lives once, in `babysit_gh`; the gate reaches
+            # it through `view_pr_fields`.
+            mock.patch.object(gh, "rest_view_pr", return_value=_pr()),
+        ):
+            result = merge.evaluate(
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+                tier,
+            )
+        return result, requested
+
+
+class ClosingIssuesIsRequestedOnlyWhenRead(GraphQLRestrictionHarness):
+    """`closingIssuesReferences` is GraphQL-only and read only by the autopilot
+    merge tier, which ships disabled. The default gate path must not make its
+    every run depend on a field it never consumes."""
+
+    def test_the_default_gate_path_does_not_request_it(self) -> None:
+        _, requested = self._evaluate(threads=[])
+        self.assertNotIn("closingIssuesReferences", requested)
+        self.assertIn("statusCheckRollup", requested)
+
+    def test_the_tier_path_still_requests_it(self) -> None:
+        _, requested = self._evaluate(tier=TIER, threads=[])
+        self.assertIn("closingIssuesReferences", requested)
+
+
+class UnreadableThreadResolutionHoldsTheGate(GraphQLRestrictionHarness):
+    """Thread resolution has no REST equivalent. Where GraphQL is refused the
+    verdict is UNPROVEN, never clean -- `reference/safety.md` forbids
+    substituting a lesser signal for a gate verdict."""
+
+    def test_the_gate_holds_and_names_the_restriction(self) -> None:
+        result, _ = self._evaluate()
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["threadResolutionProven"])
+        blocker = next(
+            b for b in result["blockers"] if "unresolved review threads" in b
+        )
+        self.assertIn("GraphQL", blocker)
+        self.assertIn("UNPROVEN", blocker)
+
+    def test_the_count_is_null_never_zero(self) -> None:
+        result, _ = self._evaluate()
+        self.assertIsNone(result["unresolvedThreadCount"])
+        self.assertIsNone(result["unresolvedThreads"])
+
+    def test_a_proven_empty_thread_set_still_reads_clean(self) -> None:
+        result, _ = self._evaluate(threads=[])
+        self.assertTrue(result["threadResolutionProven"])
+        self.assertEqual(result["unresolvedThreadCount"], 0)
+        self.assertTrue(result["ready"], result["blockers"])
+
+    def test_the_pr_bundle_is_re_sourced_over_rest(self) -> None:
+        result, _ = self._evaluate(graphql_refused=True)
+        self.assertFalse(result["graphqlAvailable"])
+        # Every REST-sourced field still reached the verdict; only the
+        # thread-resolution blocker holds it.
+        self.assertEqual(result["state"], "OPEN")
+        self.assertEqual(result["mergeStateStatus"], "CLEAN")
+        self.assertEqual(
+            [b for b in result["blockers"] if "unresolved review threads" not in b],
+            [],
+        )
 
 
 if __name__ == "__main__":

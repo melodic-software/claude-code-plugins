@@ -3,6 +3,81 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.58]
+
+### Fixed
+
+- **`babysit-prs`: the lane survives the pinned-GraphQL restriction, and fails closed on the
+  one fact it cannot re-source.** Sandboxed sessions (Claude Code on the web, remote execution)
+  serve only a pinned set of GraphQL operations and refuse the rest with `HTTP 403`. The whole
+  snapshot engine hangs off `gh pr view --json`, which is implemented entirely over GraphQL, so
+  the lane died on its first hydration call with a message that reads like an expired token and
+  is nothing of the kind. `babysit_gh` now classifies that refusal apart from every other `gh`
+  failure (`is_graphql_unavailable`, reusing the stderr HTTP-status parse
+  `babysit_resolve_thread.gh_http_status` already carried) and re-sources the `gh pr view`
+  bundle over REST: `GET …/pulls/{n}` for the pull request, `…/pulls/{n}/reviews` for reviews,
+  and `…/commits/{sha}/check-runs` plus `…/commits/{sha}/status` recombined into a
+  `statusCheckRollup` equivalent, keyed by `__typename` so `babysit_checks` classifies REST and
+  GraphQL rollups identically. `gh repo view --json isArchived` falls back to `.archived` on the
+  same REST repository object. This is the substitution pattern `pull-request`'s create path
+  (§0.55.7) and the work-item-tracker GitHub adapter already use, stated once more in the same
+  terms rather than a fourth way.
+- **Review-thread resolution has no REST equivalent, so it is not approximated.**
+  `fetch_review_threads` raises rather than returning `[]`, because an empty list is
+  indistinguishable from "zero unresolved threads" and would be a false-clean signal on the exact
+  input the merge gate keys on. The gate now reports `threadResolutionProven: false` and
+  `unresolvedThreadCount: null` (never `0`), and holds the PR with a blocker naming the
+  restriction: readiness is UNPROVEN, not clean. That is `reference/safety.md`'s actual rule,
+  which forbids substituting a lesser signal for the verdict and says nothing against sourcing
+  the same facts over REST, so re-hydrating everything else and failing closed here is the
+  compliant split rather than a compromise. The snapshot's inline-comment read degrades in the
+  safe direction instead of dropping the PR: comments come from `…/pulls/{n}/comments` with
+  `threadResolutionUnproven` set and no resolved thread filtered out, which over-reports open
+  feedback to a human and never under-reports it. `reviewDecision` degrades the same way, REST
+  can prove `CHANGES_REQUESTED` but cannot prove an approval, since GitHub folds CODEOWNERS and
+  the required-reviewer count into that field.
+- **The merge gate stopped requesting a GraphQL field it does not read.**
+  `closingIssuesReferences` was on every `gh pr view --json` call inside `evaluate`, but only the
+  `--autopilot-merge-tier` path consumes it and that tier ships disabled. The field request is
+  now conditional on the same tier check, so the default gate path no longer depends on a surface
+  it never reads.
+- **Dead field `baseRefOid` removed.** It rode in the snapshot engine's `VIEW_FIELDS` only to be
+  written into a `base_sha` snapshot field that nothing ever read. The freshness check has
+  deliberately compared against the base ref NAME since the cached OID was found to lag the live
+  base tip (`reference/freshness.md`), so the field had no reader left. Behaviour-neutral.
+- **Queue discovery re-sources over REST too, so the lane reaches its own hydration.** Discovery
+  runs before any of the above, and two of its three `gh` commands are GraphQL: `gh repo list`
+  (`query RepositoryList`) and `gh pr list --json` (`query PullRequestList`) both draw the same
+  pinned-operation 403, which left the fleet loop finding no PRs and never reaching a single REST
+  substitution. `rest_list_repos_for_owner` reads `GET /orgs/{owner}/repos`, falling through the
+  organization endpoint's 404 to `GET /users/{owner}/repos`, and `rest_list_prs_for_repo` reads
+  `GET /repos/{owner}/{repo}/pulls`, rebuilding only the two members discovery consumes and
+  applying the author filter client-side because that endpoint carries no author parameter.
+  `gh search prs` is left alone: it calls the REST search API, not GraphQL.
+- **Every page of REST check runs is unwrapped.** `…/commits/{sha}/check-runs` answers with an
+  OBJECT, `{total_count, check_runs}`, so `gh api --paginate --slurp` yields one page WRAPPER per
+  page rather than one check run. The flattener read each wrapper as a check run, which has no
+  name, no status and no conclusion, inventing a nameless pending check per page and hiding every
+  real run behind it. `flatten_paginated_items` now takes the member name for object endpoints.
+- **The GraphQL-refusal classifier reads the status, never a substring.** `is_graphql_unavailable`
+  also scanned the failure text for `403`, and that text is `run_command`'s, which embeds the
+  whole argv: on PR #403 the `-F n=403` argument made any failure, a timeout included, read as
+  the session refusal and sent the caller to REST over a call that never reached GitHub. Only the
+  status `gh` itself reported and the refusal wording classify now. (The status parse was also
+  being applied to a casefolded copy, which its `(HTTP nnn)` pattern never matched, so the
+  substring was in practice the only signal firing.)
+- **One REST reviews fetch per hydration instead of two.** `rest_view_pr` already fetches
+  `…/pulls/{n}/reviews` to derive `reviewDecision`, and its result IS what `rest_hydrate_reviews`
+  refetched immediately afterwards at every call site. The hydrator now recognizes a REST-sourced
+  bundle and keeps the list it already has, still dropping the stale `latestReviews`.
+
+### Changed
+
+- **`skills/setup`: `check` probes GraphQL reachability alongside the lane-script canaries.**
+  A read-only `gh api graphql -f query='query{viewer{login}}'` tells the operator up front whether
+  this session hits the wall. A refusal is INFO, not FAILED, because the engine keeps running over
+  REST; what gets reported is the one loss that stops merges, every PR held as readiness UNPROVEN.
+
 ## [0.55.57]
 
 ### Changed

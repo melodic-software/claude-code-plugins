@@ -9,7 +9,7 @@ import math
 import re
 import subprocess
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote, unquote, urlparse
 
 from babysit_util import (
@@ -23,11 +23,10 @@ from babysit_util import (
 )
 
 REPOSITORY_LIST_LIMIT = 1001
-VIEW_FIELDS = ",".join(
+VIEW_FIELD_NAMES: tuple[str, ...] = tuple(
     [
         "author",
         "baseRefName",
-        "baseRefOid",
         "comments",
         "headRefName",
         "headRefOid",
@@ -49,6 +48,7 @@ VIEW_FIELDS = ",".join(
         "url",
     ]
 )
+VIEW_FIELDS = ",".join(VIEW_FIELD_NAMES)
 SEARCH_FIELDS = "number,repository,url,title,updatedAt,isDraft"
 RECONCILE_FIELDS = "number,url,title,updatedAt,isDraft"
 GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
@@ -102,6 +102,91 @@ def gh_json(args: list[str]) -> Any:
     return json.loads(text) if text.strip() else None
 
 
+# `gh` reports the HTTP status in its own stderr message, e.g.
+# `gh: Forbidden (HTTP 403)`. The exit code alone is 1 for every failure, so
+# this is the only signal separating "the API answered no" from "the call never
+# landed". Same parse as `babysit_resolve_thread.gh_http_status`, which reads it
+# for the resolve wrapper's 404/410 distinction.
+GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
+# Sandboxed sessions (Claude Code on the web and remote execution) serve only a
+# pinned set of GraphQL operations and refuse the rest with HTTP 403. The
+# refusal names the session rather than the credential, so it reads like an
+# expired token or a missing scope and is neither: re-authenticating never
+# clears it, and the only remedy is to source the same fact over REST.
+GRAPHQL_UNAVAILABLE_MARKERS = ("not enabled for this session",)
+
+
+class GraphQLUnavailableError(RuntimeError):
+    """GitHub's GraphQL API is not served to this session.
+
+    Distinct from a GraphQL call that failed on its merits: the operation was
+    never dispatched, so nothing about the pull request was learned or refuted.
+    Callers either re-source the same fact over REST or fail closed; none may
+    read this as a negative answer.
+    """
+
+
+def gh_http_status(text: str) -> int | None:
+    """The HTTP status `gh` reported in a failure message, or None if it named none.
+
+    Ported from `babysit_resolve_thread.gh_http_status`, which reads the same
+    string off a `CompletedProcess`; here the text arrives inside the
+    `RuntimeError` `run_command` raises, which embeds the captured stderr. None
+    covers every failure that never reached an HTTP response -- a timeout, an
+    unreachable API, a `gh` that failed before dispatching -- and means
+    "unverifiable", never a negative answer. The LAST status in the stream wins:
+    a retried request prints one line per attempt.
+
+    This parses another tool's message text, so it is deliberately
+    unparsable-safe rather than robust: if `gh` reformats or localizes that
+    string, every failure returns None and every caller degrades to
+    "unverifiable", which is the recoverable direction.
+    """
+    matches = GH_HTTP_STATUS_RE.findall(text or "")
+    return int(matches[-1]) if matches else None
+
+
+def is_graphql_unavailable(failure: BaseException | str) -> bool:
+    """Whether a failed GraphQL-backed `gh` call was refused the API itself.
+
+    Two signals, either sufficient: the pinned-operation refusal text, and a
+    PARSED 403 status. Applied ONLY to GraphQL-backed calls, where both
+    readings lead somewhere safe -- a REST re-source that either answers or
+    fails loudly on its own, or a fail-closed verdict.
+
+    Neither signal may be a bare substring scan of the failure text. That text
+    is `run_command`'s, which embeds the whole argv, and every GraphQL call
+    here passes the PR number as `-F n=<number>`: a scan for "403" reports the
+    session refusal for any failure whatsoever on PR #403, including a timeout,
+    which would substitute REST for a call that never reached GitHub. Only the
+    status `gh` itself reported, and the refusal wording, name the condition.
+    The status regex is case-sensitive on `(HTTP nnn)`, so it reads the
+    original text while the marker match casefolds its own copy.
+    """
+    text = str(failure) or ""
+    if any(marker in text.casefold() for marker in GRAPHQL_UNAVAILABLE_MARKERS):
+        return True
+    return gh_http_status(text) == 403
+
+
+def gh_json_graphql(args: list[str], *, label: str) -> Any:
+    """Run a GraphQL-backed `gh` command, separating the refusal from a failure.
+
+    Raises `GraphQLUnavailableError` when the session is not served GraphQL at
+    all, and re-raises everything else unchanged, so a caller can substitute
+    REST for the first without swallowing the second. Routed through `gh_json`
+    so this stays the module's one gh-JSON seam.
+    """
+    try:
+        return gh_json(args)
+    except RuntimeError as exc:
+        if is_graphql_unavailable(exc):
+            raise GraphQLUnavailableError(
+                f"{label}: GitHub's GraphQL API is not served to this session ({exc})"
+            ) from exc
+        raise
+
+
 def is_owner_repo_pair(owner: str, repo: str) -> bool:
     """Whether `owner`/`repo` are both well-formed GitHub path segments.
 
@@ -153,20 +238,59 @@ def parse_repo(value: str) -> str:
     return f"{match.group(1)}/{match.group(2)}".casefold()
 
 
+def rest_list_repos_for_owner(owner: str) -> list[str]:
+    """`gh repo list` rebuilt from REST, for a session served no GraphQL.
+
+    `gh repo list --json` is a GraphQL `RepositoryList` query, so it 403s
+    alongside `gh pr view` and takes owner-mode discovery with it. REST spells
+    the same listing two ways and nothing upstream knows which kind of account
+    an owner is, so the organization endpoint is tried first and its 404 -- the
+    answer for a user account -- falls through to the user endpoint. Any other
+    failure is re-raised: a listing that failed for another reason must not
+    read as an owner with no repositories.
+
+    Pagination walks every page, so unlike the GraphQL path there is no result
+    cap to detect and no truncation to warn about.
+    """
+    if not GITHUB_OWNER_RE.fullmatch(owner):
+        raise ValueError(f"Expected a GitHub owner, got: {owner}")
+    try:
+        rows = fetch_paginated_api(
+            f"orgs/{owner}/repos?per_page=100", f"{owner} repositories"
+        )
+    except RuntimeError as exc:
+        if gh_http_status(str(exc)) != 404:
+            raise
+        rows = fetch_paginated_api(
+            f"users/{owner}/repos?per_page=100", f"{owner} repositories"
+        )
+    repos: list[str] = []
+    for row in rows:
+        name = str(row.get("full_name") or "").strip().casefold()
+        if name:
+            repos.append(name)
+    return repos
+
+
 def list_repos_for_owner(owner: str) -> list[str]:
-    text = run_gh(
-        [
-            "repo",
-            "list",
-            owner,
-            "--limit",
-            str(REPOSITORY_LIST_LIMIT),
-            "--json",
-            "nameWithOwner",
-            "--jq",
-            ".[].nameWithOwner",
-        ]
-    )
+    try:
+        text = run_gh(
+            [
+                "repo",
+                "list",
+                owner,
+                "--limit",
+                str(REPOSITORY_LIST_LIMIT),
+                "--json",
+                "nameWithOwner",
+                "--jq",
+                ".[].nameWithOwner",
+            ]
+        )
+    except RuntimeError as exc:
+        if not is_graphql_unavailable(exc):
+            raise
+        return rest_list_repos_for_owner(owner)
     repos = [line.strip().casefold() for line in text.splitlines() if line.strip()]
     if len(repos) >= REPOSITORY_LIST_LIMIT:
         raise RuntimeError(
@@ -256,6 +380,49 @@ def _search_prs_for_owners(
     return found, errors
 
 
+def rest_list_prs_for_repo(
+    repo: str, per_repo_limit: int, author: str | None
+) -> list[dict[str, Any]]:
+    """`gh pr list --json` rebuilt from REST, in the shape discovery reads.
+
+    `gh pr list --json` is a GraphQL `PullRequestList` query -- confirmed
+    against a restricted session, which answers it with the same pinned-
+    operation 403 that takes out `gh pr view`. Queue discovery is the FIRST
+    call in the fleet loop, so without this substitution the loop finds no PRs
+    and every REST hydration path downstream is never reached.
+
+    Only the two members discovery actually reads are rebuilt --
+    `repository.nameWithOwner` and `number`. The rest of `RECONCILE_FIELDS`
+    (`url`, `title`, `updatedAt`, `isDraft`) is read by nobody here: each PR is
+    hydrated field for field by `view_pr`, which has its own REST path.
+
+    `--author` filters server-side over GraphQL and `GET /pulls` has no author
+    parameter, so the filter is applied here, and truncation to
+    `per_repo_limit` happens after it -- keeping the caller's "result limit
+    reached" warning meaning exactly what it means on the GraphQL path.
+    """
+    rows = fetch_paginated_api(
+        f"repos/{repo}/pulls?state=open&per_page=100",
+        f"{repo} open pull requests",
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        number = row.get("number")
+        if not isinstance(number, int):
+            continue
+        login = str(json_object(row.get("user")).get("login") or "")
+        if author and login.casefold() != author.casefold():
+            continue
+        base_repo = str(
+            json_object(json_object(row.get("base")).get("repo")).get("full_name")
+            or repo
+        )
+        out.append({"number": number, "repository": {"nameWithOwner": base_repo}})
+        if len(out) >= per_repo_limit:
+            break
+    return out
+
+
 def _list_prs_for_repo(
     repo: str,
     per_repo_limit: int,
@@ -280,8 +447,14 @@ def _list_prs_for_repo(
             ]
         )
     except RuntimeError as exc:
-        errors.append(f"repository reconcile {repo}: {exc}")
-        return
+        if not is_graphql_unavailable(exc):
+            errors.append(f"repository reconcile {repo}: {exc}")
+            return
+        try:
+            rows = rest_list_prs_for_repo(repo, per_repo_limit, author)
+        except RuntimeError as rest_exc:
+            errors.append(f"repository reconcile {repo}: {rest_exc}")
+            return
     if len(rows or []) >= per_repo_limit:
         errors.append(
             f"repository reconcile {repo}: result limit {per_repo_limit} reached; queue may be incomplete"
@@ -335,6 +508,15 @@ def discover_prs(
     one at a time and their results unioned; an empty author list discovers
     every author under the axis. Errors are deduplicated across author passes
     since they are keyed by owner/repo, not author.
+
+    Which of the three underlying `gh` commands are GraphQL matters here,
+    because discovery runs before any hydration: a queue that cannot be built
+    never reaches the REST substitutions downstream. `gh repo list` and
+    `gh pr list --json` are GraphQL (`RepositoryList`, `PullRequestList`) and
+    each has a REST substitute (`rest_list_repos_for_owner`,
+    `rest_list_prs_for_repo`) wired in behind `is_graphql_unavailable`.
+    `gh search prs` is NOT: it calls the REST search API (`GET /search/issues`)
+    and needs no substitute, so leave it alone.
     """
     owner_list = [owner for owner in (owners or []) if owner]
     repo_list = [repo for repo in (repos or []) if repo]
@@ -370,18 +552,69 @@ def fetch_pull_request_author(repo: str, number: int) -> str:
     return str(author.get("login") or "")
 
 
-def view_pr(repo: str, number: int) -> dict[str, Any]:
-    repo = repo.casefold()
-    data = gh_json(["pr", "view", str(number), "--repo", repo, "--json", VIEW_FIELDS])
+def view_pr_fields(
+    repo: str,
+    number: int,
+    fields: Iterable[str],
+    *,
+    run_json: Callable[[list[str]], Any] | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """`gh pr view --json <fields>`, re-sourced over REST when GraphQL is refused.
+
+    `gh pr view --json` is implemented entirely over GraphQL, so it is the first
+    read in this engine to fail where only a pinned set of GraphQL operations is
+    served. Returns the field bundle plus whether it came from GraphQL; a REST
+    bundle carries only the fields `rest_view_pr` can rebuild, so a caller that
+    asked for a GraphQL-only field (`closingIssuesReferences`) gets it absent
+    rather than fabricated, and must fail closed on the absence.
+
+    `run_json` lets a caller supply its own gh-JSON seam so the snapshot engine
+    and the merge gate share this one implementation while each keeps the
+    single call seam its own module already exposes; it defaults to this
+    module's `gh_json`.
+    """
+    runner = gh_json if run_json is None else run_json
+    requested = list(fields)
+    try:
+        data = runner(
+            ["pr", "view", str(number), "--repo", repo, "--json", ",".join(requested)]
+        )
+    except RuntimeError as exc:
+        if not is_graphql_unavailable(exc):
+            raise
+        rest = rest_view_pr(repo, number)
+        return {name: rest[name] for name in requested if name in rest}, False
     if not is_json_object(data):
         raise RuntimeError(f"Unexpected gh pr view response for {repo}#{number}")
-    repository = gh_json(["repo", "view", repo, "--json", "isArchived"])
-    if not is_json_object(repository) or not isinstance(
-        repository.get("isArchived"), bool
-    ):
+    return cast(dict[str, Any], data), True
+
+
+def repository_is_archived(repo: str) -> bool:
+    """Whether the repository is archived, over GraphQL or REST.
+
+    `gh repo view --json` is GraphQL-backed and 403s alongside `gh pr view`;
+    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`.
+    """
+    try:
+        repository = gh_json_graphql(
+            ["repo", "view", repo, "--json", "isArchived"],
+            label=f"{repo} archived state",
+        )
+        archived = repository.get("isArchived") if is_json_object(repository) else None
+    except GraphQLUnavailableError:
+        rest = gh_json(["api", f"repos/{repo}", "--jq", "{archived: .archived}"])
+        archived = rest.get("archived") if is_json_object(rest) else None
+    if not isinstance(archived, bool):
         raise RuntimeError(f"Unable to determine whether {repo} is archived")
+    return archived
+
+
+def view_pr(repo: str, number: int) -> dict[str, Any]:
+    repo = repo.casefold()
+    data, graphql_available = view_pr_fields(repo, number, VIEW_FIELD_NAMES)
     data["repo"] = repo
-    data["baseRepositoryArchived"] = repository["isArchived"]
+    data["_graphql_available"] = graphql_available
+    data["baseRepositoryArchived"] = repository_is_archived(repo)
     if str(data.get("mergeStateStatus") or "").upper() == "BLOCKED":
         data["_blocked_base_compare"] = fetch_blocked_base_compare(
             repo,
@@ -389,6 +622,172 @@ def view_pr(repo: str, number: int) -> dict[str, Any]:
             str(data.get("headRefOid") or ""),
         )
     return data
+
+
+def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
+    """Rebuild GraphQL's `statusCheckRollup` for one commit out of REST.
+
+    Two endpoints, because the rollup is a union of two node types that
+    `babysit_checks.normalize_check` keys apart by `__typename`:
+    `/commits/{sha}/check-runs` supplies the CheckRun half and
+    `/commits/{sha}/status` the StatusContext half. REST spells the enum values
+    in lower case where GraphQL spells them upper; `normalize_check` upper-cases
+    them itself, so the raw strings pass through unchanged.
+
+    REST check-runs carry no workflow name, and `dedupe_latest_checks` keys on
+    it so that two workflows exposing the same job name cannot hide each other's
+    result. It is recovered best-effort from the commit's workflow runs, keyed by
+    check-suite id; when that lookup is unavailable (Actions disabled, a
+    permission gap) the name is left empty, which is the pre-existing behaviour
+    for any rollup entry GitHub reports without one.
+    """
+    workflow_names: dict[int, str] = {}
+    try:
+        runs = gh_json(
+            ["api", f"repos/{repo}/actions/runs?head_sha={head_sha}&per_page=100"]
+        )
+    except (RuntimeError, json.JSONDecodeError):
+        runs = None
+    for run in json_array(json_object(runs).get("workflow_runs")):
+        if not is_json_object(run):
+            continue
+        suite_id = run.get("check_suite_id")
+        if isinstance(suite_id, int):
+            workflow_names[suite_id] = str(run.get("name") or "")
+
+    rollup: list[dict[str, Any]] = []
+    # An object endpoint: each page is `{total_count, check_runs: [...]}`, so
+    # the items live under `check_runs` rather than being the page itself.
+    for run in fetch_paginated_api(
+        f"repos/{repo}/commits/{head_sha}/check-runs?per_page=100",
+        f"{repo}@{head_sha} check runs",
+        items_key="check_runs",
+    ):
+        suite_id = json_object(run.get("check_suite")).get("id")
+        rollup.append(
+            {
+                "__typename": "CheckRun",
+                "name": str(run.get("name") or ""),
+                "status": str(run.get("status") or ""),
+                "conclusion": str(run.get("conclusion") or ""),
+                "startedAt": str(run.get("started_at") or ""),
+                "completedAt": str(run.get("completed_at") or ""),
+                "detailsUrl": str(run.get("details_url") or ""),
+                "workflowName": workflow_names.get(
+                    suite_id if isinstance(suite_id, int) else -1, ""
+                ),
+            }
+        )
+
+    combined = gh_json(["api", f"repos/{repo}/commits/{head_sha}/status"])
+    for status in json_array(json_object(combined).get("statuses")):
+        if not is_json_object(status):
+            continue
+        rollup.append(
+            {
+                "__typename": "StatusContext",
+                "context": str(status.get("context") or ""),
+                "state": str(status.get("state") or ""),
+                "targetUrl": str(status.get("target_url") or ""),
+                "createdAt": str(status.get("created_at") or ""),
+            }
+        )
+    return rollup
+
+
+def rest_review_decision(reviews: list[dict[str, Any]]) -> str:
+    """The one direction of `reviewDecision` REST can prove: CHANGES_REQUESTED.
+
+    GraphQL's `reviewDecision` folds in CODEOWNERS and the branch's required
+    reviewer count, neither of which the reviews list carries, so a derived
+    `APPROVED` would claim more than the evidence supports and would clear the
+    merge gate's `required_reviews and reviewDecision != "APPROVED"` hold. The
+    blocking direction is safe to derive and dangerous to lose: it is the human
+    stop that both the snapshot and the merge gate key on. So the latest
+    decisive review per author is folded, a single CHANGES_REQUESTED wins, and
+    everything else reports empty -- which the merge gate already treats as
+    "not approved" and holds on any protected base.
+    """
+    latest: dict[str, str] = {}
+    for review in sorted(reviews, key=lambda item: str(item.get("submittedAt") or "")):
+        state = str(review.get("state") or "").upper()
+        if state not in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
+            continue
+        login = str(json_object(review.get("author")).get("login") or "")
+        latest[login] = state
+    return "CHANGES_REQUESTED" if "CHANGES_REQUESTED" in latest.values() else ""
+
+
+def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
+    """The `gh pr view --json` bundle rebuilt from REST, field for field.
+
+    Every field in `VIEW_FIELD_NAMES` that REST can source is sourced here, so
+    the engine keeps reading the same fact from the same key whichever API
+    answered. Three deliberate gaps:
+
+    * `comments` is left empty. It is the issue-comment list, which the snapshot
+      overwrites with `fetch_issue_comments` (REST already) on the very next
+      line; refetching it here would double the call for no new fact.
+    * `latestReviews` is omitted entirely, exactly as `rest_hydrate_reviews`
+      drops it -- the paginated `reviews` list supersedes it.
+    * `reviewDecision` carries only the blocking direction (see
+      `rest_review_decision`).
+
+    Nothing here reconstructs review-thread RESOLUTION: REST has no equivalent,
+    and inventing one would substitute a lesser signal for a gate verdict
+    (`reference/safety.md`). `fetch_review_threads` fails closed instead.
+    """
+    data = gh_json(["api", f"repos/{repo}/pulls/{number}"])
+    if not is_json_object(data):
+        raise RuntimeError(f"Unexpected REST pull request response for {repo}#{number}")
+    pull = cast(dict[str, Any], data)
+    head = json_object(pull.get("head"))
+    base = json_object(pull.get("base"))
+    head_repo = str(json_object(head.get("repo")).get("full_name") or "")
+    base_repo = str(json_object(base.get("repo")).get("full_name") or "")
+    head_sha = str(head.get("sha") or "")
+    mergeable = pull.get("mergeable")
+    reviews = fetch_pull_request_reviews(repo, number)
+    return {
+        "author": normalized_rest_author(pull),
+        "baseRefName": str(base.get("ref") or ""),
+        "comments": [],
+        "headRefName": str(head.get("ref") or ""),
+        "headRefOid": head_sha,
+        "headRepository": {"nameWithOwner": head_repo},
+        "headRepositoryOwner": {
+            "login": str(
+                json_object(json_object(head.get("repo")).get("owner")).get("login")
+                or ""
+            )
+        },
+        "isDraft": bool(pull.get("draft")),
+        "isCrossRepository": bool(head_repo and base_repo and head_repo != base_repo),
+        # REST labels already carry `name`, the only key any caller reads.
+        "labels": json_array(pull.get("labels")),
+        "mergeStateStatus": str(pull.get("mergeable_state") or "").upper(),
+        # REST reports a tri-state boolean where GraphQL reports an enum; `null`
+        # means GitHub has not finished computing it, which is UNKNOWN, never
+        # mergeable.
+        "mergeable": (
+            "MERGEABLE"
+            if mergeable is True
+            else "CONFLICTING"
+            if mergeable is False
+            else "UNKNOWN"
+        ),
+        "maintainerCanModify": bool(pull.get("maintainer_can_modify")),
+        "number": pull.get("number"),
+        "reviewDecision": rest_review_decision(reviews),
+        "reviews": reviews,
+        "state": (
+            "MERGED" if pull.get("merged") else str(pull.get("state") or "").upper()
+        ),
+        "statusCheckRollup": rest_check_rollup(repo, head_sha) if head_sha else [],
+        "title": str(pull.get("title") or ""),
+        "updatedAt": str(pull.get("updated_at") or ""),
+        "url": str(pull.get("html_url") or ""),
+    }
 
 
 def fetch_blocked_base_compare(
@@ -437,8 +836,33 @@ def fetch_blocked_base_compare(
     return {"status": status, "ahead_by": ahead_by, "behind_by": behind_by}
 
 
-def flatten_paginated_items(value: Any, label: str) -> list[dict[str, Any]]:
-    """Flatten `gh api --paginate --slurp` output and reject unknown shapes."""
+def flatten_paginated_items(
+    value: Any, label: str, *, items_key: str | None = None
+) -> list[dict[str, Any]]:
+    """Flatten `gh api --paginate --slurp` output and reject unknown shapes.
+
+    `--slurp` collects one entry per page and each entry keeps the endpoint's
+    own shape: an ARRAY endpoint (`/pulls`, `/issues/{n}/comments`) yields an
+    array per page, and an OBJECT endpoint yields an object per page. Most of
+    this module's endpoints are the first kind, which the default handles.
+
+    `items_key` names the member carrying the items on the second kind. It is
+    required there, because an object page is indistinguishable from a single
+    item by shape alone: without it, the check-runs payload
+    `{total_count, check_runs: [...]}` is returned AS a check run, one per
+    page, each with no name, no status and no conclusion, and every real check
+    run on the commit disappears behind it.
+    """
+    if items_key is not None:
+        pages = value if is_json_array(value) else [value]
+        items: list[Any] = []
+        for page in pages:
+            if not is_json_object(page) or not is_json_array(page.get(items_key)):
+                raise RuntimeError(f"Unexpected paginated response for {label}")
+            items.extend(page[items_key])
+        if not all(is_json_object(item) for item in items):
+            raise RuntimeError(f"Unexpected paginated response items for {label}")
+        return items
     if not is_json_array(value):
         raise RuntimeError(f"Unexpected paginated response for {label}")
     if value and all(is_json_array(page) for page in value):
@@ -451,9 +875,11 @@ def flatten_paginated_items(value: Any, label: str) -> list[dict[str, Any]]:
     raise RuntimeError(f"Unexpected paginated response items for {label}")
 
 
-def fetch_paginated_api(endpoint: str, label: str) -> list[dict[str, Any]]:
+def fetch_paginated_api(
+    endpoint: str, label: str, *, items_key: str | None = None
+) -> list[dict[str, Any]]:
     return flatten_paginated_items(
-        gh_json(["api", endpoint, "--paginate", "--slurp"]), label
+        gh_json(["api", endpoint, "--paginate", "--slurp"]), label, items_key=items_key
     )
 
 
@@ -572,7 +998,16 @@ def rest_hydrate_reviews(pr: dict[str, Any], repo: str, number: int) -> None:
     the REST `reviews` list is complete and paginated, so
     `latest_reviews_by_author` already derives the latest review per author
     from it alone.
+
+    When the bundle already came from REST (`_graphql_available` False), its
+    `reviews` list IS this function's output: `rest_view_pr` builds it with the
+    same `fetch_pull_request_reviews` call, to derive `reviewDecision`. Fetching
+    it again would repeat an identical paginated request per PR per pass, so
+    the drop of `latestReviews` still runs and the refetch does not.
     """
+    if pr.get("_graphql_available") is False and is_json_array(pr.get("reviews")):
+        pr.pop("latestReviews", None)
+        return
     pr["reviews"] = fetch_pull_request_reviews(repo, number)
     pr.pop("latestReviews", None)
 
@@ -603,6 +1038,14 @@ def fetch_review_threads(
     never fail the whole snapshot. Callers that need every comment (or an
     exact count) consult `comments_truncated`/`comments_total_count` instead
     of trusting `comments` to be complete.
+
+    Raises `GraphQLUnavailableError` where the session is not served GraphQL.
+    Thread RESOLUTION has no REST equivalent, and an empty list would read as
+    "zero unresolved threads" -- a false-clean signal on the exact input the
+    merge gate keys on -- so the refusal is raised as itself and every caller
+    fails closed on it. Callers that need only the comments, not their
+    resolution state, re-source those over REST
+    (`fetch_unresolved_review_comments`).
 
     Each thread record carries: `id`, `isResolved`, `isOutdated`, `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
@@ -639,7 +1082,7 @@ def fetch_review_threads(
         ]
         if cursor:
             args.extend(["-F", f"cursor={cursor}"])
-        data = gh_json(args)
+        data = gh_json_graphql(args, label=f"{repo}#{number} review threads")
         if not is_json_object(data) or data.get("errors"):
             raise RuntimeError(f"Incomplete review-thread response for {repo}#{number}")
         connection = dig(data, "data", "repository", "pullRequest", "reviewThreads")
@@ -725,8 +1168,35 @@ def fetch_review_threads(
 
 
 def fetch_unresolved_review_comments(repo: str, number: int) -> list[dict[str, Any]]:
-    """Fetch unresolved inline review comments (gh pr view omits these)."""
-    threads = fetch_review_threads(repo, number)
+    """Fetch unresolved inline review comments (gh pr view omits these).
+
+    Where GraphQL is refused, the comments themselves are still REST-readable --
+    only their thread's resolution state is not. Rather than drop the PR's inline
+    feedback entirely, every inline comment is returned with
+    `threadResolutionUnproven` set, `threadIsOutdated` False, and no resolved
+    thread filtered out. That over-reports (a long-settled thread reads as open)
+    and over-reporting is the safe direction here: it sends more feedback to a
+    human, where the under-report would let addressed-looking work through. It is
+    NOT a substitute for the merge gate's thread-resolution input, which fails
+    closed separately.
+    """
+    try:
+        threads = fetch_review_threads(repo, number)
+    except GraphQLUnavailableError:
+        return [
+            {
+                "author": normalized_rest_author(row),
+                "body": str(row.get("body") or ""),
+                "path": str(row.get("path") or ""),
+                "url": str(row.get("html_url") or ""),
+                "createdAt": str(row.get("created_at") or ""),
+                "updatedAt": str(row.get("updated_at") or ""),
+                "databaseId": row.get("id"),
+                "threadIsOutdated": False,
+                "threadResolutionUnproven": True,
+            }
+            for row in fetch_pull_request_review_comments(repo, number)
+        ]
     return [
         {**comment, "threadIsOutdated": thread["isOutdated"]}
         for thread in threads
