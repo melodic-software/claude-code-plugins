@@ -168,6 +168,8 @@ Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 **Durability over precision.** PRD content describes interfaces, types, and behavioural contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
 
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` when the `writing` plugin is installed; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
+
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, outlives the PRD: graduate it to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals of the same concept get answered by the ledger instead of relitigated. This is a consumer convention with graceful degrade: create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
 Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern. It happens in `/planning:design` as a design thread.

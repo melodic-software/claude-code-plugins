@@ -262,6 +262,8 @@ empty `TEMPLATE`, and the assembled body carries only the closing-keyword line, 
 (the real-refs rule above applies unchanged — `none` suppresses the *required* scaffold, never
 user-supplied content), and the §2.4.3 attribution line.
 
+The content inside those headings is prose a reviewer reads: shape it bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
+
 ```bash
 # One content resolver, reused whether Related is required or ad hoc — the single place
 # that decides what goes under any heading, so the two paths can never disagree.
