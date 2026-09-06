@@ -2038,8 +2038,14 @@ hook::emit_telemetry() {
       # which holds only if the payload ENDS outside a string. A payload that
       # does not close an object or an array is not that, so it gets no tail
       # walk — a truncated one could otherwise be read a quote out of step.
-      while [[ $corr_tail == *[$' \t\r\n'] ]]; do
+      # Trailing whitespace a caller left on the value does not change that, so
+      # it is stripped first, but only 64 bytes of it: each strip copies the
+      # window, and nothing in this function may scale with what a payload
+      # chooses to end with.
+      corr_slack=64
+      while ((corr_slack > 0)) && [[ $corr_tail == *[$' \t\r\n'] ]]; do
         corr_tail=${corr_tail%?}
+        corr_slack=$((corr_slack - 1))
       done
       [[ $corr_tail == *"$corr_cb" || $corr_tail == *"$corr_csb" ]] || corr_tail=""
     fi
