@@ -505,7 +505,16 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     if "\\" in path_part or not (path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)):
         f.fail(f"Resume prompt: 'Read @' path must be absolute and forward-slash (got {path_part!r})")
     elif not _same_file(path_part, doc.path):
-        f.fail(f"Resume prompt: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})")
+        # A stored path naming this file's own basename under another directory
+        # is a relocated save-point, not a misidentified one: the basename
+        # carries the save-point's identity (its UTC timestamp and topic), and
+        # `cmd_emit` already substitutes the real path on stdout. Warn so the
+        # relocation stays visible; fail only when the stored path names a
+        # different save-point.
+        if path_part.rsplit("/", 1)[-1] == doc.basename:
+            f.warn(f"Resume prompt: 'Read @' path {path_part!r} names this file's basename under another directory; this file is {_posix(doc.path)} (relocated chain; emit substitutes the real path)")
+        else:
+            f.fail(f"Resume prompt: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})")
     if DIRECTIVE_CLAUSE not in directive:
         f.fail(f"Resume prompt: directive lacks the clause {DIRECTIVE_CLAUSE!r}")
     pos += 1
