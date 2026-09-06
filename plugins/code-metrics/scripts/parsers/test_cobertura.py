@@ -29,6 +29,12 @@ MULTI_ROOT = SCRIPT_DIR.parent / "fixtures" / "coverage" / "cobertura-multi-root
 BASH_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh"
 REPO_ROOT = SCRIPT_DIR.parents[3]
 SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
+# `cluster/{alpha,beta}` is borrowed, not owned here. It is the duplication
+# fixture that skills/audit-duplication/scripts/audit-duplication.test.sh and
+# scripts/collectors/test_jscpd.py assert against, sanctioned by
+# scripts/fixtures/registry/cluster.txt. The multi-root cases need one filename
+# that exists under two roots and that pair already is one, so it is read here
+# instead of copied. Moving or pruning it breaks these tests too.
 ALPHA = SOURCES + "/cluster/alpha"
 BETA = SOURCES + "/cluster/beta"
 
@@ -117,6 +123,16 @@ class MultiRootTests(unittest.TestCase):
             document = self.document(tmp)
         self.assertIn(ALPHA + "/cm-sample.sh", document)
         self.assertNotIn(SOURCES + "/cm-sample.sh", document)
+
+    def test_a_root_that_merely_lacks_the_file_says_nothing_on_stderr(self) -> None:
+        # The stderr note belongs to a root the probe could not read, not to
+        # one that simply does not hold the file: absence is the ordinary
+        # case on every multi-root report, and a line per miss would bury the
+        # one that matters. Nothing reaches stdout either, which is parsed.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run(str(MULTI_ROOT), scan_root=tmp)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
 
     def test_a_single_root_report_does_not_depend_on_the_scan_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
