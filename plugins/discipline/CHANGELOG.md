@@ -5,6 +5,19 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.0]
+
+### Added
+
+- **`hold-my-hand`, a third declared further species: a standing session
+  posture.** Invoking it partitions the remaining work into phases and presents
+  only the current one, never the phases after it beyond a one-line count. Each
+  phase names where to be, its numbered steps and exact commands, the expected
+  output, the common failure, who performs each step, and the exact reply that
+  advances; a failed check on that reply produces a repair sub-phase rather than
+  the next phase. It carries no `discipline-batch` tier, so a sweep never
+  imposes a delivery posture the user did not ask for.
+
 ## [0.13.4]
 
 ### Added
