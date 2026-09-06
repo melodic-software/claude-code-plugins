@@ -53,6 +53,14 @@ printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 if run_check "$repo" >/dev/null; then ok "files[]-referenced fixture passes --check"; else fail "files[]-referenced fixture wrongly flagged"; fi
 rm -rf "$repo"
 
+# --- two files[] entries in one evals.json (cached jq extract) -> both consumed
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/a.md", "evals/fixtures/b.md"'
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/a.md"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/b.md"
+if run_check "$repo" >/dev/null; then ok "two files[]-referenced fixtures in one grader both pass --check"; else fail "cached files[] extract missed a sibling fixture"; fi
+rm -rf "$repo"
+
 # --- consumed via a test file (basename) -> not an orphan ------------------
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''
