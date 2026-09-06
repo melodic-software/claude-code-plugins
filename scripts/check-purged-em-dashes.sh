@@ -153,13 +153,52 @@ if ((${#GLOBS[@]} == 0)); then
 fi
 
 # --- Expand the allowlist ---------------------------------------------------
-# `:(glob)` pathspec magic, not git's default wildmatch: without it `*` matches
-# across directory separators, so `plugins/*/README.md` would silently pull in
-# `plugins/a/b/README.md`. An allowlist whose entries claim more surface than
-# they name is a declaration nobody can audit by reading it.
+# Replicate git `:(glob)` pathspec magic in-process, not git's default
+# wildmatch: without it `*` matches across directory separators, so
+# `plugins/*/README.md` would silently pull in `plugins/a/b/README.md`. An
+# allowlist whose entries claim more surface than they name is a declaration
+# nobody can audit by reading it. The previous loop paid one
+# `git ls-files -z -- ":(glob)$glob"` plus `tr`/`sed`/`wc` per allowlist
+# entry (~94 git execs on this tree). One `git ls-files -z` of the whole
+# index plus a component-wise matcher is the same glob contract (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+# non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+# Creation). Live allowlist entries do not use `**`; `*` and `?` cannot
+# include `/` because matching is one path component at a time.
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
+
+# glob_matches_path <glob> <path>
+# Return 0 when <path> matches <glob> under `:(glob)` rules: split on `/`,
+# then `[[` pattern-match each component so `*` cannot swallow a slash.
+glob_matches_path() {
+  local glob="$1" path="$2"
+  local -a gparts pparts
+  local i
+  IFS=/ read -ra gparts <<<"$glob"
+  IFS=/ read -ra pparts <<<"$path"
+  ((${#gparts[@]} == ${#pparts[@]})) || return 1
+  for ((i = 0; i < ${#gparts[@]}; i++)); do
+    if [[ -z "${gparts[i]}" ]]; then
+      [[ -z "${pparts[i]}" ]] || return 1
+      continue
+    fi
+    # shellcheck disable=SC2254  # unquoted pattern is the glob; components already cannot contain /
+    [[ "${pparts[i]}" == ${gparts[i]} ]] || return 1
+  done
+  return 0
+}
+
+if ! git ls-files -z >"$TMP/tracked.z"; then
+  echo "check-purged-em-dashes: git ls-files failed" >&2
+  exit 2
+fi
+declare -a TRACKED=()
+while IFS= read -r -d '' f; do
+  [[ -n "$f" ]] && TRACKED+=("$f")
+done <"$TMP/tracked.z"
 
 FILES="$TMP/files.txt"
 : >"$FILES"
@@ -168,10 +207,13 @@ stale=0
 # reads it, this script runs under `set -u`, and a future early return between
 # the two would turn a clean run into an unbound-variable crash.
 excluded=0
+matched=()
 for glob in "${GLOBS[@]}"; do
-  matched="$(git ls-files -z -- ":(glob)$glob" | tr '\0' '\n' | sed '/^$/d')"
-  count=0
-  [[ -n "$matched" ]] && count="$(printf '%s\n' "$matched" | wc -l | tr -d ' ')"
+  matched=()
+  for f in "${TRACKED[@]}"; do
+    glob_matches_path "$glob" "$f" && matched+=("$f")
+  done
+  count=${#matched[@]}
   if ((count == 0)); then
     echo "check-purged-em-dashes: stale allowlist entry matches no tracked file: $glob" >&2
     stale=1
@@ -179,7 +221,7 @@ for glob in "${GLOBS[@]}"; do
     continue
   fi
   [[ "$MODE" == list ]] && printf 'ok     %s (%s files)\n' "$glob" "$count"
-  printf '%s\n' "$matched" >>"$FILES"
+  printf '%s\n' "${matched[@]}" >>"$FILES"
 done
 
 sort -u -o "$FILES" "$FILES"
