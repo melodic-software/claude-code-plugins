@@ -100,22 +100,23 @@ source "$_HOOK_SELF/hook-utils.sh"
 # commands." A current non-deprecated builtin therefore cannot expand to a
 # noncanonical `commit -m`, so asking git for alias.<builtin> cannot change
 # this gate's verdict and can false-block when a leftover ignored alias
-# happens to name commit. Subset of `git --list-cmds=builtins` (git 2.43)
-# minus names git marks DEPRECATED (`git --list-cmds=deprecated`; git.c
-# `DEPRECATED` bit, master fetched 2026-09-06: `whatchanged` and
-# `pack-redundant`). git 2.51+ honors `alias.whatchanged = commit`
-# (t/t0014-alias.sh "can alias-shadow deprecated builtins"); git 2.43 has
-# no DEPRECATED bit and still ignores that alias. Deprecated names stay
-# probed so a git that implements the documented exception cannot slip a
-# commit through. A name not listed here is still probed.
+# happens to name commit. Asking the installed git for its builtin list
+# would put a spawn back on every `git status`. This is a static subset of
+# names that were already builtins in git 2.25, minus names git marks
+# DEPRECATED (`git --list-cmds=deprecated`; git.c `DEPRECATED` bit, master
+# fetched 2026-09-06: `whatchanged` and `pack-redundant`). Names added later
+# (`bugreport` 2.27, `maintenance` 2.31, `diagnose` 2.38) stay probed, so an
+# older git that still honors `alias.bugreport = commit` cannot slip through.
+# git 2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh). A name
+# not listed here is still probed.
 git_subcommand_ignores_alias() {
   case "$1" in
-  add | am | annotate | apply | archive | bisect | blame | branch | bugreport | bundle | \
+  add | am | annotate | apply | archive | bisect | blame | branch | bundle | \
     cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
     checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
-    commit-tree | config | describe | diagnose | diff | diff-files | diff-index | diff-tree | \
+    commit-tree | config | describe | diff | diff-files | diff-index | diff-tree | \
     difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
-    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | maintenance | merge | \
+    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | merge | \
     merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
     replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
     show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \

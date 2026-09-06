@@ -482,6 +482,25 @@ if [[ -d "$PWC/.git" ]]; then
   assert_exit "git whatchanged alias to newline -m is still a commit" 2 $?
 fi
 
+# Names added after git 2.25 were not yet builtins, so an older git still
+# honors `alias.bugreport = commit`. Stay off the skip list (git 2.27 added
+# the command). `git status` remains unprobed.
+PBR="$TEST_TMPDIR/persisted-bugreport"
+mkdir -p "$PBR"
+(
+  cd "$PBR" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.bugreport $'commit -m "bypass\nb"'
+) >/dev/null 2>&1
+if [[ -d "$PBR/.git" ]]; then
+  MSYS_NO_PATHCONV=1 jq -n --arg d "$PBR" \
+    '{tool_name:"Bash",tool_input:{command:"git bugreport"},cwd:$d}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git bugreport alias to newline -m is still a commit" 2 $?
+fi
+
 # --- #1022: persisted alias.<sub>.command subkey (plain alias.$sub absent) ----
 PCMD="$TEST_TMPDIR/persisted-command"
 mkdir -p "$PCMD"

@@ -163,6 +163,14 @@ run "deprecated builtin alias.whatchanged: violating subject blocked" "$r" \
   $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
 run "deprecated builtin alias.whatchanged: conforming subject allowed" "$r" \
   $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+# Names added after git 2.25 can still be aliases on an older git
+# (`bugreport` landed in 2.27). Probe them.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.bugreport commit
+run "post-2.25 name alias.bugreport: violating subject blocked" "$r" \
+  $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "post-2.25 name alias.bugreport: conforming subject allowed" "$r" \
+  $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
 # --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
 # The alias lookup is the reachable consumer: it has no stdin-form gate and no

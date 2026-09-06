@@ -22,7 +22,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the convention pair loads on first need. Persisted aliases that are
   not builtins (`git ci`, `git qc`) still resolve as before. Deprecated
   builtins stay probed: git.c marks `whatchanged` DEPRECATED, and git
-  2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh).
+  2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh). The skip
+  list is names that were already builtins in git 2.25, so later names
+  (`bugreport`, `maintenance`, `diagnose`) stay probed on an older git
+  that can still alias them. Asking the installed git for its builtin
+  list would put a spawn back on every `git status`.
   Spawn census through a stable PATH shim
   (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK`
   unset, this repository as cwd. Counted PATH-visible execs:
