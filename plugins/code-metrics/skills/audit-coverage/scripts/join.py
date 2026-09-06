@@ -38,9 +38,10 @@ What comes out:
     a declaration line that ran at import is not the function running. A
     function with no executable lines reports `coverage_pct: null` and
     `crap: null`, never 0, which would be a fabricated maximal CRAP; its line
-    counts are 0 when the artifact measures lines and found none in the range,
-    and `null` when no artifact covering the file measures lines at all, which
-    is every function of a file measured only by a Go cover profile.
+    counts are 0 when a line-measuring artifact covered the file, whether or
+    not it carried any executable line, and `null` when no artifact covering
+    the file measures lines at all, which is every function of a file measured
+    only by a Go cover profile.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
     paths were searched; a lane matched in part is `partial` and carries
@@ -53,8 +54,10 @@ What comes out:
 Path normalization runs on both sides before the join: forward slashes, `./`
 removed, then the repository root and each `coverage.path_prefix_strip`
 prefix, then a component-wise suffix match (an absolute `SF:` path or a
-Cobertura `<source>` prefix), then a basename match when exactly one file in
-scope carries that basename (a Go profile names files by module path).
+Cobertura `<source>` prefix), then a basename match (a Go profile names files
+by module path). A basename is the weakest evidence here, so it must be
+unambiguous on both sides: exactly one file in scope carries it AND no other
+path in the same artifact does.
 
 Exit 0 on success, 2 on a usage error or an unreadable input.
 """
@@ -100,8 +103,22 @@ def _candidates(path: str, root: str, prefixes: list[str]) -> list[str]:
     return out
 
 
-def resolve(path: str, scope: list[str], root: str, prefixes: list[str]) -> str | None:
-    """The file in `scope` an artifact path refers to, or `None`."""
+def resolve(
+    path: str,
+    scope: list[str],
+    root: str,
+    prefixes: list[str],
+    siblings: list[str] | None = None,
+) -> str | None:
+    """The file in `scope` an artifact path refers to, or `None`.
+
+    `siblings` are the other raw paths in the same artifact. A basename is the
+    weakest evidence this function accepts, so it has to be unambiguous on both
+    sides: unique among the scoped files AND among the artifact's own paths. A
+    profile listing `service-a/handler.go` and `service-b/handler.go` when only
+    the first is in scope would otherwise map both to it, and the union would
+    let the unrelated package's coverage report an uncovered file as covered.
+    """
     candidates = _candidates(normalize(path), root, prefixes)
     for candidate in candidates:
         if candidate in scope:
@@ -130,8 +147,14 @@ def resolve(path: str, scope: list[str], root: str, prefixes: list[str]) -> str 
     if unique is not None or matches:
         return unique
     base = candidates[0].rsplit("/", 1)[-1]
+    if sum(1 for other in siblings or () if _basename(other) == base) > 1:
+        return None
     basename_matches = [t for t in scope if t.rsplit("/", 1)[-1] == base]
     return basename_matches[0] if len(basename_matches) == 1 else None
+
+
+def _basename(path: str) -> str:
+    return normalize(path).rsplit("/", 1)[-1]
 
 
 def _unique_longest(matches: dict[str, int]) -> str | None:
@@ -231,8 +254,10 @@ def merge_artifacts(
         # per file. One artifact never lists a function twice, so a record it
         # has claimed belongs to a different function and is not a fold target.
         claimed: dict[str, set[int]] = {}
-        for raw_path, section in (artifact.get("files") or {}).items():
-            target = resolve(raw_path, scope, root, prefixes)
+        sections = artifact.get("files") or {}
+        raw_paths = list(sections)
+        for raw_path, section in sections.items():
+            target = resolve(raw_path, scope, root, prefixes, raw_paths)
             if target is None:
                 unmatched.append(normalize(raw_path))
                 continue
@@ -241,6 +266,15 @@ def merge_artifacts(
             )
             if fmt not in entry["formats"]:
                 entry["formats"].append(fmt)
+            # Whether a line-measuring section ever covered this file, recorded
+            # as it is merged rather than inferred later from whether the table
+            # came out non-empty. A section that covered the file and found no
+            # executable line has measured lines and found none, which is a 0;
+            # reading the empty table afterwards cannot tell that apart from a
+            # file only a statement-weighted artifact ever covered, which is a
+            # null.
+            if not (section.get("statements") or {}):
+                entry["measures_lines"] = True
             for number, hits in _lines(section.get("lines")).items():
                 entry["lines"][number] = max(entry["lines"].get(number, 0), hits)
             _fold_statements(entry["statements"], section.get("statements") or {})
@@ -455,6 +489,8 @@ def _measures_lines(entry: dict[str, Any]) -> bool:
     ranges and never lines, so its function rows report `null` line counts
     rather than the 0 that would claim the artifact measured and found none.
     """
+    if entry.get("measures_lines"):
+        return True
     return (
         bool(entry.get("lines")) or _statement_totals(entry.get("statements")) is None
     )
