@@ -13,10 +13,20 @@
 #
 # WHAT IS ASSERTED — an UPPER BOUND, not an equality. A later change that
 # removes more work (hook-utils.sh gaining a `_to` reader, say) must not fail
-# this suite; a reverted hoist must. Each ceiling below is the measured count
-# with every hoist in place, and reverting ANY ONE of the six hoists this suite
-# guards raises at least one ceiling's case by 2 or more. The mutation check is
-# recorded in the PR, not re-run here.
+# this suite; a reverted change must. Each ceiling below is the measured count
+# with every change in place, and reverting ANY ONE of the seven changes this
+# suite guards raises at least one ceiling's case by 1 or more: a restored
+# `| tr -d '\r'` stage costs exactly 1 creation and 1 execve per field, every
+# other revert costs 2 or more. The mutation check is recorded in the PR, not
+# re-run here.
+#
+# WHAT THE CEILINGS CANNOT SEE. The payload field reads are
+# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes: never a
+# here-string, which bash fills itself and which deadlocks at the pipe capacity
+# on Git Bash (#1587), a hook-timeout stall that on a containment gate is also
+# a fail-open. That feed costs 3 creations per field where a here-string costs
+# 1, so a here-string regression would LOWER these counts and pass every
+# ceiling. The last cases below grep the gates for it instead.
 #
 # The counts include hook-utils.sh's own share (the buffer_stdin substitution
 # and hook::json_complete's `printf | jq -e .`), which these hooks cannot reach:
@@ -102,30 +112,46 @@ CREATE="$SCRIPT_DIR/worktree-create-gate.sh"
 
 # ── containment gate (PreToolUse:Bash — the hook in #3510) ──────────────────
 # The hot path: the matcher fired but this is not a `git worktree add`. Only the
-# stdin buffer and ONE jq may run.
+# stdin buffer and ONE `printf | jq` field read may run.
 assert_budget "containment, non-add command" "$CONTAIN" \
-  "$(payload "$OUTSIDE" 'git worktree list' PreToolUse)" 5 2
+  "$(payload "$OUTSIDE" 'git worktree list' PreToolUse)" 7 2
 
 # A real add that lands outside every repository: two field reads plus the
 # nearest-ancestor probes.
 assert_budget "containment, add outside a repo" "$CONTAIN" \
-  "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-ok -b b1" PreToolUse)" 14 5
+  "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-ok -b b1" PreToolUse)" 18 5
 
 # The deny path, including the block message's configured-root lookup.
 assert_budget "containment, add into a working tree" "$CONTAIN" \
-  "$(payload "$OUTSIDE" "git -C $REPO worktree add sub/nested" PreToolUse)" 16 6
+  "$(payload "$OUTSIDE" "git -C $REPO worktree add sub/nested" PreToolUse)" 20 6
 
 # ── claim gate (PostToolUse:Bash) ───────────────────────────────────────────
 assert_budget "claim, non-add command" "$CLAIM" \
-  "$(payload "$OUTSIDE" 'git worktree list' PostToolUse)" 5 2
+  "$(payload "$OUTSIDE" 'git worktree list' PostToolUse)" 7 2
 
 # A parsed add target: three field reads plus one worktree-claim.sh run.
 assert_budget "claim, parsed add target" "$CLAIM" \
-  "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-claim -b b2" PostToolUse)" 16 6
+  "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-claim -b b2" PostToolUse)" 22 6
 
 # ── create gate (WorktreeCreate) ────────────────────────────────────────────
 # Refused before the helper runs, so the count is this hook's own field reads.
 assert_budget "create, payload with no .name" "$CREATE" \
-  "$(jq -n --arg cwd "$REPO" '{session_id:"budget",cwd:$cwd,hook_event_name:"WorktreeCreate",name:""}')" 7 4
+  "$(jq -n --arg cwd "$REPO" '{session_id:"budget",cwd:$cwd,hook_event_name:"WorktreeCreate",name:""}')" 13 4
+
+# ── no here-string carries a payload ────────────────────────────────────────
+# The regression the ceilings cannot see (header): the whole buffered payload
+# fed to a reader by `<<<`. The two names are what the gates buffer stdin into;
+# a here-string on anything else (a path segment handed to `read -a`) is not
+# the hazard, since bash never fills a pipe for a builtin.
+HERESTRING_PAYLOAD='<<<[[:space:]]*"?\$\{?(INPUT|payload)\}?'
+for gate in "$CONTAIN" "$CLAIM" "$CREATE"; do
+  if grep -nE "$HERESTRING_PAYLOAD" "$gate" >/dev/null; then
+    fail "${gate##*/}: payload fed to a reader by here-string" \
+      "printf '%s' \"\$INPUT\" | jq (lib/hook-utils.sh, hook::jq_field)" \
+      "$(grep -nE "$HERESTRING_PAYLOAD" "$gate" | head -n 1)"
+  else
+    pass "${gate##*/}: no here-string carries the payload"
+  fi
+done
 
 [[ $FAILED -eq 0 ]] || exit 1
