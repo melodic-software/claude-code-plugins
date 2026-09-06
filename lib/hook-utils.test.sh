@@ -2269,16 +2269,16 @@ rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 # above follow: an override may lie about a VERDICT, never skip the WORK. Here it
 # does not even lie; it only writes a line before returning what jq said.
 #
-# Bash's dynamic scoping puts hook::buffer_stdin's own locals in scope for the
-# override, which is what lets it record WHICH check called it. `chunk` is empty
-# only at the empty-slice check (hook-utils.sh:917) and non-empty at the
-# with-bytes one (:898), and `idle_slices` is how many idle slices had already
-# been spent when the verdict landed. The pass shape is therefore exactly
-# `idle=0 chunklen=0` — complete on the first idle slice, not after the bound.
+# Bash's dynamic scoping puts hook::buffer_stdin_to's own locals in scope for the
+# override, which is what lets it record WHICH check called it. `__hu_chunk` is
+# empty only at the empty-slice check and non-empty at the with-bytes one, and
+# `__hu_idle_slices` is how many idle slices had already been spent when the
+# verdict landed. The pass shape is therefore exactly `idle=0 chunklen=0` —
+# complete on the first idle slice, not after the bound.
 #
 # What each mutation does to that log: deleting the block leaves it EMPTY, since
-# the trailing probe at hook-utils.sh:940 is an inline `printf | jq` and not this
-# function, so the case fails. Moving the check later — an `idle_slices >= 3`
+# the trailing probe is an inline `printf | jq` and not this
+# function, so the case fails. Moving the check later — an `__hu_idle_slices >= 3`
 # guard, say — logs a non-zero idle count, so that fails too. Only SUCCESSFUL
 # verdicts are logged, the partial buffers probed on the way in returning
 # non-zero and writing nothing, which is what makes the last line the call that
@@ -2312,7 +2312,7 @@ bs_probe_override='hook::json_complete() {
   local verdict=0
   printf "%s" "$1" | jq -e . >/dev/null 2>&1 || verdict=$?
   if ((verdict == 0)); then
-    printf "idle=%s chunklen=%s\n" "${idle_slices-?}" "${#chunk}" >>"'"$bs_probe_file"'"
+    printf "idle=%s chunklen=%s\n" "${__hu_idle_slices-?}" "${#__hu_chunk}" >>"'"$bs_probe_file"'"
   fi
   return "$verdict"
 }'
@@ -3219,6 +3219,82 @@ eval "$(declare -f __pin_slice_to | sed '1s/^__pin_slice_to/hook::resolve_read_s
 eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::resolve_read_timeout/')"
 eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
 rm -rf "$pin_dir"
+
+# --- buffer_stdin_to writes in-process; fused filters are one jq -------------
+# Drive _to WITHOUT $( ): a command substitution is a subshell, so dest would
+# be set only there and this case would "prove" the opposite of the helper.
+bs_to=""
+bs_to_file="$(mktemp)"
+hook::buffer_stdin_to bs_to >"$bs_to_file" <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+bs_to_rc=$?
+if ((bs_to_rc == 0)) && [[ ! -s "$bs_to_file" ]] && [[ "$bs_to" == *$'"tool_name":"Bash"'* ]]; then
+  ok "buffer_stdin_to: writes dest, prints nothing"
+else
+  fail "buffer_stdin_to dest: rc=$bs_to_rc outlen=$(wc -c <"$bs_to_file") dest=$(printf %q "$bs_to")"
+fi
+rm -f "$bs_to_file"
+
+bs_print_file="$(mktemp)"
+bs_to_dump="$(mktemp)"
+hook::buffer_stdin >"$bs_print_file" <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+printf '%s' "$bs_to" >"$bs_to_dump"
+# cmp, not $(cat): command substitution strips trailing newlines and would
+# hide a dest-vs-stdout mismatch that is exactly the $() tax _to removes.
+if cmp -s "$bs_print_file" "$bs_to_dump"; then
+  ok "buffer_stdin print form matches buffer_stdin_to dest"
+else
+  fail "buffer_stdin print/to mismatch"
+fi
+rm -f "$bs_print_file" "$bs_to_dump"
+
+HOOK_JQ_FIELDS=()
+HOOK_JQ_FIELDS_NUL=1
+bs_fused=""
+hook::buffer_stdin_to bs_fused '.tool_input.command' '.tool_name' <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+bs_fused_rc=$?
+if ((bs_fused_rc == 0)) && [[ "$bs_fused" == "$bs_to" ]] &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git status --short" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$HOOK_JQ_FIELDS_NUL" == "0" ]]; then
+  ok "buffer_stdin_to fused filters populate HOOK_JQ_FIELDS"
+else
+  fail "buffer_stdin_to fused: rc=$bs_fused_rc dest=$(printf %q "$bs_fused") fields=(${HOOK_JQ_FIELDS[*]-}) nul=$HOOK_JQ_FIELDS_NUL"
+fi
+
+bs_bad=""
+bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_bad_rc=$?
+if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]]; then
+  ok "buffer_stdin_to fused malformed JSON fails closed"
+else
+  fail "buffer_stdin_to fused malformed: rc=$bs_bad_rc err=$(printf %q "$bs_bad_err")"
+fi
+
+# Dest names that match this helper's internals must still receive the payload.
+# An unprefixed local would make printf -v write this frame and return 0 while
+# the caller kept the sentinel (the `_to` helper convention).
+input="sentinel"
+read_timeout="sentinel"
+fields_rc="sentinel"
+hook::buffer_stdin_to input <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+input_rc=$?
+hook::buffer_stdin_to read_timeout <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+hook::buffer_stdin_to fields_rc '.tool_input.command' '.tool_name' <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+if ((input_rc == 0)) && [[ "$input" == "$bs_to" && "$read_timeout" == "$bs_to" && "$fields_rc" == "$bs_to" ]]; then
+  ok "buffer_stdin_to: dest names matching internals still receive the payload"
+else
+  fail "buffer_stdin_to dest-collision: input=$(printf %q "$input") read_timeout=$(printf %q "$read_timeout") fields_rc=$(printf %q "$fields_rc")"
+fi
 
 # --- hook::json_str_object_to matches jq -nc --arg ... -----------------------
 jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \

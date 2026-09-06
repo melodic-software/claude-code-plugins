@@ -103,25 +103,13 @@ while (($#)); do
 done
 ((${#GUARDS[@]})) || exit 0
 
-# --- stdin once ---------------------------------------------------------------
-RUN_GUARDS_STDIN_RC=0
-RUN_GUARDS_INPUT=$(hook::buffer_stdin) || RUN_GUARDS_STDIN_RC=$?
-# Nothing arrived: every guard would take its empty-stdin skip. Take it once.
-((RUN_GUARDS_STDIN_RC == 1)) && exit 0
-
-# shellcheck disable=SC2329  # invoked by every guard sourced below
-hook::buffer_stdin() {
-  ((RUN_GUARDS_STDIN_RC == 0)) || return "$RUN_GUARDS_STDIN_RC"
-  printf '%s' "$RUN_GUARDS_INPUT"
-}
-
-# --- jq once ------------------------------------------------------------------
-# Keep the library's implementation reachable under another name so the cache
-# miss path is the library's own code, not a re-implementation of it.
-# `declare -f` is a builtin; wrapping it in $( ) is one subshell. Piping that
-# through `sed` was an extra exec on every dispatcher fire. Parameter expansion
-# renames the first occurrence — the `name ()` header — and leaves the body
-# untouched.
+# --- stdin once, fields once --------------------------------------------------
+# Keep the library's jq_fields reachable under another name so the cache-miss
+# path is the library's own code. `declare -f` is a builtin; wrapping it in
+# $( ) is one subshell. Piping that through `sed` was an extra exec on every
+# dispatcher fire. Parameter expansion renames the first occurrence — the
+# `name ()` header — and leaves the body untouched. Copied BEFORE the fused
+# stdin read so the miss path is ready when hook::jq_fields is overridden.
 _rg_jq_def=$(declare -f hook::jq_fields)
 eval "${_rg_jq_def/hook::jq_fields ()/hook::jq_fields_uncached ()}"
 unset _rg_jq_def
@@ -141,7 +129,43 @@ PRIME_FILTERS=(
   '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source'
 )
-if ((RUN_GUARDS_STDIN_RC == 0)) && hook::jq_fields_uncached "$RUN_GUARDS_INPUT" "${PRIME_FILTERS[@]}" &&
+
+# Fused capture: GNU Bash forks a subshell for INPUT=$(hook::buffer_stdin)
+# even when the body is builtins (Command Substitution;
+# https://mywiki.wooledge.org/CommandSubstitution). Passing PRIME_FILTERS
+# makes the completeness check and the field extract one jq process instead
+# of `jq -e .` plus a second jq_fields spawn.
+#
+# Dest is initialized here so ShellCheck SC2154 sees the assignment.
+# printf -v through a nameref inside hook::buffer_stdin_to is a dynamic
+# assignment the checker does not track
+# (https://www.shellcheck.net/wiki/SC2154, Exceptions: "explicitly
+# initialize/declare it with var="" or declare var").
+RUN_GUARDS_INPUT=""
+RUN_GUARDS_STDIN_RC=0
+hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN_RC=$?
+# Nothing arrived: every guard would take its empty-stdin skip. Take it once.
+((RUN_GUARDS_STDIN_RC == 1)) && exit 0
+
+# shellcheck disable=SC2329  # invoked by every guard sourced below
+hook::buffer_stdin() {
+  ((RUN_GUARDS_STDIN_RC == 0)) || return "$RUN_GUARDS_STDIN_RC"
+  printf '%s' "$RUN_GUARDS_INPUT"
+}
+
+# shellcheck disable=SC2329  # invoked by every guard sourced below
+hook::buffer_stdin_to() {
+  # `__rg_dest`, not `dest`: an unprefixed local would collide with a guard
+  # that called `hook::buffer_stdin_to dest` and `printf -v` would write
+  # this frame's local, return 0, and leave the guard's dest unset
+  # (the `_to` helper convention at lib/hook-utils.sh).
+  local __rg_dest="$1"
+  ((RUN_GUARDS_STDIN_RC == 0)) || return "$RUN_GUARDS_STDIN_RC"
+  printf -v "$__rg_dest" '%s' "$RUN_GUARDS_INPUT"
+}
+
+if ((RUN_GUARDS_STDIN_RC == 0)) &&
+  ((${#HOOK_JQ_FIELDS[@]} == ${#PRIME_FILTERS[@]})) &&
   ((HOOK_JQ_FIELDS_NUL == 0)); then
   RUN_GUARDS_PRIMED=1
   RUN_GUARDS_FILTERS=("${PRIME_FILTERS[@]}")

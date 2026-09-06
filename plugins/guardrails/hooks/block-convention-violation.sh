@@ -67,7 +67,7 @@ source "$_HOOK_SELF/hook-utils.sh"
 
 start=${EPOCHREALTIME:-}
 
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0

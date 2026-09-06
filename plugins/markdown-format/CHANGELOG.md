@@ -3,6 +3,19 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.48]
+
+### Changed
+
+- **The hook captures stdin with `hook::buffer_stdin_to`.** GNU Bash forks
+  a subshell for `INPUT=$(hook::buffer_stdin)` even when the body is only
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash
+  that fork is a process. The `_to` form writes the payload in-process
+  with `printf -v`. Synced `hooks/hook-utils.sh` also fuses an optional
+  JSON completeness check with field extraction so a caller that was about
+  to run `jq` twice spends one process. What the hook checks is unchanged.
+
 ## [0.11.47]
 
 ### Changed

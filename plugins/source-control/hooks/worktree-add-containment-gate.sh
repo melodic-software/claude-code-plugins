@@ -73,7 +73,7 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
 
