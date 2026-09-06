@@ -2020,14 +2020,23 @@ hook::emit_telemetry() {
   # the walk alone.
   local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
   local corr_root="" corr_root_tail=""
-  if [[ -n "$corr_payload" ]]; then
-    # Brace characters come from variables: a literal `}` inside a `${...}`
-    # pattern ends the expansion before the pattern is read, and one inside a
-    # `[[ ]]` bracket expression reads as a literal brace to shellcheck. Each
-    # one is counted below by deleting it and taking the length difference — a
-    # negated bracket class is not usable there, because `[!]}]` does not parse
-    # as the "neither ] nor }" class it looks like (it counted `{` as a closer).
-    local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+  # Brace characters come from variables: a literal `}` inside a `${...}`
+  # pattern ends the expansion before the pattern is read, and one inside a
+  # `[[ ]]` bracket expression reads as a literal brace to shellcheck. Each
+  # one is counted below by deleting it and taking the length difference — a
+  # negated bracket class is not usable there, because `[!]}]` does not parse
+  # as the "neither ] nor }" class it looks like (it counted `{` as a closer).
+  local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+  # The walk starts at depth 0 and credits the first container it meets as the
+  # root, so the payload has to BE a document: something that is not one —
+  # `,"n":{"session_id":"X"}` — would have its first object read as the root and
+  # that object's keys read as root keys. A document opens on `{` or `[`, after
+  # whitespace read through a bounded window, and nothing else is walked.
+  local corr_open=${corr_payload:0:64}
+  while [[ $corr_open == [$' \t\r\n']* ]]; do
+    corr_open=${corr_open#?}
+  done
+  if [[ $corr_open == "$corr_ob"* || $corr_open == "$corr_osb"* ]]; then
     # Everything that can legally sit BETWEEN two JSON strings: punctuation,
     # whitespace, a number, or true/false/null. `]` leads and `-` trails so the
     # bracket expression built from this reads both as literals, and `[` sits
@@ -2124,7 +2133,11 @@ hook::emit_telemetry() {
         corr_depth=0
         if ((corr_whole)); then
           # An even field count means an unbalanced quote: the payload is
-          # malformed, so no key is guessed from it.
+          # malformed, so no key is guessed from it — not even session_id,
+          # which is the one place this path gives up more than the windowed
+          # one. No case in the suite fails when this line is removed: the
+          # structure-class test catches the shapes tried, and the payload that
+          # would need this line and not that one has not been constructed.
           ((corr_n % 2 == 1 && corr_n > 1)) || continue
         else
           # The carry needs the head window to have ended INSIDE a string,

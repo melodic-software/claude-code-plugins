@@ -3755,6 +3755,78 @@ else
   fail "corr (head seam): sink empty"
 fi
 rm -f "$corr_sink"
+# The 65536-byte line between walking the payload WHOLE and walking two windows
+# is a real edge, and this payload is on both sides of it: two large values, so
+# the middle crosses the structure between them and the carry is refused, while
+# one byte smaller the whole payload is walked and the trailing key lands. Pinned
+# because the line is a constant, and a consumer reads the documented behaviour
+# off it.
+for corr_gate_n in 65536 65537; do
+  corr_sink="$(mktemp)"
+  (
+    corr_lead='{"session_id":"s-gate","a":"'
+    corr_between='","b":"'
+    corr_after='","tool_use_id":"toolu_gate"}'
+    corr_fill=""
+    while ((${#corr_fill} < 70000)); do corr_fill+='ffffffffffffffffffffffffffffffff'; done
+    corr_rest=$((corr_gate_n - ${#corr_lead} - ${#corr_between} - ${#corr_after}))
+    HOOK_TELEMETRY_PAYLOAD="$corr_lead${corr_fill:0:30000}$corr_between${corr_fill:0:corr_rest-30000}$corr_after"
+    ((${#HOOK_TELEMETRY_PAYLOAD} == corr_gate_n)) ||
+      fail "corr (whole/window line): fixture is ${#HOOK_TELEMETRY_PAYLOAD} bytes, wanted $corr_gate_n"
+    HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+      hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+  )
+  wait_for_sink "$corr_sink"
+  if ((corr_gate_n <= 65536)); then corr_gate_want="s-gate toolu_gate"; else corr_gate_want="s-gate omitted"; fi
+  if [[ -s "$corr_sink" ]]; then
+    if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "$corr_gate_want" ]]; then
+      ok "corr: a $corr_gate_n-byte payload gives '$corr_gate_want'"
+    else
+      fail "corr (whole/window line $corr_gate_n): want '$corr_gate_want', got $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+    fi
+  else
+    fail "corr (whole/window line $corr_gate_n): sink empty"
+  fi
+  rm -f "$corr_sink"
+done
+# A payload that is not a JSON document does not have a root for these keys to
+# come from. The walk starts at depth 0 and would credit the first container it
+# met as the root, reading that container's keys as root keys, so a payload that
+# does not open on `{` or `[` is not walked at all. Leading whitespace is fine.
+corr_sink="$(mktemp)"
+(
+  HOOK_TELEMETRY_PAYLOAD=',"n":{"session_id":"SPOOF","tool_use_id":"SPOOF"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,data" ]]; then
+    ok "corr: a payload that does not open a document yields no key"
+  else
+    fail "corr (not a document): $(jq -c 'del(.timestamp, .duration_ms)' "$corr_sink")"
+  fi
+else
+  fail "corr (not a document): sink empty"
+fi
+rm -f "$corr_sink"
+corr_sink="$(mktemp)"
+(
+  INPUT=$'\n\n   {"session_id":"s-ws2","tool_use_id":"toolu_ws2"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .tool_use_id] | join(" ")' "$corr_sink")" == "s-ws2 toolu_ws2" ]]; then
+    ok "corr: whitespace before the opening brace is still a document"
+  else
+    fail "corr (leading whitespace): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (leading whitespace): sink empty"
+fi
+rm -f "$corr_sink"
 # THE FIELD COUNT ALONE DOES NOT SAY WHETHER THE HEAD WINDOW ENDED INSIDE A
 # STRING. Splitting drops the empty field after a trailing delimiter, so
 # `{"a":"b"` and `{"a":"b` both split into four while only the second ends

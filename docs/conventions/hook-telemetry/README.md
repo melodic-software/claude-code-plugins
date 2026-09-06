@@ -76,6 +76,11 @@ the four. A sink on 1.0 sees four unknown keys and ignores them under the tolera
 `agent_id` cannot put a value on the spine. A consumer can therefore treat a present key as the
 harness's own, not as tool-supplied input.
 
+**A payload that is not a JSON document yields nothing.** The walk credits the first container it
+meets as the root, so a payload that does not open on `{` or `[` (after whitespace) is not walked at
+all, and one 65536 bytes or smaller whose quotes do not balance yields none of the four — including
+`session_id`. That last case is the one place the small path gives up more than the large one does.
+
 **A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
 on a payload carrying a whole file, so above 65536 bytes the library reads a 16384-byte window at
 each END of the payload instead of the whole of it. Both windows are read FORWARD from the payload's
