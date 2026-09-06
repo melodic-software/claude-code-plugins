@@ -5,6 +5,76 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.47]
+
+### Fixed
+
+- **`cg::read_payload_to` can no longer silently write to its own local instead of
+  the caller's variable.** `printf -v "$__cg_dest"` resolves the destination name
+  against the function's own scope, so a caller passing `input` or `chunk` — the
+  two names this function used for its accumulator and read block, and the two a
+  new caller reaches for first — had its variable left unset while the function
+  still returned 0. Success with no value and no error, which is the failure mode
+  that hides. No call site hit it (`zone-crossing-inject.sh` passes `INPUT`, the
+  wrapper passes `__cg_buf`), but the header invites new callers to adopt the
+  `_to` form, so the hazard was in front of the next caller rather than behind
+  this one. The internal locals are now `__cg_input` / `__cg_chunk`, the same
+  prefix convention `lib/hook-utils.sh` uses for `__hu_`. Because a prefix
+  reserves a namespace rather than abolishing the hazard, the three names that
+  are still internal (`__cg_dest`, `__cg_input`, `__cg_chunk`) are now refused
+  loudly with rc 2 and a stderr line instead of failing silently. `__cg_buf`
+  stays usable, since the printing wrapper passes it. `zone-crossing-inject.test.sh`
+  pins both halves: five caller-chosen names fill correctly, three reserved names
+  are refused, and the wrapper still returns the payload. The test fails five ways
+  against the pre-fix reader.
+
+### Changed
+
+- **zone-crossing hook and zone resolver: 8 process creations per fire down to 3, with no change
+  to what runs.** The plugin's own accounting reported a 3-process steady fire, but it counted
+  commands in command position, which counts invocations rather than processes. Bash elides the
+  extra fork inside `$(...)` only when the command carries no redirection of its own, so a
+  `2>/dev/null`, a `<<<`, or a pipeline written inside a substitution forks twice for one program;
+  a fork that never execs never reaches a command position, so the old count could not see it.
+  Under `strace -f` the fire was creating 8 processes. Every redirection on this path moved onto an
+  enclosing `{ ...; }` group, and the stdin payload is now assigned in-process instead of captured
+  through a command substitution. Program launches are unchanged at four: the same `jq`, `bash` and
+  `jq` still run over the same inputs. Affects `hooks/zone-crossing-inject.sh`, `hooks/payload.sh`
+  and `scripts/context-zone.sh`. Two hooks benefit: the zone-crossing hook itself, on both its
+  `PostToolBatch` and its `UserPromptSubmit` route, and the `PreToolUse` zone gate
+  (`hooks/zone-gate.sh`), which calls the same resolver and so inherits its share. The
+  `PostCompact` marker does **not**: `hooks/post-compact-mark.sh` never calls the resolver, and it
+  still reads its payload through `cg::read_payload` inside a command substitution, so its process
+  count is unchanged. No decision, emitted text, exit code or state file changes.
+  ([#3520](https://github.com/melodic-software/claude-code-plugins/issues/3520))
+- **The payload pass reads its input from a here-string, which spills to a temp file above 64KiB.**
+  Replacing `printf '%s' "$INPUT" | jq` with `jq` fed by `<<<"$INPUT"` is what removes two of the
+  eight process creations, but `<<<` is not a pipe: bash 5.1+ delivers a here-string through the
+  pipe buffer only while it fits, and at or above 64KiB writes it to `/tmp/sh-thd.*` instead
+  (measured: 60,000 bytes stays in the pipe, 65,536 opens the file). The old pipeline never touched
+  disk at any size. Output is byte-identical, but a `PostToolBatch` payload carrying every
+  serialized tool result routinely clears 64KiB, so large fires now write and read a temp file.
+  This is a real cost on the target platform, whose Defender real-time protection scans temp-file
+  writes: the trade is one guaranteed process creation per fire against disk I/O on the oversized
+  fires only. Recorded in the README's hook-cost accounting.
+- **`payload.sh` grows `cg::read_payload_to`.** Assigns the drained payload to a caller-named
+  variable via `printf -v` rather than printing it for the caller to capture, which cost a
+  subshell per fire to move a string between two copies of the same shell. `cg::read_payload`
+  stays for existing callers and delegates to the new form, so there is one drain loop.
+
+### Added
+
+- **A process-creation budget in the contract test, asserted under `strace`.** `strace -f` counts
+  `clone`/`fork`/`vfork` on the steady non-crossing path and pins it at exactly 3, with the program
+  launches pinned at 4 so a fork saving cannot be confused with work removed. The pre-existing
+  command-position budget stays; it cannot see these forks, which is how the regression went
+  unnoticed. Skipped where `strace` is unavailable.
+- **Redirection-placement behaviour tests.** A malformed `zones.json` drives the resolver's only
+  stderr path on this hook's route and pins that the notice reaches neither of the hook's streams,
+  that stdout stays one parseable JSON document, and that the shipped default bands still resolve
+  and inject; an unparsable payload pins that the payload pass's nonzero status still propagates
+  out of its new enclosing group rather than being absorbed by it.
+
 ## [0.7.46]
 
 ### Changed

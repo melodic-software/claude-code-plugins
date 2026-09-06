@@ -115,6 +115,15 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 # The band resolution therefore sits AHEAD of the snapshot pass: the resolved
 # bands are handed to that one jq as data, so the comparisons happen where the
 # snapshot is already parsed rather than in separate awk processes.
+#
+# REDIRECTION PLACEMENT. Counting jq invocations is not the same as counting
+# processes. Bash elides the extra fork inside `$(...)` and execs the command
+# directly in the substitution's subshell, but only when that command carries no
+# redirection of its own — so `$(jq … 2>/dev/null)` runs one jq at a cost of TWO
+# process creations, while `{ v=$(jq …); } 2>/dev/null` runs the same jq for one.
+# Both jq call sites below therefore keep their stderr redirect on the enclosing
+# group. Nothing else changes: the same stream is suppressed, stdout is still
+# captured, and jq's exit status still reaches the `||`. See #3520.
 
 # Band resolution: zones.json override when present and valid, shipped
 # defaults otherwise (with a visible notice when a present shape is bad). The
@@ -126,7 +135,9 @@ acceptable_max=$DEFAULT_ACCEPTABLE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
 zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
-  zres=$(jq -r '
+  # Stderr on the GROUP, not inside the substitution — see the REDIRECTION
+  # PLACEMENT note in the spawn-discipline block above.
+  { zres=$(jq -r '
     def pct_ok:
       (type == "object")
       and ((.smart_max_used_percentage? // null) | type) == "number"
@@ -156,7 +167,7 @@ if [[ -e "$zones" ]]; then
              | map([(.key | tonumber), .value.smart_max_tokens, .value.acceptable_max_tokens])
              | tojson)
        else $s end)
-  ' "$zones" 2>/dev/null) || zres=""
+  ' "$zones"); } 2>/dev/null || zres=""
   # jq writes CRLF on some hosts and command substitution strips only the
   # trailing terminator, so the separator's carriage return would otherwise
   # ride along on the first line.
@@ -222,7 +233,11 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
 # does not round-trip is refused, which restores `date`'s answer on every such
 # value. The two implementations part company only for timestamps thousands of
 # years from now, and those fail the staleness window either way.
-zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
+# Stderr on the GROUP, not inside the substitution — see the REDIRECTION
+# PLACEMENT note in the spawn-discipline block above. This is the resolver's
+# one common-path jq, so the fork the inner redirect used to add was paid on
+# every fire of both hooks that call here.
+{ zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
   --argjson now "$now_epoch" --argjson stale "$STALENESS_SECONDS" \
   --argjson smax "$smart_max" --argjson amax "$acceptable_max" \
   --argjson tbands "$token_bands" '
@@ -268,7 +283,7 @@ zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
             | if . == 0 then "smart" elif . == 1 then "acceptable" else "dumb" end)
           end
       end
-  end' "$snap" 2>/dev/null) || unknown
+  end' "$snap"); } 2>/dev/null || unknown
 zone=${zone//$'\r'/}
 
 # The word is the contract. Anything the pass above could not resolve, and
