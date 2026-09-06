@@ -3,6 +3,29 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.39]
+
+### Changed
+
+- **The correlation keys now land on a large payload's envelope too, and cannot
+  be spoofed by a truncated one.** Above 65536 bytes the synced
+  `hooks/hook-utils.sh` reads a 16384-byte window at each END of the payload
+  instead of only the region ahead of the first nested container, which is where
+  `tool_use_id` and `agent_id` were lost on every envelope carrying a whole file
+  (#3784). Both windows are walked FORWARD from the payload's first byte — the
+  tail one by carrying the head's string-and-depth state across the middle,
+  which holds while the middle stays inside one string. Reading the tail
+  backward from the last byte would be cheaper and is not sound: a payload cut
+  off mid-write can end in a `}` that closes something other than the root, and
+  a walk that believes such an end reads `tool_input`'s own `tool_use_id` as the
+  envelope's. The root-only guarantee is unchanged, and now holds against a
+  truncated payload as well as a well-formed one. Payloads from 64 KiB to
+  288 KiB carry all four ids; above that the proof of the carry would cost an
+  unbounded scan, so the head window runs alone and the trailing keys are
+  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
+  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
+  2 MB. No hook behavior changes.
+
 ## [0.7.38]
 
 ### Changed

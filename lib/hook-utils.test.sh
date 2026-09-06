@@ -807,7 +807,7 @@ compact_refuses "escaped slash" '{"a":"x\/y"}'
 compact_refuses "raw control byte in a string" "$(printf '{"a":"x\001y"}')"
 compact_refuses "array root" '[1,2]'
 compact_refuses "trailing comma" '{"a":1,}'
-compact_refuses "bad literal" '{"a":tru}' # spellchecker:disable-line
+compact_refuses "bad literal" '{"a":tru}'     # spellchecker:disable-line
 compact_refuses "split literal" '{"a":tr ue}' # spellchecker:disable-line
 compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
@@ -3424,26 +3424,231 @@ else
   fail "corr (large payload): sink empty"
 fi
 rm -f "$corr_sink"
-# The same large payload must not pick up a nested decoy either: past the size
-# gate the walk is skipped for cost, and the head cut is what keeps it safe.
-# This is the half of the gate's behaviour that is a guarantee; the other half
-# (a root key after the first container is omitted up here) is a known gap.
+# The same shape must not pick up a nested decoy either, and the root key placed
+# AFTER the container must now come back. Too large to neutralize whole, this
+# one is walked in the head window and then in the tail window on the head's
+# carried state: the head reads session_id, the carried tail reads tool_use_id,
+# and the nested decoy sits at depth 2 in neither. Before #3784 everything past
+# the first nested container was cut off — the assertion here was "omitted", and
+# it is the case that fails without the change.
 corr_sink="$(mktemp)"
 (
-  corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
+  corr_big="$(head -c 200000 /dev/zero | tr '\0' 'x')"
   INPUT='{"session_id":"s-big","tool_input":{"content":"'"$corr_big"'","session_id":"NESTED"},"tool_use_id":"toolu_past_gate"}'
   HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
     hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
 )
 wait_for_sink "$corr_sink"
 if [[ -s "$corr_sink" ]]; then
-  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big omitted" ]]; then
-    ok "corr: past the size gate the root id holds and no nested one is taken"
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big toolu_past_gate" ]]; then
+    ok "corr: past the gate the root id holds, the trailing one lands, no nested one is taken"
   else
     fail "corr (past gate): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
   fi
 else
   fail "corr (past gate): sink empty"
+fi
+rm -f "$corr_sink"
+# Proving the carry costs a scan of the middle, so the middle is capped and the
+# cap is a real edge: the SAME payload one byte over it gets the head window
+# alone and omits the trailing key rather than reading it from a state nothing
+# proved. Both sides are pinned because the cap is a constant in the code, and a
+# consumer reads the documented limitation off it.
+for corr_cap_n in 294912 294913; do
+  corr_sink="$(mktemp)"
+  (
+    corr_lead='{"session_id":"s-cap","tool_input":{"content":"'
+    corr_trail='"},"tool_use_id":"toolu_cap"}'
+    corr_big="$(head -c $((corr_cap_n - ${#corr_lead} - ${#corr_trail})) /dev/zero | tr '\0' 'x')"
+    INPUT="$corr_lead$corr_big$corr_trail"
+    ((${#INPUT} == corr_cap_n)) || fail "corr (carry cap): fixture is ${#INPUT} bytes, wanted $corr_cap_n"
+    HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+      hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+  )
+  wait_for_sink "$corr_sink"
+  if ((corr_cap_n <= 294912)); then corr_cap_want="s-cap toolu_cap"; else corr_cap_want="s-cap omitted"; fi
+  if [[ -s "$corr_sink" ]]; then
+    if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "$corr_cap_want" ]]; then
+      ok "corr: a $corr_cap_n-byte payload gives '$corr_cap_want'"
+    else
+      fail "corr (carry cap $corr_cap_n): want '$corr_cap_want', got $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+    fi
+  else
+    fail "corr (carry cap $corr_cap_n): sink empty"
+  fi
+  rm -f "$corr_sink"
+done
+# THE CASE #3784 WAS FILED FOR: a real Write payload, well over 64 KiB, whose
+# content is escape-bearing (the shape that made the neutralizing passes
+# unaffordable and put the gate there) and whose tool_use_id follows tool_input
+# in the documented order. All four ids must land. The content also carries an
+# escaped-quote decoy spelling every key, to prove an escape inside a nested
+# string cannot be read as structure at any size.
+corr_sink="$(mktemp)"
+(
+  corr_esc='a \"session_id\": \"SPOOF\", \"prompt_id\": \"SPOOF\", \"tool_use_id\": \"SPOOF\", \"agent_id\": \"SPOOF\" b\\c '
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+="$corr_esc$corr_esc$corr_esc$corr_esc"; done
+  INPUT='{"session_id":"s-esc","prompt_id":"p-esc","cwd":"/x","tool_name":"Write","tool_input":{"file_path":"a.md","content":"'"$corr_big"'"},"tool_response":{"ok":true},"tool_use_id":"toolu_esc","agent_id":"a-esc"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-esc p-esc toolu_esc a-esc" ]]; then
+    ok "corr: an escape-bearing payload over 64 KiB yields all four ids, decoys and all"
+  else
+    fail "corr (escape-bearing over gate): $(jq -c '{session_id,prompt_id,tool_use_id,agent_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (escape-bearing over gate): sink empty"
+fi
+rm -f "$corr_sink"
+# The tail window is anchored on the payload ENDING outside a string. A payload
+# truncated mid-content does not, so it gets no tail walk at all — the head
+# window still routes the row, and nothing from inside the content is guessed.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='pad \"tool_use_id\":\"SPOOF\" pad '; done
+  INPUT='{"session_id":"s-trunc","tool_input":{"content":"'"$corr_big"'"tool_use_id":"SPOOF2"'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-trunc omitted" ]]; then
+    ok "corr: a payload that does not end outside a string gets no tail walk"
+  else
+    fail "corr (unterminated tail): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (unterminated tail): sink empty"
+fi
+rm -f "$corr_sink"
+# TRUNCATION MUST NOT SPOOF AN ID. hook::buffer_stdin gives back what it read
+# when stdin goes idle, so a payload can arrive cut off mid-write — and the cut
+# point moves with how much content the tool sent, which the tool chooses. Both
+# payloads below end in `}`, which is the only thing a bounded look at the last
+# bytes can see, and in neither does that brace close the root: the first ends
+# inside a string whose content is `}`, the second after the close of a NESTED
+# object. A walk that reads either as the root runs one quote out of step and
+# rebuilds the raw text, where tool_input's OWN tool_use_id matches. Both are
+# real: both put SPOOF on the spine before #3784's second review. Nothing but
+# session_id, which leads the payload, may come back here.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-cut","f":"'"$corr_big"'","tool_input":{"tool_use_id":"SPOOF","z":"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-cut omitted" ]]; then
+    ok "corr: a cut ending in a string's own brace cannot spoof tool_use_id"
+  else
+    fail "corr (cut inside a string): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (cut inside a string): sink empty"
+fi
+rm -f "$corr_sink"
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  corr_pad=""
+  while ((${#corr_pad} < 20000)); do corr_pad+='pppppppppppppppppppppppppppppppp'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-cut2","a":"'"$corr_big"'","x":{"pad":"'"$corr_pad"'","tool_use_id":"SPOOF","y":"z"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-cut2 omitted" ]]; then
+    ok "corr: a cut after a nested close cannot spoof tool_use_id"
+  else
+    fail "corr (cut after a nested close): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (cut after a nested close): sink empty"
+fi
+rm -f "$corr_sink"
+# The tail window is walked on the head's carried state, and the carry holds
+# only while the middle stays inside one string. A middle that LEAVES it — here
+# the payload's two big values are separate strings, so the middle spells the
+# structure between them — is not carried, and the keys behind it are omitted
+# rather than read from an unproven state. The nested decoy in the same dead
+# zone is not taken in their place either.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  corr_pad=""
+  while ((${#corr_pad} < 20000)); do corr_pad+='pppppppppppppppppppppppppppppppp'; done
+  INPUT='{"session_id":"s-two","a":"'"$corr_big"'","tool_input":{"c":"'"$corr_pad"'","tool_use_id":"NESTED"},"tool_use_id":"toolu_two"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-two omitted" ]]; then
+    ok "corr: a middle that leaves its string is not carried, and nothing is guessed"
+  else
+    fail "corr (middle leaves the string): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (middle leaves the string): sink empty"
+fi
+rm -f "$corr_sink"
+# Trailing whitespace after the root close is ordinary structure to a walk that
+# comes at it forwards, so any amount of it is fine. Pinned because the walk
+# this replaced could not say that: its tail read backwards from the last byte
+# and lost every trailing key past 64 whitespace bytes.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  corr_ws=""
+  while ((${#corr_ws} < 5000)); do corr_ws+='    '; done
+  INPUT='{"session_id":"s-ws","tool_input":{"c":"'"$corr_big"'","tool_use_id":"NESTED"},"tool_use_id":"toolu_ws"}'"$corr_ws"
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-ws toolu_ws" ]]; then
+    ok "corr: 5000 trailing whitespace bytes do not cost the trailing ids"
+  else
+    fail "corr (trailing whitespace): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (trailing whitespace): sink empty"
+fi
+rm -f "$corr_sink"
+# A root key past the head window, in a payload whose middle crosses several
+# containers, is omitted rather than guessed, and a nested decoy in the same
+# dead zone is not taken in its place. This is the bound the design buys, stated
+# as a test so it cannot drift into a lie.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 120000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  INPUT='{"session_id":"s-mid","a":{"c":"'"$corr_big"'"},"agent_id":"a-mid","b":{"agent_id":"NESTED","c":"'"$corr_big"'"},"tool_use_id":"toolu_mid"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted"), (.agent_id // "omitted")] | join(" ")' "$corr_sink")" == "s-mid omitted omitted" ]]; then
+    ok "corr: root keys past the head window are omitted, and no nested one replaces them"
+  else
+    fail "corr (between windows): $(jq -c '{session_id,tool_use_id,agent_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (between windows): sink empty"
 fi
 rm -f "$corr_sink"
 # No payload at all: none of the four keys, and the envelope is otherwise the same.

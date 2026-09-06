@@ -77,11 +77,27 @@ the four. A sink on 1.0 sees four unknown keys and ignores them under the tolera
 harness's own, not as tool-supplied input.
 
 **A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
-on a payload carrying a whole file, so above 65536 bytes the library falls back to reading only the
-region ahead of the first nested container. `session_id` and `prompt_id` lead the documented payload
-and are unaffected; `tool_use_id` follows `tool_input` and is therefore omitted on a payload over
-that size. Absent still means absent — never guessed, and never a value from somewhere else.
-Tightening this without paying the cost is [#3784](https://github.com/melodic-software/claude-code-plugins/issues/3784).
+on a payload carrying a whole file, so above 65536 bytes the library reads a 16384-byte window at
+each END of the payload instead of the whole of it. Both windows are read FORWARD from the payload's
+first byte — the head window literally, the tail window by carrying the head's string-and-depth
+state across the middle — so the root-only guarantee above holds at every payload size. Reading the
+tail backward from the last byte would be cheaper and is not sound: it needs the payload to end by
+closing its root, a payload cut off mid-write can end in a `}` that closes something else, and a
+walk that believes such an end reads `tool_input`'s own `tool_use_id` as the envelope's. The
+documented payload puts `session_id` and `prompt_id` at the front and `tool_use_id` and `agent_id`
+behind `tool_input`, so all four are in reach when the carry holds.
+
+The carry holds only when the middle stays inside ONE string, which a payload carrying a single
+large file does. Four things put a key out of reach, and each of them omits rather than guesses:
+
+- A root key sitting between the two windows.
+- Everything behind the middle, when the middle leaves the string the head window ended inside — a payload with two large values rather than one, say, or one whose head window ends outside a string at all.
+- The same, when either window's seam falls inside a backslash escape, which nothing bounded can read through.
+- The same, when the payload is larger than 294912 bytes. Proving the carry costs one scan of the middle, and that scan is capped so it cannot grow with the payload.
+
+`session_id` and `prompt_id` lead the payload and come from the head window, so the per-session
+route survives all four; what is lost is the per-tool-call join on a payload above the cap. Absent
+still means absent — never guessed, and never a value from somewhere else.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠

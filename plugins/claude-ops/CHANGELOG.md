@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.15]
+
+### Changed
+
+- **The per-tool-call join survives a large payload, and a truncated one cannot
+  forge it.** Above 65536 bytes the synced `hooks/hook-utils.sh` reads a
+  16384-byte window at each END of the payload instead of only the region ahead
+  of the first nested container, which is where `tool_use_id` and `agent_id`
+  were lost on every envelope carrying a whole file — exactly where a sink most
+  wants to join a row to its tool call (#3784). Both windows are walked FORWARD
+  from the payload's first byte, the tail one by carrying the head's
+  string-and-depth state across the middle, which holds while the middle stays
+  inside one string. Reading the tail backward from the last byte would be
+  cheaper and is not sound: a payload cut off mid-write can end in a `}` that
+  closes something other than the root, and a walk that believes such an end
+  reads `tool_input`'s own `tool_use_id` as the envelope's — a forged
+  audit-trail id in the rows this plugin's sink files.
+  `hook-telemetry-sink.sh` needs no change: it already reads the spine first,
+  and now gets `tool_use_id` on rows from payloads between 64 KiB and 288 KiB
+  that were missing it. Above that the proof of the carry would cost an
+  unbounded scan, so the head window runs alone and the trailing keys are
+  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
+  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
+  2 MB. No hook behavior changes.
+
 ## [0.42.14]
 
 ### Changed
