@@ -22,10 +22,13 @@ installed, `docs-hygiene:write-for-agents` points at those two properties and
 at nothing else, so agent-facing prose gets the brevity rules without acquiring
 headings, bullets and bolded keywords it has no use for.
 
-Two later sections carry their own scope mark. The completeness floor binds
+Three later sections carry their own scope mark. The completeness floor binds
 every scope, human and agent alike; it sits outside the four properties because
 it bounds them rather than adding a fifth thing to improve. The seven revision
-techniques are universal, because they are the edits property 2 asks for.
+techniques are universal, because they are the edits property 2 asks for. The
+thresholds are universal too: a sentence carrying one idea and a paragraph
+carrying one topic help a model parse the text as much as they help a person
+scan it.
 
 ## The reader model this rests on
 
@@ -180,6 +183,8 @@ keep the full record below it or one link away. Do not resolve the conflict by
 deleting.
 
 ## Thresholds: a labelled fallback, not a finding
+
+Scope: universal.
 
 **These numbers are a house choice.** The published guides disagree with each
 other about sentence length and about paragraph length, and only one of them

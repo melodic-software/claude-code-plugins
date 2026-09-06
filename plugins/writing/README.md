@@ -13,10 +13,12 @@ comments, pull-request descriptions, changelogs, READMEs, status updates for
 product owners and executives. Left alone they write walls of text, and the
 reader skims, misses the ask, and stops trusting the channel.
 
-Readers scan. They take in roughly a fifth to a quarter of the words on a page.
-In the study this doctrine derives from, cutting a page to about half its words
+Readers scan. They take in a fifth to under a third of the words on a page. In
+the study this doctrine derives from, cutting a page to about half its words
 raised measured usability by 58% on its own, and cutting, structuring and
-de-hyping together raised it 124%.
+de-hyping together raised it 124%. That is one 1997 study of 51 users and it
+was never replicated, so the doctrine states it as such. What holds the rules
+up is that six independent style authorities prescribe the same things.
 
 ## The two modes
 

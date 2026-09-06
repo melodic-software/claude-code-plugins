@@ -12,15 +12,18 @@ metadata:
 
 ## The reader model this rests on
 
-People scan. They read roughly a fifth to a quarter of the words on a page,
-they read the first sentence of a paragraph and skip the rest, and they decide
+People scan. They read a fifth to under a third of the words on a page, they
+read the first sentence of a paragraph and skip the rest, and they decide
 whether to keep going within a few seconds. Every rule below exists because of
 that one fact, not because short writing is a virtue.
 
-The measured effect is large. In the study this doctrine derives from, cutting
-a page to about half its words raised measured usability by 58% on its own;
-making it scannable raised it 47%; stripping promotional language raised it
-27%; doing all three raised it 124%. Details and sources:
+The measured effect was large, and the evidence behind it is thin. One 1997
+study, 51 users, never replicated: cutting a page to about half its words
+raised measured usability by 58% on its own, making it scannable raised it 47%,
+stripping promotional language raised it 27%, and doing all three raised it
+124%. State it that way when it comes up rather than as settled fact. What
+holds the rules up is that six independent style authorities prescribe the same
+things. Details and sources:
 [`reference/doctrine.md`](reference/doctrine.md) and
 [`reference/sources.md`](reference/sources.md).
 
@@ -53,7 +56,7 @@ an agent will read. Properties 1 and 3 are for human readers, and are the ones
 
 ## What never gets cut
 
-Completeness is a floor, not a trade-off. Legal drafting guidance, safety
+Completeness is a floor, not a trade-off. Agency-guidance drafting, safety
 procedure standards, commit-message doctrine and Claude Code's own concise
 output style all say the same thing, and this skill inherits it.
 
@@ -130,6 +133,10 @@ lets the user see the size of the change without rereading both versions.
 - **Does not restructure a dense message without shortening it.** Chunking a
   decision-heavy artifact one decision at a time is `adhd:clarify` when the
   `adhd` plugin is installed.
+- **Does not reshape agent-facing instruction prose.** A skill body, a rules
+  file, or any text written for a model to follow is
+  `docs-hygiene:write-for-agents` when the `docs-hygiene` plugin is installed.
+  Take the two universal properties there and leave the human-only ones behind.
 - **Does not set documentation genre or language standards.** Diataxis type,
   terminology, and controlled-language rules at authoring time are
   `docs-hygiene:write-for-humans` when the `docs-hygiene` plugin is installed.
