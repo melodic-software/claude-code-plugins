@@ -1,0 +1,17 @@
+Vendored-copy registry
+======================
+
+Decision record 0009 sanctions this pattern. Each bundle carries its own byte-identical copy of the
+shared helper so that a bundle installed on its own has no cross-bundle path to resolve.
+
+Copies expected to stay byte-identical to the source of truth:
+
+  source-of-truth   lib/util.txt
+  copy              vendored/a/util.txt
+  copy              vendored/b/util.txt
+
+Maintaining check: verify-vendored-copies, which runs on every change and fails when any copy
+differs from the source of truth. Last run: passing.
+
+Adding a bundle means adding its copy to this list. Removing a copy without removing its bundle is
+what the check exists to catch.

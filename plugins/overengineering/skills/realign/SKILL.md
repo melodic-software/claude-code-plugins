@@ -82,12 +82,19 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
    wrote, and that failure is indistinguishable from the audit never having run.
 2. **No artifact → stop.** Report, visibly, that no findings artifact exists at the resolved home,
-   name `overengineering:audit` as the skill that produces one, and name the home resolved so the
+   name the two skills that produce one, `overengineering:audit` for a walk of the enforcement
+   surface and `overengineering:justify` for a single artifact the operator points at, so an
+   operator who wanted one document judged is not sent into a hundred-item walk to get it. Name the
+   home resolved so the
    operator can tell "never audited" from "resolved elsewhere". **Do not scan, judge, or remediate
    anything on your own**. This skill has no evidence and no verdict of its own, so an improvised
    pass would put a mutation behind a gate with nothing behind it.
 3. **Refuse a mismatched `branch:`**, naming both; **refuse an artifact whose `branch:` is absent,
-   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`**. Each with
+   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`**. `1` and
+   `2` are both recognized. A `schema: 2` artifact additionally carries `mode`, `targets` on a
+   targeted run, and `Basis` on every row a schema-2 run wrote; all three are **displayed with the
+   finding and change no gating decision**. A row carried forward from a schema-1 run has no
+   `Basis`, which is displayed as `not recorded (schema 1)` rather than inferred. Each with
    a visible message rather than guessing at the shape. The artifact's own frontmatter is what binds
    it to a branch; the directory it sits in is not evidence (the slug mapping is lossy). A `branch:`
    that carries no identity is not a match to be evaluated, it is the absence of the thing the check
@@ -116,7 +123,28 @@ stopping halfway is a normal end to a run.
 
 ## The queue
 
-Present findings in the artifact's order and dispose of each by its current status:
+**A finding this skill cannot execute is presented, judged, and never remediated here.** The
+operator still decides it and the decision is still recorded; what is withheld is the ladder, not
+the judgment. Read each finding's `Layer`: where it is one of `decision-records`, `documents`, `components`, `dependencies` or
+`source`, this skill has no rollback ladder for it. Dispatch on the layer rather than on the `check`
+producer segment, because `check` is a hash input and never a serialized field, so it cannot be read
+back off an artifact; the layer partition that makes this sound is stated in
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids".
+The ladder in "Execution order" is enforcement-shaped, and its rung-1 fallback ("nothing registered
+or wired to disable" leaves deletion as the only remaining act) would turn a lane it does not
+understand into a deletion. So a row in one of those five layers is **displayed with its evidence,
+its verdict, and the owner named in that lane's boundary table, and no rung is offered**.
+Say so in one line where the finding would otherwise be gated, so the operator sees the finding
+rather than losing it. A lane's findings become executable here once a rollback ladder exists for
+its layers, and not before. **What such a row loses is the rung, not the decision**: the operator may
+still judge it `REJECTED`, per "Statuses this skill writes", which is why it is presented rather than
+merely listed.
+
+Present every finding in the artifact's order, those five layers included, and dispose of each by
+its current status. The rung is what the five layers do not get; the disposition below still runs
+for them. `REJECTED` is the outcome the missing ladder leaves, and `DELEGATED-EXTERNAL` stays
+available where the custody read placed the artifact upstream, since a delegation is a handoff
+rather than a rung:
 
 | Status | What this run does with it |
 |---|---|
@@ -211,10 +239,22 @@ patch and leaves a report claiming the work is done.
 
 ## Statuses this skill writes
 
+**Re-read the artifact from disk immediately before every `Status` write, and merge against that
+copy.** The load in "Before anything" happens before a per-item interview that can run long, and
+another producer may write in that window; the shared contract binds this skill to the re-read for
+that reason. A `Status` written onto a copy loaded minutes ago discards whatever landed in between.
+
 This skill is the artifact's only writer of `Status`, and it writes one only as the outcome it names
 actually happens, never ahead of the operator's yes. `ACCEPTED` on acceptance; `REJECTED` when the
 operator judges the finding and keeps the mechanism; `REALIGNED` when the change has landed;
 `DELEGATED-EXTERNAL` with its pointer; the `ABLATION-*` states as a batch moves through its window.
+
+**A justification-layer row takes `REJECTED` like any other.** The five layers get no rollback rung
+here, but `REJECTED` is a judgment rather than an execution: it records that the operator read the
+finding and kept the artifact, and it mutates nothing outside the record. Withholding it would leave
+those rows permanently `OPEN`, re-presented on every run, and would deny them the durable judgment
+entry that only `REJECTED` and `ABLATION-CONCLUDED-KEEP` qualify for. What is withheld for those
+layers is the ladder, never the operator's ability to decide.
 What each one means is the contract's, not this skill's. Leave every other field exactly as the
 audit computed it, rewriting a verdict here puts this skill's opinion into the audit's record.
 

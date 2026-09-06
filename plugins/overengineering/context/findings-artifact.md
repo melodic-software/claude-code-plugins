@@ -21,11 +21,13 @@
 - [Obligations, by skill](#obligations-by-skill)
 - [External authority](#external-authority)
 
-One markdown file is the whole seam between this plugin's two skills. `overengineering:audit`
-produces it and is read-only on everything else; `overengineering:realign` is its **only mutating**
-consumer and its only writer of operator judgment. `overengineering:delta` reads it across runs and
-writes nothing here at all. All three skills read this document; **none restates it**, and no other
-plugin is assumed to read it.
+One markdown file is the whole seam between this plugin's four skills. **Two of them produce it**:
+`overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
+`overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
+read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
+only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
+here at all. All four skills read this document; **none restates it**, and no other plugin is
+assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
 evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, verdict —
@@ -87,7 +89,9 @@ unacceptable for operator judgments — see "The durable judgment record".
 ```yaml
 ---
 type: overengineering-findings
-schema: 1
+schema: 2
+mode: walk
+# targets: omitted under `mode: walk`; required, one item per line, under `mode: targeted`
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
 scope: <the layers actually walked this run>
 branch: <branch at audit time; never `HEAD`, and never written at all when the branch identity is unresolved>
@@ -97,7 +101,9 @@ branch: <branch at audit time; never `HEAD`, and never written at all when the b
 | Key | Required | Contract |
 |---|---|---|
 | `type` | yes | Exactly `overengineering-findings`. The selector realign matches on. |
-| `schema` | yes | Integer contract version, currently `1`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
+| `schema` | yes | Integer contract version, currently `2`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
+| `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. Required of every run this contract governs, which means every `schema: 2` run: a `schema: 1` artifact predates the key and legitimately carries none, and merging into one upgrades it, so the writer supplies `mode` for its own run rather than reading an absence as a fault. |
+| `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run carries the prior artifact's value forward and adds the layers those targets fall in, and the added layers are for ordering only and assert no exhaustive walk. |
 | `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
 | `branch` | yes | The branch at audit time, resolved with `git symbolic-ref` — **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
@@ -115,6 +121,9 @@ Where the identity does not resolve, and no logical ref is supplied by the envir
 - **`audit` writes no artifact.** Not the file with `branch:` omitted, not the file with a placeholder
   value, not the file at a home keyed by something else — none of it. The walk still runs and the
   inline summary is still emitted; only the persisted write is declined, and the run says so.
+- **`justify` writes no artifact either**, on the same terms: the pass runs against the target, the
+  inline report is emitted in full, and only the persisted write is declined, with the run saying so.
+  Both producers decline alike, because the hazard is the home key rather than the lane.
 - **`realign` refuses**, both when its own checkout has no identity and when an artifact it finds
   carries `branch:` absent, empty, or `HEAD`. It never reaches the comparison, because a degenerate
   `HEAD`-to-`HEAD` match passes by construction and would authorize mutations from another ref's
@@ -133,11 +142,18 @@ it.
 Fixed enum, in this order — the order is load-bearing for sorting (below):
 
 `agent-hooks` · `agent-instructions` · `repo-hooks` · `vcs-hooks` · `ci-lanes` · `gate-scripts` ·
-`satellite-workflows` · `branch-protection` · `forge-apps` · `external-integrations`
+`satellite-workflows` · `branch-protection` · `forge-apps` · `external-integrations` ·
+`decision-records` · `documents` · `components` · `dependencies` · `source`
 
 The vocabulary is deliberately forge-neutral and platform-neutral: a consumer whose forge, CI
-system, or agent harness differs still maps onto these ten. A lane that needs an eleventh adds it to
+system, or agent harness differs still maps onto these. A lane that needs a sixteenth adds it to
 this enum with a `schema` bump, never as a free-text value.
+
+**The first ten are the enforcement lane's**, walked by `overengineering:audit`. **The last five are
+the justification lane's**, examined one target at a time by `overengineering:justify`, and they
+never inventory an enforcement kind: a target whose whole content an enforcement layer's discovery
+probe would inventory routes to the enforcement lane and produces no row at all. The order remains
+load-bearing for sorting, so the five are appended rather than interleaved.
 
 ## Document shape
 
@@ -146,12 +162,17 @@ this enum with a `schema` bump, never as a free-text value.
 <frontmatter above>
 ---
 
-# Overengineering audit — findings
+# Overengineering findings
 
 ## Evidence availability
 
 <per-tier present / partial / unavailable, with the probe that established each — scrutiny-method §8
  obligation 1. This section leads the report; it changes what UNPROVEN means for every row below.>
+
+<a targeted run appends its own lines here, each prefixed `targeted <target>:` and never replacing a
+ per-tier token above. The prefix is required, and it is what lets a consumer separate the two: the
+ spine capture copies only the unprefixed per-tier tokens, and a cross-run comparison reads only
+ those, so an appended line can never be mistaken for a tier moving.>
 
 ## Summary
 
@@ -189,9 +210,9 @@ Constituents, and nothing else:
 
 | Constituent | Value for this producer |
 |---|---|
-| `check` | `overengineering/audit/rule-<layer>` — lowercase `[a-z0-9-]` per segment, the layer taken from the enum above. |
-| `claim` | `enforcement-item` for an ordinary finding; `enforcement-item(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
-| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, `[<container>, <member>]` for a sub-member. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
+| `check` | `overengineering/<producer>/rule-<layer>` — lowercase `[a-z0-9-]` per segment, `<producer>` one of `audit` or `justify`, the layer taken from the enum above. The producer segment is part of the identity: two lanes judging the same surface would otherwise derive one id, and each run would carry or close the other's finding. |
+| `claim` | `enforcement-item` for an ordinary finding of the enforcement lane; `artifact-item` for one of the justification lane; either with `(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
+| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, and for a sub-member the member's path within its container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry where the members are nested headings, per "A heading is a member, not an ordinal" below. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
 
 The id is `sha256` over the `US`-joined `[check, claim, *flattened canonically-sorted sites]`,
 truncated to 16 hex — the convention owns that computation and this document does not re-derive it.
@@ -199,6 +220,16 @@ truncated to 16 hex — the convention owns that computation and this document d
 **Deliberately excluded from the constituents: the verdict, the evidence, the status, and every
 prose field.** They are recomputed every run. An id that moved when a verdict moved would break
 carry-forward by construction, which is the one property the whole contract exists to provide.
+
+**`check` is a hash input, never a serialized field, so no consumer can read the producer off a
+finding.** The id is `sha256` and does not invert. A consumer that needs to know which lane produced
+a row reads **`Layer`**, which is in the spine and present on every row including rows carried
+forward from `schema: 1`. The layer enum partitions cleanly by producer and stays partitioned by
+construction: `overengineering:audit` writes only the ten enforcement layers, and a pointed lane
+routes an enforcement target away rather than judging it, so it never writes one. The five
+justification layers are therefore reachable only from a justification-lane run. Any future producer
+must either take its own layers or make its rows indistinguishable to every existing consumer, which
+is the reason this partition is stated here rather than left as an observation about today's enum.
 
 **Cross-artifact findings: the id binds every site; the body names every site.** The spine's
 `Artifact` field is single-line by contract and carries the finding's **primary subject** — the one
@@ -208,10 +239,39 @@ names **every** site in its body, saying what each one contributes, rather than 
 footnote.
 
 **Kind prefixes for items with no path in this repo.** `protection:<rule-name>`, `app:<name>`,
-`integration:<name>`, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
+`integration:<name>`, `package:<ecosystem>/<name>` for a declared dependency or pinned tool in the
+`dependencies` layer, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
 the repo tree, such as a user- or machine-scope settings file that registers a mechanism governing
 work here. The prefix set is closed here and is the same set a `sites` `surface` draws from; a new
 one is added to this list, never coined per run, or two runs derive two different ids for one item.
+
+**`package:` carries its ecosystem because a name alone is not an identity.** The `<ecosystem>`
+segment is the manifest that declares the dependency — `npm`, `pypi`, `nuget`, `go`, `cargo`, or
+`tool` for a pinned CLI binary with no package manifest. A polyglot consumer routinely declares one
+name in more than one of them, and an unqualified `package:ruff` would derive a single id for the
+PyPI package, an npm package of the same name, and a pinned binary, so a suppression or a status an
+operator wrote against one would carry onto two they never judged. This is the same collision the
+heading-ancestry rule below prevents for sections of a file.
+
+**A heading is a member, not an ordinal.** Where a target names a section rather than a whole file
+(`path#heading`), its `anchor/v1` locator path is the heading's **full ancestry** within the file,
+outermost first: `[<file>, <h2>, <h3>]` for a subsection, `[<file>, <heading>]` only where the
+heading is top-level. Ancestry is what makes the locator a member path rather than a label, and it
+is required because heading text repeats: a file with `### Rationale` under two different sections
+would otherwise derive one anchor for both, and a status or suppression an operator wrote against
+one section would carry onto a section they never judged.
+
+**An ambiguous heading is refused, not disambiguated.** Where the full ancestry is still not unique
+in the file, the lane **declines the target**, names the collision, and asks for a whole-file target
+or a disambiguating rename. It does not fall back to "the first one" or to an occurrence count:
+both are positional ordinals under another name, and the `sites` rule above forbids those precisely
+because the next run renumbers them. A line number is not admissible for the same reason, so a lane
+pointed at a line widens to the enclosing heading or file and says so in its report rather than
+coining an id no second run would reproduce.
+
+**A routed target produces no id and no row.** Where a lane hands a target to another lane rather
+than judging it, there is nothing to identify: the routing is reported inline by the lane that
+declined it, and the owning lane derives its own id when it runs.
 
 **Renames are honest, not smoothed.** Renaming an artifact changes its site and therefore its id:
 the old finding closes and a new one opens. Record the rename in `## Closed since last run`, naming
@@ -340,12 +400,21 @@ under a `**Members (<n>):**` label, one entry per member:
 
 The three fixed constituents — id, name, verdict — lead the entry in that order and stay on its
 first physical line; everything after the second em dash is prose. A member id derives from the same
-rule as every other id, with `claim` = `enforcement-item(member=<name>)` and its site anchored at
-`[<container>, <member>]`, so a suppression or a realignment can key on a member without keying on
-the container.
+rule as every other id, with `claim` = the producing lane's own claim carrying `(member=<name>)` —
+`enforcement-item(member=<name>)` on the enforcement lane, `artifact-item(member=<name>)` on the
+justification lane — and its site anchored at the member's ordered locator path within the
+container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry
+where the members are nested headings, per the ancestry rule under "Finding ids". A member keyed by
+name alone would collide wherever a container repeats a member name at two depths. So a suppression
+or a realignment can key on a member without keying on the container.
 
 **A member's verdict is its own.** The container's spine verdict judges the aggregating surface as a
 whole; it neither overrides a member's verdict nor is computed from them.
+
+**A member's basis goes in its prose.** The entry format is fixed at three leading constituents, so
+a member carries no `Basis` field. Where a lane's rules bind a verdict to a basis — a `KEEP` that
+must be `measured`, say — the member's prose states the basis in those same words, and a member
+verdict whose prose states none is read as unsupported rather than as measured.
 
 **What the cross-run diff covers.** The documented spine diff compares **container spines** — that
 is what the spine's line format guarantees, and it is unaffected by how many members a container
@@ -361,7 +430,7 @@ reader can never mistake a member count for a finding count.
 | `Artifact` | yes | always | Repo-relative path; or, for an item with no path in this repo, a kind-prefixed stable identifier from the closed set under "Finding ids" so it cannot collide with a path. On a multi-site finding this is the primary subject only, and the body names every site. |
 | `Verdict` | yes | always | One of the six tokens. Argued per `context/scrutiny-method.md` §6. |
 | `Status` | yes | always | One vocabulary value (below). Written `OPEN` by the audit on a new finding; otherwise carried forward. |
-| `Protected` | no | when a protected class matched | Which class and which pattern matched; whether the cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. |
+| `Protected` | no | when a class match bore on the verdict, whether or not that class carries a cap | Which class and which pattern matched; whether a retirement cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. A class that carries no cap says so, and the row's `Verdict` and `Basis` still carry the earned-keep judgment on the item's own evidence. Recording an uncapped class match here is what keeps a class claim out of the verdict, where it would read as an answer to a question it does not answer. |
 | `Evidence` | no | always | At least one empirical citation with its tier (`scrutiny-method` §2), or `UNPROVEN` naming the tier consulted and whether it was **silent** or **unavailable**. Doc-only support is marked `unverified`. |
 | `Liveness` | no | always | Three independently-answered lines — source posture, wiring, runtime enforcement — each naming what was actually read. An unread question is recorded as unread, never inferred. |
 | `Intent` | no | always | The reconstruction and its confidence; `OPEN-INTENT` where the run was unattended and confidence was low. |
@@ -371,8 +440,9 @@ reader can never mistake a member count for a finding count.
 | `Threshold` | no | when one was applied | Which threshold row fired, its source, and its analogical label carried verbatim. A threshold cited without its label is a contract violation, not a style slip. |
 | `Routed-to` | no | when routed | The neighbor surface the finding was handed to, and whether that surface was present. |
 | `Delegation` | no | `DELEGATED-EXTERNAL` only | The pointer to the delegation artifact. |
-| `Ablation` | no | `ABLATION-*` only | Rung reached, window length, window end date, and the durable pointer. |
+| `Ablation` | no | `ABLATION-*` only, and `n/a` on every row in a justification layer | Rung reached, window length, window end date, and the durable pointer. On a justification-layer row the literal `n/a`, because a document or a decision record has nothing to disable and watch, and a row that simply omitted the field would leave a reader unable to tell a gate that does not apply from one nobody answered. |
 | `Judgment` | no | when one was persisted | The suppression entry id and the layer it was written to. |
+| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: nothing was measured, either because no tier was consulted or because every tier consulted came back silent or unavailable, **and the verdict rests on no oracle or class either**; this value is legal **only** with `Verdict: UNPROVEN`. The two readings of "measured nothing" share a value on purpose: a consult that returned nothing supports a verdict no better than a consult never made, and the `Evidence` field already records which tiers were tried and what each returned. **`class-inferred` takes precedence where both would fit**, and that precedence binds both producers rather than only the pointed lane. Measuring nothing is the condition the two values share, so it cannot be what separates them; what the verdict rests on is. A row whose consults were all silent but whose verdict rests on a §7 class match is `class-inferred`, because something is carrying that verdict and the reader needs to know what. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
 
 **The audit perturbs the telemetry it reads.** Writing this artifact fires the very recorders whose
 rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
@@ -437,6 +507,73 @@ prevent, reintroduced by the producer itself.
 
 ## Re-run merge semantics
 
+**Every producer re-reads immediately before it writes.** Two lanes write this file, so a producer
+that merges against a copy it loaded earlier in its run silently drops whatever the other wrote in
+between — and drops it with no record, because rule 3 writes a closure row only for a layer this run
+walked, and the two producers walk disjoint layers. Load the on-disk artifact immediately before
+each write, merge against that copy, and read a `date` newer than the one this run loaded as another
+producer's work to merge rather than to overwrite. This is a producer obligation binding on every
+writer, not one lane's convention, and it is what stands in for a lock this contract does not claim.
+
+**A targeted run merges narrowly, and this clause governs rules 1 to 4 and rule 6 below it.** Rule 5
+fires only on a verdict this run recomputed, which in a targeted run is only a target, and rule 7 is
+read-only, so neither needs scoping. Where `mode: targeted`, the run examined only what `targets`
+names, so:
+
+- **A site is in `targets` when this run derived that site from a `targets` entry**, never when its
+  `surface` string matches one. The two are different value spaces: a `targets` entry may be a
+  `path#heading`, whose site carries the file as its `surface` and the heading's ancestry in its
+  `anchor/v1`, and a directory target is one item whose site is the directory itself. So a target
+  naming a heading covers the single site whose anchor is that heading's ancestry and no other
+  section of the same file, and a target naming a directory covers the directory's own site and
+  never the separate sites of the files beneath it. Matching on `surface` alone fails both ways: a
+  heading target would match no site at all, stranding the pointed run so it could not write its own
+  finding, and a directory or file target would sweep in findings about sections the run never
+  opened, which rule 3 would then close.
+- **Rules 1 and 2 apply to a finding whose any site is in `targets`.** A run that examined one site
+  of a multi-site finding examined that finding: it derived the row from the target in front of it,
+  and the row names every site it binds. So the verdict is recomputed and the status carried. **The
+  row must be re-derived, never reconstructed from the prior artifact's site list.** Reproducing the
+  id requires naming every site, and copying them from the prior row instead of deriving them would
+  let a verdict computed from one site overwrite one computed from two.
+- **Rule 3 applies only to a prior id whose every site is in `targets`** and whose item is now
+  absent. A pointed run at one artifact must never close a finding about another.
+- **The two quantifiers differ on purpose, and unifying them breaks the contract either way.** Rule 3
+  closes a finding, so it must be conservative: closing on partial coverage would retire a finding
+  the run never fully examined. Rules 1 and 2 only refresh one, so they must be permissive: this lane
+  takes one target per run, and a finding binding two sites can never have every site in a one-entry
+  `targets`. Made restrictive, such a finding would fall to rule 4 on every subsequent run, stamped
+  `not re-evaluated this run` by runs that demonstrably did re-evaluate it, and no walk could rescue
+  it because `overengineering:audit` walks only the ten enforcement layers. It would carry a stale
+  verdict and a stale date forever.
+- Every other prior id **carries forward per rule 4**, regardless of `scope`. In a targeted run
+  `scope` carries the prior value forward and adds the layers the targets fall in; those added
+  layers are for ordering only and never assert a walk.
+- The run-level sections `## Evidence availability`, `## Suppressed`, and `## Closed since last run`
+  are **not rewritten for anything outside `targets`**. A targeted run appends its own per-target
+  evidence-availability lines, each carrying the `targeted <target>:` prefix the section's shape
+  requires, rather than replacing the walk's per-tier tokens, and computes
+  suppression dispositions only for entries whose ids have **any** site in `targets`, reporting the
+  rest as **not evaluated this run**. This follows rules 1 and 2 rather than rule 3, for their
+  reason: a disposition reports whether a live finding is currently suppressed, which is a refresh
+  and not a closure, and an entry the run examined at one of its sites is one the run can speak to.
+  Where the run derived a site but did not reproduce the finding, its row still carries rule 4's
+  `not re-evaluated this run`; the fresh disposition beside it is not a contradiction, because the
+  two report different things, the row's judgment and the suppression record's state. `## Summary` is still recomputed from the spine actually written, as rule 6
+  requires.
+- **In a targeted run `scope` carries forward and grows; that run never overwrites it.** A walk still
+  records exactly the layers it walked, which is what the `scope` frontmatter row defines and what
+  merge rule 3 reads; this bullet governs the pointed producer only, which walks nothing. A targeted
+  run keeps the prior
+  artifact's `scope` and adds the layers its own targets fall in. Replacing it would narrow the
+  file's record of what the last walk actually covered, which is the one thing rule 4 and the spine
+  baseline's `source-scope` both read it for.
+
+The reason is asymmetry: a walk that omits a layer says so in `scope` and rule 4 protects it, but a
+targeted run walks no layer at all, so without this clause rule 3 would read every un-examined
+finding in the target's layer as a deleted artifact and close it. That is the loss the section below
+exists to prevent, arriving through the other door.
+
 A re-audit **rewrites the artifact in place**, merging against the prior content by stable id. For
 each finding:
 
@@ -448,18 +585,28 @@ each finding:
 2. **Id absent from the prior artifact.** A new finding, `Status: OPEN`.
 3. **Prior id absent from this run, and its layer WAS walked.** The underlying artifact is gone
    (deleted, renamed, or already retired). The finding is **dropped with a note**: a
-   `## Closed since last run` row records the id, its last verdict, its last status, and the reason
-   class — `artifact absent`, `renamed to <successor id>` where the rename is evidenced, or
-   `layer no longer configured`. A finding that vanishes with no row is the failure this section
+   `## Closed since last run` row records the id, **its `Layer`**, its last verdict, its last status,
+   and the reason class — `artifact absent`, `renamed to <successor id>` where the rename is
+   evidenced, or `layer no longer configured`. The layer is required for the same reason it is
+   required on a spine row: it is the only serialized thing that says which producer owned the
+   finding, since `check` is a hash input no consumer can read back. Without it a consumer filtering
+   by producer cannot tell a closure in a justification layer from one in an enforcement layer, and
+   `overengineering:delta`, which compares only the ten enforcement layers, would report a closure it
+   is elsewhere told it never compares. A finding that vanishes with no row is the failure this section
    exists to prevent.
 4. **Prior id absent from this run because its layer was NOT walked** (`scope` says so). The finding
    is **carried forward untouched**, prose and all, marked not re-evaluated this run and stamped
    with the `date` of the run that produced it. A layer-scoped pass must never read as a retirement
    of everything it did not look at.
-5. **A verdict that changed direction under a carried-forward judgment is surfaced, never applied.**
-   An `ACCEPTED` finding whose verdict recomputed to `KEEP`, or a `REJECTED` one that recomputed to
-   `RETIRE`, is flagged for the operator: the evidence moved under a decision they already made, and
-   that is precisely what they need to see.
+5. **A verdict that moved under a carried-forward judgment is surfaced, never applied.** An
+   `ACCEPTED` finding whose verdict recomputed to `KEEP`, or a `REJECTED` one that recomputed to a
+   retirement-direction verdict, is flagged for the operator: the evidence moved under a decision
+   they already made, and that is precisely what they need to see. **Direction is not the only
+   trigger.** Flag it equally where the recomputed verdict materially changes *what the acceptance
+   authorized* without flipping direction: an `ACCEPTED` `DOWNGRADE` recomputed to `CONSOLIDATE`
+   authorizes a different act on a different artifact, and the earlier yes was given to the old one.
+   The flag is the producers' to write on merge, and it is the only detection: consumers read it and
+   never re-derive it, so a trigger missing here is a move no consumer will surface.
 6. **The spine is authoritative over the prior artifact's own prose.** Only the fields in rule 1 are
    carried; a prior run's summary, counts, and narrative are **recomputed from the spine actually
    written this run** and never inherited. A prior summary that contradicts its own spine is a
@@ -512,15 +659,16 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 
 ## Obligations, by skill
 
-| Obligation | `audit` | `realign` | `delta` |
-|---|---|---|---|
-| Writes the artifact | yes — it is the producer | yes — status and status-bound fields only | **never** — a third reader and no writer of any field here |
-| Mutates anything outside the artifact | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
-| Writes `Status` | `OPEN` on new findings; carries the rest forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
-| Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
-| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
-| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Obligation | `audit` | `justify` | `realign` | `delta` |
+|---|---|---|---|---|
+| Writes the artifact | yes — the walking producer, `mode: walk` | yes — the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes — status and status-bound fields only | **never** — a reader, and no writer of any field here |
+| Mutates anything outside the artifact | **never** | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
+| Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
+| Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
+| Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
+| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
+| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, however it got there | **stop** with a visible message naming both producers, `overengineering:audit` for a walk and `overengineering:justify` for a pointed run — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
 artifact, compares that artifact's spine against the baseline the previous cycle left behind, and

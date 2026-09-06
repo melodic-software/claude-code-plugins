@@ -88,8 +88,13 @@ human gate. Name it as the next step; never start it unasked.
 
 Parse `$ARGUMENTS`:
 
-- **Layer scope**. One or more values from the layer vocabulary owned by
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`; default `all`. A mature repository's surface
+- **Layer scope**. One or more of the **ten enforcement layers** in the vocabulary owned by
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, `agent-hooks` through
+  `external-integrations`; default `all`, meaning those ten and never the five the justification lane
+  owns. The narrowing is load-bearing: `scope` is what merge rule 3 reads to decide a prior finding's
+  item is gone, so a layer recorded but not walked closes another producer's rows as deleted
+  artifacts. Asked for one of the five, this skill refuses and names `/overengineering:justify`,
+  which owns them one target at a time. A mature repository's surface
   runs past a hundred items and does not fit one context window, so layer-scoped passes are the
   supported way to cover it: they compose because a re-run merges into the same artifact by stable
   finding id. Record exactly the layers walked in the artifact's `scope`, a layer absent from
@@ -137,11 +142,17 @@ the artifact's enum order, with each layer's discovery probes and evidence sourc
 shallow-clone reads, the aggregating-container granularity rule, and the per-layer incremental write.
 Read it at the start of the walk, not per layer.
 
-Two properties of the walk matter enough to state here:
+Three properties of the walk matter enough to state here:
 
 - **Write the artifact per layer, as the walk proceeds.** A partial artifact is a checkpoint, not a
   failure, a context-exhausted run then dies with its completed layers persisted and a later pass
   merges into them.
+- **Re-read the artifact from disk immediately before each of those writes**, and merge against that
+  copy rather than the one loaded before the walk. A second producer writes this file, its rows sit
+  in layers this walk never visits, and a merge against a stale copy would drop them with no closure
+  row, since a closure row is written only for a layer the run walked. The obligation is the
+  contract's, in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Re-run merge
+  semantics", and it binds every writer.
 - **Answer the three liveness questions independently for every item** (§3). Inferring one from
   another is what produces every false green the method enumerates.
 
@@ -196,7 +207,7 @@ Ownership itself resolves through §12, and ownerless is not a valid terminal st
 ## Consumer-agnostic
 
 Nothing here assumes an organization, a repository, a forge, a CI system, a branch name, or an agent
-harness. Layers are the ten forge-neutral names in the artifact's vocabulary, and every discovery
+harness. Layers are the ten forge-neutral enforcement names this lane walks, and every discovery
 probe in the walk resolves what a consumer actually declares.
 
 **Custody is detected, never assumed.** A managed, vendored, or synced file, a copy whose upstream
@@ -211,6 +222,19 @@ the consumer maintains, a documented upstream. Where custody is upstream, remedi
 findings artifact as the single source of truth, an inline terminal summary always, and a rendered
 HTML view only as a presence-gated extra. Field-level contents, ids, ordering, the spine/prose split,
 and merge semantics belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
+
+This lane writes `schema: 2` and `mode: walk`, and omits `targets`, which belongs to a pointed run.
+It merges into whatever artifact it finds, so it also **reads** one: `schema: 1` and `schema: 2` are
+both recognized, and anything else stops the run with a visible message. Merging into a schema-1
+artifact upgrades it, and a row carried forward untouched from that run keeps no `Basis`, displayed
+as `not recorded (schema 1)` until the row is re-evaluated rather than backfilled with a guess.
+Every finding carries `Basis`: `measured` where a tier-1–4 citation supports the verdict,
+`class-inferred` where it rests on §6's non-derivable-oracle clause or a §7 class match and every
+consult was silent or tier-5-only, and `unexamined` only alongside `UNPROVEN`. **Where a row
+satisfies both**, which happens whenever a class-resting verdict also measured nothing,
+`class-inferred` wins: the discriminator is what the verdict rests on, never how little came back.
+The `check`
+constituent of every id this lane derives carries `audit` as its producer segment.
 
 ## A detached checkout has no branch identity
 
