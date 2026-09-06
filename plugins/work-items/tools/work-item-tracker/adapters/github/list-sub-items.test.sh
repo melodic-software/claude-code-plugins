@@ -137,11 +137,11 @@ EOF
 fi
 
 # --- the same-repo test is case-insensitive ---
-# GitHub owner/repo names are case-insensitive and the id grammar accepts any
-# case, so an id written `github:acme/widgets#99` must still match nodes whose
-# url spells the repo `Acme/Widgets`. A case-sensitive compare would call every
+# GitHub owner and repo names are case-insensitive and the id grammar accepts
+# any case, so an id spelling the repo in lower case must still match nodes
+# whose url spells it in mixed case. A case-sensitive compare would call every
 # child foreign and return an empty list with no signal, which is the same
-# silent blindness #3825 was, just reached by a different route.
+# silent blindness (#3825) was, just reached by a different route.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d)"
   cat >"$STUB/gh" <<'EOF'

@@ -53,11 +53,11 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 # segments before `issues`. `repository.nameWithOwner` still wins where a gh
 # build does emit it; a node attributable to neither repo is dropped, as before.
 #
-# The same-repo test is case-INSENSITIVE. GitHub owner/repo names are, and the
-# id grammar accepts any case, so `github:acme/widgets#99` must still match a
-# node whose url says `Acme/Widgets`. A case-sensitive compare would classify
-# every child as foreign and return an empty list with no signal, which is the
-# same silent blindness #3825 was.
+# The same-repo test is case-INSENSITIVE. GitHub owner and repo names are, and
+# the id grammar accepts any case, so an id spelling the repo in lower case must
+# still match a node whose url spells it in mixed case. A case-sensitive compare
+# would classify every child as foreign and return an empty list with no signal,
+# which is the same silent blindness (#3825) was.
 #
 # Two different drops, only one of them expected. A node resolving to ANOTHER
 # repo is out of scope for this number-keyed intersect and stays silent
