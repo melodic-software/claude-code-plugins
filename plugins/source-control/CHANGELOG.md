@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.57]
+## [0.55.58]
 
 ### Fixed
 
@@ -77,6 +77,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   A read-only `gh api graphql -f query='query{viewer{login}}'` tells the operator up front whether
   this session hits the wall. A refusal is INFO, not FAILED, because the engine keeps running over
   REST; what gets reported is the one loss that stops merges, every PR held as readiness UNPROVEN.
+
+## [0.55.57]
+
+### Changed
+
+- **Production hooks locate the hook directory with parameter expansion, not `dirname`.**
+  GNU Bash forks a subshell for every command substitution even when the body is a
+  builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
+  takes; the fallback covers a bare filename, where the strip is a no-op and
+  dirname answers `.`. What the hook checks is unchanged.
 
 ## [0.55.56]
 

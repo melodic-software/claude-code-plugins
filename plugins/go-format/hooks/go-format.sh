@@ -41,12 +41,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -87,7 +94,10 @@ esac
 
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (goimports
 # is invoked with the absolute $FILE), so both are resolved only when a sink is
@@ -217,7 +227,7 @@ fi
 # -local flag (goimports' plain default grouping), never a hard stop.
 LOCAL_PREFIX=""
 if command -v go >/dev/null 2>&1; then
-  LOCAL_PREFIX="$(cd "$(dirname "$FILE")" 2>/dev/null && go list -m 2>/dev/null)" || LOCAL_PREFIX=""
+  LOCAL_PREFIX="$(cd "$FILE_DIR" 2>/dev/null && go list -m 2>/dev/null)" || LOCAL_PREFIX=""
   [[ "$LOCAL_PREFIX" == "command-line-arguments" ]] && LOCAL_PREFIX=""
 fi
 GOIMPORTS_ARGS=(-w -l)
