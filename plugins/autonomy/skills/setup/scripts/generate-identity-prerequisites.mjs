@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Generates the machine-readable identity-and-prerequisite emission from the
-// ten v1 routine definition leaves. Leaves stay the authored single home; this
+// eleven v1 routine definition leaves. Leaves stay the authored single home; this
 // file is derived output the resolver and CI consume. Run with no argument to
 // rewrite the emission; run with --check to fail on drift (CI gate).
 //

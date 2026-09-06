@@ -237,6 +237,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | abstraction-flattening | AGT | DC (PR) | repo | C4 (structural surface) | join (external): a validated detector is published |
 | gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a — no agent session; the GUI-actuation rule still requires L3 | not-a-routine |
 | doc-freshness-sweep | AGT | R + DC (optional docs PR) | repo | C1 (report); optional gated docs-PR portion C3 | v1 |
+| drift-delta-sweep | AGT | R + WI | repo | C1 | v1 |
 | coverage-mutation-watch | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
 | release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
 | eng-metrics-digest | AGT | R | repo | C1 | v1 |
@@ -330,10 +331,19 @@ commentary, and a leaf that contradicts one is non-conforming.
   no-agent-session property per the portion-split mapping rule; the repair judgment, the routine
   itself, is not, so the join trigger stays open and the class gains no leaf. A detector proves
   detection, never the repair pattern `v1` requires.
+- **`drift-delta-sweep` and `doc-freshness-sweep` are distinct classes.** `doc-freshness-sweep`
+  judges whether prose still describes its subject; `drift-delta-sweep` runs the repository's
+  installed drift lanes and reports their movement. Its repository-drift-audit lane is a full pass
+  whose documentation dimension overlaps `doc-freshness-sweep`; an org enabling both accepts that
+  one dimension is covered twice. The class's substantive prerequisites, three optional sibling
+  plugins present and a run that resolves a branch identity and persists its memory-tier home
+  across cycles, are not representable in the generated prerequisite emission, so a `supported`
+  verdict for this identity over-reports; the leaf states the predicate and the routine binding
+  owns satisfying it.
 
 ### v1 leaves
 
-Leaf-level definition depth for the ten `v1` classes only — every leaf derives its guardrail
+Leaf-level definition depth for the eleven `v1` classes only — every leaf derives its guardrail
 row through the mapping rules above, never by hand. The class parameters above are the other
 depth tier and bind whether or not a class has a leaf:
 
@@ -342,6 +352,7 @@ depth tier and bind whether or not a class has a leaf:
 - [backlog-readiness-check](routines/backlog-readiness-check.md)
 - [pr-queue-tending](routines/pr-queue-tending.md)
 - [doc-freshness-sweep](routines/doc-freshness-sweep.md)
+- [drift-delta-sweep](routines/drift-delta-sweep.md)
 - [dependency-update-wave](routines/dependency-update-wave.md)
 - [advisory-cve-triage](routines/advisory-cve-triage.md)
 - [tech-debt-sweep](routines/tech-debt-sweep.md)
