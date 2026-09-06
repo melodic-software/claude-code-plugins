@@ -3,6 +3,25 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.36]
+
+### Changed
+
+- **The Notification hook drops leftover jq, tr, and builtin-capture forks on
+  the default path.** Field extract fuses into `hook::buffer_stdin_to` so
+  completeness and `.notification_type` / `.message` share one jq process;
+  C0 stripping is parameter expansion, not `printf | tr`; `repo_root_to`
+  writes in-process; OSC 9 / BEL sequences use `printf -v`;
+  `terminalSequence` emission uses `json_escape_jq_to` instead of `jq -nc`.
+  GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 1 permission_prompt fire (os_toast off): 19→5 clones; PATH-visible `jq`
+  4→1; `tr` 3→0. The jq prerequisite, C0 sanitization, channel gates, and
+  osascript argv contract are unchanged.
+
 ## [0.6.35]
 
 ### Changed
@@ -20,7 +39,6 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
   over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
   argv, unresolved-root fallback, and relative-path redaction are unchanged.
-
 
 ## [0.6.34]
 
