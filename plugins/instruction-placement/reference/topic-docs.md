@@ -18,53 +18,65 @@ never for their location.
 
 ## What this plugin writes
 
-**Memory tier only.** Nothing downstream enforces against either artifact, and both are read again
-by a later run in the same checkout, which is the memory tier's own question.
+**Memory tier only, and both artifacts are branch-keyed.** Nothing downstream enforces against
+either, and both are read again by a later run in the same checkout, which is the memory tier's own
+question.
 
 | Artifact | Type | Location (default) |
 |---|---|---|
 | Findings — written by `instruction-placement:audit`, status fields updated by `instruction-placement:realign` | `instruction-placement-findings` | `.work/instruction-placement/<branch-slug>/findings.md` — never committed |
-| Placement baseline — read and captured by `instruction-placement:delta`, one per repository | `instruction-placement-baseline` | `.work/instruction-placement/baselines/placement-baseline.md` — never committed |
+| Spine baseline — read and captured by `instruction-placement:delta` | `instruction-placement-baseline` | `.work/instruction-placement/<branch-slug>/baselines/spine-baseline.md` — never committed |
 
 `baselines/` is the protocol's named slot for a comparison capture, and this is the plugin's use of
-it. What the baseline contains — its frontmatter, its records, its declined set — is owned by
+it. What the baseline contains — its frontmatter and its one spine table — is owned by
 `context/findings-artifact.md` under "The baseline-capture obligation"; this binding owns only where
 it lands.
 
 **One stable filename per home, rewritten in place.** `findings.md`, never a timestamped sibling: a
 re-audit merges into the existing file by stable finding id, and a per-run filename would turn that
 merge into a search problem. The run's timestamp lives in the artifact's `date` frontmatter, where a
-reader and a diff can both find it. `placement-baseline.md` is one stable filename for the same
-reason, overwritten by the next capture. **A `placement-baseline.md` in a resolved home is not
-stray**; deleting one destroys the delta lane's only baseline and, with it, the declined set.
+reader and a diff can both find it. `spine-baseline.md` is one stable filename for the same reason,
+overwritten by the next capture. **A `spine-baseline.md` in a resolved home is not stray**; deleting
+one leaves the delta lane with no comparison input and the next run reports a first run.
 
-## The two axes, and why they differ
+## What does not live here: the operator's judgment
 
-**The findings artifact is branch-keyed.** Every finding cites a source file and a line range, and
-`realign` excises by that range. A range derived on one branch points at different text on another,
-so the artifact carries a `branch:` frontmatter field, `realign` refuses an artifact whose `branch:`
-does not match the current branch, and the branch segment keeps two concurrent branches from
-clobbering each other's evidence. The directory alone is never the proof — the frontmatter is.
+Both files above are **checkout-local**. The contract's visibility matrix marks a sibling worktree
+`invisible` for the memory tier, states that a memory document is visible only in the checkout that
+wrote it, and explicitly refuses to carry this file class across with `.worktreeinclude` — "never
+baselines or raw scratch". Nothing configured here changes that.
 
-**The baseline is not branch-keyed, and that is the point.** It carries the operator's declined
-decisions, and a decline is a judgment about content rather than about a line number: an operator
-who declined demoting a section on one branch has not agreed to be asked again from the next
-checkout. So the baseline sits at one path per repository, resolved from the repo's own tracked
-concern file and a constant slug, with **no branch segment and no checkout discriminator anywhere in
-the formula**. Two runs of the same repository that resolve the same `memory_dir` resolve the same
-baseline.
+So a declined finding is **not** stored in either. It is written to the tracked finding-suppression
+surface `.claude/instruction-placement.md`
+([`consumer-config.md`](consumer-config.md)), where git carries it to every checkout whose branch
+holds the commit. That is the mechanism, and it is the only one available: a tracked file crosses
+checkouts because git moves it, and a memory-tier file does not because nothing does.
 
-That is the whole reason this plugin's persistence moved off `lib/state-key.sh`. That key's second
-segment is a `<worktree-discriminator>` — a hash of the checkout root, present by design so two
-worktrees "must not share a report". Correct for a per-checkout report; wrong for an operator's
-judgment, which is what the declined set is.
+The split is the point. A spine is recomputed by the next run and is worthless outside the checkout
+that produced it; a judgment is expensive to reproduce and worthless *inside* only one checkout.
+This is the same split the sibling `overengineering` plugin makes, which keeps a branch-keyed spine
+baseline in the memory tier and its suppressions on its own tracked surface.
+
+**Both artifacts are branch-keyed, for the same reason.** Every finding cites a source file and a
+line range, and `realign` excises by that range; a range derived on one branch points at different
+text on another. The artifact carries a `branch:` frontmatter field and `realign` refuses one whose
+`branch:` does not match; the baseline carries the same field and `delta` refuses a spine from
+another branch rather than reporting the difference between two branches as movement. The directory
+alone is never the proof — the frontmatter is.
+
+That is also why the retired `lib/state-key.sh` had to go rather than be re-scoped. Its second
+segment was a `<worktree-discriminator>`, a hash of the checkout root, present by design so two
+worktrees "must not share a report". Correct for a per-checkout report — which is exactly what these
+two files are — but it made the plugin's *judgments* per-checkout too, and no configuration could
+join them. The judgments now live on a surface where that question does not arise.
 
 ## Slug derivation
 
 Delta from the contract's precedence: the slug is the constant `instruction-placement`, always.
-Neither the explicit-argument rung nor the branch-name rung is used — this plugin audits a
-repository's instruction layer, not a topic, and a topic- or branch-derived slug would fragment the
-one declined set successive runs must respect. Form and collision rules are the contract's: a user
+Neither the explicit-argument rung nor the branch-name rung is used at the slug level — this plugin
+audits a repository's instruction layer, not a topic, and a topic-derived slug would scatter one
+repository's homes across as many slices as an operator has phrasings. The branch axis is the
+segment *below* the slug, where it belongs. Form and collision rules are the contract's: a user
 topic that derives this same slug takes the contract's `-x` suffix.
 
 `<branch-slug>` — the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character
@@ -75,23 +87,23 @@ why the artifact's own `branch:` frontmatter, never its directory, proves which 
 ledgers and no reserved uppercase stage file, so the contract's child-slice predicate does not fire
 and neither level owes an `INDEX.md` of its own.
 
-**The slice root does owe one**, because it carries two artifact families rather than one: the
-contract requires `INDEX.md` in "a slice with child slices, or with more than one artifact family",
-and only a single-artifact leaf omits it. It is created by the same skill at the same moment as the
-self-ignore guard below — the session's first memory-tier write — and lists the two families and
-their homes so a consumer entering the slice reads it first, per the contract's normative read-first
-binding, which is cited here and not restated.
+**The slice root does carry one**, because it is not a single-artifact leaf: it holds two artifact
+families — findings and the baselines slot — across one home per branch, and the contract requires
+`INDEX.md` in "a slice with child slices, or with more than one artifact family". It is created by
+the same skill at the same moment as the self-ignore guard below — the session's first memory-tier
+write — and lists the families and the branch homes, so a consumer entering the slice reads it
+first, per the contract's normative read-first binding, cited here and not restated.
 
 **Where the branch comes from, and what a detached checkout means.** The branch is the
 `- Branch:` line of each skill's pre-compute block, which runs
 `git rev-parse --abbrev-ref HEAD`. That command answers the **literal string `HEAD`** on a detached
 checkout rather than failing, so `HEAD` is not a branch identity here: it is the same string for
-every ref, and keying a findings home to it would collide every detached run into one directory —
-which is the common case, since scheduled runners check out detached. Treat a branch of `HEAD`, or
-an empty one, as **no branch identity**: no findings home is keyed, `audit` persists no artifact,
-and `realign` refuses rather than comparing. The baseline is unaffected — its path has no branch
-segment — so a detached scheduled run still reads the declined set and still suppresses what the
-operator already dismissed, and its `captured_from_branch` records `unknown`.
+every ref, and keying a home to it would collide every detached run into one directory — which is
+the common case, since scheduled runners check out detached. Treat a branch of `HEAD`, or an empty
+one, as **no branch identity**: no home is keyed, `audit` persists no artifact, `delta` captures no
+baseline, and `realign` refuses rather than comparing. A detached run is not silenced, though —
+suppressions live on the tracked surface, whose path has no branch in it, so a scheduled detached
+run still reads the declined set and still suppresses what the operator already dismissed.
 
 ## Resolution (the contract's five-rung order, earlier wins)
 
@@ -106,9 +118,11 @@ operator already dismissed, and its `captured_from_branch` records `unknown`.
 
 **Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
 resolution to the concern file only on the user's explicit confirmation; declining is a valid answer
-that leaves the resolution session-local, and the run proceeds either way. This is the one sanctioned
-tracked write of any skill here, and each skill's read-only headline is scoped to unasked writes,
-which all stay in the memory tier.
+that leaves the resolution session-local, and the run proceeds either way. Each skill's read-only
+headline is scoped to unasked writes, which all stay in the memory tier. This plugin has exactly two
+sanctioned tracked writes, both gated on an explicit yes: this resolution, and the suppression entry
+`instruction-placement:realign` offers when an operator declines a finding
+([`consumer-config.md`](consumer-config.md)).
 
 Only rungs 1 and 5 compose `instruction-placement/…` themselves. Rungs 2–4 yield whatever location
 the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A skill
@@ -124,24 +138,27 @@ and surface the assumption in the returned summary.
 **No project root.** The contract's fallback applies unchanged. Every skill here reads something
 inside a checkout, so a run outside one has nothing to sweep and stops before any write.
 
-## What the memory tier does and does not survive
+## What survives what
 
-Stated plainly, because the declined set's durability is the reason this home was chosen:
+Stated plainly, per file, because getting this wrong is what routes a durable judgment into a
+disposable home:
 
-- **Survives** a re-run, a branch switch, a `realign` pass, and any later session in this checkout.
-  The baseline has no branch segment, so a decline recorded on one branch is honored on every other.
-- **Survives across checkouts exactly as far as the resolved `memory_dir` reaches.** A repository
-  whose tracked `.claude/topic-docs.yaml` names a shared or absolute memory root shares one baseline
-  across every checkout of that repository. On the documented default the root is `.work/` inside the
-  checkout, so a *newly created* linked worktree starts without it unless the repository's
-  `.worktreeinclude` carries the memory root in (one-way, at worktree-creation time, per the
-  contract).
-- **Does not survive** a deleted memory root or a reclaimed container. That is the memory tier's own
-  bargain, and the next run then legitimately has no baseline and says so.
+| Event | `findings.md` | `baselines/spine-baseline.md` | `.claude/instruction-placement.md` |
+|---|---|---|---|
+| A re-run in this checkout | kept, merged | overwritten by the capture | kept |
+| A branch switch in this checkout | separate home per branch | separate home per branch | kept — no branch in its path |
+| Another worktree of this repository | invisible | invisible | **visible once the branch carries the commit** |
+| A deleted memory root, a reclaimed container | lost | lost | kept — it is tracked, not memory tier |
+| A fresh clone | absent | absent | **present** |
 
-The state key this replaced could not reach even the first of those: its `<worktree-discriminator>`
-segment made two checkouts of one repository resolve two different homes unconditionally, with no
-consumer configuration able to join them.
+The third and fifth rows are the whole reason the suppression surface exists. Git is the mechanism:
+a tracked file reaches another checkout because git moves it, and no `memory_dir` setting makes a
+memory-tier file do the same — the contract refuses to carry this class with `.worktreeinclude`
+("never baselines or raw scratch"), and marks a sibling worktree `invisible`.
+
+The retired state key reached none of those rows for either kind of state: its
+`<worktree-discriminator>` segment made two checkouts of one repository resolve two different homes
+unconditionally, with no consumer configuration able to join them.
 
 ## Runtime guards
 
@@ -151,6 +168,8 @@ consumer configuration able to join them.
   the **invalid roots at which the guard does not run**; they are enumerated in its
   [Runtime guards](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md)
   section and deliberately not listed here, so this binding cannot drift from them.
-- Create the slice directory, its `INDEX.md`, and the `baselines/` subdirectory when absent — at the
-  same first memory-tier write the guard above is scoped to.
-- No skill in this plugin ever edits the consumer's root `.gitignore`.
+- Create the slice directory, its `INDEX.md`, the branch home, and its `baselines/` subdirectory when
+  absent — at the same first memory-tier write the guard above is scoped to.
+- No skill in this plugin ever edits the consumer's root `.gitignore`. The suppression surface's
+  overlay layer is covered by the cascade's own one recursive line, per
+  [`consumer-config.md`](consumer-config.md).

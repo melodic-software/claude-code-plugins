@@ -80,6 +80,20 @@
         "Checks the recorded Claude Code version against the running one",
         "Stops or re-audits on a mismatch instead of editing stale line ranges"
       ]
+    },
+    {
+      "id": 7,
+      "name": "a-decline-is-offered-as-a-durable-suppression",
+      "prompt": "/instruction-placement:realign — IP-004, the deploy conventions one. No, leave it where it is, and stop asking me about it every week.",
+      "narration": true,
+      "expected_output": "Records `declined` in the findings artifact, then treats the second half of the request as its own decision rather than assuming it. It explains that the artifact is memory tier and invisible from any other checkout, composes the suppression entry for the tracked `.claude/instruction-placement.md` — check, claim, the site with its anchor, the operator's own reason, and today's date, keyed by the derived finding_id — shows it in full, and writes it only on an explicit yes. It writes the team-tracked layer, never `~/.claude/**` and never the gitignored overlay, since a personal-only entry suppresses nothing. It closes by saying the file is tracked and the decision reaches other worktrees once committed.",
+      "files": [],
+      "expectations": [
+        "Writes `declined` to the artifact AND offers a suppression entry rather than only one",
+        "Shows the composed entry, including a required reason, before writing it",
+        "Writes the team-tracked layer, not the user-global file or the local overlay",
+        "Says the entry must be committed to reach another checkout"
+      ]
     }
   ]
 }
