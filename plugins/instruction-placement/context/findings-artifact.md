@@ -146,7 +146,14 @@ plugin's business and nobody else's.
 **`anchor/v1` is `sha256` of the `US`-joined ordered enclosing heading path of the section,
 truncated to 8 hex** — for the section `### Release checklist` under `## Deployment`, the path is
 `["Deployment", "Release checklist"]`. It is deliberately **not** a digest of the section's text and
-never a positional ordinal. A reworded paragraph inside a section whose scope and class are unchanged
+never a positional ordinal.
+
+**The chain is reconstructed by the skill, not emitted by the detector.** A `SECTION` record carries
+`path`, `start`, `end`, `level`, and its own `heading` — the ancestors are recoverable because the
+records for one file arrive in document order with their levels: a section's enclosing path is the
+nearest preceding record at each lower level, walked up to level 1. Derive it that way rather than
+by re-reading the file, so the anchor a `realign` write stores and the anchor a later run computes
+come from the same stream and match. A reworded paragraph inside a section whose scope and class are unchanged
 is not a new finding, and an anchor over the bytes would resurrect an accepted decline on every
 copy-edit. Renaming or re-nesting the heading does change it, and that is correct: the finding is
 then a different one, and the convention's `OLD CLOSED, NEW OPENED` disposition reports the old entry
