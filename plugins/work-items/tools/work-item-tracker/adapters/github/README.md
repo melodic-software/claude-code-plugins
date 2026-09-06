@@ -436,3 +436,11 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   the secondary content-generation limit — e.g. 30 items per batch with short pauses.
 - **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create` — apply
   labels explicitly when creating programmatically.
+- **`--json subIssues` nodes carry no `repository` object.** `gh issue view <n> --json subIssues`
+  projects each node as `{id, number, state, title, url}` only. A same-repo filter written against
+  `.repository.nameWithOwner` therefore matches nothing and every container rolls up empty
+  (#3825). Scope such a filter off the node's `url` instead; `repository { nameWithOwner }` exists
+  only when you request it in a GraphQL query, and the seam deliberately avoids extra GraphQL
+  operations because sandboxed sessions serve only a pinned set and `403` the rest (see the note
+  above `wit_read_assignees` in `common.sh`). Verified against **gh 2.97.0** (2026-07-31); the
+  seam's native sub-issue floor is gh 2.94 (`../../lib/gh-version.sh`).

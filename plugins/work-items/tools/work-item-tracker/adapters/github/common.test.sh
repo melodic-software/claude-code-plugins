@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/common.sh"
 
 for fn in gh_write wit_run_gh wit_resolve_repo wit_emit_item wit_lease_json \
   wit_lease_is_live wit_list_lease_comments wit_help_if_requested wit_map_gh_error \
-  wit_gh_issue_view_json_fields; do
+  wit_gh_issue_view_json_fields wit_gh_subissue_child_numbers; do
   if declare -F "$fn" >/dev/null; then
     pass "common.sh exposes $fn"
   else
@@ -119,6 +119,38 @@ EOF
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
 
   rm -rf "$EMIT_STUB"
+fi
+
+# --- sub-issue same-repo predicate (#3825) -----------------------------------
+# The gh 2.97 `--json subIssues` projection carries NO `repository` object, so
+# the former `.repository.nameWithOwner == $repo` filter matched nothing and
+# every container rolled up empty. Case 1 is verbatim gh 2.97.0 output and is
+# the case the old predicate fails.
+if command -v jq >/dev/null 2>&1; then
+  REPO_UT="melodic-software/claude-code-plugins"
+
+  GH_297_PAYLOAD='{"subIssues":{"nodes":[{"id":"I_kwDOTCGFQM8AAAABP7GlVw","number":3805,"state":"OPEN","title":"planning: plan the typed-ticket-body lane","url":"https://github.com/melodic-software/claude-code-plugins/issues/3805"},{"id":"I_kwDOTCGFQM8AAAABP7IQuQ","number":3814,"state":"OPEN","title":"docs/conventions: register acceptance-criteria format and diagram-dialect conventions","url":"https://github.com/melodic-software/claude-code-plugins/issues/3814"}],"totalCount":2}}'
+  assert_eq "gh --json subIssues nodes (no repository field) keep same-repo children" \
+    "[3805,3814]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$GH_297_PAYLOAD")"
+
+  FOREIGN_PAYLOAD='{"subIssues":{"nodes":[{"number":7,"url":"https://github.com/melodic-software/claude-code-plugins/issues/7"},{"number":9,"url":"https://github.com/other-org/other-repo/issues/9"}],"totalCount":2}}'
+  assert_eq "cross-repo child dropped by url-derived scope" \
+    "[7]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$FOREIGN_PAYLOAD")"
+
+  GHES_PAYLOAD='{"subIssues":{"nodes":[{"number":11,"url":"https://ghe.example.com/melodic-software/claude-code-plugins/issues/11"}]}}'
+  assert_eq "url scope is host-agnostic (GHES)" \
+    "[11]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$GHES_PAYLOAD")"
+
+  GRAPHQL_PAYLOAD='{"subIssues":{"nodes":[{"number":21,"repository":{"nameWithOwner":"melodic-software/claude-code-plugins"}},{"number":22,"repository":{"nameWithOwner":"other-org/other-repo"}}]}}'
+  assert_eq "GraphQL shape (repository, no url) still scopes" \
+    "[21]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$GRAPHQL_PAYLOAD")"
+
+  UNATTRIBUTABLE_PAYLOAD='{"subIssues":{"nodes":[{"number":31},{"number":32,"url":"not-an-issue-url"}]}}'
+  assert_eq "unattributable node fails OPEN (gh scopes the list to the parent)" \
+    "[31,32]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$UNATTRIBUTABLE_PAYLOAD")"
+
+  assert_eq "no subIssues connection → empty" \
+    "[]" "$(wit_gh_subissue_child_numbers "$REPO_UT" '{}')"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1

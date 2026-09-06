@@ -12,8 +12,11 @@
 # yields the child NUMBERS, then the adapter's own list-items output is filtered
 # to that set (reusing its exact normalized projection) and re-parented. Same
 # repo only: subIssues nodes in another repo are dropped (the intersect is
-# number-keyed against this repo's list). Truncation bound is list-items' own
-# (limits.list_items_max) — safe while sub_items_per_parent <= list_items_max.
+# number-keyed against this repo's list), scoped off each node's own `url`
+# because the gh projection carries no `repository` object —
+# wit_gh_subissue_child_numbers owns that predicate (#3825). Truncation bound is
+# list-items' own (limits.list_items_max) — safe while
+# sub_items_per_parent <= list_items_max.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -44,9 +47,7 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 # Native child numbers, scoped to the parent's own repo (a cross-repo sub-issue's
 # number would collide with an unrelated same-numbered issue in this repo).
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
-child_nums="$(jq -c --arg repo "$target_repo" \
-  '[(.subIssues.nodes // [])[] | select(.repository.nameWithOwner == $repo) | .number]' \
-  <<<"$WIT_GH_OUT")"
+child_nums="$(wit_gh_subissue_child_numbers "$target_repo" "$WIT_GH_OUT")"
 
 if [[ "$child_nums" == "[]" ]]; then
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'

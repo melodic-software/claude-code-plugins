@@ -202,6 +202,40 @@ wit_issue_url() {
   printf 'https://github.com/%s/%s/issues/%s\n' "$1" "$2" "$3"
 }
 
+# wit_gh_subissue_child_numbers <owner/repo> <subIssues-payload> — echo a compact
+# JSON array of the payload's child issue NUMBERS that live in <owner/repo>.
+#
+# Same-repo scoping is required (a cross-repo sub-issue's number would collide
+# with an unrelated same-numbered issue in this repo), but it must read a field
+# the payload actually carries. `gh issue view --json subIssues` projects nodes
+# as {id, number, state, title, url} with NO `repository` object (verified on gh
+# 2.97.0), so the former `.repository.nameWithOwner` filter dropped every child
+# and left containers with an empty rollup (#3825). Per node, in order:
+#   1. `.url` — always present on the gh projection. Owner/repo come from the
+#      `/<owner>/<repo>/issues/<n>` tail, so GHES hosts parse too. `test()`
+#      guards `capture()`: an unmatched capture emits an empty stream, which
+#      inside a select would silently drop the node — the same fail-closed bug.
+#   2. `.repository.nameWithOwner` — carried only when the payload came from a
+#      GraphQL query that selected it explicitly.
+#   3. Neither → treat as same-repo. gh scopes a parent's subIssues list to that
+#      parent's own repo, so dropping an unattributable node would reinstate the
+#      empty rollup; fail OPEN here, not closed.
+wit_gh_subissue_child_numbers() {
+  local repo="$1" payload="$2"
+  # shellcheck disable=SC2016  # jq program — $repo is a jq variable
+  jq -c --arg repo "$repo" '
+    def node_repo:
+      (.url // "") as $u
+      | if ($u | test("/[^/]+/[^/]+/issues/[0-9]+$"))
+        then ($u | capture("/(?<o>[^/]+)/(?<r>[^/]+)/issues/[0-9]+$") | .o + "/" + .r)
+        else (.repository.nameWithOwner // null)
+        end;
+    [ (.subIssues.nodes // [])[]
+      | select((node_repo) as $nr | $nr == null or $nr == $repo)
+      | .number ]
+  ' <<<"$payload"
+}
+
 # shellcheck disable=SC2016  # jq program — $sv/$or are jq variables, not bash expansions
 readonly WIT_ITEM_JQ='{
   schema_version: $sv,
