@@ -328,7 +328,7 @@ the file. Nothing changes shape or template; the pointer says which skill shapes
 - No template or required-section list changed: `git diff --stat` for these 8 files shows additions only, no deletions beyond reflow.
 - `bash scripts/check-changed-skills.sh` exits 0.
 
-### Phase 6: Registration, versions, changelogs, validation [TODO]
+### Phase 6: Registration, versions, changelogs, validation [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
@@ -345,6 +345,13 @@ generators throw. Both ship `--check` gates in CI, so a hand edit would fail the
 Version numbers are the next patch above `origin/main` at cut time. PR #3766 bumps verification,
 testing, mutation-testing and claude-ops, which is disjoint from this change's seven plugins, so
 there is no version collision to renumber.
+
+> **Outcome note.** `origin/main` was merged into the branch first (it had moved 49 commits ahead,
+> including #3766's code-metrics plugin), so the bumps are cut above the merged state:
+> ai-slop 0.5.13, docs-hygiene 0.21.39, discipline 0.13.4, work-items 0.39.66,
+> source-control 0.55.58, bugs 0.9.11, planning 0.36.5, and writing 0.1.0 new. Both docs were
+> regenerated rather than edited. The merge also cleared the ten pre-existing
+> `check-changed-skills` failures a phase agent saw against a stale branch point.
 
 **Sanity Check:**
 

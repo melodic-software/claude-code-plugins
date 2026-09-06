@@ -5,6 +5,22 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.13.4]
+
+### Added
+
+- **`tighten-your-output`:** a trigger-migration table assigning every brevity phrase one owner,
+  split on whether the phrase names the output in front of us or an artifact a reader will open.
+  Fifteen rows, zero phrases moved: none of this skill's nine names a ticket, PR body, doc or
+  status update, and every artifact-naming phrase was already `writing:be-concise`'s. The two
+  vocabularies are disjoint by construction.
+
+### Changed
+
+- **`tighten-your-output`:** the flagged markdown-terseness standards gap now names a routing
+  owner. Reader-facing prose goes to `/writing:be-concise`, presence-gated with a fallback; the
+  skill still declines to invent a rubric of its own.
+
 ## [0.13.3]
 
 ### Added
