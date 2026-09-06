@@ -401,7 +401,7 @@ and waits.
 ### Execution shape ([EXEC-SHAPE] tagged)
 
 Sequential, single worker, single draft PR, per-item PR shape. Worker brief is the body of
-#3818 after amendment; this file is contract-tier and never merges.
+issue #3818 after amendment; this file is contract-tier and never merges.
 
 ### Mechanical work
 
