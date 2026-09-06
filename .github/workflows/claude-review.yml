@@ -58,7 +58,7 @@ jobs:
     concurrency:
       group: claude-review-${{ github.repository }}
       queue: max
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@62bef7bab01e8532fedfa739879034a210e9e67d # v0.14.0
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@cd2f4e6d500e7923c0db521b4d10034d36331ed3 # v0.22.1
     with:
       runner: ubuntu-24.04
       # Empty on a pull_request event, where the payload supplies the number
