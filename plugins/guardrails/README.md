@@ -393,7 +393,10 @@ reparse paid one `$(printf '%q')` per trailing argument plus one
 creations left on the common path are `$(hook::buffer_stdin)` and the shared
 parser's `< <(printf ...)`, both `lib/hook-utils.sh` work (#3740, #3838).
 No verdict changed: 190 paired runs against `origin/main` agree on exit code
-and full stderr, and the 479-case contract suite passes.
+and stderr, and the 479-case contract suite passes. Those runs did not cover a
+`PATH` carrying no `git`, and that is the one input whose stderr text moves:
+the quoted probe diagnostic reads `exec: git: not found` where it read
+`git: command not found`. The push is blocked either way.
 
 *Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
 on the dispatched path (`run-guards.sh block-dangerous-git.sh`), this

@@ -28,8 +28,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   every force-push, lease, reset, clean, checkout, restore and switch form the
   guard matches plus their near-miss safe spellings, `!` and inline aliases,
   `bash -c` wrappers, and commands carrying a CR, BOM, zero-width space or
-  U+2028) agree on exit code and full stderr, and the 479-case contract suite
-  passes. The two creations that remain on the common path are
+  U+2028) agree on exit code and stderr, with one input those runs did not
+  cover: on a `PATH` carrying no `git`, the diagnostic the block message
+  quotes now reads `exec: git: not found` where it read
+  `git: command not found`. The status is still 127, the same `*` branch
+  runs, and the push is still blocked; the wording of that quoted error is
+  the only thing that changes. The 479-case contract suite passes. The two
+  creations that remain on the common path are
   `$(hook::buffer_stdin)` and the shared parser's `< <(printf ...)`; both
   belong to `lib/hook-utils.sh` (#3740, #3838), so the "at most two spawns"
   line in #3529 is not closed from inside this file, and the PowerShell
