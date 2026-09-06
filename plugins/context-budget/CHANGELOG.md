@@ -5,6 +5,31 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.24]
+
+### Changed
+
+- **The additivity claim is corrected in every home that carried it.** The skill
+  body, the `deny-bare-tool` lever's `categoryBasis`, and the plugin README each
+  asserted flatly that deltas add and a basket prices from its members. Measured
+  readings say otherwise per bucket: the deferred side sums to the token, while
+  the prefix side double-counts, so the sum of prefix deltas is only an upper
+  bound on a basket's prefix saving. All three now say which side composes and
+  which does not, and point at `attribute --verify-additivity` for the
+  per-bucket verdict. (#3863)
+- **`attribute --verify-additivity` reports a verdict per attributed bucket.**
+  The record gains `perBucket`, carrying `{sumOfParts, combinedSaved, additive,
+  reasons}` for each bucket, derived from the `prefixDelta`/`deferredDelta`
+  values the per-tool rows already carry: no extra measurement pass, and one
+  bucket vanishing no longer costs the other bucket its verdict. A bucket absent
+  from both runs is outside the binary's category vocabulary and gets no verdict
+  row. (#3863)
+- **`additive` is tri-state instead of boolean.** It was computed from the
+  comparability flag, so an unmeasurable reading published as a definite
+  `false`. `true` and `false` are now measured verdicts and `null` means the
+  reading could not be measured, top level and per bucket alike. The saturation
+  guard that produces the null saving is unchanged. (#3863)
+
 ## [0.6.23]
 
 ### Changed
