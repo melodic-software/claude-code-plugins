@@ -15,6 +15,17 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   GraphQL-shaped payloads, and treats a node carrying neither field as same-repo. Extracted to
   `wit_gh_subissue_child_numbers` in `common.sh` and covered by offline verb tests that serve the
   real gh 2.97 projection.
+- **The same-repo comparison is case-insensitive.** The ID grammar admits uppercase owner and
+  repository components while GitHub's canonical URL casing may differ, and GitHub treats these
+  identifiers case-insensitively, so an exact compare rejected every child of `github:O/R#1` whose
+  URL read `/o/r/` and reinstated the empty rollup for those callers.
+- **An unattributable node now warns on stderr.** Failing open on a node carrying neither `.url`
+  nor `.repository.nameWithOwner` is a defensive default, not a safe one: a parent's `subIssues`
+  list can carry cross-repo children, which is why the predicate exists at all, so admitting an
+  unattributable node can misattribute a foreign child whose number collides locally. No known gh
+  payload omits both fields; the warning makes a real occurrence observable instead of silent. The
+  prior comment justified the fallback with the claim that gh scopes the list to the parent's own
+  repo, which the suite's own cross-repo fixture contradicts.
 
 ## [0.39.65]
 

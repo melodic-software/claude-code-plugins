@@ -217,23 +217,47 @@ wit_issue_url() {
 #      inside a select would silently drop the node — the same fail-closed bug.
 #   2. `.repository.nameWithOwner` — carried only when the payload came from a
 #      GraphQL query that selected it explicitly.
-#   3. Neither → treat as same-repo. gh scopes a parent's subIssues list to that
-#      parent's own repo, so dropping an unattributable node would reinstate the
-#      empty rollup; fail OPEN here, not closed.
+#   3. Neither → treat as same-repo, and warn on stderr.
+#
+# On rung 3, note what is NOT being claimed: a parent's subIssues list can carry
+# cross-repo children (that is the whole reason this predicate exists, and the
+# suite's FOREIGN_PAYLOAD fixture exercises it). So an unattributable node is
+# genuinely ambiguous, and neither direction is safe in the abstract. No known gh
+# payload omits both fields — 2.97.0 always projects `.url` — so this is a
+# defensive default rather than a reasoned-about case. It fails OPEN because the
+# observed failure (#3825) was the silent empty rollup, and it warns so that a
+# real occurrence is visible instead of quietly misattributing a foreign child.
+#
+# Comparison is case-insensitive: the ID grammar admits uppercase owner and repo
+# components while GitHub's canonical URL casing may differ, and GitHub treats
+# these identifiers case-insensitively. An exact compare would reject every child
+# of `github:O/R#1` whose URL reads `/o/r/`, reinstating the empty rollup.
 wit_gh_subissue_child_numbers() {
-  local repo="$1" payload="$2"
+  local repo="$1" payload="$2" parsed unattributed
   # shellcheck disable=SC2016  # jq program — $repo is a jq variable
-  jq -c --arg repo "$repo" '
+  parsed="$(jq -c --arg repo "$repo" '
     def node_repo:
       (.url // "") as $u
       | if ($u | test("/[^/]+/[^/]+/issues/[0-9]+$"))
         then ($u | capture("/(?<o>[^/]+)/(?<r>[^/]+)/issues/[0-9]+$") | .o + "/" + .r)
         else (.repository.nameWithOwner // null)
         end;
-    [ (.subIssues.nodes // [])[]
-      | select((node_repo) as $nr | $nr == null or $nr == $repo)
-      | .number ]
-  ' <<<"$payload"
+    ($repo | ascii_downcase) as $want
+    | [ (.subIssues.nodes // [])[] | . + {_nr: node_repo} ] as $nodes
+    | {
+        numbers: [ $nodes[]
+          | select((._nr == null) or ((._nr | ascii_downcase) == $want))
+          | .number ],
+        unattributed: ([ $nodes[] | select(._nr == null) ] | length)
+      }
+  ' <<<"$payload")" || return 1
+
+  unattributed="$(jq -r '.unattributed' <<<"$parsed")"
+  if [[ "$unattributed" -gt 0 ]]; then
+    printf 'work-item-tracker: %s sub-issue node(s) carried neither .url nor .repository.nameWithOwner; counted as same-repo\n' \
+      "$unattributed" >&2
+  fi
+  jq -c '.numbers' <<<"$parsed"
 }
 
 # shellcheck disable=SC2016  # jq program — $sv/$or are jq variables, not bash expansions

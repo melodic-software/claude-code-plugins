@@ -146,8 +146,25 @@ if command -v jq >/dev/null 2>&1; then
     "[21]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$GRAPHQL_PAYLOAD")"
 
   UNATTRIBUTABLE_PAYLOAD='{"subIssues":{"nodes":[{"number":31},{"number":32,"url":"not-an-issue-url"}]}}'
-  assert_eq "unattributable node fails OPEN (gh scopes the list to the parent)" \
-    "[31,32]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$UNATTRIBUTABLE_PAYLOAD")"
+  assert_eq "unattributable node fails OPEN (defensive default, no gh payload omits both fields)" \
+    "[31,32]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$UNATTRIBUTABLE_PAYLOAD" 2>/dev/null)"
+
+  # Failing open is a judgement call, not a free action, so it must be observable.
+  assert_eq "unattributable node warns on stderr" \
+    "1" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$UNATTRIBUTABLE_PAYLOAD" 2>&1 >/dev/null | grep -c 'carried neither')"
+
+  assert_eq "attributable payload is silent on stderr" \
+    "0" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$GH_297_PAYLOAD" 2>&1 >/dev/null | wc -c | tr -d ' ')"
+
+  # GitHub identifiers are case-insensitive and the ID grammar admits uppercase,
+  # so a parent id whose casing differs from the canonical URL must still match.
+  MIXED_CASE_PAYLOAD='{"subIssues":{"nodes":[{"number":41,"url":"https://github.com/melodic-software/claude-code-plugins/issues/41"},{"number":42,"url":"https://github.com/other-org/other-repo/issues/42"}]}}'
+  assert_eq "parent id casing differing from the url still scopes same-repo" \
+    "[41]" "$(wit_gh_subissue_child_numbers "Melodic-Software/Claude-Code-Plugins" "$MIXED_CASE_PAYLOAD")"
+
+  UPPER_URL_PAYLOAD='{"subIssues":{"nodes":[{"number":51,"url":"https://github.com/Melodic-Software/Claude-Code-Plugins/issues/51"}]}}'
+  assert_eq "url casing differing from the parent id still scopes same-repo" \
+    "[51]" "$(wit_gh_subissue_child_numbers "$REPO_UT" "$UPPER_URL_PAYLOAD")"
 
   assert_eq "no subIssues connection → empty" \
     "[]" "$(wit_gh_subissue_child_numbers "$REPO_UT" '{}')"
