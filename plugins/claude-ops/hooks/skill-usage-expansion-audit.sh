@@ -28,12 +28,19 @@
 # producer — one switch disables the whole skill-usage-audit feature).
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=claude-ops-paths.sh
-source "$(dirname "${BASH_SOURCE[0]}")/claude-ops-paths.sh"
-
+source "$HOOK_DIR/claude-ops-paths.sh"
 hook::check_enabled "SKILL_USAGE_AUDIT"
 
 START=${EPOCHREALTIME:-}

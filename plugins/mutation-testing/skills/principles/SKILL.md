@@ -75,3 +75,7 @@ the tests.
 - Answer general test-design questions (mocking, four pillars, classical vs London). Those belong to
   `/tdd:principles` when the `tdd` plugin is installed; without it, consult your project's own
   test-design guidance.
+- Explain what a coverage, CRAP, or complexity number can and cannot say on its own. Those
+  cross-metric caveats belong to `/code-metrics:principles` when the `code-metrics` plugin is
+  installed; without it, hold to the one rule this skill does own: coverage records execution,
+  not detection, and no coverage figure substitutes for a mutation score.

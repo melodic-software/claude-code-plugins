@@ -51,8 +51,8 @@ scope precedence, never from `list`/`details` text.
 
 ## Native-Windows `projectPath` vs Git Bash `$PWD`
 
-`installed_plugins.json` stores `projectPath` in native Windows form (`D:\repos\...`); a Bash-tool
-`$PWD` reads POSIX form (`/d/repos/...`). A naive string-equality check between the two silently
+`installed_plugins.json` stores `projectPath` in native Windows form (`D:\repos\{repo}`); a Bash-tool
+`$PWD` reads POSIX form (`/d/repos/{repo}`). A naive string-equality check between the two silently
 never matches on Windows — the in-repo detection this skill's primary value depends on (Step 2 of
 `sync.md`) would quietly no-op, and nobody would notice because the *rest* of sync (marketplace
 refresh, user-scope sweep) still runs and still produces *a* report. `fleet-state.sh` avoids this by
@@ -137,6 +137,21 @@ readily as for a deleted worktree — and per
 independently, which makes worktree paths exactly the population most likely to look dead while
 being perfectly recoverable. Suppressing a row on a directory test would hide real drift from anyone
 whose repos do not live on a permanently-attached local disk. Annotate; never suppress.
+
+## A large absent-path count is not evidence of careless installs
+
+The section above covers a record surviving its directory. This is the other half: a checkout may
+acquire dozens of records without anyone running an install in it, though the write path behind that
+is not confirmed.
+
+What breaks: reading a large `projectPathPresent: false` count as a habit to correct. The count can
+scale with the repo's plugin list rather than with anyone's intent, so report the count and the
+distinct paths, treat deliberate installs as one possible cause among others, and do not tell a user
+to stop installing at project scope until you know they did.
+
+Sourcing, precedence, and the two questions still open on the local write path are in
+[scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
+cannot reap them". Do not restate them here.
 
 ## A spoke file never receives `${user_config.*}` substitution
 

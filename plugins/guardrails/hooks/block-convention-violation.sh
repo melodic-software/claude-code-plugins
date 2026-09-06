@@ -51,16 +51,19 @@ set -uo pipefail
 # and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED:-true}" == "true" ]] || exit 0
 
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-# Bundled PowerShell-command classifier — this gate is matched on both the Bash
-# and the (opt-in) PowerShell tool, same as the sibling git guards. Resolved
-# under the plugin root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback
-# keeps the contract tests working when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+source "$_HOOK_SELF/hook-utils.sh"
 
 start=${EPOCHREALTIME:-}
 
@@ -600,6 +603,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # scanned by the classifier's own sink; rc 2 (git-shaped unparsable) is
   # `block-dangerous-git`/`block-no-verify`'s fail-closed concern, not a content
   # decision.
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
   ((ps_rc == 0)) || {

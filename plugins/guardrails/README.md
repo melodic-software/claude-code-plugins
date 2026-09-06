@@ -379,6 +379,59 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.9, `ps-command.sh` parse tax on the Bash dispatcher.** 2026-09-06,
+Linux CI host. The 0.32.6 table still carries the remaining five PATH-visible
+execs (`3 git` + `2 jq`); this entry does not change that count. `ps-command.sh`
+(~41 KB) was sourced on every Bash fire: once in the dispatcher because
+`hooks.json` passes `--lib`, and again inside each isolation subshell whose
+guard had a file-scope `source` (the include guard is process-local, so a
+parent `source` does not spare the forks). `ps::classify_git_command` returns
+0 immediately on Bash, so those parses were tax. After: the dispatcher skips
+`--lib` when `.tool_name` is `Bash`, and each guard sources the classifier only
+inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`. Neither guard's decision
+changed.
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload. `bash -x` counts
+`source …/ps-command.sh` lines. Wall clock is p50/p95 of 20 samples after 2
+warmup on a host `spawn_probe` characterised as measurable (min 0.5 ms, spread
+1.78×).
+
+| Counter | before | after |
+|---|---|---|
+| Counted PATH-shim spawns | 5 (`3 git`, `2 jq`) | 5 (`3 git`, `2 jq`) |
+| `source …/ps-command.sh` (`bash -x`) | 5 | 0 |
+| Wall p50 / p95 (n=20) | 51.9 / 53.8 ms | 46.8 / 48.1 ms |
+
+The remaining five execs are still the primed `jq` payload parse and the git
+probes the classification guards run on a `git` command.
+
+**0.32.6, remaining `dirname`/`sed` execs on the Bash dispatcher.** 2026-09-05,
+Linux CI host. The 0.31.1 paired table still carries the pre-cut figures for the
+whole Bash dispatcher (52.6 spawn-equivalents); this entry supersedes that
+row's counted-exec half. Neither guard's decision changed. Every always-on
+Bash guard located `hook-utils.sh` with `source "$(dirname …)"` even after the
+dispatcher had already loaded the library, and the dispatcher copied
+`hook::jq_fields` through `sed`. Those are PATH-visible execs; the per-guard
+`$(source …)` isolation fork is a function-level fork the census does not
+count, and is unchanged.
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload, same host as
+the wall-clock pass. Wall clock is p50/p95 of 20 samples after 2 warmup on a
+host `spawn_probe` characterised as measurable (min 0.5 ms, spread 1.42×).
+
+| Counter | before | after |
+|---|---|---|
+| Counted PATH-shim spawns | 13 (`7 dirname`, `3 git`, `2 jq`, `1 sed`) | 5 (`3 git`, `2 jq`) |
+| `dirname` | 7 | 0 |
+| `sed` | 1 | 0 |
+| Wall p50 / p95 (n=20) | 70.0 / 73.5 ms | 60.7 / 62.1 ms |
+
+The remaining five execs are the one primed `jq` payload parse and the git
+probes the classification guards still run on a `git` command; those were
+measured and deliberately not folded earlier (0.31.1).
+
 **0.32.5, the PostToolUse `if` rows.** 2026-09-05, Linux CI host. The three
 PostToolUse verifiers accept five extensions between them (`cli-flag-verify` scans
 `.md`, `.sh`, `.bash`, `.ps1` and `.psm1`; the other two scan `.md`), and every

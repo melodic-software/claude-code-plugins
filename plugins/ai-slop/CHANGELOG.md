@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.12]
+
+### Changed
+
+- `detect.sh`: the comment explaining the two Git Bash spellings of one directory writes the
+  Windows form with a `<user>` placeholder. The org machine-specific-path detector reads a
+  literal user-home path as a leaked machine path whatever the surrounding prose says, and a
+  placeholder states the same thing without tripping it.
+
 ## [0.5.11]
 
 ### Changed

@@ -3,6 +3,26 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.47]
+
+### Changed
+
+- The hook's jq-free extraction comment writes its example Windows path as `<drive>:\repos\...`.
+  The org machine-specific-path detector reads a literal checkout path as a leaked machine path
+  whatever the surrounding prose says, and the placeholder carries the same meaning.
+
+## [0.11.46]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
 ## [0.11.45]
 
 ### Added

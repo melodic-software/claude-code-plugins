@@ -32,12 +32,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -79,7 +86,10 @@ esac
 
 # Resolve repo root early — used to bound the settings opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (pwsh is
 # handed the to_pwsh_path form of $FILE), so both are resolved only when a sink
@@ -122,7 +132,7 @@ emit_skipped() {
 # Resolve the file's directory and walk anchors as physical paths — same
 # representation hook::read_file_path uses for membership — so a symlinked
 # CLAUDE_PROJECT_DIR still matches the file's resolved directory at the ceiling.
-FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$(dirname "$FILE")")")" || FILE_DIR_POSIX=""
+FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$FILE_DIR")")" || FILE_DIR_POSIX=""
 root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
@@ -150,7 +160,8 @@ while [[ -n "$dir" ]]; do
     break
   fi
   [[ -n "$CEILING" && "$dir" == "$CEILING" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
 done

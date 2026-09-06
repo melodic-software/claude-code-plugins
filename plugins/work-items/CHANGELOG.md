@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.65]
+
+### Changed
+
+- `preflight.sh` and `preflight.test.sh` write their Windows path examples with a `<drive>`
+  placeholder, which keeps the case contrast the case-folding comment is about while the org
+  machine-specific-path detector stops reading the examples as leaked checkout paths.
+
+## [0.39.64]
+
+### Changed
+
+- work-loop, attend-queue: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+
 ## [0.39.63]
 
 ### Changed

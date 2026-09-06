@@ -100,6 +100,14 @@ else
 fi
 assert_file_absent "per-session route writes no legacy line" "$P6/$ROOT_REL/hook-events.jsonl"
 
+# --- a 1.1 spine session_id routes per session too, and wins over data ------
+P6B="$TEST_TMPDIR/p6b"; mkdir -p "$P6B"
+run_sink "$P6B" "$(envelope bash-format PostToolUse ok 9 s.sh Write | jq -c '.schema_version = "1.1" | . + {session_id: "sess-spine", prompt_id: "p-1"} | .data.session_id = "sess-data"')"
+assert_eq "spine session_id routes the line" "1" "$(wc -l <"$P6B/$ROOT_REL/sessions/sess-spine.jsonl" 2>/dev/null | tr -d ' ')"
+assert_file_absent "spine session_id wins over data.session_id" "$P6B/$ROOT_REL/sessions/sess-data.jsonl"
+run_sink "$P6B" "$(envelope bash-format PostToolUse ok 9 t.sh Write | jq -c '.schema_version = "1.1" | . + {session_id: "sess-only-spine"}')"
+assert_eq "spine session_id with no data key still routes" "1" "$(wc -l <"$P6B/$ROOT_REL/sessions/sess-only-spine.jsonl" 2>/dev/null | tr -d ' ')"
+
 # --- data.changed is carried as a boolean when present ------------------------
 run_sink "$P6" "$(envelope markdown-format PostToolUse ok 12 docs/a.md Write '"session_id":"sess-42","changed":true')"
 assert_eq "changed: true carried" "true" "$(tail -1 "$SLOG" | jq -r .changed)"

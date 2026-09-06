@@ -3,6 +3,30 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.29]
+
+### Changed
+
+- **`hooks/index-drift.sh` locates the hook directory and the edited file's
+  directory with parameter expansion, not `dirname`.** GNU Bash forks a
+  subshell for every command substitution even when the body is a builtin
+  (Command Substitution, Bash Reference Manual). `${BASH_SOURCE[0]%/*}`
+  and `${file_path%/*}` equal `dirname` for every shape those paths take. The
+  hot-path guard (a write outside `.claude/rules/`) still returns before any
+  subprocess. What the hook notices is unchanged.
+
+## [0.11.28]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
 ## [0.11.27]
 
 ### Changed

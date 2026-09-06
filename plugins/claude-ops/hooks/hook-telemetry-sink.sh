@@ -36,12 +36,19 @@
 # undetected pipe failures without aborting the process.
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=session-log-lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/session-log-lib.sh"
-
+source "$HOOK_DIR/session-log-lib.sh"
 INPUT=$(cat)
 [[ -n "$INPUT" ]] || exit 0
 # silent-skip-ok: fire-and-forget sink — the producer discards stdout+stderr,
@@ -57,7 +64,7 @@ mapfile -t FIELDS < <(printf '%s' "$INPUT" | jq -r '
   if (.hook and .hook_event and (.duration_ms != null) and .status)
   then (.timestamp // ""), .hook_event, .hook, (.data.tool // ""),
        (.duration_ms | tostring), (.data.subject // ""), .status,
-       (.data.session_id // "" | tostring),
+       ((.session_id // .data.session_id // "") | tostring),
        (.data.changed | if . == true then "true" elif . == false then "false" else "" end)
   else empty end' 2>/dev/null | tr -d '\r')
 [[ "${#FIELDS[@]}" -eq 9 ]] || exit 0

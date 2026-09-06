@@ -1,0 +1,17 @@
+# Fixture for the dupl adapter (collectors/dupl.py): unverified against a live
+# run. The shape follows mibk/dupl's text printer (printer/text.go, read
+# 2026-09-05): one "found <n> clones:" line per clone group, then one
+# "  <file>:<startline>,<endline>" line per instance, and a total footer.
+# dupl reports no token count, so the adapter reports tokens as null. Comment
+# lines are this fixture's own; dupl emits none, and the parser ignores every
+# line it does not recognize.
+found 2 clones:
+  internal/alpha/orchard.go:12,53
+  internal/beta/orchard.go:31,72
+
+found 3 clones:
+  internal/alpha/orchard.go:80,82
+  internal/beta/orchard.go:96,98
+  internal/gamma/orchard.go:14,16
+
+Found total 2 clone groups.

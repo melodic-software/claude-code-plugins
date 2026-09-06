@@ -74,15 +74,25 @@
 #   lane_stop_gate_arm_id      launcher-written arm-record id (never authority)
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=lane-notify.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lane-notify.sh"
+source "$HOOK_DIR/lane-notify.sh"
 # shellcheck source=lane-stop-gate-lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lane-stop-gate-lib.sh"
-
-gate_resolve_install "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)" || true
+source "$HOOK_DIR/lane-stop-gate-lib.sh"
+case "$HOOK_DIR" in
+/* | ?:[/\\]*) gate_resolve_install "$HOOK_DIR/.." || true ;;
+*) gate_resolve_install "$(cd "$HOOK_DIR/.." 2>/dev/null && pwd)" || true ;;
+esac
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on an older host it is empty and hook::emit_telemetry skips fail-open.

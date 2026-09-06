@@ -1182,7 +1182,7 @@ def large_scan_reasons(target: Path) -> list[str]:
     The home match is by filesystem identity (device + inode via
     ``os.path.samefile``), not a path-string compare: ``os.path.normcase`` only
     folds case on Windows, so a string compare would let a case-variant spelling
-    (``/users/alice`` vs ``/Users/alice``) bypass the gate on a case-insensitive
+    (``/users/<user>`` vs ``/Users/<user>``) bypass the gate on a case-insensitive
     macOS volume. ``target`` is validated to exist upstream; ``samefile`` raises
     only when a path is missing, so a home that cannot be stat'd is simply no match.
     The volume-root match is structural (``is_volume_root``: a self-parent path),

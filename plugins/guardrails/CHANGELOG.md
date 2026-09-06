@@ -3,6 +3,84 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.9]
+
+### Changed
+
+- **The Bash dispatcher and the always-on git/commit guards parse
+  `ps-command.sh` only on a PowerShell payload.** `ps::classify_git_command`
+  returns 0 immediately on Bash after setting `PS_SAFE_COMMAND`, so a
+  file-scope `source` of that ~41 KB classifier was parse tax with no behaviour.
+  The dispatcher still accepts `--lib` on the command line (the include guard
+  still makes a later `source` a no-op) but defers the parse until `.tool_name`
+  is known, and skips it when that name is `Bash`. Each guard that still has to
+  run alone sources the classifier inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`,
+  the same shape `block-hook-bypass` already used. Isolation subshells do not
+  inherit the include guard unless the parent sourced first, so both the
+  dispatcher skip and the per-guard lazy source are required; dispatcher-only
+  would parse the file once per isolation fork on Bash.
+  Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK` unset,
+  benign `git status --short` payload: counted PATH-visible execs stay at
+  **5** (`3 git` + `2 jq`). `bash -x` `source …/ps-command.sh` lines: **5 → 0**.
+  Wall clock on this measurable Linux host (spawn floor 0.5 ms, spread 1.78×,
+  n=20 after 2 warmup): p50 51.9 → 46.8 ms, p95 53.8 → 48.1 ms. The milliseconds
+  are context; the durable figure is the five classifier parses that
+  disappeared.   An unprimed payload still loads the library so a PowerShell
+  command whose jq cache missed cannot reach a guard with `ps::` unbound.
+  `block-noncanonical-commit` compares `-m` values against
+  `PS_HERESTRING_PLACEHOLDER` only when the classifier defined it, so a Bash
+  single-line `-m` does not abort under `set -u`.
+  What each guard checks is unchanged.
+
+## [0.32.8]
+
+### Fixed
+
+- Four in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. In `[0.12.2]` the sentence
+  about the driver's macOS `Shared` exclusion names the directory instead of spelling its full
+  path. In `[0.9.8]` the widened-root examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`.
+  In `[0.9.7]` the checkout-parent example becomes `<drive>:\repos\…` and the two undetected-path
+  examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`. Every entry still claims exactly what
+  it claimed, and the drive letter was never the point in any of them.
+
+## [0.32.7]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a guard emits, including guards run under `run-guards.sh`,
+  each only when present as a plain id, so the claude-ops per-session report
+  lists the guards with no change to the guards themselves (#3758).
+  `schema_version` reads `1.1`; no guard behavior changes.
+
+## [0.32.6]
+
+### Changed
+
+- **The Bash dispatcher and every always-on guard locate `hook-utils.sh`
+  with parameter expansion, not `dirname`, and the dispatcher copies its jq
+  cache helper without `sed`.** A benign `git status --short` on this host
+  spent 7 `dirname` execs (one per enabled Bash guard; the default-off
+  `flag-commit-pr-skill-bypass` exits before `source`) plus one `sed` to rename
+  `hook::jq_fields`, of 13 counted PATH-shim spawns. After: 0 `dirname`, 0
+  `sed`, 5 remaining (`3 git` + `2 jq`, the classification work and the one primed
+  payload parse). Spawn census through a stable PATH shim, `HOOK_TELEMETRY_SINK`
+  unset, same payload: **13 → 5**. Wall clock on this measurable Linux host
+  (spawn floor 0.5–0.7 ms, n=20): p50 70.0 → 60.7 ms, p95 73.5 → 62.1 ms.
+  The milliseconds are context; on a host whose spawn floor is tens of
+  milliseconds the durable figure is the eight PATH-visible execs that
+  disappeared.
+  `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes; a
+  dispatched guard still sees the real `dirname` command, not a dispatcher
+  shadow. `run-guards.test.sh` pins both the empty shim log and the source
+  shape, plus `./run-guards.sh` and a bare `run-guards.sh` / `block-no-verify.sh`
+  so the relative `cd && pwd` arm and the `_HOOK_SELF=.` fallback are not
+  comment-only. What each guard checks is unchanged.
+
 ## [0.32.5]
 
 ### Changed
@@ -4044,8 +4122,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   and the double quote from the child-segment class and drop the trailing
   separator: bare values at a natural boundary (EOL, whitespace, quote) are
   detected, prose spans cannot match, and a bare ROOT with no child segment
-  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
-  exclusion covers the new bare form. 15 regression cases added (bare values
+  (`C:/Dev`, `/home`) still never matches. The driver's exclusion for the
+  macOS `Shared` home directory covers the new bare form. 15 regression cases added (bare values
   in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
   `Shared`). Synced-component note: the same pattern change lands upstream in
   `melodic-software/standards` `components/path-detection/` — the local and
@@ -4345,7 +4423,7 @@ self-overlapping anchor described above — red against the `grep -o` counter
   checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
   `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
   pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
-  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  sole machine path used a widened root (e.g. `<drive>:\Projects\…`, `<drive>:\Dev\…`)
   early-returned before the detailed scan ever ran — a fail-open in a security
   gate. The gate now lists every root token the detailed bodies accept, keeping
   it a strict superset; a `Projects`-root regression test guards it.
@@ -4369,8 +4447,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   are reduced to identifier characters before use, so a value can never inject
   regex metacharacters.
 - **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
-  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
-  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  drive-letter-anchored checkout-parent pattern matched only `<drive>:\repos\…`, so a
+  hardcoded `<drive>:\Projects\…` or `<drive>:\Dev\…` path went undetected. It now also
   matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
   root was and remains caught by the driver's project-root literal scan.
 

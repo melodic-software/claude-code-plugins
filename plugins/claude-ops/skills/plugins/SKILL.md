@@ -99,6 +99,22 @@ The third form projects that same id list from a report already on disk rather t
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
 selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
 
+A second read-only script answers the question `fleet-state.sh` structurally cannot: whether the
+files in a plugin's cache directory actually match the commit its install record claims. Run it as
+Step 5b of `sync` and of `audit`:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> [--scope user|project|all]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> --ids
+```
+
+`--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
+as `fleet-state.sh --ids`. The script never writes anything and never runs `git fetch`; a commit
+that is not in the local marketplace clone is reported as `sha-not-local`, not fetched. See
+[context/sync.md](context/sync.md) Step 5b, and
+[context/scope-semantics.md](context/scope-semantics.md) for the mechanism that makes a cache
+directory and its recorded sha disagree in the first place.
+
 `sync` writes its run journal under this plugin's per-machine data directory. The path is
 substituted here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and **not** in a
 `context/*.md` spoke, which is read raw:
@@ -168,6 +184,8 @@ Divergences: <N> actionable (<M> newly created by this run — <a> by the in-rep
   or listed here)
 Stale project records: <K> record(s) across <P> path(s) not present on this machine
   (omit section entirely when K = 0; never counted in Divergences — see below for the row shape)
+Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
+  (omit the row entirely when N = 0; list the ids and the remediation — see below)
 Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
   enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
   run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
@@ -222,6 +240,15 @@ observe three boundaries:
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
   another plugin's configuration to find out.
 
+A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
+carries an `enabledPlugins` block mirroring what the user already has at user scope is the leading
+candidate source of these rows, but which code path writes them in a local terminal session is not
+verified. Report the count and the distinct paths, and name the block as a candidate source rather
+than as the cause.
+[context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
+why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, the two
+questions still open, and the one-line probe that would settle the local write path.
+
 Give the section a count plus the distinct paths, not one row per record, a hundred records naming
 a dozen directories is a report about a dozen directories:
 
@@ -266,6 +293,39 @@ declines to pay on its own (Claude Code ≥ 2.1.163; see
 [context/scope-semantics.md](context/scope-semantics.md)). If any updated component includes a
 monitor, call that out separately. Monitors need a full session restart, `/reload-plugins` doesn't
 cover them.
+
+## Cache content. Reported, never repaired
+
+A version-and-sha check is not proof that the files on disk are the build the record names. When a
+plugin's manifest version does not change across a commit, `claude plugin update` re-points the
+record's `gitCommitSha` and leaves the existing version directory in place, so the metadata claims
+the new commit while the directory still holds the old build. See
+[context/scope-semantics.md](context/scope-semantics.md) for the observation this rests on.
+
+Step 5b runs `cache-content-check.sh`, which byte-compares every file in each cache directory
+against the recorded commit in the marketplace clone. Omit the `Cache content:` row when it finds
+nothing. When it finds something, name the ids and give the remediation that was actually proved to
+work, rather than a suggestion:
+
+```text
+Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
+  - <id>@<marketplace> <version> — <n> file(s) differ
+  Remediation: remove that version's directory under the plugin cache, then re-run
+  `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
+```
+
+**The check never repairs.** It does not delete a cache directory, does not re-run an update, and
+does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
+`sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
+would also silently erase the condition the verdict exists to report. Every verdict other than
+`match` and `stale-content` is counted as `unverifiable` — the audit looked and could not decide,
+which is its own number and never folded into either side.
+
+**Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a
+marketplace shallow, so any install whose recorded commit predates that clone's window reports
+`sha-not-local` through no fault of the fleet. On the machine this check was first run against, 11
+of 74 user-scope installs were unverifiable for exactly that reason. When the unverifiable count is
+material, say so alongside the match count rather than leading with the match count alone.
 
 ## userConfig: `install_new`
 

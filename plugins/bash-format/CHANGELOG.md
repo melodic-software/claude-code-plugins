@@ -3,6 +3,34 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.39]
+
+### Changed
+
+- **`hooks/bash-format.sh` locates the hook directory, the edited file's directory,
+  and each parent in the EditorConfig walk with parameter expansion, not
+  `dirname`.** GNU Bash forks a subshell for every command substitution even when
+  the body is a builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK` unset,
+  matching `.sh` Write of an in-repo file: **9 → 4**. `dirname` 5 → 0; the
+  remaining four are `1 basename`, `1 git`, `1 jq`, `1 rm`. The milliseconds are
+  not the claim; the durable figure is the five PATH-visible `dirname` execs that
+  disappeared. What the hook formats is unchanged.
+
+## [0.7.38]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
 ## [0.7.37]
 
 ### Added

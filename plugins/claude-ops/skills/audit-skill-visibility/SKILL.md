@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when /skill-doctor, added in 2.1.261, or /doctor resolves in your session, prefer it for that one-shot, alongside the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
@@ -39,7 +39,8 @@ from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
 carries the counterexamples, the greps, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
-reports that in `/doctor` and the Stats tab. It is **which skills are starved by
+reports that in `/skill-doctor` (added in 2.1.261), `/doctor`, and the Stats tab,
+when they resolve in your session. It is **which skills are starved by
 that loop and still wanted, versus genuinely unwanted, versus not observable at
 all.**
 
@@ -185,7 +186,7 @@ a user as documented.
 | Question | Owner |
 |---|---|
 | Why is my fleet unused, starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill**, the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
-| Which skills are unused vs their context cost, right now? | Claude Code's own `/doctor` and Stats tab |
+| Which skills are unused vs their context cost, right now? | Claude Code's own `/skill-doctor` (added in 2.1.261), `/doctor`, and Stats tab, when they resolve in the session |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/claude-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/claude-ops:observability` |
