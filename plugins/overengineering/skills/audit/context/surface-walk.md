@@ -49,8 +49,9 @@ For each layer in enum order, for each item found:
 
 1. **Identify.** A repo-relative path where one exists; otherwise a kind-prefixed stable identifier
    from the closed prefix set the artifact contract fixes (`protection:`, `app:`, `integration:`,
-   and `settings:` for a registration surface outside the repo tree) so it cannot collide with a
-   path.
+   `package:<ecosystem>/<name>` for a declared dependency or pinned tool, and `settings:` for a
+   registration surface outside the repo tree) so it cannot collide with a path. The contract owns
+   that set; this list is a convenience and the contract wins where they differ.
 2. **Classify.** Protected category (§7, plus the consumer's configured set)? Intentionally dormant
    (§7)? And its **surface type** — does exercising this item leave a record at all (§5)? Classify
    before reading counts, so a zero is interpreted rather than measured.

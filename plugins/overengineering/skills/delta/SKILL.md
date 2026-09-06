@@ -195,7 +195,7 @@ them**. A second derivation is a second answer that can disagree with the first.
 
 | Class | Computed by | This lane's job |
 |---|---|---|
-| **Closed finding** | the merge, rule 3 | **Read `## Closed since last run`.** It carries the reason class (`artifact absent`, `renamed to <successor id>`, `layer no longer configured`), which a spine comparison cannot produce. Ignore a row whose id the baseline never carried, that is a stale section, reported once as a contract anomaly, not as a delta. |
+| **Closed finding** | the merge, rule 3 | **Read `## Closed since last run`.** It carries the reason class (`artifact absent`, `renamed to <successor id>`, `layer no longer configured`), which a spine comparison cannot produce. **Read each row's `Layer` first and skip any row in one of the five justification layers**: this lane never compares those, so reporting their closures would contradict the coverage line that calls them outside this lane. Ignore a row whose id the baseline never carried, that is a stale section, reported once as a contract anomaly, not as a delta. |
 | **Verdict moved under a carried-forward judgment** | the merge, rule 5 | **Read the merge's flag and carry it.** Do not shadow it with a second detection: rule 5's flag is authoritative for *"a human's decision is now out of date"*, and this lane's comparison only supplies the verdict pair and the status alongside it. One row, not two. |
 | **New finding** | the merge, rule 2 (`Status: OPEN` on an id it had not seen) | Cross-check against the baseline spine and report the verdict it opened with. |
 | **Suppression change** | the merge, via `## Suppressed` | Read it. A finding newly suppressed, or an entry that stopped suppressing, changes what the report may omit. |
