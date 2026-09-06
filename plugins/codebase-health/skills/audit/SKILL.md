@@ -62,13 +62,29 @@ optional; using one when your setup provides it is not, per Phase 2's external-r
 such tool, follow the inline graceful-degrade guidance, which confidence-tags the
 externally-unverifiable part `needs-review` rather than guessing.
 
-Scope boundary with adjacent audit lanes: this skill verifies **factual claims** in docs/config
-against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
-permissions) and automation-landscape gap analysis are different lanes, when the
-`claude-config` plugin is installed, route those to `/claude-config:audit` and
-`/claude-config:audit-automation-gaps`, invoked via the Skill tool; otherwise state they are out of
-scope rather than
-running claim-extraction over them.
+---
+
+## Boundary, the adjacent drift lanes
+
+This skill verifies **factual claims** in a repo's docs, config, code, and architecture notes
+against the repo's actual state. Seven adjacent lanes each own a different kind of drift, and this
+skill owns none of them. Every route below is a soft dependency: when the named plugin is installed,
+route there and invoke it via the Skill tool; when it is not installed, say the lane is out of this
+skill's scope and name what would have owned it, rather than running claim-extraction over that
+surface. Never assert that an absent skill is available.
+
+| The drift is about | Owner |
+|---|---|
+| Docs that no longer match the code in a change under review, classified stale, missing, or aspirational | the `review` plugin's `doc-drift-detector` agent, invoked as `@review:doc-drift-detector` or as a leaf of `/review:fanout` |
+| A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
+| Whether the surface in flight still matches the CURRENT official upstream docs | `/discipline:recheck-against-upstream` |
+| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/provenance:audit` |
+| Claude Code's own configuration: `settings.json`, `.mcp.json`, hooks, permissions, environment variables | `/claude-config:audit`, with `/claude-config:audit-automation-gaps` for automation-landscape gaps |
+| What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` |
+| What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` |
+
+The last two are delta lanes over their own prior runs, not over this audit's findings. This skill
+keeps no baseline and reports no deltas: each run is a full pass.
 
 ---
 
