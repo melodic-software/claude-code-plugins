@@ -177,61 +177,147 @@ consider() {
 
 # --- JSON hook configs ------------------------------------------------------
 
-# Emits `<jq-path>\t<command>` for every exec-form hook object reachable from
-# __ROOT__. Recursive descent on purpose: `hooks` is an array in some manifests
-# and an event-keyed object in others (the pre-#2570 disk-hygiene config was
-# `.hooks.PreToolUse[0].hooks[0]`), and a shape-specific walk would miss one of
-# them. The root path is included explicitly because jq's `paths` omits it.
+# Emits `<file>\t<jq-path>\t<command>` for every exec-form hook object reachable
+# from __ROOT__. Recursive descent on purpose: `hooks` is an array in some
+# manifests and an event-keyed object in others (the pre-#2570 disk-hygiene
+# config was `.hooks.PreToolUse[0].hooks[0]`), and a shape-specific walk would
+# miss one of them. The root path is included explicitly because jq's `paths`
+# omits it. `input_filename` lets one jq process scan every file in the corpus
+# (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). CRLF is stripped in jq so
+# the separator test sees the real value without a `tr` exec per file.
 JQ_EXEC_FORM='
   def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  (__ROOT__) as $doc
+  input_filename as $file
+  | (__ROOT__) as $doc
   | ([[]] + [$doc | paths(objects)])[]
   | . as $p
   | ($doc | getpath($p)) as $o
   | select(($o | type) == "object")
   | select(($o | has("command")) and ($o | has("args")))
   | select(($o.command | type) == "string")
-  | ($p | render) + "\t" + $o.command
+  | $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
 '
 
-# scan_json <file> <jq root expression> <reported path prefix>
+# scan_json_files <jq-root> <path-prefix> <file...>
 #
-# Fail closed on an unparsable hook config: a file this gate cannot read is a
-# file this gate cannot clear, and silently skipping it would recreate the
-# no-op-that-looks-green failure the gate exists to prevent. (The manifest's own
-# validity is a different gate's job, and the inline-object call site is only
-# reached after the manifest has already parsed.)
-scan_json() {
-  local file="$1" root="$2" prefix="$3" prog out path cmd
-  [[ -f "$file" ]] || return 0
+# One jq over the files, same rule as a per-file scan. Fail closed on an
+# unparsable hook config: a file this gate cannot read is a file this gate
+# cannot clear. A batched jq that fails (one unreadable file aborts the rest)
+# falls back to per-file so the diagnostic still names the offender; the live
+# tree is valid JSON, so CI pays one jq.
+scan_json_files() {
+  local root="$1" prefix="$2"
+  shift 2
+  (($#)) || return 0
+  local prog out file path cmd f
   prog="${JQ_EXEC_FORM//__ROOT__/$root}"
-  # CRLF tolerance: on Windows (Git Bash) a checked-out JSON file can carry \r
-  # inside string values; strip it so the separator test sees the real value.
-  if ! out="$(jq -r "$prog" "$file" 2>/dev/null | tr -d '\r')"; then
-    echo "UNREADABLE HOOK CONFIG: ${file}: not parseable as JSON — this gate cannot clear it" >&2
-    errors=$((errors + 1))
+  if out="$(jq -r "$prog" "$@" 2>/dev/null)"; then
+    while IFS=$'\t' read -r file path cmd; do
+      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
+      consider "$file" "${prefix}${path}" "$cmd"
+    done <<<"$out"
     return 0
   fi
-  while IFS=$'\t' read -r path cmd; do
-    [[ -n "$cmd" || -n "$path" ]] || continue
-    consider "$file" "${prefix}${path}" "$cmd"
-  done <<<"$out"
+  for f in "$@"; do
+    [[ -f "$f" ]] || continue
+    if ! out="$(jq -r "$prog" "$f" 2>/dev/null)"; then
+      echo "UNREADABLE HOOK CONFIG: ${f}: not parseable as JSON — this gate cannot clear it" >&2
+      errors=$((errors + 1))
+      continue
+    fi
+    while IFS=$'\t' read -r file path cmd; do
+      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
+      consider "$file" "${prefix}${path}" "$cmd"
+    done <<<"$out"
+  done
 }
 
-# scan_manifest_path <plugin-dir> <manifest> <relative hooks path> — trust
-# boundary, same rule the sibling gate applies: a manifest-pointed hook config
-# must stay inside its own plugin directory. Reject absolute paths and any `..`
-# segment (portable string check — no realpath dependency) with a visible skip,
-# so a crafted manifest cannot point this gate at files outside the tree it
-# claims to scan.
-scan_manifest_path() {
-  local plugin="$1" manifest="$2" rel="$3"
+# Manifest `.hooks` shape, one jq over every plugin.json. Unreadable manifests
+# are skipped (manifest validity has its own gate); a batch failure falls back
+# per-file so that skip still applies. Rows:
+#   E<tab>file<tab>jq-path<tab>command  — inline object, already prefixed .hooks
+#   P<tab>file<tab>rel                  — string or array-of-string hooks path
+JQ_MANIFEST='
+  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
+  input_filename as $file
+  | (.hooks | type) as $t
+  | if $t == "object" then
+      (.hooks) as $doc
+      | ([[]] + [$doc | paths(objects)])[]
+      | . as $p
+      | ($doc | getpath($p)) as $o
+      | select(($o | type) == "object")
+      | select(($o | has("command")) and ($o | has("args")))
+      | select(($o.command | type) == "string")
+      | "E\t" + $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
+    elif $t == "string" then
+      "P\t" + $file + "\t" + (.hooks | gsub("\r"; ""))
+    elif $t == "array" then
+      .hooks[] | select(type == "string") | "P\t" + $file + "\t" + gsub("\r"; "")
+    else
+      empty
+    end
+'
+
+# Extra hook-config paths queued from manifest string/array `.hooks` values.
+# Global: bash 3.2 has no nameref, and a callee `eval` cannot append to a
+# caller's `local -a`.
+MANIFEST_EXTRA=()
+
+scan_manifests() {
+  (($#)) || return 0
+  local out f
+  MANIFEST_EXTRA=()
+  if out="$(jq -r "$JQ_MANIFEST" "$@" 2>/dev/null)"; then
+    _consume_manifest_rows "$out"
+  else
+    for f in "$@"; do
+      [[ -f "$f" ]] || continue
+      if out="$(jq -r "$JQ_MANIFEST" "$f" 2>/dev/null)"; then
+        _consume_manifest_rows "$out"
+      fi
+    done
+  fi
+  ((${#MANIFEST_EXTRA[@]})) || return 0
+  scan_json_files "." "" "${MANIFEST_EXTRA[@]}"
+}
+
+_consume_manifest_rows() {
+  local rows="$1" kind file rest path cmd rel plugin
+  while IFS=$'\t' read -r kind file rest; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+    E)
+      path="${rest%%$'\t'*}"
+      cmd="${rest#*$'\t'}"
+      consider "$file" ".hooks${path}" "$cmd"
+      ;;
+    P)
+      rel="$rest"
+      plugin="${file%/.claude-plugin/plugin.json}"
+      _queue_manifest_path "$plugin" "$file" "$rel"
+      ;;
+    *) ;;
+    esac
+  done <<<"$rows"
+}
+
+# Trust boundary, same rule the sibling gate applies: a manifest-pointed hook
+# config must stay inside its own plugin directory. Reject absolute paths and
+# any `..` segment (portable string check — no realpath dependency) with a
+# visible skip, so a crafted manifest cannot point this gate at files outside
+# the tree it claims to scan.
+_queue_manifest_path() {
+  local plugin="$1" manifest="$2" rel="$3" path
   [[ -n "$rel" ]] || return 0
   if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
     echo "check-hook-exec-form: skipping out-of-tree hooks path in $manifest: $rel" >&2
     return 0
   fi
-  scan_json "$plugin/${rel#./}" "." ""
+  path="$plugin/${rel#./}"
+  [[ -f "$path" ]] || return 0
+  MANIFEST_EXTRA+=("$path")
 }
 
 # --- YAML frontmatter hooks blocks ------------------------------------------
@@ -260,33 +346,20 @@ scan_frontmatter() {
 }
 
 # --- walk -------------------------------------------------------------------
+# Default hooks.json and every plugin.json, each corpus in one jq. Manifest
+# string/array `.hooks` paths queue a third (usually empty) batch. The previous
+# walk paid one jq (and a `tr`) per hooks.json plus one-to-three jq per
+# manifest (~96 jq on this tree).
 
+hook_jsons=()
+manifests=()
 for plugin in plugins/*/; do
   plugin="${plugin%/}"
-  manifest="$plugin/.claude-plugin/plugin.json"
-
-  # Default location, always loaded when present.
-  scan_json "$plugin/hooks/hooks.json" "." ""
-
-  [[ -f "$manifest" ]] || continue
-  hooks_type="$(jq -r '.hooks | type' "$manifest" 2>/dev/null | tr -d '\r' || echo invalid)"
-  case "$hooks_type" in
-  string)
-    rel="$(jq -r '.hooks' "$manifest" | tr -d '\r')"
-    scan_manifest_path "$plugin" "$manifest" "$rel"
-    ;;
-  array)
-    while IFS= read -r rel; do
-      rel="${rel%$'\r'}"
-      scan_manifest_path "$plugin" "$manifest" "$rel"
-    done < <(jq -r '.hooks[] | select(type == "string")' "$manifest" 2>/dev/null || true)
-    ;;
-  object)
-    scan_json "$manifest" ".hooks" ".hooks"
-    ;;
-  *) ;; # null, absent, or unparsable manifest (manifest validity has its own gate)
-  esac
+  [[ -f "$plugin/hooks/hooks.json" ]] && hook_jsons+=("$plugin/hooks/hooks.json")
+  [[ -f "$plugin/.claude-plugin/plugin.json" ]] && manifests+=("$plugin/.claude-plugin/plugin.json")
 done
+scan_json_files "." "" "${hook_jsons[@]}"
+scan_manifests "${manifests[@]}"
 
 # Skill and agent frontmatter. Every markdown file under plugins/ is read, and
 # only its frontmatter is interpreted, so a `hooks:` line in a prose body or a
