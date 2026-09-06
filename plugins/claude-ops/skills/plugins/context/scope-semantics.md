@@ -201,8 +201,13 @@ session start. Do not present the batch as the mechanism until that probe has ru
 "Project settings take precedence over user settings, so setting a plugin to false in
 ~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
 To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
-instead." Every project-scope `true` that duplicates a user-scope install therefore produces its own
-version-pinned project record keyed by absolute path, one per plugin per checkout. **Open probe 2:
+instead." Precedence settles which `enabledPlugins` value is effective; on its own it does not
+establish that a local session writes an install record. The leading hypothesis, consistent with the
+single observed batch above and with nothing that contradicts it, is that every project-scope `true`
+duplicating a user-scope install still produces its own version-pinned project record keyed by
+absolute path, one per plugin per checkout. Treat it as a hypothesis until Open probe 1 above, a
+fresh worktree of a repo carrying the block with `installed_plugins.json` watched across the first
+session start, confirms the write. **Open probe 2:
 whether a project-scope `false` writes any install record is undocumented**, and no probe in this
 repo has tested it.
 

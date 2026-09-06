@@ -241,13 +241,12 @@ observe three boundaries:
   another plugin's configuration to find out.
 
 A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
-carries an `enabledPlugins` block mirroring what the user already has at user scope is a source of
-these rows, because a project-scope entry takes precedence over user scope and so gets its own
-version-pinned record keyed by that absolute path, one per plugin per checkout. Nothing on the other
-side reaps the result either: `git worktree remove` does not touch `~/.claude`, and the product's
-documented retention sweep covers nothing under `~/.claude/plugins/`.
+carries an `enabledPlugins` block mirroring what the user already has at user scope is the leading
+candidate source of these rows, but which code path writes them in a local terminal session is not
+verified, so do not report a count as the repository's doing.
 [context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
-why the skill cannot reap them" holds the sourcing, including the two questions still open.
+why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, the two
+questions still open, and the one-line probe that would settle the local write path.
 
 Give the section a count plus the distinct paths, not one row per record, a hundred records naming
 a dozen directories is a report about a dozen directories:

@@ -138,18 +138,15 @@ independently, which makes worktree paths exactly the population most likely to 
 being perfectly recoverable. Suppressing a row on a directory test would hide real drift from anyone
 whose repos do not live on a permanently-attached local disk. Annotate; never suppress.
 
-## A committed `enabledPlugins` block manufactures records nobody asked for
+## A large absent-path count is not evidence of careless installs
 
-The section above covers a record surviving its directory. This is the other half: how a checkout
-acquires dozens of records without anyone running an install in it. A repo whose committed
-`.claude/settings.json` mirrors the plugin set the user already has at user scope still produces a
-project-scope record per plugin, because project scope outranks user scope, and the record is keyed
-by that checkout's absolute path. Every fresh worktree of that repo does it again.
+The section above covers a record surviving its directory. This is the other half: a checkout can
+acquire dozens of records without anyone running an install in it.
 
-What breaks: the "one throwaway worktree, a dozen stranded records" case above stops being something
-a user did and becomes something the repo does on its own, at a scale set by the plugin count rather
-than by anyone's intent. Read a large `projectPathPresent: false` count as that, not as evidence of
-careless installs, and do not tell a user to stop installing at project scope when they never did.
+What breaks: reading a large `projectPathPresent: false` count as a habit to correct. The count can
+scale with the repo's plugin list rather than with anyone's intent, so treat deliberate installs as
+one possible cause among others, and do not tell a user to stop installing at project scope until
+you know they did.
 
 Sourcing, precedence, and the two questions still open on the local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill

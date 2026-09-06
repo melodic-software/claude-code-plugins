@@ -13,10 +13,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   count in the hundreds had no way to tell a careless install habit from a repo doing it on its own.
   A new `scope-semantics.md` subsection, "Where project-scope records come from, and why the skill
   cannot reap them", sources the mechanism: a repo's committed `.claude/settings.json`
-  `enabledPlugins` block is the documented cloud install mechanism, project scope outranks user
-  scope, and so every project-scope `true` that merely duplicates a user-scope install still gets its
-  own version-pinned record keyed by that checkout's absolute path, one per plugin per checkout.
-  Nothing on either side of the boundary reaps the result: `git worktree remove` does not touch
+  `enabledPlugins` block is the documented cloud install mechanism, and project scope outranks user
+  scope. That every project-scope `true` merely duplicating a user-scope install still gets its own
+  version-pinned record keyed by that checkout's absolute path is recorded as the leading hypothesis
+  for local sessions, not as an established fact, because precedence alone does not establish the
+  write and the probe that would has not been run. Nothing on either side of the boundary reaps the result: `git worktree remove` does not touch
   `~/.claude`, no CLI verb removes a record by path, and the "Cleaned up automatically" list in the
   claude-directory docs names nothing under `~/.claude/plugins/`. Changelog 2.1.224 shows the
   per-project records are a live mechanism rather than vestigial state. Synced plugins are recorded
@@ -28,11 +29,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   mechanism; the probe that would settle it is named. Whether a project-scope `false` writes any
   record is undocumented and untested. The file's opening promise that every claim below it was
   verified now names this subsection as the exception.
-- **Pointers, not restatements.** `SKILL.md`'s stale-records section gains a short paragraph naming
-  the committed block as a source and pointing at the new subsection, keeping its existing guidance
-  that the tool owning those directories' lifecycle is where records should be dropped. A new gotcha
-  covers the failure mode this creates for a reader of the report, a large absent-path count that is
-  the repo's doing rather than the user's, and cites the subsection instead of repeating it. No
+- **Pointers, not restatements.** The mechanism is stated once, in the new subsection.
+  `SKILL.md`'s stale-records section gains a short paragraph naming the committed block as the
+  leading candidate source, flagging the local write path as unverified, and pointing at the
+  subsection, keeping its existing guidance that the tool owning those directories' lifecycle is
+  where records should be dropped. A new gotcha covers the failure mode alone, reading a large
+  absent-path count as careless installs, and cites the subsection rather than restating it. No
   remediation is proposed; that decision is open on the issue.
 
 ## [0.42.13]
