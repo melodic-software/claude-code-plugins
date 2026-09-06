@@ -9,9 +9,18 @@ metadata:
   summary: Make one artifact you point at justify its own existence, on evidence
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
+Collect this with an **individual** Bash call, never combined into a single invocation with
+anything else:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep it as a
+separate body Bash call rather than a pre-compute line: the harness runs a skill's whole
+pre-compute block as one shell invocation, and a worktree-isolated session refuses a compound
+command that contains git. The call **fails with no output** on a detached checkout rather than
+printing a sentinel, so read its exit status rather than matching on a string.
 
 ## Purpose
 
@@ -128,9 +137,10 @@ resting on a line number derives a different id as soon as an edit above it move
 
 1. **Resolve the branch identity, then the artifact home**, exactly as
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Before the walk", step 1 does. The
-   precompute above is a convenience, not the source of truth; where its line is absent, run
-   `git symbolic-ref --quiet --short HEAD` and read the exit status. Run the topic-docs binding's
-   whole rung order rather than assuming the default's shape.
+   branch call in "Repository context" above is the source of that identity, and **its exit status
+   is the datum**, not its output: a detached checkout produces no output and a non-zero status, and
+   an empty line is the answer rather than a missing one. Never accept the literal `HEAD` as an
+   identity. Run the topic-docs binding's whole rung order rather than assuming the default's shape.
 2. **Run the shared preflight**, `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`,
    section "Preflight". Its sanctioning-record probe matters here: a repetition a record sanctions
    and a check maintains is never duplication to collapse.

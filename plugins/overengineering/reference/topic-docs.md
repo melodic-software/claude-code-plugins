@@ -68,9 +68,10 @@ judgments are not kept here.
 **Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
 resolution to the concern file only on the user's explicit confirmation; declining is a valid answer
 that leaves the resolution session-local, and the run proceeds either way. A non-interactive context
-never reaches these rungs (see below). This is the audit's one sanctioned tracked write, and the
-audit SKILL's "Read-only contract" discloses it — the read-only headline is scoped to unasked
-writes, which all stay in the memory tier.
+never reaches these rungs (see below). This is the one sanctioned tracked write of **either
+producer**, `overengineering:audit` and `overengineering:justify` alike, since both run this rung
+order and either can reach it; each skill's "Read-only contract" discloses it, and the read-only
+headline in both is scoped to unasked writes, which all stay in the memory tier.
 
 Only rungs 1 and 5 compose `overengineering/<branch-slug>` themselves. Rungs 2–4 yield whatever
 location the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A
@@ -112,9 +113,9 @@ keys a new home every commit, which never collides but never resumes either, tur
 an unbounded scatter of single-use homes that no consumer ever reads back. A fixed literal such as
 `detached` is `HEAD` under another name.
 
-The consumers state the consequence at their own sites: `overengineering:audit` persists no findings
-artifact, `overengineering:realign` refuses rather than comparing, and `overengineering:delta`
-compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
+The consumers state the consequence at their own sites: `overengineering:audit` and
+`overengineering:justify` each persist no findings artifact, `overengineering:realign` refuses
+rather than comparing, and `overengineering:delta` compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
 run reaching it without an identity has no path to resolve, and asks for none.
 
 `overengineering` is this plugin's concern name under the memory root, alongside the contract's own
