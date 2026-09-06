@@ -747,6 +747,13 @@ if [[ "$esc2" == "abc" ]]; then
 else
   fail "json_escape: wrong residual-C0 handling: $(printf '%q' "$esc2")"
 fi
+esc14_to=""
+hook::json_escape_to esc14_to "$in14"
+if [[ "$esc14_to" == "$esc" ]]; then
+  ok "json_escape_to: matches print form"
+else
+  fail "json_escape_to: got '$esc14_to' want '$esc'"
+fi
 
 # --- Test 14b: hook::json_escape_jq matches jq's own string escaping ----------
 # The telemetry envelope's string fields are escaped by this function instead
@@ -3317,6 +3324,41 @@ if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
 else
   fail "json_str_object_to escapes: got [$jso_esc_got] want [$jso_esc_want]"
 fi
+
+# --- hook::json_escape / notice_once no longer exec tr ----------------------
+tr_shim="$(mktemp -d)"
+tr_log="$tr_shim/log"
+real_tr=$(type -P tr) || real_tr=""
+if [[ -n "$real_tr" ]]; then
+  cat >"$tr_shim/tr" <<EOF
+#!/usr/bin/env bash
+printf 'TR\\n' >>"$tr_log"
+exec "$real_tr" "\$@"
+EOF
+  chmod +x "$tr_shim/tr"
+  PATH="$tr_shim:$PATH" hook::json_escape $'a\001b"c' >/dev/null
+  if [[ -f "$tr_log" ]]; then
+    fail "json_escape spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "json_escape: drops C0 in-shell, does not exec tr"
+  fi
+  : >"$tr_log"
+  notice_data="$(mktemp -d)"
+  PATH="$tr_shim:$PATH" CLAUDE_PLUGIN_DATA="$notice_data" \
+    hook::notice_once "k-tr" '{"session_id":"s","hook_event_name":"PostToolUse"}' >/dev/null || true
+  PATH="$tr_shim:$PATH" CLAUDE_PLUGIN_DATA="$notice_data" \
+    hook::notice_once "k-tr" '{"session_id":"s","hook_event_name":"PostToolUse"}' >/dev/null || true
+  if [[ -s "$tr_log" ]]; then
+    fail "notice_once spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "notice_once: reads the marker in-shell, does not exec tr"
+  fi
+  rm -rf "$notice_data"
+  unset _HOOK_NOTICE_PRUNED
+else
+  fail "json_escape/notice_once tr pin: no real tr on PATH to wrap"
+fi
+rm -rf "$tr_shim"
 
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"

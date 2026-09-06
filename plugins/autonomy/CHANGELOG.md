@@ -3,6 +3,25 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.31]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks on the stdin and notice
+  paths.** `hook::json_escape` no longer pipes through `tr`; `hook::emit_channels`
+  writes through `json_escape_to` instead of `$(json_escape)`; the `read -t`
+  slice probe no longer captures stderr via command substitution; `notice_once`
+  reads the marker with `read` and creates or prunes the skip-notice directory
+  once per process. GNU Bash runs command substitution in a subshell even for
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 20 calls: `json_escape` 60→0 creations (20 `tr` execs→0);
+  `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
+  Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
+  Notice JSON, timeout probing, and skip-notice latching are unchanged.
+
 ## [0.22.30]
 
 ### Changed

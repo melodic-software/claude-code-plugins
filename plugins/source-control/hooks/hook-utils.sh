@@ -56,19 +56,34 @@ hook::check_enabled() {
 # (\n \r \t); the remaining C0 bytes JSON forbids raw are dropped — notice text
 # never carries meaningful control bytes beyond line structure. Byte-safe under
 # UTF-8: every escaped byte is ASCII, and UTF-8 continuation bytes are >= 0x80.
+#
+# hook::json_escape_to <var> <string> writes in THIS shell. The print form is
+# the public contract. A `$(hook::json_escape …)` capture is a fork even when
+# the body is only builtins (Command Execution Environment, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution). The previous
+# `printf | tr -d` pipeline added two more process creations and a `tr` exec
+# per notice; Cygwin's fork is a non-copy-on-write Win32 CreateProcess
+# (Cygwin User's Guide, "Process Creation": "fork will almost certainly
+# always be inefficient under Win32"). Residual C0 deletion is the same
+# character class tr used (`\001-\010\013\014\016-\037`); NUL cannot appear
+# in a bash string, so tr's `\000` was already unrepresentable.
+hook::json_escape_to() {
+  local __hu_s="$2"
+  __hu_s="${__hu_s//\\/\\\\}"
+  __hu_s="${__hu_s//\"/\\\"}"
+  __hu_s="${__hu_s//$'\n'/\\n}"
+  __hu_s="${__hu_s//$'\r'/\\r}"
+  __hu_s="${__hu_s//$'\t'/\\t}"
+  if [[ "$__hu_s" == *[[:cntrl:]]* ]]; then
+    __hu_s="${__hu_s//[$'\001'-$'\010'$'\013'$'\014'$'\016'-$'\037']/}"
+  fi
+  printf -v "$1" '%s' "$__hu_s"
+}
+
 hook::json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  # tr drops the residual C0 bytes; if tr itself is unavailable, fall back to
-  # the escaped string as-is — notice text is hook-authored and does not carry
-  # raw control bytes in practice.
-  local out
-  out=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037' 2>/dev/null) || out="$s"
-  printf '%s' "$out"
+  local __hu_e
+  hook::json_escape_to __hu_e "$1"
+  printf '%s' "$__hu_e"
 }
 
 # Emit hook JSON carrying an agent-channel context (additionalContext) and/or a
@@ -80,12 +95,17 @@ hook::json_escape() {
 hook::emit_channels() {
   local event="$1" ctx="$2" sysmsg="$3"
   [[ -n "$ctx" || -n "$sysmsg" ]] || return 0
-  local out="{"
+  local __hu_ee __hu_ec __hu_es out="{"
   if [[ -n "$ctx" ]]; then
-    out+='"hookSpecificOutput":{"hookEventName":"'"$(hook::json_escape "$event")"'","additionalContext":"'"$(hook::json_escape "$ctx")"'"}'
+    hook::json_escape_to __hu_ee "$event"
+    hook::json_escape_to __hu_ec "$ctx"
+    out+='"hookSpecificOutput":{"hookEventName":"'"$__hu_ee"'","additionalContext":"'"$__hu_ec"'"}'
     [[ -n "$sysmsg" ]] && out+=","
   fi
-  [[ -n "$sysmsg" ]] && out+='"systemMessage":"'"$(hook::json_escape "$sysmsg")"'"'
+  if [[ -n "$sysmsg" ]]; then
+    hook::json_escape_to __hu_es "$sysmsg"
+    out+='"systemMessage":"'"$__hu_es"'"'
+  fi
   out+="}"
   printf '%s\n' "$out"
 }
@@ -220,12 +240,27 @@ hook::notice_once() {
   local dir="${CLAUDE_PLUGIN_DATA:-}"
   [[ -n "$dir" ]] || return 0
   dir="$dir/skip-notices"
-  mkdir -p "$dir" 2>/dev/null || return 0
-  find "$dir" -type f -mtime +7 -delete 2>/dev/null
+  # `-d` before `mkdir -p`: the directory exists after the first skip in this
+  # process, and mkdir is an external command. Same placement as other
+  # once-per-process probes in this file.
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir" 2>/dev/null || return 0
+  fi
+  # Prune once per hook process. `find -mtime +7 -delete` on every notice
+  # was one exec per skip; the process is short-lived and the markers are
+  # tiny, so repeating the walk inside one fire cannot find newly-stale
+  # files. `_HOOK_NOTICE_PRUNED` is unset in a fresh hook process.
+  if [[ -z "${_HOOK_NOTICE_PRUNED:-}" ]]; then
+    find "$dir" -type f -mtime +7 -delete 2>/dev/null || true
+    _HOOK_NOTICE_PRUNED=1
+  fi
   local marker="$dir/${key}.${session}.${agent}"
   local count=0
   if [[ -f "$marker" ]]; then
-    count="$(tr -d '[:space:]' <"$marker" 2>/dev/null || true)"
+    # `read`, not `tr -d '[:space:]'`: that substitution was a fork plus a
+    # tr exec to strip whitespace bash can already delete in-process.
+    IFS= read -r count <"$marker" || true
+    count="${count//[[:space:]]/}"
     [[ "$count" =~ ^[0-9]+$ ]] || count=1
   fi
   count=$((count + 1))
@@ -1408,6 +1443,26 @@ hook::json_complete() {
 # read returns before payload bytes arrive, same class as exact zero (#1883).
 readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
 
+# hook::_read_t_stderr_empty <timeout>
+# True when this shell's `read -t <timeout>` against /dev/null produced no
+# usage error. The previous probe captured stderr with
+# `probe=$(read … </dev/null 2>&1)` — a command substitution, which GNU Bash
+# runs in a subshell even for a builtin (Command Execution Environment).
+# Invalid vs valid cannot be told from `$?` alone: both EOF on /dev/null and
+# `invalid timeout specification` return 1 on the Bash 5.2 measured here, so
+# emptiness of stderr is the discriminator. Redirecting that builtin onto a
+# per-process file and testing `-s` keeps the same discriminator without the
+# substitution fork; the file is truncated by `2>` each call.
+hook::_read_t_stderr_empty() {
+  local __hu_discard=""
+  if [[ -z "${_HOOK_READ_ERRFILE:-}" ]]; then
+    _HOOK_READ_ERRFILE="${TMPDIR:-/tmp}/hook-utils-read-t.$$"
+  fi
+  # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
+  read -r -t "$1" __hu_discard </dev/null 2>"$_HOOK_READ_ERRFILE"
+  [[ ! -s "$_HOOK_READ_ERRFILE" ]]
+}
+
 # hook::resolve_read_timeout_to <var>
 # Write the resolved timeout into <var> in THIS shell. The print form below
 # is the public contract (tests and callers that capture stdout). GNU Bash
@@ -1419,10 +1474,8 @@ hook::resolve_read_timeout_to() {
   local __hu_dest="$1"
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
   if [[ "$__hu_t" != "2" ]]; then
-    local probe
-    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$__hu_t" discard </dev/null 2>&1)
-    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] ||
+      ! hook::_read_t_stderr_empty "$__hu_t"; then
       __hu_t=2
     elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
       local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
@@ -1487,15 +1540,11 @@ hook::resolve_read_slice_to() {
     local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
     printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
   fi
-  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]]; then
-    local probe
-    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$__hu_slice" discard </dev/null 2>&1)
-    if [[ -z "$probe" ]]; then
-      printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
-      printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
-      return 0
-    fi
+  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]] &&
+    hook::_read_t_stderr_empty "$__hu_slice"; then
+    printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
+    printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
+    return 0
   fi
   printf -v "$__hu_slice_dest" '%s' "$__hu_t"
   printf -v "$__hu_count_dest" '%s' "1"
@@ -1538,9 +1587,9 @@ hook::buffer_stdin_to() {
   local __hu_read_timeout __hu_read_slice __hu_slice_count
   # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
   # even when the body is builtins only. Those two forks were the documented
-  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe inside
-  # resolve_read_slice_to still uses $(read) — that is the remaining, smaller
-  # fork, paid only when the computed slice needs a live `read -t` probe.
+  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe is a
+  # builtin `read -t` with stderr redirected onto a per-process file, so it
+  # no longer pays a command-substitution fork.
   hook::resolve_read_timeout_to __hu_read_timeout
   hook::resolve_read_slice_to "$__hu_read_timeout" __hu_read_slice __hu_slice_count
   local -a __hu_read_opts=(-r -t "$__hu_read_slice")

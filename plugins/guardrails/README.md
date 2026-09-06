@@ -379,6 +379,33 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.12, leftover stdin and notice forks.** 2026-09-06, Linux CI host
+characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+The 0.32.11 PATH-shim table is unchanged: those counters fire only on
+`exec`, and the forks this drop never exec. Kernel census
+`strace -f -e trace=clone,clone3,fork,vfork,execve` on the library
+helpers, 20 calls after 0 warmup (the subject is a builtin):
+
+| Counter | before | after |
+|---|---|---|
+| `hook::json_escape` process creations | 60 (20× `tr` exec) | 0 |
+| `hook::emit_channels` process creations | 240 | 0 |
+| `hook::resolve_read_slice_to 2` process creations | 20 | 0 |
+| `hook::notice_once` process creations | 79 | 3 (1 `mkdir` + 1 `find` + harness) |
+| `hook::buffer_stdin_to` (5 fires, fused fields) | 20 | 15 |
+
+The slice probe runs on every hook that buffers stdin, including the
+always-on dispatcher. PATH-visible `jq` execs on a benign Bash call stay
+at 1. Notices, timeout probing, and skip-notice JSON are byte-identical.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
 **0.32.11, fused stdin completeness and field extract.** 2026-09-06,
 Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`
 execs on a benign Bash call: `jq -e .` (stdin JSON-complete check) plus
