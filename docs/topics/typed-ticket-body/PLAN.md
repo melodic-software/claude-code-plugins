@@ -18,8 +18,12 @@ Carrying a Brief's criteria into slices would break that property. Decompose is 
 What decompose does carry is the container: it publishes the container body as the Brief verbatim,
 acceptance criteria included. And the container has a reader, `/review:quality-gate close-out`, which
 judges the container's acceptance criteria and keeps the container open on a `missing` or `wrong`
-finding. So a tag written at capture reaches exactly one consumer, and revision 1 pointed at a
-different one.
+finding. So a tag written at capture reaches the close-out review, and revision 1 pointed elsewhere.
+
+One qualification, because "exactly one consumer" would be too strong. `verification:confirm` reads
+an approved plan's acceptance criteria directly, so in a single-session flow that never decomposes,
+tagged criteria do reach it, with no pattern column. That path is out of this lane's scope and is
+recorded as a known gap rather than left silent.
 
 Two consequences run through every phase below. The tag's reader is the close-out review, not
 slice-level verification. And the artifact's inline target is the container body, which stands
@@ -30,7 +34,8 @@ one-to-one with the design session that produced the artifact, rather than a sli
 Give the ticket body a type. Acceptance criteria gain an opt-in EARS format and an always-on
 unwanted-behaviour coverage prompt. The design skill types and dialect-selects the per-scope
 artifacts it already emits. Decompose inlines the artifact into the container body. The close-out
-review returns a per-criterion verdict table when the container's criteria carry tags.
+review's existing acceptance-criteria rollup gains a pattern column when the container's criteria
+carry tags.
 
 ### Constraints that govern every phase
 
@@ -64,7 +69,7 @@ graph LR
   P0[Phase 0 - pre-flight sweep] --> P1[Phase 1 - #3814 convention]
   P1 --> P2[Phase 2 - #3821 capture]
   P1 --> P3[Phase 3 - #3822 design artifacts]
-  P2 --> P4[Phase 4 - #3824 close-out table]
+  P2 --> P4[Phase 4 - #3824 pattern column]
   P3 --> P5[Phase 5 - #3823 container inline]
 ```
 
@@ -93,7 +98,7 @@ Fourteen skills reference acceptance criteria; one skill emits mermaid. Verdicts
 | `work-items/ship` | unaffected | Routes to close-out review; does not itself parse a criterion line. |
 | `planning/interview` | needs update | Phase 2. Authors the tagged criteria. |
 | `planning/design` | needs update | Phase 3. Emits the artifacts being typed. |
-| `verification/confirm` | out of scope | Reads slice criteria, which are freshly authored and never tagged. Revision 1 wrongly targeted it. |
+| `verification/confirm` | out of scope, known gap | Reads an approved plan's acceptance criteria, so in a single-session flow that never decomposes it can see tagged criteria with no pattern column. Revision 1 targeted it for the decomposed flow, which was wrong; leaving the single-session flow uncovered is a stated gap, not an oversight. |
 | The close-out review path | needs update | Phase 4. The one reader of tagged container criteria. |
 | `implementation/implement` | unaffected | Reads criteria as prose to decide done-ness; a bracketed prefix is inert to it. |
 | `implementation/implement-dispatch` | unaffected | Passes criteria through; no shape parsing. |
@@ -159,7 +164,7 @@ not use checkboxes and is not being converted to them.
 
 - `grep -qE '\[(ubiquitous|event-driven|state-driven|unwanted-behaviour|optional-feature)\]' plugins/planning/skills/interview/context/loop.md`
 - All five pattern names appear in `plugins/planning/skills/interview/SKILL.md`, and separately in `plugins/planning/skills/prd/SKILL.md`.
-- `grep -qi 'non-interactive' plugins/planning/skills/interview/SKILL.md` and separately for `prd`.
+- The non-interactive skip is stated **for the coverage prompt specifically**, not merely somewhere in the file. `interview/SKILL.md` already contains one unrelated `non-interactive` mention, so assert the phrase co-occurs with the prompt: `grep -qi 'unwanted-behaviour' plugins/planning/skills/interview/SKILL.md` and the surrounding paragraph names the skip. For `prd/SKILL.md`, which has no such mention today, `grep -qi 'non-interactive' plugins/planning/skills/prd/SKILL.md` is a valid new-text assertion.
 - `grep -qi 'gherkin' plugins/planning/skills/interview/SKILL.md` and separately for `prd`.
 - Each body restates the ladder: `grep -qi 'soft-degrade' plugins/planning/skills/interview/SKILL.md` and separately for `prd`.
 - `bash scripts/check-changed-skills.sh main` reports 0 failed.
@@ -184,31 +189,39 @@ target's class. An unnamed collaborator cannot be presence-gated.
 - `grep -qi 'erDiagram' plugins/planning/skills/design/SKILL.md` and `grep -qi 'openapi' plugins/planning/skills/design/SKILL.md`
 - `grep -qi 'likec4' plugins/planning/skills/design/SKILL.md`
 - The body names `library` and `module` as emitting no typed artifact.
-- **Default path:** the body states that an unset system dialect emits no C4 view: `grep -qi 'no C4' plugins/planning/skills/design/SKILL.md` or equivalent wording present.
+- **Default path:** `grep -qi 'no C4' plugins/planning/skills/design/SKILL.md`. Verified to return no match on the unmodified tree, so this asserts new text rather than passing for free.
 - The citation names a specific target skill, not "a community diagram skill".
 - `bash scripts/check-changed-skills.sh main` reports 0 failed.
 - `bash scripts/check-changelog-parity.sh --check-bump main` exits 0.
 - `npx markdownlint-cli2` on the changed files reports 0 issues.
 
-## Phase 4. Close-out review: per-criterion verdict table. #3824 [TODO]
+## Phase 4. Close-out rollup: add a pattern column. #3824 [TODO]
 
-In the close-out review path, not in slice-level verification. The container's criteria are the input.
+The file is `plugins/review/skills/quality-gate/context/close-out.md`, routed from that skill's
+`SKILL.md`. Revision 2 named no file, which was a gap.
 
-One row per criterion. `unverifiable` is first-class and never rounded into `met`. A partially tagged
-set still yields one row per criterion, with an empty pattern cell for untagged ones, because dropping
-them reproduces the invisibility the table exists to remove.
+**This phase is much smaller than revision 2 assumed, and revision 1 smaller still than that.** The
+close-out review already anchors on the container's acceptance criteria, already gives every criterion
+a `delivered` / `partial` / `missing` / `unverifiable` verdict, already states that `unverifiable` is
+"never quietly folded into `delivered`", and already renders the rollup unconditionally. The premise
+that it reports narrative prose and lets an unchecked criterion pass unnoticed is false.
 
-The roll-up rule is stated: any `not-met` or `unverifiable` row keeps the container open. Without it
-the table changes nothing, since the existing outcome vocabulary already decides the container's fate.
+What it lacks is any awareness of a criterion's requirement pattern. This phase adds one conditional
+column and changes no judgment.
+
+Two things revision 2 proposed are dropped. A `met` / `not-met` vocabulary would compete with the
+existing four-value one for the same judgment. And making `unverifiable` keep the container open would
+change a blocking rule that fires today only on `missing` or `wrong`, is co-owned by
+`container-lifecycle.md`, and sits outside this phase's fence. When a container closes is a
+container-level decision, not a side effect of adding a column.
 
 **Sanity Check:**
 
-- The three verdict values appear in the touched body.
-- The four column names appear in the touched body.
-- `grep -qi 'keeps the container open' <touched body>`
-- The untagged fallback is stated: `grep -qi 'narrative' <touched body>`
-- The partial-tagging rule is stated.
-- `! grep -q 'userConfig' <touched body>`
+- All five pattern names appear in `plugins/review/skills/quality-gate/context/close-out.md`.
+- `! grep -qE '\bnot-met\b' plugins/review/skills/quality-gate/context/close-out.md` — no competing vocabulary introduced.
+- The existing blocking sentence is untouched: `git diff main...HEAD -- plugins/review/skills/quality-gate/context/close-out.md` contains no change to the line stating that a `missing` or `wrong` finding is a blocker.
+- The partial-tagging rule is stated: `grep -qi 'empty pattern cell' plugins/review/skills/quality-gate/context/close-out.md`.
+- `git diff --name-only main...HEAD -- plugins/work-items/` is empty.
 - `bash scripts/check-changed-skills.sh main` reports 0 failed.
 - `bash scripts/check-changelog-parity.sh --check-bump main` exits 0.
 - `npx markdownlint-cli2` on the changed files reports 0 issues.
@@ -226,10 +239,10 @@ dangle by construction.
 
 **Sanity Check:**
 
-- `grep -qi 'container body' plugins/work-items/skills/decompose/SKILL.md` in the inline carve-out's own section.
-- The carve-out names design artifacts as an admitted inline kind, in addition to pressure-test output.
-- **Artifact-absent path:** the body states the container body is unchanged when no artifact exists.
-- The provenance note's required contents (scope and dialect) are stated.
+- The change lands in `plugins/work-items/skills/decompose/context/container-lifecycle.md`, not in the slice template: `git diff --name-only main...HEAD -- plugins/work-items/skills/decompose/SKILL.md` is empty.
+- The Body bullet states the inlined artifact as an explicit exception to its own no-inflation rule: `grep -qi 'no inflation' plugins/work-items/skills/decompose/context/container-lifecycle.md` still matches, and the same bullet now names the artifact exception.
+- **Artifact-absent path:** the file states the container body is unchanged when no artifact exists.
+- The provenance note's required contents are stated by name: `grep -qi 'dialect' plugins/work-items/skills/decompose/context/container-lifecycle.md`.
 - The no-path rule is still stated in the emitted-body spec.
 - `bash scripts/check-changed-skills.sh main` reports 0 failed.
 - `bash scripts/check-changelog-parity.sh --check-bump main` exits 0.
@@ -243,9 +256,15 @@ introduced for testability.
 
 Every phase's Sanity Checks are greps against shipped text rather than judgments about it. Revision 1
 carried checks that were not executable, and they are fixed here: brace expansion inside a quoted path
-does not expand in PowerShell or in `dash`, so each path is written out; `grep -c` returns 1 on zero
-matches and fails under `set -e`, so absence is checked with `! grep -q`; and two Phase 5 checks
-passed on the unmodified tree, so they now assert new text.
+does not expand in PowerShell or in `dash`, so each path is written out; `grep -c` prints `0` but
+**exits 1** on zero matches, so it fails under `set -e` exactly when the absence it was checking
+holds, and absence is now checked with `! grep -q`; and several checks passed on the unmodified tree,
+so they were re-pointed at new text and the ones asserting absence were verified against the current
+tree first.
+
+One check deliberately asserts a *non-change*: Phase 4 must not alter the close-out's existing
+blocking sentence, so it greps the diff rather than the file. A check that reads only the final state
+cannot tell a preserved line from a rewritten one.
 
 Two behaviours are most likely to regress silently and each has an explicit check. The **zero-config
 path**, which every phase from 2 onward asserts, because the opt-in path is where attention goes. And
@@ -263,8 +282,8 @@ issue bodies so a worker who never reads this file still has them.
 | `plugins/planning/skills/interview/SKILL.md` and `context/loop.md` | modify | 2 |
 | `plugins/planning/skills/prd/SKILL.md` and its criteria spoke | modify | 2 |
 | `plugins/planning/skills/design/SKILL.md` | modify | 3 |
-| The close-out review body and its report template spoke | modify | 4 |
-| `plugins/work-items/skills/decompose/SKILL.md` and `context/container-lifecycle.md` | modify | 5 |
+|  `plugins/review/skills/quality-gate/context/close-out.md` | modify | 4 |
+| `plugins/work-items/skills/decompose/context/container-lifecycle.md` | modify | 5 |
 | Touched plugins' `CHANGELOG.md`, `plugin.json`, `README.md` | modify | 2-5 |
 
 ## Alternatives considered
