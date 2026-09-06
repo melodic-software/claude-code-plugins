@@ -29,7 +29,7 @@ complexity from the sibling `audit-complexity` script, run over the same scope.
 | lcov `.info` | most JavaScript and C/C++ toolchains, `coverage lcov` | line hits; function records from `FN`/`FNDA` (1.x) or `FNL`/`FNA` (2.2 and later), which is where a function end line can come from at all |
 | Cobertura XML | gcovr, coverlet, kcov (which is how a Bash lane gets an artifact) | line hits, `<sources>` prefixes, and `<method>` regions with their hit flag |
 | coverage.py JSON | `coverage json` | executed and missing lines, and the per-function regions it has carried since 7.6.0 |
-| Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints, labels it `cov_source: statement-ratio`, and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function reports `coverage_pct`, `crap` and both line counts as null |
+| Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints, labels it `cov_source: statement-ratio`, and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function reports `coverage_pct` and `crap` as null, and its line counts as null unless a line-measuring artifact also covered the file |
 
 The SQLite data file coverage.py writes while measuring is never read: its schema is internal by
 its own documentation and free to change without a major version bump. Run `coverage json` or
@@ -133,7 +133,11 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
   and finally to a unique basename (which is how a Go profile's module path resolves). Both
   fallbacks require a single winner: an artifact path that fits two scoped files equally well
   (two services vendoring the same `pkg/a.py`) stays unmatched and shows up in the partial count,
-  because attributing it to either would credit one service with the other's coverage.
+  because attributing it to either would credit one service with the other's coverage. The
+  basename fallback needs a single winner on the artifact side too, counted across every artifact
+  read rather than within one: when two services each ship a `handler.go` and only one is in
+  scope, the out-of-scope path stays unmatched instead of merging its coverage into the scoped
+  file, even though the scope names exactly one candidate.
 - An artifact older than the source it describes joins by line number and will be wrong without
   saying so. Re-run the tests before reading the numbers when the diff has moved lines.
 - Two artifacts covering one file are merged by keeping the larger hit count per line, so a line

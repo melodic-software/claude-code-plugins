@@ -10,6 +10,7 @@ end-to-end join over the committed fixtures is the shell suite's job.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -19,6 +20,14 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "join.py"
+
+# The suite drives the script at its command line; this import is only for the
+# few cases that pin a helper's signature directly, such as the default value
+# of an optional parameter that no command-line path can leave unset.
+_spec = importlib.util.spec_from_file_location("join_module", SCRIPT)
+assert _spec is not None and _spec.loader is not None
+join = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(join)
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
@@ -578,6 +587,32 @@ class StatementWeightTests(unittest.TestCase):
         self.assertEqual(row["values"]["lines_hit"], 0)
         self.assertIsNone(row["values"]["coverage_pct"])
 
+    def test_an_empty_line_section_still_counts_as_having_measured_lines(self) -> None:
+        # A line artifact covered this `.go` file and carried no executable
+        # line, which is a measurement of zero. A Go profile covers it too, so
+        # the merged line table is empty either way: reading the table after
+        # the fact cannot tell "measured, found none" from "never measured
+        # lines", and only the first is a 0. Whether a line-measuring section
+        # was merged has to be recorded as it happens.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("r.go", "F", 3, 7, "go", 2)])
+                .artifact(
+                    "go_cover",
+                    {"r.go": go_section({"1.1,2.2": (1, 1), "3.1,3.9": (1, 0)})},
+                )
+                .artifact("lcov", {"r.go": {"lines": {}, "functions": None}})
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] == "F")
+        self.assertEqual(row["values"]["lines_executable"], 0)
+        self.assertEqual(row["values"]["lines_hit"], 0)
+        # The file row still takes its percentage from the statement ratio.
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+        self.assertEqual(file_row["cov_source"], "statement-ratio")
+
 
 class PathNormalizationTests(unittest.TestCase):
     def test_an_absolute_artifact_path_joins_to_the_relative_scope_path(self) -> None:
@@ -663,6 +698,182 @@ class PathNormalizationTests(unittest.TestCase):
         coverage_row = next(r for r in document["run"] if r["measure"] == "coverage")
         self.assertEqual(coverage_row["status"], "unavailable")
         self.assertIn("0 of 2", coverage_row["reason"])
+
+    def test_a_basename_two_artifact_paths_share_joins_to_nothing(self) -> None:
+        # One profile lists `service-a/handler.go` and `service-b/handler.go`
+        # and only the first is in scope. The second matches no suffix, so it
+        # reaches the basename fallback, where the scope alone is unambiguous:
+        # taking it would union an unrelated package's covered block into the
+        # scoped file and report a file that never ran as half covered.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [complexity_row("service-a/handler.go", "H", 1, 2, "go", 1)]
+                )
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/service-a/handler.go": {
+                            "lines": {},
+                            "functions": None,
+                            "statements": {
+                                "total": 1,
+                                "hit": 0,
+                                "blocks": {"1.1,2.2": {"statements": 1, "count": 0}},
+                            },
+                        },
+                        "example.com/mod/service-b/handler.go": {
+                            "lines": {},
+                            "functions": None,
+                            "statements": {
+                                "total": 1,
+                                "hit": 1,
+                                "blocks": {"9.1,9.9": {"statements": 1, "count": 1}},
+                            },
+                        },
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["file"], "service-a/handler.go")
+        self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
+
+    def test_the_collision_is_seen_across_artifacts_not_just_within_one(self) -> None:
+        # The coverage skill discovers one artifact per coverage file, so two
+        # services each shipping a `handler.go` arrive as two documents. A
+        # count that stopped at one artifact would not see the collision at
+        # all, and the out-of-scope service would credit the scoped one exactly
+        # as it does inside a single profile.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [complexity_row("service-a/handler.go", "H", 1, 2, "go", 1)]
+                )
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/service-a/handler.go": go_section(
+                            {"1.1,2.2": (1, 0)}
+                        )
+                    },
+                )
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/service-b/handler.go": go_section(
+                            {"9.1,9.9": (1, 1)}
+                        )
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
+
+    def test_one_file_listed_under_two_spellings_is_not_a_collision(self) -> None:
+        # `//` is a spelling the parsers' own normalization does not collapse.
+        # Both keys name one file, so counting spellings rather than distinct
+        # paths would reject the basename and drop coverage that was measured.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/x/handler.go": go_section({"1.1,2.2": (1, 1)}),
+                        "example.com/mod//x/handler.go": go_section(
+                            {"3.1,3.9": (1, 0)}
+                        ),
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["file"], "pkg/handler.go")
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+
+    def test_two_formats_naming_one_file_are_not_a_collision(self) -> None:
+        # A Go profile writes the module path the compiler saw and an lcov
+        # tracefile writes the repository path, so one file reaches the join
+        # under two spellings that do not normalize to each other. Counting
+        # basenames across formats would read that as two competing files and
+        # refuse the profile, losing the statement ratio that outranks the line
+        # table for exactly this file.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/handler.go": go_section(
+                            {"1.1,2.2": (1, 1), "3.1,3.9": (1, 0)}
+                        )
+                    },
+                )
+                .artifact(
+                    "lcov",
+                    {"pkg/handler.go": {"lines": {"1": 1}, "functions": None}},
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+        self.assertEqual(file_row["cov_source"], "statement-ratio")
+
+    def test_one_formats_ambiguity_does_not_refuse_another_formats_path(
+        self,
+    ) -> None:
+        # Two `go_cover` paths share `handler.go`, so that basename is
+        # ambiguous for that format. A single lcov path carrying the same
+        # basename is not ambiguous for lcov and still has to reach the scoped
+        # file: flattening the two formats into one set of basenames would
+        # refuse it and drop line coverage the artifact really did measure.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/a/service-x/handler.go": go_section(
+                            {"1.1,2.2": (1, 0)}
+                        ),
+                        "example.com/a/service-y/handler.go": go_section(
+                            {"9.1,9.9": (1, 1)}
+                        ),
+                    },
+                )
+                .artifact(
+                    "lcov",
+                    {
+                        "generated/handler.go": {
+                            "lines": {"1": 1, "2": 0},
+                            "functions": None,
+                        }
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["file"], "pkg/handler.go")
+        # Line-measured, because the two statement-weighted paths were refused.
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+        self.assertEqual(file_row["values"]["lines_executable"], 2)
+
+    def test_resolve_without_the_ambiguous_set_keeps_the_basename_fallback(
+        self,
+    ) -> None:
+        # The parameter is optional, and any caller that omits it gets the
+        # behaviour the fallback had before the guard existed.
+        self.assertEqual(
+            join.resolve("example.com/mod/sample.go", ["pkg/sample.go"], "", []),
+            "pkg/sample.go",
+        )
 
 
 class RunRowTests(unittest.TestCase):
