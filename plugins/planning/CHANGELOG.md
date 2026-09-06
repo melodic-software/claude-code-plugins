@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0]
+
+### Added
+
+- **`design`:** the existing Scope-specific artifacts table gains **Typed artifact** and **Dialect**
+  columns. `data` emits `entity-relationships.md` as a mermaid `erDiagram`, or DBML when
+  `diagram_dialect.data` selects it; `integration` emits `sequence-flows.md` as a mermaid
+  `sequenceDiagram` and `contract-spec.md` as an OpenAPI 3.1 sketch; `system` emits
+  `component-map.md` as a C4 container view in LikeC4 or C4-PlantUML only when
+  `diagram_dialect.system` names one, and no C4 view at all when it is unset. Mermaid's
+  experimental C4 support is never used. `library` and `module` emit no typed artifact.
+- **`design`:** every typed artifact opens with a scope label — frontmatter carrying `scope`
+  (`data` | `integration` | `system`) and `dialect` (`mermaid` | `dbml` | `openapi-3.1` |
+  `likec4` | `c4-plantuml`) — so a consumer reads the producing scope rather than inferring it
+  from prose. Untyped artifacts (`schema-decisions.md`, `communication-patterns.md`,
+  `component-map.md` with the system key unset, and every `library` and `module` artifact) are
+  unchanged and carry no label.
+- **`design`:** the body restates the `authoring-formats` resolution ladder rather than pointing at
+  the convention document, because an installed plugin never sees the publishing repository at
+  runtime. Zero config is unchanged behaviour: mermaid data diagrams and no C4 container view.
+- **`design`:** mermaid craft routes to `/visualization:visualize` when the `visualization` plugin
+  is installed; without it the skill emits the plainest correct form of the dialect. The typed
+  artifact is produced either way.
+
 ## [0.36.5]
 
 ### Changed
