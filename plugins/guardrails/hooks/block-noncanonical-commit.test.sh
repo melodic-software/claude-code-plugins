@@ -1376,4 +1376,93 @@ nul_rc=0
 bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git commit -m ok" + ([0]|implode))}}')" >/dev/null 2>&1 || nul_rc=$?
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
+# --- Process creations on the guard's own paths (#3514) ----------------------
+# The fork-pin section above counts `git` EXECS through a PATH shim, and a shim
+# cannot see a fork: `$(builtin-only function)` and `< <(printf …)` each create
+# a process that never execs. On a benign Bash call this guard spent one of
+# those of its own (an eager telemetry subject at file scope that the verdict
+# never reads), and a blocked multi-line commit spent two more (`$(effective_dir
+# …)` and `$(explicit_git_dir …)`, both builtins-only). The kernel is the
+# instrument that counts them: strace follows the dispatcher's subshells (-f)
+# and reports each clone/clone3/fork/vfork return, and execve separately, so an
+# exec cannot pass for a removed fork or the reverse. The guard's own share is
+# the difference against a no-op guard dispatched through the same run-guards.sh
+# on the same payload, which subtracts the dispatcher's stdin, jq and isolation
+# forks. HOOK_TELEMETRY_SINK is cleared: the envelope is opt-in and off by
+# default, and it is the one path that still derives the subject through a
+# substitution. A host without a working strace (Windows Git Bash, macOS) skips
+# visibly; the Linux CI lane is where the pins hold.
+#
+# The benign pin is EXACT on purpose. The one creation left is the shared
+# parser's `< <(printf …)` in lib/hook-utils.sh (hook::bash_parse_segments);
+# when that lands this figure drops and the pin moves with it. A count that
+# rises is a fork put back on every Bash call. The other pins are DELTAS against
+# that benign share, so they read the cost of one path (the sequencer probe, a
+# `!` alias reparse and its trailing arguments) rather than the library's total.
+# Under -f strace may split a call into `<unfinished ...>` and `<... resumed>`
+# halves, so both spellings of a completed call are counted.
+strace_census() { # <payload> <guard> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+  local log="$TEST_TMPDIR/strace.log"
+  CENSUS_RC=0
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
+    strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
+    bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
+  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
+}
+# guard_share <command> -> SHARE_RC SHARE_CREATIONS SHARE_EXECVE (guard minus no-op)
+guard_share() {
+  local payload noop_cre noop_exe
+  payload="$(command_json "$1")"
+  strace_census "$payload" "$TEST_TMPDIR/noop-guard.sh"
+  noop_cre=$CENSUS_CREATIONS
+  noop_exe=$CENSUS_EXECVE
+  strace_census "$payload" block-noncanonical-commit.sh
+  SHARE_RC=$CENSUS_RC
+  SHARE_CREATIONS=$((CENSUS_CREATIONS - noop_cre))
+  SHARE_EXECVE=$((CENSUS_EXECVE - noop_exe))
+}
+if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
+
+  guard_share 'git status --short'
+  benign_creations=$SHARE_CREATIONS
+  assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
+  assert_eq "strace: guard's own process creations on a benign Bash call" 1 "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
+
+  # A single-line -m is the common commit shape and takes the same allow path
+  # as any other non-blocking segment: nothing beyond the benign share.
+  guard_share "git commit -m 'feat: x'"
+  assert_exit "strace: dispatched single-line -m exits 0" 0 "$SHARE_RC"
+  assert_eq "strace: a single-line -m creates no more processes than a benign call" \
+    "$benign_creations" "$SHARE_CREATIONS"
+
+  # The blocked multi-line commit pays exactly the sequencer probe over benign:
+  # `$(git … 2>/dev/null; printf x)` is a compound body, so the substitution's
+  # subshell forks again to exec git (two creations, one execve). The directory
+  # and the explicit --git-dir it reads are composed through namerefs and cost
+  # nothing; the eager telemetry subject is gone from file scope.
+  guard_share "git commit -m 'feat: x${NL}body'"
+  assert_exit "strace: dispatched multi-line -m still blocks under the tracer" 2 "$SHARE_RC"
+  assert_eq "strace: a blocked multi-line -m is two creations over benign (the sequencer probe only)" \
+    $((benign_creations + 2)) "$SHARE_CREATIONS"
+  assert_eq "strace: a blocked multi-line -m is one execve (git rev-parse)" 1 "$SHARE_EXECVE"
+
+  # A `!` alias reparse re-enters the shared parser once (its `< <(printf …)`,
+  # the library's) and composes the launch directory without a fork.
+  guard_share "git -c alias.y='!git status' y"
+  alias_creations=$SHARE_CREATIONS
+  assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"
+
+  # Trailing arguments are shell-quoted with `printf -v`, so three of them add
+  # nothing to the reparse's count.
+  guard_share "git -c alias.y='!git status' y --short -- ."
+  assert_exit "strace: dispatched ! alias with trailing args exits 0" 0 "$SHARE_RC"
+  assert_eq "strace: trailing ! alias arguments add no process creations" \
+    "$alias_creations" "$SHARE_CREATIONS"
+else
+  echo "ok: process-creation pins skipped (no working strace on this host)"
+fi
+
 report

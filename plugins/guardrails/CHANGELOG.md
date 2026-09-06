@@ -3,6 +3,50 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.14]
+
+### Changed
+
+- **`block-noncanonical-commit` no longer forks for work that had no process
+  in it.** On every Bash and PowerShell call the guard created two processes
+  of its own and executed none, so the PATH-shim census read it as free. One
+  of the two was this file's: an eager
+  `SUBJECT=$(hook::extract_bash_subject ...)` at file scope, feeding a
+  telemetry envelope that is off by default and that the verdict never reads.
+  It is now derived inside `emit_tel`, behind the start-stamp and sink gates.
+  On the blocked multi-line commit path two more forks carried a string out
+  of a builtins-only function: `$(effective_dir ...)` (three call sites) and
+  `$(explicit_git_dir ...)` are now `effective_dir_to` and
+  `explicit_git_dir_to`, nameref assignments. Off the common path, a `!`
+  alias reparse spent one `$(printf '%q')` per trailing argument, now
+  `printf -v`; and the PowerShell lane spent `$(cd ... && pwd)` on the plugin
+  root whenever `CLAUDE_PLUGIN_ROOT` was unset, now the path itself. Verdicts
+  are unchanged: 136 paired runs against `origin/main` (65 payloads, Bash,
+  PowerShell and Write tool payloads, standalone and dispatched, four
+  repository shapes including an in-progress merge, every `-m` spelling the
+  guard matches plus exempt, stdin, alias, `bash -c` wrapper, env-prefix,
+  quote-split, ANSI-C, CRLF, U+2028, BOM and zero-width forms, 70 KiB and 20
+  KiB commands, plus six runs on a `PATH` with no `git`) agree on exit code,
+  stdout and stderr, seven telemetry envelopes captured through a stub sink
+  agree on subject and form, and the contract suite passes. The one creation
+  that remains on the common path is the shared parser's `< <(printf ...)`
+  in `lib/hook-utils.sh` (#3740, #3838), so the "at most two spawns" line in
+  #3514 is met on execve (0) and on this file's own share, and the
+  PowerShell lane's remaining creations live in `lib/powershell/ps-command.sh`.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+  guard share = dispatched count minus a no-op guard dispatched the same way,
+  this repository as cwd, `HOOK_TELEMETRY_SINK` unset: benign
+  `git status --short` and single-line `-m` creations **2 -> 1**, execve
+  **0 -> 0**; blocked multi-line `-m` **6 -> 3**, execve **1 -> 1**;
+  non-builtin subcommand (persisted-alias probe) **7 -> 5**, execve **2 ->
+  2**; blocked inline `!` alias **12 -> 8**, execve **3 -> 3**; PowerShell
+  `git status` **15 -> 13**, execve **3 -> 3**. The unchanged execve column
+  is the evidence this is latency, not removed work. The contract suite now
+  pins the benign share, the blocked-path delta and the alias reparse by the
+  same instrument and skips visibly where strace is absent. Not measured on
+  a Windows host: the per-spawn price there is the multiplier on these
+  counts, and the counts are what moved.
+
 ## [0.32.11]
 
 ### Changed
