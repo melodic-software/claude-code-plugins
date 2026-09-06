@@ -298,8 +298,12 @@ credential to rotate and a service to trust, and that is the carry-cost argument
 
 - Reconcile against the prior artifact by stable id per the contract's merge rules: carry statuses
   forward, recompute verdicts, record `## Closed since last run` rows for prior findings whose layer
-  was walked and whose item is gone, and surface any verdict that changed direction underneath a
-  judgment the operator already made.
+  was walked and whose item is gone, and surface any verdict that **moved** underneath a judgment
+  the operator already made. Moved is wider than reversed: a direction flip, and equally a
+  same-direction change to what the acceptance authorized, such as an `ACCEPTED` `DOWNGRADE`
+  recomputed to `CONSOLIDATE`. Merge rule 5 owns the full trigger list, this flag is the only
+  detection anywhere in the plugin, and consumers are forbidden to re-derive it, so a move this step
+  fails to flag is a move nobody surfaces.
 - Report suppressed findings and every suppression entry that did **not** suppress, per the contract.
 - Rank the UNPROVEN residue by carry cost and propose the bounded ablation batch (§8) — one batch,
   owner and re-check date per item, protected and intentionally-dormant items excluded.

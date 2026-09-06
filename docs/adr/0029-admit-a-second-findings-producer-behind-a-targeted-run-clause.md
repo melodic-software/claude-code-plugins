@@ -19,10 +19,14 @@ side effect of not having looked at them.
 Five things carry the change:
 
 - **A targeted-run clause placed AHEAD of the numbered merge rules and governing them.** It scopes
-  rules 1 to 3 to findings whose every site is in `targets`, carries everything else forward
-  untouched under rule 4, and stops a targeted run rewriting the run-level `Evidence availability`,
+  rules 1 to 3 to `targets`, carries everything else forward untouched under rule 4, and stops a
+  targeted run rewriting the run-level `Evidence availability`,
   `Suppressed`, and `Closed since last run` sections or re-disposing suppression entries it never
-  examined. Ordering is the mechanism: a clause placed after the rules reads as an exception to them,
+  examined. **The quantifier splits by what the rule does**: closing a finding (rule 3) takes every
+  site in `targets`, because partial coverage must never retire something the run did not fully
+  examine; refreshing a verdict or a suppression disposition (rules 1 and 2) takes any one site,
+  because a lane that points at one target at a time would otherwise freeze every finding binding
+  two artifacts. Ordering is the mechanism: a clause placed after the rules reads as an exception to them,
   and an exception is what a careless producer skips.
 
   **The membership test is defined on derived sites, not on a matching string**, and that is the part

@@ -121,6 +121,8 @@ Where the identity does not resolve, and no logical ref is supplied by the envir
 - **`audit` writes no artifact.** Not the file with `branch:` omitted, not the file with a placeholder
   value, not the file at a home keyed by something else — none of it. The walk still runs and the
   inline summary is still emitted; only the persisted write is declined, and the run says so.
+- **`justify` writes no artifact either**, on the same terms: the pass runs against the target, the
+  inline report is emitted in full, and only the persisted write is declined, with the run saying so.
 - **`realign` refuses**, both when its own checkout has no identity and when an artifact it finds
   carries `branch:` absent, empty, or `HEAD`. It never reaches the comparison, because a degenerate
   `HEAD`-to-`HEAD` match passes by construction and would authorize mutations from another ref's
@@ -653,7 +655,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
 | Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | n/a — it creates one, since a first pointed run has nothing to merge against | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row, because its every target routed away, creates nothing | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 | Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
