@@ -1,0 +1,9 @@
+# Sanctioned-replication registry fixture for the audit-duplication suites, in
+# the shape a consuming repository declares its own deliberate replication
+# (this repository's scripts/cross-plugin-source-registry.txt is the live
+# example): one path-within-plugin per line, `#` comments and blank lines
+# ignored. The cluster under fixtures/sources/cluster carries this path
+# byte-identical in alpha and beta on purpose, so a clone over the two copies
+# is an exclusion rather than duplication debt.
+
+shared/shared-utils.sh

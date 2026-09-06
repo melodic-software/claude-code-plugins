@@ -11,7 +11,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/claude-ops-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 
-INPUT='{"error":"rate_limit"}'
+INPUT='{"session_id":"sess-api","error":"rate_limit"}'
 
 # --- Emits the envelope when a sink is wired -------------------------------
 TEL="$TEST_TMPDIR/tel.json"
@@ -21,7 +21,9 @@ if wait_for_sink "$TEL"; then
   assert_eq "hook id" "api-error-audit" "$(jq -r '.hook' "$TEL")"
   assert_eq "hook_event" "StopFailure" "$(jq -r '.hook_event' "$TEL")"
   assert_eq "status" "error" "$(jq -r '.status' "$TEL")"
-  assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' "$TEL")"
+  assert_eq "schema_version" "1.1" "$(jq -r '.schema_version' "$TEL")"
+  assert_eq "spine session_id from the payload (1.1)" "sess-api" "$(jq -r '.session_id' "$TEL")"
+  assert_eq "data.session_id still sent for a 1.0 sink" "sess-api" "$(jq -r '.data.session_id' "$TEL")"
   assert_eq "data.subject" "rate_limit" "$(jq -r '.data.subject' "$TEL")"
 else
   bad "no envelope written when sink wired"
