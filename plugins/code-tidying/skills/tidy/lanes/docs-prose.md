@@ -1,6 +1,6 @@
 # Lane: docs-prose
 
-Markdown prose: project docs and skill bodies (BODY only — never frontmatter). The narrowest, lowest-risk lane in the rotation: bad tidyings here don't break builds; they just produce noise the next reviewer can ignore. Use this lane for the most aggressive prose hunts.
+Markdown prose: project docs and skill bodies (BODY only — never frontmatter). The narrowest, lowest-risk lane in the rotation: bad tidyings here don't break builds; they just produce noise the next reviewer can ignore.
 
 ## Scope
 
@@ -12,8 +12,6 @@ README.md
 ```
 
 Retarget this to the consuming project's actual documentation layout with a project lane at `.claude/tidy-lanes/docs-prose.md`. A project `Scope` block **replaces** the globs above (see [Merge semantics](#merge-semantics)); it does not have to restate the sections it keeps.
-
-**Critical:** SKILL.md frontmatter (YAML between `---` markers) is HARD-EXCLUDED. The body (everything below the closing `---`) is in scope.
 
 ## Merge semantics
 

@@ -41,12 +41,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -87,7 +94,10 @@ esac
 
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (goimports
 # is invoked with the absolute $FILE), so both are resolved only when a sink is
@@ -116,7 +126,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -215,7 +227,7 @@ fi
 # -local flag (goimports' plain default grouping), never a hard stop.
 LOCAL_PREFIX=""
 if command -v go >/dev/null 2>&1; then
-  LOCAL_PREFIX="$(cd "$(dirname "$FILE")" 2>/dev/null && go list -m 2>/dev/null)" || LOCAL_PREFIX=""
+  LOCAL_PREFIX="$(cd "$FILE_DIR" 2>/dev/null && go list -m 2>/dev/null)" || LOCAL_PREFIX=""
   [[ "$LOCAL_PREFIX" == "command-line-arguments" ]] && LOCAL_PREFIX=""
 fi
 GOIMPORTS_ARGS=(-w -l)
@@ -244,9 +256,12 @@ RC=$?
 
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory
-  # noise — same posture as a successful ruff/typos autofix pass).
+  # noise — same posture as a successful ruff/typos autofix pass). The take
+  # precedes the telemetry emit so data.changed carries its verdict; the
+  # disclosure is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$GO_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -266,10 +281,11 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm would otherwise leak (#3405).
+  # the take also releases the snapshot this arm would otherwise leak (#3405),
+  # and precedes the telemetry emit so data.changed carries its verdict.
   hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+  emit_tel "ok" "$FINDINGS_JSON"
   hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
@@ -283,10 +299,11 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   GO_CTX+=$'\n'"  $line"
 done <<<"$STDERR"
-emit_tel "skipped" '[]'
 # goimports may have written the file before breaking; take the disclosure
 # (which also releases the snapshot this arm would otherwise leak, #3405) and
-# compose it with the tool-break context as one document.
+# compose it with the tool-break context as one document. Taken before the
+# telemetry emit so data.changed records the rewrite the break left behind.
 hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+emit_tel "skipped" '[]'
 hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

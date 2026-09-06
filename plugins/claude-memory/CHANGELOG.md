@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.16]
+
+### Changed
+
+- audit: removed the rename story behind the unattributable-report rule, the provenance aside on
+  the state-key resolver, the past-tense discovery comment, the "now" in R1's pairing note, the
+  supersession narrative and issue-by-issue rebuttal in the path-scoping status (a recheck trigger
+  takes its place), the pre-2.1.211 version branches, and the third-party instruction-count figure;
+  collapsed the per-check and C3 fix step lists into their goal. Eval 10 no longer names a
+  pre-rename layout.
+- stateless: dropped the unsourced `claude project purge` version floor at every site, and the
+  worked purge-gate anti-pattern that restated the rule above it.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.11.15]
 
 ### Fixed

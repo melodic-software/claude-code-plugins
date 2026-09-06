@@ -76,7 +76,7 @@ Query quality directly affects results. Be specific and include relevant details
 | Bad | `"hooks"` |
 | Bad | `"tracking"` |
 
-Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. When the question includes a pasted stack trace, code snippet, or internal endpoint/identifier, extract only the library and topic terms — never forward the raw content (e.g. a `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`). Vague one-word queries return generic results.
+Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
 
 Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic — a combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js middleware with NextAuth session validation"`).
 
@@ -87,7 +87,7 @@ Output contains two kinds of snippets:
 - **Code snippets** — titled, with language-tagged code blocks. Primary value
 - **Info snippets** — prose explanations with breadcrumb context. Secondary value
 
-MCP returns ~1.8× more content per call than CLI at default settings. If a CLI response feels thin, re-run via MCP or re-issue with a more targeted query.
+MCP returns more content per call than CLI at default settings; the measured ratio is in [mcp.md](mcp.md). If a CLI response feels thin, re-run via MCP or re-issue with a more targeted query.
 
 ## Quota / rate limit handling
 

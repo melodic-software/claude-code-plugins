@@ -379,39 +379,36 @@ Versioning).
 
 ### Context × tier visibility matrix
 
-The worktree rows assume the consuming repo materializes both native
-mechanisms below (`worktree.baseRef: "head"` and `.worktreeinclude`);
-without them, every spawned worktree behaves as the default-base row.
+The worktree row describes a worktree Claude Code creates with its
+default base. A `--worktree` session and every subagent worktree branch
+from the repository's default branch on the remote: the official
+worktrees page (fetched 2026-09-02) documents the default, `"fresh"`,
+as branching from the repository's default branch on the remote,
+usually `main`, so the worktree starts from a clean tree matching the
+remote. Only when no remote is configured, or `origin/HEAD` is neither
+cached nor fetchable, does the worktree fall back to the local `HEAD`.
+The memory column assumes the consuming repo carries a
+`.worktreeinclude`; without one, the memory tier is plain invisible
+there.
 
 | Context | Memory `<memory_dir>/<slug>/` | Contract `<contract_dir>/<slug>/` (branch tier) | Durable (vault backend) | Machine state (`${CLAUDE_PLUGIN_DATA}`) |
 |---|---|---|---|---|
 | Writing checkout (same session or another session in it) | visible | visible, including uncommitted edits | visible | visible |
-| Worktree spawned from local HEAD (`worktree.baseRef: "head"`) | invisible, except `.worktreeinclude`-carried patterns (one-way copy at creation time) | committed state visible; uncommitted edits invisible | visible | visible (machine-global) |
-| Worktree spawned from the default base (`origin/HEAD`) | invisible, except `.worktreeinclude`-carried patterns | invisible — task-branch commits absent | merged state only | visible |
+| Worktree spawned by Claude Code (default base, the remote default branch) | invisible, except `.worktreeinclude`-carried patterns (one-way copy at creation time) | invisible; task-branch commits are absent | merged state only | visible |
 | Sibling lane (worktree on another branch) | invisible | invisible | merged state only | visible |
 | Cloud clone / CI checkout | invisible | pushed commits only | pushed state only | invisible |
 
 Two consequences drive the rules below: a contract document is visible
-to an isolated context only as **committed** state (commit plan updates
-with their phase — the lifecycle already requires this), and a memory
+to an isolated context only as **committed** state, and to a spawned
+worktree only once merged to the default branch (commit plan updates
+with their phase; the lifecycle already requires this), and a memory
 document is visible **only in the checkout that wrote it** unless a
 `.worktreeinclude` pattern carries it.
 
 ### Native mechanisms
 
-Four native mechanisms, no custom machinery:
+Three native mechanisms, no custom machinery:
 
-- **`worktree.baseRef: "head"`** — committed project
-  `.claude/settings.json`. Spawned worktrees (including subagent
-  worktrees) branch from local `HEAD` instead of `origin/HEAD`, so they
-  carry the task branch's contract commits. Verified honored at
-  project-settings scope on CC 2.1.212, including from linked worktrees
-  (a linked-worktree session reads its *own* checkout's
-  `.claude/settings.json`, and `"head"` resolves to that worktree's
-  `HEAD`). Escape hatch: a personal `.claude/settings.local.json`
-  (resolved to the main checkout, covering every worktree) silently
-  overrides this machine-wide — no skill, gate, or audit may assume the
-  setting is universally in force.
 - **`.worktreeinclude`** — repository root, `.gitignore` syntax; only
   files that match a pattern *and* are gitignored are copied. The copy
   is **one-way at worktree-creation time**: later edits sync in neither
@@ -450,21 +447,10 @@ the memory-slice path of the raw capture.
 
 ### Consumer adoption
 
-Repository settings and root files never travel with
-marketplace-installed plugins (plugins run from an isolated cache), so
-each consuming repository materializes the two files itself:
-
-```json
-{
-  "worktree": {
-    "baseRef": "head"
-  }
-}
-```
-
-as committed `.claude/settings.json`, and a `.worktreeinclude` at the
-repository root (substitute a non-default resolved `memory_dir` for
-`.work`):
+Repository root files never travel with marketplace-installed plugins
+(plugins run from an isolated cache), so each consuming repository
+materializes `.worktreeinclude` itself at the repository root
+(substitute a non-default resolved `memory_dir` for `.work`):
 
 ```text
 .work/.gitignore
@@ -507,14 +493,11 @@ snapshots themselves match no reserved-name pattern and are never
 carried, deliberately).
 
 Also gitignore `.claude/worktrees/` so worktree contents never appear
-as untracked files. Rollout caveats: pulling a commit that adds
-`.claude/settings.json` into a clone already holding an untracked file
-at that path fails with "untracked working tree file would be
-overwritten" — move the local file aside, pull, then merge its values
-back; on Windows, deep repository base paths can trip git's path limit
-inside nested worktrees (`'$GIT_DIR' too big`) — keep the repository
-base path short. Routing this materialization through a setup-skill
-apply action is a recorded follow-on, not built today.
+as untracked files. Rollout caveat: on Windows, deep repository base
+paths can trip git's path limit inside nested worktrees
+(`'$GIT_DIR' too big`), so keep the repository base path short. Routing
+this materialization through a setup-skill apply action is a recorded
+follow-on, not built today.
 
 ## The tracked concern file — `.claude/topic-docs.yaml`
 

@@ -3,6 +3,24 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Changed
+
+- debug: removed the pre-investigation priming pass and its four bullets, the pressure line at the top of Phase 1, the duplicated load-bearing-artifact paragraph, the duplicated Phase 2 gate, the discovery/glob cost hypothesis, and the inert `shell: bash` frontmatter key; restated the hypothesis-grounding paragraph once and replaced the Boy Scout sentence with a focused-diff rule that agrees with the skill's own boundary; replaced the description's trigger-phrase list with intent categories; the bundled checklist no longer lets Phase 6 cleanup be skipped for tagged probes, and both bundled files drop their em dashes under the house style
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.7.3]
+
+### Fixed
+
+- **`debug`:** the git pre-compute lines moved out of `## Pre-computed context` into a "Repository
+  context. Gather first" body section of individual Bash calls, one command per call, each `head`
+  bound kept inside its command and a failure read as an unknown value. The harness composes a
+  skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
+  a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
+  shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
 ## [0.7.2]
 
 ### Changed

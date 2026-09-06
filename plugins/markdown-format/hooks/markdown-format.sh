@@ -209,7 +209,7 @@ resolve_repo_root() {
 # costs nothing.
 #
 # Without jq the path can only come from the jq-free raw extraction, which
-# returns it JSON-escaped (a Windows `D:\repos\...` arrives with its
+# returns it JSON-escaped (a Windows `<drive>:\repos\...` arrives with its
 # backslashes doubled). Undoing the three escapes a path can carry and then
 # requiring an existing file is self-validating: any other escape — \uXXXX, a
 # control escape — leaves a name nothing answers to, and the pre-check then
@@ -385,11 +385,17 @@ fi
 # findings for the noisiest files in the repository. A payload that lies is
 # worse than no payload. TOOL and FILE_REL stay as arguments: both are bounded
 # by a path length.
+# MD_CHANGED is set on the path that ran the fix pass ("true" when
+# markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
+# on every skip arm, where the key is omitted rather than guessed.
+MD_CHANGED=""
 build_data_json() {
   printf '%s' "$1" | jq -c \
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
-    '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
+    --arg changed "$MD_CHANGED" \
+    '{tool:$tool,file:$file,findings:.}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -1286,6 +1292,11 @@ while IFS= read -r line; do
   *) ;;
   esac
 done <<<"$FIX_OUTPUT"
+
+# The same count line that drives the disclosure below is the telemetry
+# verdict: the fix pass ran, and it either wrote fixes or reported none.
+MD_CHANGED="false"
+[[ -n "$FIXES_LINE" ]] && MD_CHANGED="true"
 
 CTX=""
 SYSMSG=""

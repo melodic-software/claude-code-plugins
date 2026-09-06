@@ -1894,6 +1894,8 @@ if [[ -s "$TEL_FILE" ]]; then
   # status must be "ok"
   TEL_STATUS="$(jq -r '.status' "$TEL_FILE")"
   if [[ "$TEL_STATUS" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status expected ok, got $TEL_STATUS"; fi
+  # MD024 is not auto-fixable, so the fix pass ran and wrote nothing.
+  if [[ "$(jq -r '.data.changed' "$TEL_FILE")" == "false" ]]; then ok "telemetry/envelope: data.changed false (unfixable finding only)"; else fail "telemetry/envelope: data.changed=$(jq -c '.data.changed' "$TEL_FILE")"; fi
   # data.findings must contain exactly the MD024 violation line (not banner noise).
   # Schema: "Unfixable markdownlint violations remaining after --fix, one per line."
   # Banner lines (version, Finding:, Linting:, Summary:) must be excluded.
@@ -1920,9 +1922,9 @@ if [[ -s "$TEL_FILE" ]]; then
   else
     fail "telemetry/envelope: data.file expected repo-relative, got: $TEL_FILE_VAL"
   fi
-  # schema_version must be "1.0"
+  # schema_version must be "1.1"
   TEL_SV="$(jq -r '.schema_version' "$TEL_FILE")"
-  if [[ "$TEL_SV" == "1.0" ]]; then ok "telemetry/envelope: schema_version 1.0"; else fail "telemetry/envelope: schema_version expected 1.0, got $TEL_SV"; fi
+  if [[ "$TEL_SV" == "1.1" ]]; then ok "telemetry/envelope: schema_version 1.1"; else fail "telemetry/envelope: schema_version expected 1.1, got $TEL_SV"; fi
   # duration_ms must be non-negative integer
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL_FILE" >/dev/null 2>&1; then
     ok "telemetry/envelope: duration_ms is non-negative integer"
@@ -2511,6 +2513,28 @@ if printf '%s' "$SYS_F" | grep -q 'Attempted: 7 fixes'; then
 else
   fail "bounded/fixes: no user-channel disclosure: $SYS_F"
 fi
+# The same count line is the telemetry verdict: data.changed true on a run that
+# wrote fixes, false on a run that reported none (#3755).
+TEL_FIX="$(mktemp)"
+SINK_FIX="$(make_sink "cat >\"$TEL_FIX\"")"
+run_noisy "$FF" STUB_FIX_COUNT=7 HOOK_TELEMETRY_SINK="$SINK_FIX" >/dev/null
+wait_for_sink "$TEL_FIX"
+if [[ "$(jq -r '.data.changed' "$TEL_FIX" 2>/dev/null)" == "true" ]]; then
+  ok "bounded/fixes: telemetry data.changed true when fixes were written"
+else
+  fail "bounded/fixes: telemetry data.changed=$(jq -c '.data.changed' "$TEL_FIX" 2>/dev/null)"
+fi
+rm -f "$TEL_FIX"
+TEL_FIX0="$(mktemp)"
+SINK_FIX0="$(make_sink "cat >\"$TEL_FIX0\"")"
+run_noisy "$FF" STUB_FIX_COUNT=0 HOOK_TELEMETRY_SINK="$SINK_FIX0" >/dev/null
+wait_for_sink "$TEL_FIX0"
+if [[ "$(jq -r '.data.changed' "$TEL_FIX0" 2>/dev/null)" == "false" ]]; then
+  ok "bounded/fixes: telemetry data.changed false when the fix pass wrote nothing"
+else
+  fail "bounded/fixes: telemetry data.changed=$(jq -c '.data.changed' "$TEL_FIX0" 2>/dev/null)"
+fi
+rm -f "$TEL_FIX0"
 OUT_F0=$(run_noisy "$FF" STUB_FIX_COUNT=0)
 if [[ -z "$OUT_F0" ]]; then
   ok "bounded/fixes: a run that changed nothing stays silent"

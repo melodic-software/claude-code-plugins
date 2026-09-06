@@ -25,10 +25,11 @@ directory, and this line is how a reader tells them apart.
 
 ## Per-finding shape
 
-One `##` section per verified finding. The five fields are `/bugs:write`'s — see
-[`${CLAUDE_PLUGIN_ROOT}/skills/write/context/template.md`](../../write/context/template.md) for the
-canonical shape and severity rubric; it is not restated here. Scan adds two lines: the evidence label
-and the lens id.
+One `##` section per verified finding. The five fields are `/bugs:write`'s. The canonical shape is in
+[`${CLAUDE_PLUGIN_ROOT}/skills/write/context/template.md`](../../write/context/template.md) and the
+severity rubric is the "Severity rubric" section of
+[`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../../write/SKILL.md); neither is restated here. Scan
+adds two lines: the evidence label and the lens id.
 
 ````markdown
 ## Finding <n> — <title, present tense, one line>

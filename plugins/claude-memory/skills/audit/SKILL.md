@@ -111,9 +111,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
 It prints `<repo-identity>/<worktree-discriminator>`, the scheme `claude-config:audit-pass` defines
-and `audit-prompting-postures` already uses, adopted here rather than reinvented. Run it and use the
-result: the key comes from a command this run actually executes, not from a token read out of a file.
-Pass `--explain` when the report should say which rung produced its key.
+and `audit-prompting-postures` uses. Run it and use its output as the key. Pass `--explain` when
+the report should say which rung produced its key.
 
 **Why the key exists.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to
 the plugin identifier and nothing else. No project, checkout, worktree, or session segment
@@ -129,12 +128,12 @@ served, not merely an artifact lost, which is why an append-only history does no
 audit has been run **for this project** and suggest running one. Do not fall back to an unkeyed
 location.
 
-**The pre-rename `health/` directory and any unkeyed `audit/last-audit.md` are unattributable.** This
-skill was once named `health`, and both older layouts wrote a machine-global file with no project
-segment, so nothing records which repository produced it. It cannot be adopted into a project's key
-without inventing that attribution, and inventing it is exactly the defect the key exists to remove.
-Where such a file is present, name its path to the user as a leftover they may delete, and run the
-audit rather than reading it.
+**A `health/` directory or an unkeyed `audit/last-audit.md` under the plugin data directory is
+unattributable.** Either is a machine-global file with no project segment, so nothing records which
+repository produced it. It cannot be adopted into a project's key without inventing that
+attribution, and inventing it is exactly the defect the key exists to remove. Where such a file is
+present, name its path to the user as a leftover they may delete, and run the audit rather than
+reading it.
 
 **Audit output is contributor-local by design.** Reports audit a contributor's personal auto-memory
 (`~/.claude/projects/<project>/memory/`), which varies per team member, so they persist in the

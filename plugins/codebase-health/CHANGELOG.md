@@ -3,6 +3,25 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9]
+
+### Changed
+
+- audit: the verified-non-issues section asks for evidence per row instead of a count at least equal to the findings; the fan-out rationale and the scope gate drop the unsourced coverage multipliers and the two disagreeing token-cost figures (in SKILL.md and `context/discovery-method.md`); the read-only default and the delegation rule are stated at the argument contract, the fix gate, and the Remediation section only, with the two extra copies removed; the research-tooling rule reads the same in both places (having a tool is optional, using one when present is not); the throttle note drops the pinned concurrency figure and the model-tier prescription; the dimension-order note and the `--review-only` alias are stated without "moot" and "legacy"; "Thoroughness beats speed" is dropped.
+- setup: `apply` step 1 starts from the effective config `check` reports instead of repeating the layer walk.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.8.8]
+
+### Fixed
+
+- **`audit`:** the git pre-compute lines moved out of `## Pre-computed context` into a "Repository
+  context. Gather first" body section of individual Bash calls, one command per call, each `head`
+  bound kept inside its command and a failure read as an unknown value. The harness composes a
+  skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
+  a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
+  shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
 ## [0.8.7]
 
 ### Changed

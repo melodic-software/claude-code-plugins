@@ -1,0 +1,47 @@
+{
+  "skill_name": "principles",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routes-a-definition-question-to-one-reference-file",
+      "prompt": "/code-metrics:principles the report says Halstead difficulty 41 for a file I just split in two. What does that number mean?",
+      "expected_output": "Answers from the routing table by loading reference/measures.md and no other file: difficulty is (n1/2) * (N2/n2), operator variety times operand reuse, with no length term, so splitting a file should not move it; multimetric reports Halstead per file rather than per function, so the row is file-level. Cites Halstead 1977 and states that no standard sets a difficulty threshold.",
+      "files": [],
+      "expectations": [
+        "Loads reference/measures.md first and does not load all four reference files",
+        "States the difficulty formula and that it carries no length term",
+        "Names the collector behaviour: Halstead from multimetric is per file, not per function",
+        "Says no standard sets a Halstead threshold rather than suggesting a number of its own",
+        "Renders no verdict on whether 41 is acceptable"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unsourced-threshold-answered-with-provenance-not-a-verdict",
+      "prompt": "/code-metrics:principles is 22 the real cyclomatic complexity threshold? Our old checklist used it.",
+      "expected_output": "Loads reference/thresholds.md and answers with provenance: no source found in this plugin's research attributes 22 to anyone, and McCabe 1976 plus NIST SP 500-235 were full-text searched twice without a hit. Gives the values that do have a citation, 20 from ISO/IEC 5055:2021 8.2.117 (normative), 10 from McCabe 1976 as 'reasonable, but not magical', and 15 from NIST SP 500-235 conditioned on its six named practices, and explains that a reference is a value to count against rather than a bar.",
+      "files": [],
+      "expectations": [
+        "States that 22 has no traceable provenance and was dropped, scoped as 'no provenance found' rather than 'exists nowhere'",
+        "Gives the cited alternatives 20, 10 and 15 with the source attached to each",
+        "Carries NIST's condition (the six named practices) rather than presenting 15 as unconditional",
+        "Explains that the plugin reports measures and never emits a finding, a severity, or a gate",
+        "Does not invent a citation for 22 and does not tell the user 22 is right or wrong"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "surviving-mutants-routed-through-the-gated-pointer",
+      "prompt": "/code-metrics:principles we are at 95% coverage but reviewers keep finding untested behaviour. How do I measure surviving mutants?",
+      "expected_output": "Explains that coverage counts executed lines and cannot tell you a line was checked, then routes: invoke /mutation-testing:principles and /mutation-testing:audit when the mutation-testing plugin is installed. When it is not installed, states that the concern is out of this plugin's scope, that nothing in this plugin substitutes for it, and does not offer coverage or CRAP as a stand-in.",
+      "files": [],
+      "expectations": [
+        "Names /mutation-testing:principles and /mutation-testing:audit behind an if-installed gate on the mutation-testing plugin",
+        "States the fallback when the plugin is absent: out of scope, nothing here substitutes for it",
+        "Explains the coverage caveat: an executed line is not a checked line, and a test with no assertion still raises the percentage",
+        "Never presents CRAP or type coverage as a substitute measure for mutation testing",
+        "Uses no marketplace-qualified plugin id"
+      ]
+    }
+  ]
+}

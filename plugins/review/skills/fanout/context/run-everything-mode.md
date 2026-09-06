@@ -1,6 +1,6 @@
 # Run-everything mode — full-breadth review
 
-The heavy, exhaustive sweep: run the main-thread orchestrator plugins AND fan out the full leaf roster (`leaf-roster.md` — the 4 finding-producing agents + every discovered ownerless slice), then normalize everything into one severity-ranked report. The leaf fan-out is accelerated by a Workflow when available; a main-thread fallback preserves coverage when it is not.
+The heavy, exhaustive sweep: run the main-thread orchestrator plugins AND fan out the full leaf roster (`leaf-roster.md`: its finding-producing agents + every discovered ownerless slice), then normalize everything into one severity-ranked report. The leaf fan-out is accelerated by a Workflow when available; a main-thread fallback preserves coverage when it is not.
 
 Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from default mode (which auto-scales surfaces to diff size).
 

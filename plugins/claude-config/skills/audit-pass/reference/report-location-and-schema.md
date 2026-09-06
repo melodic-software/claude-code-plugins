@@ -12,9 +12,8 @@ run 2's tree is not unchanged and the idempotence property is unfalsifiable by c
 
 **The governing condition is containment, not a flag.** Whether the run must protect itself from its own
 report is decided by the predicate `report_path ⊆ target_root`, evaluated against the **resolved** report
-path on every run. `--report-to` is one way that condition becomes true; it was never the definition of
-it, and gating the machinery on the flag left the default path unprotected wherever the same condition
-held.
+path on every run. `--report-to` is one way that condition becomes true, not the definition of it;
+gating on the flag would leave the default path unprotected wherever the same condition holds.
 
 - The report goes under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`, which
   survives plugin updates. **State its location precisely, because a whole target class turns on it:**
@@ -39,7 +38,7 @@ held.
   It is therefore **outside** a target below `~` and **inside** any
   target at or above it. The default path is *usually* outside the scan set and is **not
   unconditionally** outside it — a dotfiles repository, or `~` itself, is a target where containment
-  holds by construction, and the older unconditional claim was false there.
+  holds by construction.
 - `--report-to <path>` redirects the report, which makes containment hold whenever the destination lies
   inside the target.
 - **Whenever containment holds — by either route — the run records that path in its own exclusion set
@@ -70,7 +69,7 @@ held.
 
 | # | Assertion |
 |---|---|
-| 2.1 | After a run against a clean git worktree whose **resolved report path is not contained in the target root**, `git status --porcelain` is empty. Scoped on containment rather than on "no redirect", because the default path is contained too whenever the target is at or above `~`, and the unscoped form was false there. |
+| 2.1 | After a run against a clean git worktree whose **resolved report path is not contained in the target root**, `git status --porcelain` is empty. Scoped on containment rather than on "no redirect", because the default path is contained too whenever the target is at or above `~`. |
 | 2.5 | `--report-to <existing-non-report-path>` exits non-zero naming the file, writes nothing, and leaves the file byte-identical — including when the path is an audited instruction surface. |
 | 2.2 | Where the report path is contained, a second run's scan set excludes it, and the two runs' derived identity sets are still equal. |
 | 2.3 | The first run whose report path is contained records that path in its own exclusion artifact before writing the report, whether or not that path already exists, and whether it became contained by `--report-to` or by default resolution. |
@@ -159,5 +158,4 @@ rather than tracked beside it and able to disagree with it. §5 makes the same p
 side: the run manifest is these lane records, not a second file — a manifest beside the partial is
 precisely the thing that could disagree with it. And the instruction the report gives the operator —
 come back with `--resume` — is only true because the partial is written by a script as each lane
-terminates, Phase 4's `open` handoff included. Stated as a contract against an artifact nothing
-wrote, it was a false instruction in the one artifact the operator acts on.
+terminates, Phase 4's `open` handoff included.

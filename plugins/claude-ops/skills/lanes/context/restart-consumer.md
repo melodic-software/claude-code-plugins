@@ -1,4 +1,4 @@
-# The restart-request consumer (#1653)
+# The restart-request consumer
 
 Why a stopped lane needs an out-of-harness reader, how the consumer binds to lane
 telemetry, and the operator steps that put it on a schedule. The executable
@@ -11,8 +11,9 @@ this file is the operator- and reviewer-facing rationale, not a copy of it.
 A loop lane that hits its per-session cycle budget or the `/loop` seven-day expiry
 writes a restart ask into the `restart_request` field of its telemetry state block
 and stops cleanly — a running loop cannot relaunch itself, and `SKILL.md` documents
-that a relaunch is the only fresh-context reset a lane gets. Until now nothing read
-that field, so every budget or expiry hit was a terminal manual-restart state. The
+that a relaunch is the only fresh-context reset a lane gets. Nothing in the harness
+reads that field, so without a reader every budget or expiry hit is a terminal
+manual-restart state. The
 consumer is the missing reader: on each scheduled run it checks every configured
 lane's telemetry and relaunches, through `lane-launcher.sh restart`, the stopped
 lanes that asked.
@@ -36,10 +37,8 @@ The discriminating question is *what survives the failure it remediates*:
   if Stop-hook input gains a session discriminator or lane bodies mandate
   `ScheduleWakeup(stop: true)`, and then only as a latency layer on top of the OS
   schedule, never a replacement.
-- Cloud `/schedule` routines stay rejected for lane work — they cannot reach a
-  local checkout (`prompts/loops/loop-lane-prompts.md:703-708`). Not re-litigated.
-
-Decision record with the full bake-off: issue #1653.
+- Cloud `/schedule` routines are rejected for lane work: they cannot reach a local
+  checkout.
 
 **The polling tick is not lane pacing.** Lanes remain self-paced via
 `ScheduleWakeup`; the consumer never sets, nudges, or replaces a lane's cadence.

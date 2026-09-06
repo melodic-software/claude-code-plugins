@@ -59,5 +59,3 @@ EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
 - Exit `0` with `met` or `no-precondition` → proceed.
 - Exit `2` with `needs-confirmation` → surface the printed `prompt` inline, **skip this candidate**, and do not claim. Autonomous invocations must skip without claiming unless the invocation explicitly records operator confirmation for that schedule id (then pass `--operator-confirmed`).
 - Exit `1` with `unmet` → skip the candidate and report why.
-
-This is what makes #2019's tier-4 caveat enforceable instead of convention-only prose in the issue body.

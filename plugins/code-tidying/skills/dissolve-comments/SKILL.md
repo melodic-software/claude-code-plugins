@@ -9,9 +9,20 @@ metadata:
   summary: Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Scope (rung, base, count, then a 10-path preview; re-run the script without `--max` for the full set): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/scope-code-files.sh" --max 10 2>/dev/null || echo "(not a git repository)"`
 Tooling layer (present/absent per analysis layer; an absent row names the capability lost): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/comment-tooling-probe.sh" 2>/dev/null || echo "(probe unavailable)"`
 

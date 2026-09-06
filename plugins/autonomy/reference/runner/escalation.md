@@ -226,5 +226,5 @@ The following are unresolved at design time and carried openly rather than close
   build.
 - Managed-agent event names drift between the stream surface and the webhook surface; bind the
   exact event names at build from live docs rather than pinning them here.
-- No maintained, credible approval-as-a-service precedent exists — the once-cited approval SDK
-  is deprecated and is never treated as living precedent.
+- No maintained, credible approval-as-a-service precedent exists; a deprecated approval SDK is
+  not living precedent.

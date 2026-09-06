@@ -42,10 +42,10 @@ binding like every other hosting choice (§Hosting stance), never a mechanism na
 Failures file work items through the same trigger adapters. The catalog flags such classes
 `not-a-routine` — they stay visible as rows, never silent exclusions.
 
-Determinism is a per-PORTION verdict, so a deterministic portion is rarely a reason to stop
+Determinism is a per-portion verdict, so a deterministic portion is rarely a reason to stop
 classifying a class. A class whose detection is judgment-free but whose disposition is not
-SPLITS rather than exits: the detection portion carries the same no-agent-session property,
-and the judgment portion IS the routine, deriving its row through the `AGT` rules below.
+splits rather than exits: the detection portion carries the same no-agent-session property,
+and the judgment portion is the routine, deriving its row through the `AGT` rules below.
 The catalog carries this split on more rows than it flags `not-a-routine`; reading
 the paragraph above as a categorical exit is the error it is worded to prevent.
 
@@ -59,7 +59,7 @@ fire fresh ones.
 |---|---|---|
 | `loop` | session-scoped | repetition on an interval inside one session; dies with the session |
 | `goal` | session-scoped | completion condition — the session keeps going until a separate grader judges the condition met or the goal is cleared |
-| `batch` | session-scoped | parallel fan-out over decomposed units of one brief; NOT bulk-inference batch APIs (a corrected research conflation) |
+| `batch` | session-scoped | parallel fan-out over decomposed units of one brief; not bulk-inference batch APIs |
 | `dynamic workflow` | session-scoped | orchestration whose decomposition and sub-steps the session composes at run time; ends with the session |
 | `schedule` | standing | the standing time trigger |
 | `routine` | standing | schedule + saved task definition, firing a fresh agent session per run |
@@ -79,7 +79,7 @@ contract's signal-surface classes — none is a second scheduling path.
 | `continuous` | standing monitor | the routine's run is always `temporal` (rule below); a push feed wakes the routine, and where the surface offers no push the `temporal` poll-fallback detector is the conforming form; the feed emission may separately enqueue as an ordinary `channel-feed` signal |
 
 **Routine runs stay temporal — every wake source.** A routine run never enters the queue
-through a foreign adapter. Event-riding means the event WAKES the routine's own emitting
+through a foreign adapter. Event-riding means the event wakes the routine's own emitting
 scheduling surface — an event trigger on the same ratified schedule surface — and the run
 that surface emits is a `temporal`-class signal carrying `signal.routine` under the same
 ratified identity, surface, run-link namespace, and `producer_identity` as a schedule-tick run
@@ -92,7 +92,7 @@ an ordinary `channel-feed` signal, but the routine's run is always `temporal`.
 
 ## Output contract
 
-Routine output is an advisory report OR a work item filed into the governed queue. Direct
+Routine output is an advisory report or a work item filed into the governed queue. Direct
 change is never a routine-private capability: it exists only through the merge-policy column
 of the [guardrail matrix](guardrails.md#the-matrix) for the class the routine derives.
 Governed-queue and tracker writes are permitted `C1` output — scoping in the
@@ -109,7 +109,7 @@ class on the catalog's axes, then apply the rules below.
 - Judgment `DET` → not a routine. No agent session, zero agent tokens; failures file work
   items through trigger adapters. Flagged `not-a-routine` in the catalog.
 - Hybrid `DET` detect + `AGT` judgment → split: the detection portion carries the
-  no-agent-session property; the judgment portion IS the routine and derives through the
+  no-agent-session property; the judgment portion is the routine and derives through the
   `AGT` rules below. A portion-split row therefore binds a posture-qualified identity —
   `<class-token>/<posture-token>`, never the bare class token (§Routine identity) — carries the
   judgment portion's class in `Derived row`, and is never flagged `not-a-routine`. That flag is
@@ -128,21 +128,21 @@ class on the catalog's axes, then apply the rules below.
 ### Risk-raising axes
 
 - **Structural blast radius** — a direct change to a structural or configuration surface
-  derives `C4`. The axis fires on the change's TARGET, not on the file the change lives in: a
+  derives `C4`. The axis fires on the change's target, not on the file the change lives in: a
   one-line fix that merely sits in a file declaring an interface is the over-read this excludes,
-  and a purely mechanical single-implementation inline does not demote a row whose target IS the
+  and a purely mechanical single-implementation inline does not demote a row whose target is the
   structural surface, because the axis keys on blast radius rather than on how reliable the
   mechanism performing the edit is. **No catalog column records the target**, so two rows can carry
   identical axis cells and derive different classes; the target comes from the class's own
   definition, and a row whose derivation turns on it says so in its `Derived row` cell.
-- **Per-item escalation** — a risk-raising axis evaluates per ITEM as well as class-wide. Where it
+- **Per-item escalation** — a risk-raising axis evaluates per item as well as class-wide. Where it
   fires only on some items of a class, the class derives the lower class and the row records the
   escalation, rather than the class deriving the higher one wholesale — otherwise the lower branch
   goes nearly unpopulated for whole categories of work. The definition leaf owns the predicate that
   decides which side an item falls on.
 - **Input provenance** — a routine consuming attacker-writable external content derives
   `C5`, the untrusted-provenance class. This is a class outcome, not a caveat. The axis keys
-  on EXTERNAL content: the `ext` access class, and judgment postures that reason over
+  on external content: the `ext` access class, and judgment postures that reason over
   external prose or code such as upstream release notes, changelogs, and third-party package
   contents. Third-party-authored text already inside the org's own tracker and product
   surfaces is admission-governed routine input, not a `C5` trigger.
@@ -258,7 +258,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 Normative detail a row's cells cannot carry. A parameter here binds the class; it is not
 commentary, and a leaf that contradicts one is non-conforming.
 
-- **`dead-code-sweep` — `C3` is the class-level derivation; a published surface escalates the ITEM
+- **`dead-code-sweep` — `C3` is the class-level derivation; a published surface escalates the item
   to `C4`.** This is the per-item escalation rule applied: deleting a symbol on a published,
   cross-repo-consumed API surface is a contract change, so the structural-blast-radius axis fires on
   that item and composition takes it to `C4`, while the class stays `C3`. What turns on it: `C3`
@@ -280,7 +280,7 @@ commentary, and a leaf that contradicts one is non-conforming.
   Both score `DET | R (digest/gate) | repo`, so the two rows differ only in their class token. The
   observables differ: clone density and its trend, versus coverage and mutation score. Neither row
   is a duplicate of the other, and neither subsumes the other's observable.
-- **`clone-trend-gate` — detection and trend gating ONLY.** The unify *decision* is deliberately not
+- **`clone-trend-gate` — detection and trend gating only.** The unify *decision* is deliberately not
   in this class and is not a deferred posture of it: no surveyed clone-detection tool automates the
   choice of which clones to unify, across a detection literature the survey found spanning two
   decades. On that record there is nothing to defer to, so a request to add a unify posture re-opens
@@ -302,7 +302,7 @@ commentary, and a leaf that contradicts one is non-conforming.
   `C2`. No effectiveness evidence for automating it surfaced in the surveyed literature, which is
   why the class is unbuilt. The join trigger is that evidence being published — world state, not a
   prerequisite an adopting org can supply, which is why the status reads `join (external)`.
-- **`abstraction-flattening` — the structural axis fires because the target IS the structural
+- **`abstraction-flattening` — the structural axis fires because the target is the structural
   surface.** The change edits module boundaries and type/interface structure; cross-cutting blast
   radius is the shape of the operation rather than a risk it might incur.
 - **`abstraction-flattening` — a scanner is not the join trigger; a published validated detector
@@ -355,8 +355,7 @@ and its parameters alone.
 ## Precedent pointers (non-normative)
 
 Non-normative precedent pointers, stated as shipped pattern descriptions, for the deferred and
-deterministic rows where a shipped pattern was surveyed; the named-product evidence behind each
-pattern lives in the routine-catalog research record, one row per class. The list is not
+deterministic rows where a shipped pattern was surveyed. The list is not
 exhaustive, and a row's absence from it is not a claim that no pattern exists. `v1` classes
 carry their precedent in their leaf documents; the classes recorded as unbuilt carry the state
 of their evidence in their class parameters instead.

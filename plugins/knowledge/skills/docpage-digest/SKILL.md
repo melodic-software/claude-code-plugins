@@ -10,8 +10,8 @@ disable-model-invocation: false
 Turn one online documentation page into a verified, durable knowledge slice: the unaltered
 original, a structural inventory, per-section digests, independent verification records, and a
 handoff artifact an interview can walk. The pipeline engine here is generic; everything
-publisher-specific (fetch channel, applicability filter, digest-agent model matching, the doc
-queue) lives in a separable publisher profile under `context/`.
+publisher-specific (fetch channel, applicability filter, digest-agent model matching, and the
+pointer to that publisher's recorded pages) lives in a separable publisher profile under `context/`.
 
 ## Work root
 
@@ -98,7 +98,7 @@ Copy `templates/checklist.md` into `<work-root>/docpage-digest-checklist.md` at 
 the collision check above has passed, and immediately fill its `Canonical URL` and resolved
 work-root lines. Those two are what the next run's collision check reads. Tick each phase as it
 completes; the ticked state is the cross-session resume pointer. On resume, re-read the checklist
-plus `SOURCES.md` and continue from the first unticked phase. A work root written before 0.13.30
+plus `SOURCES.md` and continue from the first unticked phase. An older work root
 carries the inventory as `INDEX.md`: accept it as the Phase 2 artifact, rename it to `SOURCES.md`,
 note the rename in the checklist, and continue — never re-inventory over it.
 
@@ -114,7 +114,9 @@ note the rename in the checklist, and continue — never re-inventory over it.
    A provably corrupt or empty snapshot is reconciled explicitly, never silently replaced: move
    it aside with a dated suffix, record the move in the checklist, then fetch fresh.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`
-   (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md)). No match →
+   (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md); its recorded
+   pages live in [context/anthropic-docs-queue.md](context/anthropic-docs-queue.md), read only when
+   the user asks what is recorded or deferred). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
 3. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
    the channel works for THIS page. Profiles record channels as previously-verified, not
@@ -187,7 +189,8 @@ self-contained prompt naming the slug, the first unticked checklist phase, and t
 ## Publisher profiles
 
 A profile is a separable context file under `context/` owning everything publisher-specific:
-fetch channel, applicability filter, model-matching map, doc queue, artifact-target notes. The
+fetch channel, applicability filter, model-matching map, artifact-target notes, and a pointer to
+that publisher's recorded-pages spoke. The
 engine stays generic. Add a second publisher as a sibling profile file; extract a shared engine
 only when a THIRD profile lands (Rule of Three). Two points make a line, not an abstraction.
 
@@ -203,9 +206,8 @@ only when a THIRD profile lands (Rule of Three). Two points make a line, not an 
 ## Standing-gate blind spots
 
 A gate only covers what it parses; its blind spot is where defects live. Unparsed sections are
-the attack surface. Presence-non-empty is not finished (35 unsubstituted `@@SRC@@` placeholders
-passed a parity gate). Phrase-greps miss fluent-prose instances (a basis-by-reference detector
-matched zero of four real instances).
+the attack surface. Presence-non-empty is not finished: unsubstituted placeholders pass a parity
+gate. Phrase-greps miss fluent-prose instances entirely.
 
 - **Quote gate** (campaign `check-quotes.py`, per-line `.strip()`): indented-fence corruption and
   trailing-space loss pass; Prompt snippets are unparsed.
@@ -215,7 +217,7 @@ matched zero of four real instances).
 - **`check-snippets.py`:** only fences under Prompt snippets. Blind to Key claims, unfenced
   restatements, omitted real prompts, a lying none-marker.
 - **Command-replay:** first number of each `→ N lines, M files` pair; POSIX-quoted commands
-  replayed through cmd.exe (`check-commands.py` v1).
+  replayed through cmd.exe.
 - **Presence-non-empty / parity:** unsubstituted placeholders pass; blank inventories can print
   OK.
 

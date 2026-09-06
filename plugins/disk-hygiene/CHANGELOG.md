@@ -3,6 +3,35 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.9]
+
+### Changed
+
+- `hygiene.py`'s home-match docstring writes its case-variant example with a `<user>` placeholder,
+  and the tests that need a real home value compose it (`Path("/Users") / "alice"`,
+  `Path("/home") / "missing"`) instead of spelling one literal. The values the tests compare are
+  byte-identical to before, so every assertion proves what it did. The `clean` eval prompt and the
+  launch-monitor transcript fixture take the same placeholder treatment. The org
+  machine-specific-path detector reads a literal user-home or checkout path as a leaked machine
+  path wherever it appears, including inside a test.
+
+## [0.21.8]
+
+### Changed
+
+- **clean:** the frontmatter hook comments, the `--execute` sentence, the Dev Drive sentence, and
+  the Gotchas opener state the current rule without issue numbers or a diff against an earlier
+  wording. `reference/safety-model.md` states the Windows and macOS decline, the flagged-spelling
+  set, the kill-switch delivery, the hook launch form, the guard failure detector, the
+  `user_config` prohibition, the scratchpad rule, and the roll-up guarantee as present-tense rules
+  with no issue numbers, plugin version pins, dates, or measured figures. One issue number is
+  dropped from `reference/unsupported-platform-handoff.md`. Upstream `anthropics/claude-code` issue
+  pointers stay.
+- **setup:** two issue-number parentheticals removed; the guard's kill-switch scope now says
+  managed settings are read first, then the user file, matching `lib/killswitch_config.py`.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.21.7]
 
 ### Added

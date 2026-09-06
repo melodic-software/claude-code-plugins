@@ -58,7 +58,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    or `python3`: that is exec form, which on Windows resolves `bash` to the WSL relay
    `System32\bash.exe` and `python3` to the zero-length `WindowsApps` App Execution Alias stub, and
    fails to launch, and a failed hook launch is non-blocking, so the guard silently enforces
-   nothing (#1416 for the wired hooks, #2568 for the belt). Do **not** report this as a
+   nothing. Do **not** report this as a
    `PATH`-ordering problem: shell form is resolved by
    Claude Code, so reordering `PATH` neither causes nor fixes it. Also FAIL if the launcher is
    missing or not executable. Report a missing Git Bash on Windows as an environment prerequisite
@@ -68,7 +68,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    that acts only on engine-referencing commands, and the skill-frontmatter belt that
    Claude Code keeps armed for the rest of the session after `/disk-hygiene:clean` is
    invoked. Both register unconditionally and resolve the kill switch by
-   reading `disk_hygiene_enabled` from the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
+   reading `disk_hygiene_enabled` from managed settings first, then the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`, parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
    recite a version number from this file or the README. FAIL if absent or older, naming
@@ -81,8 +81,8 @@ fails closed like every other guard-relevant unknown in this plugin.
    `hooks/run-python-hook.sh` walks for every guard surface; on stock Windows it resolves to a
    zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
    (or hangs) instead of running an interpreter, and executing that name from setup pops the
-   Store instead of probing. Since #2568 the stub no longer stops any guard by itself, the
-   launcher skips it and falls through to `python`, then `py -3`. **The ladder, not the first
+   Store instead of probing. The stub does not stop any guard by itself: the launcher skips it
+   and falls through to `python`, then `py -3`. **The ladder, not the first
    rung, is the verdict.** A host with real Python installed without "Add to PATH" but with the
    `py` launcher has a stubbed `python3` and a perfectly working guard; failing it would report a
    healthy install as broken and send the operator to reinstall Python. So the alias probe is

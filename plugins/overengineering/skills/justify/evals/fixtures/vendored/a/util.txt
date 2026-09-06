@@ -1,0 +1,7 @@
+shared_prefix() {
+  printf '%s' "${1%%/*}"
+}
+
+shared_suffix() {
+  printf '%s' "${1##*/}"
+}

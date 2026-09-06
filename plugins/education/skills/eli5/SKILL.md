@@ -1,5 +1,5 @@
 ---
-description: "Dead-simple VISUAL explainer. Produces a visual HTML explainer that assumes zero prior knowledge: one idea per diagram, minimal text. Works on a codebase object (a module, a tradeoff, an incident) or a general concept, and grounds in the real artifact before drawing anything. Use when: 'ELI5', 'explain like I'm five', 'picture explainer', 'draw me how this works', 'I need the visual version', 'show me a diagram of this'. Delegates to the community `eli5` skill when that plugin is installed and performs the behavior inline when it is not. This produces a PICTURE. When the ask is a prose drop to plain words at a lower altitude, that is education:explain instead; when it is to restructure a dense message without losing precision, that is adhd:clarify (if installed)."
+description: "Dead-simple VISUAL explainer. Produces a visual HTML explainer that assumes zero prior knowledge: one idea per diagram, minimal text. Works on a codebase object (a module, a tradeoff, an incident) or a general concept, and grounds in the real artifact before drawing anything. Use when: 'ELI5', 'explain like I'm five', 'picture explainer', 'show me a diagram of this'. Delegates to the community `eli5` skill when that plugin is installed and performs the behavior inline when it is not. This produces a PICTURE. When the ask is a prose drop to plain words at a lower altitude, that is education:explain instead; when it is to restructure a dense message without losing precision, that is adhd:clarify (if installed)."
 argument-hint: "[topic to explain] (a module, a tradeoff, an incident, or any concept)"
 user-invocable: true
 disable-model-invocation: false
@@ -114,9 +114,9 @@ The three invocations this lane is shaped around:
 - `/education:eli5 why did we make this tradeoff`
 - `/education:eli5 what caused this incident`
 
-`/education:eli5` is this skill's command. Bare `/eli5` belongs to the upstream
-plugin and reaches it directly when it is installed, which is the bypass the
-Boundaries section describes.
+`/education:eli5` is this skill's command. A typed bare `/eli5` may reach the upstream
+plugin's own skill instead when that plugin is installed; the namespaced command is the
+guaranteed path (see Gotchas).
 
 Each takes its own row from the Step 1 table. The first reads code, the second reads
 the argument behind a decision, the third reconstructs a sequence.
@@ -149,12 +149,11 @@ the argument behind a decision, the third reconstructs a sequence.
   past `863e70d`: if its skill name or plugin id changes, Step 2's address and the
   install recipe both go stale, and the failure is silent because the fallback
   simply always fires.
-- **Officialization.** The upstream author was publicly weighing whether to make
-  `eli5` an official plugin. If it ships as an official or bundled surface, this
-  wrapper's premise changes from "wrap a community plugin" to "duplicate something
-  native", so re-run `/claude-ops:audit-native-overlap` (via the Skill tool, if
-  installed) at that point and re-decide the lane rather than leaving it as-is. No
-  standing automation watches for this; the trigger is the observation.
+- **Officialization.** If `eli5` ships as an official or bundled Claude Code surface, this
+  wrapper's premise changes from wrapping a community plugin to duplicating something
+  native. Re-run `/claude-ops:audit-native-overlap` (via the Skill tool, if installed) at
+  that point and re-decide the lane. No standing automation watches for this; the trigger
+  is the observation.
 
 ## What this skill does NOT do
 

@@ -1882,7 +1882,7 @@ analyze_repo() {
 
   # Resolved through git rather than taken from discovery so that it and the porcelain's worktree
   # paths come from ONE source. A filesystem-derived path and a git-emitted one differ by spelling
-  # on Windows (/d/repos/x vs D:/repos/x), and path_key normalizes separators and case but not the
+  # on Windows (/d/repos/<repo> vs <drive>:/repos/<repo>), and path_key normalizes separators and case but not the
   # drive form — a containment test across those two forms silently never matches.
   # A BARE canonical has no working tree, so `--show-toplevel` fails there by
   # design and there is nothing for a worktree to be nested inside — a legitimate

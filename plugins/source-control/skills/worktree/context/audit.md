@@ -19,10 +19,8 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 ## Step 2b: Orphaned project-scope plugin install records
 
 `cleanup` reaps these at teardown, but only for a teardown it performs. Every worktree removed
-before that step existed left its records behind, and they are unreachable by any hook that did not
-exist when they were created — on this convention's own author machine, 108 project-scope records
-across 8 marketplaces, all naming one worktree directory that is long gone. Audit is where they
-become visible.
+without that step left its records behind, and they accumulate indefinitely because nothing else
+reaps a record whose path is gone. Audit is where they become visible.
 
 **Read-only. This step reports; it never removes a record.** That is the whole boundary: a
 project-scope record for a live repository on an unmounted network share or a detached external

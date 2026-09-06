@@ -34,12 +34,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -88,7 +95,10 @@ fi
 
 # Resolve repo root early — used to bound the config opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument Ruff runs on from the repo root. A path the prefix strip could
 # not make relative degrades to its basename, which is right for telemetry but
@@ -111,7 +121,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -122,7 +134,7 @@ emit_skipped() {
 
 # Resolve the file's directory in `pwd` form once. Both walks below start here,
 # and it anchors the repo-root-relative path passed to Ruff.
-FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
+FILE_DIR_POSIX="$(cd "$FILE_DIR" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
 root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 
 # Consumer opt-in: a Ruff configuration that governs the edited file. Walk up
@@ -156,7 +168,8 @@ while [[ -n "$dir" ]]; do
   fi
   [[ -n "$CONFIG_FOUND" ]] && break
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
 done
@@ -178,7 +191,8 @@ while [[ -n "$dir" ]]; do
   done
   [[ -n "$RUFF_BIN" ]] && break
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break
   dir="$parent"
 done
@@ -252,8 +266,11 @@ OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
+  # Take before the telemetry emit so data.changed carries the byte verdict;
+  # the disclosure is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$RUFF_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -290,10 +307,11 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   RUFF_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-emit_tel "skipped" '[]'
 # The fix/format passes may already have rewritten the file before the verify
 # pass broke; take the disclosure and compose it with the tool-break context
-# as one document (#3406).
+# as one document (#3406). Taken before the telemetry emit so data.changed
+# records that rewrite too.
 hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
+emit_tel "skipped" '[]'
 hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

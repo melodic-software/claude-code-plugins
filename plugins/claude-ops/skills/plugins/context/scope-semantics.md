@@ -5,7 +5,9 @@ machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
-plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below.
+plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
+probes in "Where project-scope records come from, and why the skill cannot reap them" were run
+2026-09-06 on **Claude Code 2.1.263** and carry that stamp.
 
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
 The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
@@ -15,8 +17,8 @@ version. These claims were **not re-run on 2.1.261** and keep their older stamps
 the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
-`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
-render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
+`--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
+render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in `SKILL.md`.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -129,7 +131,8 @@ has no path flag — it acts on the current directory, and it means that literal
 re-run also confirmed the checkout root's own committed settings file stayed untouched.
 
 `fleet-state.sh` resolves its project root differently: `CLAUDE_PROJECT_DIR`, else
-`git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (`fleet-state.sh:211-221`), and
+`git rev-parse --show-toplevel`, else a `.claude`-corroborated cwd (the `PROJECT_ROOT` resolution in
+`fleet-state.sh`), and
 `fleet-state.test.sh` pins that a session invoked from a nested subdirectory still matches the
 checkout-root record.
 
@@ -162,6 +165,83 @@ applicable. Read it precisely:
 because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against an absent path. Naming
 the condition is this skill's whole role here; reaping the record is not something it can or should
 do.
+
+## Where project-scope records come from, and why the skill cannot reap them
+
+The section above says the records cannot be reaped. This one says where they come from. Every claim
+below is doc-sourced or verified by a probe, each with its source or CLI version named. **Recheck
+trigger:** any change to how a repo's committed `enabledPlugins` block is applied at session start,
+or any `claude plugin` release note adding a verb that removes an install record by path.
+
+**A repo's committed `.claude/settings.json` `enabledPlugins` block is the documented cloud install
+mechanism.** Per
+[cloud-environments](https://code.claude.com/docs/en/cloud-environments) ("What carries over from
+your setup", fetched 2026-09-05), plugins declared in that committed block are "Installed at session
+start from the marketplace you declared." Plugins enabled only in a user's own settings do not carry
+over to a cloud session at all. So the block exists to make a team's plugin set reproducible
+somewhere the user's `~/.claude` is not.
+
+**Locally, session start writes the records.** Per
+[discover-plugins](https://code.claude.com/docs/en/discover-plugins) ("Configure team marketplaces",
+fetched 2026-09-05), as of v2.1.195 a plugin that only project settings enable, coming from an
+external source, "doesn't load until the team member installs it." That sentence covers the case
+where the user has never installed the plugin. When the user already holds it at user scope, the
+session start does the install itself. **Verified 2026-09-06 on Claude Code 2.1.263**: a scratch git
+repo under the temp directory with a committed `.claude/settings.json` declaring
+`extraKnownMarketplaces` for an already-registered marketplace and two `enabledPlugins: true` ids
+already installed at user scope; one headless `claude -p` session run from that directory; then
+`installed_plugins.json` diffed against a copy taken before the run. The diff was exactly two new
+`scope: "project"` records, one per enabled id, keyed by the scratch repo's absolute `projectPath`,
+both with the same `installedAt` millisecond, each pinned to the version the user scope already held
+and pointing `installPath` at the user scope's existing cache directory. No new cache directory was
+created and the user-scope records were untouched. A field sample on 2.1.261 (64 records for one
+repo path sharing one `installedAt` second) has the same shape: one session-start batch, one record
+per `true` entry per checkout path. The write happens even though nothing new was fetched; the
+record is a pin, not a download.
+
+**Precedence explains why a user-scope duplicate does not prevent the project record.** Per
+[settings-reference](https://code.claude.com/docs/en/settings-reference#enabledplugins) (fetched
+2026-09-05), `enabledPlugins` resolves managed > `--settings` > local > project > user, and
+"Project settings take precedence over user settings, so setting a plugin to false in
+~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
+To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
+instead." Precedence settles which `enabledPlugins` value is effective, and the probe above
+establishes that an effective project-scope `true` writes its own record regardless of the user
+scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
+project record per plugin per checkout.
+
+**A project-scope `false` writes nothing.** **Verified 2026-09-06 on Claude Code 2.1.263** in the
+same scratch repo: the block reduced to one entry, `"<id>": false` for a plugin installed at user
+scope; one headless session; `installed_plugins.json` byte-identical before and after (no new
+record, no touched timestamp), and the session reported that plugin's skill as unavailable while a
+sibling user-scope plugin's skill stayed available. A `false` entry is enablement state only; it
+never manufactures an install record.
+
+**Removing the records rewrites the committed block.** Observed in the same pass on 2.1.263:
+`claude plugin uninstall -s project <id>` run from inside the checkout removed the project record
+and also deleted that id from the repo's `.claude/settings.json` `enabledPlugins`, leaving an empty
+`enabledPlugins: {}` and reordering the file's top-level keys. Undoing a stranded record for a live
+checkout therefore dirties the working tree; do it before committing, or expect to revert the
+settings file afterwards. For an absent path there is no cwd to run it from, which is the case the
+section above records as unreapable.
+
+**Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
+directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
+record by path (`-s project` acts on the cwd only, `prune` is dependency-only). The product's own
+retention sweep does not cover them either: the "Cleaned up automatically" list at
+[claude-directory](https://code.claude.com/docs/en/claude-directory) (fetched 2026-09-05) names
+nothing under `~/.claude/plugins/`. That the per-project records are a live, maintained mechanism
+rather than vestigial state is visible in the Claude Code changelog for 2.1.224, "Fixed plugin
+install records being silently corrupted when the same plugin is installed in multiple projects".
+Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
+
+**Synced plugins are the contrast case, not a source of these records.** Per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference) ("Synced plugins", fetched
+2026-09-05), plugins enabled on a claude.ai account load as `<name>@synced` in Cowork and cloud
+sessions "with no marketplace and no install record", and "Claude Code doesn't load them in sessions
+you start in your own terminal." That is enablement without any record at all, so a synced plugin
+never explains a project-scope row. Whether a custom GitHub marketplace can be enabled at account
+level on a personal account is undocumented.
 
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
@@ -221,7 +301,10 @@ else.
 `code.claude.com/docs/en/plugins-reference`: "Claude
 Code reads all `pluginConfigs` values from only three settings sources" — user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user. And explicitly:
+managed → `--settings` → user. In every one of those sources the value nests under `options`:
+`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
+under the plugin id is silently ignored and the render shows the literal placeholder (verified
+2026-09-06 on **Claude Code 2.1.263**). And explicitly:
 
 > Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
 > files live in the workspace, so a cloned repository could supply values there, and those values
@@ -264,6 +347,41 @@ plugin's new id. Renames mapping requires ≥ v2.1.193 — re-confirmed 2026-09-
 Code v2.1.193 or later." The `claude plugin prune` ≥ v2.1.121 gate is **not re-verified on 2.1.261**:
 the current docs describe `prune` without naming an introducing version, so the gate stands on its
 original source and nothing this pass found contradicts it.
+
+## An unchanged version number keeps the old cache directory while `gitCommitSha` moves
+
+`claude plugin update -y <plugin>@<marketplace>` re-points the install record's `gitCommitSha` in
+`installed_plugins.json` without rewriting the plugin's cache directory when the manifest version
+number is unchanged across the two commits. The cache is keyed by version, so an update that does
+not move the version finds the directory already there and leaves the older build in it. The record
+then names the new commit and the files on disk are the old one.
+
+**Consequence, and it is the reason the check exists.** The version-and-sha comparison every
+delivery script relies on passes in exactly this state, so it is not proof that the files loaded are
+the files delivered. Any measurement or behaviour test run against that cache directory is a test of
+a different build than the one the record names, and nothing in the report says so.
+
+Observed on **Claude Code 2.1.259** (issue #3681 evidence, not re-run since). After a delivery,
+six plugins reported the new sha while their cache directories still held files from an earlier
+commit — twelve stale files in the worst case, including a reviewed dispatcher, three formatters, and
+two `hooks.json` files. Removing those version directories and running the update again recreated
+them correctly from the clone, which is both the confirmation and the remediation. **Recheck
+trigger:** any minor-version bump touching plugin caching or the `plugin update` path — a date alone
+is not a trigger.
+
+`cache-content-check.sh` is the standing detection: it byte-compares every file in a cache directory
+against the recorded commit in the marketplace clone, which is the only check that separates this
+state from a healthy one. It reports and never repairs; see `SKILL.md`'s "Cache content" section.
+
+**A marketplace clone is shallow, so most installs are unverifiable most of the time.** The clone
+under `installLocation` carried a `.git/shallow` file and a three-commit history when this was
+measured, so an install record naming any commit older than that window has no object to compare
+against. Verified 2026-09-05 on **Claude Code 2.1.261**: 11 of 74 user-scope installs on the
+authoring machine reported `sha-not-local` for exactly this reason, on a fleet with nothing wrong
+with it. That is the steady state, not an edge case, and it caps how much any single run of the
+check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
+it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
+clones a marketplace, which would move the depth this number rests on.
 
 ## `autoUpdate` is a background complement, not a substitute
 

@@ -9,11 +9,23 @@ metadata:
   summary: Classify changes by required test type and coverage gaps
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Recent commits, `git log --oneline -5`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -104,10 +116,3 @@ Present the test plan to the user. Then suggest:
 
 - **Does not write tests**. `/testing:write`
 - **Does not run tests**. `/toolchain:check` (SSOT for CLI invocation)
-
-## Marketplace plugin skills (invoke only when installed)
-
-These enrichment skills are ecosystem-specific, the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
-
-- **`dotnet-test:code-testing-agent`**. Multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
-- **`document-skills:webapp-testing`**. Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage

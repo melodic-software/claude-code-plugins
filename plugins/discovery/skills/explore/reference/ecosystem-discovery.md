@@ -18,7 +18,7 @@ ecosystem present but `enabled: false` is not configured for exploration either.
 
 | Explore need | Source when `toolchain` is installed |
 |---|---|
-| Which ecosystems are in play | Resolved `globs` (and covered-ecosystem set), **plus** fallback-table ecosystems the seam does not cover (`rust`, `java` today — `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`) when their fallback `build-configs` markers are present in the repo |
+| Which ecosystems are in play | Resolved `globs` (and covered-ecosystem set), **plus** any fallback-table ecosystem the resolved seam does not cover, when its fallback `build-configs` markers are present in the repo |
 | Project / workspace roots (Dimension 3 adjacency) | Resolved `project-discovery` / `anchor` |
 | Build / package / config files to read (Dimension 5) | Explore-owned `build-configs` from the fallback table — seam `globs` / `project-discovery` / `anchor` classify changed files and locate roots; they are not an exhaustive configuration inventory |
 | Runtime / toolchain presence (Dimension 6) | Explore-owned `runtime-version-cmd` from the fallback table — resolved `install-hint` is free-form install prose, not a version probe |

@@ -77,8 +77,11 @@ otherwise state that the file follows the marketplace's evals schema and validat
 
 Before finishing, confirm and record in the criteria doc:
 
-- LLM-graded cases name a grader model DIFFERENT from the generator, constrain the verdict format,
-  and instruct reasoning-then-discard.
+- LLM-graded cases name a grader model DIFFERENT from the generator and constrain the verdict
+  format. Add a reasoning-then-discard instruction only where the grader model does not already
+  think before answering; a grader with always-on thinking reasons before it decides, so an
+  output-side reasoning block buys nothing and roughly doubles the output tokens every re-run
+  pays for.
 - The consumer's first act is to sample-check grader verdicts against their own judgment before
   trusting the suite at scale.
 - Re-run cost is stated (which cases are code-graded and free vs LLM-graded and metered).

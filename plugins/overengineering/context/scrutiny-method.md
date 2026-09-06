@@ -17,9 +17,13 @@
 - [12. Ownership](#12-ownership)
 - [External authority](#external-authority)
 
-Shared method for every skill in this plugin. `audit` applies it to produce verdicts; `realign`
-applies its rollback ladder and its protected-class rules to execute them. **Neither SKILL.md
-restates any of it** — a second statement of a verdict definition is a second thing to drift.
+Shared method for every skill in this plugin. `audit` and `justify` apply it to produce verdicts,
+one by walking a surface and one by being pointed at an artifact; `realign` applies its rollback
+ladder and its protected-class rules to execute them; `delta` reports what moved between two runs of
+it. **No SKILL.md restates a definition from it** — a second statement of a verdict definition is a
+second thing to drift. A lane may name the rungs or classes it executes, as `realign` names §11's
+ladder to record which rung a finding reached, but the section named governs and settles every
+disagreement.
 
 The posture is the inverse of a gap audit: every incumbent mechanism on the surface is a retirement
 candidate until evidence earns its keep. That posture is a default, not a conclusion — the whole
@@ -35,14 +39,21 @@ Sections 1–12 are lane-independent. A lane supplies four things and inherits e
 3. **The evidence sources available in this lane**, mapped onto the tiers in §2.
 4. **The lane's protected-class default patterns**, extending §7's list.
 
-V1 ships one lane: the enforcement surface (agent hooks and standing instructions, repository and
+Two lanes ship. The **enforcement surface** (agent hooks and standing instructions, repository and
 version-control hooks, CI lanes and gate scripts, branch protections, forge apps and automations,
-declared external integrations).
+declared external integrations) is walked by `overengineering:audit`, and owns the first ten layers
+of the artifact's vocabulary.
 
-The second lane, product code, supplies its own four in
+The **second lane**, product code, supplies its own four in
 [`product-code-lane.md`](product-code-lane.md) and reuses §§1–12 verbatim. That document is a
 specification ahead of its skill; the shipping shape is
 [ADR 0017](../../../docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md).
+
+The **third lane**, justification, supplies its own four in
+[`justification-lane.md`](justification-lane.md) and owns the last five layers. It is pointed at one
+artifact at a time rather than walked, and its skill is `/overengineering:justify`. So the two lanes
+that ship are the first and the third, and the ordinals are the order the lanes were specified, not
+the order they shipped.
 
 ## 1. The economic frame: carry cost, never build cost
 

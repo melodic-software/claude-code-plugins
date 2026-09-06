@@ -32,12 +32,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -79,7 +86,10 @@ esac
 
 # Resolve repo root early — used to bound the settings opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (pwsh is
 # handed the to_pwsh_path form of $FILE), so both are resolved only when a sink
@@ -108,7 +118,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -120,7 +132,7 @@ emit_skipped() {
 # Resolve the file's directory and walk anchors as physical paths — same
 # representation hook::read_file_path uses for membership — so a symlinked
 # CLAUDE_PROJECT_DIR still matches the file's resolved directory at the ceiling.
-FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$(dirname "$FILE")")")" || FILE_DIR_POSIX=""
+FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$FILE_DIR")")" || FILE_DIR_POSIX=""
 root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
@@ -148,7 +160,8 @@ while [[ -n "$dir" ]]; do
     break
   fi
   [[ -n "$CEILING" && "$dir" == "$CEILING" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
 done
@@ -664,11 +677,12 @@ case $PWSH_EXIT in
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document. Emitting the
   # context and the systemMessage as two objects would break the single-JSON-doc
-  # stdout contract, which is what hook::emit_channels exists to prevent.
+  # stdout contract, which is what hook::emit_channels exists to prevent. The
+  # take precedes the telemetry emit so data.changed carries its verdict.
   hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
+  emit_tel "ok" "$FINDINGS_JSON"
   hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
   ;;
@@ -760,13 +774,14 @@ case $PWSH_EXIT in
     [[ -n "$line" ]] || continue
     PS_CTX+=$'\n'"  $line"
   done <<<"$PSSA_OUTPUT"
-  emit_tel "skipped" '[]'
   # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
   # inside the same try/catch that raises exit 4 — so a rewrite can already be on
   # disk when pwsh breaks. Take the disclosure (which also releases the snapshot
   # on the changed and unchanged paths alike) and emit it WITH the tool-break
-  # context as one document, rather than exiting on a silent rewrite.
+  # context as one document, rather than exiting on a silent rewrite. Taken
+  # before the telemetry emit so data.changed records that rewrite too.
   hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
+  emit_tel "skipped" '[]'
   hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
   ;;

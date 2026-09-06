@@ -61,9 +61,9 @@ inherits the rule by satisfying the predicate, and no list has to be remembered 
   contained in the target root records that path in **its own** exclusion list before it writes, and
   every subsequent run keeps it there; the run states this in its output. `--report-to <path>` is one
   way the path becomes contained — **the default path is another**, because `${CLAUDE_PLUGIN_DATA}`
-  resolves under `~` and is therefore inside any target at or above it. Keying this on the flag instead
-  of on containment was a defect: it left a run against a dotfiles repository, or against `~` itself,
-  writing into its own scan set with no exclusion entry and then failing its own determinism gate.
+  resolves under `~` and is therefore inside any target at or above it. Keyed on the flag instead of
+  on containment, a run against a dotfiles repository, or against `~` itself, would write into its own
+  scan set with no exclusion entry and then fail its own determinism gate.
   Recording it only from run 2 onward would leave the path in one run's derived-tier exclusion artifact
   and absent from the other's, and the derived tier is held to exact equality across runs. The path is
   recorded whether or not a file exists there yet — the exclusion is about the path the run is about to

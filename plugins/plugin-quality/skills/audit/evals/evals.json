@@ -5,7 +5,7 @@
       "id": 1,
       "name": "triggers-on-retired-skill-vocabulary",
       "prompt": "I just used the source-control commit skill and something felt off — audit this plugin skill and find gaps in it.",
-      "expected_output": "The audit skill triggers (the retiring local skill's vocabulary — 'audit this plugin/skill', 'find gaps in this plugin' — maps onto this skill) and starts at step 1 evidence capture on the main thread.",
+      "expected_output": "The audit skill triggers (the retiring local skill's vocabulary — 'audit this plugin/skill', 'find bugs or gaps in this plugin' — maps onto this skill) and starts at step 1 evidence capture on the main thread.",
       "files": [],
       "expectations": [
         "Invokes /plugin-quality:audit rather than ad-hoc review",

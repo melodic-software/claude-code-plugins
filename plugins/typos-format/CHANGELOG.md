@@ -3,6 +3,31 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.44]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.6.43]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`
+  on every run that reached typos: true when `applied` is non-empty (at least
+  one correction was written into the file), false when typos ran and applied
+  none, which is every run in the default report-only mode. The key is omitted
+  on a skip arm, where typos never ran. This is what fills the per-session
+  observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/typos-format.schema.json` gains the
+  optional key, and the suite pins it on a rewriting run and a no-op run.
+
 ## [0.6.42]
 
 ### Changed

@@ -943,8 +943,11 @@ if [[ -s "$TEL" ]]; then
   done
   if [[ "$(jq -r '.hook' "$TEL")" == "powershell-format" ]]; then ok "envelope: hook is powershell-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
+  # The findings arm takes the rewrite verdict before it emits, so the key is
+  # always present here; its value depends on the analyzer's formatter settings.
+  if jq -e '.data.changed | type == "boolean"' "$TEL" >/dev/null 2>&1; then ok "envelope: data.changed is a boolean verdict"; else fail "envelope: data.changed missing or not boolean ($(jq -c '.data.changed' "$TEL"))"; fi
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi

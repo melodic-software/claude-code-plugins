@@ -17,7 +17,7 @@ wrong verdict gets a dated corrections-applied file beside it, never a rewrite. 
 apply to the digests; re-verify what changed.
 
 **Pin on agent-REPORTED completion, never file presence.** A digest file on disk does not mean
-its agent is done. One unit's agent rewrote its file seven minutes after a presence-based pin.
+its agent is done: an agent can rewrite its file minutes after a presence-based pin.
 Pin the tree only after every dispatched digest agent has *returned*, then write
 `<work-root>/verification/pin-manifest.json` (path + sha256 per frozen file; shape in
 [pipeline-hardening.md](pipeline-hardening.md)). That manifest freezes the tree
@@ -33,11 +33,7 @@ was not scoped to fix goes in its "New findings" section, which is a **required 
 round's brief**. Both halves bind, a faithfully written record nobody reads drops findings on the
 floor exactly as silently as no record at all. A verdict likewise lands in
 `<work-root>/verification/` or it did not happen: one written to a session scratchpad is unreachable
-by every later round. (One slice's round-3 record was written faithfully, "New findings" section and
-all, and the next round never read it. Three findings it named were still unfixed a round later, and
-only a verifier's cross-check noticed; an 18-unit fan-out in the same slice edited seven units with
-no record, leaving them unattested; two of the slice's verdicts were written outside `verification/`
-and no later round could read them.)
+by every later round.
 
 **A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
 a verification gate errors loudly on input it cannot recognize, and a clean result is read as
@@ -45,10 +41,7 @@ covering just the rows and fields it actually exercised. **A gate is a claim tha
 evidence:** do not believe a PASS until that gate's negative-control suite has failed the known-bad
 fixtures (empty, unparsable, zero-parse, indented fence, fabricated payload). **The ordering is
 not negotiable:** a gate that silently skips what it cannot parse is fixed *before* it is made a
-required artifact, or the mandate converts a visible gap into an invisible pass. (Both arms
-independently caught the campaign's quote checker printing "all checks clean" over a digest whose
-14 claims it could not parse at all; `gate-family-consistency.sh` printed PASS after `mktemp`
-failed and it parsed zero claims; `gate-coverage.sh` printed OK over blank inventories.)
+required artifact, or the mandate converts a visible gap into an invisible pass.
 
 **Standing gates (required, after the pin):**
 [`check-fences-exact.py`](../scripts/check-fences-exact.py) and
@@ -61,19 +54,15 @@ negative-control evidence is `scripts/test_check_fences_exact.py` and
 **Commands are replayable in every pipeline artifact, not just digest rows.** SOURCES rows, applied
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
 and each is replayed where it is authored. No sweep reaches an artifact that did not yet exist
-when it ran, so the phase that writes one replays it before that phase ends. (One slice yielded
-five record-level command defects: two greps quoted without a path operand, an unrunnable command
-invisible to the replay regex, and two records misstating their own pair counts, and one
-correction record propagated the wrong line number it had been written to fix.)
+when it ran, so the phase that writes one replays it before that phase ends.
 
 **Reconcile the digest set against itself before Phase 5.** Every other check is scoped within a row
 or between a row and `source.md`, so parallel digest agents can affirm, deny, and abstain on the same
 external page and still earn PASS from both verifiers. Group the digests' claims by quoted text and
 by cited site: identical quotes carrying non-identical tags, and rows of the same assertion class
 resting on materially different absence bases, are defects to resolve or to disclose in the handoff.
-(Ten rows digesting one directive reached two different tags via at least three distinct absence
-bases; the tag split was the visible symptom, the bases diverged first. Both arms found splits of
-this shape by hand, and only by choosing to look.)
+(A tag split between rows is the visible symptom; the absence bases diverge first, and only a
+deliberate look finds them.)
 
 **Degraded-verifier fallback (never silent):** when the cross-vendor verifier is unavailable
 (not installed, sandbox-broken, quota), substitute a second same-vendor verifier briefed as an

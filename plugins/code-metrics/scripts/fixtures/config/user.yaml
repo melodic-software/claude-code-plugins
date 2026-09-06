@@ -1,0 +1,7 @@
+# Fixture: the user-global layer (~/.claude/code-metrics.yaml). Sets two
+# references that the team layer then overrides one of.
+complexity:
+  cyclomatic:
+    reference: 10
+size:
+  file_lines: 800

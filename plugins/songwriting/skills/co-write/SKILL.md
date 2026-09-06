@@ -21,15 +21,15 @@ names have been read this session, at minimum
 figure. Naming the §2 boxes while those files were never opened attests to the filter instead of
 applying it, per
 [response-filter](../../context/pat-pattison/research/response-filter.md) "§2 Line-writing filter".
-The attestation is what let the bad lines through: the miscounted stresses and the
-plain description labeled a metaphor both came out of a §2 that was named, not loaded. Loading is
-therefore an input, checked in the hard gate below, not a step recorded afterward.
+Attestation is what lets bad lines through: a miscounted stress or a plain description labeled a
+metaphor comes out of a §2 that was named rather than loaded. Loading is therefore an input,
+checked in the hard gate below, not a step recorded afterward.
 
 And when the output is a candidate LYRIC LINE about to be shown, §2's boxes are cycled inside
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Load it and run the
 FULL cycle per candidate, in its order, naming each pass. On fixed-melody work, pass 1 (positional
 fit) coming back CLEAN is the condition for showing anything at all.
-*(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+*(Plugin-authored, not Pat Pattison's.)*
 
 ## Purpose
 
@@ -64,8 +64,7 @@ No action → open the co-write protocol (No-Free-Zone session opener).
 - **The DUMP goes to the file; the MENU goes to chat**. 3-4 candidates, each a full section block
   in context with changed lines marked `►`, one labeled block per variation. The 30-50+ columns stay
   in `variations/`/`worksheets/`; the display cap never lowers the generated volume. That is what
-  "not an inline dump" means, and a response with nothing singable in it has not been delivered.
-  Writer-requested, 2026-08-12. See
+  "not an inline dump" means, and a response with nothing singable in it has not been delivered. See
   [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates — chat vs file".
 - **Rubric before the menu:** every candidate cycles all passes of
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) before it is shown,
@@ -82,8 +81,7 @@ No action → open the co-write protocol (No-Free-Zone session opener).
   marked positional template plus the section's rhyme and sound obligations; (3) the unused raw
   material, naming images still sitting in the song's `ideation/`; (4) what the two rejected
   batches had in common, named as the failure mode; (5) one question for the writer. No candidate
-  lines in that handoff. **Two** is the writer's own threshold (Sofía sessions, 2026-08-12); the AI
-  does not raise it.
+  lines in that handoff. **Two** is the writer's threshold; the AI does not raise it.
 
 ## Persistence and template overrides
 
@@ -146,17 +144,16 @@ running, not a skip. This leaves the response-filter's own box-level skip clause
 
 If a gate's input is missing, the correct move is to invoke the skill that produces it, not to
 proceed and note the absence. Lines written without their inputs are LLM defaults wearing the
-method's vocabulary, which is exactly what the pilot produced, and exactly what the writer
-rejected. A source row's missing input is a file, so the move is to READ it. Summarizing what a
-craft file probably says, or working from a remembered version of it, is the same failure as
-skipping the gate with the skip left unnamed.
-*(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
+method's vocabulary, which is what the writer rejects. A source row's missing input is a file, so
+the move is to READ it. Summarizing what a craft file probably says, or working from a remembered
+version of it, is the same failure as skipping the gate with the skip left unnamed.
+*(Plugin-authored, not Pat Pattison's.)*
 
 ### Refute, do not review
 
-*(Writer-derived, Sofía sessions, 2026-08-12.)* A self-graded pass is indistinguishable from a real
-one when the same context produced both, the pilot ran the response filter as self-attestation and
-passed itself. So the skeptic is dispatched to build the case AGAINST each candidate, and it gets
+*(Plugin-authored, not Pat Pattison's.)* A self-graded pass is indistinguishable from a real one
+when the same context produced both: a model running the response filter on its own output
+passes itself. So the skeptic is dispatched to build the case AGAINST each candidate, and it gets
 nothing but the candidate batch, the slot's positional template or marked scansion map, and the
 source paths to read: not the reasoning that produced the candidates, not which one you prefer.
 This is a hard boundary, not a default, the same blind-dispatch mechanic that makes
@@ -178,8 +175,8 @@ inventory is, and a chorus is sung back, so unsingable length is a defect, not a
 Object-writing output is ore. Pull ONE image forward and build the line around it. Pasting a run of
 sensory material into a section is not using the material; it is relocating it.
 
-Three steps. The pilot ran the first and skipped the other two, and that is the failure the writer
-rejected wholesale (Sofía sessions, 2026-08-12).
+Three steps. Running the first and skipping the other two is the failure this section exists to
+prevent.
 
 1. **Mine**. Take ONE image, verb, or detail off the page. Pat's own framing of what a finished
    write is for: *"Once you become adept in your object writing, with bushels of sense-bound images

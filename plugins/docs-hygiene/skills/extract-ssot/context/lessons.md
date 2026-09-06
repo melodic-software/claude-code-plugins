@@ -161,7 +161,11 @@ The subagent ALSO under-counts in some cases — a verbatim 5-place reproduction
 
 ## Lesson 11: Stability + reader-burden combined test for semantic-equivalent paraphrase
 
-**Observation.** Verbatim-only Rule of Three misses semantic-equivalent paraphrases — the same canonical truth restated in different wording across N files. User feedback: *"Anything that is really a maintenance burden that would cause more than one place to update if changed... we want one source of truth and everything else points to that"*. A verbatim-only test under-counts semantic dupes; a pure semantic-similarity test over-counts coincidental similarity.
+**Observation.** Verbatim-only Rule of Three misses semantic-equivalent paraphrases — the same
+canonical truth restated in different wording across N files. What matters is the maintenance
+burden: if changing the canonical truth would force more than one place to update, one source of
+truth should own it and everything else should point at that. A verbatim-only test under-counts
+semantic dupes; a pure semantic-similarity test over-counts coincidental similarity.
 
 **Trigger.** A cluster surfaces N≥3 instances that share canonical meaning but differ in surface phrasing.
 
@@ -190,7 +194,7 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 **Mitigation.** Before canonicalizing an empirical claim, grep the owning plugin's CHANGELOG for the newest entry touching that claim and treat a recorded refutation or dispute as binding: record the dispute in the SSOT or refuse, never silently resolve it. For WARN-borderline clusters, the adversarial-review round is mandatory and runs as a fresh-context diff review before commit.
 
-**Source.** 2026-08-15 whole-repo batch — cluster C13 (context-gather preamble): 4 blocking review findings, edits reverted, cluster deferred pending a fresh probe of the disputed mechanism.
+**Source.** A whole-repo batch. One cluster (a context-gather preamble) drew 4 blocking review findings, its edits were reverted, and it was deferred pending a fresh probe of the disputed mechanism.
 
 **Encoded in.** Candidate additions: `context/execution-checklist.md` (pre-edit changelog check), `actions/verify.md` WARN semantics (review round is a defined step, not advice).
 
@@ -202,7 +206,7 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 **Mitigation.** At `plan`, run a citation-target-reachability test: can every call site read the SSOT at its own runtime? If not, the output type is normalize-inline (byte-identical canonical sentence, per-site load-bearing slots preserved, provenance-only reference in the established form) and orchestrators must not rank the cluster by expected line reduction.
 
-**Source.** 2026-08-15 whole-repo batch — C01, C02, C03, C04, C07, C17, C23 all executed in this shape; C25's residual sites refused partly on this ground.
+**Source.** A whole-repo batch. Six of eight executed clusters inverted to this shape at plan or execute time; a seventh refused its residual sites partly on this ground.
 
 **Encoded in.** `context/orchestrated-mode.md` (portability constraint); candidate addition: `context/decision-framework.md` output-type table (reachability row).
 
@@ -214,7 +218,7 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 **Mitigation.** Execute workers on dependent clusters re-run Gate 0/1 counts before editing (the verify verdict is a snapshot, not a warrant). Identify and verify exclude generator-owned regions (split on BEGIN/END GENERATED markers) and the SSOT's own file from reproduction counts. Gate 2 checks document scope (a top-of-file ownership statement covers every downstream restatement in that file), not just ±10 lines.
 
-**Source.** 2026-08-15 whole-repo batch — C25 (REFUSED-cluster-exhausted-by-C09 at execute; roster 32 → Tier 0 re-count 4 → post-C09 0 migratable), C09 (the predecessor).
+**Source.** A whole-repo batch. One cluster verified WARN was fully exhausted by an overlapping predecessor: its roster claimed 32 sites, the Tier 0 re-count found 4, and after the predecessor ran, 0 were migratable.
 
 **Encoded in.** Candidate additions: `actions/identify.md` scope rules (generated-region split), `actions/verify.md` Gate 2 (document-scope pass), `actions/batch.md` (dependent-cluster re-count rule).
 
@@ -226,7 +230,11 @@ If only ONE passes, extraction is borderline — run an adversarial-review round
 
 **Mitigation.** Treat the reference as the canonical-text source only. Re-derive the site roster from the current base with fresh greps; explain every delta against the reference's file list. Verify pre-images hunk-by-hunk, not by file hash. Before skipping or adding a site, check whether the reference already saw it (present-and-skipped is a decision, not a gap). Re-run the Lesson 12 refutation check per cluster, and record corroborating CHANGELOG entries alongside refuting ones — both are evidence about whether the canonical form is the live doctrine.
 
-**Source.** 2026-08-15 replay of the whole-repo batch (reference b89723f0) onto post-#2695 main: C01 +1 site (#3065 port), C02 +2 sites/33 applied, C04 −1 superseded hunk +2 new sites, C07 +2 sites and one self-refuting reference slot rewritten from the runtime; all four waves adversarially reviewed.
+**Source.** A replay of a fully-reviewed whole-repo batch onto a base that had moved by roughly 200
+commits. Across four adversarially-reviewed waves the site roster changed in every direction: one
+cluster gained a site from a newly-ported plugin, one gained two sites and applied 33, one lost a
+superseded hunk and gained two sites, and one gained two sites plus a reference slot that was
+self-refuting against the plugin's own runtime and had to be rewritten from it.
 
 **Encoded in.** `context/orchestrated-mode.md` (candidate replay section); this file (consumed by future batch/replay runs).
 

@@ -21,8 +21,8 @@ Inspect and disable Claude Code **auto memory**, the store Claude writes for its
 directory per repo (`~/.claude/projects/<project>/memory/`, relocatable via
 `autoMemoryDirectory`). Governs auto-memory only. Not in scope: CLAUDE.md / CLAUDE.local.md /
 `.claude/rules/` (use `/claude-memory:audit`), transcripts, history, or shell snapshots. For the
-official full per-project wipe, use `claude project purge` (Claude Code v2.1.124+). What it does
-and does not delete is quoted verbatim in
+official full per-project wipe, use `claude project purge`. What it does and does not delete is
+quoted verbatim in
 [reference/official-guidance.md](reference/official-guidance.md); the deletion plan and flags live
 in the [claude-directory doc](https://code.claude.com/docs/en/claude-directory).
 
@@ -38,7 +38,7 @@ re-fetch the source pages listed there if a fact is load-bearing before you act.
 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | OS env or settings `env` block | Yes. Reads and writes |
 | CLAUDE.md / `.claude/rules/` | repo + user | No. Use `/claude-memory:audit` |
 | CLAUDE.local.md | repo only, no user-scope equivalent | No. Use `/claude-memory:audit` |
-| Transcripts | `~/.claude/projects/<project>/` | No. Auto-cleaned by `cleanupPeriodDays`; `claude project purge` (v2.1.124+) deletes this project's now |
+| Transcripts | `~/.claude/projects/<project>/` | No. Auto-cleaned by `cleanupPeriodDays`; `claude project purge` deletes this project's now |
 | Prompt history | `~/.claude/history.jsonl` | No. Persists indefinitely, not swept by `cleanupPeriodDays`; `claude project purge` filters this project's lines |
 | Session files | `~/.claude/sessions/` | No. One file per running session, cleared when the session exits rather than age-swept; not in `claude project purge`'s deletion list |
 | Shell snapshots / backups | `~/.claude/shell-snapshots/`, `~/.claude/backups/` | No. Swept by `cleanupPeriodDays`, but not project-scoped, so `claude project purge` leaves them untouched |

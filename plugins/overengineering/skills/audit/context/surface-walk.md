@@ -24,10 +24,19 @@ proceeds, rather than needing a re-sort at the end.
 | Telemetry sink | Any run-record, log, or metrics location the consumer's own configuration or docs declare | Whether tier 1 exists in this consumer at all — **bound the tier-1 read window here**, at walk start, per the artifact contract's self-perturbation rule |
 | Incident corpus | Whatever the consumer declares as its incident, post-incident, or decision record | Whether tier 3 exists |
 | Custody | Sync manifests, vendor directories, code-owners entries, "generated / managed — do not edit" headers the consumer maintains, references to shared or centrally-owned workflow definitions | Which items are upstream-owned, so remediation is a delegation (§12) rather than an in-repo edit |
+| **Sanctioning records** | Whatever the consumer declares as its decision records, convention docs, or registries, together with the checks that enforce them: a registry of files expected to stay identical, a sync or drift gate, a documented duplication policy | Which repetitions are **deliberate and actively maintained**, so they are never read as duplication to collapse |
 
 **Shallow is not silent.** On a shallow clone, say so in the evidence-availability lead, and make
 every UNPROVEN verdict that would have rested on history cite the missing tier by name. An audit that
 reports "no history of catches" from a checkout that carries no history is manufacturing a finding.
+
+**A sanctioned, gated repetition is not duplication.** Where the preflight found a record that
+sanctions a pattern and a check that maintains it, that pattern is never CONSOLIDATE or RETIRE on
+the grounds of repetition alone: the copies are the intended state and something is actively holding
+them in it, so a finding against them reports the successful operation of a control as a defect. Say
+which record sanctions it and which check maintains it in the finding, and judge only what the
+sanction does not cover. A repetition the preflight found **no** sanctioning record for is an
+ordinary candidate, judged as any other.
 
 **Inventory before judgment.** Enumerate a layer's items completely before judging any of them.
 Judging as you discover biases the inventory toward whatever the first few items made salient, and it
@@ -40,8 +49,9 @@ For each layer in enum order, for each item found:
 
 1. **Identify.** A repo-relative path where one exists; otherwise a kind-prefixed stable identifier
    from the closed prefix set the artifact contract fixes (`protection:`, `app:`, `integration:`,
-   and `settings:` for a registration surface outside the repo tree) so it cannot collide with a
-   path.
+   `package:<ecosystem>/<name>` for a declared dependency or pinned tool, and `settings:` for a
+   registration surface outside the repo tree) so it cannot collide with a path. The contract owns
+   that set; this list is a convenience and the contract wins where they differ.
 2. **Classify.** Protected category (§7, plus the consumer's configured set)? Intentionally dormant
    (§7)? And its **surface type** — does exercising this item leave a record at all (§5)? Classify
    before reading counts, so a zero is interpreted rather than measured.
@@ -289,8 +299,12 @@ credential to rotate and a service to trust, and that is the carry-cost argument
 
 - Reconcile against the prior artifact by stable id per the contract's merge rules: carry statuses
   forward, recompute verdicts, record `## Closed since last run` rows for prior findings whose layer
-  was walked and whose item is gone, and surface any verdict that changed direction underneath a
-  judgment the operator already made.
+  was walked and whose item is gone, and surface any verdict that **moved** underneath a judgment
+  the operator already made. Moved is wider than reversed: a direction flip, and equally a
+  same-direction change to what the acceptance authorized, such as an `ACCEPTED` `DOWNGRADE`
+  recomputed to `CONSOLIDATE`. Merge rule 5 owns the full trigger list, this flag is the only
+  detection anywhere in the plugin, and consumers are forbidden to re-derive it, so a move this step
+  fails to flag is a move nobody surfaces.
 - Report suppressed findings and every suppression entry that did **not** suppress, per the contract.
 - Rank the UNPROVEN residue by carry cost and propose the bounded ablation batch (§8) — one batch,
   owner and re-check date per item, protected and intentionally-dormant items excluded.

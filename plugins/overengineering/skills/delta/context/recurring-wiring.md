@@ -17,12 +17,13 @@ Every shape below invokes the same line, and the two arguments are not optional 
 ```
 
 - **`unattended` is mandatory for anything unwatched.** It selects the audit's unattended
-  disposition for low-confidence intent (`context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
+  disposition for low-confidence intent (`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
   nothing, guess nothing. The harness gives a prose skill no reliable probe for whether a human is
   watching, so the caller owns the flag — and a scheduled run that omits it will sit waiting on a
   checkpoint question nobody will answer.
 - **Layer scope is how a large surface fits.** A mature surface runs past a hundred items and does
-  not fit one context window. A rotation — one or two layers per cycle, covering the ten-value
+  not fit one context window. A rotation — one or two layers per cycle, covering the ten-layer
+  enforcement
   vocabulary over several cycles — composes correctly, because a re-run merges into the same
   artifact by stable finding id. What it costs is stated in the skill body: findings in the layers a
   cycle did not walk contribute to no delta class, and the cycle's report names them as coverage.
@@ -66,8 +67,8 @@ Two things to get right:
   no artifact, this lane compares nothing and captures nothing, and the cycle's whole output is the
   inline report. Many schedulers check out a commit rather than a branch by default, so this is the
   common misconfiguration, not a rare one. Either check out the branch itself, or have the runner
-  supply the logical ref it was launched for — any value naming a branch is accepted, and the report
-  names where the identity came from.
+  supply the logical ref it was launched for. Any value that names a branch and passes the audit's
+  normalize-then-validate check is accepted, and the report names where the identity came from.
 - **Ephemeral runners have no baseline, ever.** A fresh container each cycle loses the memory-tier
   artifact, so every cycle is a first run and every report says so. Either persist the memory root
   across runs, or use shape 4 instead, where the durable record is a tracker item rather than a file.

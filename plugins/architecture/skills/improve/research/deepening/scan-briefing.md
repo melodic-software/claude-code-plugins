@@ -2,8 +2,8 @@
 
 The friction scan fans out read-only exploration subagents. Brief every scan subagent with the
 structure below, the same way [interface-design.md](interface-design.md) briefs the Design-It-Twice
-agents — so scan quality does not vary run-to-run and the badge-acceptance heuristics reach the
-agents at scan time instead of arriving only in Phase 2.
+agents. A canonical briefing keeps scan quality from varying run-to-run and puts the
+badge-acceptance heuristics in front of each agent while it is still forming its confidence rating.
 
 Assemble one briefing per subagent. Each briefing has five parts: vocabulary primer, friction
 checklist, dependency categories, badge-acceptance heuristics, and the per-candidate return schema.
@@ -41,8 +41,8 @@ because the category determines the testing strategy the eventual recommendation
 
 ## 4. Badge-acceptance heuristics (calibrate confidence at scan time)
 
-Have the agent rate its own confidence **against the two acceptance heuristics**, not on gut feel —
-this is what F4 fixes: heuristics applied at scan time instead of arriving only in Phase 2.
+Have the agent rate its own confidence **against the two acceptance heuristics**, not on gut feel.
+Calibrating at scan time is what lets Phase 1.5 verify against a stated bar rather than a hunch.
 
 - **Deletion test (acceptance form)** — would a future maintainer, finding this module gone, rebuild
   it substantially the same way? If not, the boundary is arbitrary and the candidate is weak.

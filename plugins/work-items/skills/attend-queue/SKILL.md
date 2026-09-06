@@ -20,7 +20,7 @@ topic-docs binding that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Label edits, comments, and
 closes route through the bound adapter's write mechanics; the core inlines no provider commands,
-with one deliberate exception below: the `#502` telemetry upsert is an inlined `gh api` call,
+with one deliberate exception below: the telemetry upsert is an inlined `gh api` call,
 mandated by the loop-lane convention because an installed plugin cannot invoke a sibling plugin's
 script.
 
@@ -186,8 +186,9 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
   consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries **no account-identifier field**, so a write is the only signal that the windows changed
-  under you (account switch, another session's refresh).
+  carries an **`account.email` field when the writer could attribute the observation**, so a write
+  is still the signal that the windows changed under you (account switch, another session's
+  refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 

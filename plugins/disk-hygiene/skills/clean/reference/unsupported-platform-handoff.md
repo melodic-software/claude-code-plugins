@@ -138,7 +138,7 @@ invocations from PowerShell stay hard-denied.
 
 Claude Code registers a skill's frontmatter hooks when the
 skill is invoked and keeps them registered for the **rest of the session**. There is no
-harness-level "while the skill is active" window for hooks (#2618). So once `/disk-hygiene:clean`
+harness-level "while the skill is active" window for hooks. So once `/disk-hygiene:clean`
 has run, the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
 unrelated later work in the same session, not only to this cleanup. Say so when a later,
 unrelated command is blocked or prompted, rather than treating it as a surprise; the session's own

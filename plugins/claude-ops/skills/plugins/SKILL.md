@@ -99,6 +99,22 @@ The third form projects that same id list from a report already on disk rather t
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
 selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
 
+A second read-only script answers the question `fleet-state.sh` structurally cannot: whether the
+files in a plugin's cache directory actually match the commit its install record claims. Run it as
+Step 5b of `sync` and of `audit`:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> [--scope user|project|all]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> --ids
+```
+
+`--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
+as `fleet-state.sh --ids`. The script never writes anything and never runs `git fetch`; a commit
+that is not in the local marketplace clone is reported as `sha-not-local`, not fetched. See
+[context/sync.md](context/sync.md) Step 5b, and
+[context/scope-semantics.md](context/scope-semantics.md) for the mechanism that makes a cache
+directory and its recorded sha disagree in the first place.
+
 `sync` writes its run journal under this plugin's per-machine data directory. The path is
 substituted here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and **not** in a
 `context/*.md` spoke, which is read raw:
@@ -168,6 +184,8 @@ Divergences: <N> actionable (<M> newly created by this run — <a> by the in-rep
   or listed here)
 Stale project records: <K> record(s) across <P> path(s) not present on this machine
   (omit section entirely when K = 0; never counted in Divergences — see below for the row shape)
+Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
+  (omit the row entirely when N = 0; list the ids and the remediation — see below)
 Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
   enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
   run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
@@ -222,6 +240,15 @@ observe three boundaries:
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
   another plugin's configuration to find out.
 
+A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
+carries an `enabledPlugins` block mirroring what the user already has at user scope writes one
+project record per `true` entry at the first session start in that checkout, pinned to the version
+the user scope holds (verified on Claude Code 2.1.263). A `false` entry writes nothing. Report the
+count and the distinct paths, and name the block as the source when the path's repo carries one.
+[context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
+why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, and the
+probe recipe that established the write.
+
 Give the section a count plus the distinct paths, not one row per record, a hundred records naming
 a dozen directories is a report about a dozen directories:
 
@@ -267,6 +294,39 @@ declines to pay on its own (Claude Code ≥ 2.1.163; see
 monitor, call that out separately. Monitors need a full session restart, `/reload-plugins` doesn't
 cover them.
 
+## Cache content. Reported, never repaired
+
+A version-and-sha check is not proof that the files on disk are the build the record names. When a
+plugin's manifest version does not change across a commit, `claude plugin update` re-points the
+record's `gitCommitSha` and leaves the existing version directory in place, so the metadata claims
+the new commit while the directory still holds the old build. See
+[context/scope-semantics.md](context/scope-semantics.md) for the observation this rests on.
+
+Step 5b runs `cache-content-check.sh`, which byte-compares every file in each cache directory
+against the recorded commit in the marketplace clone. Omit the `Cache content:` row when it finds
+nothing. When it finds something, name the ids and give the remediation that was actually proved to
+work, rather than a suggestion:
+
+```text
+Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
+  - <id>@<marketplace> <version> — <n> file(s) differ
+  Remediation: remove that version's directory under the plugin cache, then re-run
+  `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
+```
+
+**The check never repairs.** It does not delete a cache directory, does not re-run an update, and
+does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
+`sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
+would also silently erase the condition the verdict exists to report. Every verdict other than
+`match` and `stale-content` is counted as `unverifiable` — the audit looked and could not decide,
+which is its own number and never folded into either side.
+
+**Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a
+marketplace shallow, so any install whose recorded commit predates that clone's window reports
+`sha-not-local` through no fault of the fleet. On the machine this check was first run against, 11
+of 74 user-scope installs were unverifiable for exactly that reason. When the unverifiable count is
+material, say so alongside the match count rather than leading with the match count alone.
+
 ## userConfig: `install_new`
 
 Controls new-catalog-plugin install policy during `sync`. Ships as a plain `string` (the manifest
@@ -288,25 +348,24 @@ readable here either. See [context/scope-semantics.md](context/scope-semantics.m
 and why it differs from `enabledPlugins`, which this same skill reads from project and local scope.
 
 Crucially, the manifest's `"default": "ask"` is **not** substituted for
-an unset key (verified 2026-07-23 against CC 2.1.218: an unset key leaves the placeholder token
-unchanged, the same shape as `${user_config.…}`, while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes
-in the same render). **Recheck trigger:** re-verify on any Claude Code minor-version bump that
-touches plugin `userConfig` substitution, or once `plugins-reference` gains text on unset-key
-rendering, the docs are silent on it today, so this claim rests entirely on that one probe, and the
-probe's CLI version has since moved (2.1.218 → 2.1.261) with the claim unre-tested.
+an unset key (first verified 2026-07-23 against CC 2.1.218, **re-verified 2026-09-06 against CC
+2.1.263**: an unset key leaves the placeholder token unchanged, the same shape as
+`${user_config.…}`, while a sibling key set in `~/.claude/settings.json` and `${CLAUDE_PLUGIN_ROOT}`
+both substitute in the same render). The current `plugins-reference` page says the manifest
+`default` "is used if specified" for an unset key; the 2.1.263 render contradicts that for skill
+content, so this skill keeps trusting the probe over the page. **Recheck trigger:** re-verify on any
+Claude Code minor-version bump that touches plugin `userConfig` substitution, or when
+`plugins-reference` changes its unset-key wording.
 
-A 2026-09-05 attempt to re-run it on 2.1.261 was **inconclusive, not a confirmation**, and the
-reason is worth carrying: a throwaway plugin was loaded from a local marketplace with one
-`userConfig` key left unset and a sibling key set through `--settings` `pluginConfigs` under the
-plugin's fully-qualified id. In the rendered skill body `${CLAUDE_PLUGIN_ROOT}` substituted, so the
-render pass certainly ran, but **both** `userConfig` tokens came through literal, including the one
-that was explicitly set. With the positive control failing there is no way to tell an unset key
-leaving its placeholder apart from `userConfig` substitution not reaching skill content on that
-path at all. The remaining discriminator, setting the key in `~/.claude/settings.json`, was out of
-bounds for a probe that must not mutate real machine state. Treat the claim as still resting on the
-2.1.218 probe, and treat the failed control as its own open question rather than as evidence for
-the claim. So for the common default-config user — no `pluginConfigs` set anywhere — the
-**Configured value** line above still shows that literal placeholder token, not `ask`.
+When re-running that probe, the `pluginConfigs` payload must nest the key under `options`
+(`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`); a key placed directly
+under the plugin id is ignored without warning, and a control set that way renders literal, which
+looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
+as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings), so
+either source is a valid positive control. `claude plugin install <id> --config <key>=<value>`
+writes the user-settings entry in that shape, which is the cheapest way to set one. So for the common
+default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line above still
+shows that literal placeholder token, not `ask`.
 
 Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
 report it as an invalid value. Only a rendered value that is a real word other than

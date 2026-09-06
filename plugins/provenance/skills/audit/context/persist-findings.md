@@ -18,8 +18,8 @@ Resolve it in this order:
    resolved from their owner, and say the run is report-only. Inventing a destination reports
    success while the consumer never scans that path.
 
-Rung 1 exists because rung 2 alone made every offline run report-only and pointed a portable
-plugin at one organization's URL. The gate is installed-ness of `review`, never a marketplace
+Rung 1 comes first because rung 2 alone makes every offline run report-only and points a
+portable plugin at one organization's URL. The gate is installed-ness of `review`, never a marketplace
 id. Note what rung 1 does and does not give you: the file SHAPE and the merge rules, which is
 what composition needs. If the consuming project defines its own severity vocabulary, that
 mapping is still yours to apply (see `Tier` below).
@@ -108,7 +108,7 @@ The KEY is an explicit allowlist — the top-level `tier`, and the whole of a to
 — because a miss THERE is a drop, which is worse than the leak it guards. This sidecar is
 model-authored against no schema, and `tier` is already overloaded across it (the verdict tier,
 and the crosswalk severity). A reader that took a `tier` key at any depth could not tell a
-declared verdict from a nested mention of one, and withheld records that had declared
+declared verdict from a nested mention of one, and would withhold records that declare
 `fingerprint-confirmed` at the top level: no relay row, no `## Unparsed` entry, and a
 `## Surfaces` count calling them judgment findings on a human report they were never on. Keys
 are matched case-folded, but only at those two positions, so
@@ -125,19 +125,20 @@ no searched surfaces.
 A record whose `tier` NAMES NO TIER falls back to its `verdict`, which is then the only tier it
 has: the `tier` child when it has one, and otherwise the whole value. `{"verdict": "not-found"}`,
 `{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say
-what `{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child let all three
-past the boundary — onto a relay row when a stamp rule carried one, and verbatim into
-`## Unparsed` when nothing else mapped the record. `searched` is read through those same slots,
+what `{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child would let all
+three past the boundary — onto a relay row when a stamp rule carries one, and verbatim into
+`## Unparsed` when nothing else maps the record. `searched` is read through those same slots,
 so a sidecar keeping the outcome and its surfaces together is not refused for naming them where
 it declared the outcome.
 
 **Narrowing turns on a tier NAMED, never on a `tier` key present — at both steps, and by the
 same rule**, because the two steps are the same question asked twice: prefer the narrower
 reading of a container only when it names a tier, and otherwise take the whole container.
-Keying either step off the key let one unusable value disarm the whole boundary.
-`{"tier": null, "verdict": "not-found"}` never reached the verdict, and
-`{"verdict": {"tier": "pending", "result": "not-found"}}` never looked past the `tier` child.
-Each printed verbatim into `## Unparsed` and skipped the searched-surfaces gate on the way.
+Keying either step off the key would let one unusable value disarm the whole boundary:
+`{"tier": null, "verdict": "not-found"}` would never reach the verdict, and
+`{"verdict": {"tier": "pending", "result": "not-found"}}` would never look past the `tier`
+child. Each would print verbatim into `## Unparsed` and skip the searched-surfaces gate on the
+way.
 
 **A record that is not an object at all has no declared tier to respect**, and it is bound for
 `## Unparsed` verbatim, so a verdict name appearing anywhere inside it would print into the file
@@ -159,11 +160,11 @@ A tier that RENDERS as a verdict name in the written file should BE a verdict na
 reader pursues that by Unicode CLASS rather than by a list of the code points someone thought of.
 Characters that render as nothing are stripped everywhere, by `Default_Ignorable_Code_Point` plus
 the rest of `Cf`, and hyphen-like code points are folded to ASCII by the dash class, because
-every one of these names is hyphenated. Anything narrower has been another such list, and each
-narrower attempt leaked: an enumeration of two zero-width characters left six others through;
-trimming the class at the ends alone left an interior `"not-‍found"`; stripping `Cf` alone left
-the variation selectors and the combining grapheme joiner, which are `Mn`; and before the dash
-class, `"not‐found"` spelled with U+2010 walked onto a relay row.
+every one of these names is hyphenated. Anything narrower leaks: an enumeration of two
+zero-width characters leaves six others through; trimming the class at the ends alone leaves an
+interior `"not-‍found"`; stripping `Cf` alone leaves the variation selectors and the combining
+grapheme joiner, which are `Mn`; and dropping the dash class lets `"not‐found"` spelled with
+U+2010 reach a relay row.
 
 **Homoglyphs beyond the dash class are a stated limit, not a closed one.** No jq predicate closes
 rendering-equivalence in general, and claiming otherwise would be the defect this plugin exists
@@ -181,7 +182,7 @@ trimmed at the ends only and a combining mark is not stripped at all: `"not foun
 verdict it never withheld.
 
 **Keys are candidates as well as values.** `{"tier": {"not-found": true}}` says what
-`{"tier": "not-found"}` says, and reading values alone printed it verbatim into `## Unparsed`.
+`{"tier": "not-found"}` says, and reading values alone prints it verbatim into `## Unparsed`.
 "Every string anywhere inside" has to mean every string.
 
 Free text in a tier field therefore names no tier, which is the same answer this producer
@@ -198,10 +199,9 @@ appearing anywhere inside it and the schema check never runs on it — refusing 
 over a record too malformed to read is the blast radius the malformed-record route exists to
 avoid. A caller with
 its own, laxer notion of the tier is the defect, twice over: a `{"Tier": "not-found"}` sidecar
-passed the schema check unexamined and was then withheld silently, and a
-`{"Tier": "fingerprint-confirmed"}` copy was read as a declaration when withholding and as no
-declaration at all when relaying, so it was dropped under a count that denied it had declared
-anything.
+passes the schema check unexamined and is then withheld silently, and a
+`{"Tier": "fingerprint-confirmed"}` copy reads as a declaration when withholding and as no
+declaration at all when relaying, so it drops under a count that denies it declared anything.
 
 Two limits, both deliberate. **A tier naming none of them is a tier this producer neither
 withheld nor can relay**, and the record takes the ordinary path for its rule id: `## Unparsed`
@@ -230,8 +230,8 @@ and never carry a row forward from a previous run.
   `span.start_line` for a copy finding. For a `fingerprint-confirmed` copy that start line is
   the module's exact matched span, not the nomination's approximation, which is what makes the
   fix fenceable. It is pipe-escaped like every other cell that carries input: a path is not
-  trusted to be pipe-free, and `a|b.md` split the row so that every cell after it shifted a
-  column left.
+  trusted to be pipe-free, and an unescaped `a|b.md` splits the row so that every cell after it
+  shifts a column left.
 - **`Surface(s)`** is `provenance:audit`.
 - **`Finding`** leads with the qualified rule id, then the fired condition in this run's own
   values: matched span words, containment and the source URL for a copy; the stamp date, the

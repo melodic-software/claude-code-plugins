@@ -95,9 +95,9 @@ Each step names what "done" looks like, so a partial run is visible rather than 
 
 ## Reporting
 
-Lead with the count of moved items and the window. When nothing moved, **say that plainly in one
-line and stop**. A delta run whose honest answer is "nothing changed" should cost one line to read,
-not a page of reassurance.
+Lead with the count of moved items and the window. When nothing moved, **say that plainly, with the
+window and the suppressed count, and stop**. A delta run whose honest answer is "nothing changed"
+should be short and complete, not a page of reassurance.
 
 Never pad a quiet run by re-listing standing findings to look useful.
 
@@ -115,7 +115,8 @@ Never pad a quiet run by re-listing standing findings to look useful.
 ## Gotchas
 
 - **A quiet run is the expected outcome, not a failed one.** The pull toward finding *something* to
-  justify the run is exactly what makes a cadence lane useless. One line is a complete answer.
+  justify the run is exactly what makes a cadence lane useless. A short answer that states the
+  window and the suppressed count is the whole report.
 - **"Nothing touched the rules folder" does not make glob re-validation unnecessary.** Globs break
   from refactors elsewhere. Skipping validation on that reasoning misses the single shape that most
   justifies the cadence.

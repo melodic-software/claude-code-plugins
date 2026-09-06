@@ -9,8 +9,6 @@ The catalog states what happens when a prerequisite is missing
 ([Access to prerequisites](routines.md#access-to-prerequisites)): missing surface or entitlement
 routes to the advisory path, never a silent degrade. This contract owns the question that
 precedes that consequence: which identities resolve as eligible against this repository at all.
-Decisions are recorded in
-[ADR 0011](../../../docs/adr/0011-resolve-routine-prerequisites-per-identity-declared-over-detected.md).
 
 ## Output grain
 
@@ -191,12 +189,12 @@ capability claim sourced from one operator's machine is false in every other exe
 
 ## Landing and implementation boundary
 
-This contract lands as one document under `reference/` per the
-[binding-seam layout rule](binding-seam.md#layout-convention). Implementation phases extend the
-autonomy setup skill as a slice: per-class facts in `v1` leaves, a generated drift-gated
-machine-readable emission derived from those leaves (leaves stay the authored home; the resolver
-reads structure, never prose), the deterministic resolver, and the setup slice. No new plugin,
-no new skill, no new catalog, no new config-file family.
+This contract is one document under `reference/` per the
+[binding-seam layout rule](binding-seam.md#layout-convention). Its implementation is the autonomy
+setup skill's prerequisite-resolution slice: per-class facts in `v1` leaves, a generated
+drift-gated machine-readable emission derived from those leaves (leaves stay the authored home;
+the resolver reads structure, never prose), the deterministic resolver, and the setup slice. No
+separate plugin, skill, catalog, or config-file family carries it.
 
 ## Disambiguation — five incumbents this term is not
 

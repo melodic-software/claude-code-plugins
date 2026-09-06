@@ -45,29 +45,26 @@ from what it does not.
    command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen command"
    ([environment variables](https://code.claude.com/docs/en/env-vars); fetched live 2026-08-10
    through the [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
-   which reads the page verbatim — upstream publishes no per-page content date). The 2026-07-24
-   entry claiming it "does not appear in the environment variables list" is **superseded**: it rested
-   on a read of a page long enough to truncate, and this row now confirms both the variable and the
-   v2.1.205 cutover the point above states. Note the scope the row draws: the variable hides the
-   session skill, **not** `claude doctor` in the terminal. **Re-checked 2026-08-26 (two fetch
-   routes): the row is absent from the current env-vars page again**, so the variable's documented
-   status has now flipped twice (absent 2026-07-24 → present 2026-08-10 → absent 2026-08-26).
-   Treat it as *unconfirmed*: the detection-over-prediction posture below already covers this — name
-   it only as a suspected cause, never as a documented basis, until a fetch shows the row again.
+   which reads the page verbatim — upstream publishes no per-page content date).
+   **Documented status unstable.** Three verbatim fetches disagree: absent 2026-07-24, present
+   2026-08-10, absent 2026-08-26 (two fetch routes). Treat the variable as *unconfirmed*: name it only
+   as a suspected cause, never as a documented basis, until a fetch shows the row again. Note the scope
+   the row draws when present: the variable hides the session skill, **not** `claude doctor` in the
+   terminal. **Recheck trigger:** any `env-vars` fetch showing the row.
 
-**Suppression channels — both unconfirmed, for different reasons.** Item 3 and a `skillOverrides`
-settings key were both carried in from this skill's design phase, and the 2026-07-24 read recorded
-both as absent from the official pages. Item 3's documentation has since flipped twice (see its
-re-check note above), so it stays unconfirmed. `skillOverrides` is unconfirmed the simpler way: no
-such key appeared in [settings](https://code.claude.com/docs/en/settings) as of 2026-07-24, and that
-read has **not** been refreshed here — this pass re-derived the `env-vars` half only, so treat it as
-UNVERIFIED and probe. It may be real but undocumented, or stale.
+**Suppression channels: one unconfirmed, one documented but silent on bundled skills.** Item 3 has
+flipped between present and absent across fetches, so it stays unconfirmed. `skillOverrides` is a
+documented settings key: the settings and skills pages state it reaches project and user skills and
+"does not apply to plugin skills, which are managed through `/plugin`" (quoted spans verified
+2026-08-31 in this plugin's `audit` skill, Category G). Neither page says whether it reaches a
+bundled skill such as `/doctor`, so its effect on the handoff is UNVERIFIED; probe rather than assert.
 
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually
 resolves in this environment, and reports the outcome. If it does not resolve while the version floor
-is met, the run says so and names these channels as the suspected causes — `DISABLE_DOCTOR_COMMAND`
-(documentation status unstable across fetches, see above) and `skillOverrides`, both unconfirmed —
-rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
+is met, the run says so and names these channels as the suspected causes, `DISABLE_DOCTOR_COMMAND`
+(documentation status unstable across fetches, see above) and a `skillOverrides` entry naming the
+skill (documented for project and user skills, unverified for bundled ones), rather than asserting
+either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
 *could* have set it, never that they did.
 
 **Recheck trigger:** any Claude Code minor release, or any change to how bundled skills are

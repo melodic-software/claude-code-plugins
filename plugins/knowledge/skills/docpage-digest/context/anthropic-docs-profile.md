@@ -36,14 +36,10 @@ extraction waits for the third (Rule of Three).
 - **Cite a LIVE page by anchor, never by line number.** These pages gain and lose rows between
   reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
   into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name —
-  something the page itself carries. This pipeline has the measurement from its own two reads of
-  `env-vars.md`: the absence rule below records `CLAUDE_CODE_MAX_OUTPUT_TOKENS` at **line 277 of a
-  451-line page**; on 2026-08-10 that same row is at **line 280 of 458**. The attested near-miss
-  instance recorded as `env-vars.md:394` moved the same way — 394 is `DISABLE_UPGRADE_COMMAND` today,
-  and the row the instance describes (the only one on the page that both describes Claude Code's
-  own retry behavior and names a model subject; the sibling
-  `CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK` names none) is `FALLBACK_FOR_ALL_PRIMARY_MODELS`, at
-  line 400 that day. Line numbers into an **archived snapshot** this pipeline captured are
+  something the page itself carries. Rows on these pages move by a few lines between reads, so a
+  citation recorded as a line number points at an unrelated row within weeks. Where an earlier record
+  names a line number, resolve it to the row's key before relying on it. Line numbers into an
+  **archived snapshot** this pipeline captured are
   unaffected: that file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
@@ -56,10 +52,7 @@ extraction waits for the third (Rule of Three).
   way is labelled reconstructed. When the run also retained the rendered HTML, that file's
   `<title>`/`<h1>` carries the exact form — but nothing in the pipeline contracts such a file, so
   it is a bonus, not the method. (b) The reading-time widget splits its value and its unit onto
-  separate physical lines, so neither line reads as a duration on its own. (Both observed
-  identically in two runs, at each slice's `source.md:7`:
-  `# Claudemodelsexplained:choosingthebestmodelforyourusecase` with the reading time at lines
-  83/87, and `# BuildingverificationloopsinClaudeCodewithskills` with it at lines 45/49.)
+  separate physical lines, so neither line reads as a duration on its own.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -67,15 +60,9 @@ extraction waits for the third (Rule of Three).
   an `api-only` basis, a "no harness surface states this" finding — goes through the raw `.md`
   channel with `curl` and records the retrieved length; a rendered `WebFetch` of a long page returns
   a silent prefix with no truncation signal. The asymmetry is what makes this binding: a truncated
-  fetch cannot fabricate a PRESENCE, only an ABSENCE. (Two runs asserted a false absence exactly
-  this way. In the steering-thinking slice the orchestrator's *resolution* re-fetched the same page
-  through the same channel and reproduced the blind spot instead of testing it —
-  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
-  surfaced only roughly its first fifth.) That "316-row" is preserved as recorded but **carries no
-  counting rule**, and this page admits two that differ by three — 315 variable rows, or 318 with a
-  second table's settings-file rows. So it supports nothing by subtraction: the rule above rests on
-  the 277-of-451 position and the first-fifth cutoff, both unambiguous, and the sibling rule above
-  argues from line numbers for the same reason. This is a
+  fetch cannot fabricate a PRESENCE, only an ABSENCE. A re-fetch through the same channel reproduces
+  the blind spot rather than testing it, so the recheck uses the raw channel, not a repeat of the
+  rendered one. This is a
   [noted source artifact, not a repaired one](#archive-reading-conventions) — an observation is
   qualified where it is thin, never rewritten. This rule is the fleet-wide
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)'s
@@ -91,15 +78,14 @@ Everything inside a dated entry is scoped to that entry's date. Three further pr
 page are invisible from inside any single entry, and a digest that does not know them reads the
 archive wrong in a way its own verification cannot catch:
 
-- **A dated entry is not a content-change signal.** Two entries can be byte-identical and here two
-  are: entries five days apart differ on zero lines across 100-line bodies, and the page carries no
-  annotation explaining why the second one exists. Record the re-publication as what it is; never
+- **A dated entry is not a content-change signal.** Two entries can be byte-identical, and the page
+  carries no annotation explaining why a re-publication exists. Record the re-publication as what it
+  is; never
   infer a revision, an intent, or a policy movement from the appearance of a new dated heading.
 - **Absence of bold does not prove absence of change.** The page states that updates between
-  versions are bolded, and that convention does not hold: one span of the archive carries zero bold
-  markup across three dated entries that differ in three sentences plus a twelve-paragraph addition,
-  and another entry marks one transition of three. Silent unbolded typo fixes and a silent removal
-  were found the same way. Treat an unbolded inter-entry difference as an authoritative delta of
+  versions are bolded, and that convention does not hold: spans of the archive carry differences,
+  including whole added paragraphs, silent typo fixes, and silent removals, with no bold markup at
+  all. Treat an unbolded inter-entry difference as an authoritative delta of
   equal standing to a bolded one, which means the deltas come from diffing entries, never from
   reading the markup.
 - **Note a source artifact at the row; never silently repair it.** Typos, escaped markup and
@@ -121,8 +107,7 @@ asserts:
 - **`cc-applicable` / `mixed` (positive claims):** verified against live code.claude.com docs at
   tag time — cite the URL consulted in the digest row. A positive tag assigned by inference,
   without a live-doc check, is additionally recorded as `unverified-inference` and becomes an
-  interview question, never a silent fact. (This rule exists because inference has already produced a
-  wrong tag once — the failure mode is real.)
+  interview question, never a silent fact.
 - **`api-only` (a negative claim — "no harness surface exists" for the claim's own specific
   assertion; see the near-miss rule below):** absence cannot be proven from one page. Record the
   basis (the harness doc section(s) checked, or `unverified-inference` when
@@ -130,42 +115,31 @@ asserts:
   standing on an absence citation. **The basis records the exact command run and its raw result
   count**, not a prose summary of what was checked — an attested zero is not a reproducible zero,
   and a row that both performs an absence search and certifies its own result leaves a verifier
-  nothing to replay. (One run produced eight fabricated absence bases before this rule was imposed;
-  every one was caught against the corpus rather than by the producing agent — `llms.txt` asserted
-  absent while present in 174 files, `thumbs` while `data-usage.md:28` states it, `knowledge cutoff`
-  while `changelog.md:4820` states it.)
+  nothing to replay.
 - **Every non-zero result names its match site(s).** A recorded count plus a filename histogram is
   still unfalsifiable: a reader who replays the command gets the same number and still cannot tell
   whether anyone read the matching lines. A row whose hit set was **sampled** rather than read in
-  full states that scope at the row. (Adopted slice-wide as a ruling in the system-prompts run and
-  still the most-violated rule in that slice; the cost is documented, not hypothetical — an
-  undisclosed `settings.md:727` near-miss was exactly what the unread portion of a 199-line hit set
-  contained.)
+  full states that scope at the row.
 - **What falsifies `api-only`, and what only comes close — written down once, because the whole
   class of defects here is the boundary being re-derived per row.** `api-only` asserts no harness
   surface for **the claim's own specific assertion**, so only the corpus documenting *that
   assertion* falsifies it; topical overlap never does. Below that falsifying line sits the
   **near-miss** — a harness page covers the row's subject without stating the row's specific rule.
-  The tag survives, the row MUST name the near-miss by page and line (the term this profile already
-  uses of `settings.md:727` above), and an affirmative "no surface" or "undisclosed" phrasing in
-  such a row is simply false and goes. Silence here was the largest MINOR class in the slice that
-  measured it: one release-notes unit disclosed 24 near-miss rows on its own, and two sibling units
-  in that slice raised the same boundary independently, one of them asking outright for a standing
-  notation so a reader can tell "no surface at all" from "adjacent surface exists".
+  The tag survives, the row MUST name the near-miss by page and line, and an affirmative "no
+  surface" or "undisclosed" phrasing in
+  such a row is simply false and goes. A row that says nothing about an adjacent surface reads as
+  "no surface at all", which is the defect this notation exists to prevent.
 - **What a harness surface *is*, and three shapes that come close without falsifying it.**
-  **[campaign-owned amendment]** A harness surface is a surface a user can reach. The following do
+  A harness surface is a surface a user can reach. The following do
   **not** falsify `api-only`: (1) a **counterpart artifact** — the harness has a thing playing the
   same role, without referencing the claimed artifact; (2) a **same-workload mention** — a doc names
   a workload another guide teaches, with no shared guidance or cross-reference;
-  (3) **[campaign-owned amendment] harness-internal recognition or support** — a harness doc names
+  (3) **harness-internal recognition or support** — a harness doc names
   the subject in describing the harness's own internal behavior toward it, without exposing a
   user-reachable path to it (sole attested instance: retry/fallback, `env-vars.md`
   `FALLBACK_FOR_ALL_PRIMARY_MODELS`). Each such
-  hit is disclosed as a near-miss per the rule above. Both labels are load-bearing, not decoration:
-  shapes (1) and (2) carry an identical adjudication from two independent verification arms, but
-  nothing in the corpus ever *defined* "harness surface", so an unlabelled definition would read as
-  inherited when it is this choice — selection over support — being made. Sub-shape (3) stands on
-  **one** attested instance against that two-instance base, and is enumerated no wider than that: a
+  hit is disclosed as a near-miss per the rule above. Sub-shape (3) rests on a single attested
+  instance and is enumerated no wider than that: a
   doc line describing some *other* model's tier is not harness-internal behavior toward the subject,
   fails (3)'s own test, and is disclosed as a near-miss without entering this list.
 - **`tag-exempt (<sub-shape>)` — material the vocabulary does not adjudicate.** One disposition
@@ -194,55 +168,46 @@ asserts:
     triggers `mixed`.
   - **A hostname is a name, not an endpoint.** An endpoint is a callable address. Worked pair:
     `prUrlTemplate` names `github.com` and stays `cc-applicable`; `skipWebFetchPreflight` names
-    `api.anthropic.com` and is currently tagged `mixed` — the outlier — and retags
-    `cc-applicable`. That retag, and the two settings-slice Example-cell retags below, execute
-    only inside a graduation-time verification cycle, never as a bare edit to a verified slice.
+    `api.anthropic.com` and is also `cc-applicable`. Any retag of an already-verified slice
+    executes inside a graduation-time verification cycle, never as a bare edit.
   - **Header names are not in the enumeration.** `apiKeyHelper` (its value is sent as the
     `X-Api-Key` / `Authorization` headers) stays `cc-applicable`.
   **Bare names are not API surfaces:** a product name, display name, hostname, or docs-path slug
-  never by itself triggers `mixed` — only the four surfaces above do. (Ratified from the de
-  facto standard 15+ rows already stood on, applied in-slice by a cross-vendor retag; a
-  tier-name line such as `changelog.md:961` is therefore a bare-name near-miss — disclosed per
-  the near-miss rule — not an API surface and not a harness surface. The hostname half of the
-  same rule is the `prUrlTemplate` / `skipWebFetchPreflight` pair above.)
+  never by itself triggers `mixed` — only the four surfaces above do. (A tier-name line is a
+  bare-name near-miss, disclosed per the near-miss rule, and neither an API surface nor a harness
+  surface. The hostname half of the same rule is the `prUrlTemplate` / `skipWebFetchPreflight`
+  pair above.)
 - **A claim is the whole table row, including its Example cell,** on settings-style three-part
   tables (Name / Description / Example). The Example cell is part of the claim's own quoted
   text for the four-surface letter rule above — a row whose Example names an API request
   parameter, endpoint, SDK call, or model ID is `mixed` even when the Name/Description cells
-  do not. This rule lands now. The two settings-slice retags it forces (unit 05 rows 18/37 →
-  `mixed`) and the `skipWebFetchPreflight` retag execute only inside a graduation-time
-  verification cycle — never as bare edits to verified slices.
+  do not. Where this rule changes an already-verified slice's tag, that retag executes inside a
+  graduation-time verification cycle, never as a bare edit.
 - **The vocabulary binds digest prose, not only claim rows.** The evidence burden a tag asserts
   — a live-doc citation for a positive tag, an absence basis for `api-only` — applies to
   Summary, Implications, and candidate-artifact text as well as to Key-claims rows.
-  Absence-shaped assertions in prose have repeatedly escaped the `api-only` burden; both
-  MAJOR prose defects in the hooks slice lived exactly there.
+  Absence-shaped assertions in prose escape the `api-only` burden most easily, so check prose for
+  them as deliberately as claim rows.
 - **Row-local, tag always present:** the evidence (a positive tag's live-doc URL, an `api-only`
   basis) appears in the claim's own row — "same basis as claim N" does not satisfy the contract —
   and every claim carries exactly one vocabulary tag: `unverified-inference` is an additional
-  uncertainty marker, never a substitute for the tag. (Both rulings from the sonnet-5 guide
-  slice's cross-vendor verification, where citation-by-reference and marker-as-tag were the
-  dominant correction class.) **Subsection-level inheritance satisfies the contract** when the
+  uncertainty marker, never a substitute for the tag. **Subsection-level inheritance satisfies the
+  contract** when the
   inherited basis is anchor-correct and mechanically recoverable from the row (the subsection
   heading the row sits under). Per-row anchors are required only where a file flattened
-  multiple anchors into one. (Settings slice D-02; adopts arm A's position over arm B's
-  literalism — recorded as an overrule, with this rationale.)
+  multiple anchors into one.
 - **Row-local reachability — a cited site no recorded command produces has been asserted, not
   disclosed.** A `file.md:NN` in a row's evidence counts as disclosed only when some command
   recorded in that same row produces it; otherwise the row says so explicitly, and an explicit
   read-not-grepped note is the sanctioned form. Two corollaries the evidence forces: a `| wc -l`
   count produces no sites and cannot support a citation, and a site named from a sampled set records
-  the narrower command that reaches it. (Three independent auditors raised this class separately — a
-  corrector and both verification arms, each with its own instrument; arm A measured 57 citations
-  across ~35 rows in one slice produced by no command in their own rows. Every cited line was read
-  and found true, so the claims survived and the defect was the audit trail — which is precisely why
-  no verifier's spot-check substitutes for the rule.)
+  the narrower command that reaches it. (A cited line can be true and the row still defective: the
+  defect is the audit trail, which is why a verifier's spot-check does not substitute for the rule.)
 - **Harness docs are their own live basis:** when the digested page is itself a live
   code.claude.com harness doc, intrinsic harness-guidance claims cite the canonical page URL +
   section as their row-local basis; the boundary rule still routes claims naming an API surface
   to `mixed`, and third-party APIs (e.g. the GitHub API) count as API surfaces — no vendor
-  exemption. (From the best-practices slice: the third-party-API ruling is its cross-vendor
-  finding; the own-basis rule was applied there and ratified by both re-verifications.)
+  exemption.
 - **Vendor-blog attestation:** a `claude.com/blog` page is marketing-adjacent vendor voice, not
   reference documentation. Any assertion of fact that exists ONLY in the blog (no harness or
   platform doc states the same assertion) — behavioral, performance, figure/percentage,
@@ -252,8 +217,7 @@ asserts:
   (related-property citations never exempt it), never co-occurring with a live-doc citation for
   the same assertion, and never deferred to the interview. The marker is an attestation note
   that composes with the tag and, where applicability itself is inferred, with
-  `unverified-inference`. (Shape recommended by the context-engineering blog slice's handoff,
-  exercised end-to-end and enforced by both verifiers on the models-explained slice.)
+  `unverified-inference`.
 
 ## Digest-agent model matching
 
@@ -279,114 +243,14 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Hard rule: no consuming-org context in digest sections (Summary, Key claims, Implications,
 candidate artifacts). Digests state the documented mechanism. Operator-side environment notes —
 which org, which machine, which live setting — route to the interview handoff, never into the
-digest body. (Settings D-18; the memory slice's round-1 BLOCKING defect was this class.)
+digest body.
 
 ## Doc queue
 
-Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
-their slices complete.
-
-**Corpus expansion is STOPPED** by operator decision 2026-08-19. The two ranked entries below
-are recorded, not dispatched — do not start either run from this listing, and do not enqueue
-further pages. Already-queued entries further down stay as the recorded remainder of the prior
-queue; they are not a license to expand.
-
-Ranked (recorded, no dispatch):
-
-- <https://code.claude.com/docs/en/permissions>
-  — first. Gates the hooks-at-project-scope security question (plugins-reference D3) and two
-  memory-slice questions.
-- <https://code.claude.com/docs/en/self-hosted-environments>
-  — second.
-
-Thinking (completes the set's custody map — troubleshooting first):
-
-- <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
-  — the harness documents this page's specific assertions on its own pages (`errors.md` documents
-  thinking-configuration 400s; `prompt-caching.md` documents cache-miss causes), which is
-  claim-level transfer under the falsifying rule above, not topical overlap; the digest still tags
-  each claim against those pages individually — this entry pre-classifies none of them
-- <https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows>
-  — the last uncovered page of the thinking doc set; two already-digested slices defer to it by
-  anchor, so the marginal cost of the last page is the lowest it will ever be
-
-Retention and ZDR (one topic slice, two lanes, drained as three page runs — one page per run, per
-the engine; retention is org-level policy and the one topic queued here carrying compliance
-weight, and both properties are already in scope):
-
-- <https://platform.claude.com/docs/en/manage-claude/api-and-data-retention>
-  — the API lane
-- <https://code.claude.com/docs/en/data-usage>
-  — the harness lane
-- <https://code.claude.com/docs/en/zero-data-retention>
-  — the harness lane's enterprise posture: ZDR is scoped to qualified accounts on Claude for
-  Enterprise, which is the commitment a consuming setup needs stated rather than inferred
-
-Agent SDK (one page — SDK docs are canonically harness docs, but queueing the rest of that doc set
-is a separate scope decision nobody has taken):
-
-- <https://code.claude.com/docs/en/agent-sdk/agent-loop>
-
-Models:
-
-- <https://platform.claude.com/docs/en/about-claude/models/overview>
-  — the canonical model-fact freshness source; re-fetching this one page *is* the freshness check,
-  where a release-notes corpus would grow monotonically and age entry by entry
-- <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
-  — the launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
-  from the harness model-config doc's "Work with Fable 5"
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5>
-  — enqueued on custody grounds, not on a fleet-lane trigger that has not fired: the `playbooks`
-  Opus 5 model-adaptation chapter cites this page as sole authority for three shipped claims —
-  thinking on by default, the 400 returned when thinking is disabled above effort `high`, and the
-  live effort-level enumeration that establishes the upstream Opus 5 prompting guide's own ladder
-  statement as truncated — none of which the models `overview` page carries, so "the overview covers
-  it canonically" is false for exactly the facts already cited. A custody fact about this one page,
-  not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
-  stays deferred
-
-Claude Code companion docs (digest in this order):
-
-- <https://code.claude.com/docs/en/features-overview>
-- <https://code.claude.com/docs/en/memory>
-- <https://code.claude.com/docs/en/how-claude-code-works>
-
-Blog posts:
-
-- <https://claude.com/blog/the-advisor-strategy>
-  — the harness advisor doc cites this post as its own "why"; digest it alongside
-  <https://code.claude.com/docs/en/advisor> and
-  <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool> so one slice covers
-  the concept's three surfaces
-- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
-  — the designated deep-dive for prompting the Claude 5 generation, already being read by local
-  work without a custody record, applicability tags, or an attestation pass
-
-Engineering posts:
-
-- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
-  — the cited best-practices source for custom agent evaluations, and methodology input to the
-  deferred re-pin checklist and the eval-set gap
-
-Deferred with trigger (not queued):
-
-- <https://platform.claude.com/docs/en/build-with-claude/task-budgets> — api-only (the page
-  states task budgets are not supported on Claude Code or Cowork; verified 2026-07-27); enqueue
-  when harness support lands
-- <https://code.claude.com/docs/en/context-window> — read against the 2026-07-31 harness snapshot
-  rather than left untested: it documents behavior as the limit approaches (Claude Code compacts
-  automatically) but never the `model_context_window_exceeded` stop reason, so it does not move the
-  claim it was checked for; enqueue if the page starts documenting that stop reason's handling
-- <https://platform.claude.com/docs/en/build-with-claude/fallback-credit> — the two API-side claims
-  it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
-  when an artifact actually depends on fallback-credit behavior
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5> — release notes for a
-  model the models `overview` page already covers canonically; enqueue when Sonnet 5 enters or
-  materially changes a fleet lane
-- <https://claude.com/blog/complete-guide-to-building-skills-for-claude> — a vendor-voice
-  restatement of a schema whose first-party canons are already reachable, so digesting it adds
-  attestation cost and no authority; enqueue for the first artifact that needs schema detail no
-  first-party canon states
+Recorded pages for this publisher live in
+[anthropic-docs-queue.md](anthropic-docs-queue.md). Read it when the user asks what is recorded or
+deferred here. It is a record, never a dispatch list: a run starts because the user named that
+page.
 
 ## Artifact targets
 

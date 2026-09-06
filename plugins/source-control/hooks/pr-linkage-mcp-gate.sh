@@ -59,10 +59,17 @@ export LC_ALL=C
 # scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
 # and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
 start=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -153,8 +160,7 @@ fi
 # pr-linkage-validator.sh, sourced so a drift fix against the upstream
 # ci-workflows validator lands on every surface at once.
 # shellcheck source=pr-linkage-validator.sh
-source "$(dirname "${BASH_SOURCE[0]}")/pr-linkage-validator.sh"
-
+source "$HOOK_DIR/pr-linkage-validator.sh"
 # shellcheck disable=SC2310  # the return status IS the verdict
 if linkage::problems "$BODY"; then
   emit_tel "ok"

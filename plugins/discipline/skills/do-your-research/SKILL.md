@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check', 'fact check this', 'make sure that's right', or at conversation start to set the posture. For a heavy verification fan-out, a typed full inventory of the session's claims verified at a configurable depth, use the sibling do-your-research-deep."
+description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. For a heavy verification fan-out, a typed full inventory of the session's claims verified at a configurable depth, use the sibling do-your-research-deep."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -110,9 +110,8 @@ When your own judgement is the suspected source of bias across MANY
 load-bearing claims, not just the current one, or a request to
 "fact-check" the whole session wants provable coverage, escalate by invoking
 the sibling `/discipline:do-your-research-deep` via the Skill tool. It enumerates a typed full
-inventory of the session's claims and verifies each. At a configurable
-depth. Reporting a per-item ledger; that fan-out is a heavier execution
-tier, so it lives in its own skill rather than as an argument here.
+inventory of the session's claims and verifies each
+at a configurable depth, and reports a per-item ledger.
 
 ## What this skill does NOT do
 

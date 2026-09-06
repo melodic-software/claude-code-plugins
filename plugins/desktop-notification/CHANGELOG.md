@@ -3,6 +3,30 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.32]
+
+### Changed
+
+- **Production hooks locate the hook directory with parameter expansion, not `dirname`.**
+  GNU Bash forks a subshell for every command substitution even when the body is a
+  builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
+  takes; the fallback covers a bare filename, where the strip is a no-op and
+  dirname answers `.`. What the hook checks is unchanged.
+
+## [0.6.31]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
 ## [0.6.30]
 
 ### Changed

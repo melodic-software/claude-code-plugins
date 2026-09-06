@@ -27,7 +27,11 @@ Each rule is a PowerShell hashtable in `Get-CorrelationRule`:
 }
 ```
 
-## Active rules (v1)
+## Rules
+
+Only `wu-reboot-retry-loop` below is implemented. The two that follow are recorded candidates:
+they define no active behavior and the orchestrator does not apply them. Promote one by
+implementing it in `Get-CorrelationRule` and dropping its `(future)` marker.
 
 1. **wu-reboot-retry-loop** - windows-update + event-log-errors
    - When: windows-update reports reboot_pending AND event-log-errors
@@ -48,8 +52,7 @@ Each rule is a PowerShell hashtable in `Get-CorrelationRule`:
    - Effect: winget-upgrades severity is already CRIT; add note pointing
      at windows-update so user addresses both in one maintenance pass.
 
-Only rule #1 is implemented in v1 to keep the framework honest. Add more as
-recurring patterns surface in real reports.
+Add a rule when a pattern recurs across real reports.
 
 ## Non-goals
 

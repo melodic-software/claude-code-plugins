@@ -84,7 +84,9 @@ The simplest notation: **orange sticky notes** = Domain Events, placed along a t
 - Break **committee circles** — people trying to agree on perfect wording before writing kill throughput and hide contradictions
 - Don't stress about past tense compliance — engagement > compliance at this stage
 - Phase names like `Registration` or `Enrolment` hide complexity — turn those stickies 45° to signal "not an event"
-- Duplicates are fine — they surface different perspectives, will be merged later
+- Duplicates are fine — they surface different perspectives. Genuinely identical stickies can be
+  stacked during sorting, but differently worded stickies for the same moment stay side by side.
+  Divergent wording is a bounded-context signal, so it is preserved rather than merged
 
 **Expected outcome:** Locally ordered clusters in a disordered whole. Big and messy. Dozens or hundreds of stickies. The timeline constraint is broken in places. That's expected.
 
@@ -416,17 +418,12 @@ A great session ends with people happily tired and a feeling of accomplishment �
 - Use proximity and temporal order instead
 - For distant causal links, duplicate the originator event and place a copy near the consequence
 
-### No Laptops
+### No Tables, No Laptops
 
-- "No tables" policy means no space for laptops — this ensures full engagement
-- An open laptop anchors a key person in disengaged mode
+- Remove tables from the centre — small tall tables only, for writing on stickies. No tables means
+  no space for laptops. "I am so sorry for that. ...No I am not."
+- An open laptop anchors a key person in disengaged mode, sitting back and checked out
 - EventStorming is more interesting than checking corporate email
-
-### 100% Focus
-
-- Remove tables from center — small tall tables only (for writing on stickies)
-- No-tables = no laptops. "I am so sorry for that. ...No I am not."
-- An open laptop anchors a key person in disengaged mode — "sitting back checked out"
 
 ### Unlimited Modeling Resources
 

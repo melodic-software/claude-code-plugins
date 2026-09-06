@@ -3,6 +3,40 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.33]
+
+### Changed
+
+- The batch layer's path-normalization examples use a `<drive>` placeholder in
+  `lib/batch-common.sh` and in the `clean-batch` context document, and the case-folding test in
+  `git-tree-reset-batch.test.sh` probes `<drive>:/Repos/Acme/KeepMe`. `clean_path_key` only folds
+  case and separators, so the skip-list assertion matches exactly the segments it matched before.
+
+### Fixed
+
+- One in-place correction inside an already-released entry: the `[0.6.0]` batch-normalization
+  bullet writes the git-friendly form as `<drive>:/repos/...`. The entry still claims what it
+  claimed; the drive letter was never the point.
+
+## [0.10.32]
+
+### Changed
+
+- clean: `reference/invocation-forms.md` states the two-form rule without the issue references, the decide-lane verdict, or the Related list; the SKILL.md pointer to it drops "decide-lane verdict"; the description names five intent categories with five exact phrases instead of fourteen near-synonyms.
+- clean: `context/git-tree-reset-batch.md` no longer narrates the incident behind the guards, says the selective tiers have their own batch form instead of calling it unbuilt, and names the consequence of `--include-dirty` (uncommitted work discarded unrecoverably) at both gate sites; `context/action-router.md` drops "now" from the `tree` preserve note; the two roadmap asides in `context/clean-batch.md` and `reference/cleanup-config.md` are removed.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.10.31]
+
+### Fixed
+
+- **`clean`:** the git pre-compute lines moved out of `## Pre-computed context` into a "Repository
+  context. Gather first" body section of individual Bash calls, one command per call, each `head`
+  bound kept inside its command and a failure read as an unknown value. The harness composes a
+  skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
+  a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
+  shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
 ## [0.10.30]
 
 ### Changed
@@ -619,7 +653,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   is never touched. (#994)
 - **Central path normalization + shared-object-store dedup in the batch layer**
   (`lib/batch-common.sh`). `ghq list -p` backslash paths are normalized once to the
-  git-friendly `D:/repos/...` forward-slash form (backslashes break `xargs` and
+  git-friendly `<drive>:/repos/...` forward-slash form (backslashes break `xargs` and
   `[[ -d ]]`; `git check-ignore` rejects MSYS `/d/…` forms). The `git` tier groups
   repos by unique `git rev-parse --git-common-dir` and prunes each shared object
   store once, not once per linked worktree. (#994)
