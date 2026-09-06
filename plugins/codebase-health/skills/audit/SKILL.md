@@ -62,13 +62,45 @@ optional; using one when your setup provides it is not, per Phase 2's external-r
 such tool, follow the inline graceful-degrade guidance, which confidence-tags the
 externally-unverifiable part `needs-review` rather than guessing.
 
-Scope boundary with adjacent audit lanes: this skill verifies **factual claims** in docs/config
-against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
-permissions) and automation-landscape gap analysis are different lanes, when the
-`claude-config` plugin is installed, route those to `/claude-config:audit` and
-`/claude-config:audit-automation-gaps`, invoked via the Skill tool; otherwise state they are out of
-scope rather than
-running claim-extraction over them.
+Scope boundary with adjacent audit lanes: see [Boundary](#boundary-the-sibling-drift-lanes) below.
+
+---
+
+## Boundary. The sibling drift lanes
+
+This skill owns ONE kind of drift: the **factual claims a repo makes about itself** in docs, config,
+code, and architecture notes, verified against that repo's own ground truth. Seven adjacent lanes own
+the other kinds, and an operator who reached this skill is often standing in one of them.
+
+Each lane is optional collaboration, never a requirement of this skill. Route to one **when its
+plugin is installed**, invoking the skill via the Skill tool (the agent lane via the Agent tool).
+When the plugin is absent, say that dimension is out of scope for this run and report it as
+uncovered, rather than running claim-extraction over it here.
+
+- **Documentation freshness inside a review pass** → the `review` plugin's `doc-drift-detector`
+  agent, a dispatchable reviewer for stale references, outdated conventions, and pages that no longer
+  earn their existence. It overlaps this skill's `documentation` dimension: that dimension is the
+  exhaustive per-file claim fan-out with an independent validation gate, the agent is the review
+  lane's single-pass sweep.
+- **A session's own working premises** → `/session-flow:reanchor`, which verifies that the PRs,
+  issues, branches, plans, and cited skills a session is building on are still in the state it
+  assumes. Premises about the work in flight, not claims written in the repo.
+- **Divergence from current upstream documentation** → `/discipline:recheck-against-upstream`, which
+  audits the surface in flight against the vendor's own current official docs and classifies each
+  divergence. This skill checks claims against the repo; that lane checks the repo against upstream.
+- **Prose restating an external source** → `/provenance:audit`, which finds passages copied from a
+  source someone else owns with no pointer or stamped record, and converts them into links,
+  citations, or stamped records. Ownership of the text, not truth of the claim.
+- **Claude Code's own configuration** → `/claude-config:audit` for settings files, `.mcp.json`,
+  hooks, plugins, permissions, and environment variables, and
+  `/claude-config:audit-automation-gaps` for automation-landscape gap analysis. Neither is this
+  skill's `configuration` dimension, which reads the consuming repo's own build, CI, and tool config.
+- **Instruction content sitting on the wrong load surface** → `/instruction-placement:delta`, which
+  re-runs the placement audit and reports only what moved: new demote/promote candidates, rule globs
+  that stopped resolving, and index drift.
+- **The enforcement surface's own accumulation** → `/overengineering:delta`, which re-runs the
+  enforcement-surface audit (hooks, CI lanes, gate scripts, branch protections) and reports only what
+  moved since the last run. Whether a guard still earns its keep, not whether a claim is true.
 
 ---
 

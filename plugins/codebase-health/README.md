@@ -8,6 +8,13 @@ Distinct from diff/PR review (which judges a change) and from Claude Code config
 check `settings.json` / hooks / permissions): this plugin verifies whether the repo's own written
 claims about itself are true.
 
+Other kinds of drift belong to sibling lanes, and the audit skill's **Boundary** section routes an
+operator to each one: review's documentation-freshness agent, session-premise re-anchoring,
+upstream-conformance rechecking, provenance of copied prose, Claude Code configuration and
+automation-gap audits, instruction-placement movement, and enforcement-surface movement. Every one of
+those routes is presence-gated. It applies when that plugin is installed, and the dimension is
+reported as uncovered when it is not.
+
 | Skill | What it does |
 |---|---|
 | `/codebase-health:audit` | Runs the audit. Prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification lanes. |
