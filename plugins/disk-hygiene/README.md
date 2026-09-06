@@ -92,15 +92,7 @@ enforces nothing. The launcher resolves Python itself instead (#1504).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
-switch and data-root authority (since **0.21.4** the gate is registered once per tool: the `Bash`
-entry carries the `if` filter `Bash(*hygiene.py*)`, a superset of the gate's own relevance check,
-so a Bash command that does not name the engine no longer spawns the Python interpreter to be
-deferred, except that a command containing `$()`, a backtick or `$VAR` still spawns it, because
-the filter cannot see what the substitution expands to; the `PowerShell` entry carries no `if`,
-because an `if` filter is scoped to the tool it names, so a Bash filter would leave every
-PowerShell call unguarded, and a PowerShell filter must match every subcommand of a compound
-command, which would skip this kill-switch guard silently on a mixed line, so every PowerShell
-call still pays the interpreter start); and the skill-scoped **belt** inside the `clean` skill's context,
+switch and data-root authority; and the skill-scoped **belt** inside the `clean` skill's context,
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only
@@ -258,6 +250,28 @@ measurements below carry the conditions they were taken under.
   pairs, measured p50 5446 → 1418 ms and p95 16991 → 7874 ms; those absolute values are specific to
   that contention and are not comparable to the ≈ 190–300 ms figures above, which were taken on a
   quiet host. Re-measure per the convention's method on a quiet host before citing a new share.
+  **Superseded in 0.21.10 for every shell call that does not name the engine.** The gate is
+  registered once per tool, and each entry carries the `if` filter for its own tool over the
+  engine's file name, `Bash(*hygiene.py*)` (since 0.21.4) and `PowerShell(*hygiene.py*)`, because
+  an `if` filter is scoped to the tool it names and one `Bash(...)` filter under a `Bash|PowerShell`
+  matcher left every PowerShell call unguarded. The harness evaluates the filter through the
+  tool's own permission matcher before it spawns anything, so a Bash or PowerShell call that does
+  not name the engine now costs this plugin zero processes and zero `execve` calls. Before, on a
+  warm interpreter cache, every PowerShell call paid four `execve` calls (`bash -c`, the launcher
+  through its `env` shebang, bash, the interpreter), no fork, and a 106 KB module import, to be
+  told it was irrelevant; measured with `strace -f` on Linux, where the hook process walled at
+  p50 44 ms against a `bash -c :` floor of 2 ms (n = 20 per tool), about 22 spawn-equivalents,
+  the cost class the issue measured as a 2.4 s median on Windows. A call that names the engine
+  pays that chain unchanged and is judged unchanged. What each filter still cannot see: for Bash,
+  a command containing `$()`, a backtick or `$VAR` spawns the guard anyway, because the filter
+  cannot see what the substitution expands to; for PowerShell, the matcher parses the command and
+  runs the hook when any statement, pipeline element or nested command matches, so a mixed line
+  such as `Get-Date; python hygiene.py` still reaches the guard (the every-subcommand rule applies
+  to allow decisions, not to `if`). Neither filter sees an engine reached without its file name in
+  the command text, a symlink or hard link under another name; the gate's relevance check could
+  catch that case by file identity, and the residual is accepted on both lanes, as it has been on
+  the Bash lane since 0.21.4, because the engine's own preview and approval-token containment
+  still answers for it.
   On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
