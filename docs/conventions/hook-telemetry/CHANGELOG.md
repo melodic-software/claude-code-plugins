@@ -14,7 +14,8 @@ opened).
   each copied verbatim from the hook payload by `hook::emit_telemetry` when present and well-formed,
   omitted otherwise. Placed between `duration_ms` and `data`.
 - Read from the payload ROOT only: a same-named key nested inside `tool_input` or `tool_response` is
-  never taken, so tool-supplied arguments cannot put a value on the spine, at any payload size. Above
+  never taken, so tool-supplied arguments cannot put a value on the spine, at any payload size, and
+  on a payload that is malformed or cut off mid-write as well as on a well-formed one. Above
   a 65536-byte payload the library selects by depth in a 16384-byte window at each END of the payload
   rather than over the whole of it, both read FORWARD from the payload's first byte, so all four keys
   of the documented payload are in reach up to a 294912-byte payload; the four things a window cannot

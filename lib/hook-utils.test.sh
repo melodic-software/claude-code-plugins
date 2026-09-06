@@ -3755,6 +3755,30 @@ else
   fail "corr (head seam): sink empty"
 fi
 rm -f "$corr_sink"
+# A head walk that STOPPED never reached the end of its window, so the depth it
+# ended on describes nothing the tail can resume from. Here a byte that cannot
+# sit between two JSON strings stops the head walk, and without the carry being
+# cleared with it the tail window read a depth-2 tool_use_id at the abandoned
+# depth and put it on the spine.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 120000)); do corr_big+='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; done
+  HOOK_TELEMETRY_PAYLOAD='{"a"Z"b":{"x":"'"$corr_big"'","tool_use_id":"SPOOF"}}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,data" ]]; then
+    ok "corr: a head walk that stopped carries nothing to the tail window"
+  else
+    fail "corr (stopped head carries): $(jq -c 'del(.timestamp, .duration_ms)' "$corr_sink")"
+  fi
+else
+  fail "corr (stopped head carries): sink empty"
+fi
+rm -f "$corr_sink"
 # A payload whose bulk is not a string at all — a long array of numbers — leaves
 # the head window OUTSIDE a string, so there is no string for the carry to ride
 # and the tail window is not walked. The middle here holds no quote to reject it

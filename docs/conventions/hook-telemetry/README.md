@@ -80,7 +80,8 @@ harness's own, not as tool-supplied input.
 on a payload carrying a whole file, so above 65536 bytes the library reads a 16384-byte window at
 each END of the payload instead of the whole of it. Both windows are read FORWARD from the payload's
 first byte — the head window literally, the tail window by carrying the head's string-and-depth
-state across the middle — so the root-only guarantee above holds at every payload size. Reading the
+state across the middle — so the root-only guarantee above holds at every payload size, and on a
+payload that is malformed or cut off mid-write as well as on a well-formed one. Reading the
 tail backward from the last byte would be cheaper and is not sound: it needs the payload to end by
 closing its root, a payload cut off mid-write can end in a `}` that closes something else, and a
 walk that believes such an end reads `tool_input`'s own `tool_use_id` as the envelope's. The
@@ -88,16 +89,17 @@ documented payload puts `session_id` and `prompt_id` at the front and `tool_use_
 behind `tool_input`, so all four are in reach when the carry holds.
 
 The carry holds only when the middle stays inside ONE string, which a payload carrying a single
-large file does. Four things put a key out of reach, and each of them omits rather than guesses:
+large file does. Five things put a key out of reach, and each of them omits rather than guesses:
 
 - A root key sitting between the two windows.
 - Everything behind the middle, when the middle leaves the string the head window ended inside — a payload with two large values rather than one, say, or one whose head window ends outside a string at all.
 - The same, when either window's seam falls inside a backslash escape, which nothing bounded can read through.
+- The same, when the middle holds a backslash immediately before an escaped quote (`\\` then `\"`, which file content spells wherever a backslash precedes a quote). That sequence never leaves the string, so this one is over-caution: reading the backslash run exactly would cost a scan per quote, and the cheap test errs toward omitting.
 - The same, when the payload is larger than 294912 bytes. Proving the carry costs one scan of the middle, and that scan is capped so it cannot grow with the payload.
 
 `session_id` and `prompt_id` lead the payload and come from the head window, so the per-session
-route survives all four; what is lost is the per-tool-call join on a payload above the cap. Absent
-still means absent — never guessed, and never a value from somewhere else.
+route survives all five; what is lost is the per-tool-call join. Absent still means absent — never
+guessed, and never a value from somewhere else.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠

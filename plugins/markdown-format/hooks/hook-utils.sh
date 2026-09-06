@@ -2095,13 +2095,11 @@ hook::emit_telemetry() {
         # so its fields alternate the other way round: index 0 is a string
         # body, not structure.
         #
-        # This is the load-bearing precondition, and it is the one guard the
-        # suite cannot pin on its own: drop it and a head window that ended
-        # outside a string is walked a quote out of step, which lands a key
-        # name in a structure field, which the structure-class test below
-        # discards — the same omission, by the backstop rather than by the
-        # rule. `corr: a head window ending outside a string carries nothing`
-        # pins the outcome of the pair.
+        # A head walk that BROKE also clears it. The carry hands the tail
+        # window the depth the head walk ended on, and a walk that stopped
+        # early never reached the end of its window, so that depth describes
+        # nothing the tail can resume from — the tail would read a nested key
+        # at a depth the head abandoned.
         ((corr_carry)) || break
         corr_src=$corr_tail
         corr_role=1
@@ -2154,6 +2152,7 @@ hook::emit_telemetry() {
           # where a NESTED key matches. Nothing this pass produced is trusted.
           if [[ $corr_seg == *[!$corr_js]* ]]; then
             corr_out=""
+            corr_carry=0
             break
           fi
           corr_out+=$corr_seg
@@ -2174,6 +2173,7 @@ hook::emit_telemetry() {
           # root, where the depth is still 0, there is nothing to leave yet.
           if ((corr_depth > 0 && corr_depth - corr_c <= 0)); then
             corr_depth=$((corr_depth + corr_o - corr_c))
+            corr_carry=0
             break
           fi
           corr_depth=$((corr_depth + corr_o - corr_c))
