@@ -20,8 +20,10 @@
 Shared method for every skill in this plugin. `audit` and `justify` apply it to produce verdicts,
 one by walking a surface and one by being pointed at an artifact; `realign` applies its rollback
 ladder and its protected-class rules to execute them; `delta` reports what moved between two runs of
-it. **No SKILL.md restates any of it** — a second statement of a verdict definition is a second
-thing to drift.
+it. **No SKILL.md restates a definition from it** — a second statement of a verdict definition is a
+second thing to drift. A lane may name the rungs or classes it executes, as `realign` names §11's
+ladder to record which rung a finding reached, but the section named governs and settles every
+disagreement.
 
 The posture is the inverse of a gap audit: every incumbent mechanism on the surface is a retirement
 candidate until evidence earns its keep. That posture is a default, not a conclusion — the whole

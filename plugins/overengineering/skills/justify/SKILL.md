@@ -60,8 +60,8 @@ restated. Five things are specific to this lane:
 - **The frontmatter this lane writes** is `type: overengineering-findings`, `schema: 2`,
   `mode: targeted`, `targets`, this run's own `date` and `branch`, and a `scope` carrying the prior
   artifact's value forward with these targets' layers added. `type` is named first because a first
-  pointed run at a home with no artifact **creates** the file, and it is the selector every consumer
-  matches on: an artifact written without it is one no consumer finds. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
+  pointed run that writes a row at a home with no artifact **creates** the file, and it is the
+  selector every consumer matches on: an artifact written without it is one no consumer finds. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
   because an unrecognized shape cannot be merged into without guessing; a `schema: 1` artifact is
   merged into and rewritten at `2`.
 - **Re-read before write.** Load the on-disk artifact immediately before writing, merge against that
@@ -151,6 +151,10 @@ resting on a line number derives a different id as soon as an edit above it move
    partly inventoried is classified with the routed part named in `Routed-to`.
 5. **Resolve consumer configuration and load the prior artifact**, as the sibling does. This skill
    writes `Status: OPEN` on a finding it has not seen and carries every other status forward.
+   **Surface any verdict that moved under a carried-forward judgment**, per merge rule 5: a direction
+   flip, and equally a same-direction change to what the acceptance authorized. This lane is the
+   second producer, the flag is written only on merge by whichever producer recomputed the row, and
+   no consumer re-derives it, so a move this step fails to flag is a move nobody surfaces.
 
 ## The walk
 

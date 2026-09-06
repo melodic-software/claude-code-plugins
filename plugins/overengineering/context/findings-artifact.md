@@ -26,7 +26,9 @@ One markdown file is the whole seam between this plugin's four skills. **Two of 
 `overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
 read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
 only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
-here at all. All four skills read this document; **none restates it**, and no other plugin is
+here at all. All four skills read this document; **none restates a rule of it as a second
+authority** — where a skill states one in its own voice, as `realign` does for the moved-verdict
+trigger it acts on, this document governs and settles every disagreement. No other plugin is
 assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
