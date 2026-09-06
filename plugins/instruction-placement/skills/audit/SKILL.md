@@ -145,10 +145,10 @@ and suppress every candidate whose `finding_id` it carries. That file is how a d
 checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
 operator already made somewhere else.
 
-Three obligations, none optional. **Read, never write** — `realign` composes an entry behind its
+Three obligations, none optional. **Read, never write**: `realign` composes an entry behind its
 per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
 contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
-this run's scope. **Exclude the surface and its layers** — auditing the file that records the
+this run's scope. **Exclude the surface and its layers**, because auditing the file that records the
 decisions would make recording one perturb the next run. That exclusion is applied to the candidate
 set after the detector has run, not to the corpus: the corpus document above stays the one owner of
 what is swept, and the detector's coverage numbers keep counting every file it read.

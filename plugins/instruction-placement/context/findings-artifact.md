@@ -228,8 +228,21 @@ compared: <ISO-basic UTC of the run that last consumed this baseline, or —>
 
 One body section, `## Spine`, written as a table so a diff between runs stays aligned: one row per
 detector record, `SECTION` and `RULE` alike, carrying its key, its kind, and a digest of the content
-the classification depends on. That is what `changed`, `broken-glob`, and `stale` are computed
-against.
+the classification depends on. That is what `changed` and `stale` are computed against.
+
+**A `RULE` row carries one field more: the glob's validation verdict as of the capture** (`valid`,
+`zero-match`, `bad-bracket`, `over-budget`, `over-broad`). `broken-glob` is a **transition**, not a
+state, and a transition cannot be computed from the current run alone. Without the stored verdict a
+re-run has two bad options and no way to tell them apart: report every currently-invalid glob every
+cycle, which is the standing noise this lane exists to remove, or report none of them, which loses
+the one shape that most justifies running on a cadence. A glob whose rule file and glob text are
+both unchanged is exactly the case that needs it, because nothing else in the row moves when the
+code the glob described gets renamed somewhere else in the repository.
+
+So `broken-glob` fires on `valid` → invalid, and a glob that was already invalid at the last capture
+is carried in the report's suppressed count as still-broken rather than re-announced. The reverse
+transition, invalid → `valid`, is not a delta class and is not reported: a glob that started
+resolving again is the repository fixing itself, and nothing is owed to the operator for it.
 
 Four rules bind the capture:
 

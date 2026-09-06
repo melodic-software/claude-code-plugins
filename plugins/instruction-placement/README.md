@@ -34,13 +34,13 @@ is what a decline costs to make twice:
 
 | What | Default location | Tier | Crosses checkouts? |
 |---|---|---|---|
-| Findings — `audit` writes, `realign` updates statuses | `.work/instruction-placement/<branch-slug>/findings.md` | Memory, branch-keyed | No |
-| Spine baseline — `delta` reads and captures | `.work/instruction-placement/<branch-slug>/baselines/spine-baseline.md` | Memory, branch-keyed | No |
-| Declined findings — `realign` offers, `audit` and `delta` read | `.claude/instruction-placement.md` | Tracked, three cascade layers | **Yes, once committed** |
+| Findings (`audit` writes, `realign` updates statuses) | `.work/instruction-placement/<branch-slug>/findings.md` | Memory, branch-keyed | No |
+| Spine baseline (`delta` reads and captures) | `.work/instruction-placement/<branch-slug>/baselines/spine-baseline.md` | Memory, branch-keyed | No |
+| Declined findings (`realign` offers, `audit` and `delta` read) | `.claude/instruction-placement.md` | Tracked, three cascade layers | **Yes, once committed** |
 
 The first two are evidence and a diff spine: recomputed by the next run, and worthless outside the
 checkout that produced them. The third is the operator's judgment, which is expensive to reproduce
-and worthless *inside* only one checkout — so it rides a tracked file, where git carries it to every
+and worthless *inside* only one checkout, so it rides a tracked file, where git carries it to every
 worktree whose branch holds the commit. Its entries follow the marketplace's finding-suppression
 contract; the keys and layer rules are owned by
 [`reference/consumer-config.md`](reference/consumer-config.md), and what the memory-tier files
@@ -157,8 +157,8 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 
 ## Configuration
 
-The options below are personal, enable-time dials. The one setting that is policy rather than taste
-— the record of findings the operator has declined — lives on the tracked cascade surface
+The options below are personal, enable-time dials. The one setting that is policy rather than taste,
+the record of findings the operator has declined, lives on the tracked cascade surface
 `.claude/instruction-placement.md` instead, whose keys, layers, and policy-floor merge are owned by
 [`reference/consumer-config.md`](reference/consumer-config.md).
 

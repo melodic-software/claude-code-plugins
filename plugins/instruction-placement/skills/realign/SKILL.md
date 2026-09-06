@@ -79,8 +79,8 @@ operator is asked again. So a decline has **two** writes, and the second is what
 The entry's five required keys, its `finding_id`, and the layer rules are owned by the two documents
 in the table above. Do not invent a format here. Four rules bind the write:
 
-- **Offered, never taken.** Show the composed entry in full — `check`, `claim`, `sites`, the `reason`
-  in the operator's own words, `date` — and write it only on an explicit yes. Declining a *finding*
+- **Offered, never taken.** Show the composed entry in full (`check`, `claim`, `sites`, the `reason`
+  in the operator's own words, `date`), and write it only on an explicit yes. Declining a *finding*
   and agreeing to *never be asked again* are two decisions, and the second silences a future report.
 - **A reason is required, and it is theirs, not yours.** An entry with no stated reason cannot be
   reviewed or retired later. If the operator gives none, ask once; if they still give none, record

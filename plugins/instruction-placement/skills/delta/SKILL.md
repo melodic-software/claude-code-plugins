@@ -1,5 +1,5 @@
 ---
-description: "Re-run the placement audit and report only what MOVED since the last run: new candidates, findings whose source content changed, rules whose globs stopped resolving, and index drift, above a configurable noise budget, so a repeat run costs attention proportional to what actually changed rather than re-presenting a finding set the operator already decided on. Declined findings stay declined and are never resurrected by a re-run, from this checkout or any other. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only. Reports movement and writes nothing but memory-tier records — the refreshed findings artifact and its own spine baseline — never the tracked suppression surface; realign still owns every change."
+description: "Re-run the placement audit and report only what MOVED since the last run: new candidates, findings whose source content changed, rules whose globs stopped resolving, and index drift, above a configurable noise budget, so a repeat run costs attention proportional to what actually changed rather than re-presenting a finding set the operator already decided on. Declined findings stay declined and are never resurrected by a re-run, from this checkout or any other. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only. Reports movement and writes nothing but memory-tier records (the refreshed findings artifact and its own spine baseline), never the tracked suppression surface; realign still owns every change."
 argument-hint: "[--since <ISO date>] [--noise-budget <n>]. Default: since the artifact's last run"
 user-invocable: true
 disable-model-invocation: false
@@ -58,13 +58,12 @@ one does not have.
 
 **The suppression surface** is where an operator's decline lives: the tracked
 `.claude/instruction-placement.md`, resolved across the three cascade layers. It is tracked because
-that is the only mechanism that crosses checkouts — git moves the file, and the topic-docs contract
+that is the only mechanism that crosses checkouts: git moves the file, and the topic-docs contract
 refuses to carry a baseline into a worktree at all. Read it, honor every entry it merges to, and
 **never write it**: `realign` owns that write, behind its per-item gate.
 
-Putting a decline in the baseline instead would make "I already said no" a per-checkout fact, and
-the operator gets asked again from the next worktree. That is the bug this lane exists downstream
-of, not a shape to reproduce.
+Putting a decline in the baseline would make "I already said no" a per-checkout fact and the operator
+gets asked again from the next worktree. That is the bug this lane exists downstream of.
 
 ## What counts as movement
 
@@ -74,13 +73,13 @@ Five shapes, in report order. Everything else is suppressed.
 |---|---|---|
 | `new` | A candidate with no prior finding | The only shape that needs fresh classification |
 | `changed` | A finding whose source content changed since the last run | Its line range is stale; `realign` would excise the wrong text |
-| `broken-glob` | A rule glob that resolved before and does not now | The rule stopped firing, silently, and nobody was told |
+| `broken-glob` | A rule glob the baseline recorded `valid` that does not resolve now | The rule stopped firing, silently, and nobody was told. A transition, so it needs the stored verdict |
 | `index-drift` | The index no longer matches the rules on disk | Deferred surfaces became unreachable from subagents |
 | `stale` | A finding whose source no longer exists | The content was moved or deleted outside this plugin |
 
 `broken-glob` is the shape that most justifies running this on a cadence. A glob breaks when the
-code it described gets renamed or moved, an ordinary refactor, nowhere near the rules tree, with no
-signal at the time. Nothing else in the plugin notices between `check` runs.
+code it described gets renamed or moved, an ordinary refactor nowhere near the rules tree, with no
+signal at the time and nothing else in the plugin noticing between `check` runs.
 
 ## What is deliberately NOT movement
 
@@ -111,26 +110,29 @@ Each step names what "done" looks like, so a partial run is visible rather than 
    | absent | absent | Say so and route to the full audit rather than silently running one. |
 
    A fresh worktree legitimately has no baseline, and in every row it still honors every entry the
-   suppression surface carries — a decline is never re-proposed because this checkout is new.
+   suppression surface carries: a decline is never re-proposed because this checkout is new.
    *Done when:* the row is named in the report, and the merged suppression set is resolved with each
    entry's contributing layer.
-2. Run the detector and diff its `SECTION` and `RULE` records against the baseline's spine.
-   *Done when:* every current record is matched to a prior record or marked unmatched.
+2. Run the detector and diff its `SECTION` and `RULE` records against the baseline's spine. *Done
+   when:* every current record is matched to a prior record or marked unmatched.
 3. Classify each difference into one of the five shapes. Only a `new` shape needs the rubric.
    *Done when:* no difference is left unclassified. An unclassified difference is a reporting gap.
-4. Re-validate every previously-valid glob; a transition to invalid is `broken-glob`.
-   *Done when:* the validator has run over every `RULE` record, not only the changed ones.
+4. Re-validate **every** glob, not only the previously-valid ones, and compare each result against
+   the verdict the baseline's `RULE` row stored. `valid` to invalid is `broken-glob`; invalid to
+   invalid is still-broken and counts as suppressed, not as movement.
+   *Done when:* the validator has run over every `RULE` record, and each carries both its stored
+   verdict and this run's.
 5. Check index sync and reachability. *Done when:* both verdicts are recorded, since they are
    independent questions.
 6. Derive each surviving finding's `finding_id` and suppress every one the merged surface carries;
    also suppress what this branch's artifact records as `declined` or `applied`.
    *Done when:* no suppressed id appears in the report under any shape, and every entry that did
-   **not** suppress — personal-only, malformed, or not evaluated this run — is listed with its
+   **not** suppress (personal-only, malformed, or not evaluated this run) is listed with its
    layer.
 7. Report movement, then the suppressed count and the suppression section, then a one-line "nothing
    else moved". *Done when:* the report states a number for both moved and suppressed.
 8. **Merge what this run discovered into this branch's findings artifact, per its re-run merge
-   semantics — before step 9, always.** A `new` finding and a re-derived `changed` line range are
+   semantics, before step 9, always.** A `new` finding and a re-derived `changed` line range are
    the run's only durable output for `realign`, which reads the artifact and never the spine. Skip
    this and the discovery is lost twice over: `realign` has nothing to act on, and the next cycle's
    spine already contains the record, so it is no longer movement and is never reported again.
@@ -138,8 +140,8 @@ Each step names what "done" looks like, so a partial run is visible rather than 
    *Done when:* every reported `new` finding exists in the artifact as `pending` with its
    `Suppression key`, and every `changed` finding's line range is the one this run derived.
 9. Capture this run's spine over the stored baseline. The run must have reached this step to earn
-   the capture; the slice scaffolding the binding requires — the memory root's `.gitignore`, the
-   slice `INDEX.md`, the branch home and its `baselines/` directory — is created by the same first
+   the capture; the slice scaffolding the binding requires (the memory root's `.gitignore`, the
+   slice `INDEX.md`, the branch home and its `baselines/` directory) is created by the same first
    memory-tier write when absent.
    *Done when:* the capture is written, or the run stopped early and the stored baseline is
    untouched.
@@ -156,22 +158,22 @@ Never pad a quiet run by re-listing standing findings to look useful.
 
 - **Read-only on the repository.** Every write this skill makes is memory tier and never committed:
   the refreshed findings artifact, the spine baseline, and the slice scaffolding the binding
-  requires. It writes **records, never a `Status`** — a status is the operator's, written by
-  `realign` — and it **never writes the suppression surface**, which is a tracked file `realign`
+  requires. It writes **records, never a `Status`**, since a status is the operator's, written by
+  `realign`; and it **never writes the suppression surface**, which is a tracked file `realign`
   owns behind the per-item gate. Every change to the repository belongs to `realign`.
-- **Never resurrect a declined finding.** Not as `new`, not as `changed`, not "for review" — and not
+- **Never resurrect a declined finding.** Not as `new`, not as `changed`, not "for review", and not
   because this run happens to be on a different branch or in a different checkout from the one where
   the decline was recorded. The surface is what makes that possible; honoring it is not optional.
 - **Never suppress silently.** The suppressed count and the suppression section are part of the
-  report, always — including every entry that did not suppress and why.
+  report, always, including every entry that did not suppress and why.
 - **Never re-classify an unchanged finding.** If its source content did not change, its
   classification stands. Re-deriving it invites drift between runs for no new information.
 - **Only the both-absent row routes out.** With either the baseline or the artifact in hand there is
-  a comparison to make — an artifact alone bootstraps. With neither there is nothing to report
+  a comparison to make, since an artifact alone bootstraps. With neither there is nothing to report
   movement against, and this skill is not a full audit wearing a different name.
 - **Never advance the baseline past an unrecorded discovery.** The merge happens first, every cycle.
   Capturing the spine first leaves a baseline that says the finding is old while no artifact record
-  says it exists — nothing errors, and the finding is gone from both sides.
+  says it exists. Nothing errors, and the finding is gone from both sides.
 
 ## Gotchas
 
@@ -183,7 +185,7 @@ Never pad a quiet run by re-listing standing findings to look useful.
   justifies the cadence.
 - **Byte-level diffing over-reports.** A reworded sentence in a section whose scope and class are
   unchanged is not movement. Compare what the classification actually depends on.
-- **The baseline is disposable and the suppression surface is not — do not confuse their jobs.** The
+- **The baseline is disposable and the suppression surface is not; do not confuse their jobs.** The
   baseline is memory tier, branch-keyed, and invisible from any other checkout; a fresh worktree
   legitimately has none, and with an artifact present that is the bootstrap row rather than a bug or
   a route-out. A decline recorded on the

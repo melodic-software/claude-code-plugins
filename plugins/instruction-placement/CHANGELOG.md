@@ -64,6 +64,12 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   from a finding no record carries, so the discovery is lost with no error. It writes records, never
   a `Status`. All four baseline/artifact combinations are enumerated, including the bootstrap where
   an artifact exists and no baseline does — the shape a first run in a fresh worktree takes.
+- **A `RULE` row in the spine carries its glob-validation verdict.** `broken-glob` is a transition,
+  not a state, and a rule whose file and glob text are both unchanged is exactly the case where
+  nothing else in the row moves when the code the glob described is renamed elsewhere. Without the
+  stored verdict a re-run either re-announces every already-broken glob every cycle or reports none
+  of them. It now fires on `valid` to invalid, counts invalid to invalid as still-broken in the
+  suppressed total, and stays silent on a glob that started resolving again.
 - **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act on
   another home's artifact is argued from stale line ranges rather than from cross-project collision,
   which is what the branch axis actually protects against.
