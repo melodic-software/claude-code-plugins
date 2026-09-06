@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.56]
+## [0.55.57]
 
 ### Changed
 
@@ -19,12 +19,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
   off mid-write can end in a `}` that closes something other than the root, and
   a walk that believes such an end reads `tool_input`'s own `tool_use_id` as the
   envelope's. The root-only guarantee is unchanged, and now holds against a
-  truncated payload as well as a well-formed one. Payloads from 64 KiB to
-  288 KiB carry all four ids; above that the proof of the carry would cost an
-  unbounded scan, so the head window runs alone and the trailing keys are
-  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
-  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
-  2 MB. No hook behavior changes.
+  malformed or truncated payload as well as a well-formed one. A payload up to
+  294912 bytes whose seams and middle allow the carry gets all four ids;
+  otherwise the head window runs alone and the trailing keys are omitted, never
+  guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at 64 KiB, 13
+  against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at 2 MB. No
+  hook behavior changes.
+
+## [0.55.56]
+
+### Changed
+
+- `landed-work.sh` and `landed-work.test.sh` write both drive spellings with a `<repo>`
+  placeholder, and the two `pull-request` fetch tests say `C:/Users/<user>/...`. `path_key` only
+  swaps separators, folds the drive form and lowercases, so the MSYS-versus-Windows assertion
+  compares exactly what it compared before. The org machine-specific-path detector reads a literal
+  user-home or checkout path as a leaked machine path wherever it appears.
 
 ## [0.55.55]
 

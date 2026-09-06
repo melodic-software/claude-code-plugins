@@ -3755,6 +3755,89 @@ else
   fail "corr (head seam): sink empty"
 fi
 rm -f "$corr_sink"
+# THE FIELD COUNT ALONE DOES NOT SAY WHETHER THE HEAD WINDOW ENDED INSIDE A
+# STRING. Splitting drops the empty field after a trailing delimiter, so
+# `{"a":"b"` and `{"a":"b` both split into four while only the second ends
+# inside a string. The head window here is cut so its LAST byte is a closing
+# quote — it ends outside a string, the carry must not be taken, and a tail
+# holding a nested tool_use_id must not reach the spine. Swept a byte either
+# side so the case cannot pass by landing off the seam.
+for corr_par_off in -2 -1 0 1 2; do
+  corr_sink="$(mktemp)"
+  (
+    corr_lead='{"session_id":"s-par","k":"'
+    corr_mid_fill=""
+    while ((${#corr_mid_fill} < 200000)); do corr_mid_fill+='mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'; done
+    corr_padlen=$((16384 - ${#corr_lead} - 1 + corr_par_off))
+    corr_pad=""
+    while ((${#corr_pad} < corr_padlen)); do corr_pad+='pppppppppppppppppppppppppppppppp'; done
+    HOOK_TELEMETRY_PAYLOAD="$corr_lead${corr_pad:0:corr_padlen}\"$corr_mid_fill\",\"tool_use_id\":\"SPOOF\"}"
+    HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+      hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+  )
+  wait_for_sink "$corr_sink"
+  if [[ -s "$corr_sink" ]]; then
+    if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-par omitted" ]]; then
+      ok "corr: head window cut ${corr_par_off} bytes off a closing quote carries nothing"
+    else
+      fail "corr (head cut parity $corr_par_off): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+    fi
+  else
+    fail "corr (head cut parity $corr_par_off): sink empty"
+  fi
+  rm -f "$corr_sink"
+done
+# A middle whose FIRST byte is an unescaped quote leaves the string immediately,
+# and neither quote glob can see it: one needs a non-backslash byte before the
+# quote, which there is none of at offset 0, and the other needs two
+# backslashes. The seam test is the only thing that catches it.
+corr_sink="$(mktemp)"
+(
+  corr_lead='{"session_id":"s-mq","k":"'
+  corr_fill=""
+  while ((${#corr_fill} < 200000)); do corr_fill+='qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'; done
+  corr_padlen=$((16384 - ${#corr_lead}))
+  corr_pad=""
+  while ((${#corr_pad} < corr_padlen)); do corr_pad+='pppppppppppppppppppppppppppppppp'; done
+  HOOK_TELEMETRY_PAYLOAD="$corr_lead${corr_pad:0:corr_padlen}\"$corr_fill,\"tool_use_id\":\"SPOOF\"}"
+  [[ "${HOOK_TELEMETRY_PAYLOAD:16384:1}" == '"' ]] ||
+    fail "corr (middle opens on a quote): fixture put ${HOOK_TELEMETRY_PAYLOAD:16384:1} at 16384"
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-mq omitted" ]]; then
+    ok "corr: a middle opening on an unescaped quote drops the tail window"
+  else
+    fail "corr (middle opens on a quote): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (middle opens on a quote): sink empty"
+fi
+rm -f "$corr_sink"
+# A root that closed inside the head window stops that walk, and the stop has to
+# clear the carry down the DEPTH path as well as the structure path — otherwise
+# the tail resumes at the abandoned depth and a second document's key lands.
+corr_sink="$(mktemp)"
+(
+  corr_fill=""
+  while ((${#corr_fill} < 200000)); do corr_fill+='dddddddddddddddddddddddddddddddd'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-dep"}{"pad":"'"$corr_fill"'","tool_use_id":"SPOOF"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-dep omitted" ]]; then
+    ok "corr: a root closed inside the head window carries nothing to the tail"
+  else
+    fail "corr (closed root carries): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (closed root carries): sink empty"
+fi
+rm -f "$corr_sink"
 # A head walk that STOPPED never reached the end of its window, so the depth it
 # ended on describes nothing the tail can resume from. Here a byte that cannot
 # sit between two JSON strings stops the head walk, and without the carry being

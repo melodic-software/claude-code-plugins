@@ -18,10 +18,11 @@ opened).
   on a payload that is malformed or cut off mid-write as well as on a well-formed one. Above
   a 65536-byte payload the library selects by depth in a 16384-byte window at each END of the payload
   rather than over the whole of it, both read FORWARD from the payload's first byte, so all four keys
-  of the documented payload are in reach up to a 294912-byte payload; the four things a window cannot
-  reach are listed in the README's "Correlation keys", and every one of them omits rather than
-  guesses (#3784). The first release of this contract read only the region ahead of the first nested
-  container up there, which omitted `tool_use_id` and `agent_id` on every payload over 64 KiB.
+  of the documented payload are in reach up to a 294912-byte payload whose seams and middle allow the
+  tail window to be read at all; the six things that put a key out of reach are listed in the
+  README's "Correlation keys", and every one of them omits rather than guesses (#3784). The first
+  release of this contract read only the region ahead of the first nested container up there, which
+  omitted `tool_use_id` and `agent_id` on every payload over 64 KiB.
 - The library reads the payload from `HOOK_TELEMETRY_PAYLOAD`, else the producer's `INPUT` variable;
   no producer change is needed for a hook that buffers stdin the fleet way.
 - The claude-ops reference sink routes on the spine `session_id` first and falls back to

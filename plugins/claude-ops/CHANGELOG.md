@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.15]
+## [0.42.16]
 
 ### Changed
 
@@ -21,12 +21,24 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   reads `tool_input`'s own `tool_use_id` as the envelope's — a forged
   audit-trail id in the rows this plugin's sink files.
   `hook-telemetry-sink.sh` needs no change: it already reads the spine first,
-  and now gets `tool_use_id` on rows from payloads between 64 KiB and 288 KiB
-  that were missing it. Above that the proof of the carry would cost an
-  unbounded scan, so the head window runs alone and the trailing keys are
-  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
-  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
-  2 MB. No hook behavior changes.
+  and now gets `tool_use_id` on rows it was missing it on. A payload up to
+  294912 bytes whose seams and middle allow the carry gets all four ids;
+  otherwise the head window runs alone and the trailing keys are omitted, never
+  guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at 64 KiB, 13
+  against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at 2 MB. No
+  hook behavior changes.
+
+## [0.42.15]
+
+### Changed
+
+- The `plugins` skill writes its native-Windows path examples with placeholders: `cache-content-check.sh`
+  and `fleet-state.sh` say `C:\Users\<user>\...`, and the `projectPath` gotcha says
+  `D:\repos\{repo}` against `/d/repos/{repo}`. The org machine-specific-path detector reads a
+  literal user-home or checkout path as a leaked machine path whatever the surrounding prose says,
+  and the placeholder form states the same contrast without tripping it. The gotcha uses braces
+  rather than angle brackets because a `<` directly after a backslash is the GNU word-boundary
+  escape `\<`, which the shell-portability gate reads as a GNU-only construct.
 
 ## [0.42.14]
 

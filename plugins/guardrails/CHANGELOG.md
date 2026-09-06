@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.8]
+## [0.32.9]
 
 ### Changed
 
@@ -19,12 +19,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   off mid-write can end in a `}` that closes something other than the root, and
   a walk that believes such an end reads `tool_input`'s own `tool_use_id` as the
   envelope's. The root-only guarantee is unchanged, and now holds against a
-  truncated payload as well as a well-formed one. Payloads from 64 KiB to
-  288 KiB carry all four ids; above that the proof of the carry would cost an
-  unbounded scan, so the head window runs alone and the trailing keys are
-  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
-  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
-  2 MB. No hook behavior changes.
+  malformed or truncated payload as well as a well-formed one. A payload up to
+  294912 bytes whose seams and middle allow the carry gets all four ids;
+  otherwise the head window runs alone and the trailing keys are omitted, never
+  guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at 64 KiB, 13
+  against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at 2 MB. No
+  hook behavior changes.
+
+## [0.32.8]
+
+### Fixed
+
+- Four in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. In `[0.12.2]` the sentence
+  about the driver's macOS `Shared` exclusion names the directory instead of spelling its full
+  path. In `[0.9.8]` the widened-root examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`.
+  In `[0.9.7]` the checkout-parent example becomes `<drive>:\repos\…` and the two undetected-path
+  examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`. Every entry still claims exactly what
+  it claimed, and the drive letter was never the point in any of them.
 
 ## [0.32.7]
 
@@ -4103,8 +4115,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   and the double quote from the child-segment class and drop the trailing
   separator: bare values at a natural boundary (EOL, whitespace, quote) are
   detected, prose spans cannot match, and a bare ROOT with no child segment
-  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
-  exclusion covers the new bare form. 15 regression cases added (bare values
+  (`C:/Dev`, `/home`) still never matches. The driver's exclusion for the
+  macOS `Shared` home directory covers the new bare form. 15 regression cases added (bare values
   in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
   `Shared`). Synced-component note: the same pattern change lands upstream in
   `melodic-software/standards` `components/path-detection/` — the local and
@@ -4404,7 +4416,7 @@ self-overlapping anchor described above — red against the `grep -o` counter
   checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
   `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
   pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
-  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  sole machine path used a widened root (e.g. `<drive>:\Projects\…`, `<drive>:\Dev\…`)
   early-returned before the detailed scan ever ran — a fail-open in a security
   gate. The gate now lists every root token the detailed bodies accept, keeping
   it a strict superset; a `Projects`-root regression test guards it.
@@ -4428,8 +4440,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   are reduced to identifier characters before use, so a value can never inject
   regex metacharacters.
 - **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
-  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
-  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  drive-letter-anchored checkout-parent pattern matched only `<drive>:\repos\…`, so a
+  hardcoded `<drive>:\Projects\…` or `<drive>:\Dev\…` path went undetected. It now also
   matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
   root was and remains caught by the driver's project-root literal scan.
 

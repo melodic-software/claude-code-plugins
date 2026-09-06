@@ -2127,14 +2127,25 @@ hook::emit_telemetry() {
           # malformed, so no key is guessed from it.
           ((corr_n % 2 == 1 && corr_n > 1)) || continue
         else
-          # The head window is cut at an arbitrary byte, so its last field is a
-          # fragment; walking it would close a string that never closed. Drop
-          # it. Whether that fragment was a string body is also what decides the
-          # carry — an even field count means an odd number of quotes, which
-          # means the window ended inside a string — and a string body never
-          # carried a brace, so the depth stands either way.
-          corr_steps=$((corr_n - 1))
-          ((corr_n % 2 == 0)) && corr_carry=1
+          # The carry needs the head window to have ended INSIDE a string,
+          # which is an ODD number of quotes in it. The field count says which
+          # only once the window's last byte is known: splitting drops the
+          # empty field after a TRAILING delimiter, so `{"a":"b"` and `{"a":"b`
+          # both split into four — the first ends outside a string and the
+          # second inside it. A window ending on a quote therefore has as many
+          # fields as quotes, and one ending on anything else has one more.
+          #
+          # That last byte also says whether the window's last field is a
+          # FRAGMENT. Cut mid-field it is, and walking it would close a string
+          # that never closed, so it is dropped; cut exactly on a delimiter
+          # nothing is partial, and dropping the last field would lose the
+          # braces it may carry and with them the depth the carry hands on.
+          if [[ ${corr_src: -1} == \" ]]; then
+            ((corr_n % 2 == 1)) && corr_carry=1
+          else
+            corr_steps=$((corr_n - 1))
+            ((corr_n % 2 == 0)) && corr_carry=1
+          fi
         fi
       fi
       corr_out=""

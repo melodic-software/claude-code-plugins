@@ -89,16 +89,19 @@ documented payload puts `session_id` and `prompt_id` at the front and `tool_use_
 behind `tool_input`, so all four are in reach when the carry holds.
 
 The carry holds only when the middle stays inside ONE string, which a payload carrying a single
-large file does. Five things put a key out of reach, and each of them omits rather than guesses:
+large file does — but it is the seams and the middle that decide, not the size, so a payload well
+under the cap can still lose its trailing keys. Six things put a key out of reach, and each of them
+omits rather than guesses:
 
 - A root key sitting between the two windows.
 - Everything behind the middle, when the middle leaves the string the head window ended inside — a payload with two large values rather than one, say, or one whose head window ends outside a string at all.
-- The same, when either window's seam falls inside a backslash escape, which nothing bounded can read through.
+- The same, when either window's seam falls inside a backslash escape, or when the middle opens on a quote, because nothing bounded can read through either.
 - The same, when the middle holds a backslash immediately before an escaped quote (`\\` then `\"`, which file content spells wherever a backslash precedes a quote). That sequence never leaves the string, so this one is over-caution: reading the backslash run exactly would cost a scan per quote, and the cheap test errs toward omitting.
+- The same, when the head window's own walk stopped early — on a byte that cannot sit between two JSON strings, or on a root that closed inside the window. A walk that stopped never reached the end of its window, so it has no end state to hand on.
 - The same, when the payload is larger than 294912 bytes. Proving the carry costs one scan of the middle, and that scan is capped so it cannot grow with the payload.
 
 `session_id` and `prompt_id` lead the payload and come from the head window, so the per-session
-route survives all five; what is lost is the per-tool-call join. Absent still means absent — never
+route survives all six; what is lost is the per-tool-call join. Absent still means absent — never
 guessed, and never a value from somewhere else.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches

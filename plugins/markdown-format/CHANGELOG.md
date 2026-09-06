@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.47]
+## [0.11.48]
 
 ### Changed
 
@@ -19,12 +19,20 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   off mid-write can end in a `}` that closes something other than the root, and
   a walk that believes such an end reads `tool_input`'s own `tool_use_id` as the
   envelope's. The root-only guarantee is unchanged, and now holds against a
-  truncated payload as well as a well-formed one. Payloads from 64 KiB to
-  288 KiB carry all four ids; above that the proof of the carry would cost an
-  unbounded scan, so the head window runs alone and the trailing keys are
-  omitted, never guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at
-  64 KiB, 13 against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at
-  2 MB. No hook behavior changes.
+  malformed or truncated payload as well as a well-formed one. A payload up to
+  294912 bytes whose seams and middle allow the carry gets all four ids;
+  otherwise the head window runs alone and the trailing keys are omitted, never
+  guessed. Per emit: 6 ms against 4 at 16 KiB, 9 against 4 at 64 KiB, 13
+  against 5 at 128 KiB, 16 against 17 at 512 KiB, 59 against 88 at 2 MB. No
+  hook behavior changes.
+
+## [0.11.47]
+
+### Changed
+
+- The hook's jq-free extraction comment writes its example Windows path as `<drive>:\repos\...`.
+  The org machine-specific-path detector reads a literal checkout path as a leaked machine path
+  whatever the surrounding prose says, and the placeholder carries the same meaning.
 
 ## [0.11.46]
 
