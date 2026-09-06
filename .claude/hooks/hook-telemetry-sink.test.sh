@@ -27,6 +27,7 @@ upstream="$repo_root/plugins/claude-ops/hooks/hook-telemetry-sink.sh"
 
 # Strip the resolution block from both: the shellcheck source directive, the
 # source line itself, and the repo-copy-only comment lines that explain it.
+# shellcheck disable=SC2016  # the regex matches the literal source line, not an expansion
 strip_re='^# shellcheck source=|^source "\$HOOK_DIR/|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
 
 norm_upstream="$(mktemp)"
