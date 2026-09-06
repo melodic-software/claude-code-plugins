@@ -3,6 +3,65 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.59]
+
+### Changed
+
+- **The two pr-issue-linkage gates and their shared validator stop paying for processes they
+  never needed (#3509).** `pr-body-linkage-gate.sh` timed out on every recorded run in the
+  measurement window (423 timeouts against a 15 s ceiling), so it was killed before rendering a
+  verdict and protected nothing. The cost is process creation, not script logic: on the affected
+  host a spawn runs 0.3-0.9 s.
+
+  Four shapes were removed, each measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` rather than an xtrace command count, which
+  reads source positions and not kernel spawns:
+
+  - **Per-field `jq` batched into one process.** Both gates read their payload fields through
+    `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'`, once per field — 4 clones and 2
+    execs each, five times over on the MCP surface, all asking about one buffered string.
+    `hook::jq_fields` answers every field in one process, and CR-strips exactly as the `tr` did.
+  - **Redirection hoisted out of a command substitution.** Bash execs in the substitution's own
+    subshell only when the command carries no redirection of its own, so
+    `$(git … 2>/dev/null || true)` forked twice for one program;
+    `{ ORIGIN=$(git …) || ORIGIN=""; } 2>/dev/null` forks once. The group holds exactly one
+    command, so nothing beyond that call is silenced.
+  - **The validator's helpers write into a caller-named variable instead of stdout.**
+    `strip_html_comments`, `mask_markdown_code`, `section_content` and `trim` were each read
+    through `$(…)` over a `< <(printf …)` line reader: 12 forks and zero extra `execve` per
+    judged body, which is pure latency. They now use `printf -v` and an in-shell line split, and
+    `linkage::chomp_to` reproduces the trailing-newline strip command substitution performed.
+  - **`$(<file)` for the `--body-file` read, `printf -v` for `%q` quoting, and
+    `hook::json_str_object_to` for the telemetry envelope**, each replacing a `cat`, a `printf`
+    substitution, and a `jq -n` that bash can do itself.
+
+  Measured per invocation, telemetry sink off, clone-family calls / `execve`:
+  `gh pr create` with a body 28/6 to 11/3; a non-PR `gh` call 8/3 to 7/2; an MCP create 37/9 to
+  11/4. What survives is the floor `lib/hook-utils.sh` owns (one `jq -e .` payload validation,
+  one `git rev-parse`) plus one batched `jq`, and — on the MCP surface only — the
+  `git remote get-url` its scope guard needs. That library is a synced shared file and is not
+  touched here.
+
+  **No verdict changes.** A differential harness ran HEAD's gates and these gates over 110
+  payloads — every body-flag spelling, heredoc and `--body-file` form, `env -S` and wrapper
+  shapes, `--repo` and `cd` escapes, CRLF bodies, and the MCP tool/owner/body matrix — and
+  compared exit code and stderr byte-for-byte; 31 of those are DENY verdicts, all reproduced
+  exactly. A second harness ran the validator against 425 bodies including a seeded fuzz corpus.
+  The MCP body is deliberately kept out of the batch when it carries a carriage return, because
+  `hook::jq_fields` CR-strips and stripping is the permissive direction: `## Sum<CR>mary` would
+  become a section that was previously missing, turning a block into an allow.
+
+### Added
+
+- **`pr-linkage-spawn-budget.test.sh` — a strace-based spawn budget for both gates.** Ceilings
+  are the measured steady-state counts with no headroom, per `hook-budget.md` rule 2. The suite
+  refuses to report a pass it has not earned: a self-check first proves the harness can tell
+  `$(cmd 2>/dev/null)` from `{ … ; } 2>/dev/null` and skips if it cannot, and three mutants —
+  a redirect moved back inside a substitution, one field split back out of the batch, and a
+  validator helper re-forking — must each raise the count above the ceiling or the suite fails
+  itself. It also asserts both gates still exit 2 on a failing body, so a budget of zero spawns
+  cannot pass as a no-op.
+
 ## [0.55.58]
 
 ### Changed
