@@ -1,5 +1,5 @@
 ---
-description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact `overengineering:audit` produced. It never scans or re-judges the surface itself. For each finding the operator accepts, it drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a bounded, time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when the ask is to act on an enforcement-surface audit's findings ('realign our enforcement surface', 'the audit says retire it, do it'), to retire or peel back automation already judged, or to start or advance an ablation window ('disable this gate and observe it'). This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
+description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact either producer wrote. It never scans or re-judges the surface itself. For each finding the operator accepts, it drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when the ask is to act on an enforcement-surface audit's findings ('realign our enforcement surface', 'the audit says retire it, do it'), to retire or peel back automation already judged, or to start or advance an ablation window ('disable this gate and observe it'). This is the only skill in this plugin that changes the surface under scrutiny, and there is no blanket-approve path."
 argument-hint: "[finding-id ...] [layer ...]. Default: every finding awaiting a decision, in the artifact's order"
 user-invocable: true
 disable-model-invocation: false
@@ -301,7 +301,7 @@ than inventing a name, matching the `audit` and `delta` lanes.
   so the home is not evidence of which ref the findings describe.
 
 Refusing costs a re-run on an attached checkout. Passing costs a mutation nobody can attribute to a
-surface, and this is the only skill in the plugin that mutates anything, so the asymmetry is not
+surface, and this is the only skill in the plugin that mutates that surface, so the asymmetry is not
 close. **Never fall back to `HEAD`, to the commit sha, or to the home's slug to manufacture the
 missing side of the comparison.**
 
