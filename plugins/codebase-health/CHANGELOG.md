@@ -7,7 +7,7 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 
 ### Added
 
-- **`audit`:** a `## Boundary. The sibling drift lanes` section naming the seven adjacent drift lanes with one line each on what that lane owns: review's `doc-drift-detector` agent, `/session-flow:reanchor`, `/discipline:recheck-against-upstream`, `/provenance:audit`, `/claude-config:audit` (plus `/claude-config:audit-automation-gaps`), `/instruction-placement:delta`, and `/overengineering:delta`. Every route is presence-gated with a stated fallback per the seam-phrasing convention: route when the plugin is installed, otherwise report the dimension as uncovered rather than running claim-extraction over it here (#3810).
+- **`audit`:** a `## Boundary. The sibling drift lanes` section naming the seven adjacent drift lanes with one line each on what that lane owns: review's `doc-drift-detector` agent, `/session-flow:reanchor`, `/discipline:recheck-against-upstream`, `/provenance:audit`, `/claude-config:audit` (plus `/claude-config:audit-automation-gaps`), `/instruction-placement:delta`, and `/overengineering:delta`. The section routes the operator and is never a dispatch list for the skill itself: a dimension owned by another lane is reported as uncovered and the lane is named as a suggestion to run next, whether or not its plugin is installed. The skill does not invoke a sibling, because several of them mutate (`/discipline:recheck-against-upstream` corrects divergences forward as it finds them) and a bare `audit` is read-only under its own verb contract. `--fix` authorizes remediation of this skill's own findings and does not extend to a sibling lane (#3810).
 
 ### Changed
 
