@@ -3,6 +3,44 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **`justify` could not load inside a worktree-isolated session**, and this is a regression of the
+  fix `0.3.7` applied to the other three skills. Its branch call sat in `## Pre-computed context`,
+  which the harness runs as one shell invocation, and such a session refuses a compound command
+  containing git. The call moves into a "Repository context. Gather first" body section like its
+  siblings. The `|| echo` sentinel goes with it: `0.3.7` removed exactly that pattern because it
+  swallows the exit status, which is the datum the branch-identity step reads, and it guaranteed the
+  pre-compute line was never absent, so the skill's own escape hatch could never fire. Neither the
+  pre-compute-compose gate nor any other check flags this; it was found by reading the new skill
+  against its three siblings.
+- **An unresolved import was directed into `Routed-to`**, a field the contract scopes to a routing
+  that actually happened. An import pointing at nothing was handed to no one, so it is recorded in
+  the row's prose instead, and a consumer reading `Routed-to` no longer looks for a neighbour skill
+  that was never named.
+- **The placement binding still described three consumers and one producer.** Its detached-checkout
+  consequence named `audit`, `realign` and `delta` while asserting four skills read it, so a reader
+  concluded the new lane was unconstrained; and it attributed the ask-gated concern-file write to
+  the audit alone after a second producer began running the same rung order.
+- **The lane binding stated a measurement of this repository as though it were the consumer's.** It
+  gave a ranked-candidate precision figure counted here, in a document that loads inside someone
+  else's tree, where it reads as a fact about the tree in front of the reader. The claim is now the
+  general one the number supported.
+
+### Changed
+
+- **Four evals added and two tightened**, closing coverage gaps in what the lane's own suite grades.
+  Nothing exercised the targeted-run merge clause, which is the reason the schema-2 contract exists,
+  so a run that closed every prior finding in a layer it never walked passed the whole suite. Nothing
+  exercised either write refusal, the detached checkout or the unrecognized schema, though the
+  sibling lane grades both. Nothing exercised the corroboration step, so presenting a raw age ranking
+  as candidates passed. The line-widening case permitted widening to the whole file on a judgment the
+  body does not grant, and its fixture's line sits under a heading, so an incorrect run passed; and
+  the full-row case shared a fixture with the case that asserts the operator must be asked first,
+  while supplying no answer, so a correct run asked, stopped, and failed it.
+
 ## [0.4.0]
 
 ### Added

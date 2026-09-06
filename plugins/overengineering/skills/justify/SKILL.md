@@ -9,9 +9,19 @@ metadata:
   summary: Make one artifact you point at justify its own existence, on evidence
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
+Collect this with an **individual** Bash call, never combined into a single invocation with
+anything else:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep it as a
+separate body Bash call rather than a pre-compute line: the harness runs a skill's whole
+pre-compute block as one shell invocation, and a worktree-isolated session refuses a compound
+command that contains git. The call prints the branch name on stdout and **fails with no output** on
+a detached checkout rather than printing a sentinel, so read its exit status to tell those two apart
+rather than matching on a string, and take the branch name itself from stdout.
 
 ## Purpose
 
@@ -51,8 +61,8 @@ restated. Five things are specific to this lane:
 - **The frontmatter this lane writes** is `type: overengineering-findings`, `schema: 2`,
   `mode: targeted`, `targets`, this run's own `date` and `branch`, and a `scope` carrying the prior
   artifact's value forward with these targets' layers added. `type` is named first because a first
-  pointed run at a home with no artifact **creates** the file, and it is the selector every consumer
-  matches on: an artifact written without it is one no consumer finds. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
+  pointed run that writes a row at a home with no artifact **creates** the file, and it is the
+  selector every consumer matches on: an artifact written without it is one no consumer finds. An on-disk `schema` of neither `1` nor `2` **stops the run** with a visible message,
   because an unrecognized shape cannot be merged into without guessing; a `schema: 1` artifact is
   merged into and rewritten at `2`.
 - **Re-read before write.** Load the on-disk artifact immediately before writing, merge against that
@@ -128,9 +138,12 @@ resting on a line number derives a different id as soon as an edit above it move
 
 1. **Resolve the branch identity, then the artifact home**, exactly as
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Before the walk", step 1 does. The
-   precompute above is a convenience, not the source of truth; where its line is absent, run
-   `git symbolic-ref --quiet --short HEAD` and read the exit status. Run the topic-docs binding's
-   whole rung order rather than assuming the default's shape.
+   branch call in "Repository context" above yields a branch name on stdout, or fails with no output
+   (detached HEAD or no checkout). **Read its exit status to decide whether the lookup succeeded,
+   then take the identity from stdout**: the status answers only whether there is a branch, and the
+   name itself is the output. Never infer an identity from a failed call, and never accept the
+   literal `HEAD` as one. Run the topic-docs binding's whole rung order rather than assuming the
+   default's shape.
 2. **Run the shared preflight**, `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`,
    section "Preflight". Its sanctioning-record probe matters here: a repetition a record sanctions
    and a check maintains is never duplication to collapse.
@@ -141,6 +154,10 @@ resting on a line number derives a different id as soon as an edit above it move
    partly inventoried is classified with the routed part named in `Routed-to`.
 5. **Resolve consumer configuration and load the prior artifact**, as the sibling does. This skill
    writes `Status: OPEN` on a finding it has not seen and carries every other status forward.
+   **Surface any verdict that moved under a carried-forward judgment**, per merge rule 5: a direction
+   flip, and equally a same-direction change to what the acceptance authorized. This lane is the
+   second producer, the flag is written only on merge by whichever producer recomputed the row, and
+   no consumer re-derives it, so a move this step fails to flag is a move nobody surfaces.
 
 ## The walk
 
