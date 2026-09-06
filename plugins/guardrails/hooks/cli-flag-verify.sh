@@ -60,7 +60,7 @@ VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 # runs before the jq gate below — hook::require_jq needs the buffered input
 # for its once-per-session notice scoping, and hook::read_file_path (next)
 # itself parses with jq.
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # jq is required to parse the tool payload. hook::require_jq fails OPEN
 # (this hook never blocks) but makes the degraded state visible to both the

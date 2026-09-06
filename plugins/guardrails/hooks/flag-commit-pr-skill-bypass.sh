@@ -82,7 +82,7 @@ start=${EPOCHREALTIME:-}
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
 # runs before the jq gate below — hook::require_jq needs the buffered input
 # for its once-per-session notice scoping.
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # jq is required both to parse the tool payload and to read enabledPlugins.
 # hook::require_jq fails OPEN (this hook never blocks either way) but makes
