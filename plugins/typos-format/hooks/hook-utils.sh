@@ -2094,6 +2094,14 @@ hook::emit_telemetry() {
         # resumes inside that same string, at the depth the head left off at,
         # so its fields alternate the other way round: index 0 is a string
         # body, not structure.
+        #
+        # This is the load-bearing precondition, and it is the one guard the
+        # suite cannot pin on its own: drop it and a head window that ended
+        # outside a string is walked a quote out of step, which lands a key
+        # name in a structure field, which the structure-class test below
+        # discards — the same omission, by the backstop rather than by the
+        # rule. `corr: a head window ending outside a string carries nothing`
+        # pins the outcome of the pair.
         ((corr_carry)) || break
         corr_src=$corr_tail
         corr_role=1
@@ -2157,10 +2165,18 @@ hook::emit_telemetry() {
           corr_c=$((${#corr_seg} - ${#corr_x}))
           corr_x=${corr_seg//"$corr_csb"/}
           corr_c=$((corr_c + ${#corr_seg} - ${#corr_x}))
+          # Depth 0 means the root container closed, and whatever follows
+          # belongs to a second document rather than to this payload's root.
+          # A field can pass THROUGH 0 without ending there — `}}{` closes the
+          # root and opens the next document in one step, and its net of -1
+          # hides that — so the test is on the LOWEST depth the field can
+          # reach, which is the depth before it less its closers. Below the
+          # root, where the depth is still 0, there is nothing to leave yet.
+          if ((corr_depth > 0 && corr_depth - corr_c <= 0)); then
+            corr_depth=$((corr_depth + corr_o - corr_c))
+            break
+          fi
           corr_depth=$((corr_depth + corr_o - corr_c))
-          # Depth back to 0 means the root container closed. Whatever follows
-          # belongs to a second document, not to this payload's root.
-          ((corr_depth > 0)) || break
         elif ((corr_depth == 1 && (corr_i > 0 || corr_role == 0))); then
           corr_out+='"'$corr_seg'"'
         fi

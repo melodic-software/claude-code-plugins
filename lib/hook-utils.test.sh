@@ -3603,6 +3603,181 @@ else
   fail "corr (middle leaves the string): sink empty"
 fi
 rm -f "$corr_sink"
+# A payload that is two JSON documents run together is not one root, and the
+# SECOND document's keys are not this envelope's. The document boundary hides
+# inside a single structure field — `}}{` closes the root and opens the next in
+# one step, and its net of -1 never reads as zero — so the walk tests the lowest
+# depth a field can reach, not the depth it ends on.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-doc","tool_input":{"c":"'"$corr_big"'"}}{"tool_use_id":"SPOOF","session_id":"SPOOF"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-doc omitted" ]]; then
+    ok "corr: a second concatenated document contributes no key"
+  else
+    fail "corr (concatenated documents): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (concatenated documents): sink empty"
+fi
+rm -f "$corr_sink"
+# Between two JSON strings there can only be punctuation, whitespace, a number
+# or true/false/null. A field the walk reads as structure holding anything else
+# means the walk is a quote out of step with the document, and an out-of-step
+# walk rebuilds the raw text — where the key that follows the junk would match.
+# Nothing is guessed from a payload like that.
+corr_sink="$(mktemp)"
+(
+  HOOK_TELEMETRY_PAYLOAD='{"a":"b" JUNK "session_id":"EVIL"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '(.session_id // "omitted")' "$corr_sink")" == "omitted" ]]; then
+    ok "corr: junk where JSON structure belongs yields no key"
+  else
+    fail "corr (junk structure): $(jq -c '{session_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (junk structure): sink empty"
+fi
+rm -f "$corr_sink"
+# The head window is cut at a fixed byte, so its last field is a FRAGMENT. Kept,
+# it would close a string that never closed and put a truncated value on the
+# spine — an id that is wrong rather than absent, which is worse than either.
+# The pad here is sized so a root tool_use_id straddles the cut.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  corr_pad=""
+  while ((${#corr_pad} < 16330)); do corr_pad+='yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-edge","pad":"'"${corr_pad:0:16330}"'","tool_use_id":"toolu_cut_here","f":"'"$corr_big"'"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-edge omitted" ]]; then
+    ok "corr: a root value straddling the head cut is omitted, not truncated"
+  else
+    fail "corr (head cut edge): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (head cut edge): sink empty"
+fi
+rm -f "$corr_sink"
+# The carry rides on the middle, so neither of the middle's seams may sit inside
+# a backslash escape: the byte after a seam has an escapedness nothing bounded
+# can settle. Here the middle's LAST byte is a backslash, placed there by
+# arithmetic rather than luck, and the tail window is dropped for it.
+corr_sink="$(mktemp)"
+(
+  corr_lead='{"session_id":"s-seam","tool_input":{"c":"'
+  corr_trail='"},"tool_use_id":"toolu_seam"}'
+  corr_fill=""
+  while ((${#corr_fill} < 200000)); do corr_fill+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  corr_fill=${corr_fill:0:200000}
+  corr_at=$((${#corr_lead} + 200000 + ${#corr_trail} - 16385 - ${#corr_lead}))
+  corr_content="${corr_fill:0:corr_at-1}"'\\'"${corr_fill:corr_at+1}"
+  HOOK_TELEMETRY_PAYLOAD="$corr_lead$corr_content$corr_trail"
+  [[ "${HOOK_TELEMETRY_PAYLOAD: -16385:1}" == '\' ]] ||
+    fail "corr (middle seam): fixture put ${HOOK_TELEMETRY_PAYLOAD: -16385:1} on the seam, not a backslash"
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-seam omitted" ]]; then
+    ok "corr: a backslash on the middle's seam drops the tail window"
+  else
+    fail "corr (middle seam): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (middle seam): sink empty"
+fi
+rm -f "$corr_sink"
+# A quote behind two backslashes is not escaped — the pair is an escaped
+# backslash — so a middle holding one is not carried. The escaped backslash
+# followed by an escaped quote here is in fact harmless, and is rejected all the
+# same: reading the run exactly would cost a scan per quote, and the cheap test
+# errs toward omitting.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 100000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  HOOK_TELEMETRY_PAYLOAD='{"session_id":"s-bsq","tool_input":{"c":"'"$corr_big"'\\\"'"$corr_big"'"},"tool_use_id":"toolu_bsq"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-bsq omitted" ]]; then
+    ok "corr: a backslash pair before a quote in the middle drops the tail window"
+  else
+    fail "corr (backslash pair in middle): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (backslash pair in middle): sink empty"
+fi
+rm -f "$corr_sink"
+# The head window's own last byte is a seam too. Here it is a backslash, and the
+# two bytes after it are a backslash and a quote — a run of two, so the quote is
+# NOT escaped, and the string the carry would ride on ends there. Read from the
+# middle alone that run looks like one backslash and an escaped quote, so the
+# middle's own tests cannot see it; the seam test is what does.
+corr_sink="$(mktemp)"
+(
+  corr_lead='{"session_id":"s-hseam","tool_input":{"c":"'
+  corr_fill=""
+  while ((${#corr_fill} < 200000)); do corr_fill+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  HOOK_TELEMETRY_PAYLOAD="$corr_lead${corr_fill:0:16383-${#corr_lead}}"'\\"'"${corr_fill:0:180000}"'"},"tool_use_id":"toolu_hseam"}'
+  [[ "${HOOK_TELEMETRY_PAYLOAD:16383:3}" == '\\"' ]] ||
+    fail "corr (head seam): fixture put ${HOOK_TELEMETRY_PAYLOAD:16383:3} on the seam"
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-hseam omitted" ]]; then
+    ok "corr: a backslash on the head window's seam drops the tail window"
+  else
+    fail "corr (head seam): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (head seam): sink empty"
+fi
+rm -f "$corr_sink"
+# A payload whose bulk is not a string at all — a long array of numbers — leaves
+# the head window OUTSIDE a string, so there is no string for the carry to ride
+# and the tail window is not walked. The middle here holds no quote to reject it
+# on, so this is the case the carry's own precondition has to catch.
+corr_sink="$(mktemp)"
+(
+  corr_nums=""
+  while ((${#corr_nums} < 200000)); do corr_nums+='1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,'; done
+  INPUT='{"session_id":"s-nums","tool_input":{"n":['"${corr_nums}1"']},"tool_use_id":"toolu_nums"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-nums omitted" ]]; then
+    ok "corr: a head window ending outside a string carries nothing"
+  else
+    fail "corr (no string to carry): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (no string to carry): sink empty"
+fi
+rm -f "$corr_sink"
 # Trailing whitespace after the root close is ordinary structure to a walk that
 # comes at it forwards, so any amount of it is fine. Pinned because the walk
 # this replaced could not say that: its tail read backwards from the last byte
