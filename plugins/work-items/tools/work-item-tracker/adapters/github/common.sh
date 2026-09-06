@@ -231,7 +231,8 @@ wit_issue_url() {
 # Comparison is case-insensitive: the ID grammar admits uppercase owner and repo
 # components while GitHub's canonical URL casing may differ, and GitHub treats
 # these identifiers case-insensitively. An exact compare would reject every child
-# of `github:O/R#1` whose URL reads `/o/r/`, reinstating the empty rollup.
+# of a parent whose id capitalises the owner or repo segment while the canonical
+# URL spells it lowercase, reinstating the empty rollup for that caller.
 wit_gh_subissue_child_numbers() {
   local repo="$1" payload="$2" parsed unattributed
   # shellcheck disable=SC2016  # jq program — $repo is a jq variable
