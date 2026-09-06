@@ -61,7 +61,7 @@ source "$_HOOK_SELF/hook-utils.sh"
 
 hook::ctx_reset
 
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-stale-path-verify" "$INPUT"
 

@@ -44,7 +44,7 @@ hook::check_enabled "RATE_LIMIT_GUARD"
 
 # Buffer stdin once (Win32-pipe-safe bounded read). A missing or incomplete
 # payload degrades the record, never suppresses it.
-INPUT=$(hook::buffer_stdin) || INPUT=""
+hook::buffer_stdin_to INPUT || INPUT=""
 
 SESSION=""
 if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then

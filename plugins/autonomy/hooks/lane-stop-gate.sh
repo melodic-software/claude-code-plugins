@@ -147,7 +147,7 @@ gate_maybe_configured || exit 0
 
 # Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
 # gate that cannot read the payload must not trap the lane).
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # jq parses the payload and the trusted config. Absent → visible once-per-session
 # notice, then allow the stop (fail-open). Stop supports additionalContext, so

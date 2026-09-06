@@ -33,6 +33,15 @@ Every line you write spends two budgets, and cutting one can overspend the other
   the agent and ruinous for the human; one 500-line file the reverse. When the two budgets
   conflict, say which one you spent and why.
 
+Fewer words spends less of both, and the brevity rules that are universal apply here too: no more
+words than the meaning needs, no filler, hedging, intensifiers, expletive openings, or restatement
+of an adjacent line; active voice; one idea per sentence; a factual register with nothing sold.
+`/writing:be-concise` owns those rules when the `writing` plugin is installed; without it, apply
+them from this paragraph. Take those rules and no more of that doctrine: its human-only rules do
+not transfer. A bottom-line-first opening, headings written to be skimmed, bullet lists for
+scanning, and bounded bold all serve a person moving down a page fast, and an agent reading a rule
+needs the rule stated where it applies, not staged for a skim.
+
 ## Write pointers that cover their branches
 
 A pointer is a routing instruction; the reader decides whether to follow it from the pointer

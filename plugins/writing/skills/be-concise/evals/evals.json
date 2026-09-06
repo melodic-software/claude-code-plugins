@@ -1,0 +1,106 @@
+{
+  "skill_name": "be-concise",
+  "evals": [
+    {
+      "id": 1,
+      "name": "long-tracker-comment-to-bluf",
+      "prompt": "I posted this update on PLAT-4412 and the PO says it is unreadable. Rewrite it so she gets the point: evals/fixtures/tracker-comment-checkout-rollout.md, relative to the skill directory.",
+      "expected_output": "Reshapes the comment bottom-line-first: the staged rollout decision and the outstanding ask lead, the narrative of how the team got there follows. Every load-bearing value survives verbatim: release 2.14.0, the 2026-09-18 internal-ring ship date, the 2026-11-30 gateway contract termination, the owner Priya Raman, the rejected big-bang weekend cutover, and the platform-team ask for the per-ring metrics dashboard with its end-of-week confirmation. The input runs to five paragraphs, so the rewrite goes through the fresh-context semantic-diff guard with the dropped decision, number, or ask class before it is handed over. The posted comment is not overwritten; the reshaped text is offered for the user to post. The reply ends with before and after word counts as plain counts.",
+      "files": [
+        "evals/fixtures/tracker-comment-checkout-rollout.md"
+      ],
+      "expectations": [
+        "The first sentence of the rewrite carries the decision (staged rollout behind a feature flag, big-bang cutover rejected) or the outstanding ask, so a reader who stops there still has the bottom line; it does not open with the 'wanted to give everybody an update' preamble",
+        "These four literal values survive verbatim and are not paraphrased away: `2.14.0`, `2026-09-18`, `2026-11-30`, and `Priya Raman`",
+        "The rejected option is still identified as rejected, not silently dropped as background now that the decision is stated",
+        "The explicit ask (per-ring metrics dashboard provisioned before the 2026-09-18 ship date, confirmed by end of week) appears near the top, not stranded in a final paragraph",
+        "A fresh-context semantic-diff subagent is dispatched because the input is longer than a few paragraphs, and its brief includes the 'dropped decision, number, or ask' class; the model that wrote the rewrite does not grade its own output",
+        "The fixture file is not edited in place and the posted comment is not silently overwritten; the reshaped version is offered for the user to post",
+        "The reply reports before and after word counts as plain counts, and makes no percentage-improvement or usability claim about this rewrite"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "pr-body-keeps-structural-contract",
+      "prompt": "Tighten this pull request body before I open the PR: evals/fixtures/pr-body-pricing-cache.md, relative to the skill directory. Reviewers are not going to read four paragraphs.",
+      "expected_output": "Condenses each section while the destination's structural contract survives intact, because a PR body's gate is part of the completeness floor. The opening line `Closes #123` is still the first line. All four required headings remain, each with non-empty content: `## Summary`, `## Fix`, `## Verification`, `## Related`. Specific values survive: the `pricing.tier.imported` event, the `PRICE_CACHE_TTL_SECONDS` change from 3600 to 900, the `pytest tests/pricing/test_cache.py` command, and the issue references #118 and #131. Summary opens with the effect on customers rather than the July import-job history. Before and after word counts are reported.",
+      "files": [
+        "evals/fixtures/pr-body-pricing-cache.md"
+      ],
+      "expectations": [
+        "The rewritten body opens with the literal line `Closes #123`, unchanged and still first",
+        "All four headings `## Summary`, `## Fix`, `## Verification`, and `## Related` are present, spelled exactly, and each carries non-empty content",
+        "No required section is dropped, renamed, or folded into another (Verification is not merged into Fix, Related is not merged into Summary)",
+        "These values survive: the `pricing.tier.imported` event name, the `PRICE_CACHE_TTL_SECONDS` change from 3600 to 900, the `pytest tests/pricing/test_cache.py` command, and both issue references #118 and #131",
+        "The Summary section leads with what changes for customers (stale prices, up to fifteen minutes observed) rather than with the July import-job history",
+        "Each section's prose is materially shorter than the original, so the condensation happened inside the contract rather than by deleting parts of it",
+        "The reply reports before and after word counts as plain counts"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "short-comment-inline-diff-no-subagent",
+      "prompt": "Make this standup comment less waffly: evals/fixtures/short-standup-comment.md, relative to the skill directory.",
+      "expected_output": "Handles a four-line comment inline. Shows the before and after in the reply itself and dispatches no semantic-diff subagent, because a fresh-context round trip costs more than the message it would verify. The rewrite cuts the hedges and filler ('just wanted to quickly mention', 'actually', 'perfectly fine', 'so far as I can tell', 'obviously', 'at all') while keeping all three facts: the retry patch is merged, it is healthy in staging, and the author wants to hear concerns. Before and after word counts are reported.",
+      "files": [
+        "evals/fixtures/short-standup-comment.md"
+      ],
+      "expectations": [
+        "No subagent is dispatched for a semantic diff; the before and after are shown inline in the reply",
+        "The inline before and after stands as the verification for an input this short; the reply does not hand the rewrite over as unverified, and does not claim a subagent checked it",
+        "All three facts survive: the retry patch is merged, it is healthy in staging, and the author is asking for concerns",
+        "The filler and hedging are cut, including 'just wanted to quickly mention', 'actually', 'obviously', 'so far as I can tell', and 'at all'",
+        "The rewrite is materially shorter than the original rather than a reworded version of the same length",
+        "The reply reports before and after word counts as plain counts"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "declines-agent-facing-prose-routes-to-write-for-agents",
+      "prompt": "This step of our skill body is bloated, make it scannable: evals/fixtures/agent-instruction-excerpt.md, relative to the skill directory. Put the point first and turn the procedure into bullets.",
+      "expected_output": "Declines the request as framed. The excerpt is agent-facing instruction text, not prose a human scans, so the human-only properties (bottom line first, front-loaded headings, lists for scanning, bounded bold) do not apply to it and adding them would fight what agent-facing writing wants. Routes to `docs-hygiene:write-for-agents` by name, without citing any file inside that plugin. Notes that the universal properties (no more words than the meaning needs, factual tone) do apply to agent-facing text and are the part the other skill borrows. Does not emit a bulleted, BLUF-ordered rewrite of the excerpt.",
+      "files": [
+        "evals/fixtures/agent-instruction-excerpt.md"
+      ],
+      "expectations": [
+        "Output declines to apply the human-only scannability properties (bottom line first, front-loaded headings, lists for scanning) to agent-facing instruction text",
+        "Output names `docs-hygiene:write-for-agents` as the owner of agent-facing instruction prose, citing the skill by name only; it does not link or name a file inside the docs-hygiene plugin",
+        "Output distinguishes the two universal properties (word economy, factual tone), which do apply here, from the two human-only properties, which do not",
+        "No bulleted, BLUF-reordered rewrite of the excerpt is produced, so the requested reshape is refused rather than delivered with a caveat",
+        "The stop-and-report rule in the excerpt (do not repair a mismatched table, report it and let the operator decide) is not treated as removable verbosity"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "wall-of-text-routes-to-adhd-clarify",
+      "prompt": "This is a wall of text and I cannot parse it: evals/fixtures/wall-of-text-migration-decisions.md, relative to the skill directory.",
+      "expected_output": "Routes away rather than reshaping. 'This is a wall of text' asks for a dense, decision-heavy message to be restructured one decision at a time with its jargon defined and nothing lost, which is `adhd:clarify`, presence-gated on the `adhd` plugin. This skill shortens; that one does not. The memo is already dense (four interacting decisions, each with named constraints), so cutting words would strip the precision the reader needs to decide. Offers this skill only as the follow-on if the user actually wants it shorter for someone else to read. No rewrite and no word counts are produced.",
+      "files": [
+        "evals/fixtures/wall-of-text-migration-decisions.md"
+      ],
+      "expectations": [
+        "Output routes to `adhd:clarify` by name, gated on the `adhd` plugin being installed",
+        "Output states the distinguishing reason: clarify restructures without shortening, while this skill shortens",
+        "No condensed or reshaped version of the memo is produced",
+        "No before and after word counts are reported, because no reshape happened",
+        "Output does not treat the memo's length as filler to cut; it recognizes the content as dense (four interacting decisions with named constraints such as the 2026-10-02 reservation window and the 30-minute quarterly downtime cap)",
+        "Output offers this skill as the follow-on only if the user's actual goal is a shorter version for another reader"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "bare-invocation-sets-standing-posture",
+      "prompt": "/writing:be-concise",
+      "expected_output": "Bare invocation sets the standing posture for the rest of the session and edits nothing. States once that the posture is on and what it covers (reader-facing prose gets the point first, no more words than the meaning needs, structure that survives scanning, factual tone), then stops narrating it. Does not ask which text to reshape, does not treat the empty argument as an error or a no-op, reads no file, produces no rewrite, and reports no word counts.",
+      "files": [],
+      "expectations": [
+        "No file is read, no text is rewritten, and nothing is edited",
+        "Output states that the posture is now on and names what it applies to: reader-facing prose written for the rest of the session",
+        "The empty argument is treated as the posture mode, not as a missing argument, an error, or a request to choose a target",
+        "Output does not ask the user which text to reshape",
+        "No before and after word counts are reported, because nothing was reshaped",
+        "The announcement is made once and is not repeated as running narration"
+      ]
+    }
+  ]
+}

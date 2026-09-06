@@ -35,7 +35,7 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/claude-ops-paths.sh"
 START=${EPOCHREALTIME:-}
 
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # data.session_id (additive, hook-telemetry rule 1): the sink routes an
 # envelope carrying one into the per-session log beside session-event-log.sh.

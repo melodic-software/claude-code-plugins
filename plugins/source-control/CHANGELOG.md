@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.59]
+
+### Changed
+
+- **The hook captures stdin with `hook::buffer_stdin_to`.** GNU Bash forks
+  a subshell for `INPUT=$(hook::buffer_stdin)` even when the body is only
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash
+  that fork is a process. The `_to` form writes the payload in-process
+  with `printf -v`. Synced `hooks/hook-utils.sh` also fuses an optional
+  JSON completeness check with field extraction so a caller that was about
+  to run `jq` twice spends one process. What the hook checks is unchanged.
+
+## [0.55.58]
+
+### Changed
+
+- **`pull-request`:** section 2.4.1 of the create reference points the prose inside the required
+  headings at `/writing:be-concise`, presence-gated with a stated fallback. The closing-keyword
+  line, the required-section list and the refs lines are untouched.
+
 ## [0.55.57]
 
 ### Changed

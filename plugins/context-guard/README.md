@@ -274,7 +274,7 @@ interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
 | Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
 
 The spawn-equivalents above are command-position counts. Re-measured as process creations under
-`strace -f` (0.7.46), the steady PostToolBatch and UserPromptSubmit fire was creating 8 processes
+`strace -f` (0.7.47), the steady PostToolBatch and UserPromptSubmit fire was creating 8 processes
 where those rows report 3; moving every redirection off the inside of a command substitution
 brings it to 3 with the program launches unchanged. See "Counting invocations is not counting
 processes" above for why the two counts differ and what it costs on a slow-spawn host.

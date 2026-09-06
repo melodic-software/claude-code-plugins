@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.66]
+
+### Changed
+
+- **`track`, `triage`, `decompose`, `attend-queue`:** the five places these skills compose prose a
+  person reads in a tracker (the `add` body, the `done` closing comment, a triage outcome comment,
+  a decompose slice body, and the attend-queue answer-back) now point at `/writing:be-concise`,
+  presence-gated with a stated fallback. Additions only; no template or required section changed.
+
 ## [0.39.65]
 
 ### Changed

@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.46]
+## [0.7.47]
 
 ### Changed
 
@@ -53,6 +53,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that stdout stays one parseable JSON document, and that the shipped default bands still resolve
   and inject; an unparsable payload pins that the payload pass's nonzero status still propagates
   out of its new enclosing group rather than being absorbed by it.
+
+## [0.7.46]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh`.** `hook::buffer_stdin_to` captures the
+  hook payload in-process (no command-substitution subshell) and can fuse
+  the JSON completeness check with field extraction so a caller that was
+  about to run `jq` twice spends one process. This plugin's own hook
+  behavior is unchanged.
 
 ## [0.7.45]
 

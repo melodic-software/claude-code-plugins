@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.5]
+
+### Changed
+
+- **`prd`:** a PRD is read by a product owner who scans, so the write step points at
+  `/writing:be-concise`, presence-gated with a stated fallback. The seven required sections and the
+  tier model are unchanged.
+
 ## [0.36.4]
 
 ### Changed

@@ -442,6 +442,65 @@ if [[ -d "$PCFG/.git" ]]; then
   done
 fi
 
+# git-config ignores aliases that hide current builtins, so a leftover
+# `alias.status = commit -m <newline>` must not make `git status` look like a
+# commit (and must not pay two `git config` probes to find that out).
+PSTAT="$TEST_TMPDIR/persisted-status"
+mkdir -p "$PSTAT"
+(
+  cd "$PSTAT" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.status $'commit -m "bypass\nb"'
+) >/dev/null 2>&1
+if [[ -d "$PSTAT/.git" ]]; then
+  MSYS_NO_PATHCONV=1 jq -n --arg d "$PSTAT" \
+    '{tool_name:"Bash",tool_input:{command:"git status --short"},cwd:$d}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git status is not a commit even when alias.status names one" 0 $?
+fi
+
+# git-config's ignore rule exempts deprecated commands. git.c marks
+# `whatchanged` DEPRECATED (master fetched 2026-09-06); git 2.51+ honors
+# `alias.whatchanged = commit` (t/t0014-alias.sh). This host's git 2.43 still
+# ignores that alias, but the guard must probe the name so a newer git cannot
+# smuggle a newline `-m` through it.
+PWC="$TEST_TMPDIR/persisted-whatchanged"
+mkdir -p "$PWC"
+(
+  cd "$PWC" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.whatchanged $'commit -m "bypass\nb"'
+) >/dev/null 2>&1
+if [[ -d "$PWC/.git" ]]; then
+  MSYS_NO_PATHCONV=1 jq -n --arg d "$PWC" \
+    '{tool_name:"Bash",tool_input:{command:"git whatchanged"},cwd:$d}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git whatchanged alias to newline -m is still a commit" 2 $?
+fi
+
+# Names added after git 2.25 were not yet builtins, so an older git still
+# honors `alias.bugreport = commit`. Stay off the skip list (git 2.27 added
+# the command). `git status` remains unprobed.
+PBR="$TEST_TMPDIR/persisted-bugreport"
+mkdir -p "$PBR"
+(
+  cd "$PBR" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.bugreport $'commit -m "bypass\nb"'
+) >/dev/null 2>&1
+if [[ -d "$PBR/.git" ]]; then
+  MSYS_NO_PATHCONV=1 jq -n --arg d "$PBR" \
+    '{tool_name:"Bash",tool_input:{command:"git bugreport"},cwd:$d}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git bugreport alias to newline -m is still a commit" 2 $?
+fi
+
 # --- #1022: persisted alias.<sub>.command subkey (plain alias.$sub absent) ----
 PCMD="$TEST_TMPDIR/persisted-command"
 mkdir -p "$PCMD"
@@ -649,16 +708,16 @@ if [[ -n "$FORK_REAL_GIT" && -d "$FORK10/.git" && -d "$FORK20/.git" ]]; then
   # Guarded on BOTH shapes, not just one: the divergent case carries the load-
   # bearing ceiling, and it can go vacuous on its own. If `alias.d` ever falls out
   # of the fixture, or the chain stops reaching it, the walk still exhausts the
-  # budget and still exits 2 while forking far below the ceiling — measured at 1,
-  # the terminal `alias.status` lookup alone — and a `1 <= 16` ceiling would
-  # report green over a fixture that had quietly stopped testing anything. Two is
-  # the measured floor: `alias.d`, then `alias.status`.
+  # budget and still exits 2 while forking far below the ceiling. The terminal
+  # hop is `alias.d = status`; `status` is a current git builtin, so git-config
+  # ignores alias.status and this guard does not probe it. One is the measured
+  # floor: the `alias.d` lookup alone.
   if ((FORKS_10 > 0)); then
     ok "fork pin: git shim active (${FORKS_10} git spawns on the 10-hop persisted chain)"
   else
     bad "fork pin: the git shim never fired — the ceilings below cannot discriminate"
   fi
-  if ((FORKS_DIV >= 2)); then
+  if ((FORKS_DIV >= 1)); then
     ok "fork pin: the divergent chain reaches its persisted lookups (${FORKS_DIV} git spawns)"
   else
     bad "fork pin: the divergent chain forked ${FORKS_DIV} times — it never reached a persisted lookup, so its ceiling below is vacuous"
@@ -684,9 +743,10 @@ if [[ -n "$FORK_REAL_GIT" && -d "$FORK10/.git" && -d "$FORK20/.git" ]]; then
     bad "fork pin: 20-hop persisted chain forked ${FORKS_20} times, over the 30 ceiling"
   fi
 
-  # BRANCHING, the discriminating one: measured 2 spawns at 8 divergent hops —
-  # the two distinct names the walk resolves (`alias.d`, then `alias.status`) —
-  # and 2 again at 12 hops, so the tally is invariant to branching depth. With
+  # BRANCHING, the discriminating one: measured 1 spawn at 8 divergent hops —
+  # the one persisted name the walk resolves (`alias.d`; the next hop is
+  # `status`, a builtin, so alias.status is not probed) — and 1 again at 12
+  # hops, so the tally is invariant to branching depth. With
   # the per-(dir, sub) cache removed from persisted_alias, the SAME command forked
   # 83 times for the same exit 2 (measured 2026-08-09), because each admitted
   # analysis repeats the lookup; the only bound left is HOOK_ALIAS_WORK_MAX = 128.
