@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.20]
+
+### Changed
+
+- **`marketplace remove` cache residue is recorded with a version stamp.** Verified 2026-09-06 on
+  Claude Code 2.1.263: after install, uninstall, and `marketplace remove` of a throwaway local
+  marketplace, the three registry files were byte-identical to their pre-add copies while
+  `~/.claude/plugins/cache/<marketplace>/` stayed on disk, as on 2.1.261. New this pass: the
+  uninstall wrote a `.orphaned_at` marker into the version directory and the marker survived the
+  marketplace removal, so the tree is on the documented 14-day sweep clock rather than a permanent
+  orphan, provided some plugin remains installed. `scope-semantics.md` gains the section with the
+  recipe and a durable recheck trigger; `audit-install-state`'s plugins-tree description carries the same
+  rule, naming an unmarked version directory as the case nothing sweeps.
+
 ## [0.42.19]
 
 ### Fixed
