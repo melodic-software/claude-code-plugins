@@ -160,13 +160,21 @@ gate_maybe_configured() {
 # while still assigning the final chunk) and each chunk is substring-tested.
 # The token holds no NUL, so it cannot straddle a chunk boundary, and an
 # unreadable file yields no chunk, which is the same "no match" grep gave.
+#
+# `2>/dev/null` is written BEFORE the input redirection, and the order is
+# load-bearing: bash applies a command's redirections left to right, so with
+# the input first an open that fails — an existing settings file this hook may
+# not read — reports "Permission denied" on the stderr the next redirection was
+# about to silence. The old `grep … 2>/dev/null` was silent there, and this hook
+# runs on every Stop, so the noise would be per-turn. Silencing stderr first
+# keeps it silent; the verdict (no chunk, return 1) is the same either way.
 gate_file_mentions() {
   local chunk=""
   # Terminates: every successful read consumed a NUL, and at EOF `read`
   # assigns the empty remainder and returns 1, which ends the loop.
   while IFS= read -r -d '' chunk || [[ -n "$chunk" ]]; do
     [[ "$chunk" == *lane_stop_gate* ]] && return 0
-  done <"$1" 2>/dev/null
+  done 2>/dev/null <"$1"
   return 1
 }
 gate_maybe_configured || exit 0
