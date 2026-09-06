@@ -3,6 +3,17 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.10]
+
+### Added
+
+- **`audit`:** a `## Boundary. The sibling drift lanes` section naming the seven adjacent drift lanes with one line each on what that lane owns: review's `doc-drift-detector` agent, `/session-flow:reanchor`, `/discipline:recheck-against-upstream`, `/provenance:audit`, `/claude-config:audit` (plus `/claude-config:audit-automation-gaps`), `/instruction-placement:delta`, and `/overengineering:delta`. Every route is presence-gated with a stated fallback per the seam-phrasing convention: route when the plugin is installed, otherwise report the dimension as uncovered rather than running claim-extraction over it here (#3810).
+
+### Changed
+
+- **`audit`:** the "Scope boundary with adjacent audit lanes" paragraph in "Adapting to your environment" is now a pointer to the new Boundary section, which absorbed its `claude-config` routing so the reference is stated once. What the audit detects and how it reports are unchanged.
+- README: the "Distinct from" paragraph names the sibling drift lanes the audit's Boundary routes to.
+
 ## [0.8.9]
 
 ### Changed
