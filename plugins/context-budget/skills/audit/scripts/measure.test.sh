@@ -8,7 +8,8 @@
 # (one file per run plus an appended history line; schema-checked append),
 # the attribute/additivity pipeline in cli-parse mode against a fake
 # `claude` binary (a vanished bucket is unmeasured and incomparable, never a
-# coerced zero), and verify-catalogue (binary-scan present/absent, never
+# coerced zero; per-bucket verdicts; an unmeasured verdict distinct from a
+# measured negative), and verify-catalogue (binary-scan present/absent, never
 # invents presence). The sdk measurement path spawns a real Claude Code
 # binary and is exercised manually, not here — this suite must stay hermetic.
 #
@@ -264,6 +265,11 @@ const mode = process.env.FAKE_MODE || 'control';
 // Savings per deny set, constructed additive: combined always equals the sum.
 const prefixSaved = { AlphaTool: 1000, BetaTool: 600, GammaTool: 500, 'AlphaTool+BetaTool': 1600 };
 const deferredSaved = { AlphaTool: 400, BetaTool: 100, GammaTool: 0, 'AlphaTool+BetaTool': 500 };
+// nonadd — the measured shape the audit found: the prefix side double-counts
+// (combined saves 400 less than the sum of parts) while the deferred side
+// sums to the token. Every bucket is present in every run, so the reading is
+// comparable and the negative verdict is measured, not unmeasured.
+if (mode === 'nonadd') prefixSaved['AlphaTool+BetaTool'] = 1200;
 const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
 // The deferred bucket is dropped (omitted, not reported as 0) when:
 //   novocab      — this fake "version" has no deferred bucket in any run;
@@ -314,15 +320,50 @@ if attr vanish "$avanish" --tools AlphaTool,BetaTool --verify-additivity; then
     "vanished bucket yields combinedSaved null, never a coerced 0" "combinedSaved fabricated from a null delta"
   assert_eq "$(jsonget "$avanish" 'j.additivity.comparable')" "false" \
     "vanished bucket marks the additivity record incomparable" "additivity published comparable despite a vanished bucket"
-  assert_eq "$(jsonget "$avanish" 'j.additivity.additive')" "false" \
-    "incomparable additivity is never reported additive" "additive true despite a vanished bucket"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.additive')" "null" \
+    "an unmeasurable additivity reading reports a null verdict, not a definite negative" \
+    "unmeasured additivity published as a boolean verdict"
   if [[ "$(jsonget "$avanish" 'j.additivity.reasons.join(" ")')" == *"System tools (deferred)"* ]]; then
     ok "additivity record names the vanished bucket in its reasons"
   else
     fail "vanished-bucket reason missing from additivity record"
   fi
+  # Per bucket: the vanished deferred side is unmeasured, but the prefix side
+  # was measured in both runs and still gets a verdict.
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].sumOfParts')" "1600" \
+    "per-bucket sum of parts comes off the per-tool prefixDelta values" "per-bucket prefix sumOfParts wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].combinedSaved')" "1600" \
+    "per-bucket combined saving comes off the combined run's prefix delta" "per-bucket prefix combinedSaved wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].additive')" "true" \
+    "a vanished deferred bucket does not poison the prefix bucket's verdict" "prefix verdict lost to an unrelated vanish"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools (deferred)"].combinedSaved')" "null" \
+    "the vanished bucket's combined saving stays null" "vanished per-bucket saving coerced to a number"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools (deferred)"].additive')" "null" \
+    "the vanished bucket's verdict is unmeasured, not a negative" "vanished per-bucket verdict published as a boolean"
 else
   fail "attribute --verify-additivity (vanish scenario) exited nonzero"
+fi
+
+# A measured negative: every bucket present in every run, the reading
+# comparable, and the prefix side genuinely failing to add. The unmeasured
+# verdict above must NOT be the same value as this one.
+anon="$WORK/attr-nonadditive.json"
+if attr nonadd "$anon" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$anon" 'j.additivity.comparable')" "true" \
+    "the measured-negative reading is comparable" "nonadd reading marked incomparable"
+  assert_eq "$(jsonget "$anon" 'j.additivity.additive')" "false" \
+    "a comparable reading whose parts overshoot reports a measured false" "nonadd verdict wrong"
+  assert_eq "$(jsonget "$anon" 'j.additivity.additive === JSON.parse(require("fs").readFileSync("'"$avanish"'","utf8")).additivity.additive')" "false" \
+    "the unmeasured verdict is a different value from the measured negative" \
+    "unmeasured and measured-negative additivity verdicts are indistinguishable"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools"].additive')" "false" \
+    "the prefix bucket reports its own measured negative" "per-bucket prefix verdict wrong under nonadd"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools"].combinedSaved')" "1200" \
+    "the prefix bucket's combined saving is the combined run's own number" "per-bucket prefix combinedSaved wrong under nonadd"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "the deferred bucket adds even when the prefix bucket does not" "per-bucket deferred verdict wrong under nonadd"
+else
+  fail "attribute --verify-additivity (nonadd scenario) exited nonzero"
 fi
 
 # Control: all buckets present in every run — the verdict must be untouched.
@@ -385,6 +426,8 @@ if attr novocab "$anv" --tools AlphaTool,BetaTool --verify-additivity; then
     "additivity over the present bucket alone still measures" "vocabulary-absent combinedSaved wrong"
   assert_eq "$(jsonget "$anv" 'j.additivity.additive')" "true" \
     "additivity over the present bucket alone still verifies" "vocabulary-absent additive wrong"
+  assert_eq "$(jsonget "$anv" 'Object.keys(j.additivity.perBucket).join(",")')" "System tools" \
+    "a bucket absent from both runs gets no per-bucket verdict row" "vocabulary-absent bucket invented a per-bucket verdict"
 else
   fail "attribute (novocab scenario) exited nonzero"
 fi

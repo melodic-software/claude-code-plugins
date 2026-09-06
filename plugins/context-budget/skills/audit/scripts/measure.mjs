@@ -616,6 +616,49 @@ function vanishedReason(vanished) {
     + 'snapshot, so its delta is unmeasured, not zero';
 }
 
+// Per-bucket additivity, read off the deltas the per-tool rows already carry:
+// no extra measurement pass, just the rows this run produced. The two sides
+// do not compose alike — the deferred side sums to the token while the prefix
+// side double-counts — so one verdict over the pair hides which column an
+// operator can price a basket from.
+const BUCKET_ROW_FIELD = {
+  'System tools': 'prefixDelta',
+  'System tools (deferred)': 'deferredDelta',
+};
+
+// A verdict is `true`/`false` only when the bucket was measured on both sides
+// of the comparison; anything unmeasured is `null` — "not measurable" is not
+// the same answer as "measured, and not additive".
+function bucketAdditivity(rows, cmp, runComparable) {
+  const perBucket = {};
+  for (const bucket of SYSTEM_TOOL_BUCKETS) {
+    // A bucket absent from BOTH runs is outside this binary's category
+    // vocabulary: a non-event, so it gets no verdict row at all.
+    if (!(bucket in cmp.delta)) continue;
+    const parts = rows.map((r) => r[BUCKET_ROW_FIELD[bucket]]);
+    const sumOfParts = parts.some((d) => typeof d !== 'number')
+      ? null
+      : -parts.reduce((sum, d) => sum + d, 0);
+    const combinedDelta = cmp.delta[bucket];
+    const combinedSaved = typeof combinedDelta === 'number' ? -combinedDelta : null;
+    const measured = runComparable && sumOfParts !== null && combinedSaved !== null;
+    const reasons = [];
+    if (!runComparable) reasons.push(...cmp.comparability.reasons);
+    if (combinedSaved === null) reasons.push(vanishedReason([bucket]));
+    if (sumOfParts === null) {
+      reasons.push(`${bucket} is unmeasured on at least one per-tool row, so the sum of parts `
+        + 'for this bucket is unmeasured, not zero');
+    }
+    perBucket[bucket] = {
+      sumOfParts,
+      combinedSaved,
+      additive: measured ? combinedSaved === sumOfParts : null,
+      reasons,
+    };
+  }
+  return perBucket;
+}
+
 function loadInteractiveOnly() {
   let data;
   try {
@@ -689,12 +732,21 @@ async function runAttribute(args) {
       const comparable = cmp.comparability.systemToolsComparable && !vanished.length;
       const sumOfParts = perTool.filter((t) => savers.includes(t.tool))
         .reduce((s, t) => s + t.savedTokens, 0);
+      const saverRows = perTool.filter((t) => savers.includes(t.tool));
       additivity = {
         tools: savers,
         sumOfParts,
         combinedSaved,
-        additive: comparable && combinedSaved === sumOfParts,
+        // Tri-state: true/false are measured verdicts, null means the run
+        // could not be measured. A boolean here would publish an unmeasured
+        // reading as a definite "not additive".
+        additive: comparable ? combinedSaved === sumOfParts : null,
         comparable,
+        perBucket: bucketAdditivity(
+          saverRows,
+          cmp,
+          cmp.comparability.systemToolsComparable,
+        ),
         reasons: vanished.length
           ? [...cmp.comparability.reasons, vanishedReason(vanished)]
           : cmp.comparability.reasons,
