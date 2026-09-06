@@ -1179,6 +1179,25 @@
       "allowedCallerPermissions": {
         "issues": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@906ae7ef379ea4d2b8497f64475dce1d3d8715c4": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@906ae7ef379ea4d2b8497f64475dce1d3d8715c4": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "security-events": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {
