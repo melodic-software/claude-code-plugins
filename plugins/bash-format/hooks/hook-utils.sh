@@ -1067,6 +1067,34 @@ hook::json_escape_jq() {
   printf '%s' "$__hu_e"
 }
 
+# hook::json_str_object_to <var> [key value]...
+# Compact JSON object of string fields, byte-identical to
+# `jq -n --arg k v --arg k2 v2 '{k:$k,k2:$k2}'` after `jq -c` (what
+# hook::json_compact_to already proves for telemetry data). Keys are
+# emitted in caller order. No jq, no temp file. Guard emit_tel builders
+# that only carry string fields use this so a wired HOOK_TELEMETRY_SINK
+# no longer spends one jq per guard on `{tool,subject,form}`.
+hook::json_str_object_to() {
+  local __hu_dest="$1"
+  shift
+  local __hu_out="{" __hu_first=1 __hu_k __hu_v __hu_ek __hu_ev
+  while (($# >= 2)); do
+    __hu_k="$1"
+    __hu_v="$2"
+    shift 2
+    hook::json_escape_jq_to __hu_ek "$__hu_k"
+    hook::json_escape_jq_to __hu_ev "$__hu_v"
+    if ((__hu_first)); then
+      __hu_first=0
+    else
+      __hu_out+=","
+    fi
+    __hu_out+='"'"$__hu_ek"'":"'"$__hu_ev"'"'
+  done
+  __hu_out+="}"
+  printf -v "$__hu_dest" '%s' "$__hu_out"
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
 # CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
 # comparison are canonicalized (symlinks resolved) first, so neither an
@@ -1189,7 +1217,12 @@ hook::repo_root() {
   local hint="${1:-.}"
   local root
   HOOK_REPO_ROOT_UNRESOLVED=0
-  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  # CR-stripped in the shell, not `git | tr`: that pipeline paid a `tr` exec
+  # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
+  # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
+  # same substitution buffer_stdin already uses for the payload.
+  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null) || root=""
+  root="${root//$'\r'/}"
   if [[ -n "$root" ]]; then
     printf '%s' "$root"
     return 0
@@ -1374,24 +1407,38 @@ hook::json_complete() {
 # read returns before payload bytes arrive, same class as exact zero (#1883).
 readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
 
-hook::resolve_read_timeout() {
-  local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
-  if [[ "$t" != "2" ]]; then
+# hook::resolve_read_timeout_to <var>
+# Write the resolved timeout into <var> in THIS shell. The print form below
+# is the public contract (tests and callers that capture stdout). GNU Bash
+# runs command substitution in a subshell even when the body is only
+# builtins (Command Execution Environment), so hook::buffer_stdin must call
+# this _to form — `read_timeout=$(hook::resolve_read_timeout)` was one of
+# the two startup forks the suite documents.
+hook::resolve_read_timeout_to() {
+  local __hu_dest="$1"
+  local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  if [[ "$__hu_t" != "2" ]]; then
     local probe
     # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$t" discard </dev/null 2>&1)
-    if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
-      t=2
-    elif [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+    probe=$(read -r -t "$__hu_t" discard </dev/null 2>&1)
+    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+      __hu_t=2
+    elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
       local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
       frac="${frac}000000"
       frac="${frac:0:6}"
       local micros=$((10#$whole * 1000000 + 10#$frac))
       if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
-        t=2
+        __hu_t=2
       fi
     fi
   fi
+  printf -v "$__hu_dest" '%s' "$__hu_t"
+}
+
+hook::resolve_read_timeout() {
+  local t
+  hook::resolve_read_timeout_to t
   printf '%s' "$t"
 }
 
@@ -1404,14 +1451,18 @@ hook::resolve_read_timeout() {
 # idle path to four cheap builtin reads.
 HOOK_STDIN_READ_SLICES=4
 
-# Resolve the per-read slice for an already-resolved timeout, printing
-# "<slice> <count>". Falls back to "<timeout> 1" — exactly the unsliced
+# Resolve the per-read slice for an already-resolved timeout into two caller
+# variables (slice, count). The print form below is the public contract:
+# "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
 # behavior — when this shell's `read -t` will not accept the fractional slice,
 # which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
 # already covers. Probed, not version-tested, for the same reason as
-# hook::resolve_read_timeout.
-hook::resolve_read_slice() {
-  local t="$1" slice=""
+# hook::resolve_read_timeout. hook::buffer_stdin calls the _to form so the
+# resolution does not pay a process-substitution fork (GNU Bash: commands
+# grouped for substitution run in a subshell).
+hook::resolve_read_slice_to() {
+  local __hu_t="$1" __hu_slice=""
+  local __hu_slice_dest="$2" __hu_count_dest="$3"
   # The division is fixed-point shell arithmetic, not `awk t/n`. A hook pays for
   # every external process it spawns — ~140 ms each on Windows Git Bash, where
   # process creation is fork() emulation — and this one spawned awk on EVERY
@@ -1427,31 +1478,44 @@ hook::resolve_read_slice() {
   # A value the pattern rejects, or one large enough to overflow the arithmetic
   # into a negative, leaves `slice` unusable and falls through to the unsliced
   # "<t> 1" form below, exactly as an awk failure did.
-  if [[ "$t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
+  if [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]] && ((HOOK_STDIN_READ_SLICES > 0)); then
     local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
     frac="${frac}000000"
     frac="${frac:0:6}"
     local micros=$((10#$whole * 1000000 + 10#$frac))
     local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
-    printf -v slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
+    printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
   fi
-  if [[ -n "$slice" && "$slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$slice" =~ ^0+\.0+$ ]]; then
+  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]]; then
     local probe
     # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$slice" discard </dev/null 2>&1)
+    probe=$(read -r -t "$__hu_slice" discard </dev/null 2>&1)
     if [[ -z "$probe" ]]; then
-      printf '%s %s' "$slice" "$HOOK_STDIN_READ_SLICES"
+      printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
+      printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
       return 0
     fi
   fi
-  printf '%s 1' "$t"
+  printf -v "$__hu_slice_dest" '%s' "$__hu_t"
+  printf -v "$__hu_count_dest" '%s' "1"
+}
+
+hook::resolve_read_slice() {
+  local slice count
+  hook::resolve_read_slice_to "$1" slice count
+  printf '%s %s' "$slice" "$count"
 }
 
 hook::buffer_stdin() {
   local input="" chunk="" read_rc=0 stalled=0 idle_slices=0 validated=0
   local read_timeout read_slice slice_count
-  read_timeout=$(hook::resolve_read_timeout)
-  read -r read_slice slice_count < <(hook::resolve_read_slice "$read_timeout")
+  # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
+  # even when the body is builtins only. Those two forks were the documented
+  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe inside
+  # resolve_read_slice_to still uses $(read) — that is the remaining, smaller
+  # fork, paid only when the computed slice needs a live `read -t` probe.
+  hook::resolve_read_timeout_to read_timeout
+  hook::resolve_read_slice_to "$read_timeout" read_slice slice_count
   local -a read_opts=(-r -t "$read_slice")
   if hook::read_supports_nchars; then
     read_opts+=(-N 65536)
@@ -1883,6 +1947,119 @@ hook::emit_telemetry() {
   TZ=UTC printf -v timestamp '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || timestamp=""
   [[ -n "$timestamp" ]] || timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || timestamp=""
 
+  # Correlation keys (contract 1.1): session_id, prompt_id, tool_use_id and
+  # agent_id, read from the hook payload and placed on the envelope spine so a
+  # sink can file the row per session without every producer repeating the
+  # extraction. The payload is whatever the caller buffered: HOOK_TELEMETRY_PAYLOAD
+  # when set, else INPUT, the variable every fleet hook assigns from
+  # hook::buffer_stdin (that call runs in a command substitution, so the
+  # library cannot cache the buffer itself). A caller that buffered under
+  # another name sets HOOK_TELEMETRY_PAYLOAD before emitting. Each key is the
+  # first `"<key>":"<value>"` pair AT THE PAYLOAD ROOT whose value is a plain
+  # id ([A-Za-z0-9._-]); absent or malformed keys are omitted, never guessed,
+  # and the values need no JSON escaping by construction. No jq, no subprocess.
+  #
+  # ROOT ONLY, AND EVERY ROOT KEY. Searching the raw payload takes the leftmost
+  # match anywhere in it, which reads `tool_input.options.prompt_id` as the
+  # envelope's prompt_id and lets a nested `session_id` ahead of the real one
+  # file the row under the WRONG session. Truncating at the first nested
+  # container fixes that but loses `tool_use_id`, which the documented payload
+  # places AFTER `tool_input` (session-event-log.sh says so in its own early-stop
+  # note: "tool_input closed, tool_use_id still to come"), so the keys are
+  # instead selected by depth.
+  #
+  # The payload is rendered down to its root level first, then searched. Escaped
+  # backslashes and quotes are neutralized so that splitting on `"` cannot land
+  # inside an escape, and the split alternates: even fields are structure
+  # (braces, commas, colons, numbers), odd fields are string bodies. Walking
+  # them costs one step per string, not one per byte, and the bulk of a payload
+  # is a handful of huge string bodies that are skipped whole. A string body is
+  # kept only at depth 1; deeper ones are dropped, which leaves nested objects
+  # as brace-and-colon rubble carrying no quotes, so no nested key can match.
+  # What remains is small, so the four searches run over a short string however
+  # large the payload was — the reason this stays inside the latency budget that
+  # keeps jq off this path.
+  local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
+  if [[ -n "$corr_payload" ]]; then
+    # `[[{]` is a bracket expression holding `[` and `{`; the brace is safe
+    # there only because it is a regex bracket expression, not a `${...}`
+    # pattern, where a literal `}` would end the expansion. Used by the size
+    # gate fallback below.
+    local corr_cut=':[[:space:]]*[[{]'
+    # Only a payload within the size gate is walked; see the fallback below for
+    # what the gate costs and why. The two neutralizing passes are what make
+    # splitting on `"` safe, and each copies the payload, so a payload with no
+    # backslash in it skips both; that test short-circuits at the first one.
+    local corr_t=""
+    if ((${#corr_payload} <= 65536)); then
+      corr_t=$corr_payload
+      if [[ $corr_t == *\\* ]]; then
+        corr_t=${corr_t//"\\\\"/@@}
+        corr_t=${corr_t//"\\\""/@@}
+      fi
+    fi
+    local corr_parts corr_i corr_n corr_depth=0 corr_root="" corr_seg corr_x
+    local corr_o corr_c
+    # Brace characters come from variables: a literal `}` inside a `${...}`
+    # pattern ends the expansion before the pattern is read. Each one is
+    # counted by deleting it and taking the length difference — a negated
+    # bracket class is not usable here, because `[!]}]` does not parse as the
+    # "neither ] nor }" class it looks like (it counted `{` as a closer).
+    local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+    local corr_glob=0
+    [[ $- == *f* ]] || corr_glob=1
+    set -f
+    local IFS='"'
+    # shellcheck disable=SC2206 # splitting on IFS='"' is the whole point
+    corr_parts=($corr_t)
+    ((corr_glob)) && set +f
+    IFS=$' \t\n'
+    corr_n=${#corr_parts[@]}
+    # An even field count means an unbalanced quote: the payload is malformed,
+    # so no key is guessed from it. A payload past the size gate never got
+    # split (corr_n is 1 there), so it falls through to the head cut below.
+    if ((corr_n % 2 == 1 && corr_n > 1)); then
+      for ((corr_i = 0; corr_i < corr_n; corr_i++)); do
+        if ((corr_i % 2 == 0)); then
+          corr_seg=${corr_parts[corr_i]}
+          corr_root+=$corr_seg
+          corr_x=${corr_seg//"$corr_ob"/}
+          corr_o=$((${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_osb"/}
+          corr_o=$((corr_o + ${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_cb"/}
+          corr_c=$((${#corr_seg} - ${#corr_x}))
+          corr_x=${corr_seg//"$corr_csb"/}
+          corr_c=$((corr_c + ${#corr_seg} - ${#corr_x}))
+          corr_depth=$((corr_depth + corr_o - corr_c))
+        elif ((corr_depth == 1)); then
+          corr_root+='"'${corr_parts[corr_i]}'"'
+        fi
+      done
+    else
+      # SIZE GATE FALLBACK. Above the gate the walk is not affordable: the
+      # neutralizing passes are superlinear in the number of escapes, measured
+      # here at 4 / 13 / 38 / 486 ms per emit for a 16 KiB / 64 KiB / 128 KiB /
+      # 512 KiB escape-bearing payload, and this runs on every telemetry-
+      # emitting hook. So a large payload is cut at its first nested container
+      # instead. That is still safe — nothing inside tool_input or
+      # tool_response is reachable — but it is not complete: a root key placed
+      # after the first container, which is where tool_use_id sits, is omitted
+      # rather than guessed. session_id and prompt_id lead the payload, so
+      # routing is unaffected. #3784 tracks a cheaper exact tail scan that
+      # would close the gap without paying the neutralizing passes.
+      corr_root=$corr_payload
+      if [[ "$corr_root" =~ $corr_cut ]]; then
+        corr_root=${corr_root%%"${BASH_REMATCH[0]}"*}
+      fi
+    fi
+    for corr_key in session_id prompt_id tool_use_id agent_id; do
+      if [[ "$corr_root" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
+        corr+='"'"$corr_key"'":"'"${BASH_REMATCH[1]}"'",'
+      fi
+    done
+  fi
+
   # Trailing whitespace after the object (a newline a caller left on the
   # value) does not change what jq parses, so it does not block the builtin
   # path either.
@@ -1898,7 +2075,7 @@ hook::emit_telemetry() {
     hook::json_escape_jq_to e_hook "$hook_id"
     hook::json_escape_jq_to e_event "$hook_event"
     hook::json_escape_jq_to e_status "$status"
-    envelope='{"schema_version":"1.0","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"',"data":'"$data"'}'
+    envelope='{"schema_version":"1.1","timestamp":"'"$e_timestamp"'","hook":"'"$e_hook"'","hook_event":"'"$e_event"'","status":"'"$e_status"'","duration_ms":'"$duration_ms"','"$corr"'"data":'"$data"'}'
   else
     # jq path, for a data object the builtin compactor cannot prove. Fail-open:
     # jq absent → return 0. The `data` object is written to a temp file, not
@@ -1914,14 +2091,15 @@ hook::emit_telemetry() {
       return 0
     }
     envelope=$(jq -nc \
-      --arg schema_version "1.0" \
+      --arg schema_version "1.1" \
       --arg timestamp "$timestamp" \
       --arg hook "$hook_id" \
       --arg hook_event "$hook_event" \
       --arg status "$status" \
       --argjson duration_ms "$duration_ms" \
+      --argjson corr "{${corr%,}}" \
       --slurpfile data "$data_file" \
-      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:($data[0] // {})}' \
+      '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms} + $corr + {data:($data[0] // {})}' \
       2>/dev/null) || {
       rm -f "$data_file"
       return 0

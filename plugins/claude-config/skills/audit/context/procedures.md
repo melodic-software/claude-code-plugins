@@ -65,7 +65,7 @@ added, and neither is mechanical:
    baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
    and the managed `allowManagedHooksOnly` / `strictPluginOnlyCustomization` levers switch hooks off),
    a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
-   nothing about another's. **The inventory half is now a lookup**: Phase 1.0's
+   nothing about another's. **The inventory half is a lookup**: Phase 1.0's
    `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,
    resolving each enabled plugin through the installed-plugin registry. What stays a judgment is
    whether an enumerated hook covers *this* family — and where that script exited 1, the sources it

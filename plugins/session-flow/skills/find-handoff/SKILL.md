@@ -44,10 +44,12 @@ resolution input, `Handoff origin:`, described after them:
 
 1. **The file directive**. `Read @<path>/handoffs/<TS>-handoff-<topic>.md …`. It embeds the exact
    path to recover and survives verbatim into transcript JSONL, so it is the highest-precision key
-   for a **file-based** handoff. **Two path forms qualify.** The producer now emits an absolute
-   path; every handoff written before that rule shipped states a repo-relative one, and those
-   transcripts are on disk unchanged. Match the directive on its `…handoffs/<TS>-handoff-…` shape,
-   which both forms share, and let them diverge only at the existence check (step 3).
+   for a **file-based** handoff. **Two path forms qualify:** an absolute path (what the producer
+   emits) and a repo-relative path (what older handoffs on disk carry). Match the directive on its
+   `…handoffs/<TS>-handoff-…` shape, which both forms share, and let them diverge only at the
+   existence check (step 3). The shape-2 directive
+   continues past `then continue them.` with an invoke-the-skill sentence; older directives end
+   there. Neither the sentence's presence nor its absence is a signal.
 2. **The dashed rails + instruction line**, the two `─` (U+2500) rails and the literal
    `` `/clear`, then copy everything between the dashed lines `` line. For a **prompt-only** handoff
    there is no file and no directive; the resume content is inline between the rails, and the
@@ -62,9 +64,19 @@ candidate, a block is already qualified by the three signals above before it is 
 deliberately outside that numbered list, and outside the conditional-signal slot the `/loop` re-arm
 note holds below. What the ladder depends on it for is step 3's existence check: it names the
 repository and repo-relative path that let a ROOTED directive survive a machine or checkout change,
-which is the one failure an absolute path has that a relative one does not. It is emitted by the
-file-mode shape only and only since the producer rooted its path, so its absence disqualifies
-nothing. Prompt-only never emits it, and no handoff older than the rooted directive has one.
+which is the one failure an absolute path has that a relative one does not. Only the file-mode
+shape emits it, and only alongside an absolute directive, so its absence disqualifies nothing:
+prompt-only never emits it, and a repo-relative directive never has one. It
+has two forms on disk and both are read: the shape-2 two-slot form
+`Handoff origin: <remote URL> <repo-relative path>` (a slot with whitespace double-quoted) and the
+legacy form `Handoff origin: <identity>, relative path <path>.`.
+
+**A shape-2 file stores its own resume prompt.** Files carrying `handoff_shape: 2` end with a
+`## Resume prompt` section holding the rails block exactly as it was emitted, so rung 1 can hand
+back the prompt from the file alone, without a transcript
+(`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
+that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
+is named as such and never presented as the lost handoff.
 
 **The resume prompt this skill recovers is the rails block PLUS every below-rail `/loop` re-arm
 message** (save-point.md "Detection contract"). Everything else the producer arms lives between the
@@ -84,10 +96,11 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
    never the literal `.work`. Read
    [reference/rung-1-known-location.md](reference/rung-1-known-location.md) before globbing: it owns
-   the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the mtime
-   ranking, the short-circuit bar and where a short-circuit jumps to, and the repo-correlation check
-   that stops a merely recent candidate from being presented as this work's. A strong, recent
-   candidate ends the ladder here.
+   the fallback-root rule and when it applies, the `type: handoff` frontmatter filter, the
+   unfinished-skeleton skip, the mtime ranking, the short-circuit bar and where a short-circuit
+   jumps to, how a shape-2 candidate's stored `## Resume prompt` is printed, and the
+   repo-correlation check that stops a merely recent candidate from being presented as this
+   work's. A strong, recent candidate ends the ladder here.
 
 2. **Transcript scan. Bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
    project dirs (the lost session may have run in a **different** repo, so scan all of them, not
@@ -178,9 +191,8 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   credential leak into a failed recovery. So `https://<token>@github.com/<owner>/<repo>.git` is
   surfaced as `https://github.com/<owner>/<repo>.git`, never a marker; when the userinfo boundary is
   not clear (`save-point.md` `<repo-identity>` gives the test), surface the repository name alone
-  rather than guessing. The producer strips it at emit time, but a recovered handoff predates that
-  rule as easily as it predates the rooted path. Recovery is exactly where an unsanitized one
-  arrives.
+  rather than guessing. The producer strips it at emit time, but older handoffs on disk may carry
+  it unstripped. Recovery is exactly where an unsanitized one arrives.
 
 ## Boundaries. Pick the right sibling
 
@@ -221,14 +233,14 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   UUID (not the `<UUID>` placeholder) on any `Prior session:` line before surfacing. **Never
   blanket-reject angle brackets**. Valid prompts carry `<REDACTED: …>` shape markers and code
   syntax.
-- **A rootless directive is the legacy form, and resolving it is inference.** The producer emits an
-  absolute path now; handoffs written before that shipped state a repo-relative one, so both forms
-  keep arriving. For the rootless form, read the `cwd` field of the transcript the directive was
-  found in and resolve against that. Checking existence from the current session's cwd falsely
-  reports a cross-repo handoff missing. But that resolution assumes the producer's cwd *was* the
-  repository it wrote into, which is untrue for exactly the sessions this skill exists to rescue: a
-  session working in a repo that is not cwd's project root. So a rootless miss is UNRESOLVED, not
-  absent. Surface it with its directive and say the path has no root, never that the file is
+- **A repo-relative directive resolves by inference.** Directives come in two forms: absolute
+  (what the producer emits) and repo-relative (what older handoffs on disk carry), so both keep
+  arriving. For the rootless form, read the `cwd` field of the transcript the directive was found
+  in and resolve against that. Checking existence from the current session's cwd falsely reports
+  a cross-repo handoff missing. But that resolution assumes the producer's cwd *was* the
+  repository it wrote into, which is untrue for exactly the sessions this skill exists to rescue:
+  a session working in a repo that is not cwd's project root. So a rootless miss is UNRESOLVED,
+  not absent. Surface it with its directive and say the path has no root, never that the file is
   missing.
 - **Markers in user messages, tool results, and tool INPUTS are not handoffs.** A pasted sample or
   an echoed doc puts the rails on a `"type":"user"` line, and an assistant `Write`/`Edit` call

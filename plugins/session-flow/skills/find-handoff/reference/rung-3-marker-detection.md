@@ -23,9 +23,15 @@ section names. **Accept hits only from assistant text output**, in two stages:
 - **File mode**. Match the `Read @…/handoffs/<TS>-handoff-<topic>.md` directive. **Filter out
   the template placeholder:** a match containing the template's own placeholder tokens
   (`<handoffs-dir>`, `<TS>`, `<topic>`) is the `save-point.md` doc being read into some
-  session's context, not a real handoff. Keep only concrete paths. Then confirm the referenced
-  file exists on disk, **by the directive's path form**:
-  - **Rooted directive** (the current producer shape). Check the absolute path as given. No cwd
+  session's context, not a real handoff. Keep only concrete paths. The directive's tail varies
+  by producer version: a shape-2 block continues after `then continue them.` with `For the next
+  save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file
+  free-hand.`, an older one ends at `continue them.` or `execute /<skill>.`; match the path
+  shape, never the tail. A shape-2 block also carries `Next:` followed by up to five headline
+  lines and an optional `Then: /<skill>` line before the bottom rail; they are content inside
+  the copy region, recovered with it, never keyed on. Then confirm the referenced file exists on
+  disk, **by the directive's path form**:
+  - **Rooted directive** (absolute path, what the producer emits). Check the absolute path as given. No cwd
     is involved, so nothing can resolve it against the wrong root. **A rooted path can still
     miss**, and for a reason the rootless form does not have: an absolute path is machine-local,
     so a resume on a different machine or a different checkout of the same repository finds
@@ -34,12 +40,17 @@ section names. **Accept hits only from assistant text output**, in two stages:
     names; a hit there surfaces the recovered file normally, and only if that re-resolution
     ALSO finds nothing does the candidate fall through to the shared rule below. Never treat a
     rooted miss as absence: it is the same not-found-here condition, reached from the other
-    direction.
-  - **Rootless directive** (every handoff written before the producer rooted its path).
-    **resolve it against the source transcript's `cwd` field, not the current session's cwd**. A
+    direction. **Read both origin forms:** the shape-2 two-slot line
+    `Handoff origin: <remote URL> <repo-relative path>` (a slot containing whitespace is
+    double-quoted; the second slot is an absolute path on the producer's no-project-root
+    branch) and the legacy `Handoff origin: <identity>, relative path <path>.` line. Split the
+    two-slot form on whitespace outside quotes; take the legacy form's identity before the
+    comma and its path after `relative path`, minus the trailing period.
+  - **Rootless directive** (repo-relative path, what older handoffs on disk carry). **Resolve
+    it against the source transcript's `cwd` field, not the current session's cwd**. A
     handoff recovered from another repo's transcript is otherwise falsely reported missing when
-    checked from here. These blocks carry no `Handoff origin:` line: it shipped with the rooted
-    form, so nothing older than that has one.
+    checked from here. These blocks carry no `Handoff origin:` line; that line accompanies
+    only an absolute directive.
   - **A path that resolves to nothing, rooted or rootless, is UNRESOLVED, never dropped.**
     Neither resolution is proof of absence. The rootless one is an inference: it assumes the
     producer's cwd *was* the repository it wrote into, which is the very assumption that loses
@@ -97,7 +108,13 @@ section names. **Accept hits only from assistant text output**, in two stages:
   take the next `<L>` lines verbatim** (save-point.md "Loop-aware re-arm"). The next header
   begins where the previous entry's `<L>` lines end; repeat until `n` entries are held. Anchor
   the search to the bottom rail, never "the lines after the rail" unbounded, which would widen
-  this skill into the raw-transcript dump it forbids.
+  this skill into the raw-transcript dump it forbids. **A shape-2 block puts one fixed line
+  directly below the bottom rail before any re-arm text:** a blank line, then the sentence
+  `Or reopen the producing session in place:` followed by `claude --resume <UUID>` in a code
+  span. Skip that line (and the blank) when starting the header scan; it is neither a header nor an entry body, and
+  reading it as the first body line would shift every `<L>` count by one. Surface it with the
+  prompt at step 4 as a second way in, since reopening the producing session is a valid resume
+  when it still exists.
 
   **Match on the length, never on the content.** The three ways this capture has been got wrong
   are all the same mistake. Bounding a verbatim region with a content test:

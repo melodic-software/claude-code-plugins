@@ -10,11 +10,26 @@ metadata:
   summary: Proactively hunt one lane for safe structural tidyings and ship a structure-only PR
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -5`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
 Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | { grep -E '^(Open tidy|Throttle)' || echo "unknown"; }; :`
 
 ## Variables
@@ -29,9 +44,9 @@ This skill encapsulates the agentic application of three converging ideas:
 
 - **Kent Beck, *Tidy First?* (2024)**. Small, named refactorings called "tidyings" (Beck's 15), separated from behavioral changes by commit and by PR. *"Always one or the other, never both at the same time."*
 - **Robert C. Martin / Steve Smith, Boy Scout Rule**, leave the campsite cleaner than you found it. Empirically validated against the *Pragmatic Programmer*'s Broken Windows hypothesis: small drift compounds.
-- **Adam Tornhill / CodeScene 2026, agentic refactoring research**, autonomous AI agents introduce defects ~30% more often in unhealthy code. Agents need a higher Code Health bar than humans. Structure-only Boy Scout work is the safest agentic move.
+- **Adam Tornhill / CodeScene, agentic refactoring research**, autonomous AI agents introduce defects measurably more often in unhealthy code, so agents need a higher Code Health bar than humans. Structure-only Boy Scout work is the safest agentic move.
 
-**What tidy is NOT**. Read carefully, differentiation matters:
+**What tidy is NOT**:
 
 - **Not `/simplify`** (Claude Code's bundled skill). That takes the conversation's recent diff and tightens it. Tidy hunts a lane independent of recent activity.
 - **Not `batch-simplify`** (this plugin's sibling skill). That sweeps an entire scope in waves: a time-window diff, a branch diff, or the whole repository. Tidy targets a glob-scoped lane and stops when the scope budget is hit. On documentation specifically: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` lane owns incremental structural prose work under a scope budget.
@@ -64,11 +79,11 @@ A lane is a discrete glob-scoped slice of the repo, defined in a lane file that 
 When the project layer is absent, resolution is the bundled lane alone. When it is present, how the two layers combine is governed by the **project layer's own `## Merge semantics` section** (per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md)):
 
 - The project layer declares a `## Merge semantics` section → **read both layers and merge per that declaration** (typically: `Scope` and most sections per-section override, watch-for patterns additive). A section absent from the project layer keeps the bundled value; the bundled generic patterns are never frozen out. The bundled `docs-prose` and `shell-tooling` lanes each publish a recommended declaration for their own sections, which a project layer adopts by reference or by restating it; the project layer's declaration is what governs.
-- The project layer declares no such section → it resolves **project-only** (the bundled lane is not read). This is the legacy first-match path; lanes still on it are migrated one at a time.
+- The project layer declares no such section → it resolves **project-only** (the bundled lane is not read).
 
 Lane files are project-specific **by design**, the bundled lanes cover surfaces that look the same in most repos, and the bundled templates scaffold the ones that don't. To define a project lane, copy the closest template from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/` into `.claude/tidy-lanes/<lane>.md` and fill in the scope globs and watch-for patterns for your stack. The catalog is the union of both locations. List `.claude/tidy-lanes/*.md` (if the directory exists) plus the bundled lanes when printing `help`.
 
-**Declared deviation. No user-global or `*.local.*` overlay (#723).** Per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md), this surface resolves only the team layer (`.claude/tidy-lanes/<lane>.md`) over the bundled lane, not the contract's user-global or gitignored overlay rungs. Lane scope globs, verification commands, and watch-for patterns are anchored to *this repo's* layout, CI, and stack; a `~/.claude/tidy-lanes/<lane>.md` user-global file would either duplicate the bundled generic lane or be wrong in most repos, and the bundled lane is already the portable cross-repo baseline. Personal variation is limited to lane names the team does not track: keep an uncommitted `.claude/tidy-lanes/<lane>.md` (never add it to the index), not a `*.local.*` sibling, so rotation and catalog discovery stay on one filename per lane. Gitignoring a path the team already tracks does not make it personal; setup documents that escape hatch and its limits. This is a declared deviation on the layering axis only. Merge granularity within the team+bundled pair is unchanged.
+**Declared deviation. No user-global or `*.local.*` overlay.** Per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md), this surface resolves only the team layer (`.claude/tidy-lanes/<lane>.md`) over the bundled lane, not the contract's user-global or gitignored overlay rungs. Lane scope globs, verification commands, and watch-for patterns are anchored to *this repo's* layout, CI, and stack; a `~/.claude/tidy-lanes/<lane>.md` user-global file would either duplicate the bundled generic lane or be wrong in most repos, and the bundled lane is already the portable cross-repo baseline. Personal variation is limited to lane names the team does not track: keep an uncommitted `.claude/tidy-lanes/<lane>.md` (never add it to the index), not a `*.local.*` sibling, so rotation and catalog discovery stay on one filename per lane. Gitignoring a path the team already tracks does not make it personal; setup documents that escape hatch and its limits. This is a declared deviation on the layering axis only. Merge granularity within the team+bundled pair is unchanged.
 
 Bundled lanes:
 
@@ -91,7 +106,7 @@ Read the resolved lane file in full at Phase A entry; do not infer scope from th
 
 ## Workflow (8 phases)
 
-Run in order. Each phase has one job. Don't skip phases for "small" tidyings, the structure-only-per-PR rule is non-negotiable.
+Run in order. Each phase has one job, and every phase runs whatever the tidying's size.
 
 ### Phase A. Triage
 
@@ -104,9 +119,9 @@ Run in order. Each phase has one job. Don't skip phases for "small" tidyings, th
 
 `git checkout -b chore/tidy-<lane>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch, a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
 
-### Phase C. Explore + research (mandatory)
+### Phase C. Explore + research
 
-Understand before changing. No exceptions for "small" tidyings. Workflow discipline is what keeps tidy runs safe.
+Understand before changing.
 
 1. Explore the lane's scope globs: if the `discovery` plugin is installed, invoke `/discovery:explore` via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
 2. Research current best practice for the lane's stack: if the `discovery` plugin is installed, invoke `/discovery:research` via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
@@ -177,7 +192,7 @@ gh pr comment <pr_number> --body-file - <<'EOF'
 EOF
 ```
 
-The comment itself is never optional when a PR was created. "Tidyings applied" is never empty at that point (Phase D's empty-PR-avoidance rule means no PR gets created when there's nothing to tidy), and it's the only place this content appears now that the canonical body template has no slot for it. Only the "Deferred items" subsection is conditional: omit it when nothing was deferred, and never post it as an empty table.
+The comment itself is never optional when a PR was created. "Tidyings applied" is never empty at that point, because Phase D's empty-PR-avoidance rule means no PR gets created when there is nothing to tidy, and the canonical body template has no slot for this content. Only the "Deferred items" subsection is conditional: omit it when nothing was deferred, and never post it as an empty table.
 
 If `source-control` isn't installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo, e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied/Deferred-items sections stay in the PR body itself (there is no canonical gate to conflict with).
 
@@ -204,8 +219,6 @@ Path lists above are glob-matchable. Behavioral concerns are agent-judgment guar
 
 If a candidate tidying would alter any of the above behaviors regardless of which path it edits, treat it as behavioral and file an issue instead.
 
-**Read `reference/exclusions.md` at the start of every run.** Do not trust memory of these lists across sessions.
-
 **Enforcement across phases:** Phase A seeds path-validation from the HARD list. Phase D classifies candidates against HARD (drop) and SOFT (defer). Phase E validates every Edit / Write target path against the HARD list. The self-update lane additionally applies the EXTRA HARD list during Phases D and E.
 
 ## Deferred items contract
@@ -222,7 +235,7 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Summary:
 - **Beck #4 (New Interface, Old Implementation) is context-dependent.** Safe ONLY when the new interface has zero existing consumers. If consumers exist, treat as behavioral and skip. Don't trust the "structural" label blindly.
 - **A tidying that breaks a test was secretly behavioral.** If verification goes red after a "structural" change, back it out. It altered observable behavior. That's a feature/bugfix belonging in a different PR with proper test coverage.
 - **Don't tidy your way around a banned/deprecated API.** If the lane scope contains call sites of an API the project bans, migrating them is behavioral. File an issue, defer.
-- **Self-update's safety relies on the EXTRA HARD list.** Read `reference/exclusions.md` SELF-UPDATE EXTRA HARD in full at the start of every self-update run.
+- **Self-update's safety relies on the EXTRA HARD list.** It is the only thing standing between an autonomous run and this skill's own contract surface.
 - **Empty-PR avoidance.** Zero applicable improvements → clean exit + one-line note. NO empty PR.
 - **Backlog throttle is a STOP signal, not a warning.** ≥3 open `chore/tidy-*` PRs means reviews are backed up. Stop until the humans catch up. Don't "just queue one more."
 - **`git add <path>` not `-A`.** Always `git diff <path>` before staging. Even on a tidy branch, WIP from a parallel session can sneak in.

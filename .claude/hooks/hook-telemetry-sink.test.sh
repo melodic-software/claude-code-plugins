@@ -16,12 +16,19 @@ repo_root="$(cd "$here/../.." && pwd)"
 local_copy="$here/hook-telemetry-sink.sh"
 upstream="$repo_root/plugins/claude-ops/hooks/hook-telemetry-sink.sh"
 
-[[ -f "$local_copy" ]] || { echo "FAIL: missing $local_copy"; exit 1; }
-[[ -f "$upstream" ]] || { echo "FAIL: missing $upstream"; exit 1; }
+[[ -f "$local_copy" ]] || {
+  echo "FAIL: missing $local_copy"
+  exit 1
+}
+[[ -f "$upstream" ]] || {
+  echo "FAIL: missing $upstream"
+  exit 1
+}
 
 # Strip the resolution block from both: the shellcheck source directive, the
 # source line itself, and the repo-copy-only comment lines that explain it.
-strip_re='^# shellcheck source=|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
+# shellcheck disable=SC2016  # the regex matches the literal source line, not an expansion
+strip_re='^# shellcheck source=|^source "\$HOOK_DIR/|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
 
 norm_upstream="$(mktemp)"
 norm_local="$(mktemp)"
@@ -42,7 +49,7 @@ fi
 # source line points somewhere broken. Pin the exact expected target, then
 # prove the wiring executes end-to-end: a valid envelope must append a record.
 # shellcheck disable=SC2016  # deliberate: the literal source line is the fixture
-expected_source='source "$(dirname "${BASH_SOURCE[0]}")/../../lib/hook-utils.sh"'
+expected_source='source "$HOOK_DIR/../../lib/hook-utils.sh"'
 if ! grep -qF "$expected_source" "$local_copy"; then
   echo "FAIL: the repo copy's source line does not target ../../lib/hook-utils.sh"
   exit 1
@@ -50,9 +57,9 @@ fi
 
 smoke_dir="$(mktemp -d)"
 trap 'rm -f "$norm_upstream" "$norm_local"; rm -rf "$smoke_dir"' EXIT
-printf '%s' '{"schema":"hook-telemetry/v1","hook":"drift-test-smoke","hook_event":"PreToolUse","duration_ms":1,"status":"ok","data":{"tool":"Bash","subject":"smoke"}}' \
-  | CLAUDE_PROJECT_DIR="$smoke_dir" bash "$local_copy"
-if [[ -s "$smoke_dir/.claude/observability/hook-events.jsonl" ]]; then
+printf '%s' '{"schema":"hook-telemetry/v1","hook":"drift-test-smoke","hook_event":"PreToolUse","duration_ms":1,"status":"ok","data":{"tool":"Bash","subject":"smoke"}}' |
+  CLAUDE_PROJECT_DIR="$smoke_dir" bash "$local_copy"
+if [[ -s "$smoke_dir/.observability/claude/hook-events.jsonl" ]]; then
   echo "PASS: sink executes and appends a record (source target resolves)"
 else
   echo "FAIL: sink ran but appended no record — source target or mapping broken"

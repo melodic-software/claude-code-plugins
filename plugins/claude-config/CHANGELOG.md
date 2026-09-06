@@ -3,6 +3,81 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.36]
+
+### Changed
+
+- `lib/state-key.test.sh` case 8 names its Windows-path remote with a `{central}` placeholder.
+  The assertions are that the remote is hashed and that no backslash reaches the key, and both
+  hold on any spelling of the segment. Braces rather than angle brackets because a `<` directly
+  after a backslash is the GNU word-boundary escape `\<`, which the shell-portability gate reads
+  as a GNU-only construct.
+
+### Fixed
+
+- Two in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. The `[0.35.3]` P2-findings
+  bullet drops its macOS home-path fragment and keeps the sentence, which already says the fragment
+  was eight characters; the `[0.31.0]` `audit-pass` bullet writes its example repository root with a
+  `<drive>` placeholder. Neither correction changes what either entry claims.
+
+## [0.40.35]
+
+### Changed
+
+- **audit:** removed the Phase 1.0 before-and-after narration, the observed-false-negative anecdote,
+  and the stale listing-budget measurement; the routing to `skill-quality:check` and the
+  scope-the-run rule now stand on their own.
+- **audit-automation-gaps:** the research step no longer tells the model both to fan out and to
+  prefer the main context; it delegates the fetches and keeps the gate verdicts. The quality
+  principles are stated as principles rather than as lessons from past sessions.
+- **audit-instructions:** the Authority axis is a closed four-value set that admits `HOUSE`;
+  `Model scope` takes a list, and the four `fable-5` rows widen to `fable-5, fable-5-1` with a dated
+  basis and a recheck trigger; issue numbers, ADR pointers, and scope-change narration are gone; the
+  caps-emphasis blocks read at normal volume; the description's trigger list becomes intent
+  categories.
+- **audit-pass:** removed the prior-version defect narration across the skill body and eight
+  reference files; the lease contract drops the retired five-minute window and refresh-interval
+  figures in favor of `stale_after_s` and `skew_grace_s`; the `/doctor` handoff states
+  `skillOverrides` as documented for project and user skills and unverified for bundled ones.
+- **audit-permission-grants:** the scope-filter rationale, the `//` absolute-anchor rule, and the
+  scan-root alias state their current reason without the issue numbers, machine timings, and errata.
+- **audit-permission-state:** the gotchas read as failure modes rather than as a log of earlier
+  revisions; the description's near-synonym triggers become intent categories and route the
+  ignored-allow-rule case to `audit-permission-grants`.
+- **audit-prompting-postures:** dropped the inventory-defect anecdote and the restatement of what the
+  state-key test suite asserts.
+- **draft-auto-mode-rules:** the classifier critique is quoted without the block it was run against,
+  and the absent history input is stated as a fact rather than as a design-decision record.
+- **setup:** the prerequisite list names every script that calls jq, awk, and sort, so a missing tool
+  reports what it actually blocks; the skill roster is complete.
+- **unhobble:** the PLUGIN-PHILOSOPHY hook-classification rubric is cited by URL, so an installed
+  copy can reach it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.40.34]
+
+### Changed
+
+- **`emit-findings.sh` composes its `## Surfaces` zero-result list through `rule_id()`**
+  instead of retyping the four rule-id strings that function already owns. Hand-copied
+  ids are the drift class `conflict-scan.sh`'s own `COORD_ERE` comment records a shipped
+  bug from, so a `split()` loop over the four ids now routes each one through the
+  accessor. Differential runs are byte-identical.
+- **`conflict-scan.sh` drops a guard that could never be false.** The `in` test before
+  `entities[ent] = 1` was redundant twice over: awk's `in` does not autovivify, and the
+  assigned value is always 1, so the guarded assignment is idempotent either way.
+- **`fix-plugin-drift.sh` builds its four action-plan lists through one `findings()`
+  helper.** The auto-remove, manual-orphan, auto-add and rename extractions repeated an
+  identical `select(.status == "ok")` and `sort -u` frame over `$INPUT_JSON`. The file's
+  injection posture is preserved on purpose: the composed suffix is always a static
+  literal from this file, never data, and plugin names stay `--argjson`-bound.
+- **`permission-state.test.sh` loses a guard dominated by the line above it.** After
+  `src="$(command -v "$tool")" || continue`, success already implies a non-empty `src`,
+  so the emptiness test beneath it could not fire. The suite's zero-writes proof is
+  untouched and still ran 12 of 12.
+
 ## [0.40.33]
 
 ### Changed
@@ -1199,7 +1274,7 @@ And review of *that* round caught the containment fix breaking the one run no fi
   to the detector: exempting it would have made an `error`-tier username-leak check blind to the
   documentation's own literal example of the leak.
 - **P2 findings report the full offending rule** rather than an eight-character path fragment
-  (`/Users/k`) an operator could not map back to any particular rule. This is the intent the file
+  an operator could not map back to any particular rule. This is the intent the file
   already stated for P1 and had never applied to P2.
 - **P2 reads every tool's rules, not five names.** While adding that full-rule capture the tool
   name was briefly enumerated as `(Read|Edit|Write|Bash|PowerShell)`, which silently stopped
@@ -1505,7 +1580,7 @@ repository rooted at or above `$HOME`, which a dotfiles repo is.
   construction.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`
   ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
   documented setting relocates it — so the default report path is *inside* any target at or above `~`.
-  The sentence was true for an ordinary repo under `C:/Projects/…` and stated as a universal, while a
+  The sentence was true for an ordinary repo under `<drive>:/Projects/…` and stated as a universal, while a
   whole reachable target class falsifies it. It is now stated as what it is: outside a target below `~`,
   inside one at or above it. That claim was load-bearing for the read-only contract's headline property
   and for assertions 2.1 and 2.4.

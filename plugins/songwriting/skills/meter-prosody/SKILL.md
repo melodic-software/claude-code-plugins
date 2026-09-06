@@ -84,8 +84,8 @@ fix a bad scan.
 
 **Measure in stressed syllables, never raw syllables.** Line length in this method is the count of
 stressed syllables; a raw-syllable count is a different measurement that answers a different
-question. Reporting one as the other invents symmetry that is not there. In the pilot a chorus
-reported as an 8/9/9/8 strength was 3/4/3/3 by the correct measure, and the strength did not exist.
+question. Reporting one as the other invents symmetry that is not there. A chorus that reads 8/9/9/8
+by raw syllables can be 3/4/3/3 by stress, and the symmetry the raw count showed does not exist.
 If the stress map has not been marked, the length claim has not been made: mark it, or say the box
 was skipped.
 

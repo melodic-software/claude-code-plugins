@@ -17,11 +17,10 @@ requirement, a default, or a supported integration.
 
 ## Why only three
 
-Four further categories carry real intent evidence — team chat, application observability, error
-tracking, and product analytics. They are not shipped, and the reason is empirical rather than
-principled: a sweep of this marketplace found no seam reaching any of them. Shipping them anyway
-would emit four identical "unavailable" lines on every run in every repository forever, which is
-noise wearing the costume of rigour.
+Team chat, application observability, error tracking, and product analytics also carry intent
+evidence. They are not shipped as investigators because no seam in this marketplace reaches them,
+and an investigator that resolves nowhere would emit the same "unavailable" line on every run in
+every repository.
 
 A null result is a finding when it varies. A constant is not a finding.
 
@@ -44,9 +43,3 @@ Two rules bind an adapter:
 2. **It names a category, not a product.** An adapter for one incident tool is an
    *application-observability* adapter that happens to speak that tool's query language, and the
    output cites the category. A reader should not have to know which vendor answered.
-
-## If nobody ever writes one
-
-Then this seam is dead weight and should be removed rather than defended. That is recorded as an
-explicit assumption in the topic's contract, not left as an article of faith: an unwired seam earns
-its place by being wired, and the next audit that finds it unused should delete it.

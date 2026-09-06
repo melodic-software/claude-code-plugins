@@ -31,11 +31,21 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-hook::check_enabled "WORKTREE_ADD_CLAIM_GATE"
-
+source "$HOOK_DIR/hook-utils.sh"
 INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
@@ -49,7 +59,7 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -d '\r')
 
-CLAIM="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/worktree-claim.sh"
+CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"
 [[ -f "$CLAIM" ]] || exit 0
 
 # Set once a segment changes the working directory; every later segment then

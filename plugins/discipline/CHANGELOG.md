@@ -5,6 +5,60 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.13.3]
+
+### Added
+
+- **`context/fan-out.md`, the shared fresh-context fan-out contract.** Blind
+  subagents, bounded waves with the 529 reason, and failed-subset retry now live
+  in one file that both `-deep` tiers point at, instead of one procedure written
+  twice with edges that had already drifted apart.
+
+### Changed
+
+- **do-your-research:** consolidated the near-synonym fact-check trigger phrases
+  and stated the deep sibling's route in one sentence.
+- **do-your-research-deep:** dispatch now points at the shared fan-out contract;
+  dropped the unbaselined "lower-tier worker models are sufficient" routing
+  clause and a duplicate trigger phrase; steps renumbered.
+- **mind-your-maxims:** dropped the note recording the Benevolence exclusion as
+  deliberate; the exclusion and its reason stay.
+- **pick-for-the-problem:** the deferred dependency-inventory variant is now a
+  plain scope boundary, and the cross-skill "keep the carve-outs in sync"
+  instruction is gone.
+- **point-dont-copy:** the threshold-two pin no longer restates the external
+  convention's own "three or more" figure, which this skill cannot see at read
+  time.
+- **reason-dont-recite:** dropped the "keep the carve-outs in sync" instruction.
+- **reuse-or-replace:** removed the second statement of the misconstrual guard
+  inside the same section.
+- **setup:** dropped the four pre-rename `re-anchor` trigger phrases from the
+  description; the three setup eval prompts now say "discipline setup".
+- **sweep-all:** the description states the degrade outcome instead of the exact
+  token and the three-part omission list; removed the tracker number, the five
+  restatements of the never-name-members rule, the duplicated overlay paragraph,
+  and the maintainer note about a rejected `isolation: "worktree"` option, which
+  is now stated as the rule it implies.
+- **sweep-all reference files:** `batched-pass.md` states the no-per-session-cap
+  rule in the present tense and reduces the concurrency verification record to
+  its four parts (claim, basis, as-of date, recheck trigger); it also attributes
+  per-wave checkpointing to `recheck-against-upstream-deep`, the only tier that
+  performs it. `inheritance-preflight.md` drops the narration of the run it came
+  from and states its two observations in the present tense.
+- **tighten-your-output:** added the readability guard. Tightening selects what
+  to include and does not compress prose into fragments, abbreviations, arrow
+  chains, or jargon; when brevity and readability conflict, readability wins.
+- **use-your-skills:** the deferred per-prompt routing hook section becomes a
+  routing bullet under the out-of-scope list. The rationale it carried: a
+  `UserPromptSubmit` hook that injects a task-to-skill mapping is deliberately
+  not built here, the seam is owned by a hooks-capable plugin per the
+  `claude-ops` hook-ownership precedent, and the trigger to revisit is repeated
+  audit evidence that a skill existed but its description never surfaced it, or
+  that skills keep not firing despite the soft re-anchor.
+- **wait-what:** dropped the note explaining why the skill stays short.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.13.2]
 
 ### Changed

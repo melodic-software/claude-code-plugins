@@ -1,5 +1,5 @@
 ---
-description: "Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', 'simplify the whole repo', 'simplify just this folder', 'simplify everything under <path>', or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
+description: "Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a named scope such as a branch, a whole repository, or one directory, or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[time-window | branch | repo] [path...] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
@@ -9,9 +9,17 @@ metadata:
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -159,11 +167,11 @@ For each group:
 
 1. **Mark the task in_progress** via `TaskUpdate`
 
-2. **Spawn a simplifier agent** via the `Agent` tool. Use `subagent_type: "pr-review-toolkit:code-simplifier"` when that plugin is installed, else `subagent_type: "general-purpose"`. The prompt MUST include:
+2. **Spawn a simplifier agent** via the `Agent` tool. Use `subagent_type: "pr-review-toolkit:code-simplifier"` when that plugin is installed, else `subagent_type: "general-purpose"`. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities
-   - Instructions to preserve ALL functionality (exit codes, output format, public API, CLI args)
+   - Instructions to preserve every observable behavior: exit codes, output format, public API, CLI args
    - The ecosystem-specific verification commands to run after changes (see context/reference.md)
    - An escalation clause: *"If you discover mid-task that the requested change is wrong, conflicts with project conventions, or requires touching files outside your file list, STOP and report back instead of improvising."*
    - **Fix-first deferral contract (required):** *"Apply every simplification you identify. Deferral is the exception, and each deferral must name one of these grounds: (a) HUMAN-DECISION, the change turns on a judgment only a human can make (a behavior or public-API question, an ambiguous contract, product intent); (b) TOO-LARGE, a genuinely huge refactor whose scope would dwarf this sweep (a redesign spanning ecosystems, a breaking API migration); (c) CROSS-GROUP, the change requires editing files outside your file list (a later resolution wave in this same run will take it); (d) PROTECTED, the target is in a Phase 2 excluded class. 'Out of scope', 'would dilute the diff', or 'could be a follow-up' are NOT grounds; if you can do it safely and verify it, do it now. Record each deferral in a `## Deferred` section of your final report with this shape per item: `- <path>:<line or range> — <one-line description>. Ground: <HUMAN-DECISION|TOO-LARGE|CROSS-GROUP|PROTECTED>. Reason: <why that ground applies>. Scope: <trivial|small|medium|large>. Category: <refactor|dedup|modernize|perf|cleanup>.` Do not silently skip, if you noticed it, list it. 'Already idiomatic' or 'preserves documented contract' do NOT need to appear. Only candidates you considered actionable but set aside."*
@@ -176,7 +184,7 @@ For each group:
 
 ### Phase 6.5: Resolve deferred items in-run
 
-After all groups complete, consolidate the deferred items collected in Phase 6 and RESOLVE them in this same run. The default is fix, not file: a filed issue is deferred work that piles into a backlog, so filing is reserved for items a fix genuinely cannot absorb. NON-OPTIONAL, never silently defer: if you notice something and choose not to fix it now, say so and capture it.
+After all groups complete, consolidate the deferred items collected in Phase 6 and RESOLVE them in this same run. The default is fix, not file: a filed issue is deferred work that piles into a backlog, so filing is reserved for items a fix genuinely cannot absorb. If you notice something and choose not to fix it now, say so and capture it rather than dropping it.
 
 1. **Dedupe and group**. Multiple agents may flag the same cross-cutting concern. Merge into single items spanning all identified sites.
 
@@ -187,7 +195,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6 a
 
 3. **Run a resolution wave** for the Fix-now items: spawn agents with the same Phase 6 spawn contract (same verification, and in repo mode the same refutation verifier). The wave's edits land exactly like the primary wave's: uncommitted working-tree changes in the diff-scoped modes, commits on the run's single branch in repo mode. Give each agent the complete file set its concern spans, every consolidated site plus every file a CROSS-GROUP ground named, so the wave boundary that forced the deferral is actually gone and CROSS-GROUP cannot legitimately recur. If an agent still discovers a genuinely new file mid-task, fold it into that item's file list and re-dispatch the item once. One resolution wave plus that single re-dispatch, no further recursion: an item still deferred after it goes to the Phase 8 report carrying its recorded ground, whatever that ground is.
 
-4. **Report the remainder, do not file it.** Needs-human items, Too-large items, and anything the resolution wave still could not finish go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Do NOT file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
+4. **Report the remainder, do not file it.** Needs-human items, Too-large items, and anything the resolution wave still could not finish go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Do not file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
 
 ### Phase 7: Final cross-ecosystem verification
 

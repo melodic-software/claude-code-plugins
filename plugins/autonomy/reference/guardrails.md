@@ -125,4 +125,5 @@ own — distinct from, and narrower than, the claim and dispatch paths, which th
 [one-entrypoint invariant](trigger-dispatch.md#dispatch) states canonically and which binds
 here unchanged.
 
-Interactive escalation UX is deferred; its trigger is the runner design pack.
+Escalation UX is specified by the [runner escalation leaf](runner/escalation.md): terminal
+handoff at launch, with the mid-run interrupt shape deferred there behind its own trigger.

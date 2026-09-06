@@ -43,7 +43,7 @@ Worth considering but lower urgency or higher effort:
 
 Course content that doesn't fit our context (documented so we don't revisit):
 
-- **{Topic}** — {why it doesn't apply}. (e.g., "uses NUnit-specific features; we use xUnit")
+- **{Topic}** — {why it doesn't apply}. (e.g., "depends on a test framework this repo doesn't use")
 ```
 
 ## action-items.md
@@ -133,5 +133,5 @@ Items to add to the maintenance backlog:
 
 ## Relevance to our stack
 
-{High-level assessment of how this course maps to our .NET / C# / Aspire / modular monolith context}
+{High-level assessment of how this course maps to the target repository's languages, frameworks, and architecture}
 ```

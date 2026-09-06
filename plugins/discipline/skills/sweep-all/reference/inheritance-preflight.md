@@ -5,15 +5,10 @@ assume that its subagents inherit this conversation. A batched pass whose member
 has nothing to audit, and some share of them will invent a ledger instead of saying so. Session-start
 digest mode never runs any of it.
 
-The batched pass is only meaningful if its subagents actually inherit this
-conversation. Establish that before dispatching, never by assuming it. A
-subagent with no history has nothing to audit, and some share of them will
-invent a ledger from the system prompt rather than say so. Six of eight did in
-the run this preflight comes from, and the two that refused are the only reason
-it was caught. The batched pass's step 3 then merges those ledgers and its
-step 4 **writes their remedies to the working tree**. That is the failure this
-preflight exists to prevent: a correctness pass whose failure mode is
-confident, invented corrections applied to real files.
+The batched pass's step 3 merges the members' ledgers and its step 4 **writes
+their remedies to the working tree**. That is the failure this preflight exists
+to prevent: a correctness pass whose failure mode is confident, invented
+corrections applied to real files.
 
 **Stage 1. Read your own tool schemas. Zero dispatch, diagnostic only.** Two
 documented sentences pair up: fork mode "removes the `run_in_background`
@@ -65,10 +60,9 @@ question. All four are required:
 - **The dispatch prompt neither contains nor paraphrases the answer**. Else a
   non-inheriting subagent answers it from the prompt alone.
 - **It keys on ordinary inherited material**, a prior user turn or tool result.
-  Out-of-band or host-injected content is not reliably inherited (observed once
-  in a fork-enabled session: an out-of-band advisor result was absent from a
-  fork's inherited transcript, not documented behavior, and a proof keyed on it
-  would have read as a false negative).
+  Out-of-band or host-injected content is not documented as inherited and can
+  be absent from a fork's transcript, so a proof keyed on it can read as a
+  false negative.
 - **It cannot be guessed.** An answer a non-inheriting subagent could hit by
   chance, a yes/no, a binary choice, a detail common to most sessions, clears
   the main thread's check without proving anything, and the blind ledgers behind
@@ -144,7 +138,6 @@ rollout", and a staged rollout can enable it without the variable
 (<https://code.claude.com/docs/en/env-vars>,
 <https://code.claude.com/docs/en/sub-agents>). What the harness does when the
 `fork` type is requested while fork mode is OFF is **not documented on any
-current page**. Observed once, in the failed full-batch run this preflight
-comes from, as subagents returning with no inherited conversation. Treat it as
-an observation, not a contract; the preflight does not rest on it, proving
-inheritance positively rather than predicting the shape of its absence.
+current page**. Subagents may come back with no inherited conversation, but
+that is an observation, not a contract; the preflight does not rest on it,
+proving inheritance positively rather than predicting the shape of its absence.

@@ -3,6 +3,50 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.19]
+
+### Changed
+
+- **`code-review`:** dropped the cross-repository PR number from the lane's opening line, the
+  gotcha prohibiting a confidence-score gate that only a prior prompt carried, and the "V2 target"
+  marker on the adversarial-validation heading.
+- **`security-review`:** the same three edits; the Criteria section now states the zizmor
+  deferral once, so the lane no longer hunts for the Actions patterns it is told not to report.
+- **`fanout`:** the description names the breadth-review intent instead of enumerating trigger
+  phrases; the coverage clause cites Anthropic's per-model prompting guides without pinning a
+  model; fix-pass mode states its rules without narrating earlier versions and keys the legacy
+  record tolerance on the digest-less shape rather than a plugin version; the normalization
+  stages name subagent versus deterministic steps without model tiers; the roster count is read
+  from the leaf-roster table instead of restated in three files. Fanout evals 28, 32, 33, and 35
+  describe the legacy record as digest-less rather than by plugin version.
+- **`quality-gate`:** the `allowed-tools` grants match the plain git commands the body runs;
+  close-out mode drops the incident narrative behind the rung-1 rule and the "learned from running
+  it" clause; spec mode states the work-items reader fact without "as of this writing".
+- **`setup`:** the migration bullet drops the "stays bespoke" justification sentence.
+- **`ci-log-auditor` agent:** the report length is stated as audience framing (every finding row,
+  evidence the caller needs to act) rather than a 500-word cap.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.26.18]
+
+### Fixed
+
+- **`fanout`, `quality-gate`:** the git pre-compute lines moved out of `## Pre-computed context`
+  into a "Repository context. Gather first" body section of individual Bash calls, one command per
+  call, each `head` bound kept inside its command and a failure read as an unknown value. The
+  harness composes a skill's whole pre-compute block into one shell invocation, and a
+  worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
+  loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
+  lines stay where they were.
+
+## [0.26.17]
+
+### Changed
+
+- **`diff-vs-base.test.sh`: five duplicated work-repo setup lines folded into one `init_work_repo`
+  helper.** Test-only tidy from the repo-wide simplification sweep; the same git commands run in
+  the same order at every call site, verified with an argv trace.
+
 ## [0.26.16]
 
 ### Changed

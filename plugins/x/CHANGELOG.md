@@ -5,6 +5,17 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3]
+
+### Changed
+
+- **read:** the description names the intent category with four example phrases; the honest-limit
+  paragraph drops the superlative harness claim and the deferred-hook note; `context/failure-modes.md`
+  states the no-metadata-probe rule in the present tense, dates the curl verification with a recheck
+  trigger, and uses a neutral placeholder in the shell-expansion example.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.2.2]
 
 ### Changed

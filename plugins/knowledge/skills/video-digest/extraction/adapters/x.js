@@ -214,8 +214,7 @@ export function parseXStatusUrl(url) {
     return null;
   }
   const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
-  const owned = X_OWNED_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
-  if (!owned) {
+  if (!X_OWNED_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))) {
     return null;
   }
   const match = X_STATUS_PATH_PATTERN.exec(parsed.pathname);
@@ -746,10 +745,7 @@ export async function acquireXMedia(url, context) {
       entryCount: inspected.twitterVideos.length,
       countsAuthoritative: post.countsAuthoritative,
     });
-    if (!degradation) {
-      return null;
-    }
-    return failDegraded(degradation);
+    return degradation ? failDegraded(degradation) : null;
   };
 
   let gated = await inspectAndGate();
@@ -869,8 +865,7 @@ export async function acquireXMedia(url, context) {
   }
 
   const postInfo = post.info;
-  const firstVideoId = inspected.twitterVideos[0]?.info.id;
-  const resultIdRaw = firstVideoId ?? postInfo.id;
+  const resultIdRaw = inspected.twitterVideos[0]?.info.id ?? postInfo.id;
   const aliasingDelta = detectSnowflakeAliasing(
     statusId,
     typeof resultIdRaw === "string" ? resultIdRaw : null,

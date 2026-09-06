@@ -89,7 +89,7 @@ fi
 
 # --- 5. clean_path_key: case folding only on Windows ---
 if [[ "$is_windows" == "true" ]]; then
-  if clean_skip_matches "$(clean_path_key 'C:/Repos/Acme/KeepMe')" 'acme\keepme'; then
+  if clean_skip_matches "$(clean_path_key '<drive>:/Repos/Acme/KeepMe')" 'acme\keepme'; then
     pass "Windows: skip match is case-insensitive"
   else
     fail "Windows: skip match is case-insensitive" "match" "no-match"
@@ -97,6 +97,15 @@ if [[ "$is_windows" == "true" ]]; then
 else
   skip_case "case-fold assertion is Windows-only"
 fi
+
+# mk_git_shim <dir> — install an executable PATH shim at <dir>/git from the
+# script body supplied on stdin (a heredoc at the call site). Each shim below
+# intercepts one git subcommand and delegates every other one to the real git.
+mk_git_shim() {
+  mkdir -p "$1"
+  cat >"$1/git"
+  chmod +x "$1/git"
+}
 
 # --- Integration fixtures ---
 # make_repo <name> — a repo under an owner dir (acme/<name>) on a feature branch
@@ -212,8 +221,7 @@ assert_not_contains "skip-from matched entry not reported unmatched" "$out" "Unm
 FAIL_REPO="$(make_repo reset-fail-repo)"
 REAL_GIT="$(command -v git)"
 SHIM="$TEST_TMPDIR/git-shim"
-mkdir -p "$SHIM"
-cat >"$SHIM/git" <<SHIMEOF
+mk_git_shim "$SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "reset" ]]; then
   echo "fatal: simulated reset --hard failure" >&2
@@ -221,7 +229,6 @@ if [[ "\$1" == "reset" ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$SHIM/git"
 rc=0
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --apply --repo "$FAIL_REPO" 2>&1)" || rc=$?
 assert_exit "child reset failure makes the batch exit 1" 1 "$rc"
@@ -236,8 +243,7 @@ assert_contains "summary counts the failure" "$out" "failed=1"
 # reset-but-not-cleaned repo as a completed batch.
 CLEAN_FAIL_REPO="$(make_repo clean-fail-repo)"
 CLEAN_SHIM="$TEST_TMPDIR/git-clean-fail-shim"
-mkdir -p "$CLEAN_SHIM"
-cat >"$CLEAN_SHIM/git" <<SHIMEOF
+mk_git_shim "$CLEAN_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" ]]; then
   echo "fatal: simulated clean failure (non-locked cause)" >&2
@@ -245,7 +251,6 @@ if [[ "\$1" == "clean" ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$CLEAN_SHIM/git"
 rc=0
 out="$(PATH="$CLEAN_SHIM:$PATH" bash "$BATCH" --apply --repo "$CLEAN_FAIL_REPO" 2>&1)" || rc=$?
 assert_exit "child clean failure (exit 7) makes the batch exit 1" 1 "$rc"
@@ -261,8 +266,7 @@ assert_contains "summary counts the exit-7 failure" "$out" "failed=1"
 # it as a fully realigned tree.
 UNREMOVABLE_REPO="$(make_repo unremovable-repo)"
 UNREMOVABLE_SHIM="$TEST_TMPDIR/git-unremovable-shim"
-mkdir -p "$UNREMOVABLE_SHIM"
-cat >"$UNREMOVABLE_SHIM/git" <<SHIMEOF
+mk_git_shim "$UNREMOVABLE_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" ]]; then
   echo "warning: failed to remove obj/locked.bin: Device or resource busy" >&2
@@ -270,7 +274,6 @@ if [[ "\$1" == "clean" ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$UNREMOVABLE_SHIM/git"
 rc=0
 out="$(PATH="$UNREMOVABLE_SHIM:$PATH" bash "$BATCH" --apply --repo "$UNREMOVABLE_REPO" 2>&1)" || rc=$?
 assert_exit "incomplete clean still exits 0 (locked files are non-fatal)" 0 "$rc"

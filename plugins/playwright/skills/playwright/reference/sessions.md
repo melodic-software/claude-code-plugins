@@ -19,7 +19,7 @@ Each `-s=<name>` is its own daemon-managed browser. Default (unnamed) session is
 playwright-cli list                   # show active sessions
 playwright-cli -s=<name> close        # stop one
 playwright-cli close-all              # stop every session cleanly
-playwright-cli kill-all               # force-kill zombie daemon processes
+playwright-cli kill-all               # force-kill zombie daemons; also the recovery for socket errors
 playwright-cli -s=<name> delete-data  # remove persistent profile data
 ```
 

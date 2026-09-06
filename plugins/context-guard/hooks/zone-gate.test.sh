@@ -68,6 +68,13 @@ OUT=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Wri
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash "$HOOK" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "advisory default is inert"; else fail "advisory: rc=$RC out=$OUT"; fi
+adv_trace=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash -x "$HOOK" 2>&1 >/dev/null) || true
+if [[ "$adv_trace" != *hook-utils.sh* ]]; then
+  ok "advisory default does not source hook-utils.sh"
+else
+  fail "advisory sourced hook-utils.sh"
+fi
 
 # 2. Blocking + dumb within grace → allowed, counter counts.
 run "$H" "$D" s1 '' blocking 2
@@ -83,6 +90,7 @@ else
   fail "grace exhausted: rc=$RC out=$OUT"
 fi
 if [[ "$OUT" == *handoff* ]]; then ok "deny reason routes to a handoff"; else fail "deny reason lacks handoff routing: $OUT"; fi
+if [[ "$OUT" != *"write a resume file"* ]]; then ok "deny reason names only the skill"; else fail "deny reason still licenses a free-hand resume file: $OUT"; fi
 
 # 4. Handoff-path write exempt even past grace.
 run "$H" "$D" s1 ',"tool_input":{"file_path":"/work/.work/handoffs/20260726-handoff-x.md"}' blocking 2

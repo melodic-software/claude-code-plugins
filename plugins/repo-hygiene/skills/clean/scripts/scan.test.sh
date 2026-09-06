@@ -11,6 +11,13 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
+# The fixture's git env is exported the way a hook chain would export it, so the
+# scan must resolve the fixture repo and not the checkout this suite runs from.
+run_scan() {
+  GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" \
+    bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'"
+}
+
 rc=0
 bash "$SCAN" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
@@ -25,14 +32,14 @@ git -C "$TEST_TMPDIR/repo" commit -m "tracked cache" >/dev/null
 mkdir -p "$TEST_TMPDIR/repo/node_modules/pkg"
 echo junk >"$TEST_TMPDIR/repo/node_modules/pkg/j"
 
-out="$(GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'")"
+out="$(run_scan)"
 assert_not_contains "protected node_modules not inventoried" "$out" "node_modules"
 
 git -C "$TEST_TMPDIR/repo" rm -r --cached .pytest_cache >/dev/null 2>&1
 mkdir -p "$TEST_TMPDIR/repo/.ruff_cache"
 echo y >"$TEST_TMPDIR/repo/.ruff_cache/y"
 
-out="$(GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'")"
+out="$(run_scan)"
 assert_contains "finds untracked cache" "$out" ".ruff_cache"
 assert_contains "emits category" "$out" "Category:"
 assert_contains "emits total" "$out" "Total reclaimable:"
@@ -44,7 +51,7 @@ mkdir -p "$TEST_TMPDIR/repo/node_modules/pkg/bin"
 echo z >"$TEST_TMPDIR/repo/node_modules/pkg/bin/z"
 mkdir -p "$TEST_TMPDIR/repo/src/bin"
 echo z >"$TEST_TMPDIR/repo/src/bin/z"
-out="$(GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'")"
+out="$(run_scan)"
 assert_contains "top-level build dir inventoried" "$out" "src/bin"
 assert_not_contains "build dir under pruned node_modules skipped" "$out" "node_modules/pkg/bin"
 

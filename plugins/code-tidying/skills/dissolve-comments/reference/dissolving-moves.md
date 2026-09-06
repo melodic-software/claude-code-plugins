@@ -1,9 +1,18 @@
 # Dissolving moves — comment shape → named refactoring
 
-All names are Fowler-catalog names (refactoring.com/catalog), verified current at authoring time.
+All names are Fowler-catalog names. Basis: <https://refactoring.com/catalog/>, read 2026-08-17.
+Recheck trigger: a move name in the table below failing to resolve on that page.
 The first three rows are Fowler's own prescription in the Comments smell entry; the rest apply the
-same logic with catalog names. Every move is behavior-preserving in Fowler's sense and inherits
-the test-net presumption — see [safety.md](safety.md).
+same logic with catalog names. Every move is behavior-preserving in Fowler's sense, but they do
+not share one proof of it: each sits in a tier of [safety.md](safety.md) that names the strongest
+available certification. Renames are proven by token comparison; additive local moves need a test
+net; interface-creating moves need a test net and stay proposals in non-interactive runs.
+
+| Tier | Moves |
+|---|---|
+| 1, token-proven | Rename Variable, Rename Field (function-local identifiers only) |
+| 2, test-gated | Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional, Replace Nested Conditional with Guard Clauses, Introduce Special Case |
+| 3, test-gated and proposal-first | Extract Function, Change Function Declaration, Move Statements into Function, Replace Inline Code with Function Call, Introduce Parameter Object, Inline Function |
 
 | Comment shape being dissolved | Named refactoring |
 |---|---|

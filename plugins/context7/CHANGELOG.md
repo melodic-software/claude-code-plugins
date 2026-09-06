@@ -3,6 +3,22 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- **lookup:** the MCP-versus-CLI content ratio has one dated home in `context/mcp.md`, now with a
+  recheck trigger, and the five other sites point at it; the resolve-first rule and the `vendor/`
+  note state their reasons at normal volume; the secrets rule in `context/lookup.md` is stated
+  twice instead of three times; `context/cli.md` drops the deprecated `ctx7 skills` rows and alias
+  line and states the optional query argument without a version diff; `context/mcp.md` drops the
+  serialization note; the description names the intent category with two example phrases.
+- **setup:** the description names the intent category with three example phrases; the idempotence
+  rule is stated once, in `apply`; the plugin-cache boundary carries its reason; the MCP guidance
+  points at `context/mcp.md` for the content ratio.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.3]
 
 ### Changed

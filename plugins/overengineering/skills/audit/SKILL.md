@@ -1,5 +1,5 @@
 ---
-description: "Audit an existing enforcement surface (agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations) under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'what automation can we retire', 'too many guards', 'process cruft', 'do we still need this gate', 'enforcement clutter', 'retire dead automation', 'why does this check exist'. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
+description: "Audit an existing enforcement surface. Agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations. Under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when the ask is to assess the enforcement surface ('audit our enforcement surface', 'is our CI overengineered'), to find which incumbents can be retired ('are these hooks still earning their keep', 'do we still need this gate'), to name enforcement clutter or process cruft, or to reconstruct why a check exists. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,10 +9,18 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
-- Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown (no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+- Shallow clone, `git rev-parse --is-shallow-repository`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -80,8 +88,13 @@ human gate. Name it as the next step; never start it unasked.
 
 Parse `$ARGUMENTS`:
 
-- **Layer scope**. One or more values from the layer vocabulary owned by
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`; default `all`. A mature repository's surface
+- **Layer scope**. One or more of the **ten enforcement layers** in the vocabulary owned by
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, `agent-hooks` through
+  `external-integrations`; default `all`, meaning those ten and never the five the justification lane
+  owns. The narrowing is load-bearing: `scope` is what merge rule 3 reads to decide a prior finding's
+  item is gone, so a layer recorded but not walked closes another producer's rows as deleted
+  artifacts. Asked for one of the five, this skill refuses and names `/overengineering:justify`,
+  which owns them one target at a time. A mature repository's surface
   runs past a hundred items and does not fit one context window, so layer-scoped passes are the
   supported way to cover it: they compose because a re-run merges into the same artifact by stable
   finding id. Record exactly the layers walked in the artifact's `scope`, a layer absent from
@@ -97,13 +110,11 @@ Parse `$ARGUMENTS`:
 
 ## Before the walk
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
-   all, which is exactly the `unattended` context where a detached checkout is most likely, so where
-   the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read its exit status
-   rather than assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is
-   the sentinel. "A detached checkout has no branch identity" below governs what an unresolved
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output (detached HEAD or no checkout). Read its exit status rather than
+   assuming an identity; the `unattended` context is exactly where a detached checkout is most
+   likely. **`HEAD` is never accepted as a branch identity**, and neither is a failed call.
+   "A detached checkout has no branch identity" below governs what an unresolved
    identity declines, and it is decided here, before a home is composed. With an identity in hand,
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
@@ -131,11 +142,17 @@ the artifact's enum order, with each layer's discovery probes and evidence sourc
 shallow-clone reads, the aggregating-container granularity rule, and the per-layer incremental write.
 Read it at the start of the walk, not per layer.
 
-Two properties of the walk matter enough to state here:
+Three properties of the walk matter enough to state here:
 
 - **Write the artifact per layer, as the walk proceeds.** A partial artifact is a checkpoint, not a
   failure, a context-exhausted run then dies with its completed layers persisted and a later pass
   merges into them.
+- **Re-read the artifact from disk immediately before each of those writes**, and merge against that
+  copy rather than the one loaded before the walk. A second producer writes this file, its rows sit
+  in layers this walk never visits, and a merge against a stale copy would drop them with no closure
+  row, since a closure row is written only for a layer the run walked. The obligation is the
+  contract's, in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Re-run merge
+  semantics", and it binds every writer.
 - **Answer the three liveness questions independently for every item** (§3). Inferring one from
   another is what produces every false green the method enumerates.
 
@@ -190,7 +207,7 @@ Ownership itself resolves through §12, and ownerless is not a valid terminal st
 ## Consumer-agnostic
 
 Nothing here assumes an organization, a repository, a forge, a CI system, a branch name, or an agent
-harness. Layers are the ten forge-neutral names in the artifact's vocabulary, and every discovery
+harness. Layers are the ten forge-neutral enforcement names this lane walks, and every discovery
 probe in the walk resolves what a consumer actually declares.
 
 **Custody is detected, never assumed.** A managed, vendored, or synced file, a copy whose upstream
@@ -206,6 +223,19 @@ findings artifact as the single source of truth, an inline terminal summary alwa
 HTML view only as a presence-gated extra. Field-level contents, ids, ordering, the spine/prose split,
 and merge semantics belong to `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`.
 
+This lane writes `schema: 2` and `mode: walk`, and omits `targets`, which belongs to a pointed run.
+It merges into whatever artifact it finds, so it also **reads** one: `schema: 1` and `schema: 2` are
+both recognized, and anything else stops the run with a visible message. Merging into a schema-1
+artifact upgrades it, and a row carried forward untouched from that run keeps no `Basis`, displayed
+as `not recorded (schema 1)` until the row is re-evaluated rather than backfilled with a guess.
+Every finding carries `Basis`: `measured` where a tier-1–4 citation supports the verdict,
+`class-inferred` where it rests on §6's non-derivable-oracle clause or a §7 class match and every
+consult was silent or tier-5-only, and `unexamined` only alongside `UNPROVEN`. **Where a row
+satisfies both**, which happens whenever a class-resting verdict also measured nothing,
+`class-inferred` wins: the discriminator is what the verdict rests on, never how little came back.
+The `check`
+constituent of every id this lane derives carries `audit` as its producer segment.
+
 ## A detached checkout has no branch identity
 
 `git rev-parse --abbrev-ref HEAD` answers `HEAD` on a detached checkout. That is a string, not an
@@ -213,7 +243,7 @@ identity, and writing it into the artifact breaks the seam in two places at once
 the same `<branch-slug>` home, so unrelated refs share one `findings.md`; and `realign`'s
 branch-match refusal compares `HEAD` to `HEAD`, passes, and executes another ref's findings against
 this one. Scheduled runners very commonly check out detached, so this is an ordinary case rather
-than an exotic one, which is why the precompute uses `git symbolic-ref` and refuses to invent a
+than an exotic one, which is why the branch call uses `git symbolic-ref` and refuses to invent a
 name. The sibling `delta` lane resolves identity the same way, on the same reasoning.
 
 When the branch identity does not resolve:
@@ -244,7 +274,7 @@ When the branch identity does not resolve:
   `realign` must refuse anyway, so writing it only moves the failure later and leaves a file behind
   that the next run merges into.
 
-**Detached-in-a-repo vs no checkout are different stops.** The precompute sentinel covers both,
+**Detached-in-a-repo vs no checkout are different stops.** A failed branch call covers both,
 but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
 fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
 the run does not walk an arbitrary working directory and report it as the repository. A

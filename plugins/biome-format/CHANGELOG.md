@@ -3,6 +3,110 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.37]
+
+### Changed
+
+- **The hook locates its own directory, the edited file's directory, and each
+  parent in a config walk with parameter expansion, not `dirname`.** GNU Bash
+  forks a subshell for every command substitution even when the body is a builtin
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+  fork is a process. `${BASH_SOURCE[0]%/*}` and `${FILE%/*}` equal `dirname`
+  for every shape those paths take; the empty-strip fallback answers `/` at the
+  filesystem root, matching GNU. What the hook formats or lints is unchanged.
+
+## [0.6.36]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.6.35]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when Biome rewrote the file, false when the bytes were
+  identical. The key is omitted, never guessed, on a skip arm before the
+  formatter and when the snapshot could not be taken. This is what fills the
+  per-session observability report's "Rewrote" block (#3755). The clean arm now
+  takes the disclosure before it emits telemetry so the verdict is known when
+  the envelope is built; stdout is unchanged (one systemMessage-only document
+  on a rewrite, nothing otherwise).
+  `docs/conventions/hook-telemetry/data/biome-format.schema.json` gains the
+  optional key, and the suite pins it on a reformatting run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
+## [0.6.34]
+
+### Changed
+
+- **`hooks/biome-format.sh` reads its kill switch before sourcing the library.**
+  `biome_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.6.33]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.32]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.31]
+
+### Changed
+
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `biome-format.sh` built `FINDINGS_JSON` with `printf | jq -R . | jq -s .` on
+  every findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. On the default unwired path
+  those two jq processes were pure cost. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for
+  `TOOL` and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 299/299/297 traced lines
+  become 281/282/282 and jq executions drop from 3 to 1. With the sink wired,
+  jq executions are unchanged at 5.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
+
 ## [0.6.30]
 
 ### Changed

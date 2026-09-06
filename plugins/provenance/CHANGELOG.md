@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.6]
+
+### Changed
+
+- **`audit`:** `reference/rubric.md` drops its version-history preamble and the two in-line
+  version notes, keeping the invalidation rule; the editor rule about measurement results moves to
+  a new `skills/audit/AGENTS.md`, which also takes the `affected-tests.sh` exit-3 note from
+  `context/gotchas.md`. `context/persist-findings.md` states its eight relay-boundary rules in the
+  present tense instead of as past bug reports. `reference/nomination.md` drops its rubric-version
+  pins, states the judge and review case block once, and trims the reviewer rationale to the one
+  fact the Judgment section does not carry. `reference/source-fetch.md` and
+  `reference/dispositions.md` drop the research-phase incident, the marketplace-specific generator
+  path, and the golden-set starting count. `context/gotchas.md` drops its preamble and the
+  8 percent figure.
+- **`setup`:** removed the editor-addressed sentence after the fixture-exclusion rule.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.5.5]
+
+### Fixed
+
+- **`audit`, `setup`:** the git pre-compute lines moved out of `## Pre-computed context` into a
+  "Repository context. Gather first" body section of individual Bash calls, one command per call,
+  each `head` bound kept inside its command and a failure read as an unknown value. The harness
+  composes a skill's whole pre-compute block into one shell invocation, and a worktree-isolated
+  session refuses a git-bearing compound command, which blocked these skills from loading inside a
+  worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
+  they were. setup tests for the team config under the literal root the previous call returned.
+
+## [0.5.4]
+
+### Changed
+
+- **`fingerprint.mjs`: `shingleAt`'s doc block now states why one spelling has to serve both
+  readers.** The set `shingles()` builds is exactly what `matchedSpans()` looks a local shingle
+  up in, so any divergence between the two constructions would move containment and the reported
+  spans together and silently. The parameter is renamed `i` to match both call sites. Comment and
+  parameter name only: fingerprint output is byte-identical, verified across both call sites and
+  over a 400-file corpus at eight window sizes.
+- **`list-corpus.sh`: `cfg_array` drops a single-use binding**, assigning the layer's joined
+  value straight to `out`. Last-writer-wins across config layers is unchanged, and so is the
+  `!= null` test that separates "key defined as empty" from "key absent".
+- Note for maintainers: no test pins the fingerprint algorithm. Changing the shingle join
+  separator or the window bound leaves the suite 40 of 40 green while altering every fingerprint
+  this plugin has ever emitted. A frozen input-to-fingerprint assertion would be worth adding.
+
 ## [0.5.3]
 
 ### Fixed

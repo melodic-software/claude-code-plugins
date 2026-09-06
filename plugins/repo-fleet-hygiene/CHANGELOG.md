@@ -3,6 +3,56 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.19]
+
+### Changed
+
+- `audit-fleet.sh`'s worktree-containment comment writes both drive spellings with a `<repo>`
+  placeholder. The contrast it draws between the filesystem form and the git-emitted form is
+  unchanged, and the org machine-specific-path detector no longer reads the example as a leaked path.
+
+## [0.23.18]
+
+### Changed
+
+- audit: `reference/security-review.md` states the current posture with one dated review and a recheck trigger instead of four re-check narratives; the two facts only those narratives carried (remote-only head names in the egress list, the GraphQL and `ls-remote` allowlist shape) move into the review surfaces and adversarial checks. SKILL.md drops the issue links, "On this release", "This retires", "remains", and "as before"; the no-fallback rule is stated in the present tense; the description names five intents. `reference/confidence-model.md` drops the drift narration, the "27 of 506" figure, and the issue numbers; `reference/official-sources.md` gains a recheck trigger. Eval case 14 asserts the shipped `/repo-fleet-hygiene:apply` consumer instead of calling it unshipped.
+- apply: the contract sentence drops its issue numbers.
+- setup: the `check` config-presence step agrees with the audit that a bare no-scope run fails instead of defaulting to the current project; "now requires" and "currently no way" read as current rules; the `fleet.skip` replace semantics are stated once, in "Configuration grammar", with the two action paths pointing at it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.23.17]
+
+### Changed
+
+- **`audit/scripts/audit-fleet.sh` drops three per-call subshells.**
+  `select_remote`'s sole-remote fallback ran two pipelines over the same text,
+  `sed | wc | tr` to answer how many remotes there are and `sed` again to answer
+  which one; one read loop now collects the non-empty names into an array that
+  answers both, and empty input still yields zero names and returns 1. The
+  `GitHub evidence:` line's `$([[ ... ]] && echo available || echo unavailable)`
+  becomes an `elif` arm, so neither branch forks. The findings JSON prints
+  `${R_COUNTED[$ri]}` straight into `"audited": %s`, because that array already
+  holds the JSON literal: `begin_repo_record` seeds `false` and
+  `mark_repo_counted` writes `true`, so the subshell test was re-deriving the two
+  strings it had been handed.
+- **`apply/scripts/apply-plan.sh` reads two loops from herestrings.** The plan-line
+  split and the per-unit `IFS=$'\037' read` each fed on `< <(printf '%s\n' "$x")`,
+  a fork and a subshell to supply a trailing newline that `<<<"$x"` supplies for
+  free. One `append_decision` call also loses a stray `${tip}` brace form, matching
+  the sibling arm four lines above it.
+- **Six show-ref blocks in `apply-plan.test.sh` become two assert helpers.**
+  Whether a branch survived a run is the mutation evidence most cases in that
+  suite turn on, and it was written out as an if/else over
+  `git show-ref --verify --quiet` at six sites; `assert_branch_kept` and
+  `assert_branch_deleted` take the label/repo/branch shape the file's other
+  asserts already use, and each still reports through the same `pass`/`fail`.
+
+  Declined again, as in the earlier pass: `apply-plan.sh`'s guards, ordering,
+  confirmation gate and mutation invocations are untouched, including the
+  duplicated `skip "canonical path missing"` arm at two sites. Folding either
+  would restructure the code that decides which repositories get written to,
+  which is not a tidy.
+
 ## [0.23.16]
 
 ### Added

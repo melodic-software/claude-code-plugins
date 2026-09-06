@@ -3,6 +3,93 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.44]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.6.43]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`
+  on every run that reached typos: true when `applied` is non-empty (at least
+  one correction was written into the file), false when typos ran and applied
+  none, which is every run in the default report-only mode. The key is omitted
+  on a skip arm, where typos never ran. This is what fills the per-session
+  observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/typos-format.schema.json` gains the
+  optional key, and the suite pins it on a rewriting run and a no-op run.
+
+## [0.6.42]
+
+### Changed
+
+- **`hooks/typos-format.sh` reads its kill switch before sourcing the library.**
+  `typos_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.6.41]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.40]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.39]
+
+### Changed
+
+- **`build_data_json` states why its fallback exists, matching its three sibling
+  formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
+  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  one deliberate word changed: the siblings say the fallback fires only if
+  `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
+  the sentence names `jq -c`. Copying it verbatim would have stated something
+  false about this file.
+  No gate was added here. Unlike its siblings, this hook's `FINDINGS_JSON` comes
+  from `hook::jq_fields` over classifier output it produces regardless of
+  telemetry, so nothing is spent on the unwired path and there is nothing to
+  guard.
+- **The `RUN_DIR` fallback reuses the precomputed `FILE_DIR`.** It read
+  `${root:-$(dirname "$FILE")}`, forking `dirname` on the branch where no repo
+  root was resolved, to recompute a directory the hook had already derived
+  seventy-odd lines earlier with `${FILE%/*}` and its two special cases. That
+  earlier value is what the hook passes to `hook::repo_root`, so the two answers
+  were already required to name the same directory; they are now one expression
+  instead of two. Single line, one fewer process on the no-repo-root path.
+
 ## [0.6.38]
 
 ### Fixed

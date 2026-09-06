@@ -104,7 +104,68 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
 ## Activity context
 
 - Commits: <N> · PRs opened: <N> · merged: <N>
+
+## Toggles and retention in effect
+
+root: .observability/claude (default)
+guard: ok
+sessions: 12 file(s), newest <session_id>
+shared: 340 event(s) in hook-events.jsonl
+prune-pending: none
+logging: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
 ```
+
+The last section is the six lines of `probe-observability-state.sh --pipeline`, verbatim. A
+`WARN` on the `prune-pending:` line is a MEDIUM finding; `guard: operator-edited` is HIGH.
+
+## Per-session skeleton (`session` and `session:<id>` scopes)
+
+```markdown
+# Claude observability — session <session_id>
+
+Generated: <ISO timestamp>
+Repo: <slug> · Branch: <name> · File: sessions/<session_id>.jsonl (<N> rows, <first ts> → <last ts>)
+
+## Summary
+
+- <one-line per HIGH finding, max 5>
+- <one-line per MEDIUM finding, max 5>
+
+## Hooks fired
+
+| Hook | Events | n | err | p50 ms | max ms |
+|---|---|---:|---:|---:|---:|
+| permission-denied-audit | PermissionDenied | 3 | 0 | 4 | 6 |
+
+Whole-session hook cost: <sum> ms across <n> envelope rows. Per-hook rows cover producers that
+emit `data.session_id`; other hooks appear only in the whole-root report.
+
+## Blocked
+
+- `<ts>` `<hook>` `<event>` — `<subject>`
+- (or) `_nothing blocked_`
+
+## Rewrote
+
+- `<ts>` `<hook>` — `<subject>`
+- (or) `_nothing rewritten_` when rows carry `changed` and every value is false
+- (or) `_no data — no producer in this session reported a rewrite verdict_` when no row carries it
+
+## Event timeline
+
+| ts | event | category | tool | file | agent |
+|---|---|---|---|---|---|
+
+Per turn (`prompt_id`): <N> turns, <max> events in the busiest. Subagents (`agent_id`): <N>.
+(or) `_no data — session_event_log_enabled is off; /claude-ops:setup to turn it on_`
+
+## Toggles and retention in effect
+
+<the six probe lines>
+```
+
+Legacy rows from the shared `hook-events.jsonl` are never joined to a session; when the reader
+mentions them the line reads "legacy rows, shared file, time proximity only".
 
 ## Rendering rules
 
@@ -143,5 +204,5 @@ Reports are working artifacts — copy one into the consumer project only if it 
 ## What this template intentionally omits
 
 - Recommendations / action items — `/claude-ops:observability` surfaces signals, user decides what to act on
-- Per-session detail — aggregation hides per-session noise; use ccusage MCP directly for session drill-down
+- Per-session token and cost drill-down — the per-session skeleton covers hooks and events; use ccusage MCP directly for a session's tokens
 - Cross-repo data — out of scope; observability is project-local

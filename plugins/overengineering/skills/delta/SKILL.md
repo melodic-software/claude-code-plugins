@@ -1,5 +1,5 @@
 ---
-description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when: 'what changed since the last audit', 'delta since the last run', 'run the enforcement audit on a schedule', 'recurring overengineering check', 'only show me what is new', 'did any verdict move', 'weekly automation-cruft check'. Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
+description: "Report only what changed in the enforcement surface since the last audit. Re-runs `overengineering:audit`, compares this run's findings spine against the one the previous cycle left behind, and captures a fresh baseline for the next run. The report covers new clutter, verdict moves, closures, and status changes, filtered through a configurable noise budget, so a recurring run is a short delta instead of the whole surface again. Read-only always: it never invokes or enters `overengineering:realign`, never writes a Status, and never touches the surface it reads; verdict changes queue for the human. A first run establishes a baseline and reports no deltas. Use when the ask is for what moved since the last enforcement audit ('what changed since the last audit', 'did any verdict move') or for a recurring, scheduled enforcement check ('run the enforcement audit on a schedule'). Pass layers to scope the pass and `unattended` for a scheduled or dispatched run; both pass straight through to the audit."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -9,14 +9,22 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
 
-Deliberately one line. A precompute block carrying a git command **and** more than one injection line
-is refused outright in a worktree-isolated agent, which is exactly the dispatched context a scheduled
-run of this lane arrives in. The baseline's UTC stamps are read with an ordinary `date -u
-+%Y%m%dT%H%M%SZ` call at the moment they are written, where they are accurate anyway.
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
+The branch is deliberately a body call and not a pre-compute line: a worktree-isolated agent is
+exactly the dispatched context a scheduled run of this lane arrives in. The baseline's UTC stamps
+are read with an ordinary `date -u +%Y%m%dT%H%M%SZ` call at the moment they are written, where they
+are accurate anyway.
 
 **`symbolic-ref`, not `rev-parse --abbrev-ref`, and the difference is the whole guard.**
 `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD` on a detached checkout, a value
@@ -63,7 +71,7 @@ It inherits that boundary from `overengineering:audit`, which it composes, and a
 
 **It never invokes `overengineering:realign`, and it never enters it.** Not on a verdict that moved,
 not on a finding an earlier run already accepted, not when a route is unavailable, not when the
-operator asks for it inside this run. Realign is the only mutating surface in this plugin and it is
+operator asks for it inside this run. Realign is the only skill that mutates the surface under scrutiny and it is
 gated on an explicit per-item human acceptance given at the moment the item is presented; a lane that
 can run on a schedule has nobody to give one. Name realign as the next step and stop there, the same
 posture `audit` holds, for the same reason. Where the operator wants remediation, they invoke
@@ -104,9 +112,12 @@ modes are silent, so do not infer the model from the run steps below.
 Parse `$ARGUMENTS`, using the same vocabulary `overengineering:audit` uses, and **pass it through
 unchanged**:
 
-- **Layer scope**. One or more values from the layer vocabulary owned by
-  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`; default `all`. Forwarded verbatim to the
-  audit, and it bounds the comparison too (see "Layers that were not walked").
+- **Layer scope**. One or more of the **ten enforcement layers** in the vocabulary owned by
+  `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, `agent-hooks` through
+  `external-integrations`; default `all`, meaning those ten. Forwarded verbatim to the audit, and it
+  bounds the comparison too (see "Layers that were not walked"). The five layers the justification
+  lane owns are not accepted here for the same reason the audit refuses them: this lane composes the
+  audit, which walks only the ten, so forwarding one would ask for a walk that cannot happen.
 - **`unattended`** (also accepted as `--unattended`). Forwarded verbatim. A scheduled runner, a
   dispatched worker, and a background run all pass it. **Attended is the default**, and the mode is
   never inferred from a probe. Under `unattended` this lane asks nothing, offers nothing, and takes
@@ -117,8 +128,8 @@ unchanged**:
 
 ## The run
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the `no branch ref` string. When it yields the string, the checkout is detached (or absent) and
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output. When it fails, the checkout is detached (or absent) and
    **`HEAD` is never accepted as a branch identity**. See "A detached checkout has no branch
    identity" in [context/run-states.md](context/run-states.md) for what to do and what not to.
    Resolve the home by running the whole rung order in
@@ -141,7 +152,10 @@ unchanged**:
    directory is not evidence, because the slug mapping is lossy. A `branch:` that does not match is
    no baseline, naming both. An **unrecognized `schema:`** is a **stop, with a visible message**,
    before invoking anything, the artifact contract makes an unrecognized `schema` a stop for every
-   consumer, and running the audit here would rewrite a file this lane cannot read.
+   consumer, and running the audit here would rewrite a file this lane cannot read. `1` and `2` are
+   both recognized. On a `schema: 2` artifact, `Basis` is prose outside the spine and **never enters
+   the diff**, so a row whose basis moved from `unexamined` to `measured` is not a delta this lane
+   can see; that limit is chosen, because widening the spine would make every prose pass a change.
 3. **Invoke `overengineering:audit` via the Skill tool**, passing the layer scope and `unattended`
    exactly as received. Let it run its own contract, home resolution, config resolution, evidence
    assessment, the walk, its own inline summary. **Do not re-derive any of it here.**
@@ -181,7 +195,7 @@ them**. A second derivation is a second answer that can disagree with the first.
 
 | Class | Computed by | This lane's job |
 |---|---|---|
-| **Closed finding** | the merge, rule 3 | **Read `## Closed since last run`.** It carries the reason class (`artifact absent`, `renamed to <successor id>`, `layer no longer configured`), which a spine comparison cannot produce. Ignore a row whose id the baseline never carried, that is a stale section, reported once as a contract anomaly, not as a delta. |
+| **Closed finding** | the merge, rule 3 | **Read `## Closed since last run`.** It carries the reason class (`artifact absent`, `renamed to <successor id>`, `layer no longer configured`), which a spine comparison cannot produce. **Read each row's `Layer` first and skip any row in one of the five justification layers**: this lane never compares those, so reporting their closures would contradict the coverage line that calls them outside this lane. Ignore a row whose id the baseline never carried, that is a stale section, reported once as a contract anomaly, not as a delta. |
 | **Verdict moved under a carried-forward judgment** | the merge, rule 5 | **Read the merge's flag and carry it.** Do not shadow it with a second detection: rule 5's flag is authoritative for *"a human's decision is now out of date"*, and this lane's comparison only supplies the verdict pair and the status alongside it. One row, not two. |
 | **New finding** | the merge, rule 2 (`Status: OPEN` on an id it had not seen) | Cross-check against the baseline spine and report the verdict it opened with. |
 | **Suppression change** | the merge, via `## Suppressed` | Read it. A finding newly suppressed, or an entry that stopped suppressing, changes what the report may omit. |
@@ -267,7 +281,7 @@ intent. … An explicit user `/work-items:track add ...` invocation IS the autho
 model-initiated filing is not"*, so an unattended scheduled cycle, which is the mode this lane
 exists for, has no authorization to file anything and a conforming tracker must refuse it. Setting
 the key **is** the explicit, recorded authorization the gate asks for, given once by a human in a
-file. **Do not flip this default back to `auto`**: a default-on route makes the lane's ordinary
+file. **`inline` is the default for that reason**: a default-on route would make the lane's ordinary
 unattended path a request the tracker is contractually obliged to decline.
 
 | `queue_route` | Condition | What the lane does |
@@ -301,7 +315,9 @@ view and no third record.** In order:
 
 1. **The read-only line**, plus the span this comparison covers: `source-date` → this run's `date`,
    and whether it covers more than one cycle.
-2. **Coverage**: layers walked this run; layers not walked, with the count of findings held in them.
+2. **Coverage**: layers walked this run; layers not walked this run, with the count of findings held
+   in them; and, separately labelled, layers **not walkable by `audit`** (the justification lane's
+   five), whose findings no cycle of this lane ever compares.
 3. **Evidence availability**: `unchanged`, or the tiers that moved, first when it moved.
 4. **The counts table**: one row per delta class, listed / counted / omitted.
 5. **The listed rows**, in the cap's rank order.
@@ -321,7 +337,7 @@ that scheduled itself on install would be an unratified standing commitment.
 ## Consumer-agnostic
 
 Nothing here assumes an organization, a repository, a forge, a CI system, a scheduler, a branch name,
-or an agent harness. Layers are the ten forge-neutral names in the artifact's vocabulary; the tracker
+or an agent harness. Layers are the ten forge-neutral enforcement names this lane walks; the tracker
 route is opt-in and then presence-gated, with a named inline fallback; a logical ref is taken from
 the environment where one is supplied, without naming any vendor's variables; the cadence is
 documented, never adopted.

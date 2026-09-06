@@ -287,8 +287,8 @@ fi
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
 # the three source-control.md layers (../../../reference/config-resolution.md), the
 # same seam `/source-control:commit`'s `trailer_policy` uses for the commit trailer. Absent → the
-# default line (current behavior — existing consumers are unaffected); a value of
-# `none` → omit the line; any other value → that literal line. Resolve the effective
+# default line; a value of `none` → omit the line; any other value → that literal
+# line. Resolve the effective
 # value at the model level and bake it in as literal text below; do NOT reference it
 # as an unexpanded shell var inside a quoted heredoc segment (it would emit
 # `${ATTRIBUTION}` verbatim), and do NOT switch to an unquoted `<<EOF` to force
@@ -337,7 +337,7 @@ A `Refs #N` line links an issue without closing it and never belongs on the clos
 
 ### 2.4.2 Pre-create gate
 
-Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check (unchanged, existing mechanism) and the required-section check (new, generic — reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
+Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
 A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own `pr-issue-linkage` check and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
 
@@ -375,7 +375,7 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify — the §2.4.2.1 closing-keyword check is independent and still runs. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify — the §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 ```bash
 MISSING_SECTIONS=()
@@ -564,9 +564,9 @@ Report the PR URL, captured `<pr_number>`, and recorded list of expected CI work
 
 ## 2.7 `create --pushed` — PR-only entry for an orchestrated flow
 
-`create --pushed --worktree <path>` opens the PR when the branch is **already committed and pushed** — the orchestrated case where a dispatched worker did the edits, commit, and push inside its own out-of-tree worktree and returned that worktree's path (`/work-items:work`, `#572`). The invoking orchestrator is typically **out-of-tree** (its session sits on the default branch or elsewhere), so this mode runs neither the commit/push half of the normal `create` path nor trusts the session cwd.
+`create --pushed --worktree <path>` opens the PR when the branch is **already committed and pushed** — the orchestrated case where a dispatched worker did the edits, commit, and push inside its own out-of-tree worktree and returned that worktree's path (`/work-items:work`). The invoking orchestrator is typically **out-of-tree** (its session sits on the default branch or elsewhere), so this mode runs neither the commit/push half of the normal `create` path nor trusts the session cwd.
 
-**Ignore the gathered repository context.** [SKILL.md](../SKILL.md)'s gather step (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reports the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff. Since #1619 those are ordinary Bash calls rather than `!`-substituted lines, so unlike before they *can* be `git -C`-redirected — but do not redirect them ad hoc. Under `--pushed`, re-resolve everything from the target worktree explicitly:
+**Ignore the gathered repository context.** [SKILL.md](../SKILL.md)'s gather step (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reports the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff. Those are ordinary Bash calls, so they could be `git -C`-redirected, but do not redirect them ad hoc. Under `--pushed`, re-resolve everything from the target worktree explicitly:
 
 ```bash
 WT="<path>"                                   # from --worktree

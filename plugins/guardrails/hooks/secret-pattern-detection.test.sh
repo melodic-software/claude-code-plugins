@@ -44,34 +44,42 @@ run_hook_windows() {
 FIXTURE="$TEST_TMPDIR/fixture.txt"
 
 # ============================ DETECT (exit 2) ================================
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "AWS Access Key → exit 2" 2 "$RC"
 assert_contains "AWS → message" "$OUT" "AWS Access Key"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_PAT'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_PAT'")" 2>&1)
+RC=$?
 assert_exit "GitHub PAT → exit 2" 2 "$RC"
 assert_contains "GH PAT → message" "$OUT" "GitHub PAT"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "SLACK='$SLACK_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "SLACK='$SLACK_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "Slack Bot Token → exit 2" 2 "$RC"
 assert_contains "Slack → message" "$OUT" "Slack Bot Token"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "STRIPE_KEY='$STRIPE_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "STRIPE_KEY='$STRIPE_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "Stripe Key → exit 2" 2 "$RC"
 assert_contains "Stripe → message" "$OUT" "Stripe Key"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "OPENAI_KEY='$OPENAI_BARE_KEY'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "OPENAI_KEY='$OPENAI_BARE_KEY'")" 2>&1)
+RC=$?
 assert_exit "OpenAI bare sk- key → exit 2" 2 "$RC"
 assert_contains "OpenAI bare sk- → message" "$OUT" "OpenAI API Key"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "$PEM_HEADER")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "$PEM_HEADER")" 2>&1)
+RC=$?
 assert_exit "PEM private key → exit 2" 2 "$RC"
 assert_contains "PEM → message" "$OUT" "Private Key (PEM)"
 
-OUT=$(bash "$HOOK" <<<"$(edit_json "$FIXTURE" "old to '$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(edit_json "$FIXTURE" "old to '$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "Edit new_string → exit 2" 2 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "secret = '$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "secret = '$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 
 # A content string may legitimately encode a NUL, and the payload fields are read
@@ -82,54 +90,67 @@ assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 # for the byte appears in this file's source.
 NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg tok "$AWS_TOKEN" \
   '{tool_name:"Write",tool_input:{file_path:$fp,content:("harmless first line" + ([0] | implode) + "config = " + $tok)}}')
-OUT=$(bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1)
+RC=$?
 assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
 assert_contains "secret after NUL → NUL refusal message" "$OUT" "NUL byte"
 
 # In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
 assert_contains "in-project secret → message" "$OUT" "AWS Access Key"
 
 # Trailing slash on CLAUDE_PROJECT_DIR must not skip in-project scans.
-OUT=$(CLAUDE_PROJECT_DIR="/repo/" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(CLAUDE_PROJECT_DIR="/repo/" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "trailing-slash PROJECT_DIR still scans in-project file → exit 2" 2 "$RC"
 
 # ============================ ALLOW (exit 0) ================================
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1)
+RC=$?
 assert_exit "clean content → exit 0" 0 "$RC"
 assert_silent "clean content → no stderr" "$OUT"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'api_key=mySecretValue123')" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'api_key=mySecretValue123')" 2>&1)
+RC=$?
 assert_exit "low-confidence generic pattern → exit 0" 0 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1)
+RC=$?
 assert_exit "Read tool → exit 0" 0 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.env.example" "API_KEY='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.env.example" "API_KEY='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit ".env.example allowlist → exit 0" 0 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/tests/fixtures/secrets.txt" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/tests/fixtures/secrets.txt" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "tests/fixtures/ allowlist → exit 0" 0 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.claude/hooks/foo.sh" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.claude/hooks/foo.sh" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit ".claude/hooks/ self-exemption → exit 0" 0 "$RC"
 
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/settings.local.json" "{\"k\":\"$AWS_TOKEN\"}")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/settings.local.json" "{\"k\":\"$AWS_TOKEN\"}")" 2>&1)
+RC=$?
 assert_exit "settings.local.json allowlist → exit 0" 0 "$RC"
 
 # CLAUDE.local.md allowlist must match case-sensitively even under the Windows
 # path fold (regression: the fold lower-cases the membership path only).
-OUT=$(run_hook_windows "$(write_json "C:/repo/CLAUDE.local.md" "token='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(run_hook_windows "$(write_json "C:/repo/CLAUDE.local.md" "token='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "CLAUDE.local.md allowlist (case-sensitive) → exit 0" 0 "$RC"
 
 # Secret in a file OUTSIDE the project root → exit 0, silent.
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "file outside project root → exit 0" 0 "$RC"
 assert_silent "outside project root → no stderr" "$OUT"
 
 # Kill switch — disabled path is a clean no-op even on a real-shape token.
-OUT=$(CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
 
@@ -147,13 +168,17 @@ assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
 # --- Allowlist path-segment anchoring (finding P5) --------------------------
 # A real dependency-cache SEGMENT is exempt; a directory that merely CONTAINS the
 # name as a substring is scanned (and blocked on a real token).
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/src/node_modules/pkg/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/src/node_modules/pkg/creds.env" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "node_modules real segment → exit 0 (exempt)" 0 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/evil_node_modules/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/evil_node_modules/creds.env" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit "evil_node_modules substring → exit 2 (scanned)" 2 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv/lib/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv/lib/creds.env" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit ".venv real segment → exit 0 (exempt)" 0 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv-backup/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv-backup/creds.env" "x='$AWS_TOKEN'")" 2>&1)
+RC=$?
 assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
 
 # ============================ TELEMETRY ====================================
@@ -396,5 +421,109 @@ assert_absent "boundary: no SIGPIPE noise on stderr" "$BOUND_ERR" "Broken pipe"
 RC=0
 printf '%s' "$(sized_write_json 0)" | timeout 30 bash "$HOOK" >/dev/null 2>&1 || RC=$?
 assert_exit "boundary: empty content → exit 0" 0 "$RC"
+
+# ==================== GitHub MCP write lane (#3719) ==========================
+# A Write|Edit matcher does not see a write issued through an MCP tool, so this
+# guard could be cleared on a session that pushed the same secret to GitHub by
+# another route. One case per PAYLOAD SHAPE, because the two tools carry content
+# differently and a scanner that only understood one would silently pass the
+# other.
+#
+#   mcp__github__create_or_update_file — .tool_input.path + .tool_input.content
+#   mcp__github__push_files            — .tool_input.files[] of {path, content}
+#   mcp__github__delete_file           — NO content field at all
+mcp_single_json() {
+  jq -n --arg p "$1" --arg c "$2" \
+    '{tool_name:"mcp__github__create_or_update_file",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",path:$p,content:$c}}'
+}
+# mcp_push_json <path> <content> [<path> <content> ...]
+mcp_push_json() {
+  local args=() n=0
+  while (($#)); do
+    args+=(--arg "p$n" "$1" --arg "c$n" "$2")
+    shift 2
+    n=$((n + 1))
+  done
+  # One --arg pair per file, and an index-built object list, so the payload's
+  # shape is the tool schema's rather than a string-interpolated approximation.
+  local filter='{tool_name:"mcp__github__push_files",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",files:['
+  local i
+  for ((i = 0; i < n; i++)); do
+    ((i)) && filter+=','
+    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
+    filter+='{path:$p'"$i"',content:$c'"$i"'}'
+  done
+  filter+=']}}'
+  jq -n "${args[@]}" "$filter"
+}
+
+# --- create_or_update_file: the single-file shape
+RC=0
+bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "import os")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP create_or_update_file: clean content → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" 2>&1)
+RC=$?
+assert_exit "MCP create_or_update_file: secret → exit 2" 2 "$RC"
+assert_contains "MCP create_or_update_file: names the pattern" "$OUT" "GitHub PAT"
+assert_contains "MCP create_or_update_file: names the repo path" "$OUT" "src/app.py"
+assert_contains "MCP create_or_update_file: says there is no local file to fix" "$OUT" "goes straight to a repository"
+
+# --- push_files: the multi-file shape, and the LAST file must be reached
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "y = 2")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: all clean → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "k = '$AWS_TOKEN'" "b.py" "y = 2")" 2>&1)
+RC=$?
+assert_exit "MCP push_files: secret in the FIRST file → exit 2" 2 "$RC"
+assert_contains "MCP push_files: first-file block names its path" "$OUT" "a.py"
+
+# The loop must not stop at the first clean file: a guard that checked only
+# files[0] would pass this and read as covered.
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "MCP push_files: secret in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP push_files: last-file block names its path" "$OUT" "b.py"
+
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","files":[]}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: empty files array → exit 0" 0 "$RC"
+
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m"}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP push_files: absent files array → exit 0" 0 "$RC"
+
+# --- delete_file carries no content, so there is nothing to scan
+RC=0
+bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
+assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
+
+# --- the allowlist is the SAME list, asked of a repo-relative path
+RC=0
+bash "$HOOK" <<<"$(mcp_single_json "docs/.env.example" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: allowlisted .env.example is exempt" 0 "$RC"
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "tests/fixtures/keys.py" "k = '$AWS_TOKEN'")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: allowlisted test fixture is exempt" 0 "$RC"
+# A directory that merely CONTAINS an allowlisted name is not allowlisted.
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "evil_node_modules/x.py" "k = '$AWS_TOKEN'")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: a name-prefix sibling of an allowlisted dir still blocks" 2 "$RC"
+
+# --- the local-project scope guard must NOT be applied to a remote write
+# A repo-relative path is never under CLAUDE_PROJECT_DIR, so reusing the local
+# scope test here would skip every MCP write. Pinned with the variable SET,
+# which is the state that would trigger it.
+RC=0
+CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" \
+  <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: a set CLAUDE_PROJECT_DIR does not skip the remote write" 2 "$RC"
+
+# --- the kill switch still governs the whole guard, MCP lane included
+RC=0
+CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" \
+  <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP: disabled guard allows the write" 0 "$RC"
 
 report

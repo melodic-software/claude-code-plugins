@@ -88,11 +88,10 @@ export async function extractTranscript(page, _platformCfg) {
       throw new Error("No transcript content available");
     }
 
-    const lines = cleaned.split("\n");
     const segments = [];
     let current = "";
 
-    for (const line of lines) {
+    for (const line of cleaned.split("\n")) {
       const trimmed = line.trim();
       if (TRANSCRIPT_TIMESTAMP_LINE.test(trimmed)) {
         if (current) segments.push(current.trim());

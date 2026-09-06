@@ -95,11 +95,11 @@ assert_eq "path-key folds backslashes to slashes" \
 
 case "$(uname -s 2>/dev/null || true)" in
 MINGW* | MSYS* | CYGWIN*)
-  # The trap this exists for: git emits D:/repos/x while the shell holds
-  # /d/repos/x, and a comparison that treats them as different paths reports
+  # The trap this exists for: git emits D:/repos/<repo> while the shell holds
+  # /d/repos/<repo>, and a comparison that treats them as different paths reports
   # every real worktree as not-a-worktree.
   assert_eq "path-key reconciles the MSYS and Windows drive forms" \
-    "$(bash "$ENGINE" --path-key "D:/repos/x")" "$(bash "$ENGINE" --path-key "/d/repos/x")"
+    "$(bash "$ENGINE" --path-key "D:/repos/<repo>")" "$(bash "$ENGINE" --path-key "/d/repos/<repo>")"
   ;;
 *)
   # Off Windows /d/repos/x is a legitimate POSIX path and must NOT be folded.

@@ -20,7 +20,7 @@ topic-docs binding that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Coordination goes through the
 seam; provider mechanics route through the bound adapter's operations reference; the core inlines no
-provider commands, with one deliberate exception below: the `#502` telemetry upsert is an inlined
+provider commands, with one deliberate exception below: the telemetry upsert is an inlined
 `gh api` call, mandated by the loop-lane convention because an installed plugin cannot invoke a
 sibling plugin's script.
 
@@ -44,9 +44,9 @@ Every shared cross-lane concern is owned by the loop-lane convention,
 holds those contracts **by citation**: the three-session topology and the autonomy merge ladder
 (including seam-only rung raises), the escalation contract, order-defined capability tiers
 (frontier / strong / fast; runtime resolution by model alias only, never a hard-coded model ID),
-stop shapes including the drain-terminal state, the `/loop` seven-day expiry, the `#691`
-cycle-budget semantics (a budget hit restarts the session, never ends the loop; today every budget
-hit is a terminal manual-restart state), the `#502` telemetry comment and durable loop state, the
+stop shapes including the drain-terminal state, the `/loop` seven-day expiry, the cycle-budget
+semantics (a budget hit restarts the session, never ends the loop, and the restart is a manual
+operator step), the telemetry comment and durable loop state, the
 no-progress detector's shared counter semantics, the headless-config floor, the subagent
 discipline preamble, provider backoff (seam exit 8), and the snapshot drain exit. Where this
 document says "per the convention", that file is the contract.
@@ -172,8 +172,9 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
   consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries **no account-identifier field**, so a write is the only signal that the windows changed
-  under you (account switch, another session's refresh).
+  carries an **`account.email` field when the writer could attribute the observation**, so a write
+  is still the signal that the windows changed under you (account switch, another session's
+  refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 
@@ -245,12 +246,11 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    Selection, claim (assignee + lease), staleness pre-check, dispatch
    mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there,
    this loop restates none of them. Loop-level deltas only:
-   - **Worker-side provisioning, owned by `/work-items:work` (landed `#572`).** The execute step's
-     worker-side provisioning, the dispatched subagent materializes its own out-of-tree worktree
-     first and works against it via `git -C` **without entering it**, the orchestrator never invoking
-     `/source-control:worktree create` (whose `EnterWorktree` terminal would transition the calling
-     session, acutely relevant to this long-lived loop session), is now canonical behavior owned by
-     `/work-items:work` and `/implementation:implement-dispatch`; this loop inherits it and restates
+   - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
+     materializes its own out-of-tree worktree first and works against it via `git -C` without
+     entering it; the orchestrator never invokes `/source-control:worktree create`, whose
+     `EnterWorktree` terminal would transition this long-lived loop session. `/work-items:work` and
+     `/implementation:implement-dispatch` own that behavior; this loop inherits it and restates
      nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
      convention's subagent discipline preamble (presence-gated discipline sweep with the inline
@@ -281,15 +281,15 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    notification permanently. The summary restates only the already-public comment text. No
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
-   that directory out of the tree this lane runs its gates against. 6. **Report and pace.** Update
-   the no-progress streak, and, at the threshold, raise the stall escalation, per the detector
-   below; upsert the telemetry comment (cycle report + updated state block + guard mode + the
-   `usage_sample` built from step 1's cycle-start reading, whose delta covers the preceding interval
-   and never this cycle's work); then evaluate the exit condition; if not exiting, `ScheduleWakeup`
-   the next cycle. **Ground every claim in the cycle report against a tool result from this cycle,
-   and say which work is unverified rather than omitting the distinction.** Nobody watched this
-   cycle, so the report is the only record of it and a fabricated line is indistinguishable from a
-   true one until someone re-does the work.
+   that directory out of the tree this lane runs its gates against.
+6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
+   escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
+   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
+   covers the preceding interval and never this cycle's work); then evaluate the exit condition; if
+   not exiting, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
+   tool result from this cycle, and say which work is unverified rather than omitting the
+   distinction.** Nobody watched this cycle, so the report is the only record of it and a
+   fabricated line is indistinguishable from a true one until someone re-does the work.
 
 ## Admission gate (work-class, fail-closed)
 
@@ -363,7 +363,7 @@ the convention. The streak counter and cap persist in durable state.
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
 by `/implementation:implement-dispatch`, its internal 3–5 wave default, or the
 `${user_config.work_dispatch_concurrency_cap}` ceiling when the operator sets it, which
-`/work-items:work` threads through as that skill's `--wave-cap` (`#573`). This loop body's
+`/work-items:work` threads through as that skill's `--wave-cap`. This loop body's
 arithmetic over those two factors bounds the fan-out.
 
 ## No-progress detector
@@ -421,9 +421,8 @@ blocking drain exit.
 
 - **The loop never merges, and never asks another lane to.** A green PR is the handoff boundary;
   merge authority lives with the merge lane per the convention's autonomy ladder.
-- **Claim-before-dispatch is owned by `/work-items:work` and survives this loop's phrasing.** A
-  loop cycle that restates "dispatch each item to a worktree subagent" has not replaced the seam
-  claim; dispatching before the claim is held is a defect.
+- **Claim before dispatch.** `/work-items:work` holds the seam claim before any subagent is
+  dispatched; nothing in this loop's phrasing replaces that.
 - **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
   snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep,
   or, when the drain exits, named in the final report and left for the next launch.

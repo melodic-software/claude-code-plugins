@@ -34,10 +34,13 @@ set -uo pipefail
 # where the strip is a no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-
-hook::check_enabled "MARKDOWN_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # formatting work (pre-format exits below do not emit telemetry). EPOCHREALTIME is
@@ -206,7 +209,7 @@ resolve_repo_root() {
 # costs nothing.
 #
 # Without jq the path can only come from the jq-free raw extraction, which
-# returns it JSON-escaped (a Windows `D:\repos\...` arrives with its
+# returns it JSON-escaped (a Windows `<drive>:\repos\...` arrives with its
 # backslashes doubled). Undoing the three escapes a path can carry and then
 # requiring an existing file is self-validating: any other escape — \uXXXX, a
 # control escape — leaves a name nothing answers to, and the pre-check then
@@ -382,11 +385,17 @@ fi
 # findings for the noisiest files in the repository. A payload that lies is
 # worse than no payload. TOOL and FILE_REL stay as arguments: both are bounded
 # by a path length.
+# MD_CHANGED is set on the path that ran the fix pass ("true" when
+# markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
+# on every skip arm, where the key is omitted rather than guessed.
+MD_CHANGED=""
 build_data_json() {
   printf '%s' "$1" | jq -c \
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
-    '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
+    --arg changed "$MD_CHANGED" \
+    '{tool:$tool,file:$file,findings:.}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -721,7 +730,6 @@ format_probed_path() {
   fi
 }
 
-MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
 elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
@@ -1284,6 +1292,11 @@ while IFS= read -r line; do
   *) ;;
   esac
 done <<<"$FIX_OUTPUT"
+
+# The same count line that drives the disclosure below is the telemetry
+# verdict: the fix pass ran, and it either wrote fixes or reported none.
+MD_CHANGED="false"
+[[ -n "$FIXES_LINE" ]] && MD_CHANGED="true"
 
 CTX=""
 SYSMSG=""

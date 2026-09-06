@@ -16,7 +16,10 @@ jq -cn --arg dir "$STORAGE" \
   '{schema_version: "1.0", provider: "local-markdown", config: {lease_ttl_hours: 24, storage_dir: $dir}}' \
   >"$BINDING"
 export WORK_ITEM_TRACKER_BINDING="$BINDING"
-cleanup() { rm -rf "$STORAGE" "${STORAGE_REAL:-}"; rm -f "$BINDING"; }
+cleanup() {
+  rm -rf "$STORAGE" "${STORAGE_REAL:-}"
+  rm -f "$BINDING"
+}
 trap cleanup EXIT
 
 new() { bash "$TRACKER" create-item "$@" | jq -r '.id'; }

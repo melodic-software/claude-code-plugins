@@ -31,7 +31,7 @@ merge, adjudicates the disposition and resolves through the guarded wrapper's
 ## Who may dispatch
 
 A context that holds the PR's worker lease and is **not** the context whose merge the resolution
-unblocks. Two callers today:
+unblocks. Two callers:
 
 - `babysit-prs`'s orchestrator **in a thread-resolving tier** (`worker`, `autopilot`), for a thread a
   fix worker reported as addressed-but-unresolvable (`orchestration.md`, Main Agent
@@ -129,7 +129,7 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
 - **Security/P1 threads.** `--independent-resolver` retains the severity bright line
   (`skipped-severity-marked`): "never a security or P1 thread" is unconditional on every unattended
   path, and no evidence buys past it. The scan keys on **structured** markers — shields badges and
-  bracketed `[P0]`/`[P1]` — not prose mentions of P1 in a P2 thread's body (#1939). Vetted
+  bracketed `[P0]`/`[P1]` — not prose mentions of P1 in a P2 thread's body. Vetted
   `--resolve --thread-id` (with TOCTOU pins) applies **no** severity screen; it trusts the calling
   agent's vetting. That asymmetry is deliberate. This is a bound of **the mode**, not of the callers. It is
   terminal on the `babysit-prs` orchestrator route, whose only resolve form for a current thread is

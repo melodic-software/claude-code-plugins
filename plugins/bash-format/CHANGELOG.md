@@ -3,6 +3,122 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.39]
+
+### Changed
+
+- **`hooks/bash-format.sh` locates the hook directory, the edited file's directory,
+  and each parent in the EditorConfig walk with parameter expansion, not
+  `dirname`.** GNU Bash forks a subshell for every command substitution even when
+  the body is a builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK` unset,
+  matching `.sh` Write of an in-repo file: **9 → 4**. `dirname` 5 → 0; the
+  remaining four are `1 basename`, `1 git`, `1 jq`, `1 rm`. The milliseconds are
+  not the claim; the durable figure is the five PATH-visible `dirname` execs that
+  disappeared. What the hook formats is unchanged.
+
+## [0.7.38]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.7.37]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when shfmt rewrote the file, false when the bytes were
+  identical or no format was attempted. The key is omitted, never guessed, on a
+  skip arm before the formatter and when the snapshot could not be taken. This
+  is what fills the per-session observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/bash-format.schema.json` gains the
+  optional key, and the suite pins it on a reformatting run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
+## [0.7.36]
+
+### Changed
+
+- **`hooks/bash-format.sh` reads its kill switch before sourcing the library.**
+  `bash_format_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.7.35]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.7.34]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.7.33]
+
+### Changed
+
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `FINDINGS_JSON` was built with `printf | jq -R . | jq -s .` on every
+  findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for `TOOL`
+  and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 255/255/255 traced lines
+  become 236/248/242 and jq executions drop from 3 to 1. With the sink wired, jq
+  executions are unchanged at 5.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
+- **`bash-format.sh` composes the notice in place instead of through a second
+  variable and a second emit call.** The notice path built an `AGENT_CTX` copy
+  of `CTX`, appended `NOTICE` to the copy and called `hook::emit_channels` from
+  inside the `if`, with a second call in the `else`. `NOTICE` now appends to
+  `CTX` directly and one call sits below the branch. All four composition
+  shapes, notice or none crossed with context or none, are preserved, which is
+  what the #3406 suite pins.
+- **A dead `probe_err=""` initialization is dropped** from the format branch,
+  the same write-with-no-reader class removed elsewhere in this sweep.
+
+  Spawn count is unchanged. The three formatter hooks in this group stayed
+  green at 45, 51 and 46 assertions, with hook-exec-form, silent-skips and
+  cross-plugin-drift green alongside.
+
 ## [0.7.32]
 
 ### Fixed

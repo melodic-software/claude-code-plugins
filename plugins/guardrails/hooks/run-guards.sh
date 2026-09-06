@@ -55,33 +55,44 @@
 
 set -uo pipefail
 
-# `dirname` is an external program, and on Windows Git Bash one exec is ~80 ms.
-# This helper answers the one argument shape used at the two call sites below
-# (this file's own path) without the exec. It is deliberately NOT a function
-# named `dirname`: a function of that name would be inherited by every guard
-# sourced below and shadow the real command for the guard's own calls, with an
+# Do NOT define a function named `dirname`. A function of that name would be
+# inherited by every guard sourced below and shadow the real command, with an
 # answer that diverges from GNU for `/foo` (empty, not `/`) and for `/a/b//`
 # (`/a/b`, not `/a`). Each guard's own `dirname` therefore stays the real one.
-run_guards::script_dir() {
-  local p="${1%/}"
-  if [[ "$p" == */* ]]; then printf '%s\n' "${p%/*}"; else printf '.\n'; fi
-}
-
+#
+# The dispatcher's own directory is derived with parameter expansion rather than
+# `dirname` or `$(helper)`. GNU Bash forks a subshell for every command
+# substitution even when the body is only builtins (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). On Windows
+# Git Bash that fork is a process. `${BASH_SOURCE[0]%/*}` equals `dirname`
+# for every shape BASH_SOURCE takes; the fallback covers a bare filename, where
+# the strip is a no-op and dirname answers `.`. Claude Code (and this suite)
+# invoke with an absolute path, so the strip is already absolute; `cd && pwd`
+# is kept only for a relative spelling.
+_RG_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$_RG_DIR" == "${BASH_SOURCE[0]}" ]] && _RG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(run_guards::script_dir "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$_RG_DIR/hook-utils.sh"
 
-HOOK_DIR="$(cd "$(run_guards::script_dir "${BASH_SOURCE[0]}")" && pwd)"
+case "$_RG_DIR" in
+/* | ?:[/\\]*) HOOK_DIR="$_RG_DIR" ;;
+*) HOOK_DIR="$(cd "$_RG_DIR" && pwd)" ;;
+esac
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
 GUARDS=()
+LIBS=()
 while (($#)); do
   case "$1" in
   --lib)
-    # A library several guards source (the PowerShell classifier). Its own
-    # double-source guard makes every later `source` a no-op, so the parse is
-    # paid once here instead of once per guard.
-    # shellcheck disable=SC1090
-    source "$PLUGIN_ROOT/$2"
+    # A library several guards source (the PowerShell classifier). Collect
+    # the path now; the parse itself waits until tool_name is known. On a
+    # Bash payload the classifier's first real statement is
+    # `[[ "$tool" == "PowerShell" ]] || return 0`, so loading ~41 KB here
+    # was a pure tax on the common path. The include guard still makes every
+    # later `source` a no-op, so the parse is paid once per PowerShell fire
+    # instead of once per isolation subshell.
+    LIBS+=("$2")
     shift 2
     ;;
   *)
@@ -107,14 +118,27 @@ hook::buffer_stdin() {
 # --- jq once ------------------------------------------------------------------
 # Keep the library's implementation reachable under another name so the cache
 # miss path is the library's own code, not a re-implementation of it.
-eval "$(declare -f hook::jq_fields | sed '1s/^hook::jq_fields/hook::jq_fields_uncached/')"
+# `declare -f` is a builtin; wrapping it in $( ) is one subshell. Piping that
+# through `sed` was an extra exec on every dispatcher fire. Parameter expansion
+# renames the first occurrence — the `name ()` header — and leaves the body
+# untouched.
+_rg_jq_def=$(declare -f hook::jq_fields)
+eval "${_rg_jq_def/hook::jq_fields ()/hook::jq_fields_uncached ()}"
+unset _rg_jq_def
 
 RUN_GUARDS_PRIMED=0
 RUN_GUARDS_FILTERS=()
 RUN_GUARDS_VALUES=()
+# Every field ANY registered guard asks for must be primed here. The cached
+# hook::jq_fields below is all-or-nothing per call: one filter it cannot serve
+# sends the whole call to an uncached jq spawn, so a guard that adds a field
+# without adding it here costs a process on EVERY payload, not just the ones the
+# field belongs to. `.tool_input.path` (the GitHub MCP write lane's file path,
+# #3719) was measured doing exactly that — two extra spawns per Write/Edit,
+# 50 ms to 60 ms on the reference host — before it was added.
 PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'
-  '.tool_input.file_path' '.tool_input.notebook_path'
+  '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source'
 )
 if ((RUN_GUARDS_STDIN_RC == 0)) && hook::jq_fields_uncached "$RUN_GUARDS_INPUT" "${PRIME_FILTERS[@]}" &&
@@ -151,6 +175,22 @@ hook::jq_fields() {
   fi
   hook::jq_fields_uncached "$input" "$@"
 }
+
+# --- PowerShell classifier, once, and only on that tool -----------------------
+# `.tool_name` is PRIME_FILTERS[1]. A Bash payload must not parse ps-command.sh
+# at all; an unprimed payload still loads it so a PowerShell command whose jq
+# cache missed cannot reach a guard with `ps::` unbound.
+_rg_tool=""
+if ((RUN_GUARDS_PRIMED)); then
+  _rg_tool="${RUN_GUARDS_VALUES[1]}"
+fi
+if ((${#LIBS[@]})) && [[ "$_rg_tool" != "Bash" ]]; then
+  for _rg_lib in "${LIBS[@]}"; do
+    # shellcheck disable=SC1090
+    source "$PLUGIN_ROOT/$_rg_lib"
+  done
+fi
+unset _rg_tool
 
 # --- run ----------------------------------------------------------------------
 RC=0

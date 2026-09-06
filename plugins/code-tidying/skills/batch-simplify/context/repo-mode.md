@@ -79,9 +79,9 @@ the refined file set against the base set and stop if they differ.
 **Canonical clusters are the hazard worth naming.** When several copies of a file exist because one
 is authored and the rest are generated or synced from it, only the authored copy is a legitimate
 target. Remove the generated copies from their groups entirely and edit the source, then run the
-repo's own regeneration step so the copies follow. Editing the copies directly produces changes that
-the next regeneration silently discards — a prior repository-wide run lost an entire bucket of work
-to exactly this, and the loss was invisible until long after the run reported success.
+repo's own regeneration step so the copies follow. Editing the copies directly produces changes the
+next regeneration silently discards, and the loss does not surface until long after the run reports
+success.
 
 Detect these clusters the way a reader would: identical or near-identical content at multiple paths,
 a generated-file header, or a documented source-and-copies relationship. When it is ambiguous which
@@ -93,38 +93,23 @@ Order groups by dependency constraint only: shared and canonical libraries befor
 consumes them. Simplifying a shared helper after its callers means the callers were reviewed against
 a shape that no longer exists.
 
-**Hotspot ranking is deliberately not used. This is a settled decision, not an open question**, and
-a later reader should not add it back as an improvement.
-
-Ordering by change frequency alone is a documented false-positive generator — the files that change
-most are frequently the ones that are supposed to change most, and ranking them as problems surfaces
-noise ahead of signal. Weighting churn by file size amplifies that error rather than correcting it,
-because size correlates with legitimate churn.
-
-The strongest form of the idea — churn weighted by a complexity or code-health measure, which is what
-"hotspot analysis" usually means — is rejected for a different and more decisive reason than the weak
-forms, and rejecting only the weak ones would leave it open. Hotspot ranking answers *where should I
-look first*, which is a triage question. Repo mode has already answered it: the sweep covers every
-group in the universe, and deferrals are resolved fix-first in the same run. A ranking that reorders work
-which is all going to happen anyway changes nothing about what gets found. It has no consumer here.
-
-Ordering only changes outcomes when a run is truncated or resumed, since an untruncated run reaches
-every group regardless. That is the whole of its job here — and it is why the two are coupled: a
-truncation knob is the only thing that would GIVE ranking a consumer. So reopening this coherently
-means landing that knob first and accepting what it implies (a repo sweep that deliberately stops
-early), then bringing a ranking signal with a second criterion beyond frequency. Adding the ranking
-on its own, in the order the idea usually arrives, buys a documented false-positive mode and nothing
-else.
+**Hotspot ranking is deliberately not used.** Ranking answers "where should I look first", and
+repo mode has already answered it: the sweep covers every group in the universe and resolves
+deferrals fix-first in the same run, so a ranking reorders work that all happens anyway.
+Reordering only changes outcomes for a run that stops early, which this mode does not do.
 
 ## Concurrency
 
 Run **4–6 simplifiers concurrently** as a soft cap.
 
-This is a cost and quality choice, not a ceiling imposed by the tooling. The harness permits **20
-concurrent subagents**; the lower number is chosen because a repo-scale run is long enough that
-rate-limit pressure is likely, and because a wave whose groups all finish at once produces more
-results than can be checked carefully at once. The tooling stops accepting work at 20 concurrent
-subagents; this cap sits well below that on purpose.
+This is a cost and quality choice, not a ceiling imposed by the tooling. Concurrent subagents are
+capped by `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, documented default 20
+(<https://code.claude.com/docs/en/env-vars>; verified 2026-08-10, recheck trigger: that page
+changing the default or the variable's name). Past the cap, an Agent-tool spawn fails with
+`Concurrent subagent limit reached` and the error tells Claude not to retry. The lower number here
+is chosen because a repo-scale run is long enough that rate-limit pressure is likely, and because a
+wave whose groups all finish at once produces more results than can be checked carefully at once.
+Read the consumer's own value rather than assuming the default.
 
 Three things make the real slot count higher than the simplifier count:
 

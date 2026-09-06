@@ -10,10 +10,25 @@ metadata:
   summary: Classify markdown for citations, ghost refs, meta-commentary, plan/conversational/tracker residue
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Uncommitted .md files (empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files (empty = none matched or the probe returned nothing): !`git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | grep -E '\.md"?$' | head -10; :; } || echo "(git status unavailable)"`
 Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
@@ -69,17 +84,16 @@ Consumers with their own ephemeral-path or noise conventions can refine these de
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files from git; file path → single-file; dir path → batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on targets; map the emitted facts to the per-file tier table using the treatments above |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
 
-Single action v1; `relocate` and `generalize` actions are deferred until real demand surfaces. Author hand-edits driven by audit output cover the sweep workflow.
+One action. Author hand-edits driven by audit output cover the sweep workflow.
 
 **`--persist-findings`** (off by default) additionally writes the run's `negation` findings as a
 `type: review-findings` file for `review:fanout`'s `fix` relay, per
 [context/persist-findings.md](context/persist-findings.md). It owns every mechanic (destination
 resolution, the fetch-and-refuse gate, the self-ignore guard, which findings enter the file, and
 what each cell says). A bare invocation reports and stops. `negation` is the only shape with a
-severity-crosswalk row; the other eight stay in the human report and are counted as declined. That
-eight is the count of shapes `audit_noise_detect_shapes_into` in
-[`scripts/lib/noise-shapes.sh`](scripts/lib/noise-shapes.sh) appends; re-derive it there rather
-than trusting this sentence.
+severity-crosswalk row; every other shape `audit_noise_detect_shapes_into` in
+[`scripts/lib/noise-shapes.sh`](scripts/lib/noise-shapes.sh) appends stays in the human report and
+is counted as declined.
 
 ## Auto-detect default
 
@@ -137,10 +151,9 @@ sibling divergences it owns.
   `secret`, `preferentially` for `prefer`) satisfy a *withholding* boundary and lose a real finding
   silently.
 - **`negation` selects only an IMPERATIVE, and classifies the accumulated sentence.** Two scope
-  gates, both measured rather than argued: without them the shape fired **1053 times on an 85-file
-  sample** of this repo (12.4 per file, 99% of all findings). (1) The cue must open the
-  **sentence**, after list, blockquote, task-list-checkbox and emphasis markers. "Prompt the
-  positive" is a rule about *instructions*,
+  gates. Without them the shape fires on most descriptive prose in an instruction corpus and buries
+  every real finding. (1) The cue must open the **sentence**, after list, blockquote,
+  task-list-checkbox and emphasis markers. "Prompt the positive" is a rule about *instructions*,
   so descriptive prose is not in its scope, and a mid-sentence cue is already the paired form
   ("Prefer X; never Y"). The cost is stated rather than hidden: a subject-led instruction ("The
   agent must not emit a bare summary") is not selected. (2) Soft-wrapped sentences are accumulated

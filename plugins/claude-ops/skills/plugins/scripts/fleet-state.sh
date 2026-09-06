@@ -12,6 +12,7 @@
 # Usage:
 #   fleet-state.sh [--marketplace <name> | --all]
 #   fleet-state.sh [--marketplace <name>] --ids <selector>
+#   fleet-state.sh --ids <selector> --from <report.json> [--marketplace <name>]
 #   fleet-state.sh --marketplaces
 #
 # With neither flag, resolves the default marketplace dynamically: the one
@@ -92,6 +93,22 @@
 #   Zero matches is success with empty output (exit 0), not an error. Reject:
 #   `--ids` with `--all` (no single block to project), or an unknown selector.
 #
+#   `--from <report.json>` projects the selector from a report this script
+#   already emitted (the object `--marketplace <name>` prints) instead of
+#   recomputing the fleet: no CC state file is read, no catalog manifest is
+#   walked, no realpath runs. Every selector is derivable from that report, and
+#   `sync` re-reads the full report before each mutating step anyway, so the
+#   separate live `--ids` process was recomputing a block the caller already
+#   held. The projection runs the SAME jq program the live mode runs, so the
+#   CR-free, TAB-separated output contract is unchanged. Reject (exit 2, stdout
+#   left EMPTY so a `< <(…)` consumer can never read an error as an id):
+#   `--from` with `--all`, `--from` without `--ids`, a missing or unreadable
+#   file, JSON that is not a single-marketplace report (an `--all` envelope is
+#   refused by name rather than projected to a silent empty list), and a
+#   `--marketplace <name>` that disagrees with the report's own
+#   `marketplace.name` — that flag is an optional consistency check here, never
+#   a second read.
+#
 # Output (stdout) with --marketplaces: NOT JSON — every marketplace name from
 #   known_marketplaces.json, one per line, nothing else, CR-free by the same
 #   capture discipline as --ids. Empty output for an empty object is success
@@ -114,7 +131,8 @@
 #   1  a single-marketplace run's marketplace could not be resolved/read
 #   2  fatal: jq missing, an internal CC state file is present but does not
 #      match its expected shape (fail loud on schema drift — never guess), a
-#      bad/absent --ids selector, or --ids combined with --all
+#      bad/absent --ids selector, --ids combined with --all, or a rejected
+#      --from invocation (see the --from paragraph above)
 #
 # Process budget. Every external command this script runs is a process
 #   creation, and on Windows Git Bash each one costs fork() emulation plus a
@@ -304,6 +322,7 @@ MODE="default"
 TARGET=""
 IDS_SELECTOR=""
 LIST_MARKETPLACES=""
+FROM_REPORT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --marketplaces)
@@ -316,6 +335,15 @@ while [[ $# -gt 0 ]]; do
     # following arg, `shift 2` fails (no set -e) and the loop spins forever.
     if [[ -z "$IDS_SELECTOR" ]]; then
       echo "ERROR: --ids requires a selector" >&2
+      exit 2
+    fi
+    shift 2
+    ;;
+  --from)
+    FROM_REPORT="${2:-}"
+    # Same guard-before-`shift 2` reasoning as --marketplace below.
+    if [[ -z "$FROM_REPORT" ]]; then
+      echo "ERROR: --from requires a report path" >&2
       exit 2
     fi
     shift 2
@@ -356,8 +384,8 @@ done
 # order-independent: `--marketplaces --all` and `--all --marketplaces` fail
 # identically.
 if [[ -n "$LIST_MARKETPLACES" ]]; then
-  if [[ "$MODE" != "default" || -n "$IDS_SELECTOR" ]]; then
-    echo "ERROR: --marketplaces cannot be combined with --marketplace, --all, or --ids" >&2
+  if [[ "$MODE" != "default" || -n "$IDS_SELECTOR" || -n "$FROM_REPORT" ]]; then
+    echo "ERROR: --marketplaces cannot be combined with --marketplace, --all, --ids, or --from" >&2
     exit 2
   fi
   MODE="list"
@@ -411,11 +439,136 @@ ids_selector_valid() {
   esac
 }
 
+# The fields each selector's branch of PROJECTION_PROGRAM actually consumes,
+# as `<field>:<jq type>` pairs. This exists for `--from`: a live run computed
+# the block itself and every field is present by construction, but a saved
+# report is arbitrary input, and a syntactically valid object that simply lacks
+# the field a selector reads projects to NOTHING and exits 0 — a silently-empty
+# id list, the exact failure class `--ids` exists to prevent.
+#
+# ADDITIVE to the baseline shape check below (.marketplace.name plus
+# .installed, which together are what makes a file a fleet-state report at
+# all), never a replacement for it. Keep this in step with PROJECTION_PROGRAM:
+# a selector that starts reading a new field adds it here.
+ids_selector_required_fields() {
+  case "$1" in
+  installed-user | current-project) echo 'installed:array' ;;
+  update-candidates-user) echo 'installed:array catalog_versions:object' ;;
+  missing-user-install) echo 'missing_from_user_install:array' ;;
+  missing-enabled) echo 'missing_from_enabled:array' ;;
+  user-scope-orphans) echo 'user_scope_orphans:array' ;;
+  *) echo '' ;;
+  esac
+}
+
 # Validate the selector before any marketplace resolution: a typo is a usage
 # error (exit 2) and must report as one, not be masked by whatever the
 # resolution attempt would have returned first.
 if [[ -n "$IDS_SELECTOR" ]]; then
   ids_selector_valid "$IDS_SELECTOR" || exit 2
+fi
+
+# The selector projection, in ONE place. Pass 3 appends it to its own program so
+# a live run projects the block it just composed; `--from` runs it standalone
+# over a saved report. One code path means the CR-safe, tab-separated output
+# contract cannot drift between the two modes — the whole reason `--ids` exists
+# instead of a hand-written jq at each call site.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+PROJECTION_PROGRAM='
+  if $selector == "" then $block
+    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
+    elif $selector == "update-candidates-user" then
+      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
+       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
+    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
+    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
+    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
+    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
+    else error("unknown selector: " + $selector) end'
+
+# --- --from: project a selector from an already-emitted report ----------------
+# `sync` re-reads the full JSON report before each mutating step anyway, and
+# every selector is derivable from that report. Re-running the whole live
+# pipeline for the projection costs a second process that re-parses
+# installed_plugins.json, re-walks the catalog manifests, and re-runs realpath,
+# to recompute a block the caller is already holding. `--from` runs the same
+# PROJECTION_PROGRAM over the saved report instead.
+#
+# It is a PROJECTION mode, so every flag that would drive a live read is a
+# contradiction and is refused rather than silently ignored: `--all` has no
+# single block to project (the same reason --ids refuses it), and `--from`
+# without `--ids` has nothing to project and would otherwise fall through to
+# the `$selector == ""` branch and echo the report straight back.
+FS_FROM_NAME=""
+if [[ -n "$FROM_REPORT" ]]; then
+  if [[ "$MODE" == "all" ]]; then
+    echo "ERROR: --from cannot be combined with --all" >&2
+    echo "  --from projects ONE saved single-marketplace report." >&2
+    exit 2
+  fi
+  if [[ -z "$IDS_SELECTOR" ]]; then
+    echo "ERROR: --from requires --ids <selector>" >&2
+    echo "  --from projects a selector from a saved report; it emits no JSON report itself." >&2
+    exit 2
+  fi
+  if [[ ! -f "$FROM_REPORT" ]]; then
+    echo "ERROR: --from report not found: $FROM_REPORT" >&2
+    exit 2
+  fi
+  # Validate the SHAPE, not just the JSON. An --all envelope
+  # ({"marketplaces": {...}}) parses fine and every selector branch projects it
+  # to nothing — a silently-empty id list, which is the exact failure class the
+  # --ids contract exists to prevent. So does a truncated object that carries
+  # the baseline fields but not the one THIS selector reads, so the per-selector
+  # required-field list above is checked too. Fail loud and name the fix instead.
+  #
+  # The verdict comes back on stdout as `ok:<name>` or `err:<detail>` rather
+  # than through jq's `error()`: the detail has to reach the operator's terminal
+  # naming the offending field, and a nonzero jq exit only distinguishes an
+  # unparsable file from a well-formed but wrong-shaped one.
+  FS_FROM_CHECK=""
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  if ! jq_to FS_FROM_CHECK -r --arg required "$(ids_selector_required_fields "$IDS_SELECTOR")" '
+        if type != "object" then "err:not a JSON object"
+        elif has("marketplaces") then "err:this is an --all envelope, not a single-marketplace report"
+        elif (.marketplace | type) != "object" or (.marketplace.name | type) != "string"
+          then "err:missing or wrong-typed field .marketplace.name (expected a string)"
+        elif (.installed | type) != "array"
+          then "err:missing or wrong-typed field .installed (expected an array)"
+        else . as $r
+          | [$required | split(" ")[] | select(length > 0) | split(":")
+             | select(($r[.[0]] | type) != .[1])
+             | "missing or wrong-typed field .\(.[0]) (expected \(if .[1] == "array" then "an" else "a" end) \(.[1]))"]
+            as $bad
+          | if ($bad | length) > 0 then "err:" + ($bad | join("; "))
+            else "ok:" + $r.marketplace.name end
+        end' "$FROM_REPORT" 2>/dev/null; then
+    FS_FROM_CHECK="err:not valid JSON"
+  fi
+  if [[ "$FS_FROM_CHECK" != ok:* ]]; then
+    echo "ERROR: --from report is not a usable fleet-state report for --ids $IDS_SELECTOR: $FROM_REPORT" >&2
+    echo "  ${FS_FROM_CHECK#err:}" >&2
+    echo "  Expected the JSON object \`--marketplace <name>\` prints (.marketplace.name," >&2
+    echo "  .installed, .catalog_versions, …), not an --all envelope or arbitrary JSON." >&2
+    exit 2
+  fi
+  FS_FROM_NAME="${FS_FROM_CHECK#ok:}"
+  # --marketplace alongside --from is an optional CONSISTENCY CHECK, never a
+  # second read: projecting one marketplace's report while believing it is
+  # another's is how a sweep mutates the wrong fleet.
+  if [[ "$MODE" == "single" && "$TARGET" != "$FS_FROM_NAME" ]]; then
+    echo "ERROR: --from report is for marketplace '$FS_FROM_NAME', not '$TARGET': $FROM_REPORT" >&2
+    exit 2
+  fi
+  # Same jq_to capture discipline as every other mode, so the CR strip is
+  # identical; zero matches is success with EMPTY output, never a blank line.
+  if ! jq_to FS_BLOCK -r --arg selector "$IDS_SELECTOR" \
+    ". as \$block | $PROJECTION_PROGRAM" "$FROM_REPORT"; then
+    echo "ERROR: --from projection failed for selector '$IDS_SELECTOR': $FROM_REPORT" >&2
+    exit 2
+  fi
+  [[ -n "$FS_BLOCK" ]] && printf '%s\n' "$FS_BLOCK"
+  exit 0
 fi
 
 # --- Fail-loud presence checks for internal (undocumented) CC state -----------
@@ -530,8 +683,14 @@ fi
 # a comparison done in the shell would never see. Keep it in jq.
 norm_root=""
 norm_root_parent=""
+phys_root=""
 if [[ "$MODE" == "default" ]]; then
   hook::_physical_cached_to phys_tmp "$plugin_root" || true
+  # Stage 3a walks the filesystem, so it needs the PHYSICAL spelling, not the
+  # comparison-normalized one (which lower-cases the drive remainder on
+  # Windows). Kept alongside norm_root so both forms come from the one
+  # already-primed realpath answer.
+  phys_root="$phys_tmp"
   hook::normalize_path_to norm_root "$phys_tmp"
   norm_root="${norm_root%/}"
   norm_root_parent="${norm_root%/*}"
@@ -548,13 +707,19 @@ fi
 #   MP<US><name><US><installLocation><US><autoUpdate><US><lastUpdated>
 #                                          every key whose entry is truthy
 #   PP<US><projectPath>                    every distinct project/local path
-#   TARGET<US><marketplace>                the default marketplace (default
-#                                          mode only; empty when unresolved)
+#   TARGET<US><marketplace>                the default marketplace from the
+#                                          installPath stages (default mode
+#                                          only; empty when unresolved)
+#   LOCHIT<US><marketplace>                the marketplace whose installLocation
+#                                          contains the running plugin root
+#                                          (stage 3b; default mode only, empty
+#                                          when no marketplace matches)
 # The settings files are read as raw text so a malformed one surfaces as its
 # own error instead of an empty capture that only fails several steps later.
 #
 # Default-marketplace resolution is the one this plugin was installed from: a
-# two-stage match against installed_plugins.json's version-pinned installPath.
+# three-stage match, the first two against installed_plugins.json's
+# version-pinned installPath.
 #   1. exact: installPath == this plugin's normalized root (the precise case).
 #   2. version-agnostic fallback: installPath and the running root differ ONLY
 #      by their trailing `/<version>` segment. This is common, not an edge case:
@@ -565,6 +730,24 @@ fi
 #      matches the version-stripped `…/cache/<marketplace>/<plugin>` prefix, which
 #      still carries the marketplace (so two marketplaces shipping the same plugin
 #      stay distinguishable).
+#   3. out-of-cache root. Every installPath lives under
+#      ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>, so a root loaded
+#      from anywhere else — a local dev checkout, --plugin-dir, or the
+#      marketplace checkout itself — is unrepresentable in that join and misses
+#      both stages above. Two sub-stages cover it:
+#        3a. marketplace manifest walk-up (in the SHELL, below): walk up a
+#            bounded number of levels from the running root looking for
+#            .claude-plugin/marketplace.json and read its `.name`, accepted ONLY
+#            when it is a key in known_marketplaces.json.
+#        3b. installLocation prefix (emitted here as LOCHIT): the root equals or
+#            sits under a known marketplace's installLocation, which covers
+#            <installLocation>/plugins/<name>. installLocation is recorded in
+#            native Windows form, so it gets the same backslash folding and
+#            case-insensitivity treatment as installPath — and, like them, the
+#            comparison stays in jq: MSYS rewrites a mount-alias argv such as
+#            /tmp/... into the drive-letter spelling the records carry, a
+#            rewrite a comparison done in the shell would never see.
+#      A root that resolves through none of the three fails loud; it never guesses.
 settings_args=()
 [[ -f "$USER_SETTINGS" ]] && settings_args+=(--rawfile us "$USER_SETTINGS")
 if [[ -n "$PROJECT_ROOT" ]]; then
@@ -622,7 +805,21 @@ PASS1_PROGRAM='
                               if $cib then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
                      | .key] | .[0] // "")
               end) as $hit
-           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; ""))
+           | "TARGET" + ([31] | implode) + ($hit | sub(".*@"; "")),
+           # Stage 3b, emitted unconditionally so the shell can consult it only
+           # after stage 3a has had its turn. The value is already a bare
+           # known_marketplaces.json key, so it gets NO `sub(".*@"; "")`.
+           (if $root == "" then "" else
+              ([$mk | to_entries[] | select(.value)
+                | ((.value.installLocation // "") | gsub("\\\\"; "/") | rtrimstr("/")) as $loc
+                | select($loc != "")
+                | select(if $cib
+                         then ($root | ascii_downcase) == ($loc | ascii_downcase)
+                              or (($root | ascii_downcase) | startswith(($loc | ascii_downcase) + "/"))
+                         else $root == $loc or ($root | startswith($loc + "/")) end)
+                | .key] | .[0] // "")
+            end) as $lochit
+           | "LOCHIT" + ([31] | implode) + $lochit
          else empty end)
     end'
 
@@ -648,6 +845,7 @@ mp_au=()
 mp_lu=()
 pp_lines=()
 resolved_target=""
+location_target=""
 while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
   case "$tag" in
   ERR)
@@ -664,6 +862,7 @@ while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
     ;;
   PP) pp_lines+=("$f1") ;;
   TARGET) resolved_target="$f1" ;;
+  LOCHIT) location_target="$f1" ;;
   *) ;;
   esac
 done <<<"$pass1"
@@ -833,16 +1032,7 @@ PASS3_PROGRAM='
       user_scope_orphans: $user_scope_orphans,
       divergences: $divergences
     } as $block
-  | if $selector == "" then $block
-    elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
-    elif $selector == "update-candidates-user" then
-      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
-       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
-    elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
-    elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
-    elif $selector == "missing-enabled" then $block.missing_from_enabled[]?
-    elif $selector == "user-scope-orphans" then $block.user_scope_orphans[]?
-    else error("unknown selector: " + $selector) end'
+  | '"$PROJECTION_PROGRAM"
 
 emit_marketplace() {
   local name="$1"
@@ -917,7 +1107,7 @@ emit_marketplace() {
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     manifest_base="$FLEET_STATE_CATALOG_DIR/$name"
   else
-    # installLocation is recorded in native form on Windows (C:\Users\...);
+    # installLocation is recorded in native form on Windows (C:\Users\<user>\...);
     # fold to forward slashes so the composed path is one this shell can stat.
     manifest_base="${install_location//\\//}"
   fi
@@ -1046,17 +1236,66 @@ emit_one() {
   return 0
 }
 
+# --- Stage 3a: marketplace manifest walk-up ----------------------------------
+# Stages 1 and 2 both key on installPath, and every installPath lives under
+# .../cache/<marketplace>/<plugin>/<version>, so a root loaded from anywhere
+# else is unrepresentable in that join. Walk up from the physical root to the
+# filesystem root looking for a marketplace manifest, and accept its `.name`
+# ONLY when known_marketplaces.json actually has that key: an unregistered name
+# is a guess, and this resolver never guesses. The nearest manifest is the
+# answer — finding one ends the walk whether or not its name is accepted, so a
+# further-up unrelated manifest can never be claimed as this plugin's. The walk
+# assumes NOTHING about how deep the plugin sits below its marketplace root: a
+# monorepo can nest it arbitrarily (packages/extensions/plugins/<name>/...). The
+# 32-level cap is a runaway guard against a pathological or cyclic path, not a
+# maximum source depth; the walk normally ends at the nearest manifest or at the
+# filesystem root, whichever comes first.
+if [[ "$MODE" == "default" && -z "$resolved_target" && -n "$phys_root" ]]; then
+  mk_probe="$phys_root"
+  for ((walk_level = 0; walk_level < 32; walk_level++)); do
+    mk_manifest="$mk_probe/.claude-plugin/marketplace.json"
+    if [[ -f "$mk_manifest" ]]; then
+      mk_candidate=""
+      jq_to mk_candidate -r '.name // "" | if type == "string" then . else "" end' \
+        "$mk_manifest" 2>/dev/null || mk_candidate=""
+      if [[ -n "$mk_candidate" ]]; then
+        for mk_known in ${mp_names[@]+"${mp_names[@]}"}; do
+          if [[ "$mk_known" == "$mk_candidate" ]]; then
+            resolved_target="$mk_candidate"
+            break
+          fi
+        done
+      fi
+      break
+    fi
+    mk_parent="${mk_probe%/*}"
+    [[ -n "$mk_parent" && "$mk_parent" != "$mk_probe" ]] || break
+    mk_probe="$mk_parent"
+  done
+fi
+
+# --- Stage 3b: the running root sits under a known installLocation -----------
+# Computed in pass 1's jq (see PASS1_PROGRAM) so every path comparison stays on
+# the jq side; consulted only here, after 3a, so the ordering of the stages is
+# 1, 2, 3a, 3b.
+if [[ "$MODE" == "default" && -z "$resolved_target" ]]; then
+  resolved_target="$location_target"
+fi
+
 case "$MODE" in
 default)
   TARGET="$resolved_target"
   if [[ -z "$TARGET" ]]; then
     echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
     echo "  ${norm_root:-<unresolved>}" >&2
-    echo "matched no installed_plugins.json entry — searched by exact installPath and by" >&2
-    echo "version-agnostic .../cache/<marketplace>/<plugin> prefix. This usually means the" >&2
-    echo "session's loaded version differs from the installed one AND the cache layout is" >&2
-    echo "not the expected .../cache/<marketplace>/<plugin>/<version> shape. Pass" >&2
-    echo "--marketplace <name> explicitly." >&2
+    echo "resolved through none of the three stages: exact installPath, version-agnostic" >&2
+    echo ".../cache/<marketplace>/<plugin> prefix, and (for a root outside the cache) a" >&2
+    echo ".claude-plugin/marketplace.json walk-up or a known marketplace installLocation." >&2
+    echo "Either the session's loaded version differs from the installed one and the cache" >&2
+    echo "layout is not the expected .../cache/<marketplace>/<plugin>/<version> shape, or" >&2
+    echo "the root is not under the cache at all (a local dev checkout, --plugin-dir, or a" >&2
+    echo "marketplace checkout) and carries no marketplace.json naming a marketplace that" >&2
+    echo "known_marketplaces.json knows. Pass --marketplace <name> explicitly." >&2
     exit 1
   fi
   emit_one "$TARGET" || exit $?

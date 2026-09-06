@@ -51,20 +51,27 @@
 
 set -uo pipefail
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
 # Explicit opt-in (NOT hook::check_enabled, whose unset-var fallback is "true"):
 # an unset switch must read as the plugin.json default, which is false.
+#
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. This one was already inlined, so
+# the hoist only moves it; scripts/check-killswitch-hoist.sh keeps it here.
 [[ "${CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED:-false}" == "true" ]] || exit 0
 
-# Bundled PowerShell-command classifier — this guard is matched on both the Bash
-# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
-# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=hook-utils.sh
+source "$_HOOK_SELF/hook-utils.sh"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.
@@ -98,6 +105,9 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # mention inside message text is inert and a real invocation after a here-string
 # is still seen. Advisory-only: never blocks, so best-effort is proportionate.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   ps::blank_herestrings "$COMMAND"
   COMMAND="$PS_BLANKED"
 fi

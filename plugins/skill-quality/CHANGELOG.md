@@ -3,6 +3,48 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.15]
+
+### Changed
+
+- check: restated the plugin-cache paragraph as the current documented layout with a dated recheck record; added check 13 (committed-artifact scan) to the git-backed check list so it matches the gotchas and the evals; named the marketplace CI workflow, not `check-changed-skills.sh`, as the site of the pooled listing-budget call; dropped the derived "other twenty" count from the markdownlint gotcha; removed the check-3 rule from Purpose and the duplicated always-advisory verdict, both of which the body states elsewhere with their reasons; dropped the eval-runner roadmap clause from the case-count gotcha
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.20.14]
+
+### Changed
+
+- **Check 3 (trigger-keyword preservation vs the base ref) is advisory.** A dropped
+  single-quoted trigger phrase with no sibling host now WARNs, naming each phrase and asking the
+  reviewer to confirm the description still names the intent it carried or to restore it, instead
+  of FAILing the run. The bundled `/claude-api prompt-audit` guide's Group 2 "trigger-case
+  enumeration" fix replaces lists of near-synonym trigger phrases with named intent categories,
+  and a hard failure on every dropped phrase blocked that documented fix fleet-wide. The
+  sibling-move warning, the "all N base-ref trigger phrase(s) preserved" note, and every other
+  check are unchanged. `check-skill.test.sh` cases that asserted a FAIL on a dropped phrase now
+  assert a zero exit with the warning text; the sibling-move and coincidental-overlap cases still
+  prove their distinct verdicts.
+
+## [0.20.13]
+
+### Changed
+
+- **`check-skill.sh` reads the base-ref frontmatter once instead of up to three
+  times.** Checks 3 (trigger-keyword preservation), 8 (vendor-sync pairing) and 9
+  (stale-tracking metadata) each opened with the same
+  `git cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md"` probe and then re-ran the same
+  `git show | skill_frontmatter::extract` pipeline over the same blob, under three
+  names, `BASE_FM_3`, `BASE_FM_V8` and `BASE_FM`. One hoisted read now serves all
+  three. Emptiness is not a usable proxy for absence here, so the probe's answer
+  is carried separately in `HAVE_BASE_FM`: that keeps "no base-ref version, this
+  is a new skill" distinct from "a base-ref file whose frontmatter block is
+  empty", which the three checks skip and report on differently. Check 8's guard
+  folds its `-d vendor` test and the hoisted flag into one condition. Every
+  message and skip reason is unchanged.
+- **`CUR_SUMMARY` is computed inside the guard that consumes it.** It was assigned
+  unconditionally on the line above `if skill_frontmatter::has_metadata_field
+  summary`, and discarded whenever the field is absent; it has no other reader.
+
 ## [0.20.12]
 
 ### Changed

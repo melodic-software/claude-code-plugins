@@ -1,0 +1,122 @@
+[
+  {
+    "Name": "C#",
+    "Lines": 15,
+    "Code": 12,
+    "Comment": 2,
+    "Blank": 1,
+    "Files": [
+      {
+        "Language": "C#",
+        "Filename": "CmSample.cs",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/CmSample.cs",
+        "Lines": 15,
+        "Code": 12,
+        "Comment": 2,
+        "Blank": 1,
+        "Complexity": 2,
+        "Bytes": 368
+      }
+    ]
+  },
+  {
+    "Name": "Go",
+    "Lines": 15,
+    "Code": 10,
+    "Comment": 4,
+    "Blank": 1,
+    "Files": [
+      {
+        "Language": "Go",
+        "Filename": "cm-sample.go",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.go",
+        "Lines": 15,
+        "Code": 10,
+        "Comment": 4,
+        "Blank": 1,
+        "Complexity": 3,
+        "Bytes": 384
+      }
+    ]
+  },
+  {
+    "Name": "Markdown",
+    "Lines": 4,
+    "Code": 3,
+    "Comment": 0,
+    "Blank": 1,
+    "Files": [
+      {
+        "Language": "Markdown",
+        "Filename": "cm-notes.md",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/cm-notes.md",
+        "Lines": 4,
+        "Code": 3,
+        "Comment": 0,
+        "Blank": 1,
+        "Complexity": 0,
+        "Bytes": 150
+      }
+    ]
+  },
+  {
+    "Name": "Python",
+    "Lines": 20,
+    "Code": 8,
+    "Comment": 8,
+    "Blank": 4,
+    "Files": [
+      {
+        "Language": "Python",
+        "Filename": "cm_sample.py",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/cm_sample.py",
+        "Lines": 20,
+        "Code": 8,
+        "Comment": 8,
+        "Blank": 4,
+        "Complexity": 4,
+        "Bytes": 590
+      }
+    ]
+  },
+  {
+    "Name": "Shell",
+    "Lines": 15,
+    "Code": 9,
+    "Comment": 4,
+    "Blank": 2,
+    "Files": [
+      {
+        "Language": "Shell",
+        "Filename": "cm-sample.sh",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh",
+        "Lines": 15,
+        "Code": 9,
+        "Comment": 4,
+        "Blank": 2,
+        "Complexity": 1,
+        "Bytes": 382
+      }
+    ]
+  },
+  {
+    "Name": "TypeScript",
+    "Lines": 12,
+    "Code": 9,
+    "Comment": 2,
+    "Blank": 1,
+    "Files": [
+      {
+        "Language": "TypeScript",
+        "Filename": "cm-sample.ts",
+        "Location": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts",
+        "Lines": 12,
+        "Code": 9,
+        "Comment": 2,
+        "Blank": 1,
+        "Complexity": 3,
+        "Bytes": 313
+      }
+    ]
+  }
+]

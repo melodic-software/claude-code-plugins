@@ -70,12 +70,11 @@ section's problem does not authorize it to write that section's replacement.
 
 Routing means invoking that skill, not summarizing what you believe it would say.
 
-**Why this boundary is load-bearing.** In the pilot that produced these skills, this skill wrote
-three chorus drafts while its own routing said rhyme work belongs elsewhere. Every generative check
-was named as passed and none was run: zero rhyme candidates against a mandatory eight, zero mosaic
-against a mandatory three, no object writing before the lines. Naming a filter box is not running
-it, and a structural skill in the middle of a structural conversation is exactly where that
-substitution happens.
+**Why this boundary is load-bearing.** A structural skill in the middle of a structural
+conversation is exactly where line emission gets substituted for structural work: the generative
+checks get named as passed rather than run, and a chorus draft ships with zero rhyme candidates
+against a mandatory eight, zero mosaic against a mandatory three, and no object writing behind it.
+Naming a filter box is not running it.
 
 Two section-type rules bind before any line-level judgement here, both from
 [repetition](../../context/pat-pattison/research/repetition.md):

@@ -211,6 +211,15 @@ interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
 | PostCompact (`post-compact-mark.sh`) | 1 | 9.4 before, 5.7 after (0.7.34) | 9 processes to 4: `date` replaced by printf's clock with a `date` fallback; `mkdir` and `rm` behind existence guards |
 | Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
 
+**0.7.45, advisory `zone-gate.sh` sources nothing.** 2026-09-06, Linux CI host.
+The default `zone_hook_mode` is advisory, so the gate is inert. It still parsed
+`hook-utils.sh` (and `payload.sh`) to discover that. The MODE check now sits
+above every `source`, the same shape as the kill-switch hoist. Spawn census
+stays at 0 PATH-visible execs; `bash -x` sources of `hook-utils.sh` go 1 → 0.
+Wall clock, n=20 after 2 warmup, host `spawn_probe` measurable (min 0.5 ms,
+spread 1.78×): p50 4.8 → 1.4 ms, p95 5.0 → 1.5 ms. Blocking mode still sources
+the library after the MODE check and is unchanged.
+
 The two advisory rows keep their 60-second timeout: the 0.4.8 measurement put this script at
 22.0 s on Windows with Defender real-time protection, and a timeout caps a stalled hook without
 speeding a normal one.

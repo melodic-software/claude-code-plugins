@@ -11,11 +11,30 @@ never assume the literal `.work`; the memory root is consumer-configurable. Add 
 producer writes there only on its no-project-root branch (topic-docs binding), so inside a repo
 that shared location holds unrelated sessions' save-points, and a newer one could hijack the
 short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,
-keep only files whose frontmatter is `type: handoff`, rank by mtime. A strong, recent candidate
+keep only files whose frontmatter is `type: handoff`, rank by mtime. **Skip any file that still
+contains a `<!-- FILL` slot:** it is a skeleton `save_point.py new` wrote that the producing
+session never finished (compaction mid-fill, or a fix loop that ended unvalidated). Name it as an
+unfinished skeleton in the report, with its path, so the operator can decide about it, and never
+present it as the lost handoff; the engine refuses to emit from one. A strong, recent candidate
 → jump to step 4 (step 5's chain validation then locates the producer transcript by the file's
 `session_id`, since this path found no transcript), **but run step 3's re-arm-note capture
 before that jump**, or this short-circuit surfaces a looping handoff with its `/loop` re-arm
-missing while step 4 claims to present it. Locate the producer transcript by the candidate's
+missing while step 4 claims to present it.
+
+**A shape-2 candidate carries its own resume prompt; print it from the file.** When the
+frontmatter has `handoff_shape: 2`, the file ends with a `## Resume prompt` section storing the
+rails block exactly as the producer emitted it. Surface that section at step 4 as the recovered
+prompt: run `"$PY" -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" emit <file>` through the
+interpreter ladder the producer's structure doc shows (`python3`, then `python`, 3.10+). `emit`
+prints the section verbatim; when the stored `Read @` path is not the file's real path (a file
+preserved out of a removed worktree) it warns on stderr and prints the current path instead, so
+the surfaced directive points where the file actually is. With no Python on PATH, print the
+section with `sed -n '/^## Resume prompt$/,$p' <file>` and say that the `Read @` path is as
+stored (no substitution ran); a stale path there is the same not-found-here condition as a
+rooted miss and gets the same UNRESOLVED treatment, never "missing". A shape-1 candidate (no
+`handoff_shape` key) has no such section; present its metadata as before and let the transcript
+scan supply the prompt when the operator wants it. Nothing here reads the file's body beyond that
+final section, and the confirm gate still holds before any resume. Locate the producer transcript by the candidate's
 own `session_id` (`<session_id>.jsonl` under `~/.claude/projects/*/`, the same lookup step 5
 performs, pulled ahead). That is a bounded, read-only read of ONE already-named file, not the
 step-2 scan reintroduced. **Bind the note to THIS candidate by content, never by taking the
@@ -89,20 +108,17 @@ a different file, failed at launch, or is unverified/ambiguous → keep the cand
 the provenance at the confirm gate when ambiguous). **This four-way resolution governs every
 screening site in this skill, prompt-only included.**
 
-**v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
-other repo roots from transcript `cwd` fields) is deferred. Step 2's transcript scan already
-recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
+**This rung searches the current repo only.** Step 2's transcript scan already recovers handoffs
+written in other repos, since transcripts are indexed by session, not repo.
 
-**OPEN, this rung cannot correlate a candidate to the repository the work was in.** Run from a
-directory that is not the worked-in repo but has its own handoffs dir, the glob returns conforming
-`type: handoff` files from unrelated sessions and the target is not among them; nothing here can
-reject a same-cwd, different-repo candidate, because a handoff file records no durable repository
-identity. `structure.md`'s frontmatter carries `type`, `date`, `topic`, `session_id`, and
-`previous_handoff`, and none of those names a repo. Closing it needs a new frontmatter field, a
-cross-cutting schema change every existing handoff on disk would lack, decided on its own merits
-rather than inside a path fix (#1778). Until then: prefer the transcript scan whenever this rung's
-candidates are merely recent rather than clearly this work's, and never present a glob candidate
-as repo-verified. Reading the repository off the producer transcript is deliberately NOT used as
-a substitute. It depends on a transcript that may be absent, which this skill's own Gotchas say
-is the reason transcripts are the reliable index over the filesystem, and it returns nothing for
-every rootless legacy handoff, i.e. exactly where a correlation check is needed.
+**Known limit: this rung cannot correlate a candidate to the repository the work was in.** Run
+from a directory that is not the worked-in repo but has its own handoffs dir, the glob returns
+conforming `type: handoff` files from unrelated sessions and the target is not among them. Nothing
+here can reject a same-cwd, different-repo candidate, because a handoff file records no repository
+identity: the frontmatter `structure.md` defines carries `type`, `date`, `topic`, `session_id`,
+and `previous_handoff`, and none of those names a repo. So prefer the transcript scan whenever this
+rung's candidates are merely recent rather than clearly this work's, and never present a glob
+candidate as repo-verified. Do not read the repository off the producer transcript as a
+substitute: that transcript may be absent, which is why transcripts are the reliable index over
+the filesystem, and it returns nothing for a rootless handoff, exactly where a correlation check
+is needed.

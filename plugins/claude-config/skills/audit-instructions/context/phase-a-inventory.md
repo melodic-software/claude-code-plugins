@@ -127,7 +127,7 @@ involving one still carries the no-change representation and its routing recomme
   from the cache of an **enabled** plugin, hook instruction text of both kinds in an enabled
   plugin's `hooks/hooks.json` (a plugin is a supported hook location, so that text is as live as a
   settings-configured hook, and a plugin `SessionStart` handler injecting a standing behavioral
-  block is the case that motivated the two-kind split), hooks declared in the frontmatter of an
+  block is the clearest instance of the context-injecting kind), hooks declared in the frontmatter of an
   active skill or agent **from that cache** (a supported location, live "while the component is
   active"; the user- and project-scope counterparts are locally owned and are inventoried in the
   editable set above, not here), **the active

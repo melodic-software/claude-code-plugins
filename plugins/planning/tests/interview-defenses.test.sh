@@ -371,6 +371,32 @@ case_json() {
   jq -c --arg n "$1" '.evals[] | select(.name == $n)' "$EVALS"
 }
 
+# case_present <arm> <case name> <case json>
+# The case must still be addressable by the name this suite grades it under: a rename
+# resolves the lookup to nothing, and every assertion guarded on it goes vacuously quiet.
+case_present() {
+  local arm="$1" name="$2" json="$3"
+  if [[ -n "$json" ]]; then
+    ok "case $arm present in evals.json: $name"
+  else
+    fail "case $arm missing from evals.json: expected an eval case named $name"
+  fi
+}
+
+# declares_both_fixtures <arm> <case json>
+# The case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
+# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
+declares_both_fixtures() {
+  local arm="$1" json="$2" declared
+  [[ -n "$json" ]] || return 0
+  declared="$(printf '%s' "$json" | jq -r '(.files // []) | length')"
+  if [[ "$declared" -eq 2 ]]; then
+    ok "case $arm declares both fixtures in files[]"
+  else
+    fail "case $arm declares $declared fixture(s) in files[]; expected 2"
+  fi
+}
+
 # graded_mention <label> <case json> <literal substring>
 # The case must still GRADE the thing it was written to grade, and grade it as a CHECKABLE
 # item: the phrase must appear in the `expectations` ARRAY, not merely in the
@@ -395,17 +421,8 @@ CASE_B_NAME="auto-residue-asked-or-user-reserved-never-assumed"
 CASE_A="$(case_json "$CASE_A_NAME")"
 CASE_B="$(case_json "$CASE_B_NAME")"
 
-for pair in "A:$CASE_A_NAME:$CASE_A" "B:$CASE_B_NAME:$CASE_B"; do
-  arm="${pair%%:*}"
-  rest="${pair#*:}"
-  name="${rest%%:*}"
-  json="${rest#*:}"
-  if [[ -n "$json" ]]; then
-    ok "case $arm present in evals.json: $name"
-  else
-    fail "case $arm missing from evals.json: expected an eval case named $name"
-  fi
-done
+case_present A "$CASE_A_NAME" "$CASE_A"
+case_present B "$CASE_B_NAME" "$CASE_B"
 
 # Fixture reachability: a planted-decision case whose plant is gone grades nothing.
 for fx in \
@@ -420,24 +437,8 @@ for fx in \
   fi
 done
 
-# Each case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
-# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
-if [[ -n "$CASE_A" ]]; then
-  declared="$(printf '%s' "$CASE_A" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case A declares both fixtures in files[]"
-  else
-    fail "case A declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
-if [[ -n "$CASE_B" ]]; then
-  declared="$(printf '%s' "$CASE_B" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case B declares both fixtures in files[]"
-  else
-    fail "case B declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
+declares_both_fixtures A "$CASE_A"
+declares_both_fixtures B "$CASE_B"
 
 # --- whole-section and whole-case digests (the outermost layer) ------------
 #
@@ -473,7 +474,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "bb8d3d643a7d0478a51d04abdfb6420e4b0b86b47d3317c861107baacf12fb7c"
+  "cab0c89255cdd2a360d00fbcbd2fb6a5ed939b655667f9b6aaef552f2f2eb8c6"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -483,7 +484,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "1507ecb169de8ff22e11e6fec211906069344d6afa4fcd05e283e456bd6926da"
+  "3142bad2d571e26e1e050f83a4dcb08221b7476d4d6ac6d38aed53125001bde6"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -508,7 +509,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "33ad717275095466a2a997ace8873086cc37e32d6089f4b2abda94582ac9b85a"
+  "73ea84765805d1fdbb1d617dc090d162e128084ed323e40e346e724886f58612"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -523,7 +524,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "c538805b63397c4c802ea17b357c27312504bb951b5188c3b9a24d4c4824c778"
+  "dc135ed1600df7fbc67d5fcd7476bcd03032032ea570048213ed1f251592321e"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \

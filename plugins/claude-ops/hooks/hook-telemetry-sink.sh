@@ -1,12 +1,30 @@
 #!/usr/bin/env bash
 # Reference telemetry sink for claude-ops. Maps a hook-telemetry envelope (from
-# ANY producer, per docs/conventions/hook-telemetry) into one JSONL line in
-# .claude/observability/hook-events.jsonl — the shape the claude-observability
-# skill reads ({ts, event, hook, tool, duration_ms, exit_code, subject, status}).
+# ANY producer, per docs/conventions/hook-telemetry) into one JSONL line under
+# the log root (.observability/claude by default, project-relative; the
+# session_event_log_dir option moves it).
+#
+# Two routes, decided by the envelope's session id, read from the spine
+# (`session_id`, which a contract-1.1 producer carries when its payload held a
+# well-formed one and omits otherwise) and falling back to `data.session_id`,
+# which the claude-ops audit hooks still send:
+#   * present and well-formed: one spine-shaped line appended to
+#     sessions/<session_id>.jsonl, beside the per-session event log
+#     (session-event-log.sh); `source: "envelope"` tells the reader which
+#     producer wrote it. No lock: one file per session removes the shared
+#     write.
+#   * absent: the legacy shape ({ts, event, hook, tool, duration_ms, exit_code,
+#     subject, status}) appended to hook-events.jsonl under the same root, the
+#     shared file the observability skill has always read, under its lock.
 #
 # Field mapping: ts<-timestamp, event<-hook_event, hook<-hook, tool<-data.tool,
-# subject<-data.subject; status translates (ok->success) and exit_code derives
-# from status (error/blocked->2, else 0), since the skill keys errors on it.
+# subject<-data.subject, changed<-data.changed (when a producer sends one);
+# status translates (ok->success) and exit_code derives from status
+# (error/blocked->2, else 0), since the skill keys errors on it.
+#
+# The root carries a self-ignoring .gitignore inside a checkout, healed on the
+# first write when absent (session-log-lib.sh); a guard an operator changed is
+# respected and the write refused.
 #
 # Wire it by pointing HOOK_TELEMETRY_SINK at this script (relative path committed
 # in settings.json is the portable, team-shared form):
@@ -21,10 +39,19 @@
 # undetected pipe failures without aborting the process.
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=session-log-lib.sh
+source "$HOOK_DIR/session-log-lib.sh"
 INPUT=$(cat)
 [[ -n "$INPUT" ]] || exit 0
 # silent-skip-ok: fire-and-forget sink — the producer discards stdout+stderr,
@@ -39,9 +66,11 @@ command -v jq >/dev/null 2>&1 || exit 0
 mapfile -t FIELDS < <(printf '%s' "$INPUT" | jq -r '
   if (.hook and .hook_event and (.duration_ms != null) and .status)
   then (.timestamp // ""), .hook_event, .hook, (.data.tool // ""),
-       (.duration_ms | tostring), (.data.subject // ""), .status
+       (.duration_ms | tostring), (.data.subject // ""), .status,
+       ((.session_id // .data.session_id // "") | tostring),
+       (.data.changed | if . == true then "true" elif . == false then "false" else "" end)
   else empty end' 2>/dev/null | tr -d '\r')
-[[ "${#FIELDS[@]}" -eq 7 ]] || exit 0
+[[ "${#FIELDS[@]}" -eq 9 ]] || exit 0
 
 TS="${FIELDS[0]}"
 EVENT="${FIELDS[1]}"
@@ -50,6 +79,8 @@ TOOL="${FIELDS[3]}"
 DURATION_MS="${FIELDS[4]}"
 SUBJECT="${FIELDS[5]}"
 STATUS="${FIELDS[6]}"
+SESSION_ID="${FIELDS[7]}"
+CHANGED="${FIELDS[8]}"
 
 # Translate the envelope status to the record shape the skill reads. Known
 # values pass through (ok → success); an unrecognized value is treated as a
@@ -82,8 +113,34 @@ blocked)
 esac
 
 project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
-log_dir="${project_dir%/}/.claude/observability"
-mkdir -p "$log_dir" 2>/dev/null || exit 0
+root=""
+slog_root_to root "$project_dir"
+[[ -n "$root" ]] || exit 0
+slog_guard_ok "$root" "$project_dir" || exit 0
+
+if [[ -n "$SESSION_ID" ]] && slog_valid_id "$SESSION_ID"; then
+  [[ -d "$root/sessions" ]] || mkdir -p "$root/sessions" 2>/dev/null || exit 0
+  LINE=$(MSYS_NO_PATHCONV=1 jq -nc \
+    --arg ts "$TS" \
+    --arg session_id "$SESSION_ID" \
+    --arg event "$EVENT" \
+    --arg hook "$HOOK" \
+    --arg tool "$TOOL" \
+    --argjson duration_ms "${DURATION_MS:-0}" \
+    --argjson exit_code "${EXIT_CODE:-0}" \
+    --arg subject "$SUBJECT" \
+    --arg status "$STATUS_OUT" \
+    --arg changed "$CHANGED" \
+    '{ts: $ts, session_id: $session_id, hook_event_name: $event, status: $status,
+      duration_ms: $duration_ms, source: "envelope", hook: $hook,
+      exit_code: $exit_code, subject: $subject, tool: $tool}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null) || exit 0
+  [[ -n "$LINE" ]] || exit 0
+  printf '%s\n' "$LINE" >>"$root/sessions/$SESSION_ID.jsonl" 2>/dev/null
+  exit 0
+fi
+
+mkdir -p "$root" 2>/dev/null || exit 0
 
 LINE=$(MSYS_NO_PATHCONV=1 jq -nc \
   --arg ts "$TS" \
@@ -99,6 +156,6 @@ LINE=$(MSYS_NO_PATHCONV=1 jq -nc \
     subject: $subject, status: $status}' 2>/dev/null) || exit 0
 [[ -n "$LINE" ]] || exit 0
 
-hook::append_jsonl "${log_dir}/hook-events.jsonl" "$LINE"
+hook::append_jsonl "${root}/hook-events.jsonl" "$LINE"
 
 exit 0

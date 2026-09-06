@@ -48,10 +48,17 @@
 # Kill switch: CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED=false.
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
 hook::check_enabled "HOOK_FAILURE_AUDIT"
 
 START=${EPOCHREALTIME:-}
@@ -64,6 +71,10 @@ hook::require_jq Stop claude-ops "$INPUT"
 TRANSCRIPT=$(hook::jq_field "$INPUT" '.transcript_path') || exit 0
 [[ -f "$TRANSCRIPT" ]] || exit 0
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || SESSION="no-session"
+# data.session_id (additive, hook-telemetry rule 1): the sink routes an
+# envelope carrying one into the per-session log beside session-event-log.sh.
+SESSION_ID=""
+[[ "$SESSION" != "no-session" && "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]] && SESSION_ID="$SESSION"
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 
 # Bounded tail read: cost stays O(cap) regardless of transcript growth. When
@@ -255,8 +266,8 @@ fi
 
 # Telemetry subjects stay hookName-only (privacy-safe); the command detail is
 # user-facing message content, not envelope data.
-DATA=$(jq -cn --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
-  '{subjects: ([$new[].hookName] | unique), total: $total}')
+DATA=$(jq -cn --arg session_id "$SESSION_ID" --argjson new "$NEW" --argjson total "${TOTAL:-0}" \
+  '{subjects: ([$new[].hookName] | unique), total: $total} + (if $session_id == "" then {} else {session_id: $session_id} end)')
 hook::emit_telemetry "hook-failure-audit" "Stop" "error" \
   "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 

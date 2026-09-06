@@ -1,4 +1,5 @@
 {
+  "description": "Formats Markdown and reports markdownlint findings after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {

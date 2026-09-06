@@ -98,4 +98,4 @@ escalation rules.
 
 The proven manual pattern: periodic hand-run CI reviews after incidents or visible
 slowdowns. Productized precedent: hosted agentic pipeline-doctor, coach, and cost-tracker
-workflow samples running on schedule. Precedent record: routine-catalog research, row 31.
+workflow samples running on schedule.

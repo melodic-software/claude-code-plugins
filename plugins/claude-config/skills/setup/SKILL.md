@@ -29,23 +29,27 @@ Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do no
 The runtime scripts and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh`: jq **and** curl, plus awk and sort
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh`: jq; `fix-plugin-drift.sh`: jq plus sort
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `check-hook-coverage.sh`: jq; `fix-plugin-drift.sh`: jq plus sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh`: jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh`: jq plus awk and sort
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/*.sh`: jq (required; `permission-state.sh` exits 2 without it), awk and sort; `automode-block-lint.sh` and `automode-entry-diff.sh` add python3 for an optional lane
+- `${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh`: jq plus awk
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh` and `${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh`: jq (`run-state.sh` falls back to python3, then to a scan that announces itself)
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`: grep only (POSIX; no jq)
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh`: awk **and** sort (no jq)
 
-Only `conflict-scan.sh` probes for awk and sort; the three above it call them with no guard, so read
-each script's actual calls rather than trusting a single script's prerequisite block to speak for the
-plugin.
+Only `conflict-scan.sh` and `permission-state.sh` probe for their tools; the rest call them with no
+guard, so read each script's actual calls rather than trusting a single script's prerequisite block to
+speak for the plugin.
 
 1. **`jq`**, via `command -v jq`. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
-   to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks the three
-   JSON-parsing audit skills (`audit`, `audit-automation-gaps`, `audit-permission-grants`);
-   `audit-instructions` scans markdown and is unaffected.
+   to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks every
+   skill whose scripts parse JSON (`audit`, `audit-automation-gaps`, `audit-permission-grants`,
+   `audit-permission-state`, `draft-auto-mode-rules`, and `audit-pass`'s run-state and retirement
+   helpers); `audit-instructions` scans markdown and is unaffected.
 2. **`curl`**, via `command -v curl`. FAIL if absent, but scoped: only the plugin-drift check
-   (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and the other three
-   skills still run; say so in the remediation line.
+   (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and every other
+   skill still run; say so in the remediation line.
 3. **`awk` and `sort`**, via `command -v awk` and `command -v sort`. FAIL if either is absent, and **not**
    scoped to one skill: `conflict-scan.sh` executes both and `exit 2`s naming the missing one, while
    `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
@@ -109,8 +113,9 @@ This skill never installs system packages:
   shims are where this shows up. Remediate by installing a full userland rather than the single tool:
   Git for Windows, which bundles both; the distribution's `gawk`/`mawk` and `coreutils` on Linux;
   `brew install gawk coreutils` on macOS. Report the two separately, since a minimal shell can carry
-  one and not the other. Three skills depend on them, `audit`, `audit-permission-grants`, and
-  `audit-instructions`, and only the last `exit 2`s cleanly, so do not offer the other two as still
+  one and not the other. Five skills depend on them (`audit`, `audit-permission-grants`,
+  `audit-permission-state`, `draft-auto-mode-rules`, and `audit-instructions`), and only
+  `conflict-scan.sh` and `permission-state.sh` `exit 2` cleanly, so do not offer the others as still
   working meanwhile.
 - **no resolvable bash:** also not remediable by one package. The scripts use arrays, `[[ ]]`,
   process substitution, and `BASH_SOURCE`, so they need a real bash on `PATH`: Git for Windows on
@@ -153,9 +158,9 @@ Every write names the file and the exact change before making it, and preserves 
 
 ## What this skill does NOT do
 
-- Run an audit; that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`,
-  `/claude-config:audit-permission-grants`, `/claude-config:audit-instructions`, and
-  `/claude-config:audit-pass`.
+- Run an audit; that is the plugin's audit and drafting skills (`/claude-config:audit`,
+  `audit-automation-gaps`, `audit-instructions`, `audit-pass`, `audit-permission-grants`,
+  `audit-permission-state`, `audit-prompting-postures`, `draft-auto-mode-rules`, `unhobble`).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install system packages.
 - Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.

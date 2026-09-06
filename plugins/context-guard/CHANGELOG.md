@@ -5,6 +5,124 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.45]
+
+### Changed
+
+- **`hooks/zone-gate.sh` exits on the default advisory posture before sourcing
+  `hook-utils.sh`.** The gate is inert unless `zone_hook_mode` is `blocking`;
+  parsing the shared library to discover that was the entire cost of the
+  default path. The MODE predicate is inlined above every `source`, the same
+  shape as the kill-switch hoist, because the library IS the cost.
+  Spawn census stays at **0** PATH-visible execs. `bash -x` sources of
+  `hook-utils.sh`: **1 → 0**. Wall clock on this measurable Linux host (spawn
+  floor 0.5 ms, spread 1.78×, n=20 after 2 warmup): p50 4.8 → 1.4 ms, p95
+  5.0 → 1.5 ms. Blocking mode is unchanged: it still sources the library after
+  the MODE check.
+
+## [0.7.44]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered payload onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
+## [0.7.43]
+
+### Changed
+
+- **reader-contract: states the current contract, not how it got here.** Drops the issue-number
+  provenance pointer, the three-release chronology behind the hysteresis rule, the editor's note
+  about a withdrawn citation, and the sourcing blockquote written as a diff against the doc's own
+  earlier text; merges the two auto-compaction-threshold paragraphs into one current statement;
+  states the `trigger` rule without its roadmap apparatus; replaces the v1-schema framing with
+  "percentage-only file"; lowercases all-caps emphasis.
+- **setup: drops archaeology and one duplicated branch.** Removes the machine-scope bespoke
+  rationale, the incident narrative behind the compose rules, and the owner-approval note on
+  print-only wiring; states the stale-snapshot FAIL branch once instead of three times; cites the
+  hook-config-delivery convention by its published URL so an installed plugin can resolve it;
+  lowercases all-caps emphasis.
+- **setup references.** `legacy-statusline-detect.md` and `unwrap-before-compose.md` drop the sync
+  script and registry paths from their headers, since CI enforces the byte-identity;
+  `statusline-edit.md` states the compose failure mode rather than the run that produced it.
+- The percentage vocabulary retires when no shipped consumer inlines the percentage floor any
+  longer; back-compat alone never makes the second vocabulary permanent.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.7.42]
+
+### Changed
+
+- **`zone-crossing-inject.sh` no longer rewrites a state marker that already
+  holds the value.** The hook fires once per `UserPromptSubmit` and once per
+  `PostToolBatch`, so a three-batch turn that stayed in one zone fired four
+  times and rewrote both `.zone` and `.armed` four times to the values they
+  already held. Each marker is now written only when its on-disk value differs
+  from the new one. The comparison uses the raw `.armed` read, not the value
+  seeded from `.zone` when `.armed` is absent, so a missing marker still
+  latches on the first fire. Write ordering, the fail-open posture, and the
+  `.zone` rollback on a failed `.armed` write are unchanged; the rollback now
+  fires only when this call was the one that moved `.zone`. No change to when
+  the notice is emitted: the armed-rank gate already suppressed the extra
+  fires, so this removes wasted I/O rather than duplicate injection. A new
+  contract-test case pins the skip by marker mtime, with a positive control
+  that a mismatched marker is still rewritten; it fails against the previous
+  hook on exactly the two skip assertions.
+- **`hooks.json` carries a top-level `description`.** A documented field the
+  plugin omitted. The four `timeout: 60` values are unchanged: the 0.4.8 entry
+  and the README size that cap from a 22.0 s measurement on Windows 11 / Git
+  Bash with Defender real-time protection, and nothing here re-measured that
+  profile.
+
+## [0.7.41]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.7.40]
+
+### Changed
+
+- **`zone-gate.sh` reads its kill switch before sourcing the library.** It read
+  `context_guard_hooks_enabled` through `hook::check_enabled`, a function that
+  exists only once `hook-utils.sh` is sourced, so a DISABLED gate parsed the
+  whole 2,684-line library before finding out it had nothing to do. The gate
+  runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
+  gate's ~5.3 ms on the reference host. The predicate is inlined with the same
+  semantics as `hook::is_enabled`, pinned by the new fleet gate
+  `scripts/check-killswitch-hoist.sh`. Behaviour of an ENABLED gate is
+  unchanged; `hooks/hooks.json` is untouched. (#3719)
+
+## [0.7.39]
+
+### Changed
+
+- **The blocking gate's deny reason now names `/session-flow:handoff` and nothing else.** The
+  routing clause used to close by offering a second, free-hand route: a resume file the model
+  composes itself, at any path containing 'handoff'. That licensed a hand-written save-point at
+  exactly the moment the session is least able to write one well. The clause now reads "run
+  /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from
+  this gate". The `*handoff*` path-exemption LOGIC is untouched, and the gap that leaves is
+  recorded rather than closed: a consumer without `session-flow` installed is offered no free-hand
+  route in the reason text, while a hand-written file whose path contains `handoff` still passes
+  the gate. Reason text only, no behavior change; a new `zone-gate.test.sh` assertion pins the
+  deny reason against the old clause returning.
+
 ## [0.7.38]
 
 ### Changed

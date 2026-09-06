@@ -3,6 +3,89 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.29]
+
+### Changed
+
+- **Production hooks locate the hook directory with parameter expansion, not `dirname`.**
+  GNU Bash forks a subshell for every command substitution even when the body is a
+  builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
+  takes; the fallback covers a bare filename, where the strip is a no-op and
+  dirname answers `.`. What the hook checks is unchanged.
+
+## [0.22.28]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
+## [0.22.27]
+
+### Changed
+
+- `setup`: dropped the "(v0)" version marker and the roadmap line about slices that have not
+  shipped, rewrote the gotchas pointer to name the run-time failure modes the file actually
+  holds, added a sentence saying how an argument-selected slice is selected, cited the
+  marketplace conventions by published URL instead of a relative path that resolves to nothing
+  in a plugin cache, moved the spell-gate contributor note to a new plugin-level `AGENTS.md`,
+  removed the duplicated ownership sentence in the guardrail slice, dropped the roadmap wrapper
+  around the capture slice's disclosed limits and the history narration in the isolation-probe
+  template, and lowered the all-caps emphasis register across the skill files.
+- `reference/`: removed the pull-request, issue, and ADR pointers and the design-process
+  narration from the guardrail, verification-topology, work-classes, isolation-ladder,
+  trigger-dispatch, escalation, and prerequisite-resolution contracts; replaced the roadmap
+  statements in `runner.md`, `guardrails.md`, and `prerequisite-resolution.md` with what the
+  file tree now holds; dropped the research-record row pointers from `routines.md` and the ten
+  routine leaves; replaced the `/architect` routing in `runner/seams.md` with the build trigger;
+  cited sibling-plugin and marketplace docs by published URL; and lowered the all-caps emphasis
+  register across the six cited reference contracts.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.22.26]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.22.25]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.22.24]
+
+### Changed
+
+- **`loadBinding`'s absent-binding result drops a `reason` field nothing read.**
+  Consumers take only `present`, `path`, `declarations` and `surfaces`, and the
+  field never reached the script's stdout JSON, so no output shape changes. The
+  rest of this group was reviewed and deliberately left alone: the lane hooks
+  and `check-security-binding.mjs` carry fail-open and fail-closed choices,
+  trust anchors and rulings that are pinned rather than incidental. Fixtures
+  ran 22 of 22 including the byte-identical reproducibility case, and the slice
+  suite 4 of 4.
+
 ## [0.22.23]
 
 ### Changed

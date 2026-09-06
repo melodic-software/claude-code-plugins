@@ -12,8 +12,8 @@ metadata:
 ## Context. Gather first
 
 Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
-one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale, which bit
-this skill hardest, failing it at load in exactly the isolated sessions that most need a save-point:
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale, which
+matters most here because an isolated session is exactly the one that needs a save-point:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
@@ -54,22 +54,22 @@ save-point engine, different delivery.
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
-## Hard rule. Handoff ALWAYS terminates current execution
+## Hard rule. Handoff terminates the current execution
 
-**The whole point of `/session-flow:handoff` is `/clear` + fresh-session resume.** The skill produces the
-save-point, THEN STOPS. It does NOT keep executing the underlying task in the current session; that
-defeats the purpose. STOP is the default and near-universal outcome, NEVER unlocked by the user
-having listed multiple steps, nor by the remaining work being "small".
+The point of `/session-flow:handoff` is `/clear` plus a fresh-session resume. The skill produces
+the save-point, then stops. It does not keep executing the underlying task in the current session,
+because that defeats the purpose. Stopping is the default outcome, and the user having listed
+multiple steps, or the remaining work being small, does not unlock continuing.
 
-**What STOP means, and the one thing it never means.** STOP ends the UNDERLYING TASK. It never ends
-the response before the resume prompt is on screen, because emitting that prompt is not work that
-follows the save-point. It IS the save-point. The engine is explicit that the prompt is the
-mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only decision
-is whether to ALSO write a durable handoff file." So a turn that writes the file and stops has
-delivered the optional half and dropped the required one; the operator is left holding a `/clear`
-they cannot resume from, which is strictly worse than never having run the skill, since the skill
-reports success. This is an observed failure, not a hypothetical (`context/gotchas.md`). Until the
-rails prompt is in the response, the save-point does not exist and STOP has not been reached.
+**What STOP means, and the one thing it never means.** STOP ends the underlying task. It never
+ends the response before the resume prompt is on screen, because emitting that prompt is not work
+that follows the save-point. It is the save-point. The engine is explicit that the prompt is the
+mandatory half and the file the optional one: "A resume prompt is ALWAYS emitted. The only
+decision is whether to ALSO write a durable handoff file." A turn that writes the file and stops
+has delivered the optional half and dropped the required one; the operator is left holding a
+`/clear` they cannot resume from, which is worse than never having run the skill, since the skill
+reports success. The failure shape is in `context/gotchas.md`. Until the rails prompt is in the
+response, the save-point does not exist and STOP has not been reached.
 
 **Mandatory STOP gate (walk every box):**
 
@@ -81,13 +81,16 @@ rails prompt is in the response, the save-point does not exist and STOP has not 
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it
 
-**NOT authorization to continue (these all STOP):**
+**Not authorization to continue (these all stop):**
 
-- A multi-step pipeline naming `/session-flow:handoff` (e.g. "handoff, then verify, then PR") → the listed steps
-  run in the FRESH session AFTER `/clear`. Naming `/session-flow:handoff` names a `/clear` boundary, not a waiver
-- "do all of it" → authorizes executing the phases across the session chain, but each `/session-flow:handoff`
-  between them still enforces its `/clear` boundary (that is WHY the handoffs get written)
-- A standalone user-invoked `/session-flow:handoff` → always STOP, regardless of surrounding instructions
+- A multi-step pipeline naming `/session-flow:handoff` (e.g. "handoff, then verify, then PR"): the
+  listed steps run in the fresh session after `/clear`. Naming `/session-flow:handoff` names a
+  `/clear` boundary, not a waiver
+- "do all of it": authorizes executing the phases across the session chain, but each
+  `/session-flow:handoff` between them still enforces its `/clear` boundary (that is why the
+  handoffs get written)
+- A standalone user-invoked `/session-flow:handoff`: always stop, regardless of surrounding
+  instructions
 
 The only exception: the user's prior turn used explicit stay-in-session language about handoffs
 specifically (e.g. "don't `/clear` between phases, keep going").
@@ -161,6 +164,17 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
+On the full path the file is shape 2 and a script owns every deterministic field
+(engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
+run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, fill only
+the `<!-- FILL: … -->` slots, run `save_point.py validate` until it exits 0, then paste the
+`save_point.py emit` output as the rails block. The screen and the file's `## Resume prompt`
+section are the same bytes by construction. Two refusals route elsewhere and are stated, never
+worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
+(`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
+session UUID (`CLAUDE_CODE_SESSION_ID` unset or not a UUID) takes the prompt-only path with the
+reason stated. Never a hand-written shape-2 file when the script could have run.
+
 ## Delivery: `/clear`-then-paste
 
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
@@ -178,11 +192,11 @@ is what the operator actually reads (engine doc, "Emit the position panel"), so 
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
 The rails resume prompt, the copy instruction, the two dashed rails, and every below-the-rails
 `/loop` re-arm note, is the FINAL text of the response, with nothing after it. This order exists
-because the rails prompt is the deliverable the operator copies, and a turn that ends on anything
-else has been observed to end *without the rails prompt at all* under heavy context: the
-save-point file exists, but the operator has nothing to paste after `/clear`. A response whose
-last text is not the rails block (plus its below-rail notes) is a FAILED handoff even when every
-box above is ticked. Emit the rails block before ending the turn, always.
+because the rails prompt is the deliverable the operator copies, and under heavy context a turn
+that ends on anything else can run out of room before the rails prompt appears: the save-point
+file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
+not the rails block (plus its below-rail notes) is a FAILED handoff even when every box above is
+ticked. Emit the rails block before ending the turn, always.
 
 **Full path:**
 
@@ -190,12 +204,25 @@ box above is ticked. Emit the rails block before ending the turn, always.
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), vertical rail with the
   current unit marked, completeness line, and the three one-line blocks, OR an explicit line saying
   the units would not resolve. Never a rail whose units were invented to fill it
-- [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
-  frontmatter per the engine's structure doc (`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`)
+- [ ] `memory_dir` resolved through `parse-concern-value.sh` (the retro skill's call form, never
+  the literal `.work` assumed), the root-equivalence refusal and the self-ignore guard run, and
+  `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
+  `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
+  later step (Edit, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
+  for a missing or non-UUID session id → prompt-only path, reason stated; no interpreter →
+  `validator unavailable: no python3/python on PATH` said in one line, the shape-2 file written
+  by hand per the structure doc, and the `validate` box below reads `SKIPPED (no interpreter)`
+- [ ] Only `<!-- FILL: … -->` slots edited; every deterministic field left as `new` wrote it
+  (frontmatter, `chain:`, the carried `[hN]` sections, the `## Prior sessions` table, the rails
+  block minus `Next:`); the optional slots (`goal-rearm`, `below-rail`, `<section>-new`) deleted
+  when they do not apply, so no `FILL` text remains
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
-  per the same structure doc); omitted otherwise, including when the directory holds only
-  unrelated-task handoffs. When present, that file was opened from disk THIS turn and its
-  `Original goal` quote and amendments copied over unchanged, never rebuilt from the conversation
+  per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
+  (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
+  present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
+  amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
+  the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
+  deleted (superseded entries moved under `Superseded:`)
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
   paraphrase and not the process serving it, and the drift-check sentence tying the next action
   back to it is answered (structure doc, "Original goal")
@@ -213,14 +240,25 @@ box above is ticked. Emit the rails block before ending the turn, always.
   rules, the Resumption brief leads with it, Suggested skills are selected for it, Remaining
   actions are ordered by it where free; no section dropped, resume-prompt shape untouched, and a
   goal-conflicting purpose flagged rather than obeyed. No purpose given → nothing to tick
-- [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
+- [ ] `save_point.py validate <file>` run and its result quoted here as `validate: exit 0` (WARN
+  lines listed and ruled on, secret-shape hits included). Non-zero → fix the slots the FAIL lines
+  name and re-run, at most three attempts; still failing → this box reads `validate: FAILED`, an
+  `UNVALIDATED: <validator output>` banner sits ABOVE the copy instruction (outside the copy
+  region), and the rails are still emitted from the file's `## Resume prompt` section (engine
+  doc, full-path block). Never green-silent, never a withheld prompt
+- [ ] Resume prompt emitted between dashed rails as the `save_point.py emit <file>` output pasted
+  verbatim (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
+  headlines, the below-rail `claude --resume` line), never retyped or regenerated, so the screen
+  equals the file's `## Resume prompt` section byte for byte; `Next:` holds 1 to 5 plain
+  headlines from `Remaining actions, in order` (or `Next: none (closed)`), with `Then: /<skill>`
+  last only at a stage boundary. The directive `@`-references the file by its **absolute**,
   forward-slash-normalized path, never the bare `<memory_dir>/handoffs/…` segment, which resolves
-  against the resuming session's cwd, with the `Handoff origin:` line naming the repository
-  (a remote URL with its userinfo credential stripped) and repo-relative path a different machine
-  re-resolves from; copy instruction above
-  the top rail; `/goal` first line if a goal is active; a below-the-rails note re-arming EVERY
-  surviving loop, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up
-  message (engine doc, "Emit the copy/paste resume prompt")
+  against the resuming session's cwd, and carries the invoke-the-skill sentence; the
+  `Handoff origin:` line names the repository (a remote URL with its userinfo credential stripped)
+  and repo-relative path a different machine re-resolves from; `/goal` first line if a goal is
+  active; a below-the-rails note re-arming EVERY surviving loop, one
+  `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
+  doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
   the response's final text (see "Output order is fixed" above)
 

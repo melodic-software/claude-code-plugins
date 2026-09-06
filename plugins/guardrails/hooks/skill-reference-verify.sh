@@ -36,10 +36,24 @@ set -uo pipefail
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
-hook::check_enabled "SKILL_REFERENCE_VERIFY"
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=hook-utils.sh
+source "$_HOOK_SELF/hook-utils.sh"
 
 hook::ctx_reset
 
@@ -187,22 +201,64 @@ shopt -u nullglob
 # stays in the search set, so at worst a reference resolves that Claude Code would
 # not offer and this advisory stays quiet. Staying quiet is the failure this guard
 # is allowed to have; a false alarm is not.
-# BUILT ON DEMAND. Two jq processes per manifest, and this marketplace carries
-# 74 of them, so the index costs ~150 spawns, measured at 11.4 s (272
-# spawn-equivalents) on Windows Git Bash, which was the whole PostToolUse:Write
-# cost of this plugin on a file that cites nothing. Nothing below the reference
-# scan reads the index, and the scan needs no plugin knowledge to find its
-# candidates, so the index is built once, only when a candidate exists. The gates
-# above stay where they are: their `exit 0` paths deliberately skip telemetry, and
-# moving them would change that.
+# BUILT ON DEMAND, IN ONE PROCESS. Nothing below the reference scan reads the
+# index, and the scan needs no plugin knowledge to find its candidates, so the
+# index is built once, only when a candidate exists. The gates above stay where
+# they are: their `exit 0` paths deliberately skip telemetry, and moving them
+# would change that.
+#
+# When it is built, one jq reads every manifest. The previous shape spawned two
+# jq and two tr per manifest, and this marketplace carries 74 of them: 296
+# processes, 468 ms on a Linux host and 11.4 s on Windows Git Bash, for work one
+# process finishes in 6 ms. Each output line is
+# `<manifest>\x1e<name>\x1e<paths>`, the declared skill paths joined by \x1f.
+# Raw strings, not @tsv: @tsv backslash-escapes its fields, and the values are
+# used as paths, so they must arrive byte-identical. The two separators are
+# non-whitespace so `read` keeps an EMPTY field in place (tab is IFS
+# whitespace and would collapse a nameless manifest's fields together); neither
+# byte can appear in a manifest name or path.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
   ((PLUGIN_INDEX_BUILT)) && return 0
   PLUGIN_INDEX_BUILT=1
-  local m pdir pname
+  local m pdir pname paths
+  local -A seen=()
+  while IFS=$'\x1e' read -r m pname paths; do
+    m="${m//$'\r'/}"
+    [[ -n "$m" ]] || continue
+    # `input_filename` echoes the argument as jq received it, and on Windows
+    # Git Bash a native jq receives the MSYS-converted form (`C:/…` or
+    # `C:\…`), not the string in manifests[]. Only the plugin directory NAME
+    # is taken from the echo; the directory itself is rebuilt from
+    # PLUGINS_DIR, so neither the index nor the seen[] check below depends on
+    # the echoed form (a mismatch there would re-read every manifest through
+    # the fallback, four processes each, on every reference-bearing write).
+    m="${m%/.claude-plugin/plugin.json}"
+    m="${m%\\.claude-plugin\\plugin.json}"
+    m="${m##*/}"
+    m="${m##*\\}"
+    pdir="$PLUGINS_DIR/$m"
+    pname="${pname//$'\r'/}"
+    [[ -n "$pname" ]] || pname="${pdir##*/}"
+    PLUGIN_DIR["$pname"]="$pdir"
+    paths="${paths//$'\r'/}"
+    PLUGIN_SKILL_PATHS["$pname"]="${paths//$'\x1f'/$'\n'}"
+    seen["$pdir"]=1
+  done < <(
+    jq -r '[input_filename, (.name // "" | tostring),
+            ((.skills // null) | if . == null then ""
+              elif type == "array" then map(tostring) | join("\u001f")
+              else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
+  )
+  # jq stops the batch at the first manifest it cannot parse, so every manifest
+  # behind a malformed one comes back unread. Those, and the malformed one, take
+  # the per-manifest read the batch replaced: exact for the readable ones, and
+  # the directory name for the broken one. On a tree where every manifest
+  # parses (this one, gated by CI) the residue is empty and this spawns nothing.
   for m in "${manifests[@]}"; do
     pdir="${m%/.claude-plugin/plugin.json}"
+    [[ -n "${seen[$pdir]:-}" ]] && continue
     pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
     [[ -n "$pname" ]] || pname="${pdir##*/}"
     PLUGIN_DIR["$pname"]="$pdir"

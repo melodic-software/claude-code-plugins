@@ -4,6 +4,88 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.46]
+
+### Changed
+
+- `run-args.test.js` names its Windows corpus directory `D:\repos\<corpus>`. The assertion is that
+  backslashes survive substitution untouched, which holds on any spelling of the last segment, and
+  the org machine-specific-path detector reads a literal checkout path as a leaked machine path
+  even inside a test.
+
+## [0.13.45]
+
+### Changed
+
+- **book-distill:** replaced the unsourced routing-precision figures with the reason a
+  per-discipline skill routes better than a catch-all.
+- **course-digest:** resolved the conflicting Mux JWT lifetimes into one rule that reads the
+  remaining time from the token; replaced the unsourced OCR, slide-OCR, and ASR benchmark figures
+  with their mechanisms; generalized one past course's frame counts, instructor, and lesson titles;
+  scoped the Dometrain player selector and referer to the adapter; removed the session and task
+  references and the credential-storage justification; gave the Pluralsight and Udemy rows a
+  behavior instead of "(future)"; and made the analysis template stack-neutral.
+- **docpage-digest:** removed the past-run incident narration from the Anthropic profile and the
+  dual-verification and pipeline-hardening spokes; moved the recorded doc queue into a new
+  `context/anthropic-docs-queue.md` spoke with a pointer from the profile and the skill;
+  dropped the campaign-owned amendment labels and the per-slice retag work items; and replaced the
+  version-gated `INDEX.md` rule with an unconditional one.
+- **map-corpus:** removed the past-gate clause from the inventory gate's exit-code note.
+- **setup:** renamed the YouTube pipeline and the yt-dlp probe label to video digest.
+- **video-digest:** removed the tracker, ADR, and plan-phase references from the liveness lane doc;
+  dropped the routing to the unbuilt `/knowledge:apply` skill and the roadmap phrasing in the output
+  contract; retitled six source-agnostic spokes off "YouTube"; replaced the retired-file gotcha with
+  the current rule; replaced the undefined "A+" grade with the concrete requirement; and moved the
+  queue evolution breadcrumbs to `reference/ingest-deferred-decisions.md` section 6.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.13.44]
+
+### Changed
+
+- **Fifteen commits across the course-digest and video-digest extraction trees**, from the
+  repo-wide simplification sweep: duplicated locals folded, dead stores removed, suites deduped,
+  and the hotmart packaged-master URL capture, which the request and response interceptors spelled
+  out identically, consolidated into `captureMasterUrl`. `resolveResourceSelectors` in
+  `teachable.js` and the offline/live branch in `run-source-liveness.js` get the same treatment.
+  Float-sensitive frame and timestamp math was compared with `Object.is` semantics so `-0` and
+  `NaN` divergences could not hide; on-disk manifests were byte-compared rather than reasoned
+  about.
+- **`processLesson`'s fail-loud ordering was RESTORED after a hoist proved not
+  behavior-preserving.** Moving the skip guard above the two path joins looks free, but
+  `lessonDirName` throws on a non-string title and `join` throws on a non-string `module.slug`, so
+  the hoist converted a crash on a corrupt `course.json` into a silently skipped lesson and an
+  exit 0. `course.json` is hand-editable, so a typo reaches that path. 416 of 3,000 adversarial
+  cases diverged. The revert is now recorded as a comment at the site, so the next reader does not
+  re-derive the same false saving.
+- **`generate-manifests.js` was left untouched after its edits proved unverifiable.** Three
+  cosmetic changes were made and then reverted: a `!!`-coerced local inlined into the truthiness
+  test that consumed it, a `nextFrame`/`isLastInRun` pair collapsed into one optional-chained
+  expression, and an intermediate `screenshotsDir` folded into a three-argument `join`. Net four
+  lines. The file is a standalone ESM script exposed only as the `manifests` npm script: it exports
+  nothing, no module imports it, and no suite names it, so `scripts/affected-tests.sh` reports it
+  UNMAPPED and AGENTS.md treats that as an error rather than "nothing to run". Recording it in
+  `scripts/affected-tests-no-suite.txt` was rejected because that file's header defines an entry as
+  a claim that a named non-shell lane covers the class, and no lane covers this one. Changing
+  frame-classification logic that nothing exercises, for four lines, is the wrong side of that
+  trade.
+- **A key-order coupling introduced by this sweep is documented where it is created.** Deriving
+  `REQUIRED_METHODS` from `REQUIRED_METHOD_ARITY`'s keys closes the gap where a method could be
+  declared in one table and unchecked in the other, but it makes the arity table's key order
+  load-bearing: reordering it reorders `validateAdapter`'s violations array, which any caller
+  asserting on the whole array rather than on membership will see.
+
+### Notes for maintainers
+
+- Coverage here is thinner than the test counts suggest. `hotmart.test.js`'s mock never invokes
+  the `page.on` handler it registers; `acquire-staged.test.js` returns a constant listing so it
+  cannot see a changed relist; two `transcript/` branches survive constant changes; and mutations
+  planted in every region one course-digest commit touched left all 91 tests green.
+- **`acquisition/acquire.test.js` recursively walks the machine's shared `/tmp`** while asserting
+  only that the result is an array. It is boundary-flaky by construction and gets slower the
+  longer a machine lives; pointing it at a `mkdtemp` directory it owns would fix it.
+
 ## [0.13.43]
 
 ### Changed

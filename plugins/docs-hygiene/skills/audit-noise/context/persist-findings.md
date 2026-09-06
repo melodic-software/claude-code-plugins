@@ -34,11 +34,10 @@ Never overwrite: when the path exists, take `-2`, `-3`, the smallest free intege
 
 ## The body-scope fence is not optional and not the caller's alone
 
-`plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
-`'trigger phrase'` versus the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation
-regression)"). A remediation
-that edits a `description`, a `when_to_use`, or a quoted trigger phrase is therefore a regression
-this repo's own gate rejects — not a debatable suggestion. Two consequences bind every run:
+`plugins/skill-quality/scripts/check-skill.sh` warns when a `'trigger phrase'` present at the base
+ref is missing from the working tree. A remediation that edits a `description`, a `when_to_use`, or
+a quoted trigger phrase is an auto-invocation regression: the description stops routing the intent
+that phrase carried. Two consequences bind every run:
 
 - `detect.sh` never leaves YAML frontmatter, so no scanner row can point into one.
 - Do **not** rely on that alone. `emit-findings.sh` recomputes the frontmatter fence over its input

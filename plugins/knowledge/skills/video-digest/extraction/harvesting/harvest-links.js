@@ -6,7 +6,6 @@
  * Heatmap is null-tolerant — optional context only, never required.
  */
 
-/** @typedef {import('../acquisition/video-metadata.js').VideoMetadata} VideoMetadata */
 /** @typedef {import('../adapters/adapter-contract.js').SourceAdapter} SourceAdapter */
 /** @typedef {import('./models.js').HarvestedLink} HarvestedLink */
 /** @typedef {import('./models.js').HarvestSource} HarvestSource */

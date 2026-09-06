@@ -22,17 +22,21 @@
 
 set -uo pipefail
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+# The variable is the userConfig key `index_drift_hook_enabled` upper-cased
+# behind the CLAUDE_PLUGIN_OPTION_ prefix -- the one Claude Code actually sets
+# and the one README.md documents. It is NOT the plugin name plus the hook
+# name; that spelling names a variable nothing ever sets, and the unset default
+# is `true`, so the kill switch would be dead in the one direction anybody
+# would notice.
+[[ "${CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED:-true}" == "true" ]] || exit 0
 
-# The argument is the userConfig key MINUS its `_enabled` suffix, upper-cased:
-# `index_drift_hook_enabled` -> INDEX_DRIFT_HOOK, which hook::is_enabled turns
-# back into CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED -- the variable Claude
-# Code actually sets, and the one README.md documents. It is NOT the plugin name
-# plus the hook name; that spelling names a variable nothing ever sets, and
-# hook::is_enabled's unset default is `true`, so the kill switch would be dead
-# in the one direction anybody would notice.
-hook::check_enabled "INDEX_DRIFT_HOOK"
+hook_dir="${BASH_SOURCE[0]%/*}"
+[[ "$hook_dir" == "${BASH_SOURCE[0]}" ]] && hook_dir=.
+# shellcheck source=hook-utils.sh
+source "$hook_dir/hook-utils.sh"
 
 # Read inherited fd0 directly. stdin is read ONCE — reading it twice drains the
 # pipe, and on Windows Git Bash `</dev/stdin` cannot resolve the Win32 pipe CC
@@ -55,11 +59,15 @@ esac
 # repo_root resolves from a DIRECTORY; handing it the file path returns the
 # path unchanged with a non-zero status, which an `|| true` would swallow into
 # a silent no-op — the exact shape of failure this hook exists to prevent
-# elsewhere.
-repo_root="$(hook::repo_root "$(dirname "$file_path")" 2>/dev/null || true)"
+# elsewhere. Parameter expansion, not a `$(dirname …)` subshell: same answers
+# as dirname (no slash -> `.`, a root-level `/x` -> `/` rather than empty).
+file_dir="${file_path%/*}"
+[[ "$file_dir" == "$file_path" ]] && file_dir=.
+[[ -n "$file_dir" ]] || file_dir=/
+repo_root="$(hook::repo_root "$file_dir" 2>/dev/null || true)"
 [[ -n "$repo_root" && -d "$repo_root" ]] || exit 0
 
-renderer="$(dirname "${BASH_SOURCE[0]}")/../scripts/render-index.sh"
+renderer="$hook_dir/../scripts/render-index.sh"
 [[ -x "$renderer" ]] || exit 0
 
 # Resolve the index target the same way the check skill documents: an explicit

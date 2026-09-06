@@ -169,10 +169,10 @@ if [[ -s "$SINK_FILE" ]]; then
   done
   # Validate schema_version
   sv=$(jq -r '.schema_version' "$SINK_FILE")
-  if [[ "$sv" == "1.0" ]]; then
-    ok "envelope: schema_version is 1.0"
+  if [[ "$sv" == "1.1" ]]; then
+    ok "envelope: schema_version is 1.1"
   else
-    fail "envelope: schema_version expected 1.0, got $sv"
+    fail "envelope: schema_version expected 1.1, got $sv"
   fi
   # Validate hook id
   hook_val=$(jq -r '.hook' "$SINK_FILE")
@@ -837,7 +837,7 @@ if [[ -s "$SINK3B" ]]; then
   else
     fail "envelope: lines=$lines3b raw=[$raw] jq -c=[$rerender]"
   fi
-  if [[ "$raw" == '{"schema_version":"1.0","timestamp":"'*'","hook":"sam\"ple","hook_event":"Post\tTool\u0001Use","status":"ok é","duration_ms":'*',"data":{"tool":"Bash","subject":"git commit -m \"x\"","form":"","n":[1,2,{"a":null,"b":true}],"e":{},"f":[]}}' ]]; then
+  if [[ "$raw" == '{"schema_version":"1.1","timestamp":"'*'","hook":"sam\"ple","hook_event":"Post\tTool\u0001Use","status":"ok é","duration_ms":'*',"data":{"tool":"Bash","subject":"git commit -m \"x\"","form":"","n":[1,2,{"a":null,"b":true}],"e":{},"f":[]}}' ]]; then
     ok "envelope: field order, escapes and compacted data are jq's"
   else
     fail "envelope: unexpected bytes: $raw"
@@ -859,7 +859,7 @@ fi
   hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"a":"\u00e9"}' 2>/dev/null
   wait
 )
-if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then
+if grep -q 'fallback invoked jq' "$SINK3B.err" 2>/dev/null && [[ ! -s "$SINK3B" ]]; then # portability-ok: grep -q quiet match, not grep -P
   ok "envelope: unprovable data falls back to jq (and fails open when jq fails)"
 else
   fail "envelope fallback: marker=$(cat "$SINK3B.err" 2>/dev/null) sink=$(cat "$SINK3B")"
@@ -1483,7 +1483,7 @@ bs_err_file="$(mktemp)"
   bs_release
 }
 bs_rc=$(cat "$bs_rc_file")
-if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then # portability-ok: grep -q quiet match, not grep -P
   ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
 else
   fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
@@ -2138,6 +2138,12 @@ bs_unsliced='hook::resolve_read_slice() {
   local probe
   probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
+}
+hook::resolve_read_slice_to() {
+  local probe
+  probe=$(read -r -t "$1" discard </dev/null 2>&1)
+  printf -v "$2" "%s" "$1"
+  printf -v "$3" "%s" "1"
 }'
 bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 3.6' _ "$HOOK_DIR/hook-utils.sh")
 bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 3.6' \
@@ -3163,6 +3169,312 @@ if [[ "${bps_all[*]-}" == "echo x#y git reset --hard" ]]; then
 else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
+
+# --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
+# GNU Bash forks a subshell for $( ) and process substitution even when the
+# body is builtins only. The previous buffer_stdin startup paid two of those
+# (timeout + slice). The _to helpers must run in this shell; the print forms
+# must not be reached from buffer_stdin (that would be a regression to $( )).
+pin_dir="$(mktemp -d)"
+pin_file="$pin_dir/pids"
+eval "$(declare -f hook::resolve_read_timeout_to | sed '1s/^hook::resolve_read_timeout_to/__pin_timeout_to/')"
+eval "$(declare -f hook::resolve_read_slice_to | sed '1s/^hook::resolve_read_slice_to/__pin_slice_to/')"
+eval "$(declare -f hook::resolve_read_timeout | sed '1s/^hook::resolve_read_timeout/__pin_timeout_print/')"
+eval "$(declare -f hook::resolve_read_slice | sed '1s/^hook::resolve_read_slice/__pin_slice_print/')"
+hook::resolve_read_timeout_to() {
+  printf 'timeout %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_timeout_to "$@"
+}
+hook::resolve_read_slice_to() {
+  printf 'slice %s %s\n' "$$" "$BASHPID" >>"$pin_file"
+  __pin_slice_to "$@"
+}
+hook::resolve_read_timeout() {
+  printf 'PRINT_TIMEOUT\n' >>"$pin_file"
+  __pin_timeout_print
+}
+hook::resolve_read_slice() {
+  printf 'PRINT_SLICE\n' >>"$pin_file"
+  __pin_slice_print "$@"
+}
+# Redirect, not a pipe: a function on the right of `|` runs in a subshell, which
+# would make BASHPID != $$ even when the _to helpers are in-process. A here-doc
+# keeps buffer_stdin in this shell, which is the pin we want.
+hook::buffer_stdin >/dev/null <<'PIN_PAYLOAD'
+{"ok":true}
+PIN_PAYLOAD
+if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "buffer_stdin: resolve_*_to run in-process (no wrapper subshell)"
+else
+  fail "buffer_stdin resolve_*_to not in-process: $(tr '\n' ';' <"$pin_file")"
+fi
+if grep -q 'PRINT_' "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  fail "buffer_stdin reached the print-form resolve_* (regression to \$( )): $(tr '\n' ';' <"$pin_file")"
+else
+  ok "buffer_stdin: does not call the print-form resolve_* wrappers"
+fi
+# Restore the real functions so later cases (none today) see the originals.
+eval "$(declare -f __pin_timeout_to | sed '1s/^__pin_timeout_to/hook::resolve_read_timeout_to/')"
+eval "$(declare -f __pin_slice_to | sed '1s/^__pin_slice_to/hook::resolve_read_slice_to/')"
+eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::resolve_read_timeout/')"
+eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
+rm -rf "$pin_dir"
+
+# --- hook::json_str_object_to matches jq -nc --arg ... -----------------------
+jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_want="${jso_want//$'\r'/}"
+jso_got=""
+hook::json_str_object_to jso_got tool Bash subject "git status --short" form ""
+if [[ "$jso_got" == "$jso_want" ]]; then
+  ok "json_str_object_to: matches jq -nc for {tool,subject,form}"
+else
+  fail "json_str_object_to: got [$jso_got] want [$jso_want]"
+fi
+jso_esc_want=$(jq -nc --arg tool Bash --arg subject 'a"b\c' --arg form $'x\ny' \
+  '{tool:$tool,subject:$subject,form:$form}')
+jso_esc_want="${jso_esc_want//$'\r'/}"
+jso_esc_got=""
+hook::json_str_object_to jso_esc_got tool Bash subject 'a"b\c' form $'x\ny'
+if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
+  ok "json_str_object_to: matches jq escapes for quote, backslash, newline"
+else
+  fail "json_str_object_to escapes: got [$jso_esc_got] want [$jso_esc_want]"
+fi
+
+# --- hook::repo_root no longer execs tr --------------------------------------
+tr_shim="$(mktemp -d)"
+tr_log="$tr_shim/log"
+real_tr=$(type -P tr) || real_tr=""
+if [[ -n "$real_tr" ]]; then
+  cat >"$tr_shim/tr" <<EOF
+#!/usr/bin/env bash
+printf 'TR\\n' >>"$tr_log"
+exec "$real_tr" "\$@"
+EOF
+  chmod +x "$tr_shim/tr"
+  PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
+  if [[ -f "$tr_log" ]]; then
+    fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "repo_root: strips CR in-shell, does not exec tr"
+  fi
+else
+  fail "repo_root tr pin: no real tr on PATH to wrap"
+fi
+rm -rf "$tr_shim"
+
+# --- Test 20: hook::emit_telemetry — correlation keys on the spine (1.1) -----
+# The library reads the payload the producer buffered (INPUT, or
+# HOOK_TELEMETRY_PAYLOAD when set) and copies session_id, prompt_id,
+# tool_use_id and agent_id onto the envelope between duration_ms and data,
+# each only when present with a plain id. Both envelope paths (builtin and
+# jq) carry them, and a sink on 1.0 sees four ignorable extra keys.
+corr_sink="$(mktemp)"
+corr_payload='{"session_id":"sess-20","prompt_id":"p-20","tool_use_id":"toolu_01ABC","agent_id":"agent-7","cwd":"/x","tool_input":{"file_path":"a.md","content":"{\"session_id\":\"decoy\"}"}}'
+# Builtin path: a data object the compactor proves.
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  for pair in session_id=sess-20 prompt_id=p-20 tool_use_id=toolu_01ABC agent_id=agent-7; do
+    key="${pair%%=*}" want="${pair#*=}"
+    got=$(jq -r ".$key" "$corr_sink")
+    if [[ "$got" == "$want" ]]; then ok "corr (builtin): $key copied from INPUT"; else fail "corr (builtin): $key expected $want, got $got"; fi
+  done
+  keys_order=$(jq -r 'keys_unsorted | join(",")' "$corr_sink")
+  if [[ "$keys_order" == "schema_version,timestamp,hook,hook_event,status,duration_ms,session_id,prompt_id,tool_use_id,agent_id,data" ]]; then
+    ok "corr (builtin): keys sit between duration_ms and data"
+  else
+    fail "corr (builtin): key order $keys_order"
+  fi
+  if [[ "$(jq -r '.data.session_id // "absent"' "$corr_sink")" == "absent" ]]; then ok "corr (builtin): data untouched"; else fail "corr (builtin): data gained a key"; fi
+else
+  fail "corr (builtin): sink empty"
+fi
+rm -f "$corr_sink"
+# jq path: pretty-printed data the compactor declines, same keys.
+corr_sink="$(mktemp)"
+INPUT="$corr_payload" HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" $'{\n  "tool": "Write",\n  "file": "a.md",\n  "findings": []\n}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "sess-20 p-20 toolu_01ABC agent-7" ]]; then
+    ok "corr (jq path): all four keys carried"
+  else
+    fail "corr (jq path): $(cat "$corr_sink")"
+  fi
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,session_id,prompt_id,tool_use_id,agent_id,data" ]]; then
+    ok "corr (jq path): same key order as the builtin path"
+  else
+    fail "corr (jq path): key order $(jq -r 'keys_unsorted | join(",")' "$corr_sink")"
+  fi
+else
+  fail "corr (jq path): sink empty"
+fi
+rm -f "$corr_sink"
+# Partial and malformed: only well-formed keys appear; a value with a quote,
+# a space or a path separator is not an id and is dropped, not escaped.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"../escape","prompt_id":"p 1","tool_use_id":"toolu_ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[has("session_id"), has("prompt_id"), has("tool_use_id"), has("agent_id")] | join(" ")' "$corr_sink")" == "false false true false" ]]; then
+    ok "corr: malformed ids dropped, well-formed one kept"
+  else
+    fail "corr: $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (partial): sink empty"
+fi
+rm -f "$corr_sink"
+# Root only. An unanchored search takes the leftmost match anywhere in the
+# payload, so a same-named key inside tool_input is read as the envelope's own:
+# tool_input.options.prompt_id becomes prompt_id, and a nested session_id
+# ahead of the real one files the row under the WRONG session. Both are pinned
+# here in the direction that matters — the nested value must never appear.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"sess-root","tool_input":{"options":{"prompt_id":"NESTED"}}}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.prompt_id // "absent")] | join(" ")' "$corr_sink")" == "sess-root absent" ]]; then
+    ok "corr: a nested prompt_id is not captured, the root session_id is"
+  else
+    fail "corr (nested key): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (nested key): sink empty"
+fi
+rm -f "$corr_sink"
+# A nested session_id ahead of the root one must not win, and the ROOT one is
+# still the value that lands: selecting by depth beats truncating at the first
+# container, which would have dropped this key entirely.
+corr_sink="$(mktemp)"
+INPUT='{"tool_input":{"n":{"session_id":"NESTED"}},"session_id":"sess-root"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '.session_id // "absent"' "$corr_sink")" == "sess-root" ]]; then
+    ok "corr: the root session_id wins over one nested ahead of it"
+  else
+    fail "corr (nested first): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (nested first): sink empty"
+fi
+rm -f "$corr_sink"
+# THE DOCUMENTED PAYLOAD ORDER, which puts tool_use_id AFTER tool_input (see
+# session-event-log.sh's early-stop note: "tool_input closed, tool_use_id still
+# to come"). A fixture that lists the four ids up front instead would pass
+# against an extractor that stops at the first container while the real payload
+# silently lost tool_use_id on every tool event, so the order here is the point
+# of the case, not incidental.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"s-1","prompt_id":"p-1","cwd":"/x","tool_name":"Bash","tool_input":{"command":"npm test","timeout":120000},"tool_response":{"ok":true},"tool_use_id":"toolu_1","agent_id":"a-1"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-1 p-1 toolu_1 a-1" ]]; then
+    ok "corr: all four ids captured with tool_use_id after tool_input"
+  else
+    fail "corr (documented order): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (documented order): sink empty"
+fi
+rm -f "$corr_sink"
+# A decoy inside an array of objects is nested too, and must not be reached.
+corr_sink="$(mktemp)"
+INPUT='{"items":[{"session_id":"BAD"},{"agent_id":"BAD"}],"session_id":"good","agent_id":"ok"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .agent_id] | join(" ")' "$corr_sink")" == "good ok" ]]; then
+    ok "corr: decoys inside a root array are not reached"
+  else
+    fail "corr (array decoy): $(cat "$corr_sink")"
+  fi
+else
+  fail "corr (array decoy): sink empty"
+fi
+rm -f "$corr_sink"
+# The scan is bounded. hook::buffer_stdin caps nothing, so a Write payload
+# carries the whole file; the ids still come back from a multi-megabyte
+# payload, and they come back from the root, not from the body.
+# INPUT is assigned, never exported — the same shape every fleet hook uses.
+# The `VAR=... cmd` prefix form would export it, and a payload this size then
+# overflows the sink subprocess's environment (E2BIG) instead of testing the cap.
+corr_sink="$(mktemp)"
+(
+  corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
+  INPUT='{"session_id":"s-big","prompt_id":"p-big","tool_input":{"content":"'"$corr_big"'","prompt_id":"NESTED"}}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id] | join(" ")' "$corr_sink")" == "s-big p-big" ]]; then
+    ok "corr: a multi-megabyte payload still yields the root ids"
+  else
+    fail "corr (large payload): $(jq -c '{session_id,prompt_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (large payload): sink empty"
+fi
+rm -f "$corr_sink"
+# The same large payload must not pick up a nested decoy either: past the size
+# gate the walk is skipped for cost, and the head cut is what keeps it safe.
+# This is the half of the gate's behaviour that is a guarantee; the other half
+# (a root key after the first container is omitted up here) is a known gap.
+corr_sink="$(mktemp)"
+(
+  corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
+  INPUT='{"session_id":"s-big","tool_input":{"content":"'"$corr_big"'","session_id":"NESTED"},"tool_use_id":"toolu_past_gate"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big omitted" ]]; then
+    ok "corr: past the size gate the root id holds and no nested one is taken"
+  else
+    fail "corr (past gate): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (past gate): sink empty"
+fi
+rm -f "$corr_sink"
+# No payload at all: none of the four keys, and the envelope is otherwise the same.
+corr_sink="$(mktemp)"
+(
+  unset INPUT HOOK_TELEMETRY_PAYLOAD
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r 'keys_unsorted | join(",")' "$corr_sink")" == "schema_version,timestamp,hook,hook_event,status,duration_ms,data" ]]; then
+    ok "corr: no payload, no correlation keys"
+  else
+    fail "corr: unexpected keys without a payload: $(jq -r 'keys_unsorted | join(",")' "$corr_sink")"
+  fi
+else
+  fail "corr (no payload): sink empty"
+fi
+rm -f "$corr_sink"
+# HOOK_TELEMETRY_PAYLOAD wins over INPUT for a producer that buffers under another name.
+corr_sink="$(mktemp)"
+INPUT='{"session_id":"from-input"}' HOOK_TELEMETRY_PAYLOAD='{"session_id":"from-payload"}' HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"a.md","findings":[]}' 2>/dev/null
+wait_for_sink "$corr_sink"
+if [[ "$(jq -r '.session_id' "$corr_sink" 2>/dev/null)" == "from-payload" ]]; then
+  ok "corr: HOOK_TELEMETRY_PAYLOAD overrides INPUT"
+else
+  fail "corr: override: $(cat "$corr_sink" 2>/dev/null)"
+fi
+rm -f "$corr_sink"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -68,7 +68,7 @@ For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Ca
 | Internal version label | `2026.04.28.JH` (date-based, no semver) |
 | Captured | 2026-05-10 |
 
-Author rolls the URL forward periodically (date in filename + path matches build date). The pinned direct URL above still serves the byte-identical zip (re-fetched + SHA-verified 2026-07-19). Roll-forward auto-discovery is currently BROKEN upstream: the tutorial article moved from `remove-drm-from-kindle-ebooks/` (now HTTP 404) to `drm-removal-from-kindle-ebook-purchases-old-method/` and is now behind a subscriber paywall, so the public article body no longer exposes the zip link for the `update` probe to walk. Until that changes, the drift check HEAD-probes the pinned direct zip URL as the authoritative signal; a maintainer with a techy-notes subscription must re-confirm any new build's URL by hand.
+Author rolls the URL forward periodically (date in filename + path matches build date). The pinned direct URL above still serves the byte-identical zip (re-fetched + SHA-verified 2026-07-19). Roll-forward auto-discovery is not available: the tutorial article's body is not publicly fetchable, so no probe can read a new build's zip URL. See `reference/sources.md`, "Primary tutorial", for the current status of that article and its recheck trigger. The drift check HEAD-probes the pinned direct zip URL as the authoritative signal; a maintainer re-confirms any new build's URL by hand.
 
 Bundled tools (verified 2026-05-10):
 

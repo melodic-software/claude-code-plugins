@@ -3,6 +3,377 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.9]
+
+### Changed
+
+- **The Bash dispatcher and the always-on git/commit guards parse
+  `ps-command.sh` only on a PowerShell payload.** `ps::classify_git_command`
+  returns 0 immediately on Bash after setting `PS_SAFE_COMMAND`, so a
+  file-scope `source` of that ~41 KB classifier was parse tax with no behaviour.
+  The dispatcher still accepts `--lib` on the command line (the include guard
+  still makes a later `source` a no-op) but defers the parse until `.tool_name`
+  is known, and skips it when that name is `Bash`. Each guard that still has to
+  run alone sources the classifier inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`,
+  the same shape `block-hook-bypass` already used. Isolation subshells do not
+  inherit the include guard unless the parent sourced first, so both the
+  dispatcher skip and the per-guard lazy source are required; dispatcher-only
+  would parse the file once per isolation fork on Bash.
+  Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK` unset,
+  benign `git status --short` payload: counted PATH-visible execs stay at
+  **5** (`3 git` + `2 jq`). `bash -x` `source …/ps-command.sh` lines: **5 → 0**.
+  Wall clock on this measurable Linux host (spawn floor 0.5 ms, spread 1.78×,
+  n=20 after 2 warmup): p50 51.9 → 46.8 ms, p95 53.8 → 48.1 ms. The milliseconds
+  are context; the durable figure is the five classifier parses that
+  disappeared.   An unprimed payload still loads the library so a PowerShell
+  command whose jq cache missed cannot reach a guard with `ps::` unbound.
+  `block-noncanonical-commit` compares `-m` values against
+  `PS_HERESTRING_PLACEHOLDER` only when the classifier defined it, so a Bash
+  single-line `-m` does not abort under `set -u`.
+  What each guard checks is unchanged.
+
+## [0.32.8]
+
+### Fixed
+
+- Four in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. In `[0.12.2]` the sentence
+  about the driver's macOS `Shared` exclusion names the directory instead of spelling its full
+  path. In `[0.9.8]` the widened-root examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`.
+  In `[0.9.7]` the checkout-parent example becomes `<drive>:\repos\…` and the two undetected-path
+  examples become `<drive>:\Projects\…` and `<drive>:\Dev\…`. Every entry still claims exactly what
+  it claimed, and the drive letter was never the point in any of them.
+
+## [0.32.7]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a guard emits, including guards run under `run-guards.sh`,
+  each only when present as a plain id, so the claude-ops per-session report
+  lists the guards with no change to the guards themselves (#3758).
+  `schema_version` reads `1.1`; no guard behavior changes.
+
+## [0.32.6]
+
+### Changed
+
+- **The Bash dispatcher and every always-on guard locate `hook-utils.sh`
+  with parameter expansion, not `dirname`, and the dispatcher copies its jq
+  cache helper without `sed`.** A benign `git status --short` on this host
+  spent 7 `dirname` execs (one per enabled Bash guard; the default-off
+  `flag-commit-pr-skill-bypass` exits before `source`) plus one `sed` to rename
+  `hook::jq_fields`, of 13 counted PATH-shim spawns. After: 0 `dirname`, 0
+  `sed`, 5 remaining (`3 git` + `2 jq`, the classification work and the one primed
+  payload parse). Spawn census through a stable PATH shim, `HOOK_TELEMETRY_SINK`
+  unset, same payload: **13 → 5**. Wall clock on this measurable Linux host
+  (spawn floor 0.5–0.7 ms, n=20): p50 70.0 → 60.7 ms, p95 73.5 → 62.1 ms.
+  The milliseconds are context; on a host whose spawn floor is tens of
+  milliseconds the durable figure is the eight PATH-visible execs that
+  disappeared.
+  `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes; a
+  dispatched guard still sees the real `dirname` command, not a dispatcher
+  shadow. `run-guards.test.sh` pins both the empty shim log and the source
+  shape, plus `./run-guards.sh` and a bare `run-guards.sh` / `block-no-verify.sh`
+  so the relative `cd && pwd` arm and the `_HOOK_SELF=.` fallback are not
+  comment-only. What each guard checks is unchanged.
+
+## [0.32.5]
+
+### Changed
+
+- **The PostToolUse verifier dispatcher spawns only for a file one of its
+  verifiers scans.** The `Write|Edit` row in `hooks.json` now carries one
+  handler per extension the three verifiers accept (`.md`, `.sh`, `.bash`,
+  `.ps1`, `.psm1`), each with an `if: Edit(*.<ext>)` predicate that Claude Code
+  evaluates before spawning. A Write to any other file, which every verifier
+  early-exited on after paying the dispatcher's spawn, library load and payload
+  parse, now spawns nothing: 86.1 ms (26.9 S) to 0 processes on an in-repo
+  `.txt`, the matching `.md` row unchanged at 95.8 ms (N = 15, Linux CI host).
+  `run-guards.test.sh` pins the predicate set to the union of the verifiers'
+  own `case "$FILE"` gates in both directions. What each verifier checks is
+  unchanged. Closes #3751; the same issue's `typos-format` and `eol-normalizer`
+  rows take no predicate, for reasons recorded in this plugin's README budget
+  entry.
+
+## [0.32.4]
+
+### Changed
+
+- setup: the per-guard toggle probe reads each guard's effective value from the configured
+  option and the manifest default, and no longer claims that an unset toggle means `true`
+- setup: dropped the hardcoded guard count and the install-commit-msg rationale sentence
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.32.3]
+
+### Changed
+
+- **The three PostToolUse verifiers read their kill switch before sourcing the
+  library.** `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify`
+  read `<name>_enabled` through `hook::check_enabled`, which only exists once
+  `hook-utils.sh` is sourced; the predicate is now inlined above the `source`
+  line, in the one shape `scripts/check-killswitch-hoist.sh` pins to
+  `hook::is_enabled`, and that gate scans PostToolUse rows from this change on.
+  The saving is stated honestly: in production these three run sourced under
+  `run-guards.sh`, which has already loaded the library for its own use and
+  whose include guard makes each verifier's `source` cost about 0.05 ms, so the
+  hoist recovers almost nothing on the live path. They are held to the rule
+  anyway, because one shape is what keeps the gate mechanical, and each
+  verifier is also invoked standalone by its own contract test, where the
+  disabled path measures 3.1 ms against the 6.1 to 6.5 ms the un-hoisted shape
+  costs (N = 15, Linux CI host). Enabled behavior is unchanged.
+
+## [0.32.2]
+
+### Changed
+
+- **`skill-reference-verify` builds its plugin index in one `jq`, not four
+  processes per manifest.** The name-to-directory index read every
+  `plugin.json` with two `jq` and two `tr` spawns, and this marketplace carries
+  74 manifests: 296 processes for a `.md` write citing any skill. Measured on the
+  Linux CI host, the loop alone cost 468.5 ms and the whole hook 642.9 ms
+  (334.8 spawn-equivalents, S = 2.52 ms); the same manifests through one
+  `jq -r … | @tsv` cost 5.7 ms. A manifest jq cannot parse, and any behind it in
+  the batch, fall back to the per-manifest read, so a malformed sibling changes
+  nothing for the others (pinned by a case with a `{ not json` manifest). Whole
+  hook after, same harness: 63.8 ms (33.8 S), against 47.3 ms for a `.md` that
+  cites nothing. The batch carries raw fields on non-whitespace separators, not
+  `@tsv`: a nameless manifest keeps its empty field in place (a tab would have
+  collapsed it and filed the plugin under its skills path), and a declared path
+  arrives byte-identical (no backslash escaping). The suite's spawn-count case
+  now asserts one invocation handed every manifest, and five new cases pin
+  declared `skills` paths (array, string, an undeclared sibling directory, a
+  nameless manifest, a backslash in a path) through the batched read. The
+  batch keys its bookkeeping on the plugin directory the hook rebuilds from its
+  own plugins root, not on the path jq echoes back: on Windows Git Bash a
+  native jq echoes the MSYS-converted argument, which would have marked no
+  manifest as read and sent every one through the per-manifest fallback. A
+  case simulates that echo and pins one invocation.
+- **`cli-flag-verify` answers cache hits in-process and gates on a bin name
+  before scanning.** On a warm 24 h cache the verifier's whole job was to read
+  one file and match one pattern, and spawning it for that cost a bash
+  process, the `#!/usr/bin/env` PATH walk for bash, then `mkdir`, `find` and
+  `grep`: 88 failed `execve` per warm run on this host, four of the five `env`
+  walks being these spawns, at 119 to 136 ms per run. The hook now indexes the
+  fresh cache files with one `find` per run (on the first candidate whose bin
+  is installed, so a write citing only absent tools pays nothing) and matches
+  the cached `--help` text with `=~`; a miss still goes through the verifier,
+  which populates the cache. The cache directory, key, window and match pattern
+  are one definition, the new `lib/verification/cli-flag-cache.sh`, sourced by
+  the hook and the verifier alike: the first hand-copied pattern had dropped
+  the `[` terminator, so `--color[=WHEN]` was known cold and unknown warm, and
+  a case now pins that notation on both paths plus the absence of any private
+  pattern in either script. After, same probe: 55 to 79 ms warm, 34
+  `execve` of which 11 fail (the one `env` walk left is the telemetry sink's).
+  Ahead of the scan, content that names
+  none of the scanned bins exits before the fragment pipeline: the previous
+  `-` gate alone passed every hyphenated paragraph. Cases pin zero verifier
+  spawns on a hit with findings identical to the miss run, zero `sed` spawns on
+  hyphenated prose, and the `--save-dev` versus `--save-developer` boundary on
+  both paths.
+- **`lib/verification/verify-cli-flag.sh` spends fewer processes on the cache
+  path.** `[[ -d ]]` before `mkdir -p`; the 24 h freshness test compares
+  against a reference file touched to that timestamp (`printf '%()T'` from
+  `EPOCHSECONDS` plus POSIX `touch -t`, one process in place of `find | grep`,
+  with the `find` shape kept for Bash before 5.0); the flag match is `=~` over
+  the cached text instead of `printf | grep -E`. Four verifier cases pin the
+  exact, longer-prefix, and shorter-prefix outcomes cold and warm.
+
+## [0.32.1]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
+
+## [0.32.0]
+
+### Added
+
+- **`secret-pattern-detection` and `hardcoded-path-check` now inspect content written
+  through the GitHub MCP write tools.** Both guards matched `Write|Edit|NotebookEdit`
+  only, so a session could be cleared by them and still push the same secret to a
+  repository through `mcp__github__push_files` or
+  `mcp__github__create_or_update_file` — a route with no local file to fix afterwards
+  and no `pre-commit` content-invariants layer on it. `push_files` is scanned per
+  entry of its `files` array, not just the first.
+
+  `mcp__github__delete_file` is deliberately not covered. Its schema carries `owner`,
+  `repo`, `path`, `message` and `branch`, and no content: there is nothing for a
+  content guard to scan, and a delete cannot introduce a secret or a hardcoded path.
+  Naming it would claim coverage that consists of skipping every call.
+
+  Registered as a NEW `hooks.json` row rather than by widening the
+  `Write|Edit|MultiEdit|NotebookEdit` matcher, so the always-on write path pays
+  nothing for tools it will never see. Three local-only gates are not applied on the
+  new lane — the project-scope guard, the git-working-tree requirement, and `git
+  check-ignore` — because each is a statement about a local file and an MCP write has
+  none; applying the scope guard in particular would have skipped every MCP write,
+  which is a silent hole rather than a scope. The path allowlist is reused unchanged.
+  `hardcoded-path-check` still resolves its scan root, which is what catches this
+  machine's own checkout path appearing verbatim in pushed content.
+
+### Fixed
+
+- **`run-guards.sh` primes `.tool_input.path`, which a guard asking for it would
+  otherwise have paid two `jq` spawns per Write/Edit for.** The dispatcher's cached
+  `hook::jq_fields` is all-or-nothing per call: one filter it cannot serve sends the
+  whole call to an uncached `jq`. Adding the MCP lane's field to the two content
+  guards without adding it here cost 50 ms to 60 ms on every authored write — measured,
+  then fixed, before it shipped. The primed program is now nine filters instead of
+  eight: 51 ms before, 52 ms after, median of three 30-run batches per tree.
+
+### Changed
+
+- **`block-hook-bypass` now ships one scratch root exempt instead of none.** The
+  `block_hook_bypass_scratch_roots` option was opt-in and shipped empty, which left a
+  write target blocked that no `Write|Edit` gate would ever have processed: the host
+  temp trees, which the harness's own per-session scratchpad sits under. The measured
+  cost of that emptiness was five blocks in one day across four sessions with zero true
+  positives. Per ADR 0003 clause 4 that is a wrong SCOPE rather than a wrong oracle, so
+  the oracle is untouched and the scope is narrowed.
+
+  **The memory tier is deliberately not a second default.** `<memory_dir>/` (default
+  `.work/`) was exempted here and removed again during review, because the
+  "gives up no protection" argument does not carry to it: `hook::read_file_path` has no
+  `.work/` decline, so `secret-pattern-detection` scans a `Write` to `.work/notes.md`
+  today. Exempting Bash redirects there would have let
+  `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical `Write`
+  stayed blocked — the same content-guard bypass this release closes for the GitHub MCP
+  write tools. `docs/conventions/topic-docs/` states as normative that raw output
+  including credentials belongs in the memory tier, which reads as an argument for
+  exempting it from secret scanning too; making the two guards symmetric that way is a
+  widening of a default-on security guard, and ADR 0003 wants firing evidence before one
+  of those moves, so it is filed rather than decided. The consequence is that
+  `printf '*' >> .work/.gitignore` still blocks: that is `session-flow`'s own documented
+  procedure, so the conflict routes to the skill (use `Write`, which is scanned) rather
+  than to this guard.
+
+  Exempting these gives up no protection, which is the only reason a default is
+  defensible here. `hook::read_file_path`, the library entry every `Write|Edit` content
+  guard reads its file through, already declines a temp-tree file when the project root
+  lies outside that tree, so such a target was never reachable by the gates this guard
+  exists to protect. The exemption's width is exactly the width of the protection it is
+  scoped out of.
+
+  The default is gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the
+  temp tree. With no project root it does not fire (without it `hook::read_file_path`
+  falls back to git-working-tree membership, under which a temp file inside a fixture
+  checkout IS processed). When the project root is itself temp-rooted — the shape this
+  repo's own hook fixtures take, via `mktemp -d` — a temp file is project content and the
+  default stands down. It is not spelled as a static `plugin.json` default, because it
+  has no fixed spelling: the scratchpad path carries a session id. It resolves at run
+  time.
+
+  The option's own list is still empty by default and now **adds to** the shipped root
+  rather than being the only source of one. The kill switch remains the whole-guard
+  lever; the shipped root is not removable through the option.
+
+  **A shipped default confirms through symlink resolution before it grants.** The
+  lexical compare alone exempts a redirect on its spelling, so a symlink under an
+  exempt root pointing into the repository (`/tmp/to-repo -> <repo>`) let
+  `echo <secret> > /tmp/to-repo/tracked.py` through while the identical direct path
+  blocked. The configured roots document that as a residual on the ground that "an
+  operator naming a root is accepting that root's contents" — a ground a shipped
+  default does not have. The defaults now resolve the target, or its nearest existing
+  ancestor, and re-check containment before exempting. Reported as a P1 by an automated
+  reviewer on the pull request and reproduced before the fix was written.
+
+  Cost stays on the grant path: the lexical test runs first, so a command that was
+  going to block spends no resolver process. A path with no existing component holds
+  no symlink, so it is exempted on its spelling — the same answer resolution would
+  give, and failing closed there would make the verdict depend on whether a directory
+  happens to exist on the host rather than on the command. Residual, recorded rather
+  than papered over: the check inherits the axis's case-folding, so on a case-sensitive
+  filesystem a symlink whose real spelling carries capitals is not resolved and stays
+  exempt; closing it needs the target in its original case, which the folded segment
+  scan does not carry.
+
+- **`block-hook-bypass` resolves a relative redirect target against the tool call's own
+  `cwd`.** The axis previously refused every relative target outright, on the grounds
+  that the directory a redirect resolves against is not knowable from the payload. It is
+  knowable in the common case: the payload's `.cwd` is where the tool call runs, and it
+  is already in `run-guards.sh`'s `PRIME_FILTERS`, so reading it costs a cache lookup
+  rather than a `jq` process. A relative target is still refused when the command carries
+  a `cd`/`pushd`/`popd` — which moves that directory, and whose target this guard
+  deliberately does not evaluate — or when the payload names no absolute cwd. The
+  refusal set therefore only shrinks, by targets proven placeable. This is what lets
+  `printf '*' >> .work/.gitignore` through while `echo x > src/main.py` and
+  `cd /etc && echo x > .work/f` still block.
+
+## [0.31.8]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
+
+## [0.31.7]
+
+### Changed
+
+- **Two hook suites route their command-level runners through the payload-level
+  helpers already sitting in the same file.** `block-dangerous-git.test.sh`'s
+  `run_in` is now a call to `run_split` with the fixture directory passed as both
+  the payload cwd and the process cwd, the case `run_split` was written to
+  generalise. `block-windows-drive-tmp.test.sh`'s `run_win` and `run_posix_host`
+  become one-line calls to `run_win_payload` and `run_posix_host_payload`. The
+  bodies they drop were re-spellings of those helpers, down to the two message
+  assertions `run_win` made whenever the expected exit was 2.
+- **Four dead initializers dropped.** `secret-pattern-detection.sh` set
+  `VIOLATIONS=""` and `stale-path-verify.sh` set `ls_tag=""`, and each is assigned
+  again before its first read: `VIOLATIONS` from `_secret_out` past the clean-scan
+  early exit, `ls_tag` from `git ls-files -v` on the line above the only test of
+  it. The `RC=0` in `skill-reference-verify.test.sh` and `stale-path-verify.test.sh`
+  sits above reads that each carry their own `RC=$?`.
+- **`lib/secret-detection/secret-patterns.sh` stops writing a global no caller can
+  observe.** `secrets::scan_text` reset `SECRETS_LABELS` and appended each matched
+  label to it, but both callers run the function inside a command substitution, so
+  that array died with the subshell; the name is now referenced nowhere in the
+  repository. Telemetry never read it anyway: `secret-pattern-detection.sh` parses
+  the labels back off the function's stdout lines into its own `LABELS` array, and
+  still does. The header comment now says stdout is the only channel rather than
+  advertising the array.
+
+  Two hook files and one shared lib are in this diff. What is unchanged is
+  behavior: no matcher, allowlist, exit code, decision or message differs.
+
 ## [0.31.6]
 
 ### Fixed
@@ -3751,8 +4122,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   and the double quote from the child-segment class and drop the trailing
   separator: bare values at a natural boundary (EOL, whitespace, quote) are
   detected, prose spans cannot match, and a bare ROOT with no child segment
-  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
-  exclusion covers the new bare form. 15 regression cases added (bare values
+  (`C:/Dev`, `/home`) still never matches. The driver's exclusion for the
+  macOS `Shared` home directory covers the new bare form. 15 regression cases added (bare values
   in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
   `Shared`). Synced-component note: the same pattern change lands upstream in
   `melodic-software/standards` `components/path-detection/` — the local and
@@ -4052,7 +4423,7 @@ self-overlapping anchor described above — red against the `grep -o` counter
   checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
   `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
   pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
-  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  sole machine path used a widened root (e.g. `<drive>:\Projects\…`, `<drive>:\Dev\…`)
   early-returned before the detailed scan ever ran — a fail-open in a security
   gate. The gate now lists every root token the detailed bodies accept, keeping
   it a strict superset; a `Projects`-root regression test guards it.
@@ -4076,8 +4447,8 @@ self-overlapping anchor described above — red against the `grep -o` counter
   are reduced to identifier characters before use, so a value can never inject
   regex metacharacters.
 - **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
-  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
-  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  drive-letter-anchored checkout-parent pattern matched only `<drive>:\repos\…`, so a
+  hardcoded `<drive>:\Projects\…` or `<drive>:\Dev\…` path went undetected. It now also
   matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
   root was and remains caught by the driver's project-root literal scan.
 

@@ -461,6 +461,114 @@ else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
 
+# --- --shard is a partition, not a filter -----------------------------------
+# The claim CI makes when it fans one selection across four runners is that the
+# legs together ARE the selection and no suite ran twice. Proved on the fixture
+# repo rather than the live tree on purpose: each live derivation walks the
+# whole corpus, and this suite is itself one of the suites a leg runs, so a
+# handful of live derivations here would cost back part of what the shard
+# saves and would unbalance whichever leg drew this file.
+shard_paths=(lib/widget.sh plugins/alpha/hooks/alpha-hook.sh plugins/beta/hooks/beta-hook.sh)
+select_shard() {
+  local spec="$1"
+  local -a argv=(bash scripts/affected-tests.sh)
+  [[ -n "$spec" ]] && argv+=(--shard "$spec")
+  (cd "$repo" && "${argv[@]}" -- "${shard_paths[@]}" 2>/dev/null)
+}
+# The equals form, spelled out separately because select_shard cannot express an
+# EMPTY spec: `--shard=` with nothing after it is what an environment variable
+# that expanded to nothing produces, and a presence test on the value alone
+# would read it as "no shard requested" and run the whole selection on every leg
+# while exiting 0 (claude-code-plugins#3773, Codex P2).
+select_shard_eq() {
+  (cd "$repo" && bash scripts/affected-tests.sh "--shard=$1" -- "${shard_paths[@]}" 2>/dev/null)
+}
+
+shard_rc=0
+shard_full="$(select_shard "")" || shard_rc=$?
+full_sorted="$(printf '%s\n' "$shard_full" | grep . | sort)"
+full_count="$(printf '%s\n' "$full_sorted" | grep -c . || true)"
+shard_union=""
+shard_sum=0
+for legix in 0 1 2; do
+  leg_out="$(select_shard "$legix/3")" || shard_rc=$?
+  shard_sum=$((shard_sum + $(printf '%s\n' "$leg_out" | grep -c . || true)))
+  shard_union+="$leg_out"$'\n'
+done
+union_sorted="$(printf '%s' "$shard_union" | grep . | sort)"
+if [[ "$shard_rc" -eq 0 ]] && [[ "$full_count" -ge 3 ]] &&
+  [[ "$union_sorted" == "$full_sorted" ]] && [[ "$shard_sum" -eq "$full_count" ]]; then
+  ok "--shard legs union to the whole selection with no suite on two legs"
+else
+  fail "--shard is not a partition (rc=$shard_rc, full=$full_count, sum=$shard_sum)"
+fi
+
+out="$(select_shard 0/1)"
+if [[ "$(printf '%s\n' "$out" | grep . | sort)" == "$full_sorted" ]]; then
+  ok "--shard 0/1 is the unsharded selection"
+else
+  fail "--shard 0/1 changed the selection"
+fi
+
+# The empty leg. It is the short-circuit CI depends on: a leg that draws
+# nothing must EXIT 0, because a leg that skipped would make the matrix result
+# `skipped` and ci-status is fail-closed on that.
+out="$(select_shard 999/1000)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && [[ -z "$(printf '%s' "$out" | grep . || true)" ]]; then
+  ok "a leg with no suites exits 0 and prints no selection"
+else
+  fail "empty leg should exit 0 with nothing selected (rc=$RC): $out"
+fi
+
+# A spec this script cannot read must never become leg 0 of 1, which runs
+# everything and would report a full pass from a typo'd fan-out. These exit
+# before any derivation, so they cost nothing.
+for badspec in 4/4 bogus 0/0 1/ /4 "1/4/4" "-1/4"; do
+  select_shard "$badspec" >/dev/null
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--shard '$badspec' is a usage error, not a silent full run"
+  else
+    fail "--shard '$badspec' should exit 2, got rc=$RC"
+  fi
+done
+
+out="$(select_shard_eq "")"
+RC=$?
+if [[ "$RC" -eq 2 ]]; then
+  ok "an empty --shard= is a usage error, not a silent full run"
+else
+  fail "--shard= should exit 2, got rc=$RC with $(printf '%s\n' "$out" | grep -c . || true) suite(s)"
+fi
+
+out="$(select_shard_eq 0/3)"
+if [[ -n "$(printf '%s' "$out" | grep . || true)" ]] &&
+  [[ "$(printf '%s\n' "$out" | grep . | sort)" == "$(select_shard 0/3 | grep . | sort)" ]]; then
+  ok "--shard=<spec> and --shard <spec> select the same leg"
+else
+  fail "the equals form of --shard does not match the space form"
+fi
+
+# --- --run --shard executes each suite on exactly one leg -------------------
+# The partition above is about selection; this is about execution. Two legs are
+# enough to prove each selected suite ran, on exactly one of them.
+: >"$marker"
+shard_rc=0
+for legix in 0 1; do
+  (cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh \
+    --run --shard "$legix/2" lib/widget.sh >/dev/null 2>&1) || shard_rc=$?
+done
+marker_text="$(cat "$marker")"
+count_of() { printf '%s' "$marker_text" | grep -o "$1" | grep -c . || true; }
+if [[ "$shard_rc" -eq 0 ]] &&
+  [[ "$(count_of lib-widget)" -eq 1 ]] &&
+  [[ "$(count_of beta-hook)" -eq 1 ]]; then
+  ok "--run --shard runs the whole selection across the legs, each suite once"
+else
+  fail "sharded --run did not cover the selection exactly once (rc=$shard_rc): $marker_text"
+fi
+
 # --- --run propagates a suite failure --------------------------------------
 suite_body alpha-hook 1 >"$repo/plugins/alpha/hooks/alpha-hook.test.sh"
 (cd "$repo" && bash scripts/affected-tests.sh --run plugins/alpha/hooks/alpha-hook.sh >/dev/null 2>&1)
@@ -1060,6 +1168,29 @@ else
   fail "co-located suite lost or unrelated suite still borrowed (rc=$RC): $OUT"
 fi
 rm -rf "$repo3"
+
+# --- LIVE repo: ci.yml actually fans the selection out -----------------------
+# `--shard` only buys anything if the workflow both PASSES it and creates more
+# than one runner to pass it from. Either half alone is silently useless: a
+# shard spec with no matrix runs leg 0 of 1 (everything, as before), and a
+# matrix with no shard spec runs the whole selection on every leg. Pinned
+# together, in the job that owns them.
+live_ci="$REPO_ROOT/.github/workflows/ci.yml"
+test_linux_block="$(awk '
+  /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
+    job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
+  }
+  job == "test-linux"
+' "$live_ci")"
+# shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
+if grep -q 'affected-tests\.sh --run --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
+  grep -q '^    strategy:' <<<"$test_linux_block" &&
+  grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_linux_block" &&
+  grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_linux_block"; then
+  ok "ci.yml test-linux declares a matrix and passes the leg through to --shard"
+else
+  fail "ci.yml test-linux no longer fans the affected selection across a matrix"
+fi
 
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the

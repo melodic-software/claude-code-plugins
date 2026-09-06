@@ -115,6 +115,19 @@
         "The rails prompt is still emitted on screen before the launch, so a refused or failed launch leaves a usable manual fallback",
         "The reasoning treats the panel as being for the departing operator, not for the agent — the agent's payload is unchanged from a manual /clear-and-paste"
       ]
+    },
+    {
+      "id": 10,
+      "name": "full-path-payload-is-the-emit-output",
+      "prompt": "/continue-in-background file phase-4 — clean tree apart from the save-points, take it from here while I'm out.",
+      "expected_output": "The full path produces a shape-2 file through `save_point.py new`, fills the slots, and runs `save_point.py validate` to exit 0 before anything launches. The text written to the temporary prompt file for `claude --bg` is the between-rails portion of the `save_point.py emit <file>` output (the `Read @` directive through the last `Next:` headline), taken from that output rather than retyped, so the agent receives exactly the bytes the file's `## Resume prompt` section stores. The rails are still shown on screen first, the launch is reported, and the skill stops.",
+      "files": [],
+      "expectations": [
+        "`save_point.py validate` is run and exits 0 before the background launch; a file that fails validation (including an unfinished skeleton with `<!-- FILL` slots) is never launched from",
+        "The prompt handed to `claude --bg` is the between-rails text of the `save_point.py emit` output, written to a temporary file with the Write tool, not a retyped or paraphrased version of it",
+        "The launched payload contains the directive with its invoke-the-skill sentence, the `Prior session:` and `Handoff origin:` lines, and the `Next:` headlines, and contains no panel text, no copy instruction, and no below-rail line",
+        "The rails block is still emitted on screen before the launch, the launch result is reported, and the skill STOPS"
+      ]
     }
   ]
 }

@@ -401,9 +401,11 @@ if [[ -s "$TEL" ]]; then
   done
   if [[ "$(jq -r '.hook' "$TEL")" == "go-format" ]]; then ok "envelope: hook is go-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
   if jq -e '.data.findings[0] | type == "string"' "$TEL" >/dev/null 2>&1; then ok "envelope: findings are flat strings"; else fail "envelope: findings[0] wrong type ($(jq '.data.findings[0]' "$TEL"))"; fi
+  # goimports could not parse the file, so it wrote nothing back.
+  if [[ "$(jq -r '.data.changed' "$TEL")" == "false" ]]; then ok "envelope: data.changed false (syntax error, nothing rewritten)"; else fail "envelope: data.changed=$(jq -c '.data.changed' "$TEL")"; fi
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
@@ -420,6 +422,21 @@ else
   fail "telemetry/stub-sink: no envelope written"
 fi
 rm -f "$TEL"
+
+# --- Stub sink + layout rewrite -> data.changed true (#3755) ------------------
+printf 'package main\n\nimport "fmt"\n\nfunc main() {fmt.Println("tel")}\n' >"$REPO/tel-fmt.go"
+TELF="$(mktemp)"
+SINKF="$(make_sink "cat >\"$TELF\"")"
+OUT_F=$(run_hook_env "$REPO/tel-fmt.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKF")
+wait_for_sink "$TELF"
+if [[ -s "$TELF" ]]; then
+  if [[ "$(jq -r '.status' "$TELF")" == "ok" ]]; then ok "telemetry/rewrite: status ok"; else fail "telemetry/rewrite: status=$(jq -r '.status' "$TELF")"; fi
+  if [[ "$(jq -r '.data.changed' "$TELF")" == "true" ]]; then ok "telemetry/rewrite: data.changed true after goimports reformatted the file"; else fail "telemetry/rewrite: data.changed=$(jq -c '.data.changed' "$TELF")"; fi
+  if [[ "$OUT_F" == *'"systemMessage"'* ]]; then ok "telemetry/rewrite: the disclosure still reaches stdout"; else fail "telemetry/rewrite: disclosure missing from stdout: $OUT_F"; fi
+else
+  fail "telemetry/rewrite: no envelope written"
+fi
+rm -f "$TELF"
 
 # --- Stub sink + kill switch -> status skipped -------------------------------
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/tel2.go"

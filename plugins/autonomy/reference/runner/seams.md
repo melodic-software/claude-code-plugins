@@ -5,8 +5,9 @@ The eight seams are the runner's complete interface set — the spine shape in
 obligations in contract vocabulary, cites the already-shipped contract that owns any inherited
 portion (linked, never restated — the pack defines only runner-new content), and names the
 runner-side interface tokens that are resolved at this phase. The structured-output envelope's
-field names resolve here; every other exact seam token, and all lifecycle, terminal-outcome,
-and severity tokens, resolve at `/architect` and in the pack's escalation and lifecycle leaves.
+field names resolve here; the lifecycle, terminal-outcome, and severity tokens resolve in the
+pack's lifecycle and escalation leaves; every other exact seam token resolves when the build
+trigger fires.
 
 Three seams carry an already-shipped owning contract — queue+lease, isolation policy, and
 observability+cost; the other five are runner-new, though several plug into a shipped boundary
@@ -24,7 +25,7 @@ repo-local value.
   and the [one-entrypoint invariant](../trigger-dispatch.md#dispatch) — the runner is the
   executor those cite, not a second dispatch path.
 - **Interface tokens:** binds the shipped `executor_class` (`self-operated` | `vendor-hosted`);
-  the runner-new adapter tokens resolve at `/architect`.
+  the runner-new adapter tokens resolve when the build trigger fires.
 
 ## Structured-output envelope
 
@@ -66,7 +67,8 @@ and an unattestable or unbound substrate blocks dispatch rather than degrading i
 - **Owning contract:** the [guardrail matrix](../guardrails.md#the-matrix) min-isolation column
   and the [isolation ladder](../guardrails/isolation-ladder.md) leaf.
 - **Interface tokens:** binds the shipped ladder levels `L0`–`L3` and the security binding's
-  isolation entries; the runner-new provider-selection tokens resolve at `/architect`.
+  isolation entries; the runner-new provider-selection tokens resolve when the build trigger
+  fires.
 
 ## Outcome-verification gate
 
@@ -78,7 +80,7 @@ pass or a merge the policy would gate.
   [security-review leaf](../guardrails/security-review.md) own which layers exist and which
   block per class; the gate-running mechanism is runner-new.
 - **Interface tokens:** the gate writes its result into the envelope's `stop_reason` and
-  `outcome`; the exact gate tokens resolve at `/architect`.
+  `outcome`; the exact gate tokens resolve when the build trigger fires.
 
 ## Merge-policy toggle
 
@@ -119,10 +121,10 @@ from cold, and it enforces the caps that bound a single drain. The persisted ses
   single run, and the retry budget behind the execution-error stop, are admission-policy knobs
   on the SECURITY binding — siblings of the drain-level pair, on the same agent-unwritable
   surface, for the same reason: a cap the governed agents could edit is no cap. Their exact
-  keys land as ADDITIVE schema keys with the build (token names resolve at `/architect` like
-  every other deferred seam token); the runner READS them and fail-closes at launch when they
-  are unbound, so the `cap-exceeded` stop is deterministic and no item ever runs unbounded on
-  implicit defaults.
+  keys land as ADDITIVE schema keys with the build (token names resolve when the build trigger
+  fires, like every other deferred seam token); the runner READS them and fail-closes at launch
+  when they are unbound, so the `cap-exceeded` stop is deterministic and no item ever runs
+  unbounded on implicit defaults.
 - **Interface tokens:** the envelope's `resume_handle` is the takeover key; the caps whose
   exhaustion is a terminal stop are the [escalation leaf](escalation.md)'s
   stop-criteria subject.

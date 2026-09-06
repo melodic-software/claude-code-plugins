@@ -3,7 +3,7 @@
 Normative leaf of the [guardrail contract](../guardrails.md): the tool-agnostic isolation
 ladder the matrix's min-isolation column keys on. Levels are contract vocabulary. Substrate
 instances are org-supplied through the security binding per the guided-setup pattern — this
-document names substrate CLASSES as marked examples only, never an instance list.
+document names substrate classes as marked examples only, never an instance list.
 
 ## Levels
 
@@ -11,29 +11,29 @@ document names substrate CLASSES as marked examples only, never an instance list
   version-control permissions are the only containment. Attended interactive use only.
 - **`L1` — per-command OS sandbox.** The sandbox wraps shell-command execution only; file
   tools, hooks, and protocol-connected tool surfaces still execute on the host. An attended
-  ergonomics tier — NOT an autonomy tier.
+  ergonomics tier — not an autonomy tier.
 - **`L2` — whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
-  widen.** The MINIMUM for any unattended run.
+  widen.** The minimum for any unattended run.
   Free-path substrate classes (marked examples, not an instance list): a whole-process
   OS-sandbox wrap; a container with a default-deny egress firewall.
 
-  The levels above describe the PROCESS boundary; the workspace mount is a deliberate hole
-  through it, which is why containment of writes that reach the HOST is named here rather than
+  The levels above describe the process boundary; the workspace mount is a deliberate hole
+  through it, which is why containment of writes that reach the host is named here rather than
   assumed. A boundary can deny egress and hide every credential while still accepting writes the
   host later executes — a version-control config file is a command key ring, and one of its keys
-  fires on a read-only-looking status call. Scope is deliberately WRITE containment: read
+  fires on a read-only-looking status call. Scope is deliberately write containment: read
   exposure is not covered at this level, and a copy-on-read workspace leaves reads fully open.
 
-  The widening clause names a DIRECTION, because that is what generalizes. An additive policy
+  The widening clause names a direction, because that is what generalizes. An additive policy
   layer — one whose installed components carry rules of their own, in the sense of extension
   permissions, admission control, or any engine that composes its rules from parts — meets `L2`
   only where a component's rules can subtract reachability and never add it. A surface where an
   installed component can add an allow rule the base policy denies is not `L2` however strict that
-  base policy reads, because the run manufactures its own exception at install time; the failure is
-  measured, not hypothetical — a component installed while the environment was being created
-  carried egress past a global default-deny and origin data flowed. Until governance is configured
-  so component rules can only narrow, the surface is not `L2`-capable.
+  base policy reads, because the run manufactures its own exception at install time: a component
+  installed while the environment is being created can carry egress past a global default-deny.
+  Until governance is configured so component rules can only narrow, the surface is not
+  `L2`-capable.
 - **`L3` — kernel-separated ephemeral environment.** Substrate classes (marked examples): a
   VM or microVM; a hosted ephemeral executor surface. Required where policy demands kernel
   separation. Two demands do: untrusted-provenance (`C5`) work, per the matrix's min-isolation
@@ -51,7 +51,7 @@ kernel-separation bar applies.
 
 ## Rejected axis: trigger source
 
-A trigger-source axis (externally signaled versus agent-internal) is RECORDED AS REJECTED —
+A trigger-source axis (externally signaled versus agent-internal) is recorded as rejected —
 falsified: untrusted content reaches agent-internal runs through repository files,
 dependencies, and fetched web content, not only through external signals, so a trusted
 trigger source cannot lower the required isolation level.
@@ -66,7 +66,7 @@ autonomy tier is non-conforming.
 ## Fail-closed where L2 is unavailable
 
 Where no `L2`-capable substrate exists on an execution surface, autonomous dispatch is
-BLOCKED for that surface and guided setup names the compliant paths. This rule is
+blocked for that surface and guided setup names the compliant paths. This rule is
 fail-closed: silently degrading to a lower level is never conforming — a silent degrade leaks
 the trust loop the ladder exists to protect.
 

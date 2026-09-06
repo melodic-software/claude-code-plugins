@@ -10,9 +10,20 @@ metadata:
   summary: Detect and remove AI-writing tells from markdown prose
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>/dev/null | head -8; :; } || echo "detector unavailable"`
 
 ## Purpose
@@ -25,13 +36,8 @@ vocabulary):
 
 1. **Deterministic**: `${CLAUDE_SKILL_DIR}/scripts/detect.sh` runs the catalog's `v1: script`
    rules. Its findings carry argued severity tiers (the detector-findings convention's crosswalk)
-   and persist as a conforming findings file. **What the relay APPLIES is narrow; what it ROUTES
-   is not.** `rule-utm-params` alone is auto-applicable, and every other rule is
-   `/ai-slop:audit fix` work — but the crosswalk now declares that ownership, so the relay hands
-   those rows to this skill's `fix` action rather than to its cleanup route, which prefers
-   `/simplify`, a code-simplification skill, and applies the rows itself when `/simplify` is
-   absent. Neither branch loads this skill's rewrite guide. The findings file is how a consumer
-   *sees* them and how they reach the one surface that can rewrite them.
+   and persist as a conforming findings file, which is how a consumer sees them and how they
+   reach a surface that can rewrite them. Audit step 6 names which surface, and when.
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 
@@ -73,13 +79,13 @@ removed, stay marker-free by construction.
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
-   `review:fanout fix` is now a valid route for the whole file, not just one rule: it hands every
-   row but `rule-utm-params` to this skill's own `fix` action, which the crosswalk declares as
-   their remediation owner. `rule-utm-params` is the one row the relay is *capable* of applying
+   `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
+   skill's own `fix` action, which the crosswalk declares as their remediation owner. `rule-utm-params` is the one row the relay is *capable* of applying
    meaning-preservingly — do not promise that it will. It takes its ordinary cleanup class and
    reaches the relay's cleanup route, which prefers `/simplify`, a code-simplification skill that
-   reads no findings file, and applies rows itself only when `/simplify` is absent. Recommend the
-   relay when the operator is already running a fix pass; recommend this skill's `fix` directly
+   reads no findings file, and applies rows itself only when `/simplify` is absent. Neither the
+   relay's own applier nor `/simplify` loads this skill's rewrite guide. Recommend the relay when
+   the operator is already running a fix pass; recommend this skill's `fix` directly
    when they are not, since it is the shorter path to the same rewrites. Name the condition that
    changes the answer — the relay can only hand the rows over when `/ai-slop:audit` is available
    in that session, and surfaces them otherwise.
@@ -126,7 +132,8 @@ file survives its own remediation. Then report totals: fixed, suppressed, revert
 forms are documented in the plugin README and managed by `/ai-slop:setup`. The detector's
 `--show-config` names the layer supplying each effective value. When a whole document
 legitimately needs em dashes, the remedy is `em_dash_allowed_paths` or the file marker, never a
-threshold: the em-dash rule is zero-tolerance by design (user decision at plan approval).
+threshold. The em-dash rule is zero-tolerance by design; the catalog's `rule-em-dash` entry
+carries the reason.
 
 ## What this skill does NOT do
 

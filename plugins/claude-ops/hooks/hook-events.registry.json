@@ -1,0 +1,332 @@
+[
+  {
+    "name": "ConfigChange",
+    "when": "When a configuration file changes during a session",
+    "category": "config",
+    "producer": "observe",
+    "claim": "hook event ConfigChange is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "CwdChanged",
+    "when": "When the working directory changes, for example when Claude executes a `cd` command. Useful for reactive environment management with tools like direnv",
+    "category": "config",
+    "producer": "observe",
+    "claim": "hook event CwdChanged is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "DirectoryAdded",
+    "when": "When a working directory is added mid-session via `/add-dir` or the SDK `register_repo_root` control request",
+    "category": "config",
+    "producer": "observe",
+    "claim": "hook event DirectoryAdded is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "Elicitation",
+    "when": "When an MCP server requests user input during a tool call",
+    "category": "mcp",
+    "producer": "observe",
+    "claim": "hook event Elicitation is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "ElicitationResult",
+    "when": "After a user responds to an MCP elicitation, before the response is sent back to the server",
+    "category": "mcp",
+    "producer": "observe",
+    "claim": "hook event ElicitationResult is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "FileChanged",
+    "when": "When a watched file changes on disk. The `matcher` field specifies which filenames to watch",
+    "category": "config",
+    "producer": "exclude: the matcher builds the watch list, so a matcherless row watches nothing",
+    "claim": "hook event FileChanged is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "InstructionsLoaded",
+    "when": "When a CLAUDE.md or `.claude/rules/*.md` file is loaded into context. Fires at session start and when files are lazily loaded during a session",
+    "category": "config",
+    "producer": "observe",
+    "claim": "hook event InstructionsLoaded is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "MessageDisplay",
+    "when": "While assistant message text is displayed",
+    "category": "display",
+    "producer": "exclude: Claude Code holds each streamed batch until the hook returns",
+    "claim": "hook event MessageDisplay is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "Notification",
+    "when": "When Claude Code sends a notification",
+    "category": "turn",
+    "producer": "observe",
+    "claim": "hook event Notification is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PermissionDenied",
+    "when": "When auto mode denies a tool call, including denials without a classifier verdict. Use JSON `hookSpecificOutput.retry: true` to tell the model it may retry the denied tool call. Claude Code ignores `retry` when the classifier produced no verdict",
+    "category": "permission",
+    "producer": "observe",
+    "claim": "hook event PermissionDenied is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PermissionRequest",
+    "when": "When a tool call needs a permission decision",
+    "category": "permission",
+    "producer": "observe",
+    "claim": "hook event PermissionRequest is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PostCompact",
+    "when": "After context compaction completes",
+    "category": "compaction",
+    "producer": "observe",
+    "claim": "hook event PostCompact is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PostModelSwitch",
+    "when": "After the session's model changes, including changes Claude Code makes on its own, such as restoring the model when you resume a session",
+    "category": "model",
+    "producer": "observe",
+    "claim": "hook event PostModelSwitch is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PostToolBatch",
+    "when": "After a full batch of parallel tool calls resolves, before the next model call",
+    "category": "tool",
+    "producer": "observe",
+    "claim": "hook event PostToolBatch is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PostToolUse",
+    "when": "After a tool call succeeds",
+    "category": "tool",
+    "producer": "observe",
+    "claim": "hook event PostToolUse is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PostToolUseFailure",
+    "when": "After a tool call fails",
+    "category": "tool",
+    "producer": "observe",
+    "claim": "hook event PostToolUseFailure is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PreCompact",
+    "when": "Before context compaction",
+    "category": "compaction",
+    "producer": "observe",
+    "claim": "hook event PreCompact is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PreModelSwitch",
+    "when": "Before Claude Code applies a model switch that you or a client requested. Can block the switch",
+    "category": "model",
+    "producer": "observe",
+    "claim": "hook event PreModelSwitch is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "PreToolUse",
+    "when": "Before a tool call executes. Can block it",
+    "category": "tool",
+    "producer": "observe",
+    "claim": "hook event PreToolUse is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "SessionEnd",
+    "when": "When a session terminates",
+    "category": "session",
+    "producer": "observe",
+    "claim": "hook event SessionEnd is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "SessionStart",
+    "when": "When a session begins or resumes",
+    "category": "session",
+    "producer": "observe",
+    "claim": "hook event SessionStart is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "Setup",
+    "when": "When you start Claude Code with `--init-only`, or with `--init` or `--maintenance` in `-p` mode. For one-time preparation in CI or scripts",
+    "category": "session",
+    "producer": "observe",
+    "claim": "hook event Setup is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "Stop",
+    "when": "When Claude finishes responding",
+    "category": "turn",
+    "producer": "observe",
+    "claim": "hook event Stop is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "StopFailure",
+    "when": "When the turn ends due to an API error",
+    "category": "turn",
+    "producer": "observe",
+    "claim": "hook event StopFailure is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "SubagentStart",
+    "when": "When a subagent is spawned",
+    "category": "agent",
+    "producer": "observe",
+    "claim": "hook event SubagentStart is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "SubagentStop",
+    "when": "When a subagent finishes",
+    "category": "agent",
+    "producer": "observe",
+    "claim": "hook event SubagentStop is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "TaskCompleted",
+    "when": "When a task is being marked as completed",
+    "category": "task",
+    "producer": "observe",
+    "claim": "hook event TaskCompleted is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "TaskCreated",
+    "when": "When a task is being created via `TaskCreate`",
+    "category": "task",
+    "producer": "observe",
+    "claim": "hook event TaskCreated is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "TeammateIdle",
+    "when": "When an [agent team](/docs/en/agent-teams) teammate is about to go idle",
+    "category": "agent",
+    "producer": "observe",
+    "claim": "hook event TeammateIdle is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "UserPromptExpansion",
+    "when": "When a user-typed command expands into a prompt, before it reaches Claude. Can block the expansion",
+    "category": "prompt",
+    "producer": "observe",
+    "claim": "hook event UserPromptExpansion is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "UserPromptSubmit",
+    "when": "When you submit a prompt, before Claude processes it",
+    "category": "prompt",
+    "producer": "observe",
+    "claim": "hook event UserPromptSubmit is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "WorktreeCreate",
+    "when": "When a worktree is being created via `--worktree`, `isolation: \"worktree\"`, or for a background session. Replaces default git behavior",
+    "category": "worktree",
+    "producer": "exclude: configuring a WorktreeCreate hook replaces the default git worktree creation, and a hook that prints no path fails the worktree",
+    "claim": "hook event WorktreeCreate is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  },
+  {
+    "name": "WorktreeRemove",
+    "when": "When a worktree is being removed at session exit, when a subagent finishes, or when you delete a background session",
+    "category": "worktree",
+    "producer": "observe",
+    "claim": "hook event WorktreeRemove is documented in the Hooks reference lifecycle table",
+    "basis": "https://code.claude.com/docs/en/hooks#hook-lifecycle (raw markdown of hooks.md, fetched with curl -sS -L)",
+    "as_of": "2026-09-05",
+    "recheck": "each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
+  }
+]

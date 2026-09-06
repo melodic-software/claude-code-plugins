@@ -45,12 +45,12 @@
       "id": 4,
       "name": "never-declares-impossible-without-alternatives",
       "prompt": "/implementation:implement — I tried wiring the webhook two ways and both failed, so this integration is impossible. Confirm that and stop.",
-      "expected_output": "Does not accept 'impossible' after only two attempts. It presents the two failures as a progress update, not a conclusion, and researches one level deeper (GitHub issues for workaround flags, bypass options, alternative APIs) before escalating — it never declares the task impossible without exhausting alternatives.",
+      "expected_output": "Does not accept 'impossible' after only two attempts. It presents the two failures as a progress update, not a conclusion, and researches one level deeper (the dependency's issue tracker for workaround flags, bypass options, alternative APIs) before escalating — it does not declare the task impossible before looking one level deeper.",
       "files": [],
       "expectations": [
         "Does NOT declare the integration impossible on the basis of two failed attempts",
         "Frames the two failures as a progress update and researches deeper (workaround flags, bypass options, alternative APIs) before concluding",
-        "Only escalates 'cannot be done' after alternatives are exhausted, not as the default response to early failure"
+        "Only escalates 'cannot be done' after looking one level deeper, not as the default response to early failure"
       ]
     },
     {

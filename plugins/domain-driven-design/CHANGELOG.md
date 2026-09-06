@@ -3,6 +3,18 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **curate-language:** the invocation section states the current relationship with the planning
+  plugin (invoke when installed) instead of a manifest dependency that no longer exists, and drops
+  the unreachable "when unavailable" guidance addressed to other plugins' authors; the body defers
+  the convention-resolution ladder to `context/glossary-contract.md` instead of carrying a shorter
+  divergent copy, and the read gate covers convention resolution as well as writes. The README's
+  install note says the same.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.1]
 
 ### Changed

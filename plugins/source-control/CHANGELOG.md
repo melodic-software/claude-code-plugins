@@ -3,6 +3,188 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.57]
+
+### Changed
+
+- **Production hooks locate the hook directory with parameter expansion, not `dirname`.**
+  GNU Bash forks a subshell for every command substitution even when the body is a
+  builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
+  takes; the fallback covers a bare filename, where the strip is a no-op and
+  dirname answers `.`. What the hook checks is unchanged.
+
+## [0.55.56]
+
+### Changed
+
+- `landed-work.sh` and `landed-work.test.sh` write both drive spellings with a `<repo>`
+  placeholder, and the two `pull-request` fetch tests say `C:/Users/<user>/...`. `path_key` only
+  swaps separators, folds the drive form and lowercases, so the MSYS-versus-Windows assertion
+  compares exactly what it compared before. The org machine-specific-path detector reads a literal
+  user-home or checkout path as a leaked machine path wherever it appears.
+
+## [0.55.55]
+
+### Changed
+
+- babysit-loop: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+
+## [0.55.54]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
+## [0.55.53]
+
+### Changed
+
+- babysit-loop: removed issue numbers and "today" phrasing from the loop-knob, budget, and promotion-gate rules; restated the promotion-evidence seam state as a present-tense fail-closed rule with a recheck trigger; dropped the merge-authority protocol and the trigger-phrase list from the description
+- babysit-prs: removed incident narration and issue numbers from the pre-compute note, the autopilot merge tier, the gotchas, and the safety, freshness, cadence, independent-resolution, orchestration, runbook-cycle, and stuck-checks references; stated the classifier-denial and reachability rules in the present tense; replaced the description's trigger-phrase list with intent categories; regenerated guard-contract.md from the edited claim strings
+- commit: removed revision history and pinned model names from the pre-compute, trailer, and key-spelling sections; the exec-bit reference states the rename-arm rule without the decision record
+- pull-request: lowered the register of the monitor checklists; removed observed-incident narration from the gotchas and the monitor, readiness, create, and merge references; made the stale-base guard portable to consuming repos
+- resolve-conflicts: merged the two pre-compute notes into one present-tense rule
+- setup: dropped the review-finding ids, the gotchas session-log intro, and the retirement-manifest justification sentence on the shadowed-markdown probe; tightened the description to intent categories
+- worktree: removed pre-compute archaeology, the closed upstream issue pointers, and the author-machine record counts; stated the reap-record rules in the present tense
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.55.52]
+
+### Changed
+
+- **Two reference files stop citing the marketplace repository's own deleted
+  `pull_request_target` lanes.** `babysit-prs/reference/stuck-checks.md` used
+  those lanes as its worked example of which checks survive a conflicted PR;
+  the repository folded its whole pull-request contract into one `ci-status`
+  job and deleted the callers, so the example now describes the lane split in
+  general terms instead of naming workflows that no longer exist.
+  `pull-request/reference/readiness.md` referred to `do-not-merge /
+  do-not-merge` as a required status context in the present tense, in a
+  past-tense pagination anecdote; it now reads "then a required status
+  context". Guidance unchanged in both files.
+
+## [0.55.51]
+
+### Changed
+
+- **`hooks/worktree-add-claim-gate.sh` reads its kill switch before sourcing the library.**
+  `worktree_add_claim_gate_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.55.50]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.55.49]
+
+### Changed
+
+- **The three PreToolUse gates read their kill switch before sourcing the
+  library.** `pr-body-linkage-gate`, `worktree-add-containment-gate` and
+  `pr-linkage-mcp-gate` read `<name>_enabled` through `hook::check_enabled`, a
+  function that exists only once the 2,684-line `hook-utils.sh` is sourced, so a
+  DISABLED gate parsed the whole library before finding out it had nothing to
+  do. Each runs as its own process, so the hoist recovers the full ~3.5 ms of a
+  disabled gate's ~5.3 ms on the reference host. The predicate is inlined with
+  the same semantics as `hook::is_enabled`, and the new fleet gate
+  `scripts/check-killswitch-hoist.sh` pins the two to each other and fails a
+  gate that reverses the order. Behaviour of an ENABLED gate is unchanged.
+  (#3719)
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** One line naming what
+  this plugin's hook set does, on a field the hooks reference documents as
+  optional and every hook set here omitted. (#3719)
+
+## [0.55.48]
+
+### Changed
+
+- **The babysit-prs prune suite folds 42 temp-dir fixtures into one context
+  manager.** `test_prune_babysit_worktrees.py` opened
+  `tempfile.TemporaryDirectory(ignore_cleanup_errors=True)` and converted to a
+  `Path` at 42 sites; a `scratch_dir()` helper does it once. Test count is
+  unchanged at 650 for the suite and 45 for the module, and the fold was proven
+  to still catch its bugs by mutation rather than by passing: four mutations to
+  the module under test (a removal check forced true, the root-containment guard
+  disabled, an unrecognized-worktree append dropped, an orphan comparison forced
+  false) produce the SAME failing set at both revisions, 3 failures in the first
+  round and 8 in the second, spanning both branches of the rename.
+  The whole-file ruff-format reflow that the edit triggered was separated at the
+  AST level: baseline against formatted-baseline is AST-identical across 37
+  changed lines, and replaying the three mechanical edits onto that reproduces
+  the committed file exactly. All comments are byte-identical.
+- **`babysit_resolve_thread.py` emits its refusals through one helper.** Six
+  refusal sites each built and printed their own envelope. A single `_refuse`
+  now does it, matching the helper `babysit_merge.py` already defines. The
+  delicate part is that this module resolves review threads, so every refusal
+  is an authority boundary: each message text is unchanged, the missing
+  allowlist still exits 3 rather than the usage-error 2, and the emitted key
+  order stays `pr`, `inScope`, `error` because the extra fields expand ahead of
+  the error text, which is what consumers branch on. The engine suite still
+  passes, including the case asserting the resolve wrapper reaches a
+  fail-closed CLI with no allowlist.
+- **`fetch-annotations.sh` projects and filters in one jq pass.** The records were
+  projected in one pass and `--failed` applied in a second, with a separate "no
+  records" exit on each side. One pass now does both, driven by an `--argjson
+  failed_only`, and the empty check lives once, on the filtered result. That drops
+  a variable, a branch and a spawn. Neither script's `usage()` is touched here.
+- **`fetch-failed-logs.sh` parses `--max-bytes` straight into `MAX_BYTES`.** The
+  default sits at the declaration instead of being relayed through a
+  `MAX_BYTES_ARG` string.
+
+  Worth its length because it nearly went the other way. `MAX_BYTES_ARG=""` looks
+  exactly like a dead store, and a positive control disproved that: replacing it
+  with a sentinel in the parent revision produced 18 mismatches across a 722-case
+  differential, so it was a live default carrier. The change therefore re-plumbs
+  the default rather than deleting it, and a negative control confirms a wrong
+  default would be caught.
+- **`test-helpers.sh` routes six `assert_*` helpers through `pass()`.** The PASS
+  line was spelled out in seven places and now lives in one. The subtle part is
+  the case counter: the increment moves out of each helper's top and into
+  `pass()`, with the failure branches incrementing explicitly, so the numbering in
+  `PASS: [N]` and `FAIL: [N]` had to come out identical. Confirmed by running a
+  consuming suite at both revisions and byte-comparing: stdout and stderr both
+  identical, rc 0 each.
+- **`landed-work.sh`'s `patch_ids()` cleans its temp file once.** Three exit paths
+  each removed it; a single `rm` before one return now covers every path, with the
+  status carried in `rc`. The empty-stream case stays a legitimate empty range
+  rather than an error, and `$out` is left truncated either way.
+- **`worktree-claim.test.sh` folds five copies of the porcelain-stanza awk
+  lookup** into one `stanza_for()` helper, whose comment records why paragraph
+  mode is what keeps a record's `locked` line attached to its `worktree` line.
+- **`nesting-invariant-ssot.test.sh` folds two expiry arms.** The two patterns had
+  identical capture bodies and are now two alternatives of one condition, with the
+  shared read of `BASH_REMATCH` written once. No assertion was touched, and the
+  suite still passes 18 of 18.
+
 ## [0.55.47]
 
 ### Fixed

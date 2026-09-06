@@ -9,18 +9,30 @@ metadata:
   summary: Execute approved plans with TDD, incremental validation, and green commits
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Uncommitted changes: !`git diff --stat HEAD 2>/dev/null | tail -1 || echo "none"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Recent commits, `git log --oneline -5`
+- Uncommitted changes, `git diff --stat HEAD | tail -1`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
 Implementation is where plans become code. This skill structures the execution phase so changes are made incrementally, validated continuously, and abandoned early when the approach isn't working, rather than pushing through a broken implementation and discovering problems at PR time.
 
-It sits between planning and verification: exploration and external research provide understanding, a planning pass produces an approved plan, this skill executes it with discipline, and the companion skills in the separate `testing` and `verification` plugins (`/testing:plan`, `/testing:write`, `/testing:diagnose`, `/verification:confirm`), no longer siblings of this skill after the plugin split, validate the result when those plugins are installed.
+It sits between planning and verification: exploration and external research provide understanding, a planning pass produces an approved plan, this skill executes it with discipline, and the companion skills in the `testing` and `verification` plugins (`/testing:plan`, `/testing:write`, `/testing:diagnose`, `/verification:confirm`) validate the result when those plugins are installed.
 
 **Philosophy**: cost of a mid-implementation replan is minutes; cost of discovering a flawed approach at PR review is hours. Validate incrementally, commit at checkpoints, and route back to planning the moment something feels wrong.
 
@@ -34,7 +46,7 @@ Track skill Steps 0–5 in-session via the task list. Durable progress lives in 
 
 ## Step 0: Detect Execution Mode
 
-Before mode detection runs, apply a pre-execution discipline checklist by invoking `/andrej-karpathy-skills:karpathy-guidelines` via the Skill tool (from the `karpathy-skills` marketplace) if that plugin is installed. It fires a four-rule discipline checklist (think-before-code, simplicity-first, surgical-changes, goal-driven-execution) ahead of the first Edit. Fallback is graceful: when the plugin is absent, hold to the same discipline directly. Think before coding, prefer the simplest change that works, make surgical edits, keep the goal in view. And proceed without prompting.
+Before mode detection runs, hold to the scope discipline: do the simplest thing that works, edit a file surgically rather than rewriting it when the result is the same, and add no features, abstractions, or cleanup the task does not require. Proceed without prompting.
 
 Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
@@ -47,7 +59,7 @@ Parse conversation context to determine execution mode. Mode shapes which contex
 
 If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use that. Otherwise infer from context. If ambiguous, ask.
 
-**Detect orchestration mode** (distinct from implement execution mode above). Signals for orchestrated execution: the session runs autonomously (a goal/loop harness with no human in the turn cycle), or the approved plan routes phases to worker subagents. When either holds, after Step 1's prerequisite check passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its dispatch cadence for those phases instead of the Step 2 inline cadence. Interactive sessions with no worker routing use the classic inline cadence below. Step 1 runs in EVERY mode, orchestrated dispatch never skips the branch / plan / dirty-tree preflight.
+**Detect orchestration mode** (distinct from implement execution mode above). Signals for orchestrated execution: the session runs autonomously (a goal/loop harness with no human in the turn cycle), or the approved plan routes phases to worker subagents. When either holds, after Step 1's prerequisite check passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its dispatch cadence for those phases instead of the Step 2 inline cadence. Interactive sessions with no worker routing use the classic inline cadence below. Step 1 runs in every mode; orchestrated dispatch does not skip the branch / plan / dirty-tree preflight.
 
 **Read the relevant context file** for mode-specific guidance before proceeding.
 
@@ -56,7 +68,7 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use t
 Before writing code, verify the knowledge base:
 
 - **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first. `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
-- **Is the branch correct?** Check pre-computed branch. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
+- **Is the branch correct?** Check the branch gathered above. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
 
 ## Step 2: Execute with Incremental Validation
@@ -107,7 +119,7 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 **When divergence is detected:**
 
 1. **Stop writing code.** Do not push through a broken approach
-2. **NEVER declare something impossible without exhausting alternatives.** Before escalating to the user with "this can't be done," research deeper. Check GitHub Issues for workaround flags, search for bypass options, test alternative APIs, look one investigation level beyond where you'd normally stop. Proper solution usually exists. Present "I've tried 2 things and they didn't work" as a progress update, not a conclusion
+2. **Research before declaring something impossible.** Before telling the user "this can't be done", look one level deeper: the dependency's issue tracker for workaround flags, bypass options, alternative APIs. Present "I've tried two things and they didn't work" as a progress update, not a conclusion
 3. **Assess severity:**
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
@@ -128,11 +140,11 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 |---|---|---|
 | **Plan work-item** | Literally appears in the plan's work-items list | Execute; report at phase boundary |
 | **Plan-tagged fallback / execution-shape item** | The plan itself pre-tagged it as a contingency or execution-shape choice | If a fallback: surface to the user with `AskUserQuestion`, confirm/override/drop. If pre-approved execution shape: execute |
-| **Invented mid-implement** | Not in the plan at all; surfaced by an agent return, anomaly, or implementation discovery | STOP. Classify (briefed-via-other-phase / plan-fallback / pure-invention / scope-expansion). Surface to the user with category tag + `AskUserQuestion`. NEVER batch with plan-anticipated items |
+| **Invented mid-implement** | Not in the plan at all; surfaced by an agent return, anomaly, or implementation discovery | Stop. Classify (briefed-via-other-phase / plan-fallback / pure-invention / scope-expansion). Surface to the user with category tag + `AskUserQuestion`, separately from plan-anticipated items |
 
 **Anti-pattern (canonical failure mode)**: batching invented follow-up actions with plan-anticipated items in one proposal. User pushback on the batch is structurally ambiguous. "drop both" reads as "drop all my proposals"; silent over-correction drops plan-anticipated work. Always separate categories at proposal time.
 
-**Over-correction guard**: when the user pushes back on N proposed actions (≥2), NEVER silently drop all. Use `AskUserQuestion`:
+**Over-correction guard**: when the user pushes back on N proposed actions (≥2), do not silently drop all of them. Use `AskUserQuestion`:
 
 ```text
 Q: You pushed back on N actions. Drop which?
@@ -146,14 +158,7 @@ If the trap fires, document it in this session's retro. When the `session-flow` 
 
 ## Step 4: Task Tracking and Phase-Boundary Handoff
 
-For non-trivial implementations (3+ steps), use TaskCreate at the start:
-
-- Create tasks for each major logical block from the plan
-- Update tasks to `in_progress` when starting each block
-- Update to `completed` after tests pass for that block
-- Makes progress visible and survives context compaction
-
-For trivial single-step implementations, skip the overhead.
+For non-trivial implementations (3+ steps), track each major logical block from the plan as a task in the harness task list, marking a block complete only after its tests pass. Skip this for trivial single-step implementations.
 
 ### Phase-boundary discipline (the durable layer)
 
@@ -162,9 +167,23 @@ In-session task state lives in the harness and does not survive a context clear.
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 
 1. **Verify acceptance criteria, then mark plan progress**. Before setting the completed phase's tag to `[DONE]`, confirm the phase's acceptance criteria hold. Self-review is the floor; for any phase beyond a mechanical, behavior-preserving change (where an objective build/test/lint pass is verification enough), that verdict is rendered by an agent that did NOT produce the phase's changes: a fresh-context verifier handed binary criteria and the diff, withholding your rationale, or the cross-vendor option `/verification:confirm` names, never the producing context auditing itself, which converges on approval rather than detection. Then set the tag to `[DONE]` in the plan artifact and tick its step boxes; keep any parent/roadmap documents that mirror phase status in sync in the same turn
-2. **Write a phase-boundary handoff entry**. When the `session-flow` plugin is installed, invoke `/session-flow:handoff` via the Skill tool (file method, topic `phase-N`). That skill owns the handoff surface and format; otherwise write a timestamped handoff note to the memory tier's handoffs home (`<memory_dir>/handoffs/`, default `.work/handoffs/`, per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). When that skill is present it defines which sections the note carries. Do not restate them here. Without it, this skill owns the fallback shape, so the note must stand on its own: what shipped, the decisions made and why, the approaches tried and ruled out, the files modified, anything already applied that must not be repeated, and the ordered remainder of the work. Plus the two items specific to a phase boundary, the sanity-check evidence for the phase just closed and the pointer into the next phase. A note carrying only the latter two forces the next session back into the diffs, which is the rediscovery the paragraph below says this ritual prevents
+2. **Write a phase-boundary handoff entry**. When the `session-flow` plugin is installed, invoke `/session-flow:handoff` via the Skill tool (file method, topic `phase-N`). That skill owns the handoff surface and format, and the note is never written free-hand; otherwise write a timestamped handoff note to the memory tier's handoffs home (`<memory_dir>/handoffs/`, default `.work/handoffs/`, per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). When that skill is present it defines which sections the note carries. Do not restate them here. Without it, this skill owns the fallback shape, so the note must stand on its own: what shipped, the decisions made and why, the approaches tried and ruled out, the files modified, anything already applied that must not be repeated, and the ordered remainder of the work. Plus the two items specific to a phase boundary, the sanity-check evidence for the phase just closed and the pointer into the next phase. A note carrying only the latter two forces the next session back into the diffs, which is the rediscovery the paragraph below says this ritual prevents. The fallback note ends with, and the response prints, a copy region in exactly the engine's shape: the copy-instruction line, a top rail, the `Read @` directive, the `Prior session:` line, the `Handoff origin:` line, the `Next:` line carrying one to five headline lines (or `Next: none (closed)` alone, for a closing handoff), and a bottom rail
+
+   ```text
+   `/clear`, then copy everything between the dashed lines:
+
+   ──────────────────────────────────────────────────────────
+   Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them.
+   Prior session: <UUID>.
+   Handoff origin: <remote URL, userinfo stripped> <repo-relative path>
+   Next:
+   <first remaining action, one plain headline line, no bullet>
+   <second remaining action, or delete this line>
+   ──────────────────────────────────────────────────────────
+   ```
+
 3. **Update the status summary** in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`). Current phase, next concrete action, blockers, pointer to the newest handoff entry
-4. **Commit** the plan changes alongside the phase's source-code changes in a single commit. Under `contract_tier: branch` (the default) the plan is tracked on the task branch, so every phase commit carries plan marks and source together: one commit, one story. Under `contract_tier: local` the plan lives in the self-ignored memory slice and is never staged. Phase commits carry source only, plan marks update in place. Mark-then-commit, never the reverse: committing the phase's work first and marking DONE in a follow-up commit forces a second commit just to record it. Memory-tier files (status summary, handoffs) never enter the commit. That tier self-ignores. Do NOT present or run the commit until steps 1-3 are in the working tree. When git is owned by the user, still complete steps 1-3 FIRST so the marking is in the working tree when they commit
+4. **Commit** the plan changes alongside the phase's source-code changes in a single commit. Under `contract_tier: branch` (the default) the plan is tracked on the task branch, so every phase commit carries plan marks and source together: one commit, one story. Under `contract_tier: local` the plan lives in the self-ignored memory slice and is never staged. Phase commits carry source only, plan marks update in place. Mark-then-commit, never the reverse: committing the phase's work first and marking DONE in a follow-up commit forces a second commit just to record it. Memory-tier files (status summary, handoffs) never enter the commit. That tier self-ignores. Do not present or run the commit until steps 1-3 are in the working tree. When git is owned by the user, still complete steps 1-3 FIRST so the marking is in the working tree when they commit
 5. **Emit the next-phase resume prompt** at the end of the response when the plan has a Phase N+1 still `[TODO]`. A short self-contained prompt a fresh session can start from cold (status summary + plan). When the final phase is done, emit a completion resume prompt for the plausible next step (review pass, retro, or PR) instead of merely a prose summary. Skip only when the sanity check failed or the user said "stop after this"
 
 **Why every phase, not just session-end:** clearing context between phases must be cheap. Without per-phase handoff entries, a resumed session has to read source diffs to reconstruct what was tried; with them, it reads the status summary plus the most-recent handoff entry and knows everything material. Cost: 30s-2min per phase boundary. Skip-cost: hours of rediscovery on the next resume.
@@ -184,6 +203,8 @@ When all planned work is done:
    - No debugging artifacts left behind
    - No commented-out code
    - No TODO comments that should be actual work
+   - No scratch verification scripts committed as permanent tests; committed tests are sized like their neighbors, roughly one focused test per stated behavior
+   - No fixes, optimizations, or extensions outside the task; anything noticed nearby is reported as a follow-up in the summary, not changed
 4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Fold the bullets into the phase-boundary plan updates (Step 4 ritual) or the handoff summary
 5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
 6. **Hand off to the pre-PR sequence**. Hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides. The user controls timing). Do not commit-and-push unilaterally, final staging and PR creation belong to that flow
@@ -212,4 +233,4 @@ When all planned work is done:
 
 ## Gotchas
 
-Every observed failure pattern for this skill, plus the one-line reminders keyed to the steps above, is in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. Add an entry there, in its what-happens / why-it-is-bad / how-to-avoid shape, whenever a new pattern bites.
+Every observed failure pattern for this skill is in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. When a new pattern bites, record it in the topic's memory slice (`<memory_dir>/<slug>/`, per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) as one lesson per file with a one-line summary at the top, in the same what-happens / why-it-is-bad / how-to-avoid shape, and consult that slice at the start of later sessions on the same topic. Do not edit the plugin's own file from a consuming project; maintainers fold patterns that recur across projects into it.

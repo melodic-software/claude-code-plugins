@@ -5,11 +5,11 @@
       "id": 1,
       "name": "validates-registry-without-settings-edits",
       "prompt": "/claude-ops:setup",
-      "expected_output": "Reports the rendered registry_dir and skill_usage_dir or their documented fallbacks, explains that the options are personal, validates containment, and does not read or edit settings files or pluginConfigs.",
+      "expected_output": "Reports the rendered registry_dir, skill_usage_dir and session_event_log_dir or their documented fallbacks, explains that the options are personal, validates containment, reports the hook log root's guard state, and does not read or edit settings files or pluginConfigs.",
       "files": [],
       "expectations": [
         "Reads only the rendered user_config values",
-        "Reports both effective destinations and containment status",
+        "Reports every effective destination and containment status",
         "Explains personal versus repository-resident implications",
         "Does not inspect or edit settings files or pluginConfigs"
       ]
@@ -36,6 +36,45 @@
         "Rejects ../shared and C:\\logs before any path join or write",
         "Explains the project-containment boundary visibly",
         "Does not silently fall back or claim to reconfigure the options"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-writes-only-the-guard",
+      "prompt": "/claude-ops:setup apply\n\nsession_event_log_enabled renders true and session_event_log_dir is unset; this is a fresh git worktree and .observability/claude/ does not exist yet.",
+      "expected_output": "check reports the guard absent with logging on as FAIL, remediation apply. apply creates .observability/claude/.gitignore containing the single line `*`, announces that one path, then reads back the pair: `git check-ignore -v -- .observability/claude/.gitignore` names a rule and `git ls-files --error-unmatch -- .observability/claude` fails. Nothing else is written: not the root .gitignore, not .git/info/exclude, not a session file, not any settings file. A second apply writes nothing and says already configured.",
+      "files": [],
+      "expectations": [
+        "The only file written is <session_event_log_dir>/.gitignore with `*` as its first non-comment line",
+        "The root .gitignore, .git/info/exclude, settings files and pluginConfigs are never edited",
+        "The tracked-versus-ignored pair is probed and both results are reported as the readback",
+        "A re-run reports already configured and produces no diff"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refuses-a-root-equivalent-log-dir",
+      "prompt": "/claude-ops:setup apply\n\nMy rendered session_event_log_dir is `.` and session_event_log_enabled is true.",
+      "expected_output": "check reports session_event_log_dir as FAIL, root-equivalent: a `*` guard at the project root would ignore the whole repository. apply writes nothing at all, repeats the FAIL with the reconfiguration guidance (set a contained subdirectory such as the default .observability/claude through Claude Code's plugin configuration), and does not normalize, join, or create the destination. The same refusal applies to a guard whose first non-comment line an operator changed away from `*`: apply reports it and never overwrites it.",
+      "files": [],
+      "expectations": [
+        "A root-equivalent session_event_log_dir is FAIL and nothing is written",
+        "Routes the fix through Claude Code's plugin configuration, never a hand edit of settings",
+        "An operator-edited guard is reported, never overwritten",
+        "No file is created at or above the project root"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "retirement-claude-ops-r001-migrates-the-old-hook-events-file",
+      "prompt": "/claude-ops:setup check, then apply, in a repo that still carries .claude/observability/hook-events.jsonl from before the hook log root moved to .observability/claude.",
+      "expected_output": "check runs bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" and reports the claude-ops-r001 TSV row as FAIL (action migrate: the sink and the observability skill read the new root, so the old file's rows are read by nothing) with apply as the remediation. apply appends the old file's lines to <session_event_log_dir>/hook-events.jsonl, shows the line counts before and after, waits for the operator's confirmation, and only then runs --clean claude-ops-r001 --i-migrated; a --clean without --i-migrated is refused (exit 2). A final re-run of detection reports the leftover gone. The skill-usage and OTEL stores under .claude/observability/ produce no finding.",
+      "files": [],
+      "expectations": [
+        "check reports claude-ops-r001 as FAIL, not WARN or INFO",
+        "The old file's rows are appended to the new root's hook-events.jsonl before any clean",
+        "--clean claude-ops-r001 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result",
+        "Detection is re-run last and the final state reported; the skill-usage and OTEL stores are not touched"
       ]
     }
   ]

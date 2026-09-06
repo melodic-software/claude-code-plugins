@@ -22,13 +22,23 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
-hook::check_enabled "BIOME_FORMAT"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -69,7 +79,10 @@ esac
 
 # Resolve repo root early — used to bound the biome-config opt-in walk and to
 # compute the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (Biome is
 # invoked with a CONFIG_DIR-relative path computed below), so both are resolved
@@ -99,7 +112,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -110,7 +125,7 @@ emit_skipped() {
 
 # Resolve the file's directory in `pwd` form once. Both walks below start here,
 # and it anchors the CONFIG_DIR-relative path passed to Biome.
-FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
+FILE_DIR_POSIX="$(cd "$FILE_DIR" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
 root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 
 # Consumer opt-in: a Biome configuration that governs the edited file. Walk up
@@ -135,7 +150,8 @@ while [[ -n "$dir" ]]; do
     [[ -f "$dir/$name" ]] && CONFIG_DIR="$dir" && break
   done
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
 done
@@ -154,7 +170,8 @@ while [[ -n "$dir" ]]; do
     break
   fi
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break
   dir="$parent"
 done
@@ -208,8 +225,11 @@ BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $(basename "$
 hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
+  # Take before the telemetry emit so data.changed carries the byte verdict;
+  # the disclosure itself is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$BIOME_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -232,7 +252,19 @@ if [[ -n "$FINDINGS" ]]; then
   done <<<"$FINDINGS"
 
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
+  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
+  # sits behind the sink opt-in, the same rule TOOL/FILE_REL above already
+  # follow. Without the guard a findings-bearing edit paid two jq spawns on the
+  # unwired default path for a value emit_tel then discards (measured with
+  # strace -f -e trace=execve: 3 jq execs per run, 1 with the guard).
+  #
+  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
+  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
+  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
+  # immediately before a newline absorbs that newline into one U+FFFD and
+  # merges two Biome diagnostics into one array element. Line mode splits on
+  # the raw byte first and keeps them apart.
+  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "ok" "$FINDINGS_JSON"

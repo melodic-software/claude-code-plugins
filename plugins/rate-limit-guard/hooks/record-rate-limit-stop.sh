@@ -29,10 +29,17 @@
 # CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED hook-process mirror.
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
 hook::check_enabled "RATE_LIMIT_GUARD"
 
 # Buffer stdin once (Win32-pipe-safe bounded read). A missing or incomplete
@@ -80,15 +87,22 @@ hook::append_jsonl "$EVENTS" "$record"
 # Bound the file at ~200 records, keeping the newest 100.
 rotate_events() {
   local lines tmp
-  lines=$(wc -l <"$EVENTS" 2>/dev/null | tr -d ' \r') || return 0
+  lines=$(wc -l <"$EVENTS" 2>/dev/null) || return 0
+  # The blanks a BSD wc pads its count with, and a CR from a Windows toolchain,
+  # come off with a parameter expansion rather than a second process: this runs
+  # on every fire of the hook.
+  lines="${lines//[ $'\r']/}"
   [[ "$lines" =~ ^[0-9]+$ ]] || return 0
   ((lines > 200)) || return 0
   tmp="$EVENTS.tmp.$$"
-  if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null; then
-    mv -f "$tmp" "$EVENTS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-  else
-    rm -f "$tmp" 2>/dev/null
+  # One cleanup path for both failures: a tail that fails still leaves the
+  # redirection's empty temp behind, and a rename that fails leaves the
+  # written one. A rename that SUCCEEDS has already consumed the temp.
+  if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null &&
+    mv -f "$tmp" "$EVENTS" 2>/dev/null; then
+    return 0
   fi
+  rm -f "$tmp" 2>/dev/null
   return 0
 }
 

@@ -45,14 +45,14 @@ row="$(jq -c --arg id "$ITEM_ID" '.items[] | select(.id == $id)' "$SCHEDULE")"
   exit 1
 }
 
-has_precond="$(printf '%s' "$row" | jq -r 'has("precondition")')"
+has_precond="$(jq -r 'has("precondition")' <<<"$row")"
 if [[ "$has_precond" != "true" ]]; then
   echo "no-precondition"
   exit 0
 fi
 
-precond_id="$(printf '%s' "$row" | jq -r '.precondition.id // empty')"
-requires_confirm="$(printf '%s' "$row" | jq -r '.precondition.requires_operator_confirmation // false')"
+precond_id="$(jq -r '.precondition.id // empty' <<<"$row")"
+requires_confirm="$(jq -r '.precondition.requires_operator_confirmation // false' <<<"$row")"
 
 case "$precond_id" in
 frontier-release-since-last-checked)
@@ -62,7 +62,7 @@ frontier-release-since-last-checked)
     # blank line prints the same single separator as any other. Emitting jq's
     # output directly passes those newlines through and puts a blank line before
     # the marker below. Measured over 7 prompt shapes, 2 diverge.
-    printf '%s\n' "$(printf '%s' "$row" | jq -r '.precondition.prompt // "precondition unmet"')"
+    printf '%s\n' "$(jq -r '.precondition.prompt // "precondition unmet"' <<<"$row")"
     echo "needs-confirmation"
     exit 2
   fi

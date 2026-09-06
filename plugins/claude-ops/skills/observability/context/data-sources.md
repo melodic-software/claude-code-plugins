@@ -1,24 +1,60 @@
 # `/claude-ops:observability` data sources — JSONL + ccusage query catalog
 
-jq pipelines and CLI invocations for **hook-events.jsonl** and **ccusage**. OTEL store
+jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL store
 (DuckDB) and Aspire: [read-routing.md](read-routing.md) + [otel-queries.md](otel-queries.md).
 
 ## Setup — common variables
 
+The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
+`.observability/claude`. Its rendered value is on the skill body's "Hook log root" line: use
+that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess inherits no
+`CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
+run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
+per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
+session (`source: "envelope"`); and the shared `hook-events.jsonl`, the legacy shape for
+envelopes that carry no session id.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-HOOK_LOG="${REPO_ROOT}/.claude/observability/hook-events.jsonl"
+HOOK_ROOT_REL="${HOOK_ROOT_REL:-.observability/claude}"   # the rendered option, or the flag
+HOOK_ROOT="${REPO_ROOT}/${HOOK_ROOT_REL%/}"
 
-# Scope → window cutoff (ISO-8601 UTC)
+# Scope → window cutoff (ISO-8601 UTC) and file set. Every whole-root query reads
+# every session file plus the shared file; a session scope reads one file.
+shopt -s nullglob
+HOOK_FILES=("$HOOK_ROOT"/sessions/*.jsonl)
+shopt -u nullglob
+[[ -f "$HOOK_ROOT/hook-events.jsonl" ]] && HOOK_FILES+=("$HOOK_ROOT/hook-events.jsonl")
 case "$SCOPE" in
-  session) SINCE_ISO="" ;;  # filter by session_id at query time
+  session)  # the newest session file by mtime, the one still being written
+    SINCE_ISO=""
+    HOOK_FILES=("$(ls -t "$HOOK_ROOT"/sessions/*.jsonl 2>/dev/null | head -n 1)") ;;
+  session:*) SINCE_ISO=""; HOOK_FILES=("$HOOK_ROOT/sessions/${SCOPE#session:}.jsonl") ;;
   day) SINCE_ISO=$(date -u -d "1 day ago" +%Y-%m-%dT%H:%M:%SZ) ;;
   week) SINCE_ISO=$(date -u -d "7 days ago" +%Y-%m-%dT%H:%M:%SZ) ;;
   month) SINCE_ISO=$(date -u -d "30 days ago" +%Y-%m-%dT%H:%M:%SZ) ;;
   since:*) SINCE_ISO="${SCOPE#since:}T00:00:00Z" ;;
   all) SINCE_ISO="1970-01-01T00:00:00Z" ;;
 esac
+[[ -f "${HOOK_FILES[0]:-}" ]] || echo "hook log empty — see the empty-store line under §2"
 ```
+
+Never call `jq -s` with an empty file set: it would read stdin. Guard with the test above.
+
+Three row shapes share the root, and the queries below normalize them with one prelude so a
+`hook`-keyed query sees the same fields wherever the row came from:
+
+```bash
+# Prepend to every jq program: legacy rows carry `event`, per-session rows carry
+# `hook_event_name`; only envelope-shaped rows (legacy or per-session) describe a hook.
+HOOK_NORM='map(. + {event: (.event // .hook_event_name)})'
+```
+
+| Row | Where | Keys |
+|---|---|---|
+| legacy envelope | `hook-events.jsonl` | `ts event hook tool duration_ms exit_code subject status` |
+| per-session envelope (`source: "envelope"`) | `sessions/<id>.jsonl` | the legacy keys with `hook_event_name` for `event`, plus `session_id`, and `changed` (boolean) when the producer sent one |
+| per-session event log (`source: "event-log"`) | `sessions/<id>.jsonl` | `ts session_id hook_event_name category status duration_ms` plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when present; no `hook`, and `duration_ms` is the logger's own cost, not a hook's |
 
 Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. Skill detects platform — see fallback in implementation.
 
@@ -33,7 +69,7 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 | `mcp__ccusage__monthly` | none | per-month aggregates |
 | `mcp__ccusage__blocks` | none | 5-hour billing windows (current + recent) |
 
-**Fallback path: CLI** when MCP not yet wired.
+**Fallback path: CLI** when the ccusage MCP server is not configured.
 
 ```bash
 if command -v npx >/dev/null 2>&1; then
@@ -65,8 +101,7 @@ Empty / missing: emit `"ccusage not installed — npm install -g ccusage or wire
 **p50 / p95 / p99 / max per `(hook, event)`:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.ts >= $since))
+jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
   | group_by(.hook + "|" + .event)
   | map({
       key: (.[0].hook + " " + .[0].event),
@@ -78,7 +113,7 @@ jq -s --arg since "$SINCE_ISO" '
       err_count: (map(select(.exit_code != 0)) | length)
     })
   | sort_by(-.p95)
-' "$HOOK_LOG"
+' "${HOOK_FILES[@]}"
 ```
 
 **Flag rules:**
@@ -90,8 +125,7 @@ jq -s --arg since "$SINCE_ISO" '
 **Error rate per hook:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.ts >= $since))
+jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
   | group_by(.hook)
   | map({
       hook: .[0].hook,
@@ -101,10 +135,95 @@ jq -s --arg since "$SINCE_ISO" '
     })
   | sort_by(-.err_pct)
   | map(select(.err_pct > 0))
-' "$HOOK_LOG"
+' "${HOOK_FILES[@]}"
 ```
 
-Empty: `"hook log empty — wire HOOK_TELEMETRY_SINK to your sink script and re-run after hooks fire"`.
+Empty: `"hook log empty — wire HOOK_TELEMETRY_SINK to your sink script, or turn on session_event_log_enabled, and re-run after hooks fire"`.
+
+## 2.5 Per-session report (`session` and `session:<id>` scopes)
+
+One file, one session. `session` is the newest `sessions/*.jsonl` by mtime (the file the running
+session is still appending to); `session:<id>` names one. Rows from the shared
+`hook-events.jsonl` carry no session id: they are never joined to a session, and a report that
+mentions them says so ("legacy rows, shared file, time proximity only"). Each block below is
+one jq over `"${HOOK_FILES[0]}"`.
+
+**Hooks fired, grouped by hook (envelope rows only):**
+
+```bash
+jq -s "$HOOK_NORM"' | map(select(.source == "envelope"))
+  | group_by(.hook)
+  | map({hook: .[0].hook, n: length,
+         events: (map(.event) | unique),
+         errors: (map(select(.exit_code != 0)) | length),
+         p50_ms: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
+         max_ms: (max_by(.duration_ms).duration_ms)})
+  | sort_by(-.n)
+' "${HOOK_FILES[0]}"
+```
+
+**Blocked:** what a guard refused, in order.
+
+```bash
+jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked")
+  | {ts, hook, event, subject}' "${HOOK_FILES[0]}"
+```
+
+**Rewrote:** what a formatter changed. `changed` is the per-row boolean the sink copies from a
+producer's `data.changed`; the eight rewriting formatters (bash, biome, eol-normalizer, go,
+markdown, powershell, ruff, typos) send it on every run that reached the formatter, so a row with
+`changed == true` is a file the hook rewrote. A session whose envelope rows all predate those
+producer versions, or whose formatters all stopped before the formatter ran, has no such rows;
+render that as `_no data — no producer in this session reported a rewrite verdict_` when no row
+carries the key at all, and as `_nothing rewritten_` when rows carry it and every value is false.
+
+```bash
+jq -sc "$HOOK_NORM"' | .[] | select(.changed == true)
+  | {ts, hook, subject}' "${HOOK_FILES[0]}"
+```
+
+**Duration per hook** is the `p50_ms` / `max_ms` pair in the first block; the whole-session
+hook cost is `map(select(.source == "envelope") | .duration_ms) | add`. Per-hook duration is
+available only for producers that emit `data.session_id` (the nine claude-ops audit hooks
+today); a hook that does not still appears in the whole-root §2 tables through the shared file.
+
+**Event timeline** (the per-session event log, opt-in): every hook event the session saw, in
+order, with the correlation keys that were present.
+
+```bash
+jq -sr '.[] | select(.source == "event-log")
+  | [.ts, .hook_event_name, .category, (.tool_name // ""), (.file_path // ""), (.agent_id // "")]
+  | @tsv' "${HOOK_FILES[0]}"
+```
+
+Every block above slurps (`-s`): the prelude's `map` and the `.[]` walk need one array, and a
+JSONL file read without `-s` hands jq one object at a time.
+
+Group by `agent_id` to separate subagent fires from the main thread; group by `prompt_id` for
+per-turn counts; `tool_use_id` joins a `PreToolUse` row to its `PostToolUse` (and to the OTEL
+`tool_result` event). Empty when `session_event_log_enabled` is off: say so, and point at
+`/claude-ops:setup` rather than at the shared file.
+
+## 2.6 Toggles and retention in effect
+
+Render the six options, the guard, and the prune state from one probe call, so the report
+shows what the pipeline is doing rather than what the reader assumes. The values are the
+rendered `${user_config.*}` from the skill body, passed as flags; an unrendered placeholder
+reads as the manifest default.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline \
+  --root "$HOOK_ROOT_REL" --enabled "<session_event_log_enabled>" \
+  --categories "<session_event_log_categories>" --keep-sessions "<session_log_keep_sessions>" \
+  --keep-days "<session_log_keep_days>" --pre-prune-command "<session_log_pre_prune_command>"
+```
+
+Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `logging:`. Copy
+them into the report verbatim under "Toggles and retention in effect". A `WARN` on the
+`prune-pending:` line (a moved-aside set older than 24 h) is a MEDIUM finding: the configured
+pre-prune command is not finishing, and `/claude-ops:observability clean` sweeps the set. A
+`guard: operator-edited` line is a HIGH finding: the hooks are refusing to write. The probe
+never heals the guard; `/claude-ops:setup apply` does.
 
 ## 3. Tool call decisions — which calls were denied, and why
 
@@ -138,11 +257,10 @@ DuckDB queries: [otel-queries.md](otel-queries.md) § "Tool decisions".
 n-gram over `(event, hook)` sequences in hook event log. Flag any 3-gram appearing 5+ times in window.
 
 ```bash
-jq -sr --arg since "$SINCE_ISO" '
-  map(select(.ts >= $since))
+jq -sr --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
   | sort_by(.ts)
   | map(.event + ":" + .hook)
-' "$HOOK_LOG" \
+' "${HOOK_FILES[@]}" \
   | python3 -c '
 import sys, json, collections
 seq = json.load(sys.stdin)
@@ -156,17 +274,14 @@ for k, v in ngrams.most_common(10):
 **Failed-then-fixed sequences:** detect adjacent `exit_code != 0` followed by same-hook `exit_code == 0` — implies user/agent re-edited and same hook fired green.
 
 ```bash
-jq -s '
-  sort_by(.ts) as $e
+jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
   | [range(1; $e | length)
      | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
      | $e[. - 1].hook]
   | group_by(.) | map({hook: .[0], retries: length})
   | sort_by(-.retries)
-' "$HOOK_LOG"
+' "${HOOK_FILES[@]}"
 ```
-
-Pattern detection across session JSONL transcripts (`~/.claude/projects/<slug>/*.jsonl`) is deferred — schema undocumented.
 
 ## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
 
@@ -175,8 +290,8 @@ Pattern detection across session JSONL transcripts (`~/.claude/projects/<slug>/*
 **Per-period count + per-binary breakdown:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
+jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
+  | map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
   | { total: length,
       unique_pairs: (map(.subject) | unique | length),
       by_binary: (group_by(.subject | split(":")[0])
@@ -184,17 +299,17 @@ jq -s --arg since "$SINCE_ISO" '
                           count: length,
                           unique: (map(.subject) | unique | length) })
                   | sort_by(-.count)) }
-' "$HOOK_LOG"
+' "${HOOK_FILES[@]}"
 ```
 
 **Top recurring hallucinations** (same `<bin>:<sha16>` repeating = same flag re-hallucinated):
 
 ```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
+jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
+  | map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
   | group_by(.) | map({ subject: .[0], count: length })
   | sort_by(-.count) | .[0:10]
-' "$HOOK_LOG"
+' "${HOOK_FILES[@]}"
 ```
 
 **Flag rules:**
@@ -221,7 +336,7 @@ grep -oE '`[a-zA-Z0-9_./-]+\.(cs|sh|ts|py|md|json)`' .claude/rules/*.md \
     done
 ```
 
-Out of scope for v1: function/symbol references (needs ctags or Roslyn).
+Function and symbol references are out of scope; the check covers file paths only.
 
 ## 6. Calibration signal — dismissed observations
 
@@ -252,6 +367,7 @@ All queries run on file sizes ≤ 50MB without issue. Skill caps total runtime ~
 
 ## Cross-references
 
-- `hook-events.jsonl` schema: whatever the consumer's hook emitter writes — treat the fields used here (`ts`, `hook`, `tool`, `duration_ms`, `exit_code`, `subject`, `status`) as the expected shape and degrade gracefully when fields are absent
+- Row schemas: the three shapes in "Setup" above. The shared file is whatever the consumer's hook emitter writes — treat the fields used here (`ts`, `hook`, `tool`, `duration_ms`, `exit_code`, `subject`, `status`) as the expected shape and degrade gracefully when fields are absent; the per-session shapes are the reference sink's and `session-event-log.sh`'s (see `hooks/hook-events.registry.json` for which events the event log records)
+- The old `.claude/observability/hook-events.jsonl` location is retired (`retirements.yaml` `claude-ops-r001`); `/claude-ops:setup` detects and migrates it. The skill-usage store and the OTEL store still live under `.claude/observability/`
 - Privacy filter applied at output time: [privacy.md](privacy.md)
 - Output template: [output-format.md](output-format.md)

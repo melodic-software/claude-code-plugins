@@ -1,5 +1,5 @@
 ---
-description: "Read-only slowness-diagnostic capture for a Claude Code installation. Run it AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything. One timed engine pass captures the four suspects: CLI version (regression), retention-sweep health including the silent unparsable-settings pause (accumulated state), a timed stat-walk of the install tree plus session and plugin-fleet counts (component bloat), and the fan-out layer (per spawn): a load-labelled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn, the statusline, subagent concurrency ceilings, sessions that predate the settings file, and orphan attribution by parent liveness not age. Plus a process census, Defender guidance, and a bundled known-performance-issues reference. Reports and routes; never mutates, never deletes, never 'fixes', never executes a discovered hook. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Not for: install-tree inventory (/claude-ops:audit-install-state), deleting anything (/disk-hygiene:clean), plugin enablement verdicts (/claude-ops:plugins audit), or upstream bug lookup alone (/claude-ops:known-issues, which this composes with)."
+description: "Read-only slowness-diagnostic capture for a Claude Code installation. Run it AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything. One timed engine pass captures the four suspects: CLI version (regression), retention-sweep health including the silent unparsable-settings pause (accumulated state), a timed stat-walk of the install tree plus session and plugin-fleet counts (component bloat), and the fan-out layer (per spawn): a load-labelled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn, the statusline, subagent concurrency ceilings, sessions that predate the settings file, and orphan attribution by parent liveness not age. On Windows, a kernel-object census (Token objects against uptime, paged pool) names the host-level leak beneath all four suspects. Plus a process census, Defender guidance, and a bundled known-performance-issues reference. Reports and routes; never mutates, never deletes, never 'fixes', never executes a discovered hook. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Not for: install-tree inventory (/claude-ops:audit-install-state), deleting anything (/disk-hygiene:clean), plugin enablement verdicts (/claude-ops:plugins audit), or upstream bug lookup alone (/claude-ops:known-issues, which this composes with)."
 argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known"
 user-invocable: true
 disable-model-invocation: false
@@ -42,9 +42,9 @@ non-secret config files: `settings.json`, `.last-cleanup`, a plugin's `hooks/hoo
 is enforced in `read_json`, which raises rather than reading a file it does not name, so the
 prose and the code cannot drift apart.
 
-The last two entries are new, and they are what makes hook enumeration possible: a hook manifest
-holds an event, a matcher, and a command string, and the installed-plugins manifest holds install
-paths. Neither carries credential material. Nothing else was opened to add them.
+The last two entries are what makes hook enumeration possible: a hook manifest holds an event, a
+matcher, and a command string, and the installed-plugins manifest holds install paths. Neither
+carries credential material.
 
 **This rule is inherited by every subagent this skill dispatches; say so explicitly in any prompt
 you fan out.**
@@ -96,6 +96,21 @@ study.
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of
 those measure what a spawn costs. Suspect 4 is where that lives, and it is the suspect a report
 most often has to reach.
+
+**On Windows, read `kernel_objects` before any of them.** It is the floor the host imposes on every
+process creation, and one mechanism moves it by an order of magnitude with CPU idle and memory
+free: a leaked kernel reference to Token objects. `state_label: token-leak` (the finding
+`token-objects-leaked`) means every spawn-denominated number below is a multiple of a broken host,
+and the remediation is a reboot followed by the elevated attribution runbook in
+[reference/known-performance-issues.md](reference/known-performance-issues.md), neither of which
+is this skill's to run. `paged-pool-high` on its own is a different, weaker signal: the pool
+figure is aggregate and unattributed, so route it to `poolmon` (elevated, operator-run) to name
+the tag before anyone calls it a Token leak or a reboot. `token.objects_per_uptime_second` is a
+population ratio, not a measured mint rate: it includes the boot population (so it overstates
+early in a boot and the projection errs short) and cannot see churn, and it is reported because
+a short in-run window under-reads bursty minting; `hours_to_leak_threshold_at_uptime_ratio` says
+how long a clean boot lasts on that basis. `supported: false` names why the census could not
+run; it is never silently absent.
 
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
 `total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
@@ -182,6 +197,11 @@ subsystem).
   itself moves with load, so a reading taken under a storm looks like a permanent property of the
   machine and is not one. Every quoted timing carries its `concurrent_processes_at_sample`, and a
   comparison against an earlier capture is only valid at comparable load.
+- **A slow spawn floor at idle CPU with the four suspects clear is the host, not the fan-out
+  layer.** On Windows check `kernel_objects` before writing up `slow-spawn-floor`: 1.4 to 4 s per
+  creation at 7% CPU was a Token-object leak, suspending the busiest shells moved it 15%, and a
+  reboot took it to 14 ms. Report the leak, route the reboot and the attribution to the operator,
+  and do not let the fan-out numbers carry the diagnosis.
 - **Do not present parallel hook cost as additive.** Summing hook timings produces a number
   several times larger than the stall the operator actually observes, which then fails to match
   the symptom and discredits the whole report.

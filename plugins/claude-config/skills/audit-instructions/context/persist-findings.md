@@ -16,7 +16,7 @@ the consumer never scans that path.
 The skill body's "Read-only contract" still holds: this skill proposes, the human applies. A
 findings file is a **proposal artifact**, not an applied edit — it reaches `review:fanout`'s `fix`
 action, which is itself human-gated. Persisting is therefore opt-in behind `--persist-findings`;
-a bare invocation reports and stops, exactly as before. Never describe the findings file to an
+a bare invocation reports and stops. Never describe the findings file to an
 operator as a change that has been made.
 
 ## Where the file goes
@@ -33,11 +33,11 @@ Windows-safe). Never overwrite: when the path exists, take `-2`, `-3`, the small
 
 ## The body-scope fence is not optional and not the caller's alone
 
-`plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
-`'trigger phrase'` versus the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation
-regression)"). A remediation
-that edits a `description`, a `when_to_use`, or a quoted trigger phrase is therefore a regression
-this repo's own gate rejects — not a debatable suggestion. Two consequences bind every run:
+A `description`, a `when_to_use`, and a quoted `'trigger phrase'` are routing text: dropping one
+regresses auto-invocation, and where the `skill-quality` plugin's `check-skill.sh` gate runs, its
+trigger-phrase drop check warns on a dropped trigger phrase against the base ref. A remediation that
+edits any of them is therefore a regression, not a debatable suggestion. Two consequences bind every
+run:
 
 - Scan with `instruction-scan.sh --body-only` (I28) and `restatement-scan.py` (I29, body-scoped
   by construction). Concatenate both onto the `--from` stream.
@@ -63,7 +63,7 @@ consumer-precedence rule).
 ## Which findings enter the file
 
 **Only the I28 and I29 families.** `instruction-scan.sh` marks ten check families and
-`restatement-scan.py` marks two more; the eight older families (I6, I8-a/b/c, I10, I23, I25, I27)
+`restatement-scan.py` marks two more; the other eight families (I6, I8-a/b/c, I10, I23, I25, I27)
 have no severity-crosswalk row, and the contract admits no row whose tier cannot be looked up
 from one. They stay in the human report and are counted in `## Surfaces` as
 `reason=no-severity-crosswalk-row` — declined, never silently dropped.

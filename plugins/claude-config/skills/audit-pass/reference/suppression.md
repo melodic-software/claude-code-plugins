@@ -9,7 +9,7 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
 **The governing rule: suppression is always central. There is no inline marker, at any target.**
 
-An inline form is rejected, recorded here so it is not re-proposed. A marker would
+An inline form is rejected. A marker would
 have to carry the same constituents a central entry does — `check`, `claim`, every site, reason,
 date — because the key is derived from them, so it duplicates the central record instead of
 simplifying it. It cannot express a pairwise finding at all: a marker sits at one site, and a
@@ -81,7 +81,7 @@ verified 2026-07-25).
 
 | Condition | Disposition | Effect on the suppression |
 |---|---|---|
-| **Every** site's anchor matches, `(check, claim)` match, **and no matched site is in §1's anchor-collision state** | **SAME, UNCHANGED** | Applies silently, as an exact match always has. Phrased over the whole `sites` set rather than "both anchors", because the set holds one entry for an ordinary single-site finding and two for a pairwise one — the two-site phrasing left an unchanged single-site entry matching **no** row, so the commonest case in the table had no disposition at all. |
+| **Every** site's anchor matches, `(check, claim)` match, **and no matched site is in §1's anchor-collision state** | **SAME, UNCHANGED** | Applies silently, as an exact match always has. Phrased over the whole `sites` set rather than "both anchors", because the set holds one entry for an ordinary single-site finding and two for a pairwise one — a two-site phrasing would leave an unchanged single-site entry matching no row. |
 | Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match, **and no matched site is in §1's anchor-collision state** | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
 | Both anchors changed, **or** `claim` changed, **or** a surface changed, **or** any matched site is in §1's anchor-collision state | **OLD CLOSED, NEW OPENED** | The old entry goes **stale** per 4.2, never silently dropped. The new finding is unsuppressed. |
 | The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; **retired with its check**, when the check that raised it is absent or renamed in the new run's detection configuration; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
@@ -104,9 +104,9 @@ the operator re-judges in one action and nothing is hidden in the meantime.
 
 **`retired with its check` is a disposition rather than an exemption, and the difference matters.** A
 delegated catalog that removes or renames a check legitimately makes its findings disappear with no
-fix and no successor, and the unconditional rule called that an UNEXPLAINED DISAPPEARANCE and failed
-the run — the comparability contract already treats a detection-version change as non-comparable, so
-the two disagreed. But suppressing the accounting entirely would be worse: findings would vanish
+fix and no successor. An unconditional rule would call that an UNEXPLAINED DISAPPEARANCE and fail the
+run, while the comparability contract already treats a detection-version change as non-comparable.
+Suppressing the accounting entirely would be worse: findings would vanish
 silently on any catalog edit, which is the exact shape row 4 exists to detect. So the disappearance
 is still accounted for, still reported, and named as retirement with the retiring check and the
 version transition cited. Any suppression entry keyed to a retired check goes **stale** rather than
@@ -129,7 +129,7 @@ operator may re-suppress in one action, where the alternative silently hides one
 also gives the claim-unqualified fallback a visible cost at exactly the point that costs something,
 which is where the coverage note says the imprecision would be felt.
 
-**Row 4 is the detector P2 has been missing.** §6's P2 states that a finding vanishing without a fix
+**Row 4 is P2's detector.** §6's P2 states that a finding vanishing without a fix
 is a defect — a definition with nothing able to observe it. Requiring every disappearance to be
 accounted for is what turns that definition into a check capable of failing.
 

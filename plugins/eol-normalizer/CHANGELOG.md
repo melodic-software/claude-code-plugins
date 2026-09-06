@@ -3,6 +3,89 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.37]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.6.36]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when the line endings were rewritten, false when no rewrite
+  was attempted (no `eol` attribute, `-text`, binary) or the rewrite changed no
+  bytes. `action` keeps its meaning (the arm that applies to the file). The key
+  is omitted only when the snapshot could not be taken. This is what fills the
+  per-session observability report's "Rewrote" block (#3755).
+  `docs/conventions/hook-telemetry/data/eol-normalizer.schema.json` gains the
+  optional key, and the suite pins it on a normalizing run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
+## [0.6.35]
+
+### Changed
+
+- **`hooks/eol-normalizer.sh` reads its kill switch before sourcing the library.**
+  `eol_normalizer_enabled` was read through `hook::check_enabled`, which only
+  exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
+  parsed the whole library before learning it had nothing to do. The predicate
+  is now inlined above the `source` line, in the one shape
+  `scripts/check-killswitch-hoist.sh` pins to `hook::is_enabled` (the gate
+  scans PostToolUse rows from this change on, so the order cannot drift back).
+  Measured on the Linux CI host on three standalone hooks of this shape, N = 15:
+  the disabled path drops from 6.1 to 6.5 ms to 3.1 to 3.2 ms against a 1.8 ms
+  spawn floor, so a consumer who turns the hook off stops paying for the
+  library. Enabled behavior is unchanged.
+
+## [0.6.34]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
+## [0.6.33]
+
+### Added
+
+- **`hooks/hooks.json` carries a top-level `description`.** The hooks reference
+  documents the field as optional, and every hook set in this marketplace omitted
+  it; it is the surface an operator reads when deciding what a plugin does to
+  their session. One line naming what this plugin's hook set does. (#3719)
+
+## [0.6.32]
+
+### Changed
+
+- **`eol-normalizer.sh`'s `build_data_json` rationale comment is completed to
+  the formatter family's canonical text.** It stopped mid-argument, at the
+  point where the jq fallback drops the tool and path values rather than
+  interpolating them; it now also says why losing them is harmless, since the
+  fallback fires only when `jq -n` fails and `hook::emit_telemetry` discards
+  the envelope anyway when jq is absent. Adapted for this hook's `$1 = action`
+  argument. Comment-only: no code line in this plugin changed.
+
+  The code edits in this group landed on its other two members, a collapsed
+  guard in `go-format.sh` and two dead stores in `markdown-format.sh`. Nothing
+  in this hook met the bar. Suites stayed green at 51, 54 and 171 with
+  baselines byte-identical.
+
 ## [0.6.31]
 
 ### Changed

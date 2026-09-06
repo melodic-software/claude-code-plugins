@@ -34,23 +34,30 @@
 set -uo pipefail
 
 # Hook directory by parameter expansion, never `dirname`. This hook matches
-# Write, Edit, NotebookEdit, Agent and Workflow, so in the default advisory
-# posture it starts, sources, and exits: the two source lines are its entire
-# cost, and a `dirname` on each would make both of them processes. The `.`
-# fallback reproduces dirname's own answer for a bare, slash-free invocation.
+# Write, Edit, NotebookEdit, Agent and Workflow. In the default advisory
+# posture the kill switch and the MODE check both sit above every source, so
+# a no-op fire never parses hook-utils.sh. The `.` fallback reproduces dirname's
+# own answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
+
+# Default advisory posture: this gate is inert. Guidance comes from
+# zone-crossing-inject.sh. Hoist above every source — the two library files are
+# the entire cost of the default path, and parsing them to discover MODE is
+# advisory is the cost the hoist avoids. Same shape as the kill-switch hoist:
+# the predicate is inlined because the library IS the cost.
+[[ "${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}" == "blocking" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
-
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
-
-MODE="${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}"
-# Pure inapplicability: the gate exists only in blocking mode; the advisory
-# posture's visible surface is the injection hook.
-[[ "$MODE" == "blocking" ]] || exit 0
 
 START_EPOCH=${EPOCHREALTIME:-0}
 # Not absolutized through `cd … && pwd`: this path is only ever handed to
@@ -159,7 +166,7 @@ if ((count <= GRACE)); then
 fi
 
 TOOL=$(hook::jq_field "$INPUT" '.tool_name') || TOOL="tool"
-reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed), or write a resume file whose path contains 'handoff'. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
+reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from this gate. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
 jq -n --arg reason "$reason" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
 hook::emit_telemetry "zone-gate" "PreToolUse" "blocked" "$START_EPOCH" \

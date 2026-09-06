@@ -91,7 +91,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   manifest". An undeclared key silently cannot be set through native config surfaces (a raw
   settings `env` block still works). That is why `stdin_read_timeout` is declared in this
   plugin's manifest even though the shared hook lib supplies its default; hook plugins reusing
-  the shared lib should declare it too (claude-ops set the precedent).
+  the shared lib should declare it too.
 - **`--config`'s post-install behavior is undocumented, so the guidance above rests on
   observation.** The official docs describe `--config` only as a `claude plugin install` flag
   and say nothing about an already-installed plugin. The verified-version record — which CLI

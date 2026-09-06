@@ -1,4 +1,5 @@
 {
+  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit.",
   "hooks": {
     "PostToolUse": [
       {

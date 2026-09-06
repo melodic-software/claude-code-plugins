@@ -3,6 +3,67 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16]
+
+### Changed
+
+- **`audit`:** the description's eight quoted trigger phrases became three intent clauses; the
+  scope note dropped "this cycle", the `recomputed-expectation` gotcha dropped "not yet", and the
+  platform-skip gotcha now states the detector boundary without the history of a rule that never
+  shipped.
+- **`diagnose`:** the fix step no longer invites Boy Scout cleanup inside a bug fix, the regression
+  step states the side-effect reason once instead of three times, and both context files dropped
+  their marketplace-skill sections naming plugins that exist in no installed marketplace.
+- **`plan`:** dropped the marketplace-skill section naming plugins that exist in no installed
+  marketplace.
+- **`run-e2e`:** the description's six quoted trigger phrases became three intent clauses; a missing
+  Playwright CLI now routes to the user instead of a global install; GIF recording follows the
+  resolved `recording` key rather than firing on every multi-step flow; the `/verify` handoff states
+  the current rule without the release-by-release history; caps emphasis on the e2e route, semantic
+  locators, and the prerequisite check became plain instructions; the duplicated after-testing
+  handoff moved into the SKILL.md handoff, which now carries the structured-log step; `headless` no
+  longer describes itself as preserving current behavior.
+- **`write`:** the description's five quoted trigger phrases became three intent clauses; the
+  vertical-slice rule leads with the positive form; the pre-coding interface check confirms with the
+  user only when the session is interactive and the change is material; the refactor step keeps
+  cleanup inside the slice and notes the rest as follow-ups; two config keys no schema defines became
+  plain references to the project's own conventions; a hollow "Current state" section and both
+  marketplace-skill sections are gone.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.7.15]
+
+### Fixed
+
+- **`diagnose`, `plan`, `run-e2e`, `write`:** the git pre-compute lines moved out of `##
+  Pre-computed context` into a "Repository context. Gather first" body section of individual Bash
+  calls, one command per call, each `head` bound kept inside its command and a failure read as an
+  unknown value. The harness composes a skill's whole pre-compute block into one shell invocation,
+  and a worktree-isolated session refuses a git-bearing compound command, which blocked these skills
+  from loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git
+  pre-compute lines stay where they were.
+
+## [0.7.14]
+
+### Changed
+
+- **`audit/scripts/cant-fail-scan.sh`: one write-only tally removed.** `x_cf2`
+  counted `cant-fail-ok:` exemptions of the `recomputed-expectation` rule and
+  nothing ever read it. Its two siblings do have readers: `x_cf1` and `x_cf3` feed
+  `fired_blocks` and the two `declined_*` figures the coverage line prints, and
+  the line itself says in words that `recomputed-expectation` is not tallied,
+  being line-scoped. The aggregate `exempted` counter had already counted the
+  record. The `recomputed-expectation)` case arm stays, now empty with a comment
+  giving that reason, so an exemption for the rule is still recognized rather than
+  falling through to the "unknown exempt rule" drift report.
+- **The same file is now shfmt canonical.** Its `case` blocks indented their
+  labels one level in, which shfmt's default form does not. Measured rather than
+  eyeballed: `shfmt -d` (v3.12.0, taking `indent_size = 2` from `.editorconfig`)
+  reports no change against the new file and 630 diff lines against the old one,
+  and `git diff -w` between the two revisions shows only the `x_cf2` removal and
+  its replacement comment. No output string, exit code or public surface moved.
+
 ## [0.7.13]
 
 ### Changed

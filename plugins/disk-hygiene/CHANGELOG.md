@@ -3,6 +3,61 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.9]
+
+### Changed
+
+- `hygiene.py`'s home-match docstring writes its case-variant example with a `<user>` placeholder,
+  and the tests that need a real home value compose it (`Path("/Users") / "alice"`,
+  `Path("/home") / "missing"`) instead of spelling one literal. The values the tests compare are
+  byte-identical to before, so every assertion proves what it did. The `clean` eval prompt and the
+  launch-monitor transcript fixture take the same placeholder treatment. The org
+  machine-specific-path detector reads a literal user-home or checkout path as a leaked machine
+  path wherever it appears, including inside a test.
+
+## [0.21.8]
+
+### Changed
+
+- **clean:** the frontmatter hook comments, the `--execute` sentence, the Dev Drive sentence, and
+  the Gotchas opener state the current rule without issue numbers or a diff against an earlier
+  wording. `reference/safety-model.md` states the Windows and macOS decline, the flagged-spelling
+  set, the kill-switch delivery, the hook launch form, the guard failure detector, the
+  `user_config` prohibition, the scratchpad rule, and the roll-up guarantee as present-tense rules
+  with no issue numbers, plugin version pins, dates, or measured figures. One issue number is
+  dropped from `reference/unsupported-platform-handoff.md`. Upstream `anthropics/claude-code` issue
+  pointers stay.
+- **setup:** two issue-number parentheticals removed; the guard's kill-switch scope now says
+  managed settings are read first, then the user file, matching `lib/killswitch_config.py`.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.21.7]
+
+### Added
+
+- **Both PreToolUse rows carry a `statusMessage`.** The Stop row already had
+  one, so a silent destructive-guard failure was legible while the guard itself
+  ran unnamed: the spinner said nothing for up to 60 s on a Bash call that
+  could be blocked. Now "Checking the disk-hygiene delete against its authorized
+  roots..." on both the Bash and PowerShell rows. (#3719)
+- **`hooks/hooks.json` carries a top-level `description`.** One line naming what
+  this plugin's hook set does, on a field the hooks reference documents as
+  optional and every hook set here omitted. (#3719)
+
+## [0.21.6]
+
+### Changed
+
+- **`hook_telemetry.py` drops `telemetry_enabled()`, which had no caller.** The
+  search was repo-wide rather than plugin-local: the only live spelling is the
+  bash `hook::telemetry_enabled` elsewhere, the telemetry contract doc never
+  names the Python function, no test touches it, and `emit()` already
+  self-guards on an unset sink. The guard imports the module but never calls
+  it. Nothing else in this group moved, because the remaining files are
+  allow/deny and fail-closed surface that the sweep's safety boundary keeps out
+  of scope. The pinned ruff wrapper is clean and the telemetry suite ran 3 of 3.
+
 ## [0.21.5]
 
 ### Changed

@@ -58,8 +58,8 @@ one marking the PR `C5`, each failing closed to `C5` when its field is missing o
 - **Trust test:** `C5` unless one arm positively passes — `authorAssociation` `OWNER` or
   `MEMBER`, or the author is a structural bot (`[bot]` login suffix or provider `Bot` type)
   listed in the TARGET repository's team-tracked, default-branch
-  `babysit_loop_trusted_internal_bot_logins` (grammar, binding, and fail-closed empty set:
-  `plugins/source-control/reference/config-resolution.md`, "the C5 trust test's one reviewed
+  `babysit_loop_trusted_internal_bot_logins` (grammar, binding, and fail-closed empty set: the
+  `source-control` plugin's `reference/config-resolution.md`, "the C5 trust test's one reviewed
   widening"). A listing never bypasses the fork test.
 
 A fork PR closing an internally classified `C2`/`C3` issue is still `C5` — the class travels
@@ -72,10 +72,10 @@ failing closed to `C5` when any field it needs is missing or unreadable:
   `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login
   matches an entry in the same TARGET repository's team-tracked, default-branch
   `babysit_loop_trusted_internal_bot_logins` list the PR trust test uses (same grammar,
-  binding, and fail-closed empty set — repository-owned automation identities are never org
+  binding, and fail-closed empty set; repository-owned automation identities are never org
   `MEMBER` accounts, so without this second arm the org's own lane bots would be classified as
-  untrusted on the issue surface as they were on the PR surface before #1525). Neither arm
-  positively passing — including when `authorAssociation` is absent or unreadable — is `C5`.
+  untrusted on the issue surface). Neither arm positively passing, including when
+  `authorAssociation` is absent or unreadable, is `C5`.
 
 The issue test keys on the issue author only. It is not a lookup of anything in the issue's
 title, body, or comments; those surfaces are attacker-writable and are evaluated as data,
@@ -134,13 +134,11 @@ auto-merge with it.
 
 ### What may never enter a predicate
 
-**An acceptance or merge rate is never a promotion input, and it is not an efficacy signal**
-— in either role, at any cell, at any threshold. One finding is verified at primary source and is
-the strongest statement of the point — Lenarduzzi et al.'s: *"code quality turned out not to affect
-the acceptance of a pull request at all."* The survey behind this contract found observational,
-regression, and randomized work pointing the same way, but only that one was checked against its
-source, so it is the one this rule rests on. A predicate built on acceptance would therefore promote throughput while claiming to
-measure trustworthiness.
+**An acceptance or merge rate is never a promotion input, and it is not an efficacy signal**, in
+either role, at any cell, at any threshold. The strongest statement of the point is Lenarduzzi et
+al.'s finding: *"code quality turned out not to affect the acceptance of a pull request at all."*
+A predicate built on acceptance would therefore promote throughput while claiming to measure
+trustworthiness.
 
 This does not touch the predicates above, and the distinction is worth stating because two of their
 terms sit close to the line.
@@ -168,9 +166,7 @@ ratio of accepted to attempted.
 ### Reviewer-burden term — DEFERRED, with a trigger
 
 A reviewer-burden term (how much human review effort a cell's output actually costs) is a
-**candidate predicate input, deliberately not a live term.** It is recorded rather than omitted
-because a designated planning pass was asked to settle it and silence would leave that obligation
-unfilled.
+**candidate predicate input, deliberately not a live term.**
 
 **Why deferred:** the term needs a denominator, and a denominator needs three things this contract
 does not have — a population to divide by, a non-merge outcome signal, and a lookback window with a

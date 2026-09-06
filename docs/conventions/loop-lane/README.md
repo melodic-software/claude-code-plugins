@@ -166,10 +166,11 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 ~30 minutes later — 3 minutes *after* the PR had merged).
 
 - **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
-  server-side: the org ruleset requires the `do-not-merge` status check, and the workflow behind it
-  re-evaluates on `labeled`/`unlabeled`, so applying the label flips a SHA-bound required check with
-  no bypass actors. A PR **comment is never a hold** — comments are advisory by construction; no
-  gate reads them, and an escalation comment on the PR obliges nothing until the label is on.
+  server-side: the org ruleset requires the `ci-status` check, whose `pr-contract` step fails on the
+  `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
+  SHA-bound required check with no bypass actors. A PR **comment is never a hold** — comments are
+  advisory by construction; no gate reads them, and an escalation comment on the PR obliges
+  nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge` — before drafting the escalation comment, before assembling the supporting
   evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a
@@ -831,12 +832,14 @@ no machine, org size, or budget"
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
 gap changes no lane's obligations today; it removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and it is designed elsewhere.** `TODO(#1218)` owns the
-design across all three sides — a writer-side identity field in the tee shape, reader-side
-invalidation of latched state on identity change, and the re-audit of every lane body's inlined
-guard floor that a floor change obliges. This section is deliberately not the place that decides
-them: it records the gap and defers, so that when the design lands it replaces a stated gap rather
-than contradicting a stated invariant.
+**The resolution is account identity, and its writer-side half has landed.** The tee now carries an
+`account.email` field naming the account whose windows a snapshot describes, present whenever the
+writer could attribute the observation and absent rather than wrong when it could not
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). The other two sides
+are not built: reader-side invalidation of latched state on an identity change, and the re-audit
+of every lane body's inlined guard floor. No lane acts on the field yet, so the gap above narrows
+rather than closes — a lane can now be told whose windows it is reading, and is not yet obliged to
+do anything about the answer.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the

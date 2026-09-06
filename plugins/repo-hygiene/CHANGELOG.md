@@ -3,6 +3,86 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.33]
+
+### Changed
+
+- The batch layer's path-normalization examples use a `<drive>` placeholder in
+  `lib/batch-common.sh` and in the `clean-batch` context document, and the case-folding test in
+  `git-tree-reset-batch.test.sh` probes `<drive>:/Repos/Acme/KeepMe`. `clean_path_key` only folds
+  case and separators, so the skip-list assertion matches exactly the segments it matched before.
+
+### Fixed
+
+- One in-place correction inside an already-released entry: the `[0.6.0]` batch-normalization
+  bullet writes the git-friendly form as `<drive>:/repos/...`. The entry still claims what it
+  claimed; the drive letter was never the point.
+
+## [0.10.32]
+
+### Changed
+
+- clean: `reference/invocation-forms.md` states the two-form rule without the issue references, the decide-lane verdict, or the Related list; the SKILL.md pointer to it drops "decide-lane verdict"; the description names five intent categories with five exact phrases instead of fourteen near-synonyms.
+- clean: `context/git-tree-reset-batch.md` no longer narrates the incident behind the guards, says the selective tiers have their own batch form instead of calling it unbuilt, and names the consequence of `--include-dirty` (uncommitted work discarded unrecoverably) at both gate sites; `context/action-router.md` drops "now" from the `tree` preserve note; the two roadmap asides in `context/clean-batch.md` and `reference/cleanup-config.md` are removed.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.10.31]
+
+### Fixed
+
+- **`clean`:** the git pre-compute lines moved out of `## Pre-computed context` into a "Repository
+  context. Gather first" body section of individual Bash calls, one command per call, each `head`
+  bound kept inside its command and a failure read as an unknown value. The harness composes a
+  skill's whole pre-compute block into one shell invocation, and a worktree-isolated session refuses
+  a git-bearing compound command, which blocked these skills from loading inside a worktree. Same
+  shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where they were.
+
+## [0.10.30]
+
+### Changed
+
+- **The clean skill's token and tier loops are now named helpers.** In
+  `resolve-clean-action.sh`, four sites that lower-cased a token and then resolved it become one
+  `resolve_token`; in `scan.sh`, the two identical candidate loops become `emit_tier`. Nothing
+  that decides which paths are selected, what is deleted, or when a removal becomes real was
+  altered. The tier enumeration deliberately keeps its input as a redirection rather than a pipe,
+  so `emit_path_line`'s byte accumulation still happens in the calling shell; a comment records
+  why, because a pipe there would silently zero the reported total.
+- **`git-tree-reset-batch.sh` reads its child's labels through one `child_label` helper and
+  resolves the child's mode once** outside the per-repo loop instead of re-deriving it with a
+  command substitution per repository. Three call sites previously spelled out the same
+  `printf | sed | head` pipeline.
+- **The two batch orchestrators' shared skip-list handling now lives in `lib/batch-common.sh`.**
+  `clean-batch.sh` and `git-tree-reset-batch.sh` each carried their own copy of the skip-list match
+  loop, the `SKIP_HITS` initialization and the unmatched-skip report loop; these become
+  `batch_skip_match`, `batch_reset_skip_hits` and `batch_report_unmatched_skips`. Both properties
+  the match loop relies on are preserved: the last matching entry is the one reported, and every
+  matching entry is marked hit. Each caller's own rationale comment stays at its call site rather
+  than moving into the helper.
+  The `SKIP_HITS` initialization was moved rather than dropped, because it is not a dead store:
+  replacing its zero-fill with a different value makes every `UnmatchedSkip` line disappear.
+- **`git-tree-reset-batch.sh` deliberately keeps its own repo-resolution loop** instead of adopting
+  `batch_resolve_repos`, and the header comment now records the input that shows why rather than
+  only the conclusion. For a git repository whose directory name contains a literal backslash, the
+  inline loop resolves it and would reset it, while the shared helper folds the name to a
+  non-existent path and reports it invalid. Silently dropping a repository the caller named is the
+  defect class this tier exists to close. The `--repos-from` and `--skip-from` contract text is
+  likewise kept per entry point: it lives in each `usage()` heredoc, so it is program output rather
+  than comment, and the two are not identical.
+- **Two redundant guards collapsed in `git-branch-audit.sh`**, where
+  `[[ -n "${PR_STATE[$b]:-}" && "${PR_STATE[$b]}" == "MERGED" ]]` tests emptiness before an
+  equality that already excludes it. Tier assignment for MERGED and CLOSED branches is unchanged.
+- **Four suite helpers named.** `mk_git_shim` replaces eight hand-rolled
+  mkdir/heredoc/chmod triples across the two tree-reset suites, `make_ignoring_repo` replaces
+  three copies of the pushed-repo-with-gitignore fixture in `remove-path.test.sh`,
+  `expect_single_a` replaces three copies of the same read assertion in `batch-common.test.sh`,
+  and `run_scan` replaces three copies of the exported-git-env invocation in `scan.test.sh`.
+- **Smaller shape cleanups**: `clean-batch.sh`'s `summary_line` reads a here-string instead of
+  spawning `printf` into `sed`, matching the `summary_field` beside it; `git-tree-reset.sh` drops
+  a `:-0` default on a variable initialized above it and normalizes one here-string's spacing;
+  and `cleanup-paths.test.sh` drops an awk clause that re-excluded the heading its own first rule
+  had already consumed with `next`.
+
 ## [0.10.29]
 
 ### Fixed
@@ -573,7 +653,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   is never touched. (#994)
 - **Central path normalization + shared-object-store dedup in the batch layer**
   (`lib/batch-common.sh`). `ghq list -p` backslash paths are normalized once to the
-  git-friendly `D:/repos/...` forward-slash form (backslashes break `xargs` and
+  git-friendly `<drive>:/repos/...` forward-slash form (backslashes break `xargs` and
   `[[ -d ]]`; `git check-ignore` rejects MSYS `/d/…` forms). The `git` tier groups
   repos by unique `git rev-parse --git-common-dir` and prunes each shared object
   store once, not once per linked worktree. (#994)

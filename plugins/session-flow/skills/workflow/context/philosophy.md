@@ -17,10 +17,6 @@ More tokens and more time are acceptable — even encouraged — when they produ
 prevent rework. Insufficient research is a leading source of rework. If context is healthy, invest
 in depth; context pressure (approaching compaction) is the budget constraint, not effort.
 
-## No assumptions
-
-Default to high confidence and accuracy; verify specifics and edge cases before submitting.
-
 ## Task tracking
 
 For non-trivial work (3+ stages), create tasks at the START, update status as you go. Tasks make
