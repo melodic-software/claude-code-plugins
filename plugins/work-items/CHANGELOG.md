@@ -12,8 +12,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   projects each node down to `id`, `number`, `title`, `url`, `state` and drops the `repository`
   object, so the old predicate matched no node and every container enumerated as childless,
   which also blinded `list-frontier --parent` and container rollup. A node that does carry
-  `repository.nameWithOwner` still filters on it. The adapter README records the projection and
-  the gh version the fix was checked against.
+  `repository.nameWithOwner` still filters on it. A node attributable to neither field is still
+  dropped, but the verb now names it on stderr, so a further narrowing of gh's projection shows
+  up as a message rather than as another silently empty list; a node in a different repo stays a
+  silent drop, since that is the documented cross-repo truncation. The adapter README records the
+  projection and the gh version the fix was checked against.
 
 ## [0.39.65]
 

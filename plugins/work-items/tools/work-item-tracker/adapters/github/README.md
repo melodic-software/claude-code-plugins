@@ -419,7 +419,10 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   owner/repo from the node's `url` instead (`<host>/<owner>/<repo>/issues/<n>`), or request
   `repository { nameWithOwner }` through `gh api graphql`, which does return it. Verified
   against gh 2.97.0; the projection is unchanged from 2.94.0, the sub-issue floor, through
-  2.98.0.
+  2.98.0. A node the adapter can attribute to neither field is dropped and named on stderr, so
+  a further narrowing of the projection surfaces as a message instead of as another silently
+  empty list. A node attributed to a *different* repo is dropped silently: that one is the
+  documented cross-repo truncation, not a fault.
 - **Keep body edits inside the UTF-8-safe pipeline; force UTF-8 anywhere they leave it.**
   `--json`/`--jq`, `gh api`, the bash `>` redirect, and `--body-file` pass the encoding through
   untouched, so the read-modify-write shapes above never transcode. That is an encoding guarantee,

@@ -52,8 +52,17 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 # `url` is `<host>/<owner>/<repo>/issues/<n>`, so owner/repo are the two path
 # segments before `issues`. `repository.nameWithOwner` still wins where a gh
 # build does emit it; a node attributable to neither repo is dropped, as before.
+#
+# Two different drops, only one of them expected. A node resolving to ANOTHER
+# repo is out of scope for this number-keyed intersect and stays silent
+# (CONTRACT.md "Adapter contract": a documented truncation, not an error). A node
+# resolving to NO repo means neither field parsed — the shape #3825 was, where a
+# projection change blinds the verb with an empty list and no signal. That case
+# gets a one-line stderr note so the next projection change is visible instead of
+# silent. It cannot fire on well-formed input: every node gh emits carries a
+# `url`. stdout stays the machine-parseable envelope either way.
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
-child_nums="$(jq -c --arg repo "$target_repo" '
+scoped="$(jq -c --arg repo "$target_repo" '
   def node_repo:
     (.repository.nameWithOwner? // null)
     // (((.url // "") | split("/")) as $seg
@@ -61,8 +70,19 @@ child_nums="$(jq -c --arg repo "$target_repo" '
           then ($seg[-4:-2] | join("/"))
           else null
           end);
-  [(.subIssues.nodes // [])[] | select(node_repo == $repo) | .number]
+  [(.subIssues.nodes // [])[] | {n: .number, r: node_repo}] as $nodes
+  | {
+      nums: [$nodes[] | select(.r == $repo) | .n],
+      unattributed: [$nodes[] | select(.r == null) | (.n // "?") | tostring]
+    }
 ' <<<"$WIT_GH_OUT")"
+child_nums="$(jq -c '.nums' <<<"$scoped")"
+
+unattributed="$(jq -r '.unattributed | join(", ")' <<<"$scoped")"
+if [[ -n "$unattributed" ]]; then
+  printf '%s: dropped subIssues node(s) with no derivable repo (number: %s); neither repository.nameWithOwner nor the node url parsed, so the subIssues projection may have changed (#3825)\n' \
+    "$(basename "${BASH_SOURCE[0]}")" "$unattributed" >&2
+fi
 
 if [[ "$child_nums" == "[]" ]]; then
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'
