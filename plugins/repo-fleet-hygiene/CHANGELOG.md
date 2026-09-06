@@ -3,6 +3,14 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.19]
+
+### Changed
+
+- `audit-fleet.sh`'s worktree-containment comment writes both drive spellings with a `<repo>`
+  placeholder. The contrast it draws between the filesystem form and the git-emitted form is
+  unchanged, and the org machine-specific-path detector no longer reads the example as a leaked path.
+
 ## [0.23.18]
 
 ### Changed

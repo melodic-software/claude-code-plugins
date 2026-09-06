@@ -146,8 +146,8 @@ describe("expandPathValue", () => {
   });
 
   it("keeps Windows backslashes intact in substituted values", () => {
-    const env = { KNOWLEDGE_CORPUS_DIR: "D:\\repos\\knowledge-corpus" };
-    expect(expandPathValue("${KNOWLEDGE_CORPUS_DIR}", env, home)).toBe("D:\\repos\\knowledge-corpus");
+    const env = { KNOWLEDGE_CORPUS_DIR: "D:\\repos\\<corpus>" };
+    expect(expandPathValue("${KNOWLEDGE_CORPUS_DIR}", env, home)).toBe("D:\\repos\\<corpus>");
   });
 
   it("throws on an unset or empty referenced variable", () => {

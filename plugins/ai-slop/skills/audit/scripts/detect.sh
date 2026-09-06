@@ -471,7 +471,7 @@ fi
 # this a directory fails the scan loop's -f test and is skipped silently.
 #
 # ONE anchor, the caller's own spelling of the directory. A directory has
-# several spellings on Git Bash: git answers `C:/Users/...` for the same
+# several spellings on Git Bash: git answers `C:/Users/<user>/...` for the same
 # checkout a shell reaches as `/tmp/...`. The earlier expansion built its
 # prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
 # any host where those disagree no candidate survived the filter and the walk

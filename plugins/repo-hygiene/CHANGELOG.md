@@ -3,6 +3,21 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.33]
+
+### Changed
+
+- The batch layer's path-normalization examples use a `<drive>` placeholder in
+  `lib/batch-common.sh` and in the `clean-batch` context document, and the case-folding test in
+  `git-tree-reset-batch.test.sh` probes `<drive>:/Repos/Acme/KeepMe`. `clean_path_key` only folds
+  case and separators, so the skip-list assertion matches exactly the segments it matched before.
+
+### Fixed
+
+- One in-place correction inside an already-released entry: the `[0.6.0]` batch-normalization
+  bullet writes the git-friendly form as `<drive>:/repos/...`. The entry still claims what it
+  claimed; the drive letter was never the point.
+
 ## [0.10.32]
 
 ### Changed
@@ -638,7 +653,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   is never touched. (#994)
 - **Central path normalization + shared-object-store dedup in the batch layer**
   (`lib/batch-common.sh`). `ghq list -p` backslash paths are normalized once to the
-  git-friendly `D:/repos/...` forward-slash form (backslashes break `xargs` and
+  git-friendly `<drive>:/repos/...` forward-slash form (backslashes break `xargs` and
   `[[ -d ]]`; `git check-ignore` rejects MSYS `/d/…` forms). The `git` tier groups
   repos by unique `git rev-parse --git-common-dir` and prunes each shared object
   store once, not once per linked worktree. (#994)

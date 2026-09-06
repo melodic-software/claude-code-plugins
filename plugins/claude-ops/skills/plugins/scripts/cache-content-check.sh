@@ -249,7 +249,7 @@ json_string_to() {
   printf -v "$1" '"%s"' "$__js_s"
 }
 
-# Native Windows paths (`C:\Users\…`) come out of installed_plugins.json and
+# Native Windows paths (`C:\Users\<user>\…`) come out of installed_plugins.json and
 # known_marketplaces.json verbatim. Backslash is an escape character in the
 # shell, so every such value is folded to forward slashes before any `-d` test
 # or `git -C`; Git Bash accepts the `C:/…` spelling for both.
