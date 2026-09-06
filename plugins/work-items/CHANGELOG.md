@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.67]
+
+### Fixed
+
+- **GitHub adapter: sub-issue rollup no longer returns empty.** `list-sub-items` and
+  `list-frontier --parent` filtered `subIssues.nodes` on `.repository.nameWithOwner`, a field
+  `gh issue view --json subIssues` does not emit (verified against gh 2.97.0), so every node was
+  discarded and both verbs returned an empty set on every repository. The same-repo predicate now
+  derives each child's repository from its `url`, falls back to `repository.nameWithOwner` for
+  GraphQL-shaped payloads, and treats a node carrying neither field as same-repo. Extracted to
+  `wit_gh_subissue_child_numbers` in `common.sh` and covered by offline verb tests that serve the
+  real gh 2.97 projection.
+
 ## [0.39.66]
 
 ### Changed
