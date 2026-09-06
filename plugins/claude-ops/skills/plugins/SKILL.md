@@ -240,6 +240,15 @@ observe three boundaries:
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
   another plugin's configuration to find out.
 
+A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
+carries an `enabledPlugins` block mirroring what the user already has at user scope is a source of
+these rows, because a project-scope entry takes precedence over user scope and so gets its own
+version-pinned record keyed by that absolute path, one per plugin per checkout. Nothing on the other
+side reaps the result either: `git worktree remove` does not touch `~/.claude`, and the product's
+documented retention sweep covers nothing under `~/.claude/plugins/`.
+[context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
+why the skill cannot reap them" holds the sourcing, including the two questions still open.
+
 Give the section a count plus the distinct paths, not one row per record, a hundred records naming
 a dozen directories is a report about a dozen directories:
 
