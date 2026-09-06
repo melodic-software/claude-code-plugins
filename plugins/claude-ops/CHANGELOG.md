@@ -3,6 +3,33 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.22]
+
+### Changed
+
+- **`hook-failure-audit` costs half the processes it did on a turn with no hook failure.** The
+  Stop-event detector timed out 113 times in the #3508 window at a 21.9 s average, and the cause was
+  redirection placement, not the per-field `jq` forks the parent issue blamed (shard #3520 and PR
+  #3788 established that twice). Bash runs the command of a command substitution in the
+  substitution's own subshell and skips the extra fork only when that command carries no redirection
+  of its own, so `$(wc -c <file 2>/dev/null)` and `$(cat -- file 2>/dev/null)` each paid a whole
+  process for a redirect. Six sites in `hook-failure-audit.sh` changed and no shared library did:
+  `wc` now names the file and `read` drops the filename column; the `read_window` helper is gone and
+  `grep` opens the transcript directly under the tail cap instead of being fed by `cat` through a
+  function call that was a second subshell; the marker read is `$(<file)`, which forks nothing at
+  all; the marker write strips carriage returns in the shell rather than through a `tr` pipeline;
+  the marker directory is probed with `-d` before `mkdir -p` spawns; and the two payload fields come
+  from one `hook::jq_fields` pass instead of two `hook::jq_field` calls. Over the tail cap the
+  `tail | sed | grep` pipeline and its redirect placement are untouched, because a pipeline element
+  forks either way and hoisting the redirect would newly silence `sed` and `grep`. The common path
+  went from **18 process creations and 6 execs to 9 and 4**, measured with `strace -ff -e
+  trace=clone,clone3,fork,vfork,execve`; the equal-work `execve` drop is one batched `jq` and two
+  removed helper processes, not removed detection. Wall clock is not reported: a Linux runner says
+  nothing about the Windows spawn tax the budget binds to, and on the #3508 host one creation costs
+  180-2,841 ms. `hook-failure-audit.test.sh` gains an strace budget assertion on both counts, since
+  xtrace cannot see these forks (it reads command positions), and the plugin README states the
+  measured share per hook-budget Rule 1.
+
 ## [0.42.21]
 
 ### Changed

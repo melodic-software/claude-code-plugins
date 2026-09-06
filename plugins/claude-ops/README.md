@@ -75,6 +75,25 @@ plugin, not in the plugin it might report on, deliberately: an in-plugin
 detector shares its plugin's registration form and dies with it, which is
 exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 
+Its budget share is stated as a **process count**, not a duration, and the host
+is the reason. The [hook-budget
+convention](../../docs/conventions/hook-budget/README.md) gives the whole
+always-on per-turn set 500 ms of parallel wall, and on the host in #3508 one
+process creation costs 180-2,841 ms (median 1,108 ms at 501 concurrent
+processes), so the count is what decides whether the set fits and a duration
+measured anywhere else does not transfer. On a turn with **no** hook failure
+recorded, the common case, the hook costs **9 process creations and 4 program
+execs**: one `wc` for the tail-cap decision, one `grep` pre-filter that opens
+the transcript directly, and two `jq` passes inside the synced `hook-utils.sh`.
+The creations above that are subshell forks inside the same shared library. It
+was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
+-e trace=clone,clone3,fork,vfork,execve`, not `bash -x`: a command substitution
+whose command carries its own redirection forks a subshell that xtrace cannot
+see, and those forks were most of the cost. `hook-failure-audit.test.sh`
+asserts both ceilings. Windows Git Bash, the host the convention binds to,
+stays unmeasured for this row, so the parallel-wall figure there and the
+comparison against 500 ms it feeds are still owed.
+
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
 user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
