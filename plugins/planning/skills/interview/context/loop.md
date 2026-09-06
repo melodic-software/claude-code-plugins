@@ -286,6 +286,31 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
+Two behaviours attach here, both defined in the SKILL.md section "Acceptance-criteria capture" and summarized below for the writer of this section.
+
+**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behaviour** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register — it carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended — declared, never sniffed) SKIPS the ask, states in its returned summary that unwanted-behaviour and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`.
+
+**Pattern tags, only under the `ears` convention.** With `acceptance_criteria_format` resolving to `free-text` (the default and every degrade), criteria are emitted untagged, exactly as the template placeholder shows. With it resolving to `ears`, each criterion takes a bracketed pattern prefix on that same plain bullet, drawn from exactly these five names:
+
+| Tag | Pattern |
+|---|---|
+| `[ubiquitous]` | an always-true requirement, no trigger and no state |
+| `[event-driven]` | `WHEN <trigger>, <response>` |
+| `[state-driven]` | `WHILE <state>, <response>` |
+| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[optional-feature]` | `WHERE <feature is included>, <response>` |
+
+```text
+### Acceptance criteria
+- [ubiquitous] The manifest is valid JSON at rest
+- [event-driven] WHEN the upload completes, the manifest is rewritten
+- [state-driven] WHILE a rebuild is in flight, reads are served from the previous manifest
+- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
+```
+
+`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature` — spelled exactly that way. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
+
 **Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
@@ -323,5 +348,7 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 ## Plan
 <empty — populated by /planning:plan>
 ```
+
+**The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox — `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
 
 **Arbiter tag is load-bearing.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.
