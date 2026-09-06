@@ -19,8 +19,9 @@ anything else:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep it as a
 separate body Bash call rather than a pre-compute line: the harness runs a skill's whole
 pre-compute block as one shell invocation, and a worktree-isolated session refuses a compound
-command that contains git. The call **fails with no output** on a detached checkout rather than
-printing a sentinel, so read its exit status rather than matching on a string.
+command that contains git. The call prints the branch name on stdout and **fails with no output** on
+a detached checkout rather than printing a sentinel, so read its exit status to tell those two apart
+rather than matching on a string, and take the branch name itself from stdout.
 
 ## Purpose
 
@@ -137,10 +138,12 @@ resting on a line number derives a different id as soon as an edit above it move
 
 1. **Resolve the branch identity, then the artifact home**, exactly as
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Before the walk", step 1 does. The
-   branch call in "Repository context" above is the source of that identity, and **its exit status
-   is the datum**, not its output: a detached checkout produces no output and a non-zero status, and
-   an empty line is the answer rather than a missing one. Never accept the literal `HEAD` as an
-   identity. Run the topic-docs binding's whole rung order rather than assuming the default's shape.
+   branch call in "Repository context" above yields a branch name on stdout, or fails with no output
+   (detached HEAD or no checkout). **Read its exit status to decide whether the lookup succeeded,
+   then take the identity from stdout**: the status answers only whether there is a branch, and the
+   name itself is the output. Never infer an identity from a failed call, and never accept the
+   literal `HEAD` as one. Run the topic-docs binding's whole rung order rather than assuming the
+   default's shape.
 2. **Run the shared preflight**, `${CLAUDE_PLUGIN_ROOT}/skills/audit/context/surface-walk.md`,
    section "Preflight". Its sanctioning-record probe matters here: a repetition a record sanctions
    and a check maintains is never duplication to collapse.
