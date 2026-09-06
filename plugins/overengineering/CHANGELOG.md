@@ -49,7 +49,8 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   the owner from the lane's boundary and offering no rung, because its rollback ladder is
   enforcement-shaped. The operator still decides such a row: `REJECTED` records a keep and earns its
   durable judgment entry, and `DELEGATED-EXTERNAL` stays available where custody is upstream. What is
-  withheld is the ladder, not the decision. One eval covers it.
+  withheld is the ladder, not the decision. One eval covers the presentation and the withheld rung;
+  the disposition half is stated in the skill body and not yet graded.
 - **`delta` reports this lane's layers as not walkable rather than not walked**, since it composes
   `audit` and no cycle at any scope will compare them. `Basis` stays outside the spine and never
   enters the diff.

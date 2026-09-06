@@ -25,7 +25,7 @@ reports do:
 
 | Artifact | Type | Location (default) |
 |---|---|---|
-| Audit findings — written by `overengineering:audit`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
+| Audit findings — written by `overengineering:audit` and `overengineering:justify`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
 | Spine baseline — captured by `overengineering:delta` at the end of a cycle, for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
 
 What the baseline contains — its frontmatter, its body rules, its type — is owned by
@@ -83,9 +83,10 @@ follows the contract's "Non-interactive / forked mode" section, which is contrac
 here rather than redefined: skip the ask and persist rungs, take the resolved or documented default,
 and surface the assumption in the returned summary.
 
-**No project root.** The contract's fallback applies unchanged. All four skills read the
-repository's own enforcement surface, so a run outside a checkout has nothing to audit and stops
-before any write.
+**No project root.** The contract's fallback applies unchanged. Every skill here reads something
+inside a checkout, the enforcement surface for three of them and whatever artifact the operator
+points at for `justify`, so a run outside a checkout has nothing to judge and stops before any
+write.
 
 ## Branch slug
 
