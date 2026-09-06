@@ -26,13 +26,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Verdicts are unchanged: 244 paired runs against `origin/main` (61 commands,
   Bash and PowerShell payloads, standalone and dispatched, plus 70 KiB
   single-line and 3000-line commands) agree on exit code and first stderr
-  line, and the 611-case contract suite passes. The seventh creation,
-  `$(hook::buffer_stdin)`, remains: `hook::buffer_stdin_to` is `lib/hook-utils.sh`
-  work (#3740, #3838). Kernel census with
-  `strace -f -e trace=clone,clone3,fork,vfork,execve` on the dispatched path
-  (`run-guards.sh block-hook-bypass.sh`, this repository as cwd,
-  `HOOK_TELEMETRY_SINK` unset), guard share = count minus a no-op guard
-  dispatched the same way, three identical repeats: benign
+  line, and the 611-case contract suite passes. The creation that remains is
+  `$(hook::buffer_stdin)`; its fork-free form belongs to `lib/hook-utils.sh`
+  (#3740, #3838), so the "at most two spawns" line in #3513 is not closed
+  from inside this file.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve` on
+  the dispatched path (`run-guards.sh block-hook-bypass.sh`, this repository
+  as cwd, `HOOK_TELEMETRY_SINK` unset), guard share = count minus a no-op
+  guard dispatched the same way, three identical repeats: benign
   `git status --short` creations **7 -> 1**, execve **0 -> 0**; blocked
   `echo hi > notes.md` creations **10 -> 5**, execve **1 -> 1**. Whole Bash
   dispatcher on the benign payload: creations **36 -> 30**, execve **3 -> 3**
