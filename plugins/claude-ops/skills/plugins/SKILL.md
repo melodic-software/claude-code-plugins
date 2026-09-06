@@ -243,7 +243,8 @@ observe three boundaries:
 A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
 carries an `enabledPlugins` block mirroring what the user already has at user scope is the leading
 candidate source of these rows, but which code path writes them in a local terminal session is not
-verified, so do not report a count as the repository's doing.
+verified. Report the count and the distinct paths, and name the block as a candidate source rather
+than as the cause.
 [context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
 why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, the two
 questions still open, and the one-line probe that would settle the local write path.

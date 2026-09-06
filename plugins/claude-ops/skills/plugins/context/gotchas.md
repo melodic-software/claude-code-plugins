@@ -140,13 +140,14 @@ whose repos do not live on a permanently-attached local disk. Annotate; never su
 
 ## A large absent-path count is not evidence of careless installs
 
-The section above covers a record surviving its directory. This is the other half: a checkout can
-acquire dozens of records without anyone running an install in it.
+The section above covers a record surviving its directory. This is the other half: a checkout may
+acquire dozens of records without anyone running an install in it, though the write path behind that
+is not confirmed.
 
 What breaks: reading a large `projectPathPresent: false` count as a habit to correct. The count can
-scale with the repo's plugin list rather than with anyone's intent, so treat deliberate installs as
-one possible cause among others, and do not tell a user to stop installing at project scope until
-you know they did.
+scale with the repo's plugin list rather than with anyone's intent, so report the count and the
+distinct paths, treat deliberate installs as one possible cause among others, and do not tell a user
+to stop installing at project scope until you know they did.
 
 Sourcing, precedence, and the two questions still open on the local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
