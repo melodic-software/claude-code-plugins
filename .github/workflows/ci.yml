@@ -480,26 +480,10 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/exec-bit@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
 
-      # THE ONE REFERENCE IN THIS FILE HELD AT THE OLD SHA, deliberately. Every
-      # other ci-workflows reference here moved to v0.22.0; this one did not.
-      # At the wave tag this action detects five path classes, and on this
-      # repository all five fire on content that is not a machine-specific path
-      # at all: 40 hits across 22 files in ten plugins, every one of them prose
-      # naming the form the surrounding code parses, published CHANGELOG
-      # entries, or a fixture whose assertion subject IS the path. Three of
-      # those categories cannot be reworded — released history is released, and
-      # changing a fixture's literal changes what the test proves — and the
-      # action's only lever is a file-level exclude, so silencing 40 phrases
-      # would take 22 files and ten plugins out of the scan entirely.
-      #
-      # melodic-software/ci-workflows#549 carries the detection-precision
-      # report upstream; claude-code-plugins#3699 tracks repinning this line to
-      # the wave tag once that lands, and Phase 6b's convergence work now has
-      # this reference in its input set alongside the eight in other files.
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@906ae7ef379ea4d2b8497f64475dce1d3d8715c4 # v0.22.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy

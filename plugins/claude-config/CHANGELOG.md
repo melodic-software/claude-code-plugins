@@ -3,6 +3,22 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.36]
+
+### Changed
+
+- `lib/state-key.test.sh` case 8 names its Windows-path remote with a `<central>` placeholder.
+  The assertions are that the remote is hashed and that no backslash reaches the key, and both
+  hold on any spelling of the segment.
+
+### Fixed
+
+- Two in-place corrections inside already-released entries, each replacing a literal
+  machine-specific path that the org detector reads as a leaked path. The `[0.35.3]` P2-findings
+  bullet drops its macOS home-path fragment and keeps the sentence, which already says the fragment
+  was eight characters; the `[0.31.0]` `audit-pass` bullet writes its example repository root with a
+  `<drive>` placeholder. Neither correction changes what either entry claims.
+
 ## [0.40.35]
 
 ### Changed
@@ -1256,7 +1272,7 @@ And review of *that* round caught the containment fix breaking the one run no fi
   to the detector: exempting it would have made an `error`-tier username-leak check blind to the
   documentation's own literal example of the leak.
 - **P2 findings report the full offending rule** rather than an eight-character path fragment
-  (`/Users/k`) an operator could not map back to any particular rule. This is the intent the file
+  an operator could not map back to any particular rule. This is the intent the file
   already stated for P1 and had never applied to P2.
 - **P2 reads every tool's rules, not five names.** While adding that full-rule capture the tool
   name was briefly enumerated as `(Read|Edit|Write|Bash|PowerShell)`, which silently stopped
@@ -1562,7 +1578,7 @@ repository rooted at or above `$HOME`, which a dotfiles repo is.
   construction.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`
   ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-11), and no
   documented setting relocates it — so the default report path is *inside* any target at or above `~`.
-  The sentence was true for an ordinary repo under `C:/Projects/…` and stated as a universal, while a
+  The sentence was true for an ordinary repo under `<drive>:/Projects/…` and stated as a universal, while a
   whole reachable target class falsifies it. It is now stated as what it is: outside a target below `~`,
   inside one at or above it. That claim was load-bearing for the read-only contract's headline property
   and for assertions 2.1 and 2.4.

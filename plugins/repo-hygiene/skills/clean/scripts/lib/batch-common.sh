@@ -19,8 +19,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/clean-common.sh"
 
 # batch_normalize_input <path> — echo a git-friendly path: backslashes to forward
 # slashes, strip a trailing CR, collapse trailing slashes. `ghq list -p` emits
-# `D:\repos\...` — backslashes break `xargs` (escapes eaten) and bash `[[ -d ]]`;
-# git and `git check-ignore` want the `D:/repos/...` drive-letter forward-slash
+# `<drive>:\repos\...` — backslashes break `xargs` (escapes eaten) and bash `[[ -d ]]`;
+# git and `git check-ignore` want the `<drive>:/repos/...` drive-letter forward-slash
 # form (git rev-parse --show-toplevel already emits it, so a normalized input
 # compares equal to a resolved toplevel). Drive letter is preserved as-is.
 batch_normalize_input() {

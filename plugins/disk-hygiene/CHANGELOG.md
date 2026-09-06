@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.9]
+
+### Changed
+
+- `hygiene.py`'s home-match docstring writes its case-variant example with a `<user>` placeholder,
+  and the tests that need a real home value compose it (`Path("/Users") / "alice"`,
+  `Path("/home") / "missing"`) instead of spelling one literal. The values the tests compare are
+  byte-identical to before, so every assertion proves what it did. The `clean` eval prompt and the
+  launch-monitor transcript fixture take the same placeholder treatment. The org
+  machine-specific-path detector reads a literal user-home or checkout path as a leaked machine
+  path wherever it appears, including inside a test.
+
 ## [0.21.8]
 
 ### Changed

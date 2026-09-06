@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.56]
+
+### Changed
+
+- `landed-work.sh` and `landed-work.test.sh` write both drive spellings with a `<repo>`
+  placeholder, and the two `pull-request` fetch tests say `C:/Users/<user>/...`. `path_key` only
+  swaps separators, folds the drive form and lowercases, so the MSYS-versus-Windows assertion
+  compares exactly what it compared before. The org machine-specific-path detector reads a literal
+  user-home or checkout path as a leaked machine path wherever it appears.
+
 ## [0.55.55]
 
 ### Changed

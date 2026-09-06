@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.35.3]
+
+### Changed
+
+- `test_parse_transcript.py`'s Windows cwd fixture names its project directory `<example>`. The
+  case proves that a Windows-style absolute path collapses against a Windows cwd, which holds on
+  any spelling of that segment, and the org machine-specific-path detector reads a literal checkout
+  path as a leaked machine path even inside a fixture.
+
 ## [0.35.2]
 
 ### Changed

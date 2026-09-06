@@ -209,7 +209,7 @@ resolve_repo_root() {
 # costs nothing.
 #
 # Without jq the path can only come from the jq-free raw extraction, which
-# returns it JSON-escaped (a Windows `D:\repos\...` arrives with its
+# returns it JSON-escaped (a Windows `<drive>:\repos\...` arrives with its
 # backslashes doubled). Undoing the three escapes a path can carry and then
 # requiring an existing file is self-validating: any other escape — \uXXXX, a
 # control escape — leaves a name nothing answers to, and the pre-check then
