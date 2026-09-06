@@ -75,9 +75,9 @@ rm -rf "$repo"
 # boundary, so a same-skill test that names the file would not consume it.
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''
-printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/x\\b.json"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/x\\b.json" # portability-ok: literal backslash in the fixture basename, not a GNU grep word boundary
 mkdir -p "$repo/plugins/p/skills/s/scripts"
-printf 'assert_on fixtures/x\\b.json\n' >"$repo/plugins/p/skills/s/scripts/thing.test.sh"
+printf 'assert_on fixtures/x\\b.json\n' >"$repo/plugins/p/skills/s/scripts/thing.test.sh" # portability-ok: names the same literal-backslash basename
 if run_check "$repo" >/dev/null; then ok "fixture basename with a single backslash is consumed when a same-skill test names it"; else fail "single-backslash basename not consumed (ere_escape_to missed a lone backslash)"; fi
 rm -rf "$repo"
 
