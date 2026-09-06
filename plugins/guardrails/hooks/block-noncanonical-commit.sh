@@ -95,6 +95,31 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh"
 
+# git-config (https://git-scm.com/docs/git-config, fetched 2026-09-06):
+# "aliases that hide existing Git commands are ignored except for deprecated
+# commands." A current builtin therefore cannot expand to a noncanonical
+# `commit -m`, so asking git for alias.<builtin> cannot change this gate's
+# verdict and can false-block when a leftover ignored alias happens to name
+# commit. Subset of `git --list-cmds=builtins` (git 2.43); names not listed
+# here are still probed. A subset is the safe direction.
+git_subcommand_ignores_alias() {
+  case "$1" in
+  add | am | annotate | apply | archive | bisect | blame | branch | bugreport | bundle | \
+    cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
+    checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
+    commit-tree | config | describe | diagnose | diff | diff-files | diff-index | diff-tree | \
+    difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
+    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | maintenance | merge | \
+    merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
+    replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
+    show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \
+    update-ref | version | whatchanged | worktree)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -780,7 +805,8 @@ check_segment() {
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
     # then `git c -m x` would otherwise pass. Ask git for the resolved value
     # (its own precedence applies) only when no inline alias already matched.
-    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
+      ! git_subcommand_ignores_alias "$sub"; then
       local pexp
       [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
       persisted_alias_expansions "$seg_dir" "$sub"
