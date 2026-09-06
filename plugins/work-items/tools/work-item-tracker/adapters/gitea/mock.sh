@@ -123,6 +123,32 @@ gitea_run() {
 gitea_out() { cat "$GITEA_FIX/stdout" 2>/dev/null; }
 gitea_err() { cat "$GITEA_FIX/stderr" 2>/dev/null; }
 
+# gitea_fixture_adapter <list_items_max> — a private copy of this adapter's verb scripts
+# under GITEA_FIX, in GITEA_FIX_ADAPTER, beside a capabilities.json that declares the given
+# paging ceiling. The verbs read their ceiling from the manifest next to them, so running
+# the copy's verb IS running under that ceiling: no override knob, and nothing in the
+# adapter knows it is under test. The copy's ../../lib does not exist, so run it as
+# `WIT_SEAM_LIB_DIR="$GITEA_SEAM_LIB" gitea_run "$GITEA_FIX_ADAPTER/<verb>.sh"`, the lib
+# the real adapter would have resolved for itself.
+GITEA_FIX_ADAPTER=""
+GITEA_SEAM_LIB=""
+gitea_fixture_adapter() {
+  local src f
+  src="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  GITEA_FIX_ADAPTER="$GITEA_FIX/adapter"
+  GITEA_SEAM_LIB="${WIT_SEAM_LIB_DIR:-$src/../../lib}"
+  rm -rf "$GITEA_FIX_ADAPTER"
+  mkdir -p "$GITEA_FIX_ADAPTER"
+  for f in "$src"/*.sh; do
+    case "$f" in
+    *.test.sh | */mock.sh) ;;
+    *) cp "$f" "$GITEA_FIX_ADAPTER/" ;;
+    esac
+  done
+  jq --argjson max "$1" '.limits.list_items_max = $max' "$src/capabilities.json" \
+    >"$GITEA_FIX_ADAPTER/capabilities.json"
+}
+
 # A stock Gitea issue payload, parameterized enough for the cases that need variation.
 # Field names are the real ones (modules/structs/issue.go), so a rename upstream shows
 # up here as a failing test rather than as a silently empty normalized field.
