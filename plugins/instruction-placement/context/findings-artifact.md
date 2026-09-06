@@ -5,8 +5,10 @@ nothing else. `realign` is its **only** mutating consumer and the only writer of
 into it. `check` never reads it at all — it verifies the repository's state directly, so a stale
 artifact can never make a broken repo look healthy.
 
-`delta` reads the artifact and writes a second, smaller file — the placement baseline — whose shape
-this document also owns, under "The baseline-capture obligation".
+`delta` reads the artifact and writes a second, smaller file — the spine baseline — whose shape this
+document also owns, under "The baseline-capture obligation". Operator decisions have a third home:
+the tracked finding-suppression surface, whose keys are the marketplace's and whose constituents are
+this document's, under "Finding ids and their constituents".
 
 All four skills read this document; none restates it.
 
@@ -51,11 +53,13 @@ Two properties the contract fixes:
   rather than depositing a timestamped sibling; the run timestamp lives in frontmatter where a
   reader and a diff can both find it.
 
-The findings artifact is **branch-scoped by design** — its line ranges are only true for the branch
-it was derived on, and a deleted memory root loses it. That is fine for evidence and
-classifications, which are recomputed. It is not fine for operator decisions, which is why a
-`declined` decision is mirrored into the baseline below, whose path carries no branch segment and no
-checkout discriminator, and why an applied move is reconstructable from the repository's own git
+The findings artifact is **branch-scoped and checkout-local by design** — its line ranges are only
+true for the branch it was derived on, and a removed worktree or deleted memory root loses it. That
+is fine for evidence and classifications, which are recomputed. It is not fine for operator
+decisions, which is why a `declined` decision is also written to the tracked finding-suppression
+surface `.claude/instruction-placement.md`
+([`../reference/consumer-config.md`](../reference/consumer-config.md)), where git carries it to
+every other checkout, and why an applied move is reconstructable from the repository's own git
 history regardless.
 
 ## Frontmatter
@@ -63,7 +67,7 @@ history regardless.
 ```yaml
 ---
 type: instruction-placement-findings
-schema: 1
+schema: 2
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
 branch: <branch at audit time>
 corpus: <core | core+expanded>
@@ -125,65 +129,93 @@ A second `audit` on the same key merges rather than replacing:
 
 Identifiers are stable across runs and never reused after a finding is dropped.
 
+## Finding ids and their constituents
+
+A `declined` decision outlives the artifact that carried it, and the surface it outlives into is the
+tracked finding-suppression record `.claude/instruction-placement.md`. That convention owns the
+entry's keys, the `finding_id` hash, the `anchor/v<N>` versioning, and the four entry dispositions.
+**What each constituent holds for a placement finding is owned here**, because deriving it is this
+plugin's business and nobody else's.
+
+| Constituent | For a placement finding |
+|---|---|
+| `check` | `instruction-placement/audit/<lane>` — `demote` or `promote`, the lane that raised it. |
+| `claim` | The canonical claim id with its destination bound: `narrower-scope:<destination>` on the demote lane, `unloaded-convention:<destination>` on the promote lane. Destinations are the rubric's ladder rungs (`path-scoped-rule`, `nested-agents-md`, `skill`, `linter`, `deletion`). Never free prose. |
+| `sites` | Exactly one: `surface` is the source file's repo-relative path, `anchor/v1` is the anchor below. A placement finding is about one section of one file, so a second site would describe a finding this plugin does not raise. |
+
+**`anchor/v1` is `sha256` of the `US`-joined ordered enclosing heading path of the section,
+truncated to 8 hex** — for the section `### Release checklist` under `## Deployment`, the path is
+`["Deployment", "Release checklist"]`. It is deliberately **not** a digest of the section's text and
+never a positional ordinal. A reworded paragraph inside a section whose scope and class are unchanged
+is not a new finding, and an anchor over the bytes would resurrect an accepted decline on every
+copy-edit. Renaming or re-nesting the heading does change it, and that is correct: the finding is
+then a different one, and the convention's `OLD CLOSED, NEW OPENED` disposition reports the old entry
+stale rather than dropping it.
+
+`finding_id` is the convention's own formula over `[check, claim, surface, anchor]` — the
+constituents are authoritative and the key is derived from them, so an entry whose stored
+constituents do not hash to its own key is reported as malformed and suppresses nothing.
+
+The artifact's own `IP-007`-style identifiers are unrelated and stay local to one artifact: they are
+short, human-quotable handles for a run's report. The `finding_id` is what crosses checkouts.
+
 ## The baseline-capture obligation
 
-`delta` compares this run's detector output against the **previous run's** state, so that state has
+`delta` compares this run's detector output against the **previous run's** spine, so that spine has
 to be persisted somewhere the next run can find it. The findings artifact cannot serve: a re-audit
 merges into it in place, so after the sweep there is nothing left to diff against. A separately
-persisted baseline is therefore mandatory, and it is the one file `delta` writes.
+persisted baseline is therefore mandatory.
 
-It lives in the `baselines/` slot the lifecycle artifact protocol names, at the location the
-topic-docs binding resolves — **one per repository, with no branch segment and no checkout
-discriminator in the path**. Default `<memory_dir>/instruction-placement/baselines/placement-baseline.md`.
+It lives in the `baselines/` slot the lifecycle artifact protocol names, **branch-keyed**, at the
+location the topic-docs binding resolves. Default
+`<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md`.
 
 ```yaml
 ---
 type: instruction-placement-baseline
 schema: 1
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
-captured_from_branch: <branch at capture time, or "unknown">
+branch: <branch at capture time>
 compared: <ISO-basic UTC of the run that last consumed this baseline, or —>
 ---
 ```
 
-Two body sections, both required, both written as tables so a diff between runs stays aligned:
-
-- **`## Spine`** — one row per detector record, `SECTION` and `RULE` alike: its key, its kind, and a
-  digest of the content the classification depends on. This is what `changed`, `broken-glob`, and
-  `stale` are computed against. It is a snapshot, never a second record of a finding: nothing here
-  is actionable, and `realign` has no code path that reads it.
-- **`## Decisions`** — one row per finding the operator has ruled on: its stable id, its status
-  (`declined` or `applied`), the source heading it was raised against, and the date. This is the
-  durable half. `delta` reads it before it reports and suppresses every id in it.
+One body section, `## Spine`, written as a table so a diff between runs stays aligned: one row per
+detector record, `SECTION` and `RULE` alike, carrying its key, its kind, and a digest of the content
+the classification depends on. That is what `changed`, `broken-glob`, and `stale` are computed
+against.
 
 Four rules bind the capture:
 
-- **`captured_from_branch` is provenance, not a gate.** A baseline is never refused for describing
-  another branch. The branch check belongs to the findings artifact, whose line ranges are
-  branch-specific; a decline is a judgment about content and outlives the branch it was made on.
-- **The decisions table is additive.** A capture merges this run's decisions into the stored set and
-  never drops a row it did not observe: a run on a branch where a declined finding does not appear
-  has learned nothing about that decision. A row leaves only when `realign` moves that id's status
-  off `declined` in the findings artifact, which is the operator reversing themselves explicitly.
+- **The spine is a snapshot, never a second record of a finding.** Nothing in it is actionable,
+  `realign` has no code path that reads it, and **no operator decision is stored here.** A decline
+  recorded in a file the topic-docs contract marks invisible outside its own checkout is a decline
+  the next worktree never sees; that is why judgments live on the tracked surface instead.
+- **`branch:` is a gate, not provenance.** A baseline whose `branch:` does not match the resolved
+  branch identity is not this branch's spine — the comparison is refused, both names are reported,
+  and the run proceeds as a first run on this branch. The directory alone is never the proof.
 - **The capture happens at the end of a cycle that completed its comparison.** A run that stopped
-  early — no detector output, an unrecognized `schema:`, a resolution that yielded no home — leaves
-  the stored baseline exactly as it is and writes none. A half-captured spine reports the missing
-  half as movement on the next run.
+  early — no detector output, an unrecognized `schema:`, no resolved home, no branch identity —
+  leaves the stored baseline exactly as it is and writes none. A half-captured spine reports the
+  missing half as movement on the next run.
 - **`type: instruction-placement-baseline`, never `review-findings`.** The reasoning is the one
   stated above for the findings artifact and it applies with more force here: nothing in this file
   is a proposal, so an auto-apply relay that located it by frontmatter would be acting on a
   snapshot.
 
-An unrecognized `schema:` is a stop with a visible message, not a silent re-baseline: silently
-discarding a baseline discards the declined set with it.
+An unrecognized `schema:` is a stop with a visible message rather than a silent re-baseline: a run
+that quietly discards a spine reports the whole surface as movement and calls it a delta.
 
 ## Stability, and what promotion to a shared seam would require
 
 This artifact is currently consumed by **three skills inside this plugin and nothing else**: `audit`
-writes it, `realign` writes operator decisions into it, `delta` diffs it across runs. `check`
-deliberately reads it never, so a stale artifact can never make a broken repository look healthy.
+writes it, `realign` writes operator decisions into it, `delta` reads this branch's copy for the
+statuses a report has to respect. `check` deliberately reads it never, so a stale artifact can never
+make a broken repository look healthy.
 
-The baseline is narrower still: `delta` is its only reader and its only writer.
+The baseline is narrower still: `delta` is its only reader and its only writer. The suppression
+surface is the one home in this plugin that is not local to a checkout, and its keys are the
+marketplace's rather than this document's.
 
 It is therefore **not** a cross-plugin convention, and there is no owner doc under
 `docs/conventions/` for it. That is deliberate. The convention registry's rule — a shared convention
@@ -194,11 +226,14 @@ implementation.
 
 **What is guaranteed today**, so a future second consumer has something to hold:
 
-- `schema: 1` is a real version. A change that breaks a reader increments it, and a reader may
-  refuse an unrecognized value rather than guessing at the shape.
+- `schema: 2` is a real version, and it is 2 rather than 1 because this document's location formula
+  changed: a reader holding the retired formula looks in a home nothing writes any more, which is a
+  reader-breaking change by the rule in the next bullet. A reader may refuse an unrecognized value
+  rather than guessing at the shape.
 - Field names and the `Status` vocabulary do not change within a schema version. Fields may be
   *added*; a reader that ignores unknown fields keeps working.
-- Identifiers are stable across runs within a key and are never reused.
+- Identifiers are stable across runs at one resolved home and are never reused. The cross-checkout
+  identity is the `finding_id` above, not this handle.
 - The location formula — memory tier, constant slug, branch segment, one stable
   filename — is fixed within a schema version.
 

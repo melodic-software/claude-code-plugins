@@ -3,6 +3,46 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **`reference/consumer-config.md` and the tracked suppression surface
+  `.claude/instruction-placement.md`.** A declined finding is now recorded against the marketplace's
+  finding-suppression contract, layered across the three config-cascade layers with per-key merge
+  and the policy-floor precedence inversion, and registered in the cascade's implementers table.
+  `suppressions` is the surface's only key; the plugin's `userConfig` dials stay personal and are
+  never keys here.
+- **`instruction-placement:realign` writes the decline.** A decline now has two writes: `declined`
+  into the branch-scoped findings artifact as before, and an entry on the tracked surface, offered in
+  full and written only on an explicit yes, team layer only, with the run stating that the file must
+  be committed to reach another checkout.
+- **Finding ids and their constituents**, in `context/findings-artifact.md`: what `check`, `claim`,
+  and `sites` hold for a placement finding, and this plugin's `anchor/v1` — `sha256` of the
+  `US`-joined enclosing heading path, truncated to 8 hex, deliberately not a digest of the section's
+  bytes, so a copy-edit does not resurrect an accepted decline.
+
+### Changed
+
+- **The declined set moved off the memory tier onto the tracked surface, and the spine baseline
+  became branch-keyed** (#3811). The previous release routed declines into the baselines slot. That
+  cannot carry them: the topic-docs contract states a memory document is visible only in the checkout
+  that wrote it, marks a sibling worktree `invisible`, and refuses to carry this file class with
+  `.worktreeinclude` ("never baselines or raw scratch"). Git is the only mechanism that crosses
+  checkouts, so the judgment rides a tracked file and the diff spine stays where it belongs:
+  `<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md`, refused on a
+  `branch:` mismatch rather than compared. This is the same split the sibling `overengineering`
+  plugin makes.
+- **`delta` reads the suppression surface and never writes it.** Its writes are the spine baseline
+  and the slice scaffolding the binding requires, all memory tier; the earlier claim that the
+  baseline was its only write contradicted the binding and is corrected.
+- **`audit` reads the suppression surface too**, reports every entry that did and did not suppress
+  with its contributing layer, and excludes the surface and its layers from its own sweep.
+- **`context/findings-artifact.md` is `schema: 2`.** Its location formula changed, which is
+  reader-breaking under that document's own stability rule; the stability section now says so, and
+  the state-key language about identifiers being stable "within a key" is replaced by the resolved
+  home plus the cross-checkout `finding_id`.
+
 ## [0.12.0]
 
 ### Added

@@ -137,6 +137,20 @@ a missing-artifact stop indistinguishable from "the audit was never run". If a p
 at the resolved home, merge per the contract's re-run semantics rather than overwriting. An
 operator's `declined` decision must survive a re-audit.
 
+## The suppression surface
+
+Before ranking, resolve the tracked suppression surface `.claude/instruction-placement.md` across
+its three layers ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md))
+and suppress every candidate whose `finding_id` it carries. That file is how a decline reaches a
+checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
+operator already made somewhere else.
+
+Three obligations, none optional. **Read, never write** — `realign` composes an entry behind its
+per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
+contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
+this run's scope. **Exclude the surface and its layers from the sweep** — auditing the file that
+records the decisions would make recording one perturb the next run.
+
 ## Routing out
 
 A candidate can raise a question placement does not answer: whether the model still needs the
