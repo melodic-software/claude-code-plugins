@@ -807,7 +807,7 @@ compact_refuses "escaped slash" '{"a":"x\/y"}'
 compact_refuses "raw control byte in a string" "$(printf '{"a":"x\001y"}')"
 compact_refuses "array root" '[1,2]'
 compact_refuses "trailing comma" '{"a":1,}'
-compact_refuses "bad literal" '{"a":tru}' # spellchecker:disable-line
+compact_refuses "bad literal" '{"a":tru}'     # spellchecker:disable-line
 compact_refuses "split literal" '{"a":tr ue}' # spellchecker:disable-line
 compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
@@ -3424,10 +3424,13 @@ else
   fail "corr (large payload): sink empty"
 fi
 rm -f "$corr_sink"
-# The same large payload must not pick up a nested decoy either: past the size
-# gate the walk is skipped for cost, and the head cut is what keeps it safe.
-# This is the half of the gate's behaviour that is a guarantee; the other half
-# (a root key after the first container is omitted up here) is a known gap.
+# The same large payload must not pick up a nested decoy either, and the root
+# key placed AFTER the container must now come back. Too large to neutralize
+# whole, this one is walked in a window at each end instead: the head window
+# reads session_id, the backward tail window reads tool_use_id, and the nested
+# decoy sits at depth 2 in neither. Before #3784 the tail was a head cut, which
+# omitted tool_use_id on every payload over 64 KiB — the assertion here was
+# "omitted", and it is the case that fails without the change.
 corr_sink="$(mktemp)"
 (
   corr_big="$(head -c 1200000 /dev/zero | tr '\0' 'x')"
@@ -3437,13 +3440,83 @@ corr_sink="$(mktemp)"
 )
 wait_for_sink "$corr_sink"
 if [[ -s "$corr_sink" ]]; then
-  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big omitted" ]]; then
-    ok "corr: past the size gate the root id holds and no nested one is taken"
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-big toolu_past_gate" ]]; then
+    ok "corr: past the gate the root id holds, the trailing one lands, no nested one is taken"
   else
     fail "corr (past gate): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
   fi
 else
   fail "corr (past gate): sink empty"
+fi
+rm -f "$corr_sink"
+# THE CASE #3784 WAS FILED FOR: a real Write payload, well over 64 KiB, whose
+# content is escape-bearing (the shape that made the neutralizing passes
+# unaffordable and put the gate there) and whose tool_use_id follows tool_input
+# in the documented order. All four ids must land. The content also carries an
+# escaped-quote decoy spelling every key, to prove an escape inside a nested
+# string cannot be read as structure at any size.
+corr_sink="$(mktemp)"
+(
+  corr_esc='a \"session_id\": \"SPOOF\", \"prompt_id\": \"SPOOF\", \"tool_use_id\": \"SPOOF\", \"agent_id\": \"SPOOF\" b\\c '
+  corr_big=""
+  while ((${#corr_big} < 300000)); do corr_big+="$corr_esc$corr_esc$corr_esc$corr_esc"; done
+  INPUT='{"session_id":"s-esc","prompt_id":"p-esc","cwd":"/x","tool_name":"Write","tool_input":{"file_path":"a.md","content":"'"$corr_big"'"},"tool_response":{"ok":true},"tool_use_id":"toolu_esc","agent_id":"a-esc"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .prompt_id, .tool_use_id, .agent_id] | join(" ")' "$corr_sink")" == "s-esc p-esc toolu_esc a-esc" ]]; then
+    ok "corr: an escape-bearing payload over 64 KiB yields all four ids, decoys and all"
+  else
+    fail "corr (escape-bearing over gate): $(jq -c '{session_id,prompt_id,tool_use_id,agent_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (escape-bearing over gate): sink empty"
+fi
+rm -f "$corr_sink"
+# The tail window is anchored on the payload ENDING outside a string. A payload
+# truncated mid-content does not, so it gets no tail walk at all — the head
+# window still routes the row, and nothing from inside the content is guessed.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='pad \"tool_use_id\":\"SPOOF\" pad '; done
+  INPUT='{"session_id":"s-trunc","tool_input":{"content":"'"$corr_big"'"tool_use_id":"SPOOF2"'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-trunc omitted" ]]; then
+    ok "corr: a payload that does not end outside a string gets no tail walk"
+  else
+    fail "corr (unterminated tail): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (unterminated tail): sink empty"
+fi
+rm -f "$corr_sink"
+# A root key more than a window from either end is omitted, never guessed, and
+# a nested decoy in the same dead zone is not taken in its place. This is the
+# bound the two windows buy, stated as a test so it cannot drift into a lie.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 120000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  INPUT='{"session_id":"s-mid","a":{"c":"'"$corr_big"'"},"agent_id":"a-mid","b":{"agent_id":"NESTED","c":"'"$corr_big"'"},"tool_use_id":"toolu_mid"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, .tool_use_id, (.agent_id // "omitted")] | join(" ")' "$corr_sink")" == "s-mid toolu_mid omitted" ]]; then
+    ok "corr: a root key between the two windows is omitted, and no nested one replaces it"
+  else
+    fail "corr (between windows): $(jq -c '{session_id,tool_use_id,agent_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (between windows): sink empty"
 fi
 rm -f "$corr_sink"
 # No payload at all: none of the four keys, and the envelope is otherwise the same.

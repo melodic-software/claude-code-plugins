@@ -1132,7 +1132,7 @@ hook::read_file_path() {
     hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
   fi
   case "$mode" in
-  0) ;; # proven: `file` holds jq's answer
+  0) ;;          # proven: `file` holds jq's answer
   1) return 1 ;; # proven absent
   *)
     file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
@@ -1970,59 +1970,133 @@ hook::emit_telemetry() {
   #
   # The payload is rendered down to its root level first, then searched. Escaped
   # backslashes and quotes are neutralized so that splitting on `"` cannot land
-  # inside an escape, and the split alternates: even fields are structure
-  # (braces, commas, colons, numbers), odd fields are string bodies. Walking
-  # them costs one step per string, not one per byte, and the bulk of a payload
-  # is a handful of huge string bodies that are skipped whole. A string body is
-  # kept only at depth 1; deeper ones are dropped, which leaves nested objects
-  # as brace-and-colon rubble carrying no quotes, so no nested key can match.
-  # What remains is small, so the four searches run over a short string however
-  # large the payload was — the reason this stays inside the latency budget that
-  # keeps jq off this path.
+  # inside an escape, and the split alternates: structure fields (braces,
+  # commas, colons, numbers) and string bodies. Walking them costs one step per
+  # string, not one per byte, and the bulk of a payload is a handful of huge
+  # string bodies that are skipped whole. A string body is kept only at depth 1;
+  # deeper ones are dropped, which leaves nested objects as brace-and-colon
+  # rubble carrying no quotes, so no nested key can match. What remains is
+  # small, so the four searches run over a short string however large the
+  # payload was — the reason this stays inside the latency budget that keeps jq
+  # off this path.
+  #
+  # BOUNDED AT BOTH ENDS. The two neutralizing passes each rewrite the string
+  # they are given and are superlinear in its escape count — 4 / 10 / 24 / 235 /
+  # 6670 ms per emit for a 16 KiB / 64 KiB / 128 KiB / 512 KiB / 2 MB
+  # escape-bearing payload, measured on this container — so a large payload is
+  # never walked whole. It is walked at each END instead, in a fixed 16384-byte
+  # window: forward from the first byte, and BACKWARD from the last. Both walks
+  # are the same exact depth walk and neither can reach a nested key at any
+  # payload size; what a window cannot see is a root key sitting more than
+  # 16384 bytes from both ends, which is omitted rather than guessed. The
+  # backward walk is what closes #3784: it reads `tool_use_id` and `agent_id`,
+  # which the documented payload places AFTER `tool_input` (session-event-log.sh
+  # says so in its own early-stop note: "tool_input closed, tool_use_id still to
+  # come") and which the head cut this replaces omitted on every payload over
+  # 64 KiB. Splitting the whole payload instead — repairing escaped quotes in
+  # the split rather than neutralizing them first — was measured and rejected:
+  # it removes the superlinear passes but yields one field per quote, and bash
+  # reads an array element in ~4 us, so a 512 KiB escape-bearing payload costs
+  # 495 ms in the walk alone.
   local corr="" corr_key corr_payload="${HOOK_TELEMETRY_PAYLOAD-${INPUT-}}"
+  local corr_root="" corr_root_tail=""
   if [[ -n "$corr_payload" ]]; then
-    # `[[{]` is a bracket expression holding `[` and `{`; the brace is safe
-    # there only because it is a regex bracket expression, not a `${...}`
-    # pattern, where a literal `}` would end the expansion. Used by the size
-    # gate fallback below.
-    local corr_cut=':[[:space:]]*[[{]'
-    # Only a payload within the size gate is walked; see the fallback below for
-    # what the gate costs and why. The two neutralizing passes are what make
-    # splitting on `"` safe, and each copies the payload, so a payload with no
-    # backslash in it skips both; that test short-circuits at the first one.
-    local corr_t=""
-    if ((${#corr_payload} <= 65536)); then
-      corr_t=$corr_payload
-      if [[ $corr_t == *\\* ]]; then
-        corr_t=${corr_t//"\\\\"/@@}
-        corr_t=${corr_t//"\\\""/@@}
-      fi
-    fi
-    local corr_parts corr_i corr_n corr_depth=0 corr_root="" corr_seg corr_x
-    local corr_o corr_c
     # Brace characters come from variables: a literal `}` inside a `${...}`
-    # pattern ends the expansion before the pattern is read. Each one is
-    # counted by deleting it and taking the length difference — a negated
-    # bracket class is not usable here, because `[!]}]` does not parse as the
-    # "neither ] nor }" class it looks like (it counted `{` as a closer).
+    # pattern ends the expansion before the pattern is read, and one inside a
+    # `[[ ]]` bracket expression reads as a literal brace to shellcheck. Each
+    # one is counted below by deleting it and taking the length difference — a
+    # negated bracket class is not usable there, because `[!]}]` does not parse
+    # as the "neither ] nor }" class it looks like (it counted `{` as a closer).
     local corr_ob='{' corr_cb='}' corr_osb='[' corr_csb=']'
+    local corr_head="" corr_tail="" corr_slack corr_whole=0
+    if ((${#corr_payload} <= 65536)); then
+      # Small enough to neutralize whole: one forward walk covers every root
+      # key, so there is nothing for a tail window to add.
+      corr_head=$corr_payload
+      corr_whole=1
+    else
+      corr_head=${corr_payload:0:16384}
+      # The tail window is taken with 64 bytes of slack, then started again
+      # after the last byte of that slack that is NOT a backslash. Neutralizing
+      # reads left to right, so a window opening in the middle of a backslash
+      # run would misread every escape after it — `\\\"` cut to `\\"` reads as
+      # an escaped backslash and then a REAL quote — and that misreading is
+      # exactly how content could smuggle a key onto the spine. A window that
+      # opens after a non-backslash cannot be out of step. All-backslash slack
+      # proves nothing, so the tail window is dropped instead of guessed.
+      corr_tail=${corr_payload: -16448}
+      corr_slack=${corr_tail:0:64}
+      while [[ $corr_slack == *\\ ]]; do
+        corr_slack=${corr_slack%?}
+      done
+      if ((${#corr_slack} > 0)); then
+        corr_tail=${corr_tail:${#corr_slack}}
+      else
+        corr_tail=""
+      fi
+      # The backward walk reads the field after the last quote as structure,
+      # which holds only if the payload ENDS outside a string. A payload that
+      # does not close an object or an array is not that, so it gets no tail
+      # walk — a truncated one could otherwise be read a quote out of step.
+      while [[ $corr_tail == *[$' \t\r\n'] ]]; do
+        corr_tail=${corr_tail%?}
+      done
+      [[ $corr_tail == *"$corr_cb" || $corr_tail == *"$corr_csb" ]] || corr_tail=""
+    fi
+    local corr_parts corr_i corr_j corr_n corr_steps corr_depth corr_seg corr_x
+    local corr_o corr_c corr_src corr_out corr_pass
     local corr_glob=0
     [[ $- == *f* ]] || corr_glob=1
-    set -f
-    local IFS='"'
-    # shellcheck disable=SC2206 # splitting on IFS='"' is the whole point
-    corr_parts=($corr_t)
-    ((corr_glob)) && set +f
-    IFS=$' \t\n'
-    corr_n=${#corr_parts[@]}
-    # An even field count means an unbalanced quote: the payload is malformed,
-    # so no key is guessed from it. A payload past the size gate never got
-    # split (corr_n is 1 there), so it falls through to the head cut below.
-    if ((corr_n % 2 == 1 && corr_n > 1)); then
-      for ((corr_i = 0; corr_i < corr_n; corr_i++)); do
-        if ((corr_i % 2 == 0)); then
-          corr_seg=${corr_parts[corr_i]}
-          corr_root+=$corr_seg
+    for corr_pass in 1 0; do
+      if ((corr_pass)); then
+        corr_src=$corr_head
+      else
+        corr_src=$corr_tail
+      fi
+      [[ -n "$corr_src" ]] || continue
+      # Each pass copies the window it neutralizes, so a window with no
+      # backslash in it skips both passes; that test short-circuits at the
+      # first one.
+      if [[ $corr_src == *\\* ]]; then
+        corr_src=${corr_src//"\\\\"/@@}
+        corr_src=${corr_src//"\\\""/@@}
+      fi
+      set -f
+      local IFS='"'
+      # shellcheck disable=SC2206 # splitting on IFS='"' is the whole point
+      corr_parts=($corr_src)
+      ((corr_glob)) && set +f
+      IFS=$' \t\n'
+      corr_n=${#corr_parts[@]}
+      corr_steps=$corr_n
+      if ((corr_whole)); then
+        # An even field count means an unbalanced quote: the payload is
+        # malformed, so no key is guessed from it.
+        ((corr_n % 2 == 1 && corr_n > 1)) || continue
+      else
+        # A window is cut at an arbitrary byte, so the field at its cut edge is
+        # a fragment: the last field of the head window, the first of the tail.
+        # Walking it would close a string that never closed. Drop it.
+        corr_steps=$((corr_n - 1))
+      fi
+      corr_depth=0
+      corr_out=""
+      # corr_j counts STEPS taken from the anchored end, so an even step is a
+      # structure field in both directions: the head window is anchored at the
+      # payload's first byte, where the document has not opened a string yet,
+      # and the tail window at its last, where the document has closed the one
+      # it opened. The walks are mirror images — the head appends and adds a
+      # container's openers, the tail prepends and adds its closers — and each
+      # keeps a string body only where its own depth reads 1, which is the
+      # payload root either way.
+      for ((corr_j = 0; corr_j < corr_steps; corr_j++)); do
+        if ((corr_pass)); then
+          corr_i=$corr_j
+        else
+          corr_i=$((corr_n - 1 - corr_j))
+        fi
+        corr_seg=${corr_parts[corr_i]}
+        if ((corr_j % 2 == 0)); then
           corr_x=${corr_seg//"$corr_ob"/}
           corr_o=$((${#corr_seg} - ${#corr_x}))
           corr_x=${corr_seg//"$corr_osb"/}
@@ -2031,30 +2105,39 @@ hook::emit_telemetry() {
           corr_c=$((${#corr_seg} - ${#corr_x}))
           corr_x=${corr_seg//"$corr_csb"/}
           corr_c=$((corr_c + ${#corr_seg} - ${#corr_x}))
-          corr_depth=$((corr_depth + corr_o - corr_c))
+          if ((corr_pass)); then
+            corr_out+=$corr_seg
+            corr_depth=$((corr_depth + corr_o - corr_c))
+          else
+            corr_out=$corr_seg$corr_out
+            corr_depth=$((corr_depth + corr_c - corr_o))
+            # Reading backwards through a balanced document can never open
+            # more containers than it has closed. A negative depth means the
+            # window was misread, so nothing it produced is trusted.
+            if ((corr_depth < 0)); then
+              corr_out=""
+              break
+            fi
+          fi
         elif ((corr_depth == 1)); then
-          corr_root+='"'${corr_parts[corr_i]}'"'
+          if ((corr_pass)); then
+            corr_out+='"'$corr_seg'"'
+          else
+            corr_out='"'$corr_seg'"'$corr_out
+          fi
         fi
       done
-    else
-      # SIZE GATE FALLBACK. Above the gate the walk is not affordable: the
-      # neutralizing passes are superlinear in the number of escapes, measured
-      # here at 4 / 13 / 38 / 486 ms per emit for a 16 KiB / 64 KiB / 128 KiB /
-      # 512 KiB escape-bearing payload, and this runs on every telemetry-
-      # emitting hook. So a large payload is cut at its first nested container
-      # instead. That is still safe — nothing inside tool_input or
-      # tool_response is reachable — but it is not complete: a root key placed
-      # after the first container, which is where tool_use_id sits, is omitted
-      # rather than guessed. session_id and prompt_id lead the payload, so
-      # routing is unaffected. #3784 tracks a cheaper exact tail scan that
-      # would close the gap without paying the neutralizing passes.
-      corr_root=$corr_payload
-      if [[ "$corr_root" =~ $corr_cut ]]; then
-        corr_root=${corr_root%%"${BASH_REMATCH[0]}"*}
+      if ((corr_pass)); then
+        corr_root=$corr_out
+      else
+        corr_root_tail=$corr_out
       fi
-    fi
+    done
+    # The head is a prefix and the tail a suffix of the same root, so taking
+    # the head's answer first keeps "the FIRST pair at the root" wins.
     for corr_key in session_id prompt_id tool_use_id agent_id; do
-      if [[ "$corr_root" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
+      if [[ "$corr_root" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] ||
+        [[ "$corr_root_tail" =~ \"$corr_key\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]]; then
         corr+='"'"$corr_key"'":"'"${BASH_REMATCH[1]}"'",'
       fi
     done

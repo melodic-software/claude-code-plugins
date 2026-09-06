@@ -76,12 +76,15 @@ the four. A sink on 1.0 sees four unknown keys and ignores them under the tolera
 `agent_id` cannot put a value on the spine. A consumer can therefore treat a present key as the
 harness's own, not as tool-supplied input.
 
-**A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
-on a payload carrying a whole file, so above 65536 bytes the library falls back to reading only the
-region ahead of the first nested container. `session_id` and `prompt_id` lead the documented payload
-and are unaffected; `tool_use_id` follows `tool_input` and is therefore omitted on a payload over
-that size. Absent still means absent — never guessed, and never a value from somewhere else.
-Tightening this without paying the cost is [#3784](https://github.com/melodic-software/claude-code-plugins/issues/3784).
+**A key may be absent in the middle of a large payload.** Selecting by depth costs more than the
+emitter can spend on a payload carrying a whole file, so above 65536 bytes the library reads a
+16384-byte window at each END of the payload instead of the whole of it — forward from the first
+byte, backward from the last. Both windows select by depth, so the root-only guarantee above holds
+at every payload size. What a window cannot see is a root key sitting more than 16384 bytes from
+both ends, which is omitted. The documented payload puts `session_id` and `prompt_id` at the front
+and `tool_use_id` and `agent_id` behind `tool_input`, so all four are in reach; a payload that
+buries a root key between two multi-kilobyte containers loses that one. Absent still means absent —
+never guessed, and never a value from somewhere else.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠

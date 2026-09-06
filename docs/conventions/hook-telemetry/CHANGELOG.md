@@ -14,10 +14,12 @@ opened).
   each copied verbatim from the hook payload by `hook::emit_telemetry` when present and well-formed,
   omitted otherwise. Placed between `duration_ms` and `data`.
 - Read from the payload ROOT only: a same-named key nested inside `tool_input` or `tool_response` is
-  never taken, so tool-supplied arguments cannot put a value on the spine. Above a 65536-byte payload
-  the library reads only the region ahead of the first nested container, which omits `tool_use_id`
-  (it follows `tool_input` in the documented payload) rather than guessing it; `session_id` and
-  `prompt_id` lead the payload and are unaffected. See #3784.
+  never taken, so tool-supplied arguments cannot put a value on the spine, at any payload size. Above
+  a 65536-byte payload the library selects by depth in a 16384-byte window at each END of the payload
+  rather than over the whole of it, so all four keys of the documented payload are in reach; a root
+  key more than a window from both ends is omitted rather than guessed (#3784). The first release of
+  this contract read only the region ahead of the first nested container up there, which omitted
+  `tool_use_id` and `agent_id` on every payload over 64 KiB.
 - The library reads the payload from `HOOK_TELEMETRY_PAYLOAD`, else the producer's `INPUT` variable;
   no producer change is needed for a hook that buffers stdin the fleet way.
 - The claude-ops reference sink routes on the spine `session_id` first and falls back to

@@ -3,6 +3,24 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.45]
+
+### Changed
+
+- **The correlation keys now land on a large payload's envelope too.** Once a
+  payload passes 65536 bytes the synced `hooks/hook-utils.sh` selects the four
+  spine ids by depth in a 16384-byte window at each END of it, forward from the
+  first byte and backward from the last, instead of reading only the region
+  ahead of the first nested container. `tool_use_id` and `agent_id` follow
+  `tool_input` in the documented payload, so before this they were absent from
+  every envelope carrying a whole file — which is every `Write` and `Edit` of a
+  real one (#3784). The root-only guarantee is unchanged: a same-named key
+  nested inside `tool_input` or `tool_response` still never reaches the spine,
+  at any payload size. Cheaper as well as more complete — 17 ms against 19 ms
+  per emit on a 512 KiB escape-bearing payload, 65 ms against 89 ms at 2 MB.
+  A root key more than a window from both ends is omitted, never guessed. No
+  hook behavior changes.
+
 ## [0.6.44]
 
 ### Changed
