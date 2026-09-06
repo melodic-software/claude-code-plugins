@@ -63,7 +63,13 @@ class JoinCase:
         return self
 
     def scope(self, paths: list[str]) -> "JoinCase":
+        """The scope on its own, for a case with no complexity rows at all."""
         (self.dir / "scope.txt").write_text("\n".join(paths) + "\n", encoding="utf-8")
+        document = self.dir / "complexity.json"
+        if not document.exists():
+            document.write_text(
+                json.dumps({"measures": [], "run": []}), encoding="utf-8"
+            )
         return self
 
     def artifact(self, fmt: str, payload: dict) -> "JoinCase":
@@ -407,6 +413,170 @@ class ArtifactMergeTests(unittest.TestCase):
         )
         self.assertEqual(function["cov_source"], "artifact-region")
         self.assertEqual(function["hit"], 1)
+
+
+def go_section(blocks: dict[str, tuple[int, int]]) -> dict:
+    """A parsed Go cover profile section: no line table, one block table.
+
+    `blocks` maps the profile's own `start.col,end.col` identity to the
+    block's statement count and its execution count, which is the shape
+    `go_cover.py` prints. `total` and `hit` are this profile's own totals,
+    and the join recomputes them from the merged blocks.
+    """
+    table = {
+        key: {"statements": statements, "count": count}
+        for key, (statements, count) in blocks.items()
+    }
+    return {
+        "lines": {},
+        "functions": None,
+        "statements": {
+            "total": sum(s for s, _ in blocks.values()),
+            "hit": sum(s for s, count in blocks.values() if count > 0),
+            "blocks": table,
+        },
+    }
+
+
+class StatementWeightTests(unittest.TestCase):
+    """A Go cover profile weighs statements over line ranges, not lines."""
+
+    def test_two_shards_union_their_blocks_rather_than_taking_a_maximum(self) -> None:
+        # Two profiles from separate test shards, each entering the block the
+        # other missed. Each says 2 statements with 1 hit, so any rule over
+        # those aggregates reports 1 of 2 = 50 percent, while the two runs
+        # between them covered both statements. The union of the blocks is
+        # what makes that 100.
+        shards = [
+            {"3.19,4.11": (1, 1), "7.2,7.54": (1, 0)},
+            {"3.19,4.11": (1, 0), "7.2,7.54": (1, 1)},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).scope(["r.go"])
+            for blocks in shards:
+                case.artifact("go_cover", {"r.go": go_section(blocks)})
+            document = case.join()
+        row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(row["values"]["coverage_pct"], 100.0)
+        self.assertEqual(row["cov_source"], "statement-ratio")
+
+    def test_a_block_two_profiles_both_list_is_weighed_once(self) -> None:
+        blocks = {"3.19,4.11": (1, 1), "7.2,7.54": (5, 0)}
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).scope(["r.go"])
+            for _ in range(2):
+                case.artifact("go_cover", {"r.go": go_section(blocks)})
+            document = case.join()
+        row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(row["values"]["coverage_pct"], 16.67)
+
+    def test_the_statement_ratio_outranks_a_line_table_for_the_same_file(self) -> None:
+        # The profile's 7 statements with 2 hit are 28.57 percent, the number
+        # `go tool cover -func` prints for this file. A line artifact naming
+        # the same `.go` file measures something else, here 1 of 4 lines, and
+        # a partial or stale one must not replace the exact native measure.
+        profile = go_section(
+            {"3.19,4.11": (1, 1), "4.11,6.3": (1, 1), "7.2,7.54": (5, 0)}
+        )
+        lines = {"lines": {"3": 1, "4": 0, "7": 0, "9": 0}, "functions": None}
+        with tempfile.TemporaryDirectory() as tmp:
+            line_only = (
+                JoinCase(tmp).scope(["r.go"]).artifact("lcov", {"r.go": lines}).join()
+            )
+        line_row = next(r for r in line_only["measures"] if r["function"] is None)
+        self.assertEqual(line_row["values"]["coverage_pct"], 25.0)
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .scope(["r.go"])
+                .artifact("go_cover", {"r.go": profile})
+                .artifact("lcov", {"r.go": lines})
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(row["values"]["coverage_pct"], 28.57)
+        # The basis is in the row, so the reader sees which measure produced
+        # the number rather than a percentage that silently changed meaning.
+        self.assertEqual(row["cov_source"], "statement-ratio")
+        # The line counts came from a real line table, but 1 of 4 lines is not
+        # 28.57 percent: printed beside a statement ratio they would read as
+        # the counts behind it. The file row states one measure only.
+        self.assertIsNone(row["values"]["lines_executable"])
+        self.assertIsNone(row["values"]["lines_hit"])
+        # Both artifacts are still named as read, so nothing is invisible.
+        collector = next(
+            r["collector"] for r in document["run"] if r["measure"] == "coverage"
+        )
+        self.assertIn("lcov", collector)
+        self.assertIn("go_cover", collector)
+
+    def test_a_line_measured_file_keeps_its_line_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .scope(["a.ts"])
+                .artifact(
+                    "lcov", {"a.ts": {"lines": {"1": 1, "2": 0}, "functions": None}}
+                )
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(row["cov_source"], "artifact-region")
+        self.assertEqual(row["values"]["lines_executable"], 2)
+
+    def test_a_parser_reporting_totals_only_still_reports_its_ratio(self) -> None:
+        # The aggregates stay in the parser's output, so a document produced
+        # without a block table still joins, folded by the most that shape
+        # supports: the larger total and the larger hit count.
+        section = {"lines": {}, "functions": None, "statements": {"total": 5, "hit": 4}}
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .scope(["r.go"])
+                .artifact("go_cover", {"r.go": section})
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(row["values"]["coverage_pct"], 80.0)
+        self.assertEqual(row["cov_source"], "statement-ratio")
+
+    def test_a_go_function_reports_null_line_counts_not_zero(self) -> None:
+        # The profile never measured lines, so the function's line counts are
+        # not 0: reporting 0 executable and 0 hit claims the artifact looked
+        # at the range and found nothing runnable in it.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("r.go", "F", 3, 7, "go", 2)])
+                .artifact(
+                    "go_cover",
+                    {"r.go": go_section({"3.19,4.11": (1, 1), "7.2,7.54": (5, 0)})},
+                )
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] == "F")
+        self.assertIsNone(row["values"]["lines_executable"])
+        self.assertIsNone(row["values"]["lines_hit"])
+        # A profile names no functions, so coverage and CRAP stay null too.
+        self.assertIsNone(row["values"]["coverage_pct"])
+        self.assertIsNone(row["values"]["crap"])
+
+    def test_a_line_measured_function_with_no_lines_in_range_reports_zero(self) -> None:
+        # The other side of the same rule: this artifact does measure lines
+        # and carries none in the function's range, so 0 is what it found.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [complexity_row("a.ts", "classify", 4, 12, "typescript", 3)]
+                )
+                .artifact("lcov", {"a.ts": {"lines": {"1": 1}, "functions": None}})
+                .join()
+            )
+        row = next(r for r in document["measures"] if r["function"] == "classify")
+        self.assertEqual(row["values"]["lines_executable"], 0)
+        self.assertEqual(row["values"]["lines_hit"], 0)
+        self.assertIsNone(row["values"]["coverage_pct"])
 
 
 class PathNormalizationTests(unittest.TestCase):

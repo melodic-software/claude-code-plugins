@@ -2,6 +2,7 @@
 """Parse a Go cover profile into the plugin's parser shape.
 
     parse(path) -> {file: {"lines": {}, "functions": None, "statements": {...}}}
+    statements   -> {"total": n, "hit": m, "blocks": {"3.19,4.11": {...}}}
 
 Command line: `python3 go_cover.py <artifact>` prints that mapping as JSON.
 
@@ -43,13 +44,22 @@ carry 7 executable units at all.
 `statements` is the profile's own weighting, and is where a Go percentage
 comes from: `total` is every statement the profile lists for the file and
 `hit` is the statements in blocks whose count is above zero, so `hit / total`
-is exactly the ratio `go tool cover -func` prints. The join reads this key for
-a file whose line table is empty and reports that ratio, leaving
-`lines_executable` and `lines_hit` null, because they count lines and this
-artifact counted something else. A block repeated across concatenated
-profiles is folded on its
-full `start.col,end.col` identity, keeping the larger count, so its statements
-are weighed once.
+is exactly the ratio `go tool cover -func` prints. The join reports that ratio
+and leaves `lines_executable` and `lines_hit` null, because they count lines
+and this artifact counted something else. A block repeated across concatenated
+profiles is folded on its full `start.col,end.col` identity, keeping the larger
+count, so its statements are weighed once.
+
+`statements.blocks` carries that same fold one level down, keyed by the block
+identity `start.col,end.col` and holding the block's statement count and
+execution count. Two profiles from separate test shards cover the same file
+and hit different blocks, and the file's own `total` and `hit` cannot be
+unioned once they are summed: two shards each reporting `total: 2, hit: 1`
+over disjoint blocks are 2 of 2 statements between them, and any rule over the
+aggregates alone reports 1 of 2. The block table is what lets the join union
+the runs first and sum after, the way it already folds a line table, so
+`total` and `hit` here are the totals for THIS profile and the join recomputes
+them from the merged blocks.
 
 A profile names no functions, so `functions` is always `None`. The file path is
 the one the compiler saw, usually prefixed by the module path, so the join
@@ -121,6 +131,16 @@ def parse(path: str) -> dict[str, dict]:
             "statements": {
                 "total": sum(weight for weight, _ in per_file.values()),
                 "hit": sum(weight for weight, count in per_file.values() if count > 0),
+                "blocks": {
+                    f"{start}.{start_col},{end}.{end_col}": {
+                        "statements": weight,
+                        "count": count,
+                    }
+                    for (start, start_col, end, end_col), (
+                        weight,
+                        count,
+                    ) in sorted(per_file.items())
+                },
             },
         }
         for name, per_file in blocks.items()

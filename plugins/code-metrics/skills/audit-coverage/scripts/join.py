@@ -19,11 +19,16 @@ from, so a reason can name it.
 What comes out:
 
   * one row per file in scope that an artifact covers: `coverage_pct`,
-    `lines_executable`, `lines_hit`. A Go cover profile weighs statements
-    rather than lines and never says which lines carry them, so a Go file row
-    takes its percentage from the profile's own statement counts, which is the
-    ratio `go tool cover -func` prints, and reports the two line counts as
-    `null` rather than as a count of nothing.
+    `lines_executable`, `lines_hit`, plus the `cov_source` that says which
+    measure produced the percentage. A Go cover profile weighs statements
+    rather than lines and never says which lines carry them, so a file it
+    covers reports `cov_source: statement-ratio`, takes its percentage from
+    the merged block table, which is the ratio `go tool cover -func` prints,
+    and reports the two line counts as `null` rather than as a count of
+    nothing. That ratio is the file's exact native measure and outranks a line
+    table for the same file, so an lcov or Cobertura artifact that also names
+    a `.go` file cannot replace it; a line-measured file reports
+    `cov_source: artifact-region` and its own line counts.
   * one row per function that has a cyclomatic row with a real end line:
     `coverage_pct`, `cyclomatic`, `crap`, plus `cov_source` and `hit`.
     `cov_source` is `artifact-region` when the artifact carried the function's
@@ -32,7 +37,10 @@ What comes out:
     from the parent first. A function-hit flag of 0 reports 0 percent, because
     a declaration line that ran at import is not the function running. A
     function with no executable lines reports `coverage_pct: null` and
-    `crap: null`, never 0, which would be a fabricated maximal CRAP.
+    `crap: null`, never 0, which would be a fabricated maximal CRAP; its line
+    counts are 0 when the artifact measures lines and found none in the range,
+    and `null` when no artifact covering the file measures lines at all, which
+    is every function of a file measured only by a Go cover profile.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
     paths were searched; a lane matched in part is `partial` and carries
@@ -145,6 +153,70 @@ def _lines(raw: Any) -> dict[int, int]:
     return out
 
 
+def _int(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _fold_statements(accumulated: dict[str, Any], incoming: dict[str, Any]) -> None:
+    """Merge one statement-weighted section (a Go cover profile) into a file.
+
+    The unit here is the block, not the file: a block says how many statements
+    it holds and how often it ran, and `blocks` keys it by the profile's own
+    `start.col,end.col` identity. Two shards of one test suite each write a
+    profile for the same file and hit different blocks, so the blocks are
+    unioned on that identity, keeping the larger count, and the file's totals
+    are summed AFTER the merge, which is the rule the line table already uses.
+
+    Folding the aggregates instead cannot union anything: two shards each
+    reporting 2 statements with 1 hit over disjoint blocks covered both
+    statements between them, and the largest aggregate says 1 of 2. A section
+    that carries no block table is a parser that reported totals only, and
+    those are still folded by keeping the larger of each, which is the most
+    that shape supports.
+    """
+    blocks = incoming.get("blocks")
+    if isinstance(blocks, dict):
+        union = accumulated.setdefault("blocks", {})
+        for key, block in blocks.items():
+            weight = _int((block or {}).get("statements"))
+            count = _int((block or {}).get("count")) or 0
+            if weight is None:
+                continue
+            prior = union.get(str(key))
+            union[str(key)] = (
+                [weight, count]
+                if prior is None
+                else [max(prior[0], weight), max(prior[1], count)]
+            )
+        return
+    for key in ("total", "hit"):
+        value = _int(incoming.get(key))
+        if value is not None:
+            accumulated[key] = max(accumulated.get(key, 0), value)
+
+
+def _statement_totals(statements: dict[str, Any] | None) -> dict[str, int] | None:
+    """The file's statement counts, or `None` when no artifact weighed any.
+
+    The merged block table is the source when there is one, so the statements
+    of blocks two profiles both list are counted once and the statements only
+    one of them reached are counted at all. Totals folded from a block-less
+    section are the fallback.
+    """
+    if not statements:
+        return None
+    blocks = statements.get("blocks") or {}
+    if blocks:
+        return {
+            "total": sum(weight for weight, _ in blocks.values()),
+            "hit": sum(weight for weight, count in blocks.values() if count > 0),
+        }
+    total = _int(statements.get("total"))
+    if not total:
+        return None
+    return {"total": total, "hit": _int(statements.get("hit")) or 0}
+
+
 def merge_artifacts(
     artifacts: list[dict[str, Any]], scope: list[str], root: str, prefixes: list[str]
 ) -> tuple[dict[str, dict], list[str]]:
@@ -171,17 +243,7 @@ def merge_artifacts(
                 entry["formats"].append(fmt)
             for number, hits in _lines(section.get("lines")).items():
                 entry["lines"][number] = max(entry["lines"].get(number, 0), hits)
-            # A statement-weighted artifact (a Go cover profile) carries its
-            # own totals rather than a line table. Two artifacts covering the
-            # same file keep the larger of each, on the same rule the line
-            # table uses, so a file listed twice is not counted twice.
-            statements = section.get("statements") or {}
-            for key in ("total", "hit"):
-                value = statements.get(key)
-                if isinstance(value, int) and not isinstance(value, bool):
-                    entry["statements"][key] = max(
-                        entry["statements"].get(key, 0), value
-                    )
+            _fold_statements(entry["statements"], section.get("statements") or {})
             for function in section.get("functions") or []:
                 _fold_function(
                     entry["functions"],
@@ -273,29 +335,43 @@ def _fold_function(
 
 
 def _coverage(
-    lines: dict[int, int], statements: dict[str, int] | None = None
-) -> tuple[int | None, int | None, float | None]:
-    """The file's percentage and the line counts behind it.
+    lines: dict[int, int],
+    statements: dict[str, int] | None = None,
+    measures_lines: bool = True,
+) -> tuple[int | None, int | None, float | None, str | None]:
+    """The percentage, the line counts behind it, and the basis it came from.
 
     A Go cover profile is the one artifact that weighs statements instead of
     lines: a block says how many statements it holds over a line range and
-    never which lines hold them, so it contributes no line table. Its own
-    ratio is exact, and is what `go tool cover -func` prints, so it supplies
-    the percentage while `lines_executable` and `lines_hit` stay `null`. A
-    count of 0 there would claim the artifact measured no executable lines,
-    which is not what it said."""
+    never which lines hold them, so it contributes no line table. Its ratio is
+    the exact native measure of the file, and is what `go tool cover -func`
+    prints, so it wins the percentage over any line table for the same file
+    and the basis is reported as `statement-ratio`. A line artifact naming that
+    same `.go` file is a second, weaker measure of it, often partial or stale,
+    and letting it take the percentage replaces the tool's own number with an
+    unrelated one.
+
+    `lines_executable` and `lines_hit` are `null` whenever the percentage is a
+    statement ratio, even when a line table exists: those two would then be a
+    ratio of their own, disagreeing with the percentage beside them, and the
+    reader has no way to see which measure the row means. The line table still
+    reaches the report through the function rows, which are line-based.
+
+    `measures_lines` is False when no artifact covering this file measures
+    lines at all. An empty line table then means the artifact counted
+    something else, not that it looked and found nothing executable, so the
+    counts are `null`: a value the collector did not produce is never 0.
+    """
+    totals = statements or {}
+    total = totals.get("total") or 0
+    if total:
+        ratio = round(100.0 * (totals.get("hit") or 0) / total, 2)
+        return None, None, ratio, "statement-ratio"
     executable = len(lines)
     hit = sum(1 for value in lines.values() if value > 0)
     if executable == 0:
-        total = (statements or {}).get("total") or 0
-        if total:
-            return (
-                None,
-                None,
-                round(100.0 * (statements or {}).get("hit", 0) / total, 2),
-            )
-        return 0, 0, None
-    return executable, hit, round(100.0 * hit / executable, 2)
+        return (0, 0, None, None) if measures_lines else (None, None, None, None)
+    return executable, hit, round(100.0 * hit / executable, 2), None
 
 
 def _match_function(
@@ -371,6 +447,19 @@ def _nested(rows: list[dict[str, Any]], start: int, end: int) -> set[int]:
     return covered
 
 
+def _measures_lines(entry: dict[str, Any]) -> bool:
+    """Whether any artifact covering this file measured lines at all.
+
+    A line table settles it. With none, a file that carries statement weights
+    was measured by a Go cover profile, which counts statements over line
+    ranges and never lines, so its function rows report `null` line counts
+    rather than the 0 that would claim the artifact measured and found none.
+    """
+    return (
+        bool(entry.get("lines")) or _statement_totals(entry.get("statements")) is None
+    )
+
+
 def _function_row(
     row: dict[str, Any], entry: dict[str, Any], siblings: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -399,7 +488,9 @@ def _function_row(
             if start <= number <= end and number not in skip
         }
         source = "line-range"
-    executable, hits, percent = _coverage(region)
+    executable, hits, percent, _ = _coverage(
+        region, None, measures_lines=_measures_lines(entry)
+    )
     if percent is not None and hit == 0:
         percent = 0.0
     comp = row["values"]["cyclomatic"]
@@ -452,7 +543,9 @@ def join(
         entry = merged.get(path)
         if not entry:
             continue
-        executable, hits, percent = _coverage(entry["lines"], entry.get("statements"))
+        executable, hits, percent, basis = _coverage(
+            entry["lines"], _statement_totals(entry.get("statements"))
+        )
         measures.append(
             {
                 "file": path,
@@ -465,7 +558,7 @@ def join(
                     "lines_executable": executable,
                     "lines_hit": hits,
                 },
-                "cov_source": "artifact-region",
+                "cov_source": basis or "artifact-region",
                 "hit": None,
                 "labels": ["file-level"],
             }

@@ -186,6 +186,13 @@ assert_doc "the bash file row comes from the Cobertura report" "$out" \
 # carry them, so the line counts are null rather than a count of nothing.
 assert_doc "the go profile joins by its unique basename" "$out" \
   'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["values"]["lines_executable"] is None for r in d["measures"])'
+assert_doc "the go file row names the statement ratio as its basis" "$out" \
+  'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["cov_source"]=="statement-ratio" for r in d["measures"])'
+# The profile measures no lines at all, so the Go function's line counts are
+# null. A 0 there would say the artifact looked at the range and found nothing
+# executable in it, which is not what a statement profile reports.
+assert_doc "a go function measured only by a profile reports null, not 0, lines" "$out" \
+  'any(r["function"]=="Classify" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None and r["values"]["coverage_pct"] is None and r["values"]["crap"] is None for r in d["measures"])'
 # Both lanes name the format they read. Go's single file is fully matched, so
 # it is `ok`; the Cobertura report covers one of Bash's three, which is neither
 # ok nor unavailable and must not let the document settle as complete.
@@ -208,6 +215,15 @@ assert_doc "only the lane matched in part is partial" "$out" \
   '{r["lane"] for r in d["run"] if r["measure"]=="coverage" and r["status"]=="partial"}=={"bash"}'
 assert_doc "no threshold produced a finding or a severity" "$out" \
   'all(t["reference"] is None for t in d["thresholds"]) and all(not r["over_reference"] for r in d["measures"])'
+# Two artifacts measure cm-sample.go here: the profile weighs 4 of 5
+# statements (80%) and lcov-2.2.info lists 6 lines all hit (100%). The
+# profile's ratio is the file's exact native measure and wins, the row says
+# so, and the line counts do not ride along as the counts behind a number
+# they do not produce. The function row is line-based and keeps the region.
+assert_doc "a go profile outranks a line artifact for the same file" "$out" \
+  'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["cov_source"]=="statement-ratio" and r["values"]["lines_executable"] is None and r["values"]["lines_hit"] is None for r in d["measures"])'
+assert_doc "both formats are still named as read for the go lane" "$out" \
+  'all(f in next(r["collector"] for r in d["run"] if r["measure"]=="coverage" and r["lane"]=="go") for f in ("go_cover","lcov"))'
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES" --artifacts "$COVERAGE/coverage-py.json" 2>/dev/null)"
 rc=$?
 assert_eq "markdown exits 0" 0 "$rc"

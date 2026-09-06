@@ -29,7 +29,7 @@ complexity from the sibling `audit-complexity` script, run over the same scope.
 | lcov `.info` | most JavaScript and C/C++ toolchains, `coverage lcov` | line hits; function records from `FN`/`FNDA` (1.x) or `FNL`/`FNA` (2.2 and later), which is where a function end line can come from at all |
 | Cobertura XML | gcovr, coverlet, kcov (which is how a Bash lane gets an artifact) | line hits, `<sources>` prefixes, and `<method>` regions with their hit flag |
 | coverage.py JSON | `coverage json` | executed and missing lines, and the per-function regions it has carried since 7.6.0 |
-| Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function joins by line range and reports `coverage_pct` and `crap` as null |
+| Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints, labels it `cov_source: statement-ratio`, and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function reports `coverage_pct`, `crap` and both line counts as null |
 
 The SQLite data file coverage.py writes while measuring is never read: its schema is internal by
 its own documentation and free to change without a major version bump. Run `coverage json` or
@@ -59,17 +59,24 @@ otherwise keep the JSON beside your notes and compare by hand.
 ## Reading the numbers
 
 - A file row is the artifact's own line table: `coverage_pct`, `lines_executable`, `lines_hit`.
+  A file a Go cover profile covers is the exception: the profile weighs statements, so the
+  percentage is its statement ratio, `cov_source` reads `statement-ratio`, and both line counts
+  are null.
 - A function row exists for every function whose complexity collector reported a real end line.
   It carries `coverage_pct`, `cyclomatic`, `crap`, and, in the JSON, `cov_source` and `hit`.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end
   line), `line-range` when the range came from the complexity collector, in which case nested
-  function ranges are subtracted from the parent first. The markdown table renders the values; the
-  per-row `cov_source` and `hit` fields are in the `--json` document.
+  function ranges are subtracted from the parent first, and `statement-ratio` on a file row whose
+  percentage came from a Go profile's statements rather than from a line table. The markdown table
+  renders the values; the per-row `cov_source` and `hit` fields are in the `--json` document.
 - `hit` is the artifact's function-hit flag. When it says the function was never entered,
   `coverage_pct` is 0 rather than the 1/N a declaration line executed at import would produce.
 - A function with no executable lines in the artifact reports `coverage_pct: null` and
-  `crap: null`, never 0: a fabricated 0 percent would produce a fabricated maximal CRAP.
+  `crap: null`, never 0: a fabricated 0 percent would produce a fabricated maximal CRAP. Its
+  `lines_executable` and `lines_hit` are 0 when an artifact that measures lines covers the file
+  and carries none in that range, and null when no artifact covering the file measures lines at
+  all, which is every function of a file only a Go profile covers.
 - CRAP is Savoia and Evans' formula (Agitar Labs, 2007). It is a description of two numbers you
   already have, not a validated predictor of change risk, and no standard sets a threshold for it.
   `/code-metrics:principles` carries the provenance, the rename history, and the caveats; read it
@@ -132,7 +139,16 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 - Two artifacts covering one file are merged by keeping the larger hit count per line, so a line
   is never counted twice. Two artifacts covering one function are folded the same way: the hit
   flag is the larger of the two, so a suite that never entered the function cannot report it at 0
-  percent beside a file row the other suite already showed as covered.
+  percent beside a file row the other suite already showed as covered. Two Go profiles covering
+  one file merge block by block on the profile's own `start.col,end.col` identity and are totalled
+  after that, so two test shards that entered different blocks report what they covered between
+  them rather than what the luckier shard covered alone.
+- A Go profile and a line artifact naming the same `.go` file do not average or overwrite each
+  other: the profile's statement ratio is that file's exact native measure and wins the
+  percentage, the row says `statement-ratio`, and the line counts stay null rather than reading as
+  the counts behind a number they did not produce. The lane's `collector` still names both formats
+  read. Function rows are line-based, so a Go function does take its region from a line artifact
+  when one covers it.
 - A Cobertura report with several `<source>` roots is read with the first one only; a class whose
   filename resolves under a later root lands in the partial count rather than in an error.
 - Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to

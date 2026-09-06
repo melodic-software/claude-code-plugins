@@ -20,6 +20,12 @@ read, so its shape is stable within the `v1` schema string.
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry, each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
 
+`summary.functions` counts functions, not rows: one function measured by two collectors produces two
+rows and counts once. Rows are grouped by file and name, and a group counts as many functions as it
+has distinct `start_line` values, or as one when no row in it reports a start line. So two `render`
+methods in one file count as two, while a cyclomatic row and a Halstead row for the same function
+count as one even though only the first reports where it begins.
+
 ## `run[]` rows
 
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
@@ -42,19 +48,30 @@ number or `null`), `collector`, `labels` (strings such as `comment-agnostic`), `
 |---|---|---|
 | `audit-size` | file | none; in `iso-8.2.115` mode one row per function with `start_line`, `end_line` |
 | `audit-complexity` | function (`start_line`, `end_line` when the collector reports them) | none |
-| `audit-coverage` | function | `cov_source` (`artifact-region` or `line-range`), `hit` (the artifact's function-hit flag or `null`) |
+| `audit-coverage` | function | `cov_source` (`artifact-region`, `line-range`, or `statement-ratio`), `hit` (the artifact's function-hit flag or `null`) |
 | `audit-duplication` | clone group | `instances[]` (`file`, `start_line`, `end_line`) replaces `file` and `function` |
 | `audit-type-debt` | lane | `file` and `function` are `null` |
 
 A value the collector did not produce is `null`, never `0`.
 
 A Go cover profile is the one artifact that gives no line table. Its blocks are statement counts
-over line ranges and never say which lines hold the statements, so a Go file row takes
-`coverage_pct` from the profile's own statement ratio, which is the number `go tool cover -func`
-prints, and reports `lines_executable` and `lines_hit` as `null`: those two count lines, and the
-artifact counted something else. A Go function row reports `coverage_pct` and `crap` as `null`,
-because the profile names no functions and attributing the file's ratio to each of them would be a
-number the artifact never gave.
+over line ranges and never say which lines hold the statements, so a file it covers takes
+`coverage_pct` from the statement ratio, which is the number `go tool cover -func` prints, carries
+`cov_source: statement-ratio` to say so, and reports `lines_executable` and `lines_hit` as `null`:
+those two count lines, and the artifact counted something else.
+
+That ratio is the file's exact native measure, so it outranks a line table for the same file: an
+lcov or Cobertura artifact naming a `.go` file the profile also covers does not take
+`coverage_pct` from it, and the line counts stay `null` there too, because a line ratio printed
+beside a statement percentage reads as the two counts behind it and is a different measure. Both
+formats still appear in the lane's `collector`, so nothing about the merge is hidden. A file no
+statement-weighted artifact covers reports `cov_source: artifact-region` and its own line counts.
+
+A Go function row reports `coverage_pct` and `crap` as `null`, because the profile names no
+functions and attributing the file's ratio to each of them would be a number the artifact never
+gave. Its `lines_executable` and `lines_hit` are `null` for the same reason, distinct from the `0`
+a line-measuring artifact earns when it covers the file and carries no executable line in that
+function's range.
 
 ## Exit codes
 
