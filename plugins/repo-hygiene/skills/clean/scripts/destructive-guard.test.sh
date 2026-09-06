@@ -12,9 +12,11 @@ CASE_NUM=0
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 guard_exit() {
-  jq -n --arg c "$1" '{tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
+  jq -n --arg c "$1" --arg t "${2:-Bash}" '{tool_name:$t, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
+
+SKILL_MD="$(cd "$SCRIPT_DIR/.." && pwd)/SKILL.md"
 
 # --- 1. --help contract --------------------------------------------------------
 
@@ -46,6 +48,32 @@ for cmd in \
   "Remove-Item -Recurse -Force obj"; do
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
+
+# --- 2b. PowerShell coverage: registration AND verdict, end to end ---------------
+# The guard has always carried a PowerShell spelling (recursive `Remove-Item`),
+# but a `Bash`-only matcher can never hand it a PowerShell tool call, so that
+# pattern was unreachable and on a PowerShell host the guard was simply absent.
+# Both halves are asserted here. Asserting only the verdict would pass with the
+# bug fully intact, since the guard script itself was never the broken part.
+
+registered_matcher="$(awk '
+  /^---[[:space:]]*$/ { fm++; next }
+  fm == 1 && /^[[:space:]]*-[[:space:]]*matcher:/ { m = $0 }
+  fm == 1 && /destructive-guard\.sh/ && m != "" { print m; exit }
+' "$SKILL_MD")"
+assert_contains "hook registration reaches the Bash tool" "$registered_matcher" "Bash"
+assert_contains "hook registration reaches the PowerShell tool" "$registered_matcher" "PowerShell"
+
+for cmd in \
+  "Remove-Item -Recurse -Force obj" \
+  "Remove-Item -Force -Recurse bin" \
+  "Remove-Item -Path build -Recurse -Force"; do
+  assert_exit "blocks via PowerShell tool: $cmd" 2 "$(guard_exit "$cmd" PowerShell)"
+done
+
+assert_exit "allows benign PowerShell tool call" 0 "$(guard_exit "Get-ChildItem -Recurse" PowerShell)"
+assert_exit "ack prefix works on the PowerShell tool too" 0 \
+  "$(guard_exit "CLEAN_GUARD_ACK=1 Remove-Item -Recurse -Force obj" PowerShell)"
 
 # --- 3. Block reason reaches stderr ----------------------------------------------
 

@@ -2,7 +2,11 @@
 # shellcheck disable=SC2154
 # Branch audit facts for the clean git branch cleanup. No deletion.
 #
-# Output: Branch, Tier, Age days, PR, Unpushed, Reason; Summary line.
+# Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
+# lookup hit its cap); then per branch Branch, Tier, Age days, PR, Unpushed,
+# Reason; Summary line. A missing map is NOT the same as a repo with no PRs, and
+# the two are distinguishable here on purpose: PR state is what detects a
+# squash merge, so without it a landed branch reads as unmerged.
 # Exit: 0.
 # Omit -e/-o pipefail: script always exits 0; sub-commands are best-effort (gh may be absent).
 set -u
@@ -41,18 +45,22 @@ DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
 
+# PR map: branch → state, the mitigation for squash merges that `git --merged`
+# cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
+# onto this script's stdout, so a short or missing map is visible to the reader
+# instead of silently degrading every SAFE/REVIEW verdict below.
 declare -A PR_STATE=()
 declare -A PR_NUM=()
 declare -A PR_REFOID=()
-if command -v gh >/dev/null 2>&1; then
-  while IFS=$'\t' read -r head state num refoid; do
-    [[ -z "$head" ]] && continue
-    PR_STATE["$head"]="$state"
-    PR_NUM["$head"]="$num"
-    PR_REFOID["$head"]="$refoid"
-  done < <(gh pr list --state all --json headRefName,state,number,headRefOid --limit 200 2>/dev/null |
-    jq -r '.[] | [.headRefName, .state, .number, .headRefOid] | @tsv' 2>/dev/null | tr -d '\r')
-fi
+PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
+trap 'rm -f "$PR_MAP_FILE"' EXIT
+clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid'
+while IFS=$'\t' read -r head state num refoid; do
+  [[ -z "$head" ]] && continue
+  PR_STATE["$head"]="$state"
+  PR_NUM["$head"]="$num"
+  PR_REFOID["$head"]="$refoid"
+done <"$PR_MAP_FILE"
 
 WORKTREE_BRANCHES="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r')"
 GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"

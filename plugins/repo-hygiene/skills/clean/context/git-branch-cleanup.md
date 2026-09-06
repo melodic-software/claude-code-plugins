@@ -10,13 +10,15 @@ Run the branch-audit script — do not reimplement collection inline:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 ```
 
-**Output contract** (per branch): `Branch:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Reason:`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… review=…`.
+**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then per branch `Branch:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Reason:`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… review=…`.
+
+**PR-map status line**, the trustworthiness of every PR-derived verdict below. `PRCount: 0` is a repository with no pull requests, which is a real and complete answer. `PRDataUnavailable:` is a repository whose pull requests could not be read at all (no `gh`, no `jq`, unauthenticated, no GitHub remote, or unparseable output): squash-merge detection never ran, priority 5 cannot fire, and a landed branch falls through to REVIEW. `PRDataTruncated:` means the returned count equalled the requested cap and rows may have been discarded, with the same effect for whichever branches are missing from the map. Surface either line in the confirmation gate; underneath one, the tier split is not complete evidence.
 
 **`Unpushed:` line** — commits at risk of loss. With an upstream: `N ahead of <upstream>`. With no upstream: `no upstream, M commits not on origin/<default>` (or `no upstream (no origin/<default> to compare)` when the default branch is unfetched). Never-pushed local work is invisible to `@{upstream}`-based ahead reporting, so this line is the only signal that a no-upstream branch carries unmerged commits — surface it before offering any deletion.
 
 **Default branch resolution** (inside script): `origin/HEAD` symbolic ref → `gh repo view --json defaultBranchRef` → `main`.
 
-**PR map** (inside script): single batched `gh pr list --state all --json headRefName,state,number,headRefOid` — not per-branch loops.
+**PR map** (inside script): single batched `gh pr list --state all --json headRefName,state,number,headRefOid`, not per-branch loops, via the shared `clean_pr_map` helper the stash audit also uses. The cap is a high explicit `--limit` (`gh` has no unlimited sentinel and rejects `--limit 0`), and truncation is detected by comparing the returned count against that limit. Override the cap with `CLEAN_PR_LIST_LIMIT`.
 
 ## 4.5 Classify each branch (4-tier algorithm)
 
@@ -45,7 +47,7 @@ Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Bran
 
 **Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion — `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
-**Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When `gh` is unavailable, squash-merged branches land in REVIEW tier — safe-conservative handling.
+**Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When the PR map is unavailable or truncated, the affected squash-merged branches land in REVIEW tier, which is safe-conservative handling only because the audit says so out loud: that is what the `PRDataUnavailable:` and `PRDataTruncated:` lines are for. A silently short map produces the same REVIEW verdicts with nothing to distinguish them from a genuine one.
 
 ## 4.6 Present report
 

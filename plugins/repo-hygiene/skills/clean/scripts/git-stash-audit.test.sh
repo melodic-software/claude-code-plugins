@@ -75,6 +75,49 @@ assert_contains "never auto-dropped disclaimer" "$out" "never auto-dropped"
 sha0="$(git -C "$REPO" rev-parse "stash@{0}" 2>/dev/null)"
 assert_contains "emits stable stash commit id" "$out" "Commit: $sha0"
 
+# --- PR map status: the stash audit is the second call site of the same lookup ---
+# It was capped and silenced identically to the branch audit, and fixing only one
+# site would leave half the bug. The superseded advisory is derived from PR state,
+# so a short or missing map silently withholds it.
+assert_contains "failed lookup is announced, not swallowed" "$out" "PRDataUnavailable:"
+assert_not_contains "failed lookup reports no count" "$out" "PRCount:"
+
+if command -v jq >/dev/null 2>&1; then
+  PR_BIN="$TEST_TMPDIR/pr-bin"
+  mkdir -p "$PR_BIN"
+  cat >"$PR_BIN/gh" <<'PRGH'
+#!/usr/bin/env bash
+case "$*" in
+  *pr\ list*)
+    printf '%s\n' '[{"headRefName":"feat/done","state":"MERGED","number":7}]'
+    ;;
+  *) exit 1 ;;
+esac
+PRGH
+  chmod +x "$PR_BIN/gh"
+  pr_out="$(PATH="$PR_BIN:$PATH" bash -c "cd '$REPO' && bash '$AUDIT'")"
+  assert_contains "complete map reports its size" "$pr_out" "PRCount: 1"
+  assert_not_contains "complete map is not flagged truncated" "$pr_out" "PRDataTruncated:"
+  assert_contains "PR state still reaches the advisory" "$pr_out" "#7 MERGED"
+
+  trunc_out="$(PATH="$PR_BIN:$PATH" CLEAN_PR_LIST_LIMIT=1 bash -c "cd '$REPO' && bash '$AUDIT'")"
+  assert_contains "truncated map is announced here too" "$trunc_out" "PRDataTruncated:"
+
+  EMPTY_BIN="$TEST_TMPDIR/empty-pr-bin"
+  mkdir -p "$EMPTY_BIN"
+  cat >"$EMPTY_BIN/gh" <<'EMPTYGH'
+#!/usr/bin/env bash
+case "$*" in
+  *pr\ list*) printf '%s\n' '[]' ;;
+  *) exit 1 ;;
+esac
+EMPTYGH
+  chmod +x "$EMPTY_BIN/gh"
+  empty_pr_out="$(PATH="$EMPTY_BIN:$PATH" bash -c "cd '$REPO' && bash '$AUDIT'")"
+  assert_contains "a repo with no PRs reports a real count" "$empty_pr_out" "PRCount: 0"
+  assert_not_contains "a repo with no PRs is not called unavailable" "$empty_pr_out" "PRDataUnavailable:"
+fi
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
