@@ -41,15 +41,21 @@ What comes out:
     counts are 0 when a line-measuring artifact covered the file, whether or
     not it carried any executable line, and `null` when no artifact covering
     the file measures lines at all, which is every function of a file measured
-    only by a Go cover profile.
+    only by a Go cover profile. `cov_source` is `ambiguous` where an artifact
+    recorded a function under a short name that fits more than one function in
+    the file and no line range says which; every value is `null` there and the
+    row carries a `coverage-ambiguous` label, because a missing number an
+    operator can see beats a wrong number they cannot.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
     paths were searched; a lane matched in part is `partial` and carries
     `partial, N of M scope files present in the artifacts`, so a total miss
     never reads as "no executable lines" and a document whose own row says
-    `N of M` cannot settle as `complete`. A lane whose cyclomatic collector
-    reports no function end lines (Bash in V1) gets a `not-applicable` CRAP
-    row rather than a null that would hide the whole lane.
+    `N of M` cannot settle as `complete`. A lane holding an ambiguous function
+    row is `partial` as well, and names the functions it left unjoined. A lane
+    whose cyclomatic collector reports no function end lines (Bash in V1) gets
+    a `not-applicable` CRAP row rather than a null that would hide the whole
+    lane.
 
 Path normalization runs on both sides before the join: forward slashes, `./`
 removed, then the repository root and each `coverage.path_prefix_strip`
