@@ -108,13 +108,22 @@ run still reads the declined set and still suppresses what the operator already 
 ## Resolution (the contract's five-rung order, earlier wins)
 
 1. `.claude/topic-docs.yaml` present → its `memory_dir`:
-   `<memory_dir>/instruction-placement/`.
+   `<memory_dir>/instruction-placement/<branch-slug>/`.
 2. An artifact location declared in the consumer's `CLAUDE.md` / `.claude/rules` → use it, and offer
    to persist it into the concern file (prose is an inference source, not the runtime authority).
 3. An existing conforming layout inferred from the repo (a self-ignoring memory root already holding
    this plugin's findings) → confirm with the user, persist to the concern file.
 4. Ask once — one question, recommended option first; persist the answer to the concern file.
-5. The documented default: `.work/instruction-placement/`.
+5. The documented default: `.work/instruction-placement/<branch-slug>/`.
+
+**Every rung ends at a branch home, including the ones a consumer supplies.** Rungs 2–4 yield a
+root; the branch segment is appended to it, and the spine baseline then sits at
+`<that home>/baselines/spine-baseline.md`. A rung that stopped at the slice root would put two
+branches' spines in one file: the alternating runs would each report the other branch's sections as
+`changed`, its rules as `broken-glob`, and its deleted content as `stale`, then overwrite the
+snapshot the other one needs — a delta lane reporting branch differences as movement, with no error
+to show for it. **A run with no branch identity resolves no home at all**, per the branch section
+above; it does not fall back to the slice root.
 
 **Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
 resolution to the concern file only on the user's explicit confirmation; declining is a valid answer
@@ -124,8 +133,9 @@ sanctioned tracked writes, both gated on an explicit yes: this resolution, and t
 `instruction-placement:realign` offers when an operator declines a finding
 ([`consumer-config.md`](consumer-config.md)).
 
-Only rungs 1 and 5 compose `instruction-placement/…` themselves. Rungs 2–4 yield whatever location
-the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A skill
+Only rungs 1 and 5 compose the `instruction-placement/` slug themselves. Rungs 2–4 yield whatever
+root the consumer declared, inferred, or chose, and take the branch segment below it —
+**resolve the home, never assume its shape.** A skill
 that hardcodes the default's shape writes where the other side never looks, and `realign`'s failure
 mode for that is a missing-artifact stop indistinguishable from "the audit was never run".
 
