@@ -65,7 +65,14 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
 - `context-budget.attribution/1` — `baseline` (summary), ranked `perTool[]` rows
   `{tool, prefixDelta, deferredDelta, savedTokens, comparable, reasons}`, optional `additivity`
   (`--verify-additivity`: one combined-deny run checked against the sum of parts, with its own
-  `comparable`/`reasons`), `knownUncovered` (interactive-only product tools from
+  `comparable`/`reasons`, plus `perBucket` carrying `{sumOfParts, combinedSaved, additive,
+  reasons}` for each attributed bucket, read off the `prefixDelta`/`deferredDelta` the saver rows
+  already carry rather than from any extra run; a bucket absent from both runs is outside the
+  binary's category vocabulary and gets no verdict row). Every `additive` field, top level and per
+  bucket, is tri-state: `true` and `false` are measured verdicts, `null` means the reading could
+  not be measured, so an incomparable run is never published as a definite negative. The two
+  buckets are reported separately because they do not compose alike: the deferred side adds, the
+  prefix side double-counts. `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
   run — structurally unreachable from a headless inventory, not silent zeros), plus the binary
   stamp and `skillListingSignature`. A deny can empty a

@@ -27,7 +27,7 @@
       "title": "Bare tool name in permissions.deny (or --disallowedTools per invocation)",
       "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships.",
       "category": "removes-weight",
-      "categoryBasis": "Documented in request terms and reproduced by this plugin's own differencing engine; deltas are additive, so a basket prices from its members.",
+      "categoryBasis": "Documented in request terms and reproduced by this plugin's own differencing engine. The two attributed buckets compose differently: deferred-side deltas add, so a basket's deferred saving is the sum of its members, while prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix saving. attribute --verify-additivity reports its verdict per bucket.",
       "conditions": null,
       "posture": "recommendable-on-fit",
       "scope": "permissions.deny in any settings scope (user, project, local, managed); --disallowedTools for one invocation.",
