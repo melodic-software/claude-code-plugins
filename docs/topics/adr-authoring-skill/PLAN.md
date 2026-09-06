@@ -48,8 +48,9 @@ Small scale. Surfaces read, not recalled:
   front of that sentence and keeps the sentence as the absent-plugin branch.
 - `plugins/planning/skills/plan/context/close-out.md` holds the three-part ADR admission test
   (hard to reverse, surprising without context, real trade-off). Installed plugins cannot read
-  each other's files, so the new skill restates the test in one sentence; close-out itself is
-  not rewired (deferred question D2).
+  each other's files, so the new skill restates the test in one sentence; close-out keeps its
+  test and gains one presence-gated clause (Phase 3) so it stops telling the model to write
+  the record by hand when the skill is installed.
 - `plugins/planning/skills/design-handoff/SKILL.md` never mentions ADRs. "Reachable after
   design-handoff" is therefore a change to that skill, not an existing path.
 - This repository's own `docs/adr/` has 33 records, no `README.md`, no template, and duplicate
@@ -103,22 +104,30 @@ Frontmatter:
   supersession, an index, or status lifecycle beyond what the convention already defines."
 - `argument-hint: "[decision and its rationale, or a path to a file holding them]"`
 - `user-invocable: true`, `disable-model-invocation: false`, `shell: bash`
-- `metadata: workflow-stage: anytime`, `summary:` 100 codepoints or fewer, no `cadence`
-  (only `operator` takes one).
+- `metadata:` with `workflow-stage: anytime` and, as a plain unquoted YAML scalar (the
+  cheat-sheet reader rejects a quoted value), `summary: Record an architecture decision in the
+  repository's existing ADR convention`. No `cadence` key (only `operator` takes one).
 
 Body sections, in order:
 
-1. "Repository context. Gather first": copy the `improve` skill's block verbatim (individual
-   Bash calls: current branch, working tree status with `| head -10` inside the command;
-   failure read as unknown).
+1. "Repository context. Gather first": the `improve` skill's block shape (individual Bash
+   calls, one command per call, never combined) with exactly two bullets: current branch
+   (`git branch --show-current`) and working tree status (`git status --porcelain | head -10`,
+   the pipe inside the command). No recent-commits bullet: a decision record does not need
+   commit history. Keep the two explanatory paragraphs that follow the bullets in `improve`
+   (the read-time cap sentence and the worktree-isolated-session sentence) word for word.
 2. "Variables": `$ARGUMENTS`.
 3. "Purpose": three sentences at most.
 4. "Input contract": the paragraph above, restated for the model.
 5. "Admission test (advisory)": a decision earns a record when it is hard to reverse AND
    surprising without context AND the result of a real trade-off. When the decision plainly
    fails, say so once and offer to skip; the human's call wins.
-6. "Step 1. Discover the convention": read `../../reference/adr-discovery.md` and walk the
-   ladder from the working area up to the repo root. Emit one paragraph naming the directory,
+6. "Step 1. Discover the convention": read
+   [`${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md`](${CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md)
+   (the plugin-root-anchored form the fleet uses for bundled assets, as
+   `planning`'s close-out spoke cites its own `reference/topic-docs.md`; a `../../` form has no
+   runtime anchor because the session's cwd is the consumer repository) and walk the ladder
+   from the working area up to the repo root. Emit one paragraph naming the directory,
    numbering scheme, template source, and any duplicates or shape disagreement observed.
 7. "Step 2a. Convention found": derive the next identifier (highest existing + 1, preserve
    zero-pad width and separator), the filename in the observed form, and the section set from
@@ -132,7 +141,8 @@ Body sections, in order:
    asked).
 9. "Upstream template catalog": URL
    `https://github.com/joelparkerhenderson/architecture-decision-record`, license named as
-   CC BY-NC-SA 4.0, no prose copied, with the four-part record: claim (README-authored content
+   CC BY-NC-SA 4.0 with its URL `https://creativecommons.org/licenses/by-nc-sa/4.0/`, no prose
+   copied, with the four-part record: claim (README-authored content
    is CC BY-NC-SA 4.0; bundled templates carry their own licenses), basis
    (`https://raw.githubusercontent.com/joelparkerhenderson/architecture-decision-record/main/LICENSE.md`),
    as-of 2026-09-06, recheck trigger (that LICENSE.md changes, or the repository moves). The
@@ -180,9 +190,10 @@ keep the metadata block form, status vocabulary, and heading set exactly).
 - `grep -q "creativecommons.org/licenses/by-nc-sa/4.0" plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 1 today)
 - `grep -q "adr-discovery.md" plugins/architecture/skills/improve/actions/deepening.md` exits 0 (exits 1 today)
 - `! grep -q "docs/decisions/" plugins/architecture/skills/improve/actions/deepening.md` exits 0 (the inline ladder is gone; exits 1 today)
-- `! grep -rqi "captures an important architectural decision" plugins/architecture/` exits 0 (no vendored catalog prose; exits 0 today and must stay 0)
-- `! grep -rqiE "melodic|MELODIC_" plugins/architecture/skills/record-decision plugins/architecture/reference/adr-discovery.md` exits 0
-- `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills bash plugins/skill-quality/scripts/check-skill.sh --require-evals record-decision` exits 0 after Phase 2 (exits 1 today: no such skill; exits 1 after Phase 1 alone because evals are absent)
+- `grep -q 'CLAUDE_PLUGIN_ROOT}/reference/adr-discovery.md' plugins/architecture/skills/record-decision/SKILL.md` exits 0 (exits 2 today: file missing)
+- `! grep -rqi "captures an important architectural decision" plugins/architecture/` exits 0 (a tripwire for one catalog sentence, not the phase's discriminating check; exits 0 today and must stay 0. Eval case 5 is the real guard)
+- `test -d plugins/architecture/skills/record-decision && test -f plugins/architecture/reference/adr-discovery.md && ! grep -rqiE "melodic|MELODIC_" plugins/architecture/skills/record-decision plugins/architecture/reference/adr-discovery.md` exits 0 (exits 1 today because the paths are absent; the `test` guards keep a missing path from passing the grep vacuously)
+- `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh record-decision` exits 0 (exits 1 today: no such skill; without `--require-evals` the absent evals are a WARN at this phase, and Phase 2 runs the strict form)
 - `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash plugins/skill-quality/scripts/check-skill.sh improve` still exits 0 (exits 0 today, 1 warning)
 
 ### Phase 2: evals and fixtures for the new skill [TODO]
@@ -198,7 +209,8 @@ Files:
 | `.../evals/fixtures/no-convention/docs/README.md`, `.../no-convention/src/notes.md` | Create | a tree with a `docs/` directory and no ADR directory or declaration |
 
 Every fixture path appears in a case's `files[]` (the orphaned-fixtures gate keys on that). No
-fixture directory contains a `.git`.
+fixture directory contains a `.git`. Each case carries an integer `id` (1 to 7) and a kebab-case
+`name` (the slugs below), matching the shape of every existing evals file in the fleet.
 
 Cases (id, name, fixture, what passes):
 
@@ -225,8 +237,9 @@ Cases (id, name, fixture, what passes):
 
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/architecture/skills/record-decision/evals/evals.json` exits 0 (exits 2 today: file missing)
 - `jq '.evals | length' plugins/architecture/skills/record-decision/evals/evals.json` prints `7`
-- `bash scripts/check-orphaned-fixtures.sh --check` exits 0 (exits 0 today and must stay 0)
+- `jq -e '[.evals[].id | type] | unique == ["number"]' plugins/architecture/skills/record-decision/evals/evals.json` exits 0
 - `bash scripts/check-fixture-git-isolation.sh` exits 0
+- (`check-orphaned-fixtures.sh --check` runs once in Phase 4: it takes about ten minutes on this tree)
 - `CHECK_SKILL_SKILLS_ROOT=plugins/architecture/skills bash plugins/skill-quality/scripts/check-skill.sh --require-evals record-decision` exits 0
 
 ### Phase 3: planning routes (interview, design-handoff) [TODO]
@@ -235,9 +248,11 @@ Files:
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/planning/skills/interview/SKILL.md` | Modify | line 155 bullet (exact text below) |
+| `plugins/planning/skills/interview/SKILL.md` | Modify | line 155 bullet (exact text below); line 263 gains one parenthetical (below); "Composition with other skills" table gains one row (below) |
+| `plugins/planning/skills/interview/SKILL.md` lines 84-85 and 145 | Keep | both describe ADRs as an engineering-session output, which stays true in either branch; no edit |
 | `plugins/planning/skills/design-handoff/SKILL.md` | Modify | one bullet added to "Handoff summary (gate passed)" after "Resolved decisions with their recorded rationale" |
-| `plugins/planning/skills/interview/evals/evals.json` | Modify | cases 17 and 18 appended |
+| `plugins/planning/skills/plan/context/close-out.md` | Modify | step 2's admission-test paragraph: one presence-gated clause (below) so the same plugin version does not tell the model to write ADRs by hand while interview routes them |
+| `plugins/planning/skills/interview/evals/evals.json` | Modify | cases 17 and 18 appended (integer `id`, kebab-case `name`, like the 16 existing) |
 | `plugins/planning/.claude-plugin/plugin.json` | Modify | `0.36.5` to `0.36.6` |
 | `plugins/planning/CHANGELOG.md` | Modify | `## [0.36.6]` entry, Changed, naming both skills |
 | `plugins/planning/README.md` | Modify | "Graceful degrade" bullet gains "decision recording (`architecture`)" |
@@ -253,16 +268,41 @@ Interview line 155, replacement text (one bullet; keep the existing sentence as 
 > existing `docs/adr/` shape); if none is declared, offer and defer. Never prescribe a location
 > or format
 
+Interview line 263, the sentence "domain-vocabulary updates (inline, between questions) and
+ADRs are first-class interview outputs alongside the Brief" gains, after "ADRs", the
+parenthetical "(written through `/architecture:record-decision` when that plugin is installed,
+else by hand into the declared convention)".
+
+Interview "Composition with other skills" table, new row after the `/planning:audit-answers`
+row:
+
+> | Record a decision that earns an ADR | `/architecture:record-decision` (if installed) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
+
 Design-handoff, new bullet:
 
 > **ADR candidates.** Each resolved decision that is hard to reverse, surprising without
 > context, and the result of a real trade-off. When the `architecture` plugin is installed,
 > offer to invoke `/architecture:record-decision` via the Skill tool for each one, passing the
-> decision and its recorded rationale from `design-threads.md`; otherwise list them under an
+> decision and its recorded rationale from `design-threads.md`; that skill owns convention
+> discovery, the no-convention offer-and-defer, and the write. Otherwise list them under an
 > "ADR candidates" heading in the summary for the human to record by hand. The offer never
 > blocks the handoff
 
-Interview cases 17 and 18 (no fixtures needed; the prompt supplies the decision):
+Close-out step 2, the sentence "Prefer writing the ADR the moment the decision crystallizes
+during planning over batching candidates at graduation." becomes:
+
+> Prefer writing the ADR the moment the decision crystallizes during planning over batching
+> candidates at graduation: when the `architecture` plugin is installed, invoke
+> `/architecture:record-decision` via the Skill tool with the decision and its rationale (it
+> owns convention discovery and the write); otherwise write it by hand into the repository's
+> declared ADR convention.
+
+The admission test, the `git mv` graduation, and every other sentence in close-out.md stay as
+they are.
+
+Interview cases 17 and 18 (the prompt supplies the decision; case 18 reuses an existing fixture
+and must list it in `files[]`, since the evals-quality lint warns on a path-shaped token with an
+empty `files[]`):
 
 - 17 `adr-offer-routes-to-architecture-when-installed`: prompt states the plugin is installed
   and gives a decision meeting all three admission parts; passes when the output invokes
@@ -275,9 +315,11 @@ Interview cases 17 and 18 (no fixtures needed; the prompt supplies the decision)
 
 **Sanity Check (Phase 3).**
 
-- `grep -c "architecture:record-decision" plugins/planning/skills/interview/SKILL.md` prints `1` (prints `0` today)
+- `grep -q "architecture:record-decision" plugins/planning/skills/interview/SKILL.md` exits 0 (exits 1 today)
 - `grep -q "if none is declared, offer and defer" plugins/planning/skills/interview/SKILL.md` exits 0 (exits 0 today; the fallback sentence survives)
-- `grep -c "architecture:record-decision" plugins/planning/skills/design-handoff/SKILL.md` prints `1` (prints `0` today)
+- `grep -q "architecture:record-decision" plugins/planning/skills/design-handoff/SKILL.md` exits 0 (exits 1 today)
+- `grep -q "architecture:record-decision" plugins/planning/skills/plan/context/close-out.md` exits 0 (exits 1 today)
+- `grep -q "ADR admission test" plugins/planning/skills/plan/context/close-out.md` exits 0 (exits 0 today; the test survives)
 - `jq '.evals | length' plugins/planning/skills/interview/evals/evals.json` prints `18` (prints `16` today)
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/planning/skills/interview/evals/evals.json` exits 0
 - `grep -q '"version": "0.36.6"' plugins/planning/.claude-plugin/plugin.json` exits 0 (exits 1 today)
@@ -294,7 +336,7 @@ Files:
 | `plugins/architecture/.claude-plugin/plugin.json` | Modify | `0.6.10` to `0.7.0`; description gains one clause naming decision recording; keywords add `adr`, `decision-record` |
 | `plugins/architecture/CHANGELOG.md` | Modify | `## [0.7.0]` entry: Added (record-decision, adr-discovery reference), Changed (deepening ladder pointer) |
 | `plugins/architecture/README.md` | Modify | "What it does" gains a numbered item for decision recording; "Invoke" gains `/architecture:record-decision`; "Configuration" paragraph already says it adapts to the project's ADRs, keep |
-| `.claude-plugin/marketplace.json` | Modify | architecture `tags` add `adr` |
+| `.claude-plugin/marketplace.json` | Modify | architecture `tags` add `adr` and `decision-record`, keeping `tags` and `plugin.json` `keywords` the same set as they are today |
 | `docs/CATALOG.md` | Regenerate | `node scripts/generate-catalog.mjs` |
 | `docs/SKILL-CHEAT-SHEET.md` | Regenerate | `node scripts/generate-cheatsheet.mjs` |
 
@@ -308,6 +350,8 @@ Files:
 - `bash scripts/check-changelog-parity.sh --check-bump origin/main` exits 0 (exits 0 today with no bump; must still exit 0 with both bumps)
 - `bash scripts/check-skill-leaf-names.sh --check` exits 0
 - `bash scripts/check-skill-count-claims.sh --check` exits 0
+- `bash scripts/check-orphaned-fixtures.sh --check` exits 0 (exits 0 today; about ten minutes of wall clock on this tree, so it is not hung)
+- `jq -S '.keywords' plugins/architecture/.claude-plugin/plugin.json` and `jq -S '.plugins[] | select(.name=="architecture").tags' .claude-plugin/marketplace.json` print the same list
 - `node scripts/validate-plugin-contracts.mjs` exits 0
 - `bash scripts/validate-plugins.sh` exits 0
 - `bash scripts/check-changed-skills.sh origin/main` exits 0
@@ -341,7 +385,8 @@ Files:
 | Keep the discovery ladder inline in `deepening.md` and copy it into the new skill | two ladders drift; reuse-or-replace | never; a single owner is strictly better here |
 | Put the ladder in `skills/record-decision/context/` and have `improve` cite across skills | plugin-level `reference/` already hosts shared material (`topic-docs.md`) and is the established home | none |
 | Route only the interview (leave design-handoff untouched) | the Brief's first criterion says "reachable after design-handoff", and that skill never mentions ADRs today, so nothing reaches it without a sentence | the human strikes that clause from the Brief |
-| Also rewire `plan/context/close-out.md` step 2 | outside the Brief's constraints; deferred as D2 | a follow-up slice under a new container |
+| Leave `plan/context/close-out.md` step 2 unrewired (defer) | the same planning version would then tell the model to write ADRs by hand at graduation while the interview routes them; one presence-gated clause closes the contradiction and touches neither the admission test nor the `git mv` | a reviewer reads the clause as scope creep; then drop it and record the contradiction in the CHANGELOG |
+| Name the skill with a verb from the Naming table | none of the fixed-contract verbs (`audit`, `scan`, `check`, `clean`, `tidy`, `fix`, `realign`, `setup`, `update`) means "write one record"; `record` is an imperative verb the grammar admits, and check 25 skips polarity when no table verb matches | the Naming table gains a `record` contract; then align the description lead to it |
 | Have the skill read `design-threads.md` itself | cross-plugin artifact dependency on a planning-owned format | never; the caller passes the content |
 | Split #3818 into an architecture PR and a planning PR | the planning sentences name a skill that must exist; one PR keeps the seam atomic and the container has one implementation slice | a reviewer asks for smaller PRs; then land architecture first |
 | Bump planning to 0.37.0 | fleet precedent (0.36.5 added a presence-gated route as a patch) | a reviewer reads the interview change as a behavior change consumers depend on |
@@ -386,10 +431,13 @@ and waits.
 
 - D1 (container C4): listing-budget pressure across the fleet. Unchanged; this lane remains the
   designated drop-first lane.
-- D2: `plan/context/close-out.md` step 2 still tells the model to write ADRs by hand at
-  graduation. Rewiring it to `/architecture:record-decision` is a follow-up outside #3802.
+- D2: `record` is not a verb in the Naming table. This plan treats it as an admitted imperative
+  verb with no fixed contract; whether the table should gain a `record` row is a reviewer's
+  call and does not block the slice.
 - D3: the `improve` skill reads ADRs through the same ladder but takes no action on the
   no-convention rung. That asymmetry is by design and recorded in `adr-discovery.md`.
+- D4: the vendored-prose grep is a one-sentence tripwire. A stronger guard (a fingerprint
+  check against the catalog README) belongs to the provenance plugin, not this lane.
 
 ## Handoff to implementation
 
