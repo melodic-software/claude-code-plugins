@@ -154,9 +154,11 @@ This doc owns the text; the consuming slices carry the restating work.
 
 ## Consumers
 
-Which skill reads which key, by slash invocation:
+Which skill is expected to read which key, by slash invocation. Every row below is a **declared
+consumer, not a landed integration**: no skill reads either key on `main` today, and the table is
+written ahead of the slices so each one has a stated target to land against.
 
-| Key | Read by |
+| Key | Declared consumer (not yet reading) |
 |---|---|
 | `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria); `/review:quality-gate` close-out (reads the pattern on a retrieved criterion) |
 | `diagram_dialect.data` | `/planning:design` (data-scope artifact); `/work-items:decompose` (inlines the produced artifact) |

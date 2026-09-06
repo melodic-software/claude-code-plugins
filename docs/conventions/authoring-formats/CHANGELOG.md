@@ -2,8 +2,9 @@
 
 Notable changes to the authoring-formats contract. Per the README's Versioning section, removing a
 key, removing an allowed value, or changing a default is a major change; adding a key or an allowed
-value is minor; clarification is a patch. Recheck-trigger firings on the Mermaid-C4 record land
-here with their outcome, drift or no drift.
+value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lands here only when
+it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
+and no version bump, per the upstream-drift contract's four-part-record rule.
 
 ## 1.0.0 — 2026-09-06
 
