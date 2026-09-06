@@ -163,7 +163,7 @@ intent needs an authorization an unattended cycle has nobody to give. The operat
 
 ## Where the artifacts land
 
-Both files the plugin writes without asking, the findings artifact, and the spine baseline the delta lane captures
+The files the plugin writes without asking, the findings artifact, the memory root's own `.gitignore` that the self-ignore guard creates on first write, and the spine baseline the delta lane captures
 at the end of each cycle for the next one to compare against, are memory tier, concern-scoped,
 branch-keyed, and never committed;
 [`reference/topic-docs.md`](reference/topic-docs.md) owns the resolution and the placement of each.

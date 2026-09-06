@@ -247,9 +247,13 @@ Two obligations this plugin takes on top of the convention:
 - **Offered, never taken.** `overengineering:realign` proposes an entry, shows it, and writes it only
   on an explicit yes, behind the same per-item gate that authorized the remediation. A producer that
   wrote one unprompted would record an acceptance nobody made.
-- **Visible, never silent.** On the next run the producer reports every suppressed finding with its
+- **Visible, never silent.** On the next walk the producer reports every suppressed finding with its
   reason, date, and contributing layer — and every entry that did *not* suppress, including each
-  personal-only and each malformed one.
+  personal-only and each malformed one. **A targeted run reports what it examined**: it computes
+  dispositions only for entries with a site in its `targets` and marks the rest **not evaluated this
+  run**, per `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Re-run merge semantics".
+  Silence is what this rule forbids; a pointed run saying which entries it did not reach is the
+  opposite of silence.
 
 `.claude/overengineering.md` is excluded from the audit's own scan set, so recording a judgment does
 not perturb the next run's inputs.
