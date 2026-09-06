@@ -29,9 +29,10 @@ over the six dimensions without importing a framework.
 
 - Skill content is organization-agnostic: no publisher or organization names in the skill body.
 - Repository discovery comes from an explicit argument, or from the repo-fleet-hygiene
-  canonical-repo discovery when that plugin is installed. Presence-gated with the argument as
-  fallback. Amended 2026-09-06: the collaborator's discovery is scoped, not argument-free, so
-  "the argument" is either an explicit repository list or a scan root (T1, T2).
+  canonical-repo discovery when that plugin is installed. Amended 2026-09-06: the argument
+  selects the mode. An explicit repository list bypasses discovery; a scan root triggers it,
+  through the collaborator when installed and through the bundled walk otherwise. The
+  collaborator's discovery is scoped, not argument-free, so a run with neither stops (T1, T2).
 - Output lands in the consumer's declared architecture home, not a location this plugin picks.
   Amended 2026-09-06: no declaration mechanism existed; this lane creates it as a convention
   doc `<convention-home>/architecture/README.md` with `architecture_dir` and
@@ -70,8 +71,9 @@ over the six dimensions without importing a framework.
   structures.
 - A standalone design-document skill.
 - Container-level or component-level C4 views.
-- Editing a consumer's root instruction file. The pointer region is shared by every plugin and
-  is the operator's to place; `architecture:setup` prints the recipe.
+- Any write to a consumer's root instruction file outside the marked `convention-home` region
+  (`architecture:setup apply` converges that region only, as the pilot does; `map-landscape`
+  never writes it).
 
 ## Plan
 
@@ -121,8 +123,9 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
    copy. The canonical copy stays in `plugins/claude-config/lib/`.
 4. `plugins/architecture/reference/config.md` (new): the consumer topic doc contract, modelled
    on `plugins/plugin-quality/reference/config.md` (where it lives, resolution order, format with
-   a 4-backtick outer fence around the example, keys table for `architecture_dir` and
-   `landscape_dialect` with defaults). No retired layers section (nothing to retire).
+   a 4-backtick outer fence around the example, keys table for `architecture_dir`, which has
+   no default, and `landscape_dialect`, default `mermaid`). No retired layers section (nothing
+   to retire).
 5. `plugins/architecture/skills/map-landscape/evals/evals.json` (new) with fixtures under
    `evals/fixtures/`, every fixture referenced by a case's `files[]`
    (`scripts/check-orphaned-fixtures.sh`). Cases: explicit list with the collaborator absent
@@ -144,12 +147,20 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
    (`scripts/generate-cheatsheet.mjs`, `scripts/generate-catalog.mjs`); never hand-edit.
    `docs/CATALOG.md` changes because the plugin `description` changes.
 9. `plugins/architecture/skills/setup/SKILL.md` (new) plus `evals/evals.json` (setup skills are
-   not evals-exempt): T11 verbatim. Frontmatter per the setup contract enforced by
-   `scripts/validate-plugin-contracts.mjs` (`disable-model-invocation: true`, `argument-hint`
-   leading with `check`), modelled on `plugins/plugin-quality/skills/setup/SKILL.md` minus its
-   retirement records. Eval cases: `check` with no pointer line (reports exit 1 and the
-   recipe); `check` with a conforming topic doc; `apply` proposes and waits for confirmation
-   before writing; `apply` never edits the root instruction file.
+   not evals-exempt): T11 verbatim, modelled on `plugins/plugin-quality/skills/setup/SKILL.md`
+   minus its retirement records. Frontmatter: `user-invocable: true`,
+   `disable-model-invocation: true`, no `metadata` block (the cheat-sheet generator excludes
+   skills named `setup` and errors when one carries metadata), and the double-quoted
+   `argument-hint: "check | apply [home=<dir>] [architecture_dir=<path>] [landscape_dialect=<structurizr|mermaid>]"`
+   that `scripts/validate-plugin-contracts.mjs` requires; the body documents `check` and
+   `apply` in code spans. `check` prints a PASS/FAIL/INFO table with one remediation line per
+   FAIL and modifies nothing. `apply` converges the marked `convention-home` pointer region
+   (inside the markers only, preserving unrelated content) and the topic doc; idempotent;
+   proposes and waits when arguments are incomplete; non-interactive when all three are
+   supplied; re-reads and reports the stored values after writing. Eval cases: `check` with no
+   pointer line (FAIL row plus remediation); `check` with a conforming topic doc (all PASS);
+   `apply` with incomplete arguments proposes and waits; `apply` with complete arguments writes
+   without prompting and reports the read-back values.
 10. `docs/conventions/config-cascade/README.md` "Implementers" table: add the `architecture`
     row (consumer config path = convention doc at the consumer's convention home,
     `<home>/architecture/README.md`; layers = `team, via pointer line`; conformance =
@@ -168,12 +179,12 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
 | A4 | `grep -q '^## \[0.7.0\]' plugins/architecture/CHANGELOG.md` | FAIL | PASS |
 | A5 | `grep -q 'map-landscape' plugins/architecture/README.md` | FAIL | PASS |
 | A6 | `grep -q 'map-landscape' docs/SKILL-CHEAT-SHEET.md` | FAIL | PASS |
-| A7 | `! grep -qi 'melodic' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
-| A8 | `! grep -qiE 'zachman\|togaf' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
+| A7 | `! grep -qi 'melodic' plugins/architecture/skills/map-landscape/SKILL.md && ! grep -qi 'melodic' plugins/architecture/skills/setup/SKILL.md` | n/a (no file) | PASS |
+| A8 | `! grep -qiE 'zachman\|togaf' plugins/architecture/skills/map-landscape/SKILL.md && ! grep -qiE 'zachman\|togaf' plugins/architecture/skills/setup/SKILL.md` | n/a (no file) | PASS |
 | A9 | `grep -qE 'repo-fleet-hygiene' plugins/architecture/skills/map-landscape/SKILL.md && grep -qiE 'plugin is installed' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A10 | `grep -q 'systemLandscape' plugins/architecture/skills/map-landscape/SKILL.md && grep -q 'C4Context' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A11 | `bash plugins/architecture/skills/map-landscape/scripts/portfolio-facts.test.sh` | n/a (no file) | exit 0 |
-| A12 | `test -f plugins/architecture/skills/setup/SKILL.md && grep -qE '^\| *\`architecture\` *\|' docs/conventions/config-cascade/README.md` (run on main 2026-09-06: FAIL, the word `architecture` does not occur in that file at all) | FAIL | PASS |
+| A12 | `test -f plugins/architecture/skills/setup/SKILL.md && grep -qE '^\| *.architecture. *\|' docs/conventions/config-cascade/README.md` (the dots stand for the backticks around the surface name; a literal backslash-backtick inside `grep -E` is a buffer-start anchor and can never match; run on main 2026-09-06: FAIL, the word `architecture` does not occur in that file at all) | FAIL | PASS |
 | C1 | `bash scripts/sync-resolve-convention-home.sh --check` | PASS | PASS |
 | C2 | `bash scripts/check-skill-count-claims.sh --check` | PASS | PASS |
 | C3 | `bash scripts/check-orphaned-fixtures.sh --check` | PASS | PASS |
@@ -344,6 +355,20 @@ discovery restatement, verb-table stance, T8 status rule, no downstream consumer
 emitted text, marketplace version fields, bump levels, sync enrollment, generator inputs,
 eval schema, test discovery, org-agnosticism tokens.
 
+Second fresh-context round (2026-09-06, after the amendments and the issue-body rewrites), 14
+findings: 1 CRITICAL (the A12 grep as typed used a backslash-backtick, which `grep -E` reads as
+a buffer-start anchor, so it could never match; retyped with dots and re-run on main), 7
+IMPORTANT (the same check truncated by CommonMark in the issue body; #3817's B2 requires bare
+dimension names in the table, now stated; the collector invocation in #3816 lacked its
+`${CLAUDE_SKILL_DIR}` anchor and the never-by-hand rule; the setup spec omitted the validator's
+quoted `argument-hint` grammar, the philosophy's readback and non-interactive bullets, and the
+pilot's pointer-region convergence, so T11 was realigned to the pilot; the absence greps
+skipped the setup skill; the Brief's "argument as fallback" contradicted `--repos` winning
+outright; T5 still carried a `docs/architecture` default), 6 SUGGESTION (all applied: fleet-plan
+gotcha, `git fetch origin main` before the diff gates, B7 pairing note, no `metadata` block on
+setup, a fourth container criterion for setup, amendment notes marking the plan as unreachable
+from a worker's branch). Checks it ran on the current tree reproduce the recorded results.
+
 ## Execution shape
 
 Per-item PRs (container setting). Phase 1 and Phase 2 are file-disjoint and run in parallel in
@@ -366,9 +391,9 @@ this plan's summary.
    for consumers? File against that plugin when Phase 1 lands; until then the `schema_version`
    check plus fallback carries the coupling.
 2. Resolved during verification: `architecture:setup` ships in Phase 1 (T11) because the
-   plugin philosophy requires a setup skill once a consumer configuration surface exists. What
-   stays open is whether any plugin should ever write the shared pointer region itself; today
-   every carrier prints the recipe.
+   plugin philosophy requires a setup skill once a consumer configuration surface exists, and
+   its `apply` converges the shared pointer region exactly as the pilot's does (the region is
+   machine-owned by doctrine). Nothing remains open here.
 3. Should `/planning:design` Phase 2 prompt for threads across the six dimensions at design
    time (upstream of the gate)? Out of scope by #3817's exclusion; revisit after the table has
    been read in practice.

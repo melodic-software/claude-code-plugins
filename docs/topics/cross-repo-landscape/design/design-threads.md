@@ -90,7 +90,7 @@ The evidence string in the edge makes every line auditable.
 
 **Decision.** The consumer declares an architecture topic doc at
 `<convention-home>/architecture/README.md` carrying a fenced YAML block with
-`architecture_dir` (repo-relative, default `docs/architecture`) and `landscape_dialect`
+`architecture_dir` (repo-relative, no default) and `landscape_dialect`
 (`structurizr` | `mermaid`, default `mermaid`). The convention home resolves through the
 vendored `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` (exit 0 resolved, 1 no
 pointer, 2 usage, 3 FAIL); the skill runs it and follows the exit code, never parsing the root
@@ -122,22 +122,33 @@ own where its architecture lives.
 
 ## T11 — `architecture:setup` owns the configuration surface (RESOLVED)
 
-**Decision.** Phase 1 also ships a thin check-centric `architecture:setup`
-(`disable-model-invocation: true`, `argument-hint` leading with `check`, actions `check` and
-`apply`). `check` runs the vendored resolver and reports: no pointer line (exit 1) with the
-recipe, a resolved home with no `architecture/README.md` topic doc, a topic doc with an unknown
-key or value, or a conforming declaration. `apply` is operator-gated: it proposes the inferred
-`architecture_dir` and `landscape_dialect`, and on confirmation writes the topic doc at the
-resolved home; when no pointer line exists it prints the region recipe for the operator to add
-rather than editing the root instruction file. No retired layers, no retirement records.
+**Decision.** Phase 1 also ships a thin check-centric `architecture:setup`, mirroring the pilot
+`plugins/plugin-quality/skills/setup/SKILL.md`: frontmatter `user-invocable: true`,
+`disable-model-invocation: true`, no `metadata` block (the cheat-sheet generator excludes every
+skill named `setup` and errors when one carries `workflow-stage`/`summary`/`cadence`), and
+`argument-hint: "check | apply [home=<dir>] [architecture_dir=<path>] [landscape_dialect=<structurizr|mermaid>]"`
+(double-quoted, `check` leading, as `scripts/validate-plugin-contracts.mjs` requires). The body
+documents both `check` and `apply` in code spans. `check` is read-only: it runs the vendored
+resolver and prints a PASS/FAIL/INFO table with one remediation line per FAIL, covering no
+pointer line (resolver exit 1), a resolved home with no `architecture/README.md`, a topic doc
+with an unknown key or value, and a conforming declaration. `apply` converges two things, as
+the pilot does: the marked `convention-home` pointer region in the root instruction file
+(only inside the markers, preserving unrelated content, only when `home=` is supplied or a
+home is confirmed) and the `architecture/README.md` topic doc at the resolved home. It is
+idempotent, proposes inferred values and waits for confirmation when arguments are incomplete,
+runs non-interactively when `home=`, `architecture_dir=`, and `landscape_dialect=` are all
+supplied, and after writing re-reads and reports the stored values it observed. No retired
+layers, no retirement records.
 
 **Rationale.** `docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable": a plugin requires
 a `setup` skill iff it has a consumer-project configuration surface; T5 creates one. The pilot
 (`plugin-quality`) ships one and routes its resolution ladder's ask rung to `setup apply`. The
 setup contract is validated by `scripts/validate-plugin-contracts.mjs` (frontmatter and
-argument-hint rules for `skills/setup/**`). Writing the topic doc but not the root instruction
-file keeps the mutation to a new file under the consumer's own convention home; the pointer
-region is shared by every plugin and is the operator's to place.
+argument-hint rules for `skills/setup/**`) and the philosophy's setup bullets (idempotent,
+transparent, evidence-bearing readback, non-interactive with complete arguments). The pointer
+region is machine-owned by design (`docs/conventions/config-cascade/README.md` "Expression
+doctrine") and the pilot's `apply` already converges it, so a setup that only printed a recipe
+would be a silent second way; `map-landscape` itself still never writes it.
 
 ## T6 — Dialect asymmetry (RESOLVED)
 
