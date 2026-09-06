@@ -102,12 +102,15 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 5. **A `Status` value outside the artifact's closed vocabulary** is reported and that finding is
    skipped, soft degradation, never a guess about what an unknown state meant.
 6. **Surface a verdict that moved under a carried-forward judgment before anything else, and never
-   act on it.** An `ACCEPTED` finding now recomputed to `KEEP`, or a `REJECTED` one now recomputed
-   to a retirement-direction verdict, means the evidence moved under a decision the operator already
-   made. **Direction is not the only trigger:** surface it too where the recomputed verdict
-   materially changes *what the acceptance authorized* without flipping direction, an `ACCEPTED`
-   `DOWNGRADE` now recomputed to `CONSOLIDATE` authorizes a different act on a different artifact.
-   Re-confirm the act before anything proceeds; the earlier yes was given to the old one.
+   act on it.** Read the flag whichever producer recomputed the row wrote on merge; never re-derive
+   the trigger, since a second derivation here is a second answer that can disagree with the one on
+   the artifact. What the flag means: an `ACCEPTED` finding now recomputed to `KEEP`, or a
+   `REJECTED` one now recomputed to a retirement-direction verdict, means the evidence moved under a
+   decision the operator already made. **Direction is not the only trigger:** it is set too where
+   the recomputed verdict materially changes *what the acceptance authorized* without flipping
+   direction, an `ACCEPTED` `DOWNGRADE` now recomputed to `CONSOLIDATE` authorizes a different act
+   on a different artifact. Re-confirm the act before anything proceeds; the earlier yes was given
+   to the old one.
 
 ## Arguments
 

@@ -26,7 +26,9 @@ One markdown file is the whole seam between this plugin's four skills. **Two of 
 `overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
 read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
 only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
-here at all. All four skills read this document; **none restates it**, and no other plugin is
+here at all. All four skills read this document; **none restates a rule of it as a second
+authority** — where a skill states one in its own voice, as `realign` does for the moved-verdict
+trigger it acts on, this document governs and settles every disagreement. No other plugin is
 assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
@@ -655,7 +657,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
 | Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row, because its every target routed away, creates nothing | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, whether the no-target ladder ended at an offer or a question or every resolved target routed away | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 | Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
