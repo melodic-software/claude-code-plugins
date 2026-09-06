@@ -125,6 +125,16 @@ Three obligations this plugin takes on top of the convention:
   convention forbids editing a user-scope file to record a suppression, and this plugin never writes
   `~/.claude/**` — a personal draft there is read, reported, and left for the operator to promote.
 
+**Declared deviation: a fifth disposition for a scoped run.** The convention requires a skill to
+resolve every entry to exactly one of four dispositions. `instruction-placement:audit` accepts a
+path argument, and an entry whose site lies outside that path was not examined — reporting it
+`CLOSED` would be false, and `CLOSED`'s own accounting would then have to call it an unexplained
+disappearance and fail the run's self-check. **`not evaluated this run` is therefore added, never
+substituted**: it applies only to a scoped run, only to entries outside the scope, and every entry
+inside the scope still resolves to one of the convention's four. A full run never emits it. The
+deviation is additive and reporting-only — no entry suppresses on it, and no entry escapes a
+disposition because of it.
+
 `.claude/instruction-placement.md` and its layers are **excluded from the audit's own scan set**.
 Otherwise recording a decline would change the instruction layer the next run sweeps, and any
 idempotence claim about that run would be unfalsifiable.

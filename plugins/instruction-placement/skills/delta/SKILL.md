@@ -148,8 +148,9 @@ Never pad a quiet run by re-listing standing findings to look useful.
   report, always — including every entry that did not suppress and why.
 - **Never re-classify an unchanged finding.** If its source content did not change, its
   classification stands. Re-deriving it invites drift between runs for no new information.
-- **A missing prior artifact routes out.** This skill reports movement; it is not a full audit
-  wearing a different name.
+- **Neither a baseline nor an artifact routes out.** With one of the two in hand there is a
+  comparison to make; with neither there is nothing to report movement against, and this skill is
+  not a full audit wearing a different name.
 
 ## Gotchas
 

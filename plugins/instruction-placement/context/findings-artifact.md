@@ -91,7 +91,9 @@ as `—` rather than omitted, so a diff between runs stays aligned.
 
 - **Status:** pending
 - **Lane:** demote
-- **Source:** `CLAUDE.md` lines 88–121, heading "C# naming"
+- **Source:** `CLAUDE.md` lines 88–121, heading path `["C# naming"]`
+- **Suppression key:** `check` `instruction-placement/audit/demote`; `claim`
+  `narrower-scope:path-scoped-rule`; `anchor/v1` `4b322d9c`; `finding_id` `6e9976d9d2e2c5a4`
 - **Destination:** path-scoped rule `.claude/rules/csharp-naming.md`
 - **Proposed `paths:`** `["**/*.cs"]`
 - **Glob validation:** 412 tracked files matched; 3.1% of tracked files; budget ok; brackets ok
@@ -101,6 +103,16 @@ as `—` rather than omitted, so a diff between runs stays aligned.
   after compaction only when a `.cs` file is read again
 - **Confidence:** high
 ```
+
+**`Source` records the ordered enclosing heading path, not the leaf heading, and `Suppression key`
+is written by `audit` at sweep time.** Both are fields added under this document's own
+fields-may-be-added rule, and they exist so `realign` never recomputes an anchor. Only `audit` holds
+the detector stream the chain is derived from; `realign` has neither `detect.sh` nor a `SECTION`
+stream in its pre-computed context, so its only other route is re-reading the file with its own
+heading parse — which does not track fenced blocks and frontmatter the way the detector does. A
+divergent parse there produces a well-formed entry whose constituents hash to their own key, so
+nothing reports it malformed and `delta` simply never matches it. The decline would vanish with no
+error, which is the one failure mode this record's durability exists to prevent.
 
 `Status` moves `pending` → `accepted` | `declined` | `applied` | `blocked`, written by `realign`
 only. A `declined` finding keeps its record so a later run does not re-propose what the operator
@@ -148,12 +160,27 @@ truncated to 8 hex** — for the section `### Release checklist` under `## Deplo
 `["Deployment", "Release checklist"]`. It is deliberately **not** a digest of the section's text and
 never a positional ordinal.
 
-**The chain is reconstructed by the skill, not emitted by the detector.** A `SECTION` record carries
-`path`, `start`, `end`, `level`, and its own `heading` — the ancestors are recoverable because the
-records for one file arrive in document order with their levels: a section's enclosing path is the
-nearest preceding record at each lower level, walked up to level 1. Derive it that way rather than
-by re-reading the file, so the anchor a `realign` write stores and the anchor a later run computes
-come from the same stream and match. A reworded paragraph inside a section whose scope and class are unchanged
+**The chain is reconstructed from the detector stream, and only `audit` and `delta` may do it.** A
+`SECTION` record carries `path`, `start`, `end`, `level`, and its own `heading`; the ancestors are
+recoverable because the records for one file arrive in document order with their levels, so a
+section's enclosing path is the nearest preceding record at each lower level, walked up to level 1.
+Both skills that run the detector derive it that way and never by re-reading the file.
+
+**`realign` never derives one.** It has no detector stream, so it reads `anchor/v1` and `finding_id`
+from the Finding record `audit` wrote and carries them into the suppression entry verbatim. That is
+what keeps the anchor a decline is stored under identical to the anchor a later `delta` computes; a
+second derivation path is a second parse, and the two disagreeing is a silent lost decline rather
+than an error.
+
+Two consequences worth stating, since neither surfaces as a failure:
+
+- **A finding whose record predates these fields cannot be suppressed durably.** No anchor, no
+  entry. Re-run `audit` to re-derive the record rather than composing an entry from a hand-read
+  heading.
+- **A record whose `Source` heading path was edited by hand is not evidence.** The anchor is what
+  the entry is keyed by; a hand-edited path that no longer hashes to the stored anchor makes the
+  record internally inconsistent, and `realign` reports that and re-audits rather than guessing
+  which half is right. A reworded paragraph inside a section whose scope and class are unchanged
 is not a new finding, and an anchor over the bytes would resurrect an accepted decline on every
 copy-edit. Renaming or re-nesting the heading does change it, and that is correct: the finding is
 then a different one, and the convention's `OLD CLOSED, NEW OPENED` disposition reports the old entry
@@ -162,6 +189,18 @@ stale rather than dropping it.
 `finding_id` is the convention's own formula over `[check, claim, surface, anchor]` — the
 constituents are authoritative and the key is derived from them, so an entry whose stored
 constituents do not hash to its own key is reported as malformed and suppresses nothing.
+
+**The trade this anchor makes, recorded so it is not re-litigated.** The marketplace contract's own
+anchor keeps a heading-path hash as a *duplicate discriminator* inside a larger anchor that also
+carries an excerpt hash; this plugin's `anchor/v1` is the heading-path hash alone. The cost is real:
+two sections in one file sharing an enclosing heading path, a lane, and a destination collapse to
+one `finding_id`, so declining one suppresses both. That is accepted rather than mitigated. Adding
+the excerpt half back would make every copy-edit inside a declined section mint a new id and
+resurrect a decision the operator already made — the failure this plugin's whole delta lane exists
+to prevent — and the collision it avoids requires two same-named headings under the same parent,
+which is a malformed document a reader cannot navigate either. Revisit if a consumer demonstrates
+the collision on a document they consider correct; the fix would be `anchor/v2` with a
+position-independent tiebreak, not a text digest.
 
 The artifact's own `IP-007`-style identifiers are unrelated and stay local to one artifact: they are
 short, human-quotable handles for a run's report. The `finding_id` is what crosses checkouts.

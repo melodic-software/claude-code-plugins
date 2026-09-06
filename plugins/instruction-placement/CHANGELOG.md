@@ -3,46 +3,6 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.13.0]
-
-### Added
-
-- **`reference/consumer-config.md` and the tracked suppression surface
-  `.claude/instruction-placement.md`.** A declined finding is now recorded against the marketplace's
-  finding-suppression contract, layered across the three config-cascade layers with per-key merge
-  and the policy-floor precedence inversion, and registered in the cascade's implementers table.
-  `suppressions` is the surface's only key; the plugin's `userConfig` dials stay personal and are
-  never keys here.
-- **`instruction-placement:realign` writes the decline.** A decline now has two writes: `declined`
-  into the branch-scoped findings artifact as before, and an entry on the tracked surface, offered in
-  full and written only on an explicit yes, team layer only, with the run stating that the file must
-  be committed to reach another checkout.
-- **Finding ids and their constituents**, in `context/findings-artifact.md`: what `check`, `claim`,
-  and `sites` hold for a placement finding, and this plugin's `anchor/v1` — `sha256` of the
-  `US`-joined enclosing heading path, truncated to 8 hex, deliberately not a digest of the section's
-  bytes, so a copy-edit does not resurrect an accepted decline.
-
-### Changed
-
-- **The declined set moved off the memory tier onto the tracked surface, and the spine baseline
-  became branch-keyed** (#3811). The previous release routed declines into the baselines slot. That
-  cannot carry them: the topic-docs contract states a memory document is visible only in the checkout
-  that wrote it, marks a sibling worktree `invisible`, and refuses to carry this file class with
-  `.worktreeinclude` ("never baselines or raw scratch"). Git is the only mechanism that crosses
-  checkouts, so the judgment rides a tracked file and the diff spine stays where it belongs:
-  `<memory_dir>/instruction-placement/<branch-slug>/baselines/spine-baseline.md`, refused on a
-  `branch:` mismatch rather than compared. This is the same split the sibling `overengineering`
-  plugin makes.
-- **`delta` reads the suppression surface and never writes it.** Its writes are the spine baseline
-  and the slice scaffolding the binding requires, all memory tier; the earlier claim that the
-  baseline was its only write contradicted the binding and is corrected.
-- **`audit` reads the suppression surface too**, reports every entry that did and did not suppress
-  with its contributing layer, and excludes the surface and its layers from its own sweep.
-- **`context/findings-artifact.md` is `schema: 2`.** Its location formula changed, which is
-  reader-breaking under that document's own stability rule; the stability section now says so, and
-  the state-key language about identifiers being stable "within a key" is replaced by the resolved
-  home plus the cross-checkout `finding_id`.
-
 ## [0.12.0]
 
 ### Added
@@ -50,42 +10,61 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - **`reference/artifact-protocol.md`** — the marketplace's shared lifecycle artifact protocol,
   byte-identical to the canonical copy. This plugin is now a protocol participant, and
   `scripts/validate-plugin-contracts.mjs` checks its copy alongside the other five.
-- **`reference/topic-docs.md` — the binding that resolves both artifact homes.** Memory tier,
-  constant slug `instruction-placement`, with the rung order, the two axes, the child-slice
+- **`reference/topic-docs.md` — the binding that resolves both memory-tier homes.** Constant slug
+  `instruction-placement`, branch-keyed below it, with the rung order, the child-slice
   non-predicate, the detached-`HEAD` consequence, and the self-ignore guard all cited from the
   contract rather than restated. The slice root carries an `INDEX.md` because it holds two artifact
-  families, written at the same first memory-tier write as the self-ignore guard.
-- **The placement baseline, in the protocol's `baselines/` slot.** `delta` captures
-  `baselines/placement-baseline.md` at the end of a cycle: this run's detector spine, plus a
-  decisions table carrying every finding the operator has declined or applied. Its frontmatter,
-  its two body tables, and the four rules binding a capture are owned by
-  `context/findings-artifact.md` under "The baseline-capture obligation". A capture merges the
-  stored decisions rather than replacing them, because a run that did not observe a declined
-  finding has learned nothing about that decision.
+  families, written at the same first memory-tier write as the guard.
+- **The spine baseline, in the protocol's `baselines/` slot.** `delta` captures
+  `<branch-slug>/baselines/spine-baseline.md` at the end of a cycle that completed its comparison:
+  this run's detector spine and nothing else. Its frontmatter, its one body table, and the four
+  rules binding a capture are owned by `context/findings-artifact.md` under "The baseline-capture
+  obligation"; a baseline whose `branch:` does not match is refused rather than compared.
+- **`reference/consumer-config.md` and the tracked suppression surface
+  `.claude/instruction-placement.md`.** A declined finding is recorded against the marketplace's
+  finding-suppression contract, layered across the three config-cascade layers with per-key merge
+  on `finding_id` and the policy-floor precedence inversion, and registered in the cascade's
+  implementers table. `suppressions` is the surface's only key; the plugin's `userConfig` dials stay
+  personal and are never keys here. One declared deviation, recorded in that document: a scoped run
+  adds a fifth reporting-only disposition, `not evaluated this run`, for entries outside its scope.
+- **`instruction-placement:realign` writes the decline.** Two writes: `declined` into the
+  branch-scoped findings artifact, and an entry on the tracked surface — offered in full, written
+  only on an explicit yes, team layer only, with a required operator-authored reason and the run
+  stating that the file must be committed to reach another checkout.
+- **Finding ids and their constituents**, in `context/findings-artifact.md`: what `check`, `claim`,
+  and `sites` hold for a placement finding, and this plugin's `anchor/v1` — `sha256` of the
+  `US`-joined enclosing heading path, truncated to 8 hex. Deliberately not a digest of the section's
+  bytes, so a copy-edit cannot resurrect an accepted decline; the collision that trade accepts is
+  recorded beside it.
+- **The Finding record carries its `Suppression key` and its ordered heading path**, written by
+  `audit`, which holds the detector stream. `realign` has no detector and carries those values
+  verbatim rather than re-deriving an anchor from its own heading parse — a second parse that
+  disagreed would mint a well-formed entry nothing ever matches, losing the decline with no error.
 
 ### Changed
 
-- **Both artifacts move from the `${CLAUDE_PLUGIN_DATA}` state key to the memory tier** (#3811).
-  The findings artifact resolves to `<memory_dir>/instruction-placement/<branch-slug>/findings.md`;
-  the baseline to `<memory_dir>/instruction-placement/baselines/placement-baseline.md`. `audit`,
-  `realign`, and `delta` resolve those homes through the new binding, and `lib/state-key.sh` is
-  removed from this plugin rather than kept as a fallback.
-- **A declined finding now outlives the checkout it was declined in.** The state key's second
-  segment was a `<worktree-discriminator>` — a hash of the checkout root, present by design so two
-  worktrees "must not share a report". Correct for a per-checkout report, wrong for an operator's
-  judgment. The baseline's path has no branch segment and no checkout discriminator, so it is one
-  file per repository and a decline holds everywhere the resolved `memory_dir` reaches. On the
-  documented default that root is `.work/` inside the checkout, so a freshly created linked
-  worktree starts without it unless the repository carries the memory root in via
-  `.worktreeinclude`; a repository whose tracked `.claude/topic-docs.yaml` names a shared root
-  shares one baseline outright.
-- **`delta` writes the baseline and no longer writes the findings artifact.** It reads this
-  branch's artifact for statuses, merges them into the baseline's decisions table, and suppresses
-  every id that table carries. What it detects, its noise budget, and its report shape are
-  unchanged.
-- **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act
-  on another home's artifact is now argued from stale line ranges rather than from cross-project
-  collision, which is what the branch axis actually protects against.
+- **Persistence moves from the `${CLAUDE_PLUGIN_DATA}` state key to two homes chosen by what the
+  state is** (#3811). Evidence and the diff spine are memory tier and branch-keyed
+  (`<memory_dir>/instruction-placement/<branch-slug>/`), because both are recomputed by the next run
+  and are worthless outside the checkout that produced them. The operator's judgment is tracked,
+  because git is the only mechanism that reaches another checkout: the topic-docs contract states a
+  memory document is visible only in the checkout that wrote it, marks a sibling worktree
+  `invisible`, and refuses to carry this file class with `.worktreeinclude` ("never baselines or raw
+  scratch"). This is the same split the sibling `overengineering` plugin makes.
+- **The state key is removed rather than re-scoped.** Its second segment was a
+  `<worktree-discriminator>` — a hash of the checkout root, present by design so two worktrees "must
+  not share a report". Correct for a per-checkout report, and exactly wrong for a decline.
+- **`audit` and `delta` read the suppression surface and never write it**, reporting every entry
+  that did and did not suppress with its contributing layer, and excluding the surface and its
+  layers from the candidate set after the detector has run. What `delta` detects, its noise budget,
+  and its report shape are unchanged.
+- **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act on
+  another home's artifact is argued from stale line ranges rather than from cross-project collision,
+  which is what the branch axis actually protects against.
+- **`context/findings-artifact.md` is `schema: 2`.** Its location formula changed, which is
+  reader-breaking under that document's own stability rule; the stability section says so, and the
+  state-key language about identifiers being stable "within a key" is replaced by the resolved home
+  plus the cross-checkout `finding_id`.
 
 ### Removed
 
