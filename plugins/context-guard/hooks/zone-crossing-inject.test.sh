@@ -777,6 +777,52 @@ else
   fail "unparsable payload: rc=$B_RC out=[$B_OUT] err=[$(cat "$B_ERR")]"
 fi
 
+# cg::read_payload_to writes to the CALLER's variable whatever the caller names
+# it. `printf -v "$__cg_dest"` resolves the destination against the function's
+# own scope, so a local sharing the caller's chosen name would be assigned
+# instead, and the function would still return 0 — success with an unset
+# variable, which is silent. The header invites new callers to adopt the `_to`
+# form, and these are the names such a caller reaches for, so each is pinned.
+for dest in input chunk payload dest buf; do
+  D_OUT=$(printf '{"session_id":"s"}' | bash -c '
+    . "$1"/payload.sh
+    cg::read_payload_to "$2" || { echo "RC_NONZERO"; exit 0; }
+    printf "%s" "${!2-UNSET}"
+  ' _ "$SCRIPT_DIR" "$dest" 2>/dev/null)
+  if [[ $D_OUT == '{"session_id":"s"}' ]]; then
+    ok "read_payload_to fills a caller destination named '$dest'"
+  else
+    fail "read_payload_to with dest '$dest': expected the payload, got [$D_OUT]"
+  fi
+done
+
+# The three names that ARE this function's locals cannot be filled, so they must
+# fail loudly instead of returning 0 with the caller's variable unset.
+for dest in __cg_dest __cg_input __cg_chunk; do
+  R_ERR="$WORK/reserved-$dest.err"
+  R_RC=0
+  printf '{"session_id":"s"}' | bash -c '
+    . "$1"/payload.sh
+    cg::read_payload_to "$2"
+  ' _ "$SCRIPT_DIR" "$dest" >/dev/null 2>"$R_ERR" || R_RC=$?
+  if [[ $R_RC -eq 2 ]] && grep -q "reserved internal name" "$R_ERR"; then
+    ok "read_payload_to refuses reserved destination '$dest' loudly (rc=2)"
+  else
+    fail "read_payload_to with reserved dest '$dest': rc=$R_RC err=[$(cat "$R_ERR")]"
+  fi
+done
+
+# The wrapper still works: it passes __cg_buf, which is deliberately not reserved.
+W_OUT=$(printf '{"session_id":"s"}' | bash -c '
+  . "$1"/payload.sh
+  cg::read_payload
+' _ "$SCRIPT_DIR" 2>/dev/null)
+if [[ $W_OUT == '{"session_id":"s"}' ]]; then
+  ok "cg::read_payload wrapper still returns the payload"
+else
+  fail "cg::read_payload wrapper: expected the payload, got [$W_OUT]"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

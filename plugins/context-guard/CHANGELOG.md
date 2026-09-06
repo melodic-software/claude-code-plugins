@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.7.47]
 
+### Fixed
+
+- **`cg::read_payload_to` can no longer silently write to its own local instead of
+  the caller's variable.** `printf -v "$__cg_dest"` resolves the destination name
+  against the function's own scope, so a caller passing `input` or `chunk` — the
+  two names this function used for its accumulator and read block, and the two a
+  new caller reaches for first — had its variable left unset while the function
+  still returned 0. Success with no value and no error, which is the failure mode
+  that hides. No call site hit it (`zone-crossing-inject.sh` passes `INPUT`, the
+  wrapper passes `__cg_buf`), but the header invites new callers to adopt the
+  `_to` form, so the hazard was in front of the next caller rather than behind
+  this one. The internal locals are now `__cg_input` / `__cg_chunk`, the same
+  prefix convention `lib/hook-utils.sh` uses for `__hu_`. Because a prefix
+  reserves a namespace rather than abolishing the hazard, the three names that
+  are still internal (`__cg_dest`, `__cg_input`, `__cg_chunk`) are now refused
+  loudly with rc 2 and a stderr line instead of failing silently. `__cg_buf`
+  stays usable, since the printing wrapper passes it. `zone-crossing-inject.test.sh`
+  pins both halves: five caller-chosen names fill correctly, three reserved names
+  are refused, and the wrapper still returns the payload. The test fails five ways
+  against the pre-fix reader.
+
 ### Changed
 
 - **zone-crossing hook and zone resolver: 8 process creations per fire down to 3, with no change
