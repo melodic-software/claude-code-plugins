@@ -3,6 +3,20 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- **The README still carried the unqualified read-only claim `0.4.2` corrected in the skill
+  description**, and stated it more strongly: "the only skill that changes anything" of `realign`,
+  and "everything that changes the repo happens through" it. Both are false against the placement
+  binding, which records a confirmation-gated tracked write to the consumer's concern file as "the
+  one sanctioned tracked write of either producer". A reader evaluating the plugin from its README
+  concluded no producer touches tracked content, then saw one offer to. The claims are now scoped to
+  the surface under scrutiny, which is what they were always about, and the `justify` row carries the
+  same carve-out its description does. Found by verifying the previous fix rather than by a gate;
+  the parity fix had reached the description and stopped there.
+
 ## [0.4.2]
 
 ### Fixed
