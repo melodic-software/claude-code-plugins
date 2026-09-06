@@ -55,22 +55,29 @@
 
 set -uo pipefail
 
-# `dirname` is an external program, and on Windows Git Bash one exec is ~80 ms.
-# This helper answers the one argument shape used at the two call sites below
-# (this file's own path) without the exec. It is deliberately NOT a function
-# named `dirname`: a function of that name would be inherited by every guard
-# sourced below and shadow the real command for the guard's own calls, with an
+# Do NOT define a function named `dirname`. A function of that name would be
+# inherited by every guard sourced below and shadow the real command, with an
 # answer that diverges from GNU for `/foo` (empty, not `/`) and for `/a/b//`
 # (`/a/b`, not `/a`). Each guard's own `dirname` therefore stays the real one.
-run_guards::script_dir() {
-  local p="${1%/}"
-  if [[ "$p" == */* ]]; then printf '%s\n' "${p%/*}"; else printf '.\n'; fi
-}
-
+#
+# The dispatcher's own directory is derived with parameter expansion rather than
+# `dirname` or `$(helper)`. GNU Bash forks a subshell for every command
+# substitution even when the body is only builtins (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). On Windows
+# Git Bash that fork is a process. `${BASH_SOURCE[0]%/*}` equals `dirname`
+# for every shape BASH_SOURCE takes; the fallback covers a bare filename, where
+# the strip is a no-op and dirname answers `.`. Claude Code (and this suite)
+# invoke with an absolute path, so the strip is already absolute; `cd && pwd`
+# is kept only for a relative spelling.
+_RG_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$_RG_DIR" == "${BASH_SOURCE[0]}" ]] && _RG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(run_guards::script_dir "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$_RG_DIR/hook-utils.sh"
 
-HOOK_DIR="$(cd "$(run_guards::script_dir "${BASH_SOURCE[0]}")" && pwd)"
+case "$_RG_DIR" in
+/* | ?:[/\\]*) HOOK_DIR="$_RG_DIR" ;;
+*) HOOK_DIR="$(cd "$_RG_DIR" && pwd)" ;;
+esac
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
 GUARDS=()
@@ -107,7 +114,13 @@ hook::buffer_stdin() {
 # --- jq once ------------------------------------------------------------------
 # Keep the library's implementation reachable under another name so the cache
 # miss path is the library's own code, not a re-implementation of it.
-eval "$(declare -f hook::jq_fields | sed '1s/^hook::jq_fields/hook::jq_fields_uncached/')"
+# `declare -f` is a builtin; wrapping it in $( ) is one subshell. Piping that
+# through `sed` was an extra exec on every dispatcher fire. Parameter expansion
+# renames the first occurrence — the `name ()` header — and leaves the body
+# untouched.
+_rg_jq_def=$(declare -f hook::jq_fields)
+eval "${_rg_jq_def/hook::jq_fields ()/hook::jq_fields_uncached ()}"
+unset _rg_jq_def
 
 RUN_GUARDS_PRIMED=0
 RUN_GUARDS_FILTERS=()

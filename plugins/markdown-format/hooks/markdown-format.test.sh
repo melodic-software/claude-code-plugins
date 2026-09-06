@@ -1922,9 +1922,9 @@ if [[ -s "$TEL_FILE" ]]; then
   else
     fail "telemetry/envelope: data.file expected repo-relative, got: $TEL_FILE_VAL"
   fi
-  # schema_version must be "1.0"
+  # schema_version must be "1.1"
   TEL_SV="$(jq -r '.schema_version' "$TEL_FILE")"
-  if [[ "$TEL_SV" == "1.0" ]]; then ok "telemetry/envelope: schema_version 1.0"; else fail "telemetry/envelope: schema_version expected 1.0, got $TEL_SV"; fi
+  if [[ "$TEL_SV" == "1.1" ]]; then ok "telemetry/envelope: schema_version 1.1"; else fail "telemetry/envelope: schema_version expected 1.1, got $TEL_SV"; fi
   # duration_ms must be non-negative integer
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL_FILE" >/dev/null 2>&1; then
     ok "telemetry/envelope: duration_ms is non-negative integer"
