@@ -153,19 +153,19 @@ if ((${#GLOBS[@]} == 0)); then
 fi
 
 # --- Expand the allowlist ---------------------------------------------------
-# Replicate git `:(glob)` pathspec magic in-process, not git's default
-# wildmatch: without it `*` matches across directory separators, so
-# `plugins/*/README.md` would silently pull in `plugins/a/b/README.md`. An
-# allowlist whose entries claim more surface than they name is a declaration
-# nobody can audit by reading it. The previous loop paid one
-# `git ls-files -z -- ":(glob)$glob"` plus `tr`/`sed`/`wc` per allowlist
-# entry (~94 git execs on this tree). One `git ls-files -z` of the whole
-# index plus a component-wise matcher is the same glob contract (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
-# non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
-# Creation). Live allowlist entries do not use `**`; `*` and `?` cannot
-# include `/` because matching is one path component at a time.
+# `:(glob)` pathspec magic, not git's default wildmatch: without it `*` matches
+# across directory separators, so `plugins/*/README.md` would silently pull in
+# `plugins/a/b/README.md`. An allowlist whose entries claim more surface than
+# they name is a declaration nobody can audit by reading it.
+#
+# One `git ls-files -z -- "${pathspecs[@]}"` expands the union. The previous
+# loop paid one `git ls-files` plus `tr`/`sed`/`wc` per allowlist entry (~94
+# git execs on this tree). Attribution of the union back onto each glob (stale
+# detection and `--list` counts) is in-process and component-wise so `*` cannot
+# include `/` — the same `:(glob)` contract (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's
+# fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide,
+# Process Creation). Live allowlist entries do not use `**`.
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -191,17 +191,24 @@ glob_matches_path() {
   return 0
 }
 
-if ! git ls-files -z >"$TMP/tracked.z"; then
+pathspecs=()
+for glob in "${GLOBS[@]}"; do
+  pathspecs+=(":(glob)$glob")
+done
+if ! git ls-files -z -- "${pathspecs[@]}" >"$TMP/union.z"; then
   echo "check-purged-em-dashes: git ls-files failed" >&2
   exit 2
 fi
-declare -a TRACKED=()
+declare -a UNION=()
 while IFS= read -r -d '' f; do
-  [[ -n "$f" ]] && TRACKED+=("$f")
-done <"$TMP/tracked.z"
+  [[ -n "$f" ]] && UNION+=("$f")
+done <"$TMP/union.z"
 
 FILES="$TMP/files.txt"
 : >"$FILES"
+if ((${#UNION[@]})); then
+  printf '%s\n' "${UNION[@]}" >"$FILES"
+fi
 stale=0
 # Initialized here rather than only where it is computed: the verdict section
 # reads it, this script runs under `set -u`, and a future early return between
@@ -210,7 +217,7 @@ excluded=0
 matched=()
 for glob in "${GLOBS[@]}"; do
   matched=()
-  for f in "${TRACKED[@]}"; do
+  for f in "${UNION[@]}"; do
     glob_matches_path "$glob" "$f" && matched+=("$f")
   done
   count=${#matched[@]}
@@ -221,7 +228,6 @@ for glob in "${GLOBS[@]}"; do
     continue
   fi
   [[ "$MODE" == list ]] && printf 'ok     %s (%s files)\n' "$glob" "$count"
-  printf '%s\n' "${matched[@]}" >>"$FILES"
 done
 
 sort -u -o "$FILES" "$FILES"
