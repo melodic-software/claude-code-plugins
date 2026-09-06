@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.18]
+
+### Changed
+
+- **The `plugins` skill's two open probes on project-scope records are now verified facts.**
+  Re-run 2026-09-06 on Claude Code 2.1.263 in a scratch repository: a committed `enabledPlugins`
+  block whose `true` entries duplicate user-scope installs writes one project-scope record per
+  entry at the first session start in that checkout, pinned to the user scope's version and pointing
+  at its existing cache directory; a `false` entry writes no record and disables the plugin for
+  that session. `scope-semantics.md` records both with the recipe and drops the "open probe" and
+  "hypothesis" wording; `SKILL.md`'s stale-records section names the block as the source instead of
+  a candidate. Also recorded: `uninstall -s project` rewrites the checkout's committed settings
+  file. Evidence for the remediation decision on #3688, which stays open.
+
 ## [0.42.17]
 
 ### Changed
