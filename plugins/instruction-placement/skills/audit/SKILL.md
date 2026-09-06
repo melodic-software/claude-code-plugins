@@ -148,8 +148,10 @@ operator already made somewhere else.
 Three obligations, none optional. **Read, never write** — `realign` composes an entry behind its
 per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
 contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
-this run's scope. **Exclude the surface and its layers from the sweep** — auditing the file that
-records the decisions would make recording one perturb the next run.
+this run's scope. **Exclude the surface and its layers** — auditing the file that records the
+decisions would make recording one perturb the next run. That exclusion is applied to the candidate
+set after the detector has run, not to the corpus: the corpus document above stays the one owner of
+what is swept, and the detector's coverage numbers keep counting every file it read.
 
 ## Routing out
 
