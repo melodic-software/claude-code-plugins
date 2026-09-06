@@ -15,8 +15,11 @@ What it structurally cannot itemise is the built-in tool pool: `System tools` an
 `System tools (deferred)` are lump sums, and together they are typically the largest single
 contributor to the fixed startup payload. This skill measures that attribution on the consumer's
 own machine by A/B differencing: a baseline session versus one session per candidate tool with
-that tool denied by bare name, which is compositional (deltas add), so a basket of trims can be
-priced from its members.
+that tool denied by bare name. The two attributed buckets compose differently, so price a basket
+per bucket rather than as one number: deferred-side deltas add, and a basket's deferred saving is
+the sum of its members; prefix-side deltas double-count, and their sum is only an upper bound on
+what the basket saves on the prefix side. Confirm both on this binary with
+`attribute --verify-additivity`, which reports its verdict per bucket.
 
 Two rules govern everything this skill says, per the plugin's
 [`reference/engine.md`](reference/engine.md):
