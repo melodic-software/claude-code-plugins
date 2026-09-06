@@ -1,3 +1,14 @@
+# Self-hosted fleet labels. actionlint validates every `runs-on` value against
+# its built-in list of GitHub-hosted labels and fails an unknown one with
+# `label "..." is unknown ... [runner-label]`. Phase 4 of the ci-perf program
+# (melodic-software/github-iac#378) replaced the governed selector's routed
+# expression with the fleet label written literally, so every label the program
+# writes has to be declared here or every job naming it fails the lint.
+self-hosted-runner:
+  labels:
+    - melodic-ubuntu-24.04-x64
+    - melodic-review-ubuntu-24.04-x64
+
 # actionlint 1.7.12 (the ci-workflows composite's current pin) rejects the
 # GA `concurrency.queue` key (upstream gap:
 # https://github.com/rhysd/actionlint/issues/654). GitHub accepts and
@@ -7,8 +18,10 @@
 # 2026-07-26 (that PLAN.md's Approval record, item 3), scoped to exactly
 # that one syntax-check message.
 #
-# REMOVAL TRIGGER: delete this ignore (and this file, if nothing else has
-# accrued) when rhysd/actionlint#654 ships in the pinned actionlint version.
+# REMOVAL TRIGGER: delete this ignore when rhysd/actionlint#654 ships in the
+# pinned actionlint version. The file itself stays either way, because the
+# self-hosted-runner block above is permanent for as long as the fleet labels
+# are written literally.
 paths:
   .github/workflows/**/*.yml:
     ignore:
