@@ -9,8 +9,9 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 - **Synced `hooks/hook-utils.sh` drops leftover forks on the stdin and notice
   paths.** `hook::json_escape` no longer pipes through `tr`; `hook::emit_channels`
-  writes through `json_escape_to` instead of `$(json_escape)`; the `read -t`
-  slice probe no longer captures stderr via command substitution; `notice_once`
+  writes through `json_escape_to` instead of `$(json_escape)`; the fractional
+  `read -t` slice uses a Bash 4+ version check (CHANGES bash-4.0-alpha)
+  instead of a TMPDIR probe file; `notice_once`
   reads the marker with `read` and creates or prunes the skip-notice directory
   once per process. GNU Bash runs command substitution in a subshell even for
   builtins (Command Substitution, Bash Reference Manual;
@@ -20,7 +21,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   over 20 calls: `json_escape` 60→0 creations (20 `tr` execs→0);
   `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
   Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
-  Notice JSON, timeout probing, and skip-notice latching are unchanged.
+  Notice JSON, timeout resolution, and skip-notice latching are unchanged.
 
 ## [0.11.30]
 

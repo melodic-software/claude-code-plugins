@@ -1432,35 +1432,23 @@ hook::json_complete() {
 # still: it makes `read` return immediately having consumed nothing, which would
 # spin the loop.
 #
-# Acceptance is settled by PROBING this shell rather than consulting a version
-# table: which spellings `read -t` accepts varies across the Bash releases these
-# hooks support (fractional values are not universally available, and the
-# upstream changelog does not date their introduction), so asking the running
-# shell is exact where a version check would be a guess. Reading /dev/null hits
-# EOF immediately, so a valid timeout produces no stderr at all. The probe is
-# skipped for the default, which is known-good everywhere.
+# Fractional `read -t` landed in bash-4.0-alpha (CHANGES: "The `-t` option to
+# the `read` builtin now supports fractional timeout values"). Integer
+# timeouts are valid on every Bash these hooks support, including 3.2. A
+# live probe that redirected stderr into TMPDIR leaked a file on every
+# `buffer_stdin` (suites that isolate TMPDIR and assert it is empty after
+# the hook exits fail closed on that leftover). The version predicate is
+# the same class as hook::read_supports_nchars: overridable in tests because
+# BASH_VERSINFO is readonly. No file, no `read -t` against /dev/null.
 # Minimum 0.00001 s (10 µs): smaller positive values are a silent disable — the
 # read returns before payload bytes arrive, same class as exact zero (#1883).
 readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
 
-# hook::_read_t_stderr_empty <timeout>
-# True when this shell's `read -t <timeout>` against /dev/null produced no
-# usage error. The previous probe captured stderr with
-# `probe=$(read … </dev/null 2>&1)` — a command substitution, which GNU Bash
-# runs in a subshell even for a builtin (Command Execution Environment).
-# Invalid vs valid cannot be told from `$?` alone: both EOF on /dev/null and
-# `invalid timeout specification` return 1 on the Bash 5.2 measured here, so
-# emptiness of stderr is the discriminator. Redirecting that builtin onto a
-# per-process file and testing `-s` keeps the same discriminator without the
-# substitution fork; the file is truncated by `2>` each call.
-hook::_read_t_stderr_empty() {
-  local __hu_discard=""
-  if [[ -z "${_HOOK_READ_ERRFILE:-}" ]]; then
-    _HOOK_READ_ERRFILE="${TMPDIR:-/tmp}/hook-utils-read-t.$$"
-  fi
-  # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-  read -r -t "$1" __hu_discard </dev/null 2>"$_HOOK_READ_ERRFILE"
-  [[ ! -s "$_HOOK_READ_ERRFILE" ]]
+# Fractional `read -t` is Bash 4.0+. Split out so a test can force the 3.2
+# fallback the way hook::read_supports_nchars forces the pre-4.1 delimiter
+# read. Not a consumer seam.
+hook::read_supports_fractional_timeout() {
+  ((BASH_VERSINFO[0] >= 4))
 }
 
 # hook::resolve_read_timeout_to <var>
@@ -1475,7 +1463,7 @@ hook::resolve_read_timeout_to() {
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
   if [[ "$__hu_t" != "2" ]]; then
     if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] ||
-      ! hook::_read_t_stderr_empty "$__hu_t"; then
+      { [[ "$__hu_t" == *.* ]] && ! hook::read_supports_fractional_timeout; }; then
       __hu_t=2
     elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
       local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
@@ -1508,10 +1496,10 @@ HOOK_STDIN_READ_SLICES=4
 # Resolve the per-read slice for an already-resolved timeout into two caller
 # variables (slice, count). The print form below is the public contract:
 # "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
-# behavior — when this shell's `read -t` will not accept the fractional slice,
-# which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
-# already covers. Probed, not version-tested, for the same reason as
-# hook::resolve_read_timeout. hook::buffer_stdin calls the _to form so the
+# behavior — when this shell cannot accept a fractional `read -t` (Bash 3.2;
+# CHANGES bash-4.0-alpha introduced fractional timeouts). Version-tested via
+# hook::read_supports_fractional_timeout, not probed: a TMPDIR stderr file
+# leaked on every buffer_stdin. hook::buffer_stdin calls the _to form so the
 # resolution does not pay a process-substitution fork (GNU Bash: commands
 # grouped for substitution run in a subshell).
 hook::resolve_read_slice_to() {
@@ -1541,7 +1529,7 @@ hook::resolve_read_slice_to() {
     printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
   fi
   if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]] &&
-    hook::_read_t_stderr_empty "$__hu_slice"; then
+    hook::read_supports_fractional_timeout; then
     printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
     printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
     return 0
@@ -1587,9 +1575,9 @@ hook::buffer_stdin_to() {
   local __hu_read_timeout __hu_read_slice __hu_slice_count
   # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
   # even when the body is builtins only. Those two forks were the documented
-  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe is a
-  # builtin `read -t` with stderr redirected onto a per-process file, so it
-  # no longer pays a command-substitution fork.
+  # buffer_stdin startup cost (lib/hook-utils.test.sh). Slice acceptance is
+  # hook::read_supports_fractional_timeout (Bash 4+), so it creates no TMPDIR
+  # file and pays no substitution fork.
   hook::resolve_read_timeout_to __hu_read_timeout
   hook::resolve_read_slice_to "$__hu_read_timeout" __hu_read_slice __hu_slice_count
   local -a __hu_read_opts=(-r -t "$__hu_read_slice")

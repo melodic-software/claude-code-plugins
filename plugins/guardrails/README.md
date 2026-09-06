@@ -394,9 +394,10 @@ helpers, 20 calls after 0 warmup (the subject is a builtin):
 | `hook::notice_once` process creations | 79 | 3 (1 `mkdir` + 1 `find` + harness) |
 | `hook::buffer_stdin_to` (5 fires, fused fields) | 20 | 15 |
 
-The slice probe runs on every hook that buffers stdin, including the
-always-on dispatcher. PATH-visible `jq` execs on a benign Bash call stay
-at 1. Notices, timeout probing, and skip-notice JSON are byte-identical.
+Slice acceptance is a Bash 4+ version check (CHANGES bash-4.0-alpha:
+fractional `read -t`); it creates no TMPDIR file. PATH-visible `jq`
+execs on a benign Bash call stay at 1. Notices and skip-notice JSON
+are byte-identical.
 
 *Method.* Kernel trace as above; PATH shim cannot see a builtin-only
 fork. GNU Bash runs command substitution in a subshell even for builtins

@@ -2050,6 +2050,37 @@ else
   fail "resolve_read_timeout below floor: got '$resolved' (expected 2)"
 fi
 
+# Bash 3.2 has no fractional `read -t` (CHANGES bash-4.0-alpha). Override the
+# predicate the way the pre-4.1 nchars cases do: BASH_VERSINFO is readonly.
+force_no_frac='source "$1"; hook::read_supports_fractional_timeout() { return 1; }; '
+frac_branch=$(bash -c "${force_no_frac}"'hook::read_supports_fractional_timeout && echo modern || echo legacy' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_branch" == "legacy" ]]; then
+  ok "read_supports_fractional_timeout: override selects the Bash 3.2 branch"
+else
+  fail "fractional-timeout override did not flip the branch (got '$frac_branch')"
+fi
+frac_slice=$(bash -c "${force_no_frac}"'hook::resolve_read_slice 2' _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_slice" == "2 1" ]]; then
+  ok "resolve_read_slice: Bash 3.2 fallback is unsliced '<timeout> 1'"
+else
+  fail "resolve_read_slice 3.2 fallback: got '$frac_slice' (expected '2 1')"
+fi
+frac_t=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_t" == "2" ]]; then
+  ok "resolve_read_timeout: fractional custom value degrades to default on Bash 3.2"
+else
+  fail "resolve_read_timeout 3.2 fractional: got '$frac_t' (expected 2)"
+fi
+frac_int=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_int" == "5" ]]; then
+  ok "resolve_read_timeout: integer custom value is honored on Bash 3.2"
+else
+  fail "resolve_read_timeout 3.2 integer: got '$frac_int' (expected 5)"
+fi
+
 # A VALID non-default value must still be honored — the guard must not collapse
 # every setting to the default. 0.5 s against a producer that holds the pipe until
 # the verdict is in, so the stall cannot lose a race with EOF.
@@ -2132,23 +2163,14 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
     "$t_file"
   rm -f "$t_file"
 }
-# The unsliced override must pay the same COMMAND SUBSTITUTION the real
-# hook::resolve_read_slice pays at hook-utils.sh:849 to probe its slice value.
-# `printf "%s 1" "$1"` alone forks zero times where the sliced arm forks once,
-# and it is the arm that must come out SLOWER, so the missing fork shrinks the
-# very gap this case measures. On a host where a fork has been measured at up
-# to 3.2 s that is enough to invert the result: the run that exposed it had two
-# of five paired deltas negative. As with the json_complete override above, an
-# override may lie about a VERDICT but must never skip the WORK.
+# Production slice resolution is a BASH_VERSINFO predicate (same class as
+# hook::read_supports_nchars), not a command-substitution probe, so the
+# unsliced override matches that work: no TMPDIR file, no substitution fork.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_unsliced='hook::resolve_read_slice() {
-  local probe
-  probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
 }
 hook::resolve_read_slice_to() {
-  local probe
-  probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf -v "$2" "%s" "$1"
   printf -v "$3" "%s" "1"
 }'
@@ -3359,6 +3381,23 @@ else
   fail "json_escape/notice_once tr pin: no real tr on PATH to wrap"
 fi
 rm -rf "$tr_shim"
+
+# buffer_stdin must not leak a probe file into TMPDIR. Suites that isolate
+# TMPDIR and assert it is empty after the hook exits (powershell-format
+# rewrite-guard arms) fail closed on leftover hook-utils-read-t.$$ files.
+hu_scratch="$(mktemp -d)"
+hu_scratch_rc=0
+(
+  export TMPDIR="$hu_scratch" TMP="$hu_scratch" TEMP="$hu_scratch"
+  printf '{"ok":true}' | hook::buffer_stdin >/dev/null
+) || hu_scratch_rc=$?
+hu_left=$(find "$hu_scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')
+if ((hu_scratch_rc == 0)) && [[ "${hu_left:-1}" == "0" ]]; then
+  ok "buffer_stdin: isolated TMPDIR is empty after a successful read (no probe file)"
+else
+  fail "buffer_stdin leaked ${hu_left:-?} temp file(s) into TMPDIR (rc=$hu_scratch_rc)"
+fi
+rm -rf "$hu_scratch"
 
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"
