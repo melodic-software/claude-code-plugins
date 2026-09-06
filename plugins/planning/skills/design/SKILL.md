@@ -192,7 +192,7 @@ dialect: mermaid
 ---
 ```
 
-`scope` is one of `data`, `integration`, `system` — the scope of the session that produced the artifact. `dialect` is one of `mermaid`, `dbml`, `openapi-3.1`, `likec4`, `c4-plantuml`. The label exists so a consumer reads the producing scope instead of inferring it from prose: `/work-items:decompose` (when the `work-items` plugin is installed) reads it to inline the artifact under a provenance note naming the scope and dialect. Without that plugin the label is inert and costs nothing. The body is one fenced block in the declared dialect, followed by the prose the artifact already carried. An `integration` session labels two artifacts, one per typed file.
+`scope` is one of `data`, `integration`, `system` — the scope of the session that produced the artifact. `dialect` is one of `mermaid`, `dbml`, `openapi-3.1`, `likec4`, `c4-plantuml`. The label exists so a consumer reads the producing scope instead of inferring it from prose: `/work-items:decompose` (when the `work-items` plugin is installed) reads it to inline the artifact under a provenance note naming the scope and dialect. Without that plugin the label is inert and costs nothing. The body is one fenced block in the declared dialect, followed by the prose the artifact already carried. Tag the fence with the dialect's renderer name so a consumer knows what it is looking at without parsing the frontmatter: `mermaid`, `dbml`, `yaml` for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts, one per typed file.
 
 **Resolving the dialect.** `diagram_dialect` is a team-shared convention key split by artifact kind (`diagram_dialect.data`, `diagram_dialect.system`). Resolve it per session, before writing a typed artifact:
 
