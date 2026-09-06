@@ -197,7 +197,9 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "plugins": (
         AUTHORED,
         "Marketplaces, installed versions, per-plugin data. Upstream: do not delete. "
-        "Orphaned versions are removed 14 days after update/uninstall",
+        "Orphaned versions are removed 14 days after update/uninstall; a removed marketplace's "
+        "cache tree keeps its .orphaned_at markers and is swept on the same clock while any "
+        "plugin stays installed. A version directory with no marker is never swept",
     ),
     # Secrets
     ".credentials.json": (SECRET, "OAuth/API credentials -- never opened"),

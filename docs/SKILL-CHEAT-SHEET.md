@@ -228,6 +228,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker. Add, list, close, stats |
 | [`/work-items:triage`](../plugins/work-items/skills/triage/SKILL.md) | `work-items` | Evaluate raw intake through the verified-to-eligible state machine |
 | [`/work-items:work`](../plugins/work-items/skills/work/SKILL.md) | `work-items` | Auto-select one work item and execute it end-to-end |
+| [`/writing:be-concise`](../plugins/writing/skills/be-concise/SKILL.md) | `writing` | Reshape prose for a scanning reader. Bottom line first, about half the words |
 
 ## Session lifecycle
 

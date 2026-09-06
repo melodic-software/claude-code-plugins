@@ -149,7 +149,7 @@ scale with the repo's plugin list rather than with anyone's intent, so report th
 distinct paths, treat deliberate installs as one possible cause among others, and do not tell a user
 to stop installing at project scope until you know they did.
 
-Sourcing, precedence, and the two questions still open on the local write path are in
+Sourcing, precedence, and the verified local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
 cannot reap them". Do not restate them here.
 
@@ -166,14 +166,12 @@ rather than on its own prose. Verified empirically: `context/sync-install-enable
 configured value. Nothing enforces this — a future spoke that inlines such a token fails silently,
 so it is a review-time rule, not a checkable one.
 
-**Not re-run on 2.1.261, and the 2026-09-05 pass weakened rather than confirmed the contrast this
-section rests on.** That pass loaded a throwaway plugin and found `${CLAUDE_PLUGIN_ROOT}`
-substituting in a rendered `SKILL.md` body while a `userConfig` token in the same body stayed
-literal even with a value supplied through `--settings` `pluginConfigs`. So the SKILL.md half of the
-contrast — that a skill body *does* receive `${user_config.*}` substitution — was not demonstrable
-on that path, and the spoke half was never separately probed. The rule below is still the safe way
-to write a spoke either way: keep the render in `SKILL.md` and branch on that line. See `SKILL.md`'s
-`install_new` section for the full account of the failed control.
+**The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
+plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
+`pluginConfigs` substitutes into the rendered `SKILL.md` body alongside `${CLAUDE_PLUGIN_ROOT}`,
+provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
+on-disk observation above. Keep the render in `SKILL.md` and branch on that line. `SKILL.md`'s
+`install_new` section holds the payload shape and the probe recipe.
 
 ## `sync` updates the plugin that provides `sync`
 

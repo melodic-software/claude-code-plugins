@@ -3,6 +3,50 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.20]
+
+### Changed
+
+- **`marketplace remove` cache residue is recorded with a version stamp.** Verified 2026-09-06 on
+  Claude Code 2.1.263: after install, uninstall, and `marketplace remove` of a throwaway local
+  marketplace, the three registry files were byte-identical to their pre-add copies while
+  `~/.claude/plugins/cache/<marketplace>/` stayed on disk, as on 2.1.261. New this pass: the
+  uninstall wrote a `.orphaned_at` marker into the version directory and the marker survived the
+  marketplace removal, so the tree is on the documented 14-day sweep clock rather than a permanent
+  orphan, provided some plugin remains installed. `scope-semantics.md` gains the section with the
+  recipe and a durable recheck trigger; `audit-install-state`'s plugins-tree description carries the same
+  rule, naming an unmarked version directory as the case nothing sweeps.
+
+## [0.42.19]
+
+### Fixed
+
+- **The `plugins` skill's `userConfig` unset-key claim is re-verified, and the failed 2.1.261
+  control is explained.** Re-run 2026-09-06 on Claude Code 2.1.263 with a throwaway local
+  marketplace: a key set in real user settings substitutes into skill content, an unset sibling
+  renders the literal `${user_config.<key>}` placeholder rather than the manifest default (the
+  current plugins-reference page says the default is used; the render says otherwise, and the
+  skill trusts the render). The earlier probe's control failed because its `--settings`
+  `pluginConfigs` payload put the key directly under the plugin id; the effective shape nests it
+  under `options`, and with that shape `--settings` substitutes exactly like user settings. No
+  regression, and `install_new` needs no fallback beyond the existing "placeholder means `ask`"
+  rule. `SKILL.md` carries the corrected recipe (`claude plugin install <id> --config k=v` writes
+  the shape); `scope-semantics.md` records the `options` nesting and the version stamp.
+
+## [0.42.18]
+
+### Changed
+
+- **The `plugins` skill's two open probes on project-scope records are now verified facts.**
+  Re-run 2026-09-06 on Claude Code 2.1.263 in a scratch repository: a committed `enabledPlugins`
+  block whose `true` entries duplicate user-scope installs writes one project-scope record per
+  entry at the first session start in that checkout, pinned to the user scope's version and pointing
+  at its existing cache directory; a `false` entry writes no record and disables the plugin for
+  that session. `scope-semantics.md` records both with the recipe and drops the "open probe" and
+  "hypothesis" wording; `SKILL.md`'s stale-records section names the block as the source instead of
+  a candidate. Also recorded: `uninstall -s project` rewrites the checkout's committed settings
+  file. Evidence for the remediation decision on #3688, which stays open.
+
 ## [0.42.17]
 
 ### Changed

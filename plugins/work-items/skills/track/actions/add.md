@@ -72,6 +72,8 @@ Create a new work item with labels from the taxonomy.
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```
 
+Shape the composed body for the person who reads the item, bottom line first and no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The template's sections stay as they are, and no acceptance criterion, number, or reference is dropped to shorten it.
+
 1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). On org repos pass the resolved native Issue Type via the seam's `--type` passthrough (the adapter maps `Bug`/`Feature`/`Task` to the native GitHub Issue Type); on personal / non-org repos the type instead rode into `{labels}` in the resolve step, so omit `--type`. **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step) — if the user declines the new schedule or it cannot be written, create the item **non-recurring** (drop the `[Maintenance]` prefix and the `recurring`/`cadence:` labels) or abort; never create a `[Maintenance]` item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe — **never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash

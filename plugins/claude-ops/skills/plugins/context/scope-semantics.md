@@ -5,10 +5,9 @@ machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
-plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The one
-exception is "Where project-scope records come from, and why the skill cannot reap them", which
-carries two questions no probe has answered yet; both are labelled there as open probes and neither
-may be relied on as a fact.
+plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
+probes in "Where project-scope records come from, and why the skill cannot reap them" were run
+2026-09-06 on **Claude Code 2.1.263** and carry that stamp.
 
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
 The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
@@ -18,8 +17,8 @@ version. These claims were **not re-run on 2.1.261** and keep their older stamps
 the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
-`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
-render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
+`--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
+render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in `SKILL.md`.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -169,11 +168,10 @@ do.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 
-The section above says the records cannot be reaped. This one says where they come from. Two of the
-claims below are open probes rather than verified facts, and they are labelled as such; the rest are
-doc-sourced or observed, each with its source named. **Recheck trigger:** any change to how a repo's
-committed `enabledPlugins` block is applied at session start, or any `claude plugin` release note
-adding a verb that removes an install record by path.
+The section above says the records cannot be reaped. This one says where they come from. Every claim
+below is doc-sourced or verified by a probe, each with its source or CLI version named. **Recheck
+trigger:** any change to how a repo's committed `enabledPlugins` block is applied at session start,
+or any `claude plugin` release note adding a verb that removes an install record by path.
 
 **A repo's committed `.claude/settings.json` `enabledPlugins` block is the documented cloud install
 mechanism.** Per
@@ -183,17 +181,23 @@ start from the marketplace you declared." Plugins enabled only in a user's own s
 over to a cloud session at all. So the block exists to make a team's plugin set reproducible
 somewhere the user's `~/.claude` is not.
 
-**Locally, the documented behaviour is narrower, and the write path is an open probe.** Per
+**Locally, session start writes the records.** Per
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins) ("Configure team marketplaces",
 fetched 2026-09-05), as of v2.1.195 a plugin that only project settings enable, coming from an
-external source, "doesn't load until the team member installs it." Separately, **observed on this
-machine on Claude Code 2.1.261**: all 64 project-scope records for a single repo path carried the
-same `installedAt` second, which is the shape of one session-start batch rather than 64 deliberate
-installs, for a user who already had that marketplace registered and the same plugins present at
-user scope. That observation is one machine, one path, one CLI version. **Open probe 1: which code
-path writes those records locally is not verified.** The probe that would settle it is a fresh
-worktree of a repo carrying the block, with `installed_plugins.json` watched across the first
-session start. Do not present the batch as the mechanism until that probe has run.
+external source, "doesn't load until the team member installs it." That sentence covers the case
+where the user has never installed the plugin. When the user already holds it at user scope, the
+session start does the install itself. **Verified 2026-09-06 on Claude Code 2.1.263**: a scratch git
+repo under the temp directory with a committed `.claude/settings.json` declaring
+`extraKnownMarketplaces` for an already-registered marketplace and two `enabledPlugins: true` ids
+already installed at user scope; one headless `claude -p` session run from that directory; then
+`installed_plugins.json` diffed against a copy taken before the run. The diff was exactly two new
+`scope: "project"` records, one per enabled id, keyed by the scratch repo's absolute `projectPath`,
+both with the same `installedAt` millisecond, each pinned to the version the user scope already held
+and pointing `installPath` at the user scope's existing cache directory. No new cache directory was
+created and the user-scope records were untouched. A field sample on 2.1.261 (64 records for one
+repo path sharing one `installedAt` second) has the same shape: one session-start batch, one record
+per `true` entry per checkout path. The write happens even though nothing new was fetched; the
+record is a pin, not a download.
 
 **Precedence explains why a user-scope duplicate does not prevent the project record.** Per
 [settings-reference](https://code.claude.com/docs/en/settings-reference#enabledplugins) (fetched
@@ -201,15 +205,25 @@ session start. Do not present the batch as the mechanism until that probe has ru
 "Project settings take precedence over user settings, so setting a plugin to false in
 ~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
 To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
-instead." Precedence settles which `enabledPlugins` value is effective; on its own it does not
-establish that a local session writes an install record. The leading hypothesis, consistent with the
-single observed batch above and with nothing that contradicts it, is that every project-scope `true`
-duplicating a user-scope install still produces its own version-pinned project record keyed by
-absolute path, one per plugin per checkout. Treat it as a hypothesis until Open probe 1 above, a
-fresh worktree of a repo carrying the block with `installed_plugins.json` watched across the first
-session start, confirms the write. **Open probe 2:
-whether a project-scope `false` writes any install record is undocumented**, and no probe in this
-repo has tested it.
+instead." Precedence settles which `enabledPlugins` value is effective, and the probe above
+establishes that an effective project-scope `true` writes its own record regardless of the user
+scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
+project record per plugin per checkout.
+
+**A project-scope `false` writes nothing.** **Verified 2026-09-06 on Claude Code 2.1.263** in the
+same scratch repo: the block reduced to one entry, `"<id>": false` for a plugin installed at user
+scope; one headless session; `installed_plugins.json` byte-identical before and after (no new
+record, no touched timestamp), and the session reported that plugin's skill as unavailable while a
+sibling user-scope plugin's skill stayed available. A `false` entry is enablement state only; it
+never manufactures an install record.
+
+**Removing the records rewrites the committed block.** Observed in the same pass on 2.1.263:
+`claude plugin uninstall -s project <id>` run from inside the checkout removed the project record
+and also deleted that id from the repo's `.claude/settings.json` `enabledPlugins`, leaving an empty
+`enabledPlugins: {}` and reordering the file's top-level keys. Undoing a stranded record for a live
+checkout therefore dirties the working tree; do it before committing, or expect to revert the
+settings file afterwards. For an absent path there is no cwd to run it from, which is the case the
+section above records as unreapable.
 
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
@@ -287,7 +301,10 @@ else.
 `code.claude.com/docs/en/plugins-reference`: "Claude
 Code reads all `pluginConfigs` values from only three settings sources" — user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user. And explicitly:
+managed → `--settings` → user. In every one of those sources the value nests under `options`:
+`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
+under the plugin id is silently ignored and the render shows the literal placeholder (verified
+2026-09-06 on **Claude Code 2.1.263**). And explicitly:
 
 > Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
 > files live in the workspace, so a cloned repository could supply values there, and those values
@@ -365,6 +382,36 @@ with it. That is the steady state, not an edge case, and it caps how much any si
 check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
 it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
 clones a marketplace, which would move the depth this number rests on.
+
+## `marketplace remove` leaves the cache tree, marked for the orphan sweep
+
+**Verified 2026-09-06 on Claude Code 2.1.263** with a throwaway local marketplace holding one
+plugin: `claude plugin install`, then `claude plugin uninstall`, then
+`claude plugin marketplace remove <name>`. After the three steps `known_marketplaces.json`,
+`~/.claude/settings.json` (its `extraKnownMarketplaces`, `enabledPlugins`, and `pluginConfigs`
+entries all gone) and `installed_plugins.json` were byte-identical to copies taken before the
+marketplace was added, so the registry side is clean. `~/.claude/plugins/cache/<marketplace>/`
+stayed on disk with the plugin's version directory intact.
+
+The tree is not a permanent orphan. The `uninstall` step wrote a `.orphaned_at` marker file (epoch
+milliseconds) into the version directory, and the marker survived the marketplace removal. Per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference)
+("Plugin cache", fetched 2026-09-06), a marked directory is removed by the background sweep roughly
+14 days later, the sweep runs only while at least one plugin is installed, and a cache folder is
+removed only once it holds no directory or symlink. So a removed marketplace's tree is swept on the
+same clock as any other orphaned version, marketplace folder included, provided the machine keeps
+any plugin installed. The page says nothing about marketplace removal itself; the marker is the
+observation that connects the two. That the sweep actually removes a marked tree under a removed
+marketplace is inferred from the documented rule, not yet observed. **Recheck trigger:** any Claude
+Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
+the cache layout.
+
+Two consequences for this skill: a `cache/<marketplace>/` directory whose marketplace is absent from
+`known_marketplaces.json` is expected residue, not a finding on its own, for about two weeks after a
+removal while some other plugin stays installed, and indefinitely on a machine with no plugin
+installed, because the sweep never runs there; a version directory under it that carries no
+`.orphaned_at` marker is the case worth naming, because nothing will ever sweep it.
+`audit-install-state` records the same rule in its plugins-tree description.
 
 ## `autoUpdate` is a background complement, not a substitute
 
