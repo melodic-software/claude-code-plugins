@@ -21,6 +21,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   unset, this repository as cwd: `git status --short` **2 → 1** (`2 jq` →
   `1 jq`); `echo hello` **2 → 1**. Guards and formatter hooks that used
   the print form now call `_to` so the capture fork is gone there too.
+  `_to` locals (library and the dispatcher's override) use a `__hu_` /
+  `__rg_` prefix so a caller dest named `input` or `dest` still receives
+  the payload.
 
 ## [0.32.10]
 

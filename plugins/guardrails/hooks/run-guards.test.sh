@@ -45,6 +45,9 @@ stub allow.sh 'hook::buffer_stdin_to INPUT || { rc=$?; ((rc == 2)) && exit 2; ex
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"
 exit 0'
+stub dest.sh 'hook::buffer_stdin_to dest || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
+printf "%s\n" "$dest" >>"'"$SEEN"'"
+exit 0'
 stub block.sh 'echo "BLOCKED: stub" >&2; exit 2'
 stub ctx1.sh 'hook::emit_channels PreToolUse "ctx one" ""; exit 0'
 stub ctx2.sh 'hook::emit_channels PreToolUse "ctx two" "sys two"; exit 0'
@@ -79,6 +82,12 @@ assert_exit "allow-only exits 0" 0 "$RC"
 assert_silent "allow-only prints nothing" "$OUT$ERR"
 assert_eq "guard read its fields from the shared cache" \
   $'git status --short\nBash' "$(cat "$SEEN")"
+
+# Dest named `dest` must still receive the payload through the dispatcher
+# override (an unprefixed local dest would swallow the printf -v).
+run "$PAYLOAD" "$TEST_TMPDIR/dest.sh"
+assert_exit "dest-named dest exits 0" 0 "$RC"
+assert_contains "dest-named dest received the payload" "$(cat "$SEEN")" 'tool_name'
 
 # --- a block does not stop the later guards, and wins the exit code ----------
 run "$PAYLOAD" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"

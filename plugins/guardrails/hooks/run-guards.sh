@@ -155,9 +155,13 @@ hook::buffer_stdin() {
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::buffer_stdin_to() {
-  local dest="$1"
+  # `__rg_dest`, not `dest`: an unprefixed local would collide with a guard
+  # that called `hook::buffer_stdin_to dest` and `printf -v` would write
+  # this frame's local, return 0, and leave the guard's dest unset
+  # (the `_to` helper convention at lib/hook-utils.sh).
+  local __rg_dest="$1"
   ((RUN_GUARDS_STDIN_RC == 0)) || return "$RUN_GUARDS_STDIN_RC"
-  printf -v "$dest" '%s' "$RUN_GUARDS_INPUT"
+  printf -v "$__rg_dest" '%s' "$RUN_GUARDS_INPUT"
 }
 
 if ((RUN_GUARDS_STDIN_RC == 0)) &&
