@@ -2038,16 +2038,16 @@ hook::emit_telemetry() {
       # which holds only if the payload ENDS outside a string. A payload that
       # does not close an object or an array is not that, so it gets no tail
       # walk — a truncated one could otherwise be read a quote out of step.
-      # Trailing whitespace a caller left on the value does not change that, so
-      # it is stripped first, but only 64 bytes of it: each strip copies the
-      # window, and nothing in this function may scale with what a payload
-      # chooses to end with.
-      corr_slack=64
-      while ((corr_slack > 0)) && [[ $corr_tail == *[$' \t\r\n'] ]]; do
-        corr_tail=${corr_tail%?}
-        corr_slack=$((corr_slack - 1))
+      # The check reads a 64-byte SUFFIX, not the window: trailing whitespace a
+      # caller left on the value joins the window's last structure field, where
+      # it is neither a quote nor a brace and so changes neither the
+      # alternation nor the depth, and stripping it off the window instead
+      # would copy 16 KiB per byte stripped.
+      corr_slack=${corr_tail: -64}
+      while [[ $corr_slack == *[$' \t\r\n'] ]]; do
+        corr_slack=${corr_slack%?}
       done
-      [[ $corr_tail == *"$corr_cb" || $corr_tail == *"$corr_csb" ]] || corr_tail=""
+      [[ $corr_slack == *"$corr_cb" || $corr_slack == *"$corr_csb" ]] || corr_tail=""
     fi
     local corr_parts corr_i corr_j corr_n corr_steps corr_depth corr_seg corr_x
     local corr_o corr_c corr_src corr_out corr_pass
