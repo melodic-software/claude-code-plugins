@@ -398,7 +398,7 @@ check_marketplace() {
     jq_to parsed -r '
       (.plugins // [])
       | map(select((.name | type == "string") and (.source | type == "string")))
-      | map([.name, .source] | join("")) # delimiter is US (0x1f), as in fleet-state.sh:
+      | map([.name, .source] | join("\u001f")) # delimiter is US (0x1f), as in fleet-state.sh
       | .[]
     ' <<<"$raw" 2>/dev/null || parsed=""
     source_map_by_sha["$s"]="$parsed"
@@ -418,7 +418,7 @@ check_marketplace() {
         projectPath: (.projectPath // "")
       })
     | map(select($scope == "all" or (if $scope == "user" then .scope == "user" else .scope != "user" end)))
-    | map([.id, .scope, .version, .sha, .installPath, .projectPath] | join(""))
+    | map([.id, .scope, .version, .sha, .installPath, .projectPath] | join("\u001f"))
     | .[]
   ' "$INSTALLED_JSON" || return 1
 
