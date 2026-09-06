@@ -173,7 +173,7 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
 | A9 | `grep -qE 'repo-fleet-hygiene' plugins/architecture/skills/map-landscape/SKILL.md && grep -qiE 'plugin is installed' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A10 | `grep -q 'systemLandscape' plugins/architecture/skills/map-landscape/SKILL.md && grep -q 'C4Context' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A11 | `bash plugins/architecture/skills/map-landscape/scripts/portfolio-facts.test.sh` | n/a (no file) | exit 0 |
-| A12 | `test -f plugins/architecture/skills/setup/SKILL.md && grep -q 'architecture' docs/conventions/config-cascade/README.md` | FAIL | PASS |
+| A12 | `test -f plugins/architecture/skills/setup/SKILL.md && grep -qE '^\| *\`architecture\` *\|' docs/conventions/config-cascade/README.md` (run on main 2026-09-06: FAIL, the word `architecture` does not occur in that file at all) | FAIL | PASS |
 | C1 | `bash scripts/sync-resolve-convention-home.sh --check` | PASS | PASS |
 | C2 | `bash scripts/check-skill-count-claims.sh --check` | PASS | PASS |
 | C3 | `bash scripts/check-orphaned-fixtures.sh --check` | PASS | PASS |
