@@ -2127,4 +2127,57 @@ run_pwsh "PS: double-quoted dash-prefixed path is a literal (blocked — #2906)"
 # above; the empty-string #2965 pin (`& $py $script ""`) must also keep
 # passing — an empty span is still deleted, not counted as a literal.
 
+# --- Process creations on the dispatched hot path (#3513) --------------------
+# run-guards.test.sh pins the dispatcher's PATH-visible execs through shims, and
+# a shim cannot see a fork: `$(builtin-only function)`, `< <(printf …)` and a
+# pipeline each create a process that never execs. On a benign Bash call this
+# guard spent seven of those, with zero execs, so every exec census read it as
+# free: an eager telemetry subject at file scope, a `$(strip_literals)`, four
+# process-substitution line loops, and its `$(hook::buffer_stdin)`. The kernel
+# is the instrument that counts them. strace follows the dispatcher's subshells
+# (-f) and reports each clone/clone3/fork/vfork return, and execve separately,
+# so an exec cannot pass for a removed fork or the reverse. The guard's own
+# share is the difference against a no-op guard dispatched through the same
+# run-guards.sh on the same payload, which subtracts the dispatcher's own
+# stdin, jq and isolation forks. HOOK_TELEMETRY_SINK is cleared: the envelope
+# is opt-in and off by default, and it is the one path that still derives the
+# subject through a substitution. A host without a working strace (Windows Git
+# Bash, macOS) skips visibly; the Linux CI lane is where the pin holds.
+#
+# The pin is EXACT on purpose. It was 1 while the guard still read stdin
+# through `$(hook::buffer_stdin)`; #3838 landed the fork-free
+# `hook::buffer_stdin_to` in lib/hook-utils.sh, so that last creation is gone
+# and the pin is now 0 — the guard creates no process of its own on a benign
+# Bash call. A count that rises is a fork put back on every Bash call. Under -f strace
+# may split a call into `<unfinished ...>` and `<... resumed>` halves, so both
+# spellings of a completed call are counted.
+strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+  local log="$TEST_TMPDIR/strace.log"
+  CENSUS_RC=0
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
+    strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
+    bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
+  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
+}
+if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
+  for benign in 'git status --short' \
+    $'git status --short && git diff --stat | head\nsort f > out; cat README.md'; do
+    strace_census "$(command_json "$benign")" "$TEST_TMPDIR/noop-guard.sh"
+    noop_rc=$CENSUS_RC noop_cre=$CENSUS_CREATIONS noop_exe=$CENSUS_EXECVE
+    strace_census "$(command_json "$benign")" block-hook-bypass.sh
+    assert_exit "strace: dispatcher with only the no-op guard exits 0 (${benign%%$'\n'*})" 0 "$noop_rc"
+    assert_exit "strace: dispatched benign command exits 0 (${benign%%$'\n'*})" 0 "$CENSUS_RC"
+    assert_eq "strace: guard's own process creations on a benign Bash call (${benign%%$'\n'*})" \
+      0 "$((CENSUS_CREATIONS - noop_cre))"
+    assert_eq "strace: guard's own execve count on a benign Bash call (${benign%%$'\n'*})" \
+      0 "$((CENSUS_EXECVE - noop_exe))"
+  done
+  strace_census "$(command_json 'echo hi > notes.md')" block-hook-bypass.sh
+  assert_exit "strace: dispatched echo > file still blocks under the tracer" 2 "$CENSUS_RC"
+else
+  echo "ok: process-creation pin skipped (no working strace on this host)"
+fi
+
 report

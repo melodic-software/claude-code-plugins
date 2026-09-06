@@ -3,6 +3,45 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.12]
+
+### Changed
+
+- **`block-hook-bypass` no longer forks for work that had no process in it.**
+  On a benign Bash call the guard created seven processes and executed none,
+  so every exec census (the PATH-shim spawn census, `run-guards.test.sh`'s
+  dirname/sed pin, an xtrace command count) read it as free. Six were the
+  guard's own: an eager `SUBJECT=$(hook::extract_bash_subject ...)` at file
+  scope, feeding a telemetry envelope that is off by default; a
+  `$(strip_literals ...)` around a builtin-only function; and four
+  `done < <(printf ...)` line loops (the literal strip and the three
+  per-segment scans). The seventh is `$(hook::buffer_stdin)`. After: the
+  subject is derived inside `emit_tel`, behind the start-stamp and sink gates;
+  the strip assigns through a nameref (`strip_literals_to`); and one fork-free
+  splitter (`split_lines_to`, a sentinel-prefixed IFS split under `set -f`, so
+  blank lines and runs of newlines arrive exactly as `read` delivered them)
+  feeds the strip and fills `NORMALIZED_SEGMENTS` once, as an array the three
+  scans iterate. `return` and `continue 2` inside those loops reach the same
+  scopes as before, since neither loop shape ran its body in a subshell.
+  Verdicts are unchanged: 244 paired runs against `origin/main` (61 commands,
+  Bash and PowerShell payloads, standalone and dispatched, plus 70 KiB
+  single-line and 3000-line commands) agree on exit code and first stderr
+  line, and the 611-case contract suite passes. The seventh creation,
+  `$(hook::buffer_stdin)`, is gone too: #3838 landed the fork-free
+  `hook::buffer_stdin_to` in `lib/hook-utils.sh` and this guard now calls it,
+  so the guard's own share on a benign Bash call is zero processes.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve` on
+  the dispatched path (`run-guards.sh block-hook-bypass.sh`, this repository
+  as cwd, `HOOK_TELEMETRY_SINK` unset), guard share = count minus a no-op
+  guard dispatched the same way, three identical repeats: benign
+  `git status --short` creations **7 -> 0**, execve **0 -> 0**; blocked
+  `echo hi > notes.md` creations **10 -> 4**, execve **1 -> 1**. Whole Bash
+  dispatcher on the benign payload: creations **36 -> 30**, execve **3 -> 3**
+  (bash plus the two primed `jq`). The unchanged execve column is the
+  evidence this is latency, not removed work. The contract suite now pins
+  the guard's benign share at exactly 0 by the same instrument, and skips
+  visibly where strace is absent.
+
 ## [0.32.11]
 
 ### Changed

@@ -150,22 +150,27 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # costs a cache lookup rather than a jq process.
 HOOK_CWD="${HOOK_JQ_FIELDS[2]:-}"
 
-# Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
-# env-assignment prefixes stripped and the token basenamed. Never the full
-# command. The shared helper is used rather than a local copy so the aborts that
-# keep an assignment VALUE out of the subject — a quoted value spanning the
-# whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
-# following command consumed — hold here too (#3372).
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
-
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
 # spawns no telemetry-only subprocess.
+#
+# The privacy-safe subject (`Bash:<first-token>` with leading `sudo` /
+# env-assignment prefixes stripped and the token basenamed, never the full
+# command) is derived HERE, behind both gates, not at file scope. The shared
+# helper answers through a command substitution, and that is a fork on every
+# fire; only the envelope reads the subject, and the envelope is off by default,
+# so deriving it eagerly spent a process on every Bash call for a value nothing
+# consumed (#3513). The verdict never reads it. The shared helper is still used
+# rather than a local copy so the aborts that keep an assignment VALUE out of
+# the subject (a quoted value spanning the whitespace the tokenizer splits on,
+# and a bare/trailing `NAME=value` no following command consumed) hold here
+# too (#3372).
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local data
-  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
+  local data subject
+  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -241,6 +246,37 @@ _keep_char() {
   esac
 }
 
+# Split $2 on newlines into the array named by $1, one element per line: the
+# lines `while IFS= read -r line; do …; done < <(printf '%s\n' "$2")` delivers,
+# in the same order, with the same trailing empty element when $2 ends in a
+# newline, and one empty element for an empty $2. Without the process
+# substitution: bash forks for `<(…)` on every call (Process Substitution, Bash
+# Reference Manual), and this guard split four times per Bash call (#3513). A
+# here-string is not the alternative: at 65536-65663 bytes bash blocks forever
+# writing it into the pipe (see lib/path-detection/hardcoded-path-patterns.sh).
+#
+# Word-splitting on IFS=<newline> alone would MERGE runs of newlines and drop a
+# leading or trailing empty line (newline is IFS whitespace), and strip_literals
+# needs every physical line, blank ones included, to keep its heredoc and
+# open-quote state aligned with the command's own lines. So each line is first
+# prefixed with one sentinel byte, which makes every field non-empty, and the
+# prefix is removed again after the split. The prefix is added and removed
+# exactly once per line, so the sentinel's own value never matters: a line that
+# already begins with it keeps that byte. Globbing is off across the split
+# (a `*` in a command must stay a `*`) and restored to what the caller had.
+split_lines_to() {
+  local -n _sl_out="$1"
+  local _sl_s=$'\x1f' _sl_text _sl_noglob=0
+  _sl_text="${_sl_s}${2//$'\n'/$'\n'"$_sl_s"}"
+  [[ $- == *f* ]] && _sl_noglob=1
+  set -f
+  local IFS=$'\n'
+  # shellcheck disable=SC2206  # the split IS the point; IFS is newline-only and globbing is off
+  _sl_out=($_sl_text)
+  ((_sl_noglob)) || set +f
+  _sl_out=("${_sl_out[@]#"$_sl_s"}")
+}
+
 # Strip single- and double-quoted literal spans so the executable-token scan
 # sees only shell syntax, not payload text. Heredoc bodies are dropped wholesale
 # (their content is data, not a command). The quote strip carries an OPEN quote
@@ -249,8 +285,17 @@ _keep_char() {
 # of leaking its tokens from the second line on. An unquoted `#` comment is dropped
 # to end-of-line without carrying quote state, so an unmatched quote inside a
 # comment cannot leak a span onto the next line (see the `#` case below).
-strip_literals() {
-  local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
+#
+# strip_literals_to <var> <command>: the stripped text lands in the variable
+# named by $1 rather than on stdout. A `$(strip_literals …)` at the call site
+# was one fork per Bash call for a builtin-only function (#3513); the assignment
+# through a nameref is none. The value is what the substitution produced:
+# every trailing newline removed, as `$(…)` removes them.
+strip_literals_to() {
+  local -n _sl_result="$1"
+  local cmd="$2" line result="" in_heredoc=0 delim="" trimmed
+  local -a _bbh_lines=()
+  split_lines_to _bbh_lines "$cmd"
   # `open_quote` carries a single- or double-quote span across lines: "" outside
   # any quote, "'" or '"' inside one that opened on an earlier line. `open_keep`
   # carries, alongside it, whether that span is a REDIRECT OPERAND (a quoted
@@ -269,7 +314,7 @@ strip_literals() {
   # instead of being swallowed into a bogus `EOF>file` delimiter.
   local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
 
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  for line in "${_bbh_lines[@]}"; do
     if ((in_heredoc)); then
       # Trim + literal compare, NOT `=~ "$delim"`: inside a bash regex the
       # delimiter would be treated as a pattern, so a metachar delim (EOF+,
@@ -471,11 +516,13 @@ strip_literals() {
     else
       result+="${out}"$'\n'
     fi
-  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
-  printf '%s' "${result%$'\n'}"
+  done
+  while [[ "$result" == *$'\n' ]]; do result="${result%$'\n'}"; done
+  _sl_result="$result"
 }
 
-EXECUTABLE=$(strip_literals "$COMMAND")
+EXECUTABLE=""
+strip_literals_to EXECUTABLE "$COMMAND"
 EXEC_LC="${EXECUTABLE,,}"
 COMMAND_LC="${COMMAND,,}"
 
@@ -662,6 +709,7 @@ py_write_indicator() {
 # Segmentation is shared with the `cat >` scan (cat_redirect_bypass) through
 # normalize_segments, so both lanes agree on escaped separators and on the
 # fd-duplication sentinel instead of drifting apart behind two splitters.
+NORMALIZED_SEGMENTS=()
 normalize_segments() {
   local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' esc=$'\x02' normalized s i
   # Protect backslash-escaped separators (`echo x \; > file`, an escaped-newline
@@ -699,7 +747,12 @@ normalize_segments() {
   # _redir_scan's target class excludes the sentinel as well as `&`.
   normalized="${normalized//"$soh"/\&}"
   normalized="${normalized//"$esc"/ }"
-  NORMALIZED_SEGMENTS="$normalized"
+  # One segment per element, split once here. The three per-segment scans below
+  # each used to re-split the same text through a `< <(printf …)` loop, which is
+  # a fork apiece on every Bash call (#3513); iterating an array is none, and
+  # `return` / `continue 2` inside the loop bodies reach the same scopes as
+  # before because neither loop shape runs its body in a subshell.
+  split_lines_to NORMALIZED_SEGMENTS "$normalized"
 }
 
 # The EFFECTIVE stdout destination of a segment, into LAST_STDOUT_TARGET (empty
@@ -1268,7 +1321,7 @@ parse_mv_cp_operands() {
 # destination that is not scratch-exempt.
 staged_write_move_bypass() {
   local seg src dest seen="" prior rest
-  while IFS= read -r seg || [[ -n "$seg" ]]; do
+  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
     [[ -n "${seg//[[:space:]]/}" ]] || continue
     if parse_mv_cp_operands "$seg"; then
       dest="$MOVE_DEST"
@@ -1302,7 +1355,7 @@ staged_write_move_bypass() {
     # Discard is never a staging file worth tracking.
     [[ "$TARGET_TEXT" == "/dev/null" ]] && continue
     seen+="${TARGET_TEXT}"$'\n'
-  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
   return 1
 }
 
@@ -1312,7 +1365,7 @@ staged_write_move_bypass() {
 # cat > real.txt` still blocks on its second segment.
 cat_redirect_bypass() {
   local seg
-  while IFS= read -r seg || [[ -n "$seg" ]]; do
+  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
     [[ "$seg" =~ $_cat_redir ]] || continue
     set_last_stdout_target "$seg"
     # No FILE operand means no file write: `cat 1>&2` duplicates stdout onto
@@ -1327,13 +1380,13 @@ cat_redirect_bypass() {
     # the EFFECTIVE target, so `cat > /allowed/tmp/f > real.txt` still blocks.
     scratch_target_exempt "$TARGET_TEXT" && continue
     return 0
-  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
   return 1
 }
 
 producer_redirect_bypass() {
   local seg
-  while IFS= read -r seg || [[ -n "$seg" ]]; do
+  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
     # Peel leading command-prefix tokens (see _cmd_prefix) and leading redirections
     # (see _leading_redir) into `head` so a producer hidden behind an env assignment
@@ -1400,7 +1453,7 @@ producer_redirect_bypass() {
     # target, so `echo x > /allowed/tmp/f > real.txt` still blocks.
     scratch_target_exempt "$TARGET_TEXT" && continue
     return 0
-  done < <(printf '%s\n' "$NORMALIZED_SEGMENTS") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
   return 1
 }
 
