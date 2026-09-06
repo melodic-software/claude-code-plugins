@@ -136,6 +136,9 @@ threshold: the em-dash rule is zero-tolerance by design (user decision at plan a
   verdicts reach the human report only (V1 boundary, revisit with field history).
 - **Does not scan code comments** (`code-tidying:audit-comment-residue` owns them), commit
   messages, PR bodies, or non-repo text; structural markdown (heading hierarchy, multiple H1,
-  title case) belongs to the markdown linter lane.
+  title case) belongs to the markdown linter lane. Reshaping those commit messages, PR bodies
+  and non-repo text so they lead with the point and carry fewer words is `/writing:be-concise`,
+  which owns that doctrine when the `writing` plugin is installed; without it, say the text
+  sits outside this skill's regime rather than auditing it anyway.
 - **Does not weaken rules to pass its own corpus**: a deliberate house style is config in the
   consuming repo, never a shipped-default change.

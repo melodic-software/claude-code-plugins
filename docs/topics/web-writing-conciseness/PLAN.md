@@ -203,7 +203,7 @@ only names deliberately carried by more than one.
 - `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/writing/skills" bash plugins/skill-quality/scripts/check-skill.sh be-concise` reports PASS. A bare `/skill-quality:check be-concise` cannot resolve here: the checker looks under `${CLAUDE_PROJECT_DIR}/.claude/skills`, which this repo does not have.
 - The four behaviors are present in the body: `grep -c "word count" SKILL.md`, `grep -ci "in place" SKILL.md`, and `grep -ci "semantic.diff" SKILL.md` are each at least 1.
 
-### Phase 2: Doctrine and sources [TODO]
+### Phase 2: Doctrine and sources [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
@@ -254,7 +254,18 @@ that routes skill-body prose to `write-for-agents`; a route-away of "this is a w
 - `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/writing/skills" bash plugins/skill-quality/scripts/check-skill.sh be-concise` reports PASS with evals present.
 - `evals.json` uses the repo's shape and holds exactly 6 cases: `python3 -c` over the JSON asserting the top-level keys are `skill_name` and `evals` (not `cases`), that `len(evals)` is 6, and that every `files` entry resolves on disk.
 
-### Phase 4: Reciprocal routing [TODO]
+### Phase 4: Reciprocal routing [DONE]
+
+> **Outcome note.** The trigger-migration table landed in
+> `discipline:tighten-your-output` with 15 rows and moved zero phrases. Applying its stated
+> criterion (does the phrase name the output in front of us, or an artifact a reader will open?),
+> none of that skill's nine phrases names a ticket, PR body, doc or status update, and every
+> artifact-naming phrase was already claimed by `writing:be-concise`. The two vocabularies are
+> disjoint by construction, which is what the acceptance criterion required. A cross-plugin phrase
+> move is also structurally blocked: `check-skill.sh` check 3 scans only siblings under the same
+> skills root, so moving a phrase to another plugin reads as a dropped trigger and hard-fails.
+> Routing to `write-for-humans` landed in body prose only, since its description already sits at
+> 1109 codepoints, past the 1024 field cap.
 
 The four skills that currently exclude this prose, plus the one that needs the brevity pointer.
 

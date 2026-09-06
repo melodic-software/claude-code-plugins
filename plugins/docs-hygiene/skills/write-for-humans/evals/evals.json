@@ -51,13 +51,14 @@
     },
     {
       "id": 5,
-      "name": "declines-the-agent-facing-and-commit-surfaces",
-      "prompt": "Write a new section for our CLAUDE.md explaining our deployment conventions, then write the commit message for it.",
-      "expected_output": "The skill routes the CLAUDE.md work to docs-hygiene:write-for-agents rather than handling it, and does not claim the commit message: its shape belongs to source-control:commit's subject-convention ladder, and the markdown-prose regime already excludes commit messages.",
+      "name": "declines-the-excluded-surfaces-and-routes-the-pr-wording",
+      "prompt": "/docs-hygiene:write-for-humans. Write a new section for our CLAUDE.md explaining our deployment conventions, write the commit message for it, and tidy up the PR description I already drafted.",
+      "expected_output": "The skill routes the CLAUDE.md work to docs-hygiene:write-for-agents rather than handling it, and does not claim the commit message: its shape belongs to source-control:commit's subject-convention ladder, and the markdown-prose regime already excludes commit messages. On the PR description it declines and then says where that prose goes rather than stopping at the refusal: the wording a reviewer reads is writing:be-concise when the writing plugin is installed, and without that plugin the required PR-body shape is kept and the wording left to the author.",
       "files": [],
       "expectations": [
         "Routes the CLAUDE.md section to docs-hygiene:write-for-agents instead of writing it under this skill's doctrine",
-        "Does NOT apply its layers to the commit message, and names source-control as the owner of commit-message shape"
+        "Does NOT apply its layers to the commit message, and names source-control as the owner of commit-message shape",
+        "Declines AND routes the PR-description wording: names writing:be-concise, gated on the writing plugin being installed, and states the ungated fallback, rather than leaving the excluded surface unrouted"
       ]
     },
     {
