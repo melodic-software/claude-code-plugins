@@ -10,6 +10,7 @@ end-to-end join over the committed fixtures is the shell suite's job.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -19,6 +20,14 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "join.py"
+
+# The suite drives the script at its command line; this import is only for the
+# few cases that pin a helper's signature directly, such as the default value
+# of an optional parameter that no command-line path can leave unset.
+_spec = importlib.util.spec_from_file_location("join_module", SCRIPT)
+assert _spec is not None and _spec.loader is not None
+join = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(join)
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
@@ -730,6 +739,101 @@ class PathNormalizationTests(unittest.TestCase):
         file_row = next(r for r in document["measures"] if r["function"] is None)
         self.assertEqual(file_row["file"], "service-a/handler.go")
         self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
+
+    def test_the_collision_is_seen_across_artifacts_not_just_within_one(self) -> None:
+        # The coverage skill discovers one artifact per coverage file, so two
+        # services each shipping a `handler.go` arrive as two documents. A
+        # count that stopped at one artifact would not see the collision at
+        # all, and the out-of-scope service would credit the scoped one exactly
+        # as it does inside a single profile.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [complexity_row("service-a/handler.go", "H", 1, 2, "go", 1)]
+                )
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/service-a/handler.go": go_section(
+                            {"1.1,2.2": (1, 0)}
+                        )
+                    },
+                )
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/service-b/handler.go": go_section(
+                            {"9.1,9.9": (1, 1)}
+                        )
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["values"]["coverage_pct"], 0.0)
+
+    def test_one_file_listed_under_two_spellings_is_not_a_collision(self) -> None:
+        # `//` is a spelling the parsers' own normalization does not collapse.
+        # Both keys name one file, so counting spellings rather than distinct
+        # paths would reject the basename and drop coverage that was measured.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/x/handler.go": go_section({"1.1,2.2": (1, 1)}),
+                        "example.com/mod//x/handler.go": go_section(
+                            {"3.1,3.9": (1, 0)}
+                        ),
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["file"], "pkg/handler.go")
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+
+    def test_two_formats_naming_one_file_are_not_a_collision(self) -> None:
+        # A Go profile writes the module path the compiler saw and an lcov
+        # tracefile writes the repository path, so one file reaches the join
+        # under two spellings that do not normalize to each other. Counting
+        # basenames across formats would read that as two competing files and
+        # refuse the profile, losing the statement ratio that outranks the line
+        # table for exactly this file.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/mod/handler.go": go_section(
+                            {"1.1,2.2": (1, 1), "3.1,3.9": (1, 0)}
+                        )
+                    },
+                )
+                .artifact(
+                    "lcov",
+                    {"pkg/handler.go": {"lines": {"1": 1}, "functions": None}},
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+        self.assertEqual(file_row["cov_source"], "statement-ratio")
+
+    def test_resolve_without_the_ambiguous_set_keeps_the_basename_fallback(
+        self,
+    ) -> None:
+        # The parameter is optional, and any caller that omits it gets the
+        # behaviour the fallback had before the guard existed.
+        self.assertEqual(
+            join.resolve("example.com/mod/sample.go", ["pkg/sample.go"], "", []),
+            "pkg/sample.go",
+        )
 
 
 class RunRowTests(unittest.TestCase):

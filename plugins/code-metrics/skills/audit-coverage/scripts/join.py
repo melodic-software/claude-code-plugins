@@ -56,8 +56,9 @@ removed, then the repository root and each `coverage.path_prefix_strip`
 prefix, then a component-wise suffix match (an absolute `SF:` path or a
 Cobertura `<source>` prefix), then a basename match (a Go profile names files
 by module path). A basename is the weakest evidence here, so it must be
-unambiguous on both sides: exactly one file in scope carries it AND no other
-path in the same artifact does.
+unambiguous on both sides: exactly one file in scope carries it AND exactly one
+artifact path claims it, counted across every artifact supplied rather than
+within one, because the skill discovers one artifact per coverage file.
 
 Exit 0 on success, 2 on a usage error or an unreadable input.
 """
@@ -108,16 +109,23 @@ def resolve(
     scope: list[str],
     root: str,
     prefixes: list[str],
-    siblings: list[str] | None = None,
+    ambiguous: set[str] | None = None,
 ) -> str | None:
     """The file in `scope` an artifact path refers to, or `None`.
 
-    `siblings` are the other raw paths in the same artifact. A basename is the
-    weakest evidence this function accepts, so it has to be unambiguous on both
-    sides: unique among the scoped files AND among the artifact's own paths. A
-    profile listing `service-a/handler.go` and `service-b/handler.go` when only
-    the first is in scope would otherwise map both to it, and the union would
-    let the unrelated package's coverage report an uncovered file as covered.
+    `ambiguous` is the set of basenames that more than one distinct artifact
+    path claims, across every artifact supplied. A basename is the weakest
+    evidence this function accepts, so it has to be unambiguous on both sides:
+    unique among the scoped files AND named by one artifact path. Profiles
+    listing `service-a/handler.go` and `service-b/handler.go` when only the
+    first is in scope would otherwise map both to it, and the union would let
+    the unrelated package's coverage report an uncovered file as covered.
+
+    The set counts distinct paths rather than spellings, and spans artifacts
+    rather than stopping at one: the coverage skill discovers one artifact per
+    coverage file, so two services' profiles arrive as two documents, and two
+    keys that normalize to the same path are one file listed twice, not two
+    files competing.
     """
     candidates = _candidates(normalize(path), root, prefixes)
     for candidate in candidates:
@@ -147,7 +155,7 @@ def resolve(
     if unique is not None or matches:
         return unique
     base = candidates[0].rsplit("/", 1)[-1]
-    if sum(1 for other in siblings or () if _basename(other) == base) > 1:
+    if base in (ambiguous or ()):
         return None
     basename_matches = [t for t in scope if t.rsplit("/", 1)[-1] == base]
     return basename_matches[0] if len(basename_matches) == 1 else None
@@ -248,6 +256,29 @@ def merge_artifacts(
     counted twice."""
     merged: dict[str, dict] = {}
     unmatched: list[str] = []
+    # Basenames that more than one distinct path claims WITHIN one format,
+    # gathered across every artifact of that format before any is folded. The
+    # coverage skill discovers one artifact per coverage file, so two services
+    # each shipping a `handler.go` arrive as two documents and a count that
+    # stopped at one artifact would not see the collision at all.
+    #
+    # Scoped by format because two paths of the same format naming one basename
+    # are two files, while two formats naming it are the same file measured
+    # twice: a Go profile writes the module path the compiler saw and an lcov
+    # tracefile writes the repository path, so the two spellings of one file
+    # normalize differently and counting them together would refuse a file that
+    # was measured. Distinct normalized paths, so one file listed twice under
+    # two spellings of the same format is not mistaken for two files either.
+    paths_by_basename: dict[tuple[str, str], set[str]] = {}
+    for artifact in artifacts:
+        fmt_key = artifact.get("format") or "unknown"
+        for raw_path in artifact.get("files") or {}:
+            candidate = normalize(raw_path)
+            key = (fmt_key, _basename(candidate))
+            paths_by_basename.setdefault(key, set()).add(candidate)
+    ambiguous = {
+        base for (_, base), paths in paths_by_basename.items() if len(paths) > 1
+    }
     for artifact in artifacts:
         fmt = artifact.get("format") or "unknown"
         # Which accumulated records this one artifact has already folded into,
@@ -255,9 +286,8 @@ def merge_artifacts(
         # has claimed belongs to a different function and is not a fold target.
         claimed: dict[str, set[int]] = {}
         sections = artifact.get("files") or {}
-        raw_paths = list(sections)
         for raw_path, section in sections.items():
-            target = resolve(raw_path, scope, root, prefixes, raw_paths)
+            target = resolve(raw_path, scope, root, prefixes, ambiguous)
             if target is None:
                 unmatched.append(normalize(raw_path))
                 continue
@@ -272,8 +302,12 @@ def merge_artifacts(
             # executable line has measured lines and found none, which is a 0;
             # reading the empty table afterwards cannot tell that apart from a
             # file only a statement-weighted artifact ever covered, which is a
-            # null.
-            if not (section.get("statements") or {}):
+            # null. The test is whether the section carries a `statements` key
+            # at all, not whether that key holds anything: a statement-weighted
+            # parser that found no block still writes an empty one, and reading
+            # it as falsy would call that section line-measuring and turn a
+            # legitimate null back into a 0.
+            if "statements" not in section:
                 entry["measures_lines"] = True
             for number, hits in _lines(section.get("lines")).items():
                 entry["lines"][number] = max(entry["lines"].get(number, 0), hits)
