@@ -27,7 +27,7 @@ upstream="$repo_root/plugins/claude-ops/hooks/hook-telemetry-sink.sh"
 
 # Strip the resolution block from both: the shellcheck source directive, the
 # source line itself, and the repo-copy-only comment lines that explain it.
-strip_re='^# shellcheck source=|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
+strip_re='^# shellcheck source=|^source "\$HOOK_DIR/|^source "\$\(dirname|^# Repo-local copy of the claude-ops reference sink|^# colocated here, so source the repository|^# the sibling pr-linkage-mcp-gate\.sh'
 
 norm_upstream="$(mktemp)"
 norm_local="$(mktemp)"
@@ -48,7 +48,7 @@ fi
 # source line points somewhere broken. Pin the exact expected target, then
 # prove the wiring executes end-to-end: a valid envelope must append a record.
 # shellcheck disable=SC2016  # deliberate: the literal source line is the fixture
-expected_source='source "$(dirname "${BASH_SOURCE[0]}")/../../lib/hook-utils.sh"'
+expected_source='source "$HOOK_DIR/../../lib/hook-utils.sh"'
 if ! grep -qF "$expected_source" "$local_copy"; then
   echo "FAIL: the repo copy's source line does not target ../../lib/hook-utils.sh"
   exit 1
