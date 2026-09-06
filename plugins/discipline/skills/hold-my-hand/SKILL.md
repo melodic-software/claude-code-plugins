@@ -124,11 +124,10 @@ raised as the phase's single question.
 When task tools are available in the session, mirror each phase as one task and
 keep its state current as phases complete, so the user can see progress without
 scrolling. Ledger entries for unpresented phases carry the phase number and
-nothing that reveals their steps. When no task tools are available, open each
-reply with the current phase and the count, and nothing else about the shape of
-the work. The fallback is not a place to print the list the ledger would have
-held, because a reply that enumerates the remaining phases leaks exactly what
-the posture withholds.
+nothing that reveals their steps. When no task tools are available, keep that
+same numbered list in your replies, under the same rule: completed phases marked
+done, the current phase marked current, and every unpresented phase a bare
+number with no title and no steps. The fallback shows progress, never the plan.
 
 ## Ending the posture
 
