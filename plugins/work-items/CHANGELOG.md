@@ -3,6 +3,61 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.68]
+
+### Fixed
+
+- **`list-frontier --autonomous` no longer surfaces items whose work class is a
+  human floor.** `work-class: structural` (C4) and `work-class: untrusted-provenance`
+  (C5) are human-gated regardless of any other signal, per the admission-gate
+  table that binds whether or not the `autonomy` plugin is installed — but the
+  frontier filter only excluded the `human-gated` role label, so such an item
+  stayed frontier-available. Each lane instance in turn claimed it, hit the
+  fail-closed admission gate, escalated, and released it: a burned worker every
+  pass, with the item never moving. An item carrying BOTH the autonomous-eligible
+  role label and a floor class is self-contradictory, and the frontier now
+  resolves that against the floor. The exclusion is autonomous-only, so
+  `list-frontier` without `--autonomous` still returns the item rather than it
+  vanishing from every derived view; keeping it in the attended lane's attention
+  view is the human-gated role label's job, which is what the routing fix below
+  preserves. C3 `scoped` is deliberately not floored here: its disposition
+  turns on bug-fix-vs-feature shape and first-drain ratification, which no label
+  carries and the work-loop admission gate owns. Floor strings live in
+  `lib/labels.sh` as the one definition source; unlike the canonical roles and
+  the container marker they are fixed, because the work-class axis has no
+  binding key to remap. Four new `lib/frontier.test.sh` cases cover the floor
+  under `--autonomous`, its absence on the attended frontier, C3 survival, and
+  exact-match (not substring) label comparison.
+- **Resolving a C4/C5 escalation no longer strands the item between both lanes.**
+  `/work-items:attend-queue`'s "Flip to agent-ready" transition removed the
+  human-gated role label unconditionally once an answer landed. With the floor
+  above in place that made a floor-class item reachable by nobody: the autonomous
+  frontier drops it on the work class, and the attended attention view keys on the
+  human-gated role label plus a machine-marked comment rather than on the frontier,
+  so removing the label deleted its last row condition. The transition now reads
+  the item's `work-class:` label first and resolves a floor-class row one of two
+  ways: reclassify to an autonomously dispatchable class in the **same edit** as
+  the role-label flip (recording the reclassification and its reason), or leave
+  the human-gated role label in place and record the completion route, so the row
+  keeps listing until the item is executed attended, reclassified, or closed. A
+  floor-class item never leaves the attended lane carrying the autonomous-eligible
+  role label alone. `tests/floor-class-stays-routable.test.sh` pins the transition:
+  it extracts the flip bullet from the shipped skill and fails when that region
+  stops naming both floor classes and offering the reclassify branch, with
+  synthetic fixtures (the exact pre-fix wording, a one-class transition, and floor
+  classes named outside the transition) proving the detector discriminates.
+
+### Changed
+
+- **Triage may no longer pair the autonomous-eligible role label with a C4/C5
+  work class.** `skills/triage/context/apply-outcome.md` listed all five classes
+  as valid partners for `agent-ready`, which is what produced the contradictory
+  items above; the hard pairing rule now admits C1–C3 only and routes a C4/C5
+  outcome to the human-gated role label. `reference/work-class-labels.md` gains
+  the invariant, its enforcement points, and the remediation for items already
+  carrying the pair; `tools/work-item-tracker/CONTRACT.md` records the new
+  `list-frontier` filter term.
+
 ## [0.39.67]
 
 ### Fixed
