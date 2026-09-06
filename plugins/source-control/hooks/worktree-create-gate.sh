@@ -139,24 +139,49 @@ fi
 # jq is the primary reader; the fallback exists because failing the creation over
 # an absent optional CLI would be a worse outcome than a bounded string extract of
 # two flat, harness-generated string fields.
-json_field() {
-  local field="$1" value=""
+#
+# json_field_to <var> <field> — writes the field into <var> in THIS shell rather
+# than printing it, so the two substitutions that used to wrap each read (one
+# around the whole helper, one around hook::jq_field) are gone; what remains per
+# rung is the reader's own `printf | jq` (or `printf | sed`) pipeline. The `_to`
+# shape is the same fork-avoidance convention hook-utils.sh documents on its own
+# `_to` helpers.
+#
+# The payload is fed through `printf '%s' "$payload" |`, the form hook-utils.sh
+# prescribes for a hook payload and NEVER a here-string: bash fills a
+# here-string's pipe itself, so a payload at or above the pipe capacity (65536
+# bytes, traced on Git Bash in #1587) blocks the shell before the reader is ever
+# exec'd, and that hang is this hook's timeout. The separate writer process is
+# the correct trade.
+#
+# The jq PROGRAM TEXT is byte-for-byte what hook::jq_field builds, gsub included.
+# That is deliberate and load-bearing: `gsub` is string-only, so a payload whose
+# field is a NUMBER or an OBJECT makes jq fail and the read falls through to the
+# string-shaped sed rung, which matches only a quoted string and so yields
+# nothing — a refusal. Dropping the gsub to save nothing would turn a non-string
+# `.name` into an accepted worktree name. The CR strip stays jq-side for the same
+# reason: moving it into bash would change which values reach the fallback.
+json_field_to() {
+  local __dest="$1" field="$2" value=""
   if command -v jq >/dev/null 2>&1; then
-    value="$(hook::jq_field "$payload" ".$field")" || value=""
+    value=$(printf '%s' "$payload" | jq -r "(.${field} // empty)"' | gsub("\r";"")' 2>/dev/null)
   fi
   if [[ -z "$value" ]]; then
-    value="$(printf '%s' "$payload" |
-      sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
-      head -n 1 | tr -d '\r')"
+    # No `2>/dev/null` is added on this rung: sed's stderr reached this hook's
+    # stderr before and still does. `head -n 1` and `tr -d '\r'` are parameter
+    # expansions now, which is where two of the pipeline's processes went.
+    value=$(printf '%s' "$payload" | sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    value="${value%%$'\n'*}"
+    value="${value//$'\r'/}"
     # The harness emits JSON-escaped Windows paths, so a fallback read has to undo
     # the one escape those paths actually carry.
     value="${value//\\\\/\\}"
   fi
-  printf '%s' "$value"
+  printf -v "$__dest" '%s' "$value"
 }
 
-name="$(json_field name)"
-repo_dir="$(json_field cwd)"
+json_field_to name name
+json_field_to repo_dir cwd
 
 if [[ -z "$name" ]]; then
   gate::refuse \

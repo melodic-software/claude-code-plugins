@@ -50,14 +50,32 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# ONE `jq` for the field and no `tr` behind it. The payload is fed through
+# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
+# payload (hook::jq_field, hook::json_complete) and NEVER a here-string: bash
+# fills a here-string's pipe itself, so a payload at or above the pipe capacity
+# (65536 bytes, traced on Git Bash in #1587) blocks the shell before jq is ever
+# exec'd, and that hang is this hook's timeout. The separate writer process is
+# the correct trade: 3 creations for the read where a here-string costs 1. The
+# CR strip is the same all-CRs-removed contract done with parameter expansion
+# instead of a `| tr -d '\r'` stage. Same form as the containment sibling;
+# strace counted 4 creations / 2 execve before, 3 / 1 after.
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Ii][Tt][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
-SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -d '\r')
+# Same `printf | jq` feed as the command read above. Two reads rather than one
+# hook::jq_fields call for both: the batched reader's `// ""` and `tostring`
+# semantics differ from `// empty` on a non-string field, and its NUL-flag
+# verdict contract is one a blocking-adjacent caller would then have to honour.
+# Keeping each field's own `// empty` read is what keeps this behaviour-preserving.
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+HOOK_CWD="${HOOK_CWD//$'\r'/}"
+SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+SESSION="${SESSION//$'\r'/}"
 
 CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"
 [[ -f "$CLAIM" ]] || exit 0
@@ -235,10 +253,17 @@ for target in "${CLAIM_TARGETS[@]}"; do
   if [[ -n "$SESSION" ]]; then
     args+=(--session-id "$SESSION")
   fi
-  err_file="$(mktemp "${TMPDIR:-/tmp}/worktree-add-claim.XXXXXX")" || continue
   claim_rc=0
-  claim_out="$(bash "$CLAIM" "${args[@]}" 2>"$err_file")" || claim_rc=$?
-  rm -f "$err_file"
+  # The helper's stderr is discarded, and `2>/dev/null` is the whole of what the
+  # temp file used to do: it was created, written by the redirection, and
+  # removed without ever being read. Dropping it removes two processes (mktemp,
+  # rm) and the `|| continue` fail-open that silently skipped the claim whenever
+  # TMPDIR was unwritable. The redirection sits on a group holding exactly ONE
+  # command, so it silences the helper's stderr and nothing else, and `$?` on
+  # the group is still the HELPER's status — `claim_rc=$?` stays outside it, per
+  # the reason spelled out in the create-gate sibling: read inside `if ! cmd`
+  # it would be a constant 0.
+  { claim_out="$(bash "$CLAIM" "${args[@]}")"; } 2>/dev/null || claim_rc=$?
   if [[ "$claim_out" == *"worktree-claim.sh: lane active"* && "$claim_rc" -eq 0 ]]; then
     claimed_any=1
   fi

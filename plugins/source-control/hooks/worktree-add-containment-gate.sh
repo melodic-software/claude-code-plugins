@@ -77,7 +77,20 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# ONE `jq` for the field and no `tr` behind it. The payload is fed through
+# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
+# payload (hook::jq_field, hook::json_complete) and NEVER a here-string: bash
+# fills a here-string's pipe itself, so a payload at or above the pipe capacity
+# (65536 bytes, traced on Git Bash in #1587, the platform these gates time out
+# on) blocks the shell before jq is ever exec'd. Here that hang IS the hook
+# timeout, which on a containment gate is a stall and a fail-open at once, so the
+# separate writer process is the correct trade: 3 creations for the read where a
+# here-string costs 1. The CR strip is the same all-CRs-removed contract done
+# with parameter expansion instead of a `| tr -d '\r'` stage (one process fewer).
+# strace -f -e trace=clone,clone3,fork,vfork,execve: 4 creations / 2 execve
+# before, 3 / 1 after.
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
 # Applicability pre-filter before any parsing: `git` as its own word (or a
 # path's last segment) plus both subcommand words, so an unrelated Bash call
@@ -87,7 +100,9 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
+# Same `printf | jq` feed and parameter-expansion CR strip as the command read.
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+HOOK_CWD="${HOOK_CWD//$'\r'/}"
 
 # Set once a segment changes the working directory; every later segment then
 # resolves against a directory this hook cannot see (same rule and same
@@ -175,13 +190,19 @@ resolve_against() {
 # inherited GIT_DIR cannot skew a probe's answer (#972 discipline, same as
 # hook::in_git_working_tree). The unset is confined to the subshell, so it never
 # reaches the hook's own environment.
+#
+# The `2>/dev/null` sits on the SUBSHELL, not on the git command: with the
+# redirection off the last command in the subshell, bash execs git in that
+# subshell instead of forking a third process for it (3 creations per probe
+# before, 2 after, measured with strace). `unset` writes nothing to stderr, so
+# moving the redirection out one level silences the same stream and no other.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 git_unlocated() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
       GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git "$@" 2>/dev/null
-  )
+    git "$@"
+  ) 2>/dev/null
 }
 
 # repo_enclosing <abs-target> — if the target's nearest existing ancestor sits
@@ -227,7 +248,12 @@ repo_enclosing() {
 configured_root() {
   local hint="$1" r=""
   if [[ -n "$hint" ]] && git -C "$hint" rev-parse --git-dir >/dev/null 2>&1; then
-    r=$(git -C "$hint" config --get-all --type=path melodic.worktreeroot 2>/dev/null | tail -n 1 | tr -d '\r')
+    # Single-command group again: `tail -n 1` is the last line of the captured
+    # value and `tr -d '\r'` is a parameter expansion, so the whole read is one
+    # git process (5 creations / 3 execve before, 1 / 1 after).
+    { r=$(git -C "$hint" config --get-all --type=path melodic.worktreeroot); } 2>/dev/null
+    r="${r##*$'\n'}"
+    r="${r//$'\r'/}"
   fi
   if [[ -z "$r" ]]; then
     r="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
