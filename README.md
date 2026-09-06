@@ -135,6 +135,19 @@ This repo tracks policy and wiring only; authoritative behavior lives in the off
 be read fresh rather than recalled. Start at the
 [Claude Code plugins guide](https://code.claude.com/docs/en/plugins).
 
+## What this marketplace actually publishes
+
+This repository is the only authoritative listing of what this marketplace publishes. The plugins and
+skills it ships are the ones present in `plugins/` on the default branch, and the
+[marketplace manifest](.claude-plugin/marketplace.json) is the machine-readable form of that list.
+
+Several third-party aggregator and directory sites republish Claude Code skill listings, and some of
+them attribute skills to this publisher that have never existed here. A search of the full commit
+history of this repository found no trace of them. If you find a skill credited to this marketplace
+that you cannot locate in `plugins/` on the default branch, it is not ours, whatever a directory
+says. Install from the source above rather than from a mirror or a directory listing, and treat an
+aggregator's metadata as unverified.
+
 ## License
 
 [MIT](LICENSE).
