@@ -136,4 +136,63 @@ EOF
   rm -rf "$STUB"
 fi
 
+# --- the same-repo test is case-insensitive ---
+# GitHub owner/repo names are case-insensitive and the id grammar accepts any
+# case, so an id written `github:acme/widgets#99` must still match nodes whose
+# url spells the repo `Acme/Widgets`. A case-sensitive compare would call every
+# child foreign and return an empty list with no signal, which is the same
+# silent blindness #3825 was, just reached by a different route.
+if command -v jq >/dev/null 2>&1; then
+  STUB="$(mktemp -d)"
+  cat >"$STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  printf 'gh version 2.97.0 (test)\n'
+  exit 0
+fi
+mode=""
+for a in "$@"; do
+  case "$a" in
+  view) mode="view" ;;
+  list) mode="list" ;;
+  esac
+done
+case "${mode:-}" in
+view)
+  # Canonical casing from the API differs from the casing used in the id.
+  printf '%s\n' '{"subIssues":{"nodes":[
+    {"id":"a","number":31,"title":"one","url":"https://github.com/Acme/Widgets/issues/31","state":"OPEN"},
+    {"id":"b","number":32,"title":"foreign","url":"https://github.com/Other/Repo/issues/32","state":"OPEN"}
+  ],"totalCount":2}}'
+  ;;
+list)
+  printf '%s\n' '[
+    {"number":31,"title":"one","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/acme/widgets/issues/31"},
+    {"number":32,"title":"same number, this repo","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/acme/widgets/issues/32"}
+  ]'
+  ;;
+*)
+  printf 'gh-stub: unhandled\n' >&2
+  exit 90
+  ;;
+esac
+EOF
+  chmod +x "$STUB/gh"
+
+  ERRFILE="$(mktemp)"
+  OUT="$(PATH="$STUB:$PATH" bash "$S" "github:acme/widgets#99" 2>"$ERRFILE")"
+  rc=$?
+  assert_eq "case-differing repo → exit 0" "0" "$rc"
+  assert_eq "case-differing same-repo child is kept, not read as foreign" \
+    "github:acme/widgets#31" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+  # Case-folding widens the match on case alone, never across repos.
+  assert_eq "case-folding does not pull in a cross-repo node" \
+    "1" "$(jq -r '.items | length' <<<"$OUT")"
+  assert_eq "case-differing nodes are attributable, so no warning" \
+    "0" "$(grep -c 'no derivable repo' "$ERRFILE")"
+
+  rm -f "$ERRFILE"
+  rm -rf "$STUB"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1

@@ -17,6 +17,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   up as a message rather than as another silently empty list; a node in a different repo stays a
   silent drop, since that is the documented cross-repo truncation. The adapter README records the
   projection and the gh version the fix was checked against.
+- work-item-tracker GitHub adapter: the `list-sub-items` same-repo test folds case on both sides.
+  GitHub owner and repo names are case-insensitive and the id grammar accepts any case, so an id
+  written `github:acme/widgets#99` read every child of a repo the API spells `Acme/Widgets` as
+  foreign and returned an empty list with no signal, reaching the same blindness as the bug above by
+  a different route. Folding widens the match on case alone: a genuinely cross-repo node still
+  drops, and an unattributable node still warns on stderr.
 
 ## [0.39.66]
 
