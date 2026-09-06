@@ -58,6 +58,12 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   that did and did not suppress with its contributing layer, and excluding the surface and its
   layers from the candidate set after the detector has run. What `delta` detects, its noise budget,
   and its report shape are unchanged.
+- **`delta` merges its discoveries into the findings artifact before it captures the spine.** A
+  `new` finding and a re-derived `changed` line range are its only durable output for `realign`,
+  which reads the artifact and never the spine; capturing first leaves a baseline that has moved on
+  from a finding no record carries, so the discovery is lost with no error. It writes records, never
+  a `Status`. All four baseline/artifact combinations are enumerated, including the bootstrap where
+  an artifact exists and no baseline does — the shape a first run in a fresh worktree takes.
 - **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act on
   another home's artifact is argued from stale line ranges rather than from cross-project collision,
   which is what the branch axis actually protects against.
