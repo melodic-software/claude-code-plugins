@@ -413,4 +413,47 @@ else
   echo "SKIP: runnable python3 not available for happy-path probe" >&2
 fi
 
+# --- a warm launch creates no process before it execs the interpreter ---
+#
+# Both engine-gate entries carry an `if` filter, so this launcher now runs only
+# for a shell call that names the engine; what such a call pays is the spawn
+# chain itself, and a warm launch must add nothing to it. The census is taken at
+# the kernel (`strace -f`), not through a PATH shim or `set -x`: a fork that
+# never execs (a `$(...)` substitution, a pipeline) is invisible to both, and a
+# fork is the unit Windows charges for. Expected on a warm cache: zero
+# clone/fork calls, and exactly two execve calls, bash running the launcher and
+# the resolved interpreter running the target. Skipped where strace is absent,
+# where ptrace is refused, or where `python3` is itself a script (a version
+# manager shim), since that shim's own spawns are not this launcher's.
+if ! command -v strace >/dev/null 2>&1; then
+  echo "SKIP: strace not available for the spawn census" >&2
+elif [[ -z "$REAL_PYTHON" ]] || [[ "$(head -c 2 "$REAL_PYTHON" 2>/dev/null)" == "#!" ]]; then
+  echo "SKIP: python3 is absent or is a shim script; spawn census not exercised" >&2
+elif ! strace -qq -e trace=execve -o /dev/null true >/dev/null 2>&1; then
+  echo "SKIP: strace cannot trace on this host; spawn census not exercised" >&2
+else
+  CENSUS_HOME="$PROBE_DIR/census-home"
+  CENSUS_LOG="$PROBE_DIR/census.strace"
+  mkdir -p "$CENSUS_HOME"
+  # Cold launch: resolves and writes the cache record under the census HOME.
+  HOME="$CENSUS_HOME" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+  rm -f "$FIXTURE_MARKER"
+  HOME="$CENSUS_HOME" strace -f -qq -e trace=clone,clone3,fork,vfork,execve \
+    -o "$CENSUS_LOG" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+  assert_eq "the traced warm launch still runs the target" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+  # A creation is a clone/fork line that returned a child id; the `unfinished`
+  # half of a split line is excluded so a creation is counted once.
+  census_creations="$(grep -E '\b(clone3?|v?fork)\b' "$CENSUS_LOG" |
+    grep -v unfinished | grep -cE '= [1-9][0-9]*$' || true)"
+  census_execs="$(grep -E '^[0-9]+ +execve\(' "$CENSUS_LOG" |
+    grep -cE '\) = 0$' || true)"
+  assert_eq "a warm launch creates no process before exec (strace census)" \
+    "0" "$census_creations"
+  assert_eq "a warm launch execs exactly bash and the interpreter (strace census)" \
+    "2" "$census_execs"
+fi
+
 pass "all run-python-hook contract checks"

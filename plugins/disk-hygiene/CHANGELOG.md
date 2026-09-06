@@ -3,6 +3,38 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.10]
+
+### Changed
+
+- **The PowerShell engine-gate entry carries an `if` filter, `PowerShell(*hygiene.py*)`,
+  matching the Bash entry's.** Every PowerShell tool call in every session was still launching
+  the guard to be told it was irrelevant: on a warm interpreter cache that is four `execve` calls
+  (`bash -c`, the launcher through its `env` shebang, bash, the interpreter) and a 106 KB module
+  import, counted with `strace -f`. The harness now evaluates the filter before spawning
+  anything, so a PowerShell call that does not name the engine costs this plugin no process. The
+  0.21.4 note that a PowerShell filter "must match every subcommand of a compound command"
+  described allow rules, not `if`: the harness evaluates `if` through the tool's own permission
+  matcher, and the PowerShell tool's parses the command AST and runs the hook when any statement,
+  pipeline element or nested command matches (verified in Claude Code 2.1.258's
+  `preparePermissionMatcher`: `some` over every collected command, case-insensitive glob; an
+  unparsable command runs the hook). A mixed line such as `Get-Date; python hygiene.py` therefore
+  still reaches the guard and is still denied on the PowerShell lane, as are the `|`, `&&`,
+  newline, CR LF and U+2028 forms. No allow/deny decision changes for a call that reaches the
+  guard, and no call the guard would have judged is skipped: the gate defers every command that
+  is not `_engine_gate_relevant` before any deletion spelling is consulted, and relevance needs
+  the engine's file name in the text or a path that is the same file as the bundled engine. That
+  second case, any spelling that reaches the engine without its own file name in the text (a
+  symlink or hard link under another name, a Win32 8.3 short name), is the residual the filter
+  cannot see, and the Bash lane has accepted it since 0.21.4; text the PowerShell parser assigns
+  to no command (a comment naming the engine) is likewise invisible to the filter where the guard
+  would have failed closed on it. `test_engine_gate_is_registered_once_per_tool` now asserts both
+  filters; two new tests assert that a PowerShell call the filter skips is one the gate defers,
+  and that every compound invocation shape the filter admits is still relevant and still denied.
+  The launcher's contract suite gains a kernel-level spawn census (`strace -f`, skipped where
+  unavailable): a warm launch creates no process and execs exactly bash and the interpreter. The
+  README's hook-budget accounting records the before and after census. (#3349)
+
 ## [0.21.9]
 
 ### Changed

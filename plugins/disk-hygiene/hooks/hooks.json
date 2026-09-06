@@ -21,6 +21,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "if": "PowerShell(*hygiene.py*)",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
