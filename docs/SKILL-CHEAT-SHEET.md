@@ -176,6 +176,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
 | [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |
+| [`/discipline:hold-my-hand`](../plugins/discipline/skills/hold-my-hand/SKILL.md) | `discipline` | Standing posture. Phase the work, present one phase at a time, wait for the advancing reply |
 | [`/discipline:mind-your-maxims`](../plugins/discipline/skills/mind-your-maxims/SKILL.md) | `discipline` | Re-anchor cooperative communication and audit recent responses for clarity |
 | [`/discipline:pick-for-the-problem`](../plugins/discipline/skills/pick-for-the-problem/SKILL.md) | `discipline` | Re-derive a tool or approach choice from the problem, not habit |
 | [`/discipline:point-dont-copy`](../plugins/discipline/skills/point-dont-copy/SKILL.md) | `discipline` | Audit for copied content and correct by pointing at the living source |

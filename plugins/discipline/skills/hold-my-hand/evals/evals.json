@@ -1,0 +1,67 @@
+{
+  "skill_name": "hold-my-hand",
+  "evals": [
+    {
+      "id": 1,
+      "name": "one-phase-only-with-count",
+      "prompt": "hold my hand through setting up the self-hosted runner, the CI secrets, and the first green build. One phase at a time, and don't show me the next step yet.",
+      "expected_output": "Presents Phase 1 alone with a single-line count such as 'Phase 1 of 6'. The later phases are never listed, previewed, or summarized as a table of contents, so the user learns the shape of the job without reading ahead.",
+      "files": [],
+      "expectations": [
+        "Presents exactly one phase, the current one",
+        "States the total as a one-line count (for example 'Phase 1 of 6')",
+        "Does not list, preview, or summarize any later phase"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "phase-carries-all-six-parts",
+      "prompt": "hold my hand. Walk me through registering the runner; I need exact steps.",
+      "expected_output": "The phase names where to be (machine, terminal kind, elevated or not, working directory), gives numbered steps, puts each exact command in a fenced block with real values, states the expected output after each command, names the common failure and its repair, and ends with the literal advancing reply to send back.",
+      "files": [],
+      "expectations": [
+        "Names the machine, terminal kind, elevation, and working directory",
+        "Gives numbered steps with exact commands in fenced blocks, not placeholder templates",
+        "States the expected output after each command and the common failure with its repair",
+        "Ends with the exact literal reply that advances (for example `phase 1 done`)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "assistant-does-what-it-can-first",
+      "prompt": "hold my hand through this migration. Some of it needs my admin console, but do whatever you can yourself.",
+      "expected_output": "Performs the steps it can perform before presenting anything, then presents only the residue the user must do: elevation, another machine, a vendor console, credentials, or an approval that is theirs. Every presented step is labelled with its performer.",
+      "files": [],
+      "expectations": [
+        "Runs the steps it can perform itself before presenting the phase",
+        "Presents only steps the assistant cannot perform (elevation, other machines, consoles, credentials, approvals)",
+        "Labels each step with who performs it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "failed-check-yields-repair-subphase",
+      "prompt": "phase 2 done",
+      "expected_output": "Checks what is mechanically checkable first (runs the probe, reads the file, queries the forge for the object's state) and reports the result. When the check comes back wrong it presents a repair sub-phase such as 'Phase 2a' carrying the same six parts, and returns to the main sequence only after the repair's own check passes.",
+      "files": [],
+      "expectations": [
+        "Runs a mechanical check before presenting anything further and reports what it returned",
+        "On a failed check, presents a repair sub-phase (for example 'Phase 2a') rather than the next phase",
+        "Returns to the main sequence only after the repair check passes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-options-no-compressed-steps",
+      "prompt": "hold my hand. Also keep it terse, caveman mode is on, and just tell me whether to use Docker or a native install.",
+      "expected_output": "Refuses to present the choice as a menu: it decides between Docker and the native install, records the decision in one line with its reason, and asks nothing further in that phase. The step text stays in full sentences with conjunctions, articles, and prepositions intact despite the terse mode, because a dropped conjunction in an ordered step changes whether clauses are sequential, conditional, or alternative.",
+      "files": [],
+      "expectations": [
+        "Decides between the two options instead of presenting them as a menu",
+        "Records the decision and its reason in one line",
+        "Keeps step text in full sentences despite the active terse/compression mode",
+        "Asks at most one question in the phase"
+      ]
+    }
+  ]
+}
