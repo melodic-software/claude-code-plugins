@@ -1,5 +1,5 @@
 ---
-description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea. Questions arrive in frontier rounds: every question whose prerequisites are settled asked together as one numbered set, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs the rounds loop when gaps remain, or interviews relentlessly on request. Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', or proactively before behavior-changing work when intent is ambiguous or underspecified; skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
+description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea. Questions arrive in frontier rounds: every question whose prerequisites are settled asked together as one numbered set, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs the rounds loop when gaps remain, or interviews relentlessly on request. Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or proactively before behavior-changing work when intent is ambiguous or underspecified; skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
@@ -154,6 +154,105 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
   resumes after the update
 - **ADR, offered sparingly** *(engineering sessions only)*. Propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer. Never prescribe a location or format
 
+## Acceptance-criteria capture
+
+Two behaviours ride on the moment acceptance criteria are captured. The first is always on; the
+second fires only when the consuming team's convention selects it.
+
+### Coverage prompt. Always on, asked once
+
+While capturing acceptance criteria, ask ONE question: are the criteria missing an
+**unwanted-behaviour** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
+case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
+interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
+whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
+it is a coverage check, not a format.
+
+It is **not** a `Q<N>` decision. Never write it into the open-question register, never mark it
+`blocked`, and never route it to `### Deferred questions`. The register gates the contract, and a
+coverage check parked there would hold a lock hostage to a question that carries no decision.
+
+Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
+synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
+is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
+
+### Non-interactive runs skip the ask and say so
+
+A run with nobody to answer, a dispatched worker, a forked subagent, a headless invocation, or any
+caller that declared the run unattended, **SKIPS** the ask instead of blocking on it, and the
+session's returned summary states that **unwanted-behaviour and state-driven coverage went
+unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
+summary. A prompt nobody can answer must not stall the run and must not silently vanish.
+
+The unattended condition is **declared by the caller, never sniffed**, the same rule the auto-guard's
+unattended path states. There is no supported way for a session to observe that it is
+non-interactive, so never read an environment variable to decide this.
+
+### EARS tags, when the convention selects them
+
+Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
+degrade, emit criteria exactly as today: `- <testable criterion>`, untagged, byte-comparable in
+shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
+bracketed pattern prefix on that same plain-bullet form:
+
+| Tag | Pattern |
+|---|---|
+| `[ubiquitous]` | an always-true requirement, no trigger and no state |
+| `[event-driven]` | `WHEN <trigger>, <response>` |
+| `[state-driven]` | `WHILE <state>, <response>` |
+| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[optional-feature]` | `WHERE <feature is included>, <response>` |
+
+```text
+- [event-driven] WHEN the upload completes, the manifest is rewritten
+- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+```
+
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, and
+`optional-feature`. This vocabulary is a contract with whatever reads the tag downstream, and a name
+spelled any other way, `unwanted-behavior`, `unwanted`, `event`, reads as no tag at all and breaks
+detection silently rather than loudly. The tag prefixes the criterion; it never replaces the
+testable sentence, and an untaggable criterion is a criterion still owed a shape, not a criterion
+owed a sixth pattern.
+
+Where the tags travel: they land in the Brief's `### Acceptance criteria`, and a consumer that
+publishes the Brief verbatim as a tracker container body carries them with it. They do not reach
+per-slice criteria, which are freshly authored by whatever decomposes the work, because a vertical
+slice owns everything it grades.
+
+### Resolution ladder for `acceptance_criteria_format`
+
+Restated here rather than cited: an installed plugin never sees the publishing repository's
+convention docs, so a path citation would make that publisher a runtime dependency of this session.
+
+```markdown
+1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
+   `git rev-parse --show-toplevel`. Never a CWD-relative read.
+2. Resolve the convention home `<home>` from the pointer line in the marked
+   `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
+   (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
+   bundled resolver where the plugin ships one; never hand-parse the root file.
+3. Read `<home>/authoring-formats/README.md` and take the key's value from its fenced
+   YAML block.
+4. Layer order is one layer deep: an explicit invocation argument, where the skill has
+   one, then the team convention doc, then the documented default. A convention-doc
+   surface has no personal overlay, so there is no further layer to consult.
+5. Default: `acceptance_criteria_format` is `free-text` — emit untagged plain-bullet
+   criteria, exactly today's shape.
+6. Degrade soft, and say so. No pointer line, no convention home on disk, no
+   `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
+   each resolve to the documented default. Name the cause in one clause and continue;
+   never hard-fail, and never ask the operator to create the surface mid-task.
+7. Report provenance whenever the resolved value shapes output: name the key, the value,
+   and the layer it came from — `argument`, `team convention doc <path>`, or `default`.
+```
+
+This plugin ships the step-2 resolver at
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home, exit 1 means
+no pointer line is bound, and exits 2 and 3 are usage and grammar failures. Every non-zero exit is a
+step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create
+the surface.
+
 ## The interview loop
 
 Five steps. Step 1 (Survey) runs every action. Step 1.5 (Auto-detect) runs on `auto` only. Step 2 (Q&A loop) runs on `me` or `auto`-routed-to-Q&A. Detail in [`context/loop.md`](context/loop.md).
@@ -195,7 +294,7 @@ Full surfacing-question taxonomy + categorization heuristics in [`context/loop.m
 
 ### Step 3. Recognize the stop condition
 
-Stop when the frontier is empty. Every load-bearing unknown resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. Don't stop early on impatience; don't keep asking past the stop condition.
+Stop when the frontier is empty. Every load-bearing unknown resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
 
 **Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
@@ -226,7 +325,7 @@ PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite, and let the commit message carry the pivot rationale.
 
-Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both load-bearing; loop.md covers when to use which.
+Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". `### Acceptance criteria` stays plain bullets in both formats, tagged or not, per "Acceptance-criteria capture" above; it is never converted to checkboxes. Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both load-bearing; loop.md covers when to use which.
 
 ### Step 5. Hand off
 
@@ -264,6 +363,7 @@ the recommendation from this summary.
 - **Does not adversarially attack the user's idea**. That is `/planning:devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics. It is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
 - **Does not gate truly mechanical work**. Typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/planning:interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default**. Auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
 - **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing
+- **Does not export Gherkin**. Named as a deferred extension point so its absence reads as a decision rather than an oversight: nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios, and the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract, and none of it is built here
 
 ## Composition with other skills
 
