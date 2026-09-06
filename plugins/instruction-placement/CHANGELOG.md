@@ -3,6 +3,46 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Changed
+
+- **The findings artifact and the delta lane's baseline move onto the shared lifecycle artifact
+  protocol.** Both now live in a memory-tier, branch-keyed home resolved through the plugin's new
+  `reference/topic-docs.md` binding, defaulting to `.work/instruction-placement/<branch-slug>/`:
+  `findings.md`, and `baselines/delta-baseline.md` in the protocol's named `baselines/` slot. The
+  plugin ships `reference/artifact-protocol.md` and is registered in
+  `scripts/validate-plugin-contracts.mjs` as a lifecycle-protocol participant, so its copy is held
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`. This is the same slot and the same branch
+  axis the sibling `overengineering` plugin already uses, rather than a second way of persisting the
+  same kind of state (#3811).
+- **`delta` compares against a persisted baseline instead of against the artifact.** The artifact is
+  merged into by every audit and edited by every realign, so diffing it against itself measured
+  whatever last touched the file. The baseline is captured at the end of a cycle, only by a cycle
+  that consumed one, and it carries the declined records forward as records of their own, so a lost
+  or rewritten artifact can no longer resurrect a decline. Its frontmatter, body rules, and capture
+  rules are owned by `context/findings-artifact.md` under "The delta baseline". What `delta` detects,
+  its noise budget, and its report shape are unchanged.
+
+### Removed
+
+- **`lib/state-key.sh` no longer ships with this plugin, and no skill resolves it.** The retired key
+  ended in a hash of the worktree's absolute root path, so a second checkout of one repository was a
+  different home by construction and every operator decision recorded in the first was invisible from
+  the second. The allowed-tools grants for it are gone from `audit`, `realign`, and `delta`, and
+  `scripts/sync-state-key.sh` no longer lists this plugin among the cluster's copies.
+
+### Migration
+
+- **A tree under the pre-0.12.0 plugin-data path is not migrated and is not read.** Consulting it
+  would require keeping the worktree-hashed derivation alive as the parallel second home this change
+  exists to close, so the absence is made detectable instead: the first `delta` or `realign` run
+  after upgrading names the resolved home it looked in and routes out rather than silently reporting
+  a first run. Re-run `audit` to establish the new home; the old tree is inert and can be deleted.
+- `scripts/artifact-home.test.sh` pins the read path and the write path to one slot across every
+  shipped surface. A capture step and a read step that name different files raise no error at
+  runtime, so the disagreement is caught here instead.
+
 ## [0.11.29]
 
 ### Changed

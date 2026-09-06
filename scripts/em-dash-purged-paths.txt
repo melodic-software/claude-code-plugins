@@ -96,6 +96,7 @@ plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
 plugins/improvement/skills/*/SKILL.md
 plugins/instruction-placement/README.md
+plugins/instruction-placement/reference/topic-docs.md
 plugins/instruction-placement/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
 plugins/knowledge/README.md

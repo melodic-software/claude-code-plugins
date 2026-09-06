@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Grep",
     "Glob",
@@ -54,7 +53,8 @@ The judgment lives in the plugin's context files, not in this hub. Do not re-der
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny gate, the decision ladder, glob derivation, the promote lane |
 | [`../../context/corpus.md`](../../context/corpus.md) | What is swept, in what order, and what is never touched |
 | [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | When each surface loads, and the three gaps that constrain every proposal |
-| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's shape, location, and re-run merge semantics |
+| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's shape and re-run merge semantics |
+| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | Where the artifact lands: the rung order, the branch slug, the self-ignore guard |
 
 A proposal that contradicts `verified-mechanics.md` is wrong even if it looks like a saving. The
 common one: moving a section into `.claude/rules/` *without* a `paths:` glob, which costs exactly
@@ -127,16 +127,19 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the project key and write under it. `findings-artifact.md` owns the full path shape:
+Resolve the home first, then write `findings.md` into it. The path shape, the five-rung resolution
+order, the branch slug, and the self-ignore guard are owned by
+[`../../reference/topic-docs.md`](../../reference/topic-docs.md); this skill runs that rung order and
+never composes a path of its own.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
+Run the whole rung order rather than assuming the documented default's shape. A skill that hardcodes
+`.work/instruction-placement/<branch-slug>/` writes where `realign` and `delta` never look, and their
+failure mode for that is a missing-artifact stop indistinguishable from "the audit was never run".
+**No branch identity, no home**: on a detached checkout there is no slug to compose, so say so and
+persist nothing.
 
-The plugin data directory is keyed to the plugin identifier and nothing else, so an unkeyed filename
-is one file per **machine**: a later run in a different repository would read this one's findings as
-its own. Never skip the key. If a prior artifact exists for this key, merge per the contract's
-re-run semantics rather than overwriting. An operator's `declined` decision must survive a re-audit.
+If a prior artifact exists in the resolved home, merge per the contract's re-run semantics rather
+than overwriting. An operator's `declined` decision must survive a re-audit.
 
 ## Routing out
 

@@ -61,7 +61,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `INDEX.md`, `EXPLORE.md`, `RESEARCH.md`, `INTENT.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch — and child slices, recursively (see [The slice tree](#the-slice-tree)) |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts) — their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/instruction-placement/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; instruction-placement findings and their delta baseline in a `baselines/` slot; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts) — their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -633,13 +633,16 @@ cite it rather than redefining it.
   never a bare ordinal.
 - Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
 - Reserved first-level names under the memory root: `handoffs`,
-  `reviews`, `running-retros`, `overengineering`, `exports`, `lanes`
+  `reviews`, `running-retros`, `overengineering`,
+  `instruction-placement`, `exports`, `lanes`
   (the claude-ops lanes skill's state home — `lanes.json` plus lane
   prompt files — which resolves a literal `.work` root by its own
   stated carve-out, not `memory_dir`). A topic slug that collides with
   a reserved name takes the `-x` suffix. These names stay flat: the
   slice-tree recursion does not apply to them unless their own contract
-  says otherwise.
+  says otherwise. Flat bars the slice tree, not every subdirectory: a
+  concern whose contract names one — `instruction-placement`'s
+  `baselines/` slot — carries it.
 - The same slug names the topic in both tiers — that is the traceability
   bridge.
 
@@ -764,6 +767,7 @@ relationship to the contract is fully stated by their table row.
 | session-flow | handoffs; running-retro ledgers; suggested destination for user-run `/export` conversation snapshots | memory (`handoffs/`, `running-retros/`, `exports/`) | delta doc |
 | review | review reports | memory (`reviews/`) | delta doc |
 | overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
+| instruction-placement | `findings.md` — instruction-placement audit findings, statuses updated in place by its realign skill; `baselines/delta-baseline.md` — the delta lane's cross-run comparison snapshot, carrying the declined records forward | memory (`instruction-placement/<branch-slug>/`) | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees; `SOURCES.md` (docpage-digest's source inventory, a reserved artifact name) — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names); inside the seam the corpus tree is shape-unified to this contract's slice and `INDEX.md` rules (see [The corpus seam](#the-corpus-seam)) | memory (carved out) | by reference — the carve-out above is its entire delta |

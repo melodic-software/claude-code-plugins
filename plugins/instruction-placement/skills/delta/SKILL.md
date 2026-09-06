@@ -1,5 +1,5 @@
 ---
-description: "Re-run the placement audit and report only what MOVED since the last run: new candidates, findings whose source content changed, rules whose globs stopped resolving, and index drift, above a configurable noise budget, so a repeat run costs attention proportional to what actually changed rather than re-presenting a finding set the operator already decided on. Declined findings stay declined and are never resurrected by a re-run. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only. Reports movement and writes nothing but the refreshed findings artifact; realign still owns every change."
+description: "Re-run the placement audit and report only what MOVED since the last run: new candidates, findings whose source content changed, rules whose globs stopped resolving, and index drift, above a configurable noise budget, so a repeat run costs attention proportional to what actually changed rather than re-presenting a finding set the operator already decided on. Declined findings stay declined and are never resurrected by a re-run. Use when: 'what changed since the last placement audit', 'placement delta', 're-run the instruction-placement audit', 'anything new to move', 'did any rule glob break', 'weekly instruction-placement check', or from a scheduled lane. Read-only on the repository; its only writes are the refreshed findings artifact and its delta baseline, and realign still owns every change."
 argument-hint: "[--since <ISO date>] [--noise-budget <n>]. Default: since the artifact's last run"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Grep",
     "Glob",
@@ -39,11 +38,13 @@ cadence.
 
 | Read | For |
 |---|---|
-| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | Status vocabulary, re-run merge semantics, where the artifact lives |
+| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | Status vocabulary, re-run merge semantics, the delta baseline's frontmatter, body, and capture rules |
+| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | Where the artifact and the baseline land: the rung order, the branch slug, the self-ignore guard |
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | Only when a genuinely new candidate needs classifying |
 
-This skill does **not** restate the merge semantics. The artifact contract owns them, and a second
-statement is a second thing to drift.
+This skill does **not** restate the merge semantics, and it does not restate the baseline's shape or
+its location. The artifact contract and the placement binding own them, and a second statement is a
+second thing to drift.
 
 ## What counts as movement
 
@@ -77,11 +78,16 @@ signal at the time. Nothing else in the plugin notices between `check` runs.
 
 Each step names what "done" looks like, so a partial run is visible rather than assumed complete.
 
-1. Resolve the state key and read the prior artifact. **No prior artifact is not an error**. Say so
-   and route to the full audit rather than silently running one.
-   *Done when:* a prior artifact is in hand, or the run has stopped with the route stated.
-2. Run the detector and diff its `SECTION` and `RULE` records against the artifact's record of the
-   last run. *Done when:* every current record is matched to a prior record or marked unmatched.
+1. Resolve the home through the binding, then read `findings.md` and the baseline at
+   `baselines/delta-baseline.md` from it. **Neither one missing is an error**. Name the resolved
+   path you looked in, say which file is absent, and route to the full audit rather than silently
+   running one. Never widen the search, and never diff the artifact against itself in place of a
+   baseline: the artifact is rewritten by every audit and edited by every realign, so that
+   comparison measures whatever last touched the file.
+   *Done when:* both files are in hand, or the run has stopped with the missing path named and the
+   route stated.
+2. Run the detector and diff its `SECTION` and `RULE` records against **the baseline's** spine rows.
+   *Done when:* every current record is matched to a baseline row or marked unmatched.
 3. Classify each difference into one of the five shapes. Only a `new` shape needs the rubric.
    *Done when:* no difference is left unclassified. An unclassified difference is a reporting gap.
 4. Re-validate every previously-valid glob; a transition to invalid is `broken-glob`.
@@ -92,6 +98,11 @@ Each step names what "done" looks like, so a partial run is visible rather than 
    *Done when:* no `declined` or `applied` status has changed.
 7. Report movement, then the suppressed count, then a one-line "nothing else moved".
    *Done when:* the report states a number for both moved and suppressed.
+8. Capture this cycle's spine and its declined records over `baselines/delta-baseline.md`, in the
+   same resolved home, for the next cycle to compare against. A cycle that stopped short at any
+   earlier step **writes no capture** and leaves the stored baseline exactly as it is.
+   *Done when:* the capture is written, or the run has stated that the stored baseline was kept and
+   why.
 
 ## Reporting
 
@@ -103,14 +114,26 @@ Never pad a quiet run by re-listing standing findings to look useful.
 
 ## Hard rules
 
-- **Read-only on the repository.** The findings artifact is the only write, and it lives outside the
-  tree. Every change to the repository belongs to `realign` behind its per-item gate.
-- **Never resurrect a declined finding.** Not as `new`, not as `changed`, not "for review".
+- **Read-only on the repository.** The findings artifact and its delta baseline are the only writes,
+  both in the memory tier the binding resolves, both self-ignored. Every change to the repository
+  belongs to `realign` behind its per-item gate.
+- **One slot for the baseline, on both sides.** It is read from and written to
+  `baselines/delta-baseline.md` in the resolved home and nowhere else. A read path and a write path
+  that disagree produce no error: the lane reports a first run forever while quietly depositing a
+  baseline nobody reads.
+  [`../../scripts/artifact-home.test.sh`](../../scripts/artifact-home.test.sh) pins the two against
+  each other.
+- **Never resurrect a declined finding.** Not as `new`, not as `changed`, not "for review". The
+  baseline carries its own declined records forward for exactly this, so a lost or rewritten
+  artifact cannot undo a decline.
 - **Never suppress silently.** The suppressed count is part of the report, always.
 - **Never re-classify an unchanged finding.** If its source content did not change, its
   classification stands. Re-deriving it invites drift between runs for no new information.
-- **A missing prior artifact routes out.** This skill reports movement; it is not a full audit
-  wearing a different name.
+- **A missing prior artifact or baseline routes out, by name.** This skill reports movement; it is
+  not a full audit wearing a different name. State the resolved path that came up empty, so an
+  absence is something an operator can see rather than something the report quietly absorbs.
+- **A baseline the run did not consume is never overwritten.** Moving the comparison's origin past a
+  cycle nobody compared loses whatever moved in between, and no later cycle ever reports it.
 
 ## Gotchas
 
@@ -122,9 +145,14 @@ Never pad a quiet run by re-listing standing findings to look useful.
   justifies the cadence.
 - **Byte-level diffing over-reports.** A reworded sentence in a section whose scope and class are
   unchanged is not movement. Compare what the classification actually depends on.
-- **The artifact is ephemeral.** A reclaimed container or removed worktree loses it, and the next
-  run then legitimately has no baseline. That is the route-out case, not a bug, and it means
-  operator decisions can be lost, which is why `declined` is respected rigorously while it exists.
+- **Both files are ephemeral, and they fail independently.** A branch switch, a removed worktree, or
+  a reclaimed container loses the memory tier, and the next run then legitimately has no baseline.
+  That is the route-out case, not a bug. The artifact can also go missing while the baseline stands,
+  or the reverse, so check for each by name rather than treating one as evidence of the other.
+- **A baseline from before 0.12.0 does not exist.** The retired plugin-data location the binding
+  records is not read, deliberately: consulting it would keep the worktree-hashed key alive as a
+  parallel second home. The first run after upgrading is therefore a route-out that names the newly
+  resolved home, which is how the move announces itself rather than a fault.
 - **A `changed` finding's stale line range is the dangerous part.** It is not a bookkeeping
   detail: `realign` excises by that range, so reporting `changed` without re-deriving the range
   hands the apply lane a number that points at the wrong text.

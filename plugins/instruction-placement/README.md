@@ -24,6 +24,21 @@ index Claude Code never loads. Then `audit`. Nothing changes until you accept a 
 moved. Wire `check`
 into CI beside the linters.
 
+## Where the artifacts land
+
+`audit`, `realign`, and `delta` share one memory-tier home, resolved through the plugin's
+[`reference/topic-docs.md`](reference/topic-docs.md) binding and defaulting to
+`.work/instruction-placement/<branch-slug>/`. The findings artifact is `findings.md`; the delta
+lane's comparison baseline is `baselines/delta-baseline.md`, in the lifecycle protocol's named
+`baselines/` slot. Neither is committed, and the memory root self-ignores.
+
+The plugin is a participant in the shared lifecycle artifact protocol
+([`reference/artifact-protocol.md`](reference/artifact-protocol.md)). Before 0.12.0 both files lived
+under the plugin data directory behind a state key ending in a hash of the worktree's path, which
+made two checkouts of one repository two unrelated homes and lost every operator decision on the way
+between them. Nothing reads that location any more; a leftover tree there is inert and can be
+deleted.
+
 ## Why this is not just "move things into `.claude/rules/`"
 
 Four facts make the naive version of this migration actively harmful, and each one shapes the design.
@@ -131,6 +146,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
+| An operator judgment must survive a checkout it was not recorded in | Adopt a tracked suppression surface per `docs/conventions/finding-suppression/`, the shape the sibling `overengineering` plugin already uses. The delta baseline carries declined records across runs and across a shared memory root; it does not cross two checkouts that resolve two roots, and nothing here pretends otherwise |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
 
 ## Configuration
