@@ -251,6 +251,8 @@ Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and th
 
 Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
+**The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
+
 What the gate cannot prove: it grades the interview's own record, so a question never registered is invisible to it. The ask-time write rule is what keeps the record independent of the answer; the contiguity and duplicate checks are what catch a row dropped after it was written.
 
 ## Step 3 — Recognize the stop condition
