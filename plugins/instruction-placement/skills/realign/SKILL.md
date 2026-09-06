@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Edit",
     "Write",
@@ -42,7 +41,8 @@ Not restated here. A paraphrase inside a proposal is a drift seed.
 
 | Read | For |
 |---|---|
-| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's location, fields, status vocabulary, merge rules |
+| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's fields, status vocabulary, merge rules |
+| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | Where the artifact lives: the rung order and the branch slug |
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny classes and what each destination means |
 | [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | Why the shim is mandatory and why the index exists |
 | [`context/apply-recipes.md`](context/apply-recipes.md) | The exact edit sequence per destination, and the verification each one owes |
@@ -66,16 +66,15 @@ it is presented.** Say so in the run's opening line, then hold it literally.
 
 ## Prerequisites
 
-Read the artifact from **this project's derived key**:
+Resolve the home, then read `findings.md` from it. The rung order, the branch slug, and what a
+detached checkout means are owned by
+[`../../reference/topic-docs.md`](../../reference/topic-docs.md); run that rung order rather than
+composing a path.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
-
-If it is absent, say no audit has been run for this project and offer to run one. Do **not** fall
-back to an unkeyed path: a machine-global artifact carries no project segment, so its findings may
-describe a different repository's instruction layer entirely. Name such a file as a leftover and run
-a fresh audit instead of acting on it.
+If the artifact is absent from the resolved home, **name the path you looked in**, say no audit has
+been run for this branch, and offer to run one. Do **not** widen the search: a findings file found
+anywhere else describes some other branch or some other repository's instruction layer, and acting on
+it edits the wrong lines. Name such a file as a leftover and run a fresh audit instead.
 
 Three staleness checks before the first edit, because acting on a stale artifact edits the wrong
 lines:

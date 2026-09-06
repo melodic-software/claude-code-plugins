@@ -1,5 +1,20 @@
 # Changelog — topic-docs convention
 
+## 3.2.0 — 2026-09-06
+
+Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed, the
+slug spec is untouched, and no visibility guarantee an implementer may rely on changes.
+
+- **`instruction-placement` is a reserved first-level name under the memory root.** That plugin's
+  audit findings and its delta lane's comparison baseline move off a plugin-data state key onto
+  `<memory_dir>/instruction-placement/<branch-slug>/`, whose axis is the branch, alongside
+  `overengineering` (#3811).
+- **A flat concern name may still carry a contract-named subdirectory.** The reserved-name rule
+  barred the slice tree and read as barring every subdirectory;
+  `instruction-placement`'s `baselines/delta-baseline.md` is the first concern-scoped use of the
+  protocol's `baselines/` slot, so the rule now says which of the two it means.
+- **Implementers** gains an `instruction-placement` row.
+
 ## 3.1.0 — 2026-09-02
 
 Minor under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug
