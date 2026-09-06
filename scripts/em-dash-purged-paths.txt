@@ -140,4 +140,11 @@ plugins/visualization/skills/*/SKILL.md
 plugins/wizard/README.md
 plugins/wizard/skills/*/SKILL.md
 plugins/work-items/README.md
+# The writing plugin was authored purged rather than purged later, so its
+# doctrine and source records are declared here alongside the README and the
+# skill body. The reference glob stops short of evals/, whose fixtures carry
+# the tells they exist to test.
+plugins/writing/README.md
+plugins/writing/skills/*/SKILL.md
+plugins/writing/skills/*/reference/*.md
 plugins/x/README.md

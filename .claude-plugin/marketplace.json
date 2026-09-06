@@ -634,6 +634,22 @@
         "audit",
         "skill"
       ]
+    },
+    {
+      "name": "writing",
+      "source": "./plugins/writing",
+      "category": "presentation",
+      "tags": [
+        "writing",
+        "concise",
+        "brevity",
+        "scannable",
+        "readability",
+        "plain-language",
+        "bluf",
+        "prose",
+        "skill"
+      ]
     }
   ],
   "renames": {
