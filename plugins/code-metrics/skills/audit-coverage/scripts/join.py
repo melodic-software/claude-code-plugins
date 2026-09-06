@@ -269,15 +269,19 @@ def merge_artifacts(
     # normalize differently and counting them together would refuse a file that
     # was measured. Distinct normalized paths, so one file listed twice under
     # two spellings of the same format is not mistaken for two files either.
-    paths_by_basename: dict[tuple[str, str], set[str]] = {}
+    paths_by_basename: dict[str, dict[str, set[str]]] = {}
     for artifact in artifacts:
         fmt_key = artifact.get("format") or "unknown"
         for raw_path in artifact.get("files") or {}:
             candidate = normalize(raw_path)
-            key = (fmt_key, _basename(candidate))
-            paths_by_basename.setdefault(key, set()).add(candidate)
-    ambiguous = {
-        base for (_, base), paths in paths_by_basename.items() if len(paths) > 1
+            by_base = paths_by_basename.setdefault(fmt_key, {})
+            by_base.setdefault(_basename(candidate), set()).add(candidate)
+    # Per format, never flattened into one set: a basename two `go_cover` paths
+    # share says nothing about the lone lcov path that carries it, and refusing
+    # that one would drop line coverage the artifact really did measure.
+    ambiguous_by_format = {
+        fmt_key: {base for base, paths in by_base.items() if len(paths) > 1}
+        for fmt_key, by_base in paths_by_basename.items()
     }
     for artifact in artifacts:
         fmt = artifact.get("format") or "unknown"
@@ -287,7 +291,9 @@ def merge_artifacts(
         claimed: dict[str, set[int]] = {}
         sections = artifact.get("files") or {}
         for raw_path, section in sections.items():
-            target = resolve(raw_path, scope, root, prefixes, ambiguous)
+            target = resolve(
+                raw_path, scope, root, prefixes, ambiguous_by_format.get(fmt)
+            )
             if target is None:
                 unmatched.append(normalize(raw_path))
                 continue

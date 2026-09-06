@@ -3,6 +3,27 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Fixed
+
+- **An out-of-scope package no longer credits a scoped file with its coverage.** A basename is the
+  weakest evidence `audit-coverage` accepts when it maps an artifact path onto a scoped file, and
+  it was checked for ambiguity only among the scoped files. Two services each shipping a
+  `handler.go`, with one of them out of scope, mapped both paths onto the scoped file, and the
+  out-of-scope package's covered block was unioned into it: a file that never ran reported 50
+  percent. A basename must now also be claimed by exactly one artifact path, counted across every
+  artifact of that format, because the skill discovers one artifact per coverage file and two
+  services' profiles arrive as two documents. The count is per format, since two formats naming one
+  basename are one file measured twice: a Go profile writes the module path the compiler saw while
+  an lcov tracefile writes the repository path.
+- **A line artifact that measured a file and found nothing no longer reports `null`.** Whether any
+  line-measuring artifact had covered a file was inferred from whether the merged line table came
+  out non-empty, which cannot tell "measured, found no executable line" from "never measured lines
+  at all". The first is a `0` and the second a `null`, so a Go file that an lcov section also
+  covered reported `null` where the artifact had a real answer. The fact is now recorded as the
+  section is merged.
+
 ## [0.1.0]
 
 ### Added

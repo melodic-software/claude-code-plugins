@@ -825,6 +825,46 @@ class PathNormalizationTests(unittest.TestCase):
         self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
         self.assertEqual(file_row["cov_source"], "statement-ratio")
 
+    def test_one_formats_ambiguity_does_not_refuse_another_formats_path(
+        self,
+    ) -> None:
+        # Two `go_cover` paths share `handler.go`, so that basename is
+        # ambiguous for that format. A single lcov path carrying the same
+        # basename is not ambiguous for lcov and still has to reach the scoped
+        # file: flattening the two formats into one set of basenames would
+        # refuse it and drop line coverage the artifact really did measure.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity([complexity_row("pkg/handler.go", "H", 1, 2, "go", 1)])
+                .artifact(
+                    "go_cover",
+                    {
+                        "example.com/a/service-x/handler.go": go_section(
+                            {"1.1,2.2": (1, 0)}
+                        ),
+                        "example.com/a/service-y/handler.go": go_section(
+                            {"9.1,9.9": (1, 1)}
+                        ),
+                    },
+                )
+                .artifact(
+                    "lcov",
+                    {
+                        "generated/handler.go": {
+                            "lines": {"1": 1, "2": 0},
+                            "functions": None,
+                        }
+                    },
+                )
+                .join()
+            )
+        file_row = next(r for r in document["measures"] if r["function"] is None)
+        self.assertEqual(file_row["file"], "pkg/handler.go")
+        # Line-measured, because the two statement-weighted paths were refused.
+        self.assertEqual(file_row["values"]["coverage_pct"], 50.0)
+        self.assertEqual(file_row["values"]["lines_executable"], 2)
+
     def test_resolve_without_the_ambiguous_set_keeps_the_basename_fallback(
         self,
     ) -> None:
