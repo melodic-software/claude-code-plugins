@@ -131,6 +131,16 @@ the artifact, and it is what the *next* cycle compares against. Its home is the 
 the resolved memory-tier home, `baselines/delta-baseline.md`, owned by
 [`../reference/topic-docs.md`](../reference/topic-docs.md); this document owns only its shape.
 
+**The first baseline is bootstrapped from the artifact.** `audit` and `realign` write no baseline,
+and the end-of-cycle capture below is earned only by a cycle that consumed one, so without a
+bootstrap no baseline would ever come to exist. A delta cycle that finds `findings.md` and no
+baseline (absent, or present with a `branch:` that does not match) therefore captures the artifact's
+spine rows and declined records over the slot **before it compares**, then compares against that
+capture, and its report says it was a bootstrap. This is the same bootstrap the sibling
+`overengineering:delta` performs from its own artifact; a status change made before the bootstrap
+is unobservable to that cycle, by construction, and every later cycle compares against a persisted
+snapshot rather than the live file.
+
 ```yaml
 ---
 type: instruction-placement-delta-baseline
@@ -162,16 +172,19 @@ Three rules bind the capture:
 
 - **A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is
   earned by having completed the comparison and by nothing else. Where the cycle stopped short (no
-  prior baseline, an unrecognized schema, a `branch:` mismatch, the detector failed) the stored
-  baseline is kept exactly as it is and the run writes none. Overwriting it would move the
+  prior artifact, an unrecognized schema, the detector failed) the stored baseline is kept exactly
+  as it is and the run writes none; a `branch:` mismatch keeps the mismatched file too, since the
+  bootstrap that follows is a separate write the mismatch does not earn a replacement of. Overwriting it would move the
   comparison's origin silently past a cycle nobody compared, and whatever moved in between would be
   reported by no cycle at all.
 - **A baseline older than one cycle widens the span rather than being discarded.** Compare against it
   and say so: the report's window then covers more than one cycle and names the `source-date` it
   measures from.
-- **A missing baseline is reported, never inferred.** The run names the resolved path it looked in
-  and routes to a full audit. It does not fall back to diffing the artifact against itself, and it
-  does not look for the retired plugin-data location, whose retirement the binding records.
+- **A missing artifact is reported, never inferred; a missing baseline beside a present artifact
+  bootstraps.** With no artifact, the run names the resolved path it looked in and routes to a full
+  audit. It does not fall back to diffing the artifact against itself, and it does not look for the
+  retired plugin-data location, whose retirement the binding records; naming that location in the
+  report as a likely cause is a sentence, not a read, and is allowed.
 
 The baseline is **not** a second record of findings. Its type is
 `instruction-placement-delta-baseline`, deliberately neither `instruction-placement-findings` nor

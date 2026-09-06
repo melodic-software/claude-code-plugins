@@ -4,9 +4,11 @@
 # The defect this exists to catch is silent. `audit`, `realign`, and `delta`
 # each resolve a home from prose, and `delta` both READS and WRITES the
 # comparison baseline. A read path and a write path that name different slots
-# raise no error anywhere: the lane deposits a baseline nobody reads and then
-# reports "no baseline, this run establishes one" forever, which is exactly what
-# a healthy first run looks like. Nothing in the report distinguishes them.
+# raise no error anywhere: the lane deposits a capture nobody reads and then
+# bootstraps from the artifact on every cycle, which is exactly what a healthy
+# first delta after an audit looks like, and which quietly collapses the
+# comparison back into diffing the live artifact. Nothing in the report
+# distinguishes them.
 #
 # So the assertions below pin ONE canonical home and ONE canonical baseline path
 # across every shipped surface, and fail when any surface names a second one.
@@ -117,15 +119,17 @@ assert_present "binding names the baseline slot" "$BINDING" "$BASELINE_LEAF"
 # that says `baselines/delta-baseline.md` while the read step says
 # `delta-baseline.md` or `spine-baseline.md` fails here and nowhere else.
 
-# Two shapes are consistent with one slot: the bare leaf `delta-baseline.md`
-# and any path ending in `baselines/delta-baseline.md`. A mention that is
-# neither — a different leaf name, or the right leaf outside the slot — is a
-# second slot, and the run that writes one and reads the other says nothing.
-baseline_mentions="$(surface | xargs grep -ohE '[A-Za-z0-9_./<>-]*baseline[A-Za-z0-9_.<>-]*\.md' 2>/dev/null | sort -u | grep -v '^$')"
+# Exactly one shape is consistent with one slot: a path ending in
+# `baselines/delta-baseline.md`. The bare leaf `delta-baseline.md` is NOT
+# allowed, deliberately: a bare leaf at the read step means "beside
+# findings.md", which is the second slot the binding warns about, and a sweep
+# that tolerated it would let a mutated read step through on the strength of
+# the other mentions. A different leaf name is a second slot outright.
+BASELINE_MENTION_RE='[A-Za-z0-9_./<>-]*baseline[A-Za-z0-9_.<>-]*[.]md'
+baseline_mentions="$(surface | xargs grep -ohE -- "$BASELINE_MENTION_RE" 2>/dev/null | sort -u | grep -v '^$')"
 stray_baselines=""
 while IFS= read -r mention; do
   [[ -z "$mention" ]] && continue
-  [[ "$mention" == "delta-baseline.md" ]] && continue
   [[ "$mention" == *"$BASELINE_LEAF" ]] && continue
   stray_baselines+="$mention"$'\n'
 done <<<"$baseline_mentions"
@@ -137,13 +141,49 @@ else
 fi
 
 # The delta skill must name the slot on both sides of the cycle: the step that
-# reads it and the step that captures over it.
-delta_baseline_hits="$(grep -cF -- "$BASELINE_LEAF" "$DELTA" 2>/dev/null || true)"
-if [[ "${delta_baseline_hits:-0}" -ge 2 ]]; then
-  pass "delta names $BASELINE_LEAF on both the read and the capture step"
-else
-  fail "delta names $BASELINE_LEAF ${delta_baseline_hits:-0} time(s); the read step and the capture step must each name it"
-fi
+# reads it and the step that captures over it. Each step is checked on its own,
+# and every baseline path inside it must carry the slot. A whole-file count
+# would let the hard rule's mention cover for a mutated step, which is the
+# vacuity this replaces.
+
+# workflow_step <first-line-regex>
+# Prints the body of the one numbered step under "## Workflow" whose first
+# line matches the regex, up to the next numbered step or the next heading.
+workflow_step() {
+  awk -v re="$1" '
+    /^## Workflow/ { in_wf = 1; next }
+    in_wf && /^## / { exit }
+    in_wf && /^[0-9]+[.] / { emitting = ($0 ~ re) }
+    in_wf && emitting { print }
+  ' "$DELTA"
+}
+
+# assert_step_slot <label> <step-body>
+# Every baseline path the step names must end in the canonical slot, and the
+# step must name at least one. A step that says only `delta-baseline.md` fails.
+assert_step_slot() {
+  local label="$1" body="$2" mentions bad
+  if [[ -z "$body" ]]; then
+    fail "$label — the step could not be located under ## Workflow in ${DELTA#"$PLUGIN_ROOT"/}"
+    return
+  fi
+  mentions="$(grep -oE -- "$BASELINE_MENTION_RE" <<<"$body" || true)"
+  if [[ -z "$mentions" ]]; then
+    fail "$label — the step names no baseline path at all"
+    return
+  fi
+  bad="$(grep -vF -- "$BASELINE_LEAF" <<<"$mentions" || true)"
+  if [[ -z "$bad" ]]; then
+    pass "$label"
+  else
+    fail "$label — the step names a baseline outside the slot: $(tr '\n' ' ' <<<"$bad")"
+  fi
+}
+
+assert_step_slot "delta's read step names $BASELINE_LEAF" \
+  "$(workflow_step '^[0-9]+[.] .*read .?findings[.]md')"
+assert_step_slot "delta's capture step names $BASELINE_LEAF" \
+  "$(workflow_step '^[0-9]+[.] Capture ')"
 
 assert_present "contract owns the baseline's shape" "$CONTRACT" "## The delta baseline"
 assert_present "contract names the same slot" "$CONTRACT" "$BASELINE_LEAF"

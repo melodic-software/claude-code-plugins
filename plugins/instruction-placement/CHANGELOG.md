@@ -20,9 +20,12 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   merged into by every audit and edited by every realign, so diffing it against itself measured
   whatever last touched the file. The baseline is captured at the end of a cycle, only by a cycle
   that consumed one, and it carries the declined records forward as records of their own, so a lost
-  or rewritten artifact can no longer resurrect a decline. Its frontmatter, body rules, and capture
-  rules are owned by `context/findings-artifact.md` under "The delta baseline". What `delta` detects,
-  its noise budget, and its report shape are unchanged.
+  or rewritten artifact can no longer resurrect a decline. The first baseline is bootstrapped: a
+  delta run that finds the artifact and no baseline captures the artifact's spine and declined
+  records before it compares, the same bootstrap `overengineering:delta` performs, so the cycle
+  after any audit establishes the baseline the next one needs. Its frontmatter, body rules, and
+  capture rules are owned by `context/findings-artifact.md` under "The delta baseline". What `delta`
+  detects, its noise budget, and its report shape are unchanged.
 
 ### Removed
 
@@ -37,8 +40,10 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - **A tree under the pre-0.12.0 plugin-data path is not migrated and is not read.** Consulting it
   would require keeping the worktree-hashed derivation alive as the parallel second home this change
   exists to close, so the absence is made detectable instead: the first `delta` or `realign` run
-  after upgrading names the resolved home it looked in and routes out rather than silently reporting
-  a first run. Re-run `audit` to establish the new home; the old tree is inert and can be deleted.
+  after upgrading names the resolved home it looked in, names the retired tree as the likely cause,
+  and routes out rather than silently reporting a first run. Re-run `audit` to establish the new
+  home; the next `delta` then bootstraps its baseline from the artifact. The old tree is inert and
+  can be deleted.
 - `scripts/artifact-home.test.sh` pins the read path and the write path to one slot across every
   shipped surface. A capture step and a read step that name different files raise no error at
   runtime, so the disagreement is caught here instead.

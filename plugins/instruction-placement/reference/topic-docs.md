@@ -29,14 +29,16 @@ branch-keyed review reports and the sibling `overengineering` findings do.
 | Delta baseline, captured by `instruction-placement:delta` at the end of a cycle for the next one to compare against | `instruction-placement-delta-baseline` | `.work/instruction-placement/<branch-slug>/baselines/delta-baseline.md`, never committed |
 
 `baselines/` is the protocol's named memory-tier slot for a cross-run comparison capture, the same
-slot `verification` writes its measurements into. One stable filename inside it, `delta-baseline.md`,
-because this lane compares against the previous cycle and never against a history.
+slot `verification` writes its measurements into. One stable path inside it,
+`baselines/delta-baseline.md`, because this lane compares against the previous cycle and never
+against a history.
 
 What the baseline contains, its frontmatter, its body rules, and its type are owned by
 `context/findings-artifact.md` under "The delta baseline"; this binding owns only where it lands.
 **The two paths above are the only ones any skill in this plugin resolves for these artifacts.** A
 skill that writes the baseline into the home root beside `findings.md`, or reads it from there, finds
-nothing and reports a first run forever, which is the one failure of this lane that produces no error
+nothing and bootstraps from the artifact on every cycle, which collapses the comparison back into
+diffing the live artifact, the failure this baseline exists to replace, and produces no error
 message. `scripts/artifact-home.test.sh` pins both paths against every shipped surface for that
 reason.
 
@@ -48,9 +50,10 @@ from the repository's own git history.
 **One stable filename per home, rewritten in place.** `findings.md`, never a timestamped sibling: a
 re-audit merges into the existing file by stable finding id, and a per-run filename would turn that
 merge into a search problem. The run's timestamp lives in the artifact's `date` frontmatter, where a
-reader and a diff can both find it. `delta-baseline.md` is one stable filename for the same reason,
-overwritten by the next capture, with one exception owned by the capture rules: an unconsumed
-baseline is kept rather than overwritten. **A `delta-baseline.md` in a resolved home is not stray**;
+reader and a diff can both find it. `baselines/delta-baseline.md` is one stable path for the same
+reason, overwritten by the next capture, with one exception owned by the capture rules: an
+unconsumed baseline is kept rather than overwritten. **A `baselines/delta-baseline.md` in a resolved
+home is not stray**;
 deleting one destroys the delta lane's only baseline and the declined records it carries.
 
 ## Resolution (the contract's five-rung order, earlier wins)
@@ -151,6 +154,7 @@ yet ship, and it is recorded as a revisit trigger in the plugin README rather th
 
 **A leftover tree under the old path is inert, not read.** No skill consults it, deliberately: a
 read-side fallback would keep the state-key derivation alive as the parallel second way this move
-exists to close. A delta run that finds no baseline names the resolved home it looked in and routes
-to a full audit, so the absence is reported rather than silently treated as a first run. Delete the
-old tree at leisure; nothing depends on it.
+exists to close. A delta run that finds no artifact names the resolved home it looked in, may name
+this retired tree as the likely cause, and routes to a full audit; one that finds the artifact and
+no baseline bootstraps the baseline from it and says so. Either way the absence is reported rather
+than silently treated as a first run. Delete the old tree at leisure; nothing depends on it.

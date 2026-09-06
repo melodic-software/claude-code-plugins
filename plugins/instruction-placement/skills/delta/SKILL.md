@@ -79,13 +79,32 @@ signal at the time. Nothing else in the plugin notices between `check` runs.
 Each step names what "done" looks like, so a partial run is visible rather than assumed complete.
 
 1. Resolve the home through the binding, then read `findings.md` and the baseline at
-   `baselines/delta-baseline.md` from it. **Neither one missing is an error**. Name the resolved
-   path you looked in, say which file is absent, and route to the full audit rather than silently
-   running one. Never widen the search, and never diff the artifact against itself in place of a
-   baseline: the artifact is rewritten by every audit and edited by every realign, so that
-   comparison measures whatever last touched the file.
-   *Done when:* both files are in hand, or the run has stopped with the missing path named and the
-   route stated.
+   `baselines/delta-baseline.md` from it. **Neither one missing is an error.** Dispose of what is
+   there:
+   - **Both present, and the baseline's `branch:` matches the resolved branch identity.** This is
+     the baseline. Note its `source-date`; where it predates the immediately preceding cycle, the
+     window widens and the report says so.
+   - **Both present, `branch:` does not match.** No baseline, naming both branches. The stored file
+     is kept, not overwritten, and the run takes the bootstrap path below.
+   - **`findings.md` present, no baseline.** A **bootstrap cycle**. Capture the artifact's spine
+     rows and its declined records, per the contract's capture rules, over
+     `baselines/delta-baseline.md` in the same home **before comparing anything**, then continue
+     with that capture as this cycle's baseline. Say in the report that this is a bootstrap and
+     that a status change made before it is unobservable this cycle. This is the only path by
+     which a first baseline comes to exist: `audit` and `realign` write none, so the delta run
+     after any audit takes it.
+   - **`findings.md` absent.** Route out. Name the resolved path you looked in, say that no
+     artifact is there, and route to the full audit rather than silently running one. On a
+     freshly upgraded plugin, name the retired pre-0.12.0 plugin-data tree as the likely cause,
+     in one clause and without reading it: a home the upgrade left behind and a plugin that never
+     ran look identical from here, and that sentence is what lets an operator tell them apart.
+
+   Never widen the search, and never diff the artifact against itself in place of a baseline: the
+   artifact is rewritten by every audit and edited by every realign, so that comparison measures
+   whatever last touched the file. A bootstrap is not that comparison. It snapshots the artifact
+   once, dated, and every later cycle compares against the snapshot rather than the live file.
+   *Done when:* a baseline is in hand, stored or bootstrapped, or the run has stopped with the
+   missing artifact path named and the route stated.
 2. Run the detector and diff its `SECTION` and `RULE` records against **the baseline's** spine rows.
    *Done when:* every current record is matched to a baseline row or marked unmatched.
 3. Classify each difference into one of the five shapes. Only a `new` shape needs the rubric.
@@ -119,8 +138,9 @@ Never pad a quiet run by re-listing standing findings to look useful.
   belongs to `realign` behind its per-item gate.
 - **One slot for the baseline, on both sides.** It is read from and written to
   `baselines/delta-baseline.md` in the resolved home and nowhere else. A read path and a write path
-  that disagree produce no error: the lane reports a first run forever while quietly depositing a
-  baseline nobody reads.
+  that disagree produce no error: the lane bootstraps from the artifact on every cycle while quietly
+  depositing a capture nobody reads, and the comparison collapses back into diffing the live
+  artifact.
   [`../../scripts/artifact-home.test.sh`](../../scripts/artifact-home.test.sh) pins the two against
   each other.
 - **Never resurrect a declined finding.** Not as `new`, not as `changed`, not "for review". The
@@ -129,9 +149,10 @@ Never pad a quiet run by re-listing standing findings to look useful.
 - **Never suppress silently.** The suppressed count is part of the report, always.
 - **Never re-classify an unchanged finding.** If its source content did not change, its
   classification stands. Re-deriving it invites drift between runs for no new information.
-- **A missing prior artifact or baseline routes out, by name.** This skill reports movement; it is
-  not a full audit wearing a different name. State the resolved path that came up empty, so an
-  absence is something an operator can see rather than something the report quietly absorbs.
+- **A missing artifact routes out, by name; a missing baseline beside a present artifact
+  bootstraps, and says so.** This skill reports movement; it is not a full audit wearing a
+  different name. State the resolved path that came up empty, so an absence is something an
+  operator can see rather than something the report quietly absorbs.
 - **A baseline the run did not consume is never overwritten.** Moving the comparison's origin past a
   cycle nobody compared loses whatever moved in between, and no later cycle ever reports it.
 
@@ -146,13 +167,16 @@ Never pad a quiet run by re-listing standing findings to look useful.
 - **Byte-level diffing over-reports.** A reworded sentence in a section whose scope and class are
   unchanged is not movement. Compare what the classification actually depends on.
 - **Both files are ephemeral, and they fail independently.** A branch switch, a removed worktree, or
-  a reclaimed container loses the memory tier, and the next run then legitimately has no baseline.
-  That is the route-out case, not a bug. The artifact can also go missing while the baseline stands,
-  or the reverse, so check for each by name rather than treating one as evidence of the other.
-- **A baseline from before 0.12.0 does not exist.** The retired plugin-data location the binding
-  records is not read, deliberately: consulting it would keep the worktree-hashed key alive as a
-  parallel second home. The first run after upgrading is therefore a route-out that names the newly
-  resolved home, which is how the move announces itself rather than a fault.
+  a reclaimed container loses the memory tier. Losing both is the route-out case. Losing the
+  baseline while the artifact stands is the bootstrap case. Losing the artifact while the baseline
+  stands is a route-out that leaves the stored baseline untouched. None is a bug, so check for each
+  by name rather than treating one as evidence of the other.
+- **A baseline from before 0.12.0 does not exist, and neither does the artifact.** The retired
+  plugin-data location the binding records is not read, deliberately: consulting it would keep the
+  worktree-hashed key alive as a parallel second home. The first run after upgrading is therefore a
+  route-out that names the newly resolved home and the retired tree as the likely reason, which is
+  how the move announces itself rather than a fault. The `audit` that follows establishes the
+  artifact, and the delta run after that bootstraps the baseline from it.
 - **A `changed` finding's stale line range is the dangerous part.** It is not a bookkeeping
   detail: `realign` excises by that range, so reporting `changed` without re-deriving the range
   hands the apply lane a number that points at the wrong text.
