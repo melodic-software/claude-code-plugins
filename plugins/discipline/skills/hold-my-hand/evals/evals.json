@@ -41,7 +41,7 @@
     {
       "id": 4,
       "name": "failed-check-yields-repair-subphase",
-      "prompt": "phase 2 done",
+      "prompt": "hold my hand. Earlier you presented Phase 2 of 5, which was 'create the .env file at ./config/.env with the API key and confirm the service answers', and you said you would confirm it by reading ./config/.env and then running `curl -s localhost:8080/health`. There is no ./config directory on this machine and nothing is listening on port 8080. phase 2 done",
       "expected_output": "Checks what is mechanically checkable first (runs the probe, reads the file, queries the forge for the object's state) and reports the result. When the check comes back wrong it presents a repair sub-phase such as 'Phase 2a' carrying the same six parts, and returns to the main sequence only after the repair's own check passes.",
       "files": [],
       "expectations": [
@@ -61,6 +61,30 @@
         "Records the decision and its reason in one line",
         "Keeps step text in full sentences despite the active terse/compression mode",
         "Asks at most one question in the phase"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "cancellation-ends-the-posture",
+      "prompt": "stop phasing, just do it all and give me normal output from here.",
+      "expected_output": "Treats the plain cancellation as the end of the posture: says in one line that phasing has stopped, finishes or hands back the phase in progress rather than abandoning it mid-step, and returns to ordinary responses for the rest of the session.",
+      "files": [],
+      "expectations": [
+        "Recognizes the plain cancellation and states in one line that phasing has stopped",
+        "Finishes or hands back the phase in progress instead of abandoning it mid-step",
+        "Does not keep phasing because the remaining work still looks long"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "no-command-step-names-the-control",
+      "prompt": "hold my hand. The next thing needed is rotating the deploy key in the vendor's web dashboard, which only I can reach.",
+      "expected_output": "Presents a phase whose step has no command because it happens in a browser: it names the exact control to operate and where to find it, in the command's place, with the observable result that confirms it. It does not invent a CLI command to satisfy the exact-command requirement.",
+      "files": [],
+      "expectations": [
+        "Names the exact control and its location instead of a command for the browser step",
+        "States the observable result that confirms the action succeeded",
+        "Does not fabricate a CLI command for an action that has none"
       ]
     }
   ]

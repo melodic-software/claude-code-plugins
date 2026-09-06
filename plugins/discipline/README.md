@@ -365,7 +365,8 @@ sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
 ### hold-my-hand (standing session posture)
 
 A **declared further species**, not a corrector and not a one-shot: invoking it
-sets a delivery posture that holds for the rest of the session. The remaining
+sets a delivery posture that holds for the rest of the session, until the user
+ends it with a plain cancellation ("stop phasing", "normal output"). The remaining
 work is cut into phases at points the user can confirm, and only the current
 phase is ever on screen. A one-line count (`Phase 3 of 8`) gives the shape of
 the job without showing what is in the later phases.

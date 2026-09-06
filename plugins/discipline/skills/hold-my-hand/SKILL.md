@@ -54,10 +54,13 @@ to present.
    tab, a physical console), whether it must be elevated, and the working
    directory.
 2. **Numbered steps.** One action per numbered step, in the order they run.
-3. **The exact command**, in a fenced block, with real values substituted. Not
-   a template with placeholders the user must fill in from memory.
-4. **The expected output** after each command, so the user can tell success
-   from failure without asking.
+3. **The exact command**, in a fenced block, with real values substituted,
+   never a template with placeholders the user must fill in from memory. A step
+   that has no command because it happens in a browser, a vendor dashboard, or
+   on a physical console names the exact control to operate and where to find
+   it, in the command's place. Never invent a command to satisfy this part.
+4. **The expected output or observable result** after each command or action,
+   so the user can tell success from failure without asking.
 5. **The common failure and its repair.** The one that actually happens, with
    what to do about it.
 6. **The exact reply that advances.** Write it as a literal the user can copy:
@@ -121,13 +124,25 @@ raised as the phase's single question.
 When task tools are available in the session, mirror each phase as one task and
 keep its state current as phases complete, so the user can see progress without
 scrolling. Ledger entries for unpresented phases carry the phase number and
-nothing that reveals their steps. When no task tools are available, keep the
-same numbered list in your replies.
+nothing that reveals their steps. When no task tools are available, open each
+reply with the current phase and the count, and nothing else about the shape of
+the work. The fallback is not a place to print the list the ledger would have
+held, because a reply that enumerates the remaining phases leaks exactly what
+the posture withholds.
+
+## Ending the posture
+
+The posture holds until the session ends, or until the user ends it. Treat
+"stop phasing", "normal output", "just do it all", or any equivalent plain
+cancellation as the end of it: say in one line that phasing has stopped, finish
+or hand back the phase in progress rather than abandoning it mid-step, and
+return to ordinary responses for the rest of the session. Never keep phasing
+after a cancellation because the remaining work still looks long.
 
 ## Boundaries
 
 - **Standing, not one-shot.** The posture holds until the session ends or the
-  user cancels it. It is not a single formatted answer.
+  user cancels it as described above. It is not a single formatted answer.
 - **Not action-first formatting.** `/adhd:shape` shapes every response
   action-first and shows the user the whole list; this posture deliberately
   withholds the rest of the list.
