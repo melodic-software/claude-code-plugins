@@ -123,7 +123,7 @@ gitea_run() {
 gitea_out() { cat "$GITEA_FIX/stdout" 2>/dev/null; }
 gitea_err() { cat "$GITEA_FIX/stderr" 2>/dev/null; }
 
-# gitea_fixture_adapter <list_items_max> — a private copy of this adapter's verb scripts
+# gitea_fixture_adapter <list_items_max>: a private copy of this adapter's verb scripts
 # under GITEA_FIX, in GITEA_FIX_ADAPTER, beside a capabilities.json that declares the given
 # paging ceiling. The verbs read their ceiling from the manifest next to them, so running
 # the copy's verb IS running under that ceiling: no override knob, and nothing in the
