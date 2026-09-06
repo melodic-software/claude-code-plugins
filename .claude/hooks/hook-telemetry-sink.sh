@@ -5,8 +5,9 @@
 # session_event_log_dir option moves it).
 #
 # Two routes, decided by the envelope's session id, read from the spine
-# (`session_id`, carried by every 1.1 producer) and falling back to
-# `data.session_id`, which the claude-ops audit hooks still send:
+# (`session_id`, which a contract-1.1 producer carries when its payload held a
+# well-formed one and omits otherwise) and falling back to `data.session_id`,
+# which the claude-ops audit hooks still send:
 #   * present and well-formed: one spine-shaped line appended to
 #     sessions/<session_id>.jsonl, beside the per-session event log
 #     (session-event-log.sh); `source: "envelope"` tells the reader which
