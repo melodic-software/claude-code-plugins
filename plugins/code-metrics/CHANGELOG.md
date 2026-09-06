@@ -16,7 +16,17 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   skill passes as `CODE_METRICS_SCAN_ROOT` rather than leaving the parser to probe whatever
   directory the session happens to sit in. With no candidate on disk the first root still applies,
   a report declaring one root is resolved without reading the filesystem at all and is unchanged,
-  and absolute and drive-qualified filenames keep taking no prefix.
+  and absolute and drive-qualified filenames keep taking no prefix. The on-disk probe can only tell
+  the roots apart when they are relative, or absolute and present on the machine running the audit;
+  a report whose absolute roots name the machine that produced it (a CI build) misses every
+  candidate and still takes the first root, because rewriting a root from another machine onto the
+  local tree needs a mapping the report does not carry.
+
+### Added
+
+- A source root skipped for a reason other than the file being absent, an unreadable directory
+  above all, now prints one line to stderr per distinct reason instead of being silently
+  indistinguishable from a miss. stdout stays the parsed document alone.
 
 ## [0.1.1]
 

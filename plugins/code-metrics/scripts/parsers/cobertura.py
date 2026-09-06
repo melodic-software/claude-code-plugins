@@ -95,7 +95,36 @@ def _scan_root() -> str:
     return os.environ.get("CODE_METRICS_SCAN_ROOT") or os.curdir
 
 
-def _resolve(key: str, prefixes: list[str], scan_root: str) -> str:
+def _probe(path: str, prefix: str, reported: set[str]) -> bool:
+    """True when `path` is present, noting once any miss that is not absence.
+
+    `os.path.exists` answers False for a directory it may not read and for a
+    file that is not there alike, so a root skipped over a permission error
+    would hand its classes to a later root with nothing said. `os.stat` is the
+    one syscall `os.path.exists` already makes, so telling the two apart costs
+    no extra call: absence stays silent, and any other reason prints one
+    stderr line per root and reason (not per class, which a large report would
+    turn into a wall) and still counts as a miss, which keeps the parser
+    total. stdout carries the parsed document and is never written here.
+    """
+    try:
+        os.stat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except (OSError, ValueError) as exc:
+        key = prefix + "\0" + type(exc).__name__
+        if key not in reported:
+            reported.add(key)
+            print(
+                f"cobertura.py: source root {prefix} not probed, "
+                f"its classes may be attributed to another root: {exc}",
+                file=sys.stderr,
+            )
+        return False
+    return True
+
+
+def _resolve(key: str, prefixes: list[str], scan_root: str, reported: set[str]) -> str:
     """Prefix a relative class filename with the source root it belongs to.
 
     The report declares its roots but never says which one a class filename
@@ -111,7 +140,12 @@ def _resolve(key: str, prefixes: list[str], scan_root: str) -> str:
        plausible when two roots both yield a syntactically valid path, and
        the parser runs where the measured tree is present. An absolute root
        is probed absolutely, since joining it onto the scan root discards the
-       scan root.
+       scan root. That is the limit of the rule: roots written as absolute
+       paths on the machine that produced the report (the usual coverlet,
+       kcov and gcovr shape for a report built in CI) name directories the
+       scanning machine does not have, so every probe misses and rule 4
+       applies. Rewriting such a root onto the local tree needs a mapping the
+       report does not carry, so the parser does not guess at one.
     4. No candidate on disk falls back to the first root, which preserves
        today's answer for the single-root case and keeps the parser total.
        Two candidates that both exist is a genuine ambiguity in the report:
@@ -121,7 +155,7 @@ def _resolve(key: str, prefixes: list[str], scan_root: str) -> str:
         return key
     if len(prefixes) > 1:
         for prefix in prefixes:
-            if os.path.exists(os.path.join(scan_root, prefix, key)):
+            if _probe(os.path.join(scan_root, prefix, key), prefix, reported):
                 return prefix + "/" + key
     return prefixes[0] + "/" + key
 
@@ -131,12 +165,13 @@ def parse(path: str) -> dict[str, dict]:
     root = ElementTree.parse(path).getroot()
     prefixes = _sources(root)
     scan_root = _scan_root()
+    reported: set[str] = set()
     files: dict[str, dict] = {}
     for klass in root.iter("class"):
         filename = klass.attrib.get("filename") or klass.attrib.get("name")
         if not filename:
             continue
-        key = _resolve(_norm(filename), prefixes, scan_root)
+        key = _resolve(_norm(filename), prefixes, scan_root, reported)
         section = files.setdefault(key, {"lines": {}, "functions": None})
         for number, hits in _line_map(klass).items():
             section["lines"][number] = max(section["lines"].get(number, 0), hits)
