@@ -94,7 +94,7 @@ Stop conditions: every required field has a backed answer OR an explicit `(unkno
 
 Default: emit Markdown to stdout (read-only). Follow the 5-field template. See [`context/template.md`](context/template.md) for the full structure.
 
-A person reads the report, so each field opens with its finding and carries no filler: invoke `/writing:be-concise` when the `writing` plugin is installed; otherwise apply that discipline inline. The five fields, their order, and the template's shape are unchanged, and no repro step, severity justification, or unknown-field placeholder is dropped to shorten it.
+A person reads the report, so each field opens with its finding and carries no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The five fields, their order, and the template's shape are unchanged, and no repro step, severity justification, or unknown-field placeholder is dropped to shorten it.
 
 `--file` mode: write the report to a file with frontmatter `type: bug-report`. Resolve the output directory in this precedence, and always tell the user the final path:
 

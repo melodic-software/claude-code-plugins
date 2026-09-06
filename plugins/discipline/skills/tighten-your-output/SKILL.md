@@ -97,7 +97,7 @@ say why.
   re-anchors the discipline and corrects the work in flight, it does not
   stand in for those gates.
 
-## Trigger migration. One owner per brevity phrase
+## Trigger ownership. One owner per brevity phrase
 
 Two standing brevity postures exist, so the vocabularies are split rather
 than shared. The test is what the phrase names: the output in front of us, or
@@ -124,11 +124,8 @@ this table gives the other.
 | `'nobody will read this'` | `writing:be-concise` | Names the reader |
 | `'rewrite this PR description for reviewers'` | `writing:be-concise` | Names the artifact and its readers |
 
-No phrase left this skill's description. Every phrase it already claimed
-names in-flight output or code, and every artifact-naming phrase was already
-claimed by `writing:be-concise`. Once either skill is loaded, route by the
-target in front of you, not by the phrase that reached it; the sections above
-say where.
+Once either skill is loaded, route by the target in front of you, not by the
+phrase that reached it; the sections above say where.
 
 ## What this skill does NOT do
 
