@@ -3,6 +3,41 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.10]
+
+### Changed
+
+- **The always-on Bash dispatcher no longer spends git processes on a
+  command that cannot be a commit.** Two leftover execs on a benign
+  `git status --short`, and one on every command including `echo hello`:
+  `block-noncanonical-commit` asked git for `alias.status` (and then
+  `alias.status.command`) even though git-config ignores aliases that hide
+  current builtins
+  (https://git-scm.com/docs/git-config, fetched 2026-09-06: "aliases that
+  hide existing Git commands are ignored except for deprecated commands"),
+  and `block-convention-violation` ran `git rev-parse --show-toplevel` to
+  load a convention pattern before knowing the command was a commit or
+  `gh pr create`. After: builtins are not probed (a leftover
+  `alias.status = commit` can no longer false-block `git status`), and
+  the convention pair loads on first need. Persisted aliases that are
+  not builtins (`git ci`, `git qc`) still resolve as before. Deprecated
+  builtins stay probed: git.c marks `whatchanged` DEPRECATED, and git
+  2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh). The skip
+  list is names that were already builtins in git 2.25, so later names
+  (`bugreport`, `maintenance`, `diagnose`) stay probed on an older git
+  that can still alias them. Asking the installed git for its builtin
+  list would put a spawn back on every `git status`.
+  Spawn census through a stable PATH shim
+  (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK`
+  unset, this repository as cwd. Counted PATH-visible execs:
+  `git status --short` **5 → 2** (`3 git` + `2 jq` → `2 jq`);
+  `echo hello` **3 → 2** (`1 git` + `2 jq` → `2 jq`). Same-session wall
+  on this measurable Linux host (spawn floor 0.4 ms, spread 2.26×,
+  n=20 after 2 warmup): `git status --short` p50 58 → 42 ms, p95 59 →
+  43 ms. The milliseconds are context; the durable figure is the three
+  git processes that disappeared. Isolation forks and the two primed
+  `jq` parses are unchanged.
+
 ## [0.32.9]
 
 ### Changed

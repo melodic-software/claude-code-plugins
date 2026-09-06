@@ -17,8 +17,8 @@ version. These claims were **not re-run on 2.1.261** and keep their older stamps
 the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
-`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
-render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
+`--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
+render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in `SKILL.md`.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -301,7 +301,10 @@ else.
 `code.claude.com/docs/en/plugins-reference`: "Claude
 Code reads all `pluginConfigs` values from only three settings sources" — user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user. And explicitly:
+managed → `--settings` → user. In every one of those sources the value nests under `options`:
+`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
+under the plugin id is silently ignored and the render shows the literal placeholder (verified
+2026-09-06 on **Claude Code 2.1.263**). And explicitly:
 
 > Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
 > files live in the workspace, so a cloned repository could supply values there, and those values
@@ -379,6 +382,36 @@ with it. That is the steady state, not an edge case, and it caps how much any si
 check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
 it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
 clones a marketplace, which would move the depth this number rests on.
+
+## `marketplace remove` leaves the cache tree, marked for the orphan sweep
+
+**Verified 2026-09-06 on Claude Code 2.1.263** with a throwaway local marketplace holding one
+plugin: `claude plugin install`, then `claude plugin uninstall`, then
+`claude plugin marketplace remove <name>`. After the three steps `known_marketplaces.json`,
+`~/.claude/settings.json` (its `extraKnownMarketplaces`, `enabledPlugins`, and `pluginConfigs`
+entries all gone) and `installed_plugins.json` were byte-identical to copies taken before the
+marketplace was added, so the registry side is clean. `~/.claude/plugins/cache/<marketplace>/`
+stayed on disk with the plugin's version directory intact.
+
+The tree is not a permanent orphan. The `uninstall` step wrote a `.orphaned_at` marker file (epoch
+milliseconds) into the version directory, and the marker survived the marketplace removal. Per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference)
+("Plugin cache", fetched 2026-09-06), a marked directory is removed by the background sweep roughly
+14 days later, the sweep runs only while at least one plugin is installed, and a cache folder is
+removed only once it holds no directory or symlink. So a removed marketplace's tree is swept on the
+same clock as any other orphaned version, marketplace folder included, provided the machine keeps
+any plugin installed. The page says nothing about marketplace removal itself; the marker is the
+observation that connects the two. That the sweep actually removes a marked tree under a removed
+marketplace is inferred from the documented rule, not yet observed. **Recheck trigger:** any Claude
+Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
+the cache layout.
+
+Two consequences for this skill: a `cache/<marketplace>/` directory whose marketplace is absent from
+`known_marketplaces.json` is expected residue, not a finding on its own, for about two weeks after a
+removal while some other plugin stays installed, and indefinitely on a machine with no plugin
+installed, because the sweep never runs there; a version directory under it that carries no
+`.orphaned_at` marker is the case worth naming, because nothing will ever sweep it.
+`audit-install-state` records the same rule in its plugins-tree description.
 
 ## `autoUpdate` is a background complement, not a substitute
 

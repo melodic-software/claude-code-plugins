@@ -1,0 +1,91 @@
+{
+  "skill_name": "hold-my-hand",
+  "evals": [
+    {
+      "id": 1,
+      "name": "one-phase-only-with-count",
+      "prompt": "hold my hand through setting up the self-hosted runner, the CI secrets, and the first green build. One phase at a time, and don't show me the next step yet.",
+      "expected_output": "Presents Phase 1 alone with a single-line count such as 'Phase 1 of 6'. The later phases are never listed, previewed, or summarized as a table of contents, so the user learns the shape of the job without reading ahead.",
+      "files": [],
+      "expectations": [
+        "Presents exactly one phase, the current one",
+        "States the total as a one-line count (for example 'Phase 1 of 6')",
+        "Does not list, preview, or summarize any later phase"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "phase-carries-all-six-parts",
+      "prompt": "hold my hand. Walk me through registering the runner; I need exact steps.",
+      "expected_output": "The phase names where to be (machine, terminal kind, elevated or not, working directory), gives numbered steps, puts each exact command in a fenced block with real values, states the expected output after each command, names the common failure and its repair, and ends with the literal advancing reply to send back.",
+      "files": [],
+      "expectations": [
+        "Names the machine, terminal kind, elevation, and working directory",
+        "Gives numbered steps with exact commands in fenced blocks, not placeholder templates",
+        "States the expected output after each command and the common failure with its repair",
+        "Ends with the exact literal reply that advances (for example `phase 1 done`)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "assistant-does-what-it-can-first",
+      "prompt": "hold my hand through this migration. Some of it needs my admin console, but do whatever you can yourself.",
+      "expected_output": "Performs the steps it can perform before presenting anything, then presents only the residue the user must do: elevation, another machine, a vendor console, credentials, or an approval that is theirs. Every presented step is labelled with its performer.",
+      "files": [],
+      "expectations": [
+        "Runs the steps it can perform itself before presenting the phase",
+        "Presents only steps the assistant cannot perform (elevation, other machines, consoles, credentials, approvals)",
+        "Labels each step with who performs it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "failed-check-yields-repair-subphase",
+      "prompt": "hold my hand. Earlier you presented Phase 2 of 5, which was 'create the .env file at ./config/.env with the API key and confirm the service answers', and you said you would confirm it by reading ./config/.env and then running `curl -s localhost:8080/health`. There is no ./config directory on this machine and nothing is listening on port 8080. phase 2 done",
+      "expected_output": "Checks what is mechanically checkable first (runs the probe, reads the file, queries the forge for the object's state) and reports the result. When the check comes back wrong it presents a repair sub-phase such as 'Phase 2a' carrying the same six parts, and returns to the main sequence only after the repair's own check passes.",
+      "files": [],
+      "expectations": [
+        "Runs a mechanical check before presenting anything further and reports what it returned",
+        "On a failed check, presents a repair sub-phase (for example 'Phase 2a') rather than the next phase",
+        "Returns to the main sequence only after the repair check passes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-options-no-compressed-steps",
+      "prompt": "hold my hand. Also keep it terse, caveman mode is on, and just tell me whether to use Docker or a native install.",
+      "expected_output": "Refuses to present the choice as a menu: it decides between Docker and the native install, records the decision in one line with its reason, and asks nothing further in that phase. The step text stays in full sentences with conjunctions, articles, and prepositions intact despite the terse mode, because a dropped conjunction in an ordered step changes whether clauses are sequential, conditional, or alternative.",
+      "files": [],
+      "expectations": [
+        "Decides between the two options instead of presenting them as a menu",
+        "Records the decision and its reason in one line",
+        "Keeps step text in full sentences despite the active terse/compression mode",
+        "Asks at most one question in the phase"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "cancellation-ends-the-posture",
+      "prompt": "stop phasing, just do it all and give me normal output from here.",
+      "expected_output": "Treats the plain cancellation as the end of the posture: says in one line that phasing has stopped, finishes or hands back the phase in progress rather than abandoning it mid-step, and returns to ordinary responses for the rest of the session.",
+      "files": [],
+      "expectations": [
+        "Recognizes the plain cancellation and states in one line that phasing has stopped",
+        "Finishes or hands back the phase in progress instead of abandoning it mid-step",
+        "Does not keep phasing because the remaining work still looks long"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "no-command-step-names-the-control",
+      "prompt": "hold my hand. The next thing needed is rotating the deploy key in the vendor's web dashboard, which only I can reach.",
+      "expected_output": "Presents a phase whose step has no command because it happens in a browser: it names the exact control to operate and where to find it, in the command's place, with the observable result that confirms it. It does not invent a CLI command to satisfy the exact-command requirement.",
+      "files": [],
+      "expectations": [
+        "Names the exact control and its location instead of a command for the browser step",
+        "States the observable result that confirms the action succeeded",
+        "Does not fabricate a CLI command for an action that has none"
+      ]
+    }
+  ]
+}

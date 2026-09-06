@@ -57,6 +57,37 @@ r="$(newrepo "$TICKET")"
 run "ticket pattern: conforming subject allowed" "$r" "$GOOD_COMMIT" 0
 run "ticket pattern: violating subject blocked" "$r" "$BAD_COMMIT" 2
 run "ticket pattern: violating subject in prose (no commit) allowed" "$r" "echo 'junk subject'" 0
+run "ticket pattern: git status is not a commit, allowed" "$r" "git status --short" 0
+
+# Benign commands must not spawn git: repo_root and alias.<builtin> used to run
+# on every Bash call. Counted through a PATH shim; function-level forks are
+# invisible to it, matching spawn-census.sh.
+GIT_SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$GIT_SHIM"
+GIT_LOG="$TEST_TMPDIR/git-spawns"
+REAL_GIT="$(command -v git)"
+{
+  printf '#!%s\n' "$(command -v bash)"
+  printf 'printf "%%s\\n" "$*" >>%q\n' "$GIT_LOG"
+  printf 'exec %q "$@"\n' "$REAL_GIT"
+} >"$GIT_SHIM/git"
+chmod +x "$GIT_SHIM/git"
+: >"$GIT_LOG"
+json=$(jq -n --arg c "echo hello" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+CLAUDE_PROJECT_DIR="$r" PATH="$GIT_SHIM:$PATH" bash "$HOOK" <<<"$json" >/dev/null 2>&1
+assert_eq "echo hello forks git zero times" "0" "$(wc -l <"$GIT_LOG" | tr -d ' ')"
+: >"$GIT_LOG"
+json=$(jq -n --arg c "git status --short" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+CLAUDE_PROJECT_DIR="$r" PATH="$GIT_SHIM:$PATH" bash "$HOOK" <<<"$json" >/dev/null 2>&1
+assert_eq "git status forks git zero times" "0" "$(wc -l <"$GIT_LOG" | tr -d ' ')"
+: >"$GIT_LOG"
+json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+CLAUDE_PROJECT_DIR="$r" PATH="$GIT_SHIM:$PATH" bash "$HOOK" <<<"$json" >/dev/null 2>&1 || true
+if (($(wc -l <"$GIT_LOG" | tr -d ' ') > 0)); then
+  ok "a commit still reaches git (repo_root / sequencer)"
+else
+  bad "a commit forked git zero times — the shim never ran, so the zeros above cannot discriminate"
+fi
 r="$(newrepo "$CC")"
 run "CC keyword: conforming feat: subject allowed" "$r" \
   $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 0
@@ -123,6 +154,23 @@ run "configured alias commit: violating subject blocked" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
 run "configured alias commit: conforming subject allowed" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+# Deprecated builtins can be aliased (git-config; git.c DEPRECATED bit).
+# `whatchanged` must keep probing so `alias.whatchanged = commit` cannot skip
+# the subject gate on a git that honors the exception.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.whatchanged commit
+run "deprecated builtin alias.whatchanged: violating subject blocked" "$r" \
+  $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "deprecated builtin alias.whatchanged: conforming subject allowed" "$r" \
+  $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+# Names added after git 2.25 can still be aliases on an older git
+# (`bugreport` landed in 2.27). Probe them.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.bugreport commit
+run "post-2.25 name alias.bugreport: violating subject blocked" "$r" \
+  $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "post-2.25 name alias.bugreport: conforming subject allowed" "$r" \
+  $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
 # --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
 # The alias lookup is the reachable consumer: it has no stdin-form gate and no
@@ -273,9 +321,9 @@ CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED=false
 assert_exit "kill switch off: violating subject allowed" 0 $?
 
 # --- resolved pattern cache ---------------------------------------------------
-# The gate forks the resolver twice per call, on every Bash command the agent
-# runs. The cache must answer with EXACTLY what the fork answered, must stop
-# forking once warm, and must notice a convention change.
+# The gate forks the resolver twice per call, on the first commit or
+# `gh pr create` this process sees. The cache must answer with EXACTLY what the
+# fork answered, must stop forking once warm, and must notice a convention change.
 
 # cache_run <repo> <plugin-data> <command> -> exit code in $CACHE_RC
 cache_run() {

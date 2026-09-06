@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "writing",
+  "version": "0.1.0",
+  "description": "Write prose a scanning reader can actually use. One skill, be-concise (/writing:be-concise): reshape any text so the bottom line comes first, no more words than the meaning needs survive, the structure holds up under scanning, and the tone stays factual. Invoked bare it sets a standing posture for everything written afterwards; given a target it reshapes that text and reports before and after word counts. Built for the prose an agent writes into systems people read, tracker tickets and comments, pull-request descriptions, changelogs, READMEs and status updates for product owners and executives, where a wall of text is the failure. Completeness is a hard floor: no decision, number, ask, error or warning is ever dropped, a destination's own structural contract survives the rewrite, and an already-posted record is never edited in place unless the user says so. The rules are paraphrased with drift stamps from Nielsen Norman Group's concise/scannable/objective research, GOV.UK content design, the US federal plain-language guidelines, Google's and Microsoft's style guides, and BLUF; no upstream article text is vendored.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "writing",
+    "concise",
+    "brevity",
+    "scannable",
+    "readability",
+    "plain-language",
+    "bluf",
+    "inverted-pyramid",
+    "prose",
+    "tickets",
+    "pull-request",
+    "documentation",
+    "skill"
+  ]
+}

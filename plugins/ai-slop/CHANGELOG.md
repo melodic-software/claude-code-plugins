@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.13]
+
+### Changed
+
+- **`audit`:** the Boundary's excluded surfaces (commit messages, PR bodies, non-repo text) now
+  name their owner. Reshaping that prose for a human reader routes to `/writing:be-concise`,
+  presence-gated with a stated fallback. The exclusion itself is unchanged.
+
 ## [0.5.12]
 
 ### Changed

@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.58]
+
+### Changed
+
+- **`pull-request`:** section 2.4.1 of the create reference points the prose inside the required
+  headings at `/writing:be-concise`, presence-gated with a stated fallback. The closing-keyword
+  line, the required-section list and the refs lines are untouched.
+
 ## [0.55.57]
 
 ### Changed

@@ -42,6 +42,8 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-i
 {if --pr: Fixed in #{pr_number}}
 ```
 
+The summary is institutional memory someone reads later, so lead with what was decided or delivered: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. Brevity never drops a decision, a number, or the linked PR.
+
 1. **Close the item — unless an unmerged `--pr` will auto-close THIS item.** When `--pr` names an UNMERGED PR, run the keyword step below first and branch on what it leaves on the PR body:
    - **`Closes #<N>` for THIS item is present (or the keyword step just added it)** → do NOT close manually: post the completion summary as a plain comment (adapter: "Comment on item") and report "will auto-close when #{pr} merges".
    - **The PR body carries a deliberate opt-out for THIS item (`Refs #<N>` / `No related issue:`), so a merge will NOT close it** → do NOT claim auto-close. Post the completion comment and leave the item open, reporting that #{pr} will not close it (the opt-out was intentional — ask the user if they actually want it closed). A closing keyword for a *different* issue never counts as this item's auto-close.
