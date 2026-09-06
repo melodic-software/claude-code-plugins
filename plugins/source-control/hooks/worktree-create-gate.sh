@@ -129,6 +129,13 @@ fi
 # The status matters: an empty or unreadable buffer is a DIFFERENT failure from a
 # payload that parsed but carried no `.name`, and reporting the second for the
 # first sent readers hunting a harness that had in fact sent nothing.
+#
+# Dest is initialized here so ShellCheck SC2154 sees the assignment.
+# printf -v through a nameref inside hook::buffer_stdin_to is a dynamic
+# assignment the checker does not track
+# (https://www.shellcheck.net/wiki/SC2154, Exceptions: "explicitly
+# initialize/declare it with var="" or declare var").
+payload=""
 if ! hook::buffer_stdin_to payload; then
   gate::refuse \
     'rerun the worktree creation; if it repeats, run with hook debugging on to capture the WorktreeCreate payload' \

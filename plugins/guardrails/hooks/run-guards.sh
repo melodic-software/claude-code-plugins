@@ -135,6 +135,13 @@ PRIME_FILTERS=(
 # https://mywiki.wooledge.org/CommandSubstitution). Passing PRIME_FILTERS
 # makes the completeness check and the field extract one jq process instead
 # of `jq -e .` plus a second jq_fields spawn.
+#
+# Dest is initialized here so ShellCheck SC2154 sees the assignment.
+# printf -v through a nameref inside hook::buffer_stdin_to is a dynamic
+# assignment the checker does not track
+# (https://www.shellcheck.net/wiki/SC2154, Exceptions: "explicitly
+# initialize/declare it with var="" or declare var").
+RUN_GUARDS_INPUT=""
 RUN_GUARDS_STDIN_RC=0
 hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN_RC=$?
 # Nothing arrived: every guard would take its empty-stdin skip. Take it once.
