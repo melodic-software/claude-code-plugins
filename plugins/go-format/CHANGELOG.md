@@ -3,6 +3,34 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.40]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.3.39]
+
+### Added
+
+- **Telemetry `data.changed`.** The envelope's `data` carries `changed: true|false`,
+  the byte verdict the shared rewrite guard already takes for the user-channel
+  disclosure: true when goimports rewrote the file, false when the bytes were
+  identical. The key is omitted, never guessed, on a skip arm before the
+  formatter and when the snapshot could not be taken. This is what fills the
+  per-session observability report's "Rewrote" block (#3755). The findings arm
+  and the tool-break arm now take the disclosure before they emit telemetry so
+  the verdict is known when the envelope is built; stdout is unchanged.
+  `docs/conventions/hook-telemetry/data/go-format.schema.json` gains the
+  optional key, and the suite pins it on a reformatting run and a no-op run.
+  Carries the synced `rewrite-guard.sh` that records the verdict.
+
 ## [0.3.38]
 
 ### Changed

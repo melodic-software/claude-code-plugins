@@ -67,8 +67,8 @@ inherited source says. Reason about whether it should still hold.
 
 ## Reciprocal boundaries
 
-Siblings carve their axes out of this one; keep the carve-outs in sync from
-this side too. Conformance to an EXTERNAL vendor's current docs is
+Siblings carve their axes out of this one. Conformance to an EXTERNAL vendor's
+current docs is
 `/discipline:recheck-against-upstream`'s axis; the production-side rule that
 new work reuses or openly replaces an established way (never a silent second
 way) is `/discipline:reuse-or-replace`'s; a technology/dependency selection is

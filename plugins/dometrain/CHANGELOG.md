@@ -3,6 +3,22 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10]
+
+### Changed
+
+- **sync:** the body states the role split and the `--refresh-baseline` rule once each instead of
+  three times, and drops the design-lineage clause; `context/update.md` states the `master`
+  tracking rule without the considered-and-reverted narration, names the skill by its real name
+  in the preservation table, drops the restating "What this action does NOT do" section, and
+  lowercases one emphasis word.
+- **grounding:** the search-first rule is stated once, in "When to consult Dometrain", at normal
+  volume; the quota-note bullet drops its author-facing aside.
+- **setup:** the failed-connection guidance states what the skill cannot see without listing
+  unverified environment conditions.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.2.9]
 
 ### Changed

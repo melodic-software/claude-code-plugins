@@ -1,5 +1,5 @@
 ---
-description: "Capture a baseline or post-change performance snapshot with the HOST QUALIFIED FIRST: repeated no-op spawns characterize the machine's own noise, and a wall-clock claim is REFUSED outright from a host carrying the bimodal contention signature, naming the drift-immune counter it can still report instead. Interleaves before/after arms within one run rather than comparing two passes, since a host that drifts 6x in an hour attributes its own drift to the change. Reports a counter alongside and ranked above any duration. Use when: 'capture a baseline', 'measure this before I change it', 'take a post snapshot', 'is it actually faster', 'run the A/B', 'benchmark this change', 'how noisy is this machine', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists yet (run /performance:goal), or when the claim is about code shape rather than runtime (that is /verification:measure metrics)."
+description: "Capture a baseline or post-change performance snapshot with the HOST QUALIFIED FIRST: repeated no-op spawns characterize the machine's own noise, and a wall-clock claim is REFUSED outright from a host carrying the bimodal contention signature, naming the drift-immune counter it can still report instead. Interleaves before/after arms within one run rather than comparing two passes, since a host that drifts 6x in an hour attributes its own drift to the change. Reports a counter alongside and ranked above any duration. Use when: capturing a before or after snapshot, running the comparison between them, or asking whether this machine can support a timing claim at all: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists yet (run /performance:goal), or when the claim is about code shape rather than runtime (that is /verification:measure metrics)."
 user-invocable: true
 argument-hint: "[baseline|post] [<target>] (e.g. /performance:snapshot baseline, /performance:snapshot post)"
 disable-model-invocation: false
@@ -13,8 +13,8 @@ metadata:
 Answers **"what does this cost, and is this machine even able to tell me?"**
 
 Read [`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md`](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md) before writing any harness
-here. It is not optional background: five harnesses in the source run returned confident wrong
-answers, and four of the five were checks written specifically to avoid being fooled.
+here. It is not optional background: a harness that returns a confident wrong answer looks exactly
+like one that works, and a check written specifically to avoid being fooled is not exempt.
 
 ## Phase order, and why it is this order
 
@@ -46,8 +46,8 @@ wherever the caller actually sits rather than copying the index.
 wall-clock number**, subject only to the recorded override below.
 
 The refusal names what it can still report. That matters: an unexplained refusal gets overridden
-reflexively. This host spread 15.7x across identical no-op spawns, and the durable result from the
-source run was a deterministic spawn count of 4 -> 1, not a duration.
+reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
+count of 4 -> 1, not a duration.
 
 **Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
 variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
@@ -60,8 +60,8 @@ Spawns, syscalls, queries, allocations, round trips. The counter is the headline
 context. A counter also catches harness bugs immediately, because a counter that does not move when
 it should is an unambiguous signal, while a duration that does not move is ambiguous.
 
-Re-measure the counter after **every** change. Both self-inflicted harness bugs in the source run
-surfaced first as a counter that failed to move.
+Re-measure the counter after **every** change. A self-inflicted harness bug surfaces first as a
+counter that fails to move when it should.
 
 ### 3. Capture durations, only if step 1 allowed it
 
@@ -73,8 +73,9 @@ Never a single sample. Never a bare mean.
 
 ## Comparing before and after
 
-**Never compare two separate passes on a drifting host.** A bare `bash -c true` measured 1825 ms and
-283 ms in the same hour at ~10% CPU. Any two-pass comparison attributes that 6x to the change.
+**Never compare two separate passes on a drifting host.** A bare `bash -c true` can cost 1825 ms and
+283 ms in the same hour on the same machine at ~10% CPU. Any two-pass comparison attributes that 6x
+to the change.
 
 Two valid modes:
 
@@ -165,7 +166,7 @@ stored one.
   cold-then-warm host.
 - **`$(...)` is a process spawn on MSYS.** A "builtins-only" hot path that reports through stdout
   still costs a full process, and a spawn census that ignores its own substitutions undercounts.
-- **A `PATH` shim directory from `mktemp -d` invalidates a `PATH`-keyed cache every run.** That
-  harness measured its own randomization and reported "no improvement".
+- **A `PATH` shim directory from `mktemp -d` invalidates a `PATH`-keyed cache every run.** The
+  harness then measures its own randomization and reports "no improvement".
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.

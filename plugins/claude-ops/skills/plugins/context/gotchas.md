@@ -51,8 +51,8 @@ scope precedence, never from `list`/`details` text.
 
 ## Native-Windows `projectPath` vs Git Bash `$PWD`
 
-`installed_plugins.json` stores `projectPath` in native Windows form (`D:\repos\...`); a Bash-tool
-`$PWD` reads POSIX form (`/d/repos/...`). A naive string-equality check between the two silently
+`installed_plugins.json` stores `projectPath` in native Windows form (`D:\repos\{repo}`); a Bash-tool
+`$PWD` reads POSIX form (`/d/repos/{repo}`). A naive string-equality check between the two silently
 never matches on Windows — the in-repo detection this skill's primary value depends on (Step 2 of
 `sync.md`) would quietly no-op, and nobody would notice because the *rest* of sync (marketplace
 refresh, user-scope sweep) still runs and still produces *a* report. `fleet-state.sh` avoids this by
@@ -138,6 +138,21 @@ independently, which makes worktree paths exactly the population most likely to 
 being perfectly recoverable. Suppressing a row on a directory test would hide real drift from anyone
 whose repos do not live on a permanently-attached local disk. Annotate; never suppress.
 
+## A large absent-path count is not evidence of careless installs
+
+The section above covers a record surviving its directory. This is the other half: a checkout may
+acquire dozens of records without anyone running an install in it, though the write path behind that
+is not confirmed.
+
+What breaks: reading a large `projectPathPresent: false` count as a habit to correct. The count can
+scale with the repo's plugin list rather than with anyone's intent, so report the count and the
+distinct paths, treat deliberate installs as one possible cause among others, and do not tell a user
+to stop installing at project scope until you know they did.
+
+Sourcing, precedence, and the two questions still open on the local write path are in
+[scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
+cannot reap them". Do not restate them here.
+
 ## A spoke file never receives `${user_config.*}` substitution
 
 Claude Code substitutes `userConfig` values when it renders the **skill**. A context file under
@@ -205,8 +220,8 @@ crash the script."
 
 ## Captured values on Windows carry `\r` — strip it before embedding in any command or JSON
 
-Discovered empirically while implementing `fleet-state.sh`: the native-Windows `jq` binary opens
-stdout in **text mode**, so every `\n` it writes becomes `\r\n`. This is **not a `jq`-only
+The native-Windows `jq` binary opens stdout in **text mode**, so every `\n` it writes becomes
+`\r\n`. This is **not a `jq`-only
 hazard** — *any* value produced on Windows/MSYS (a native `python` `print(...)`, a PowerShell
 interop line, `git config` output, a CRLF-terminated file read) can arrive with a trailing `\r`.
 
@@ -233,10 +248,9 @@ A surviving `\r` corrupts the value once it is either:
 - **embedded in a constructed `claude plugin` id.** A `<name>@<marketplace>\r` id is passed with the
   full id present, yet the CLI reports `Plugin "<name>" not found` — the marketplace suffix is
   silently corrupted. The symptom is byte-identical to the bare-name gotcha above and actively
-  misdirects diagnosis (the full id *was* passed). Observed live twice, both with the all-but-last
-  signature: extracting ids via `python -c "print(...)"` on Windows failed 57/58 `claude plugin
-  update` calls, and a hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON failed
-  64/65 (#2578).
+  misdirects diagnosis (the full id *was* passed). Both a `python -c "print(...)"` extraction and a
+  hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON produce it, with the all-but-last
+  signature.
 
 **Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the id list for each
 `sync` step directly — one fully-qualified id per line, CR-free by construction — so the loop that

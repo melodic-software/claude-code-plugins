@@ -1,5 +1,5 @@
 ---
-description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary, including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only: measures and reports; changes no configuration."
+description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary, including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default: measures and reports, changes no configuration; `fix` as an explicit argument applies one project-scope trim at a time behind the operator's approval."
 argument-hint: "[--full-sweep] every live tool | [--tools T1,T2] chosen tools | [--ledger] history | [fix] guided trim (explicit override)"
 user-invocable: true
 disable-model-invocation: false
@@ -182,16 +182,18 @@ otherwise use the payload's share of the measured window.
   enforces this via the listing signature; relay its verdict rather than overriding it.
 - **Zero is a finding.** A lever that measures zero here is reported as measuring zero here, at
   this version, not as broken, and not silently dropped.
+- **The snapshot is another session's, not this one's.** Free-space and window figures describe
+  the spawned headless session; they say nothing about the context remaining here and are no
+  reason to shorten, summarize, or wrap up this audit.
 
 ## Gotchas
 
-Observed failures, each of which produced a confidently wrong number before the engine guarded it:
+Each of these produces a confidently wrong number unless the engine's guard is honored:
 
 - **Removing skills makes `System tools` rise.** Listed skill-frontmatter tokens are subtracted
   from that bucket, so a run that changes the skill listing shifts `System tools` with no tool
-  changing state. This once misread a safe-mode run as "safe mode loads deferred tools". The
-  signature check exists because of it; never hand-compare two snapshots the engine marked
-  incomparable.
+  changing state; read naively, a safe-mode run looks as if safe mode loads deferred tools. The
+  signature check catches this; never hand-compare two snapshots the engine marked incomparable.
 - **Unredirected stdin prepends a warning line** to headless output, which breaks naive parsing.
   The engine redirects and strips; if you capture `/context` by hand for `parse-context`, redirect
   stdin or expect the leading line.

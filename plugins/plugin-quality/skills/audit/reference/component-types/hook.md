@@ -1,6 +1,6 @@
 # Auditing a hook
 
-PreToolUse / PostToolUse / lifecycle hook scripts. Growable — add cases as you find them.
+PreToolUse / PostToolUse / lifecycle hook scripts.
 
 ## Read first
 

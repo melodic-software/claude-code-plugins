@@ -179,7 +179,7 @@ def test_files_modified_dedups_windows_backslash_absolute(tmp_path):
         {
             "type": "assistant",
             "timestamp": "2026-03-23T18:00:00Z",
-            "cwd": "C:\\Projects\\example",
+            "cwd": "C:\\Projects\\<example>",
             "message": {
                 "content": [
                     {
@@ -193,7 +193,7 @@ def test_files_modified_dedups_windows_backslash_absolute(tmp_path):
                         "name": "Edit",
                         "id": "e1",
                         "input": {
-                            "file_path": "C:\\Projects\\example\\CLAUDE.md",
+                            "file_path": "C:\\Projects\\<example>\\CLAUDE.md",
                             "old_string": "a",
                             "new_string": "b",
                         },

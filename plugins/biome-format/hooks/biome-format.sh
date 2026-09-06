@@ -102,7 +102,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -211,8 +213,11 @@ BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $(basename "$
 hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
+  # Take before the telemetry emit so data.changed carries the byte verdict;
+  # the disclosure itself is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$BIOME_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 

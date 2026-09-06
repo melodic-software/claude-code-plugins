@@ -81,9 +81,9 @@ Describe 'Remove-JsoncComment' -Tag 'lib' {
         }
 
         It 'handles backslash-backslash correctly (Windows paths)' {
-            $in = '{ "path": "C:\\Users\\me" }'
+            $in = '{ "path": "C:\\Users\\<user>" }'
             $out = Remove-JsoncComment -Text $in
-            ($out | ConvertFrom-Json).path | Should -Be 'C:\Users\me'
+            ($out | ConvertFrom-Json).path | Should -Be 'C:\Users\<user>'
         }
     }
 

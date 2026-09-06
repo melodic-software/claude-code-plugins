@@ -47,7 +47,7 @@ is.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
    `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (never C4/C5). Before
    work-class comparison resolve each cell through the trusted seam; unqualified evidence fail-closes
-   to effective-unpromoted, operators keep `--merge human-only` on launch lines (#1695); report each
+   to effective-unpromoted, operators keep `--merge human-only` on launch lines; report each
    bound→effective pair at cycle start. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible, no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
@@ -122,8 +122,8 @@ is.
      failing closed gives up only actions the overrides or rung already denied. The same limit cuts
      the other way: an UPWARD override on a single dimension is unenforceable when honoring it would
      exceed another. Ignored and reported as override-unenforceable, never smuggled in as narrative
-     to a higher tier. Raising one dimension means raising the preset (every dimension consents),
-     until the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
+     to a higher tier. Raising one dimension means raising the preset (every dimension consents);
+     the invoked mechanic exposes no per-dimension enforcement.
    All per-PR mechanics, checkout, fixes, threads, gates, fan-out, run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation

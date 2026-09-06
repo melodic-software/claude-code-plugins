@@ -12,9 +12,9 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 
 1. **Resolve the recurring-maintenance role label before any tracker read.** Read
    `.work-item-tracker.json` at action entry and resolve
-   `config.role_labels["recurring-maintenance"]`; use `recurring` only when the file or entry is
-   absent — and warn loudly when it defaults for that reason (surface it, never silent). Stop on a
-   malformed, empty, or non-string configured value. Use the resolved string in the search below.
+   `config.role_labels["recurring-maintenance"]`; use `recurring` when the file or entry is
+   absent (the documented default, no warning). Stop on a malformed, empty, or non-string
+   configured value. Use the resolved string in the search below.
 
 1. **Find the item in the recurring schedule:**
 
@@ -41,8 +41,7 @@ Refuse to advance `last_checked`/`next_due` or close the associated issue when t
 
 1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today — if it's already in the future, the recurring-issues automation has already advanced it and re-advancing would skip a cycle.
 
-Cadence-to-days values: the Cadence Duration Table in [`add.md`](add.md#cadence-duration-table)
-(defined once there; do not restate it here).
+Cadence-to-days values: the Cadence Duration Table in [`add.md`](add.md#cadence-duration-table).
 
 1. **Edit `.github/recurring-schedule.json`:**
 

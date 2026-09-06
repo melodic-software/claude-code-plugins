@@ -17,7 +17,7 @@
       "id": 2,
       "name": "a-green-suite-is-not-a-behavior-proof",
       "prompt": "/performance:verify the hook rewrite. All 143 tests pass and CI is green, so behavior is unchanged; just confirm the speedup.",
-      "expected_output": "Rejects the passing suite and the green CI run as proof that behavior is unchanged: a suite proves nothing asserted broke, not that behavior held. Requires a differential running the pre-change and post-change subject over a harvested corpus of real inputs with byte-identical output, and enumerates the modes the subject runs in before trusting the differential's coverage. Recalls that the source run's two blocking defects were live under a green CI.",
+      "expected_output": "Rejects the passing suite and the green CI run as proof that behavior is unchanged: a suite proves nothing asserted broke, not that behavior held. Requires a differential running the pre-change and post-change subject over a harvested corpus of real inputs with byte-identical output, and enumerates the modes the subject runs in before trusting the differential's coverage. States that a green CI run leaves blocking defects live, because a suite only checks what someone thought to assert.",
       "files": [],
       "expectations": [
         "Rejects the passing test suite and green CI as proof that behavior is unchanged",
@@ -29,7 +29,7 @@
       "id": 3,
       "name": "an-unexercised-mode-is-an-unverified-mode",
       "prompt": "/performance:verify the guard change. The subject runs in deny mode and ask mode; the differential covered deny mode over 500 real inputs with byte-identical output. Write the behavior line.",
-      "expected_output": "Reports ask mode as unexercised and therefore unverified rather than extending the deny-mode result to it. The behavior line records exactly which modes the differential covered, and the report does not state UNCHANGED for the subject as a whole on one mode's evidence: the source run's differential covered one of two modes and missed a real deny-to-ask downgrade in the other.",
+      "expected_output": "Reports ask mode as unexercised and therefore unverified rather than extending the deny-mode result to it. The behavior line records exactly which modes the differential covered, and the report does not state UNCHANGED for the subject as a whole on one mode's evidence: a differential that covers one of two modes misses a real deny-to-ask downgrade in the other and still reports byte-identical output.",
       "files": [],
       "expectations": [
         "Reports ask mode as unexercised and unverified rather than extending the deny-mode result to it",
@@ -78,7 +78,7 @@
       "id": 7,
       "name": "rejects-a-check-whose-arms-never-differed",
       "prompt": "/performance:verify the gate check ran both arms: without the fix it exited 127 and printed nothing, with the fix it exited 127 and printed nothing, so it reported NOT DISCRIMINATING. Accept that verdict?",
-      "expected_output": "Does not accept the verdict. Identical output in both arms is the signature of a harness that never ran the subject, not of a gate that fails to discriminate; four of five harnesses in the source run failed exactly this way. Requires the check to assert three things: the negative arm fails, the positive arm passes, and the two arms produced DIFFERENT output; only then is its verdict believable.",
+      "expected_output": "Does not accept the verdict. Identical output in both arms is the signature of a harness that never ran the subject, not of a gate that fails to discriminate; a harness that exits identically in both arms never exercised the subject. Requires the check to assert three things: the negative arm fails, the positive arm passes, and the two arms produced DIFFERENT output; only then is its verdict believable.",
       "files": [],
       "expectations": [
         "Does not accept the NOT DISCRIMINATING verdict at face value",

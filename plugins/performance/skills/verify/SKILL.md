@@ -1,5 +1,5 @@
 ---
-description: "Re-derive a performance result in a FRESH CONTEXT that does not inherit the implementer's numbers, then report the target as met or not met without rounding a miss into a win. Dispatches a verifier told to distrust the reported figures and reproduce them from the trees, checks that the change did not alter behavior via a differential covering every MODE the subject runs in, and states any behavior change separately from and above the performance claim. Use when: 'verify this speedup', 'did the optimization actually work', 'check my benchmark numbers', 'independent verification', 'is this result real', 'write up the performance result', 'double-check before I claim this'. Final phase; runs after /performance:snapshot post. Skip when no baseline exists (there is nothing to verify), or when reviewing a diff for general quality rather than checking a measured claim."
+description: "Re-derive a performance result in a FRESH CONTEXT that does not inherit the implementer's numbers, then report the target as met or not met without rounding a miss into a win. Dispatches a verifier told to distrust the reported figures and reproduce them from the trees, checks that the change did not alter behavior via a differential covering every MODE the subject runs in, and states any behavior change separately from and above the performance claim. Use when: independently re-deriving a measured performance claim before it is stated, or writing up the result: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase; runs after /performance:snapshot post. Skip when no baseline exists (there is nothing to verify), or when reviewing a diff for general quality rather than checking a measured claim."
 user-invocable: true
 argument-hint: "[<claim or target>] (e.g. /performance:verify the 4-to-1 spawn reduction)"
 disable-model-invocation: false
@@ -12,9 +12,9 @@ metadata:
 
 Answers **"is this result real, and what does it actually say?"**
 
-In the source run behind this plugin, this phase caught **two blocking correctness defects that the
-implementer, the implementer's own 143-test suite, and a full green CI run had all missed.** That is
-why it is a separate phase from measurement and not a step inside it.
+This phase is where **blocking correctness defects that the implementer, the implementer's own test
+suite, and a full green CI run all missed** get caught. That is why it is a separate phase from
+measurement and not a step inside it.
 
 Read [`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md`](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md) first.
 
@@ -27,7 +27,7 @@ verifies the answer, not the work.
 The brief should say, in substance: distrust the reported numbers, re-derive them yourself, and
 report what you actually observe including the ways you could not reproduce it.
 
-Two independent verifiers found different defects in the source run. One is the floor, not the
+Two independent verifiers routinely find different defects, so one verifier is the floor, not the
 target.
 
 ## 2. Prove behavior did not change, with a differential
@@ -38,17 +38,17 @@ behavior is unchanged, because it only checks what someone thought to assert.
 Run a differential: the pre-change and post-change subject over a harvested corpus of real inputs,
 requiring **byte-identical output**.
 
-**Cover every MODE the subject runs in.** The source run's differential covered one of two modes and
-missed a real deny -> ask downgrade in the other. Enumerate the modes first and record which the
-differential actually exercised; an unexercised mode is an unverified mode, and it is reported as
-such rather than assumed fine.
+**Cover every MODE the subject runs in.** A differential that covers one of two modes misses a real
+deny -> ask downgrade in the other and still reports byte-identical output. Enumerate the modes first
+and record which the differential actually exercised; an unexercised mode is an unverified mode, and
+it is reported as such rather than assumed fine.
 
 ## 3. Check the harness before believing the result
 
 Every gate in the harness-integrity checklist. In particular, for any discrimination
 check involved, confirm it asserts that its **two arms differ**, not merely that each produced its
-expected string. Four of five harnesses in the source run failed by exiting identically in both arms
-and reporting a confident verdict.
+expected string. A harness that exits identically in both arms and still reports a confident verdict
+never exercised the subject.
 
 ## 4. Report
 
@@ -86,8 +86,8 @@ Rules that bind the report:
 
 ## Gotchas
 
-- **A green CI run is not verification.** It was green in the source run while two blocking defects
-  were live.
+- **A green CI run is not verification.** CI stays green while blocking defects are live, because it
+  only checks what someone thought to assert.
 - **A verifier that inherits the numbers is not independent.** Withhold the reasoning, not just the
   conclusion.
 - **`git checkout --` is not a restore mechanism** when the code under test is uncommitted. It

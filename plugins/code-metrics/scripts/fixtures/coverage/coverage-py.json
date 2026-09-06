@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "format": 3,
+    "version": "7.6.0",
+    "timestamp": "2026-09-05T12:00:00",
+    "branch_coverage": false,
+    "show_contexts": false
+  },
+  "files": {
+    "plugins/code-metrics/scripts/fixtures/sources/cm_sample.py": {
+      "executed_lines": [9, 12, 14, 16, 17],
+      "summary": {
+        "covered_lines": 5,
+        "num_statements": 8,
+        "percent_covered": 62.5,
+        "percent_covered_display": "62",
+        "missing_lines": 3,
+        "excluded_lines": 0
+      },
+      "missing_lines": [18, 19, 20],
+      "excluded_lines": [],
+      "functions": {
+        "classify": {
+          "executed_lines": [12, 16, 17],
+          "summary": {
+            "covered_lines": 3,
+            "num_statements": 6,
+            "percent_covered": 50.0,
+            "percent_covered_display": "50",
+            "missing_lines": 3,
+            "excluded_lines": 0
+          },
+          "missing_lines": [18, 19, 20],
+          "excluded_lines": []
+        },
+        "classify.inner": {
+          "executed_lines": [14],
+          "summary": {
+            "covered_lines": 1,
+            "num_statements": 1,
+            "percent_covered": 100.0,
+            "percent_covered_display": "100",
+            "missing_lines": 0,
+            "excluded_lines": 0
+          },
+          "missing_lines": [],
+          "excluded_lines": []
+        }
+      },
+      "classes": {
+        "": {
+          "executed_lines": [9, 12, 14, 16, 17],
+          "summary": {
+            "covered_lines": 5,
+            "num_statements": 8,
+            "percent_covered": 62.5,
+            "percent_covered_display": "62",
+            "missing_lines": 3,
+            "excluded_lines": 0
+          },
+          "missing_lines": [18, 19, 20],
+          "excluded_lines": []
+        }
+      }
+    }
+  },
+  "totals": {
+    "covered_lines": 5,
+    "num_statements": 8,
+    "percent_covered": 62.5,
+    "percent_covered_display": "62",
+    "missing_lines": 3,
+    "excluded_lines": 0
+  }
+}

@@ -111,7 +111,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -252,8 +254,11 @@ OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
+  # Take before the telemetry emit so data.changed carries the byte verdict;
+  # the disclosure is still one systemMessage-only document, or nothing.
+  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
   emit_tel "ok" '[]'
-  hook::rewrite_disclose PostToolUse "$FILE" "$RUFF_REWRITE_MESSAGE"
+  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -290,10 +295,11 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   RUFF_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-emit_tel "skipped" '[]'
 # The fix/format passes may already have rewritten the file before the verify
 # pass broke; take the disclosure and compose it with the tool-break context
-# as one document (#3406).
+# as one document (#3406). Taken before the telemetry emit so data.changed
+# records that rewrite too.
 hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
+emit_tel "skipped" '[]'
 hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

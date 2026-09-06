@@ -98,8 +98,7 @@ only the most recent skills.
 **Do not build a probe.** `/session-flow:orient` already reads branch and git state, handoff
 save-points, workflow checklists, running-retro ledgers, open PRs, and work-items, a superset of
 what this skill needs, in this plugin. Invoke it, or consume its briefing if it already ran this
-session. Seven session-flow skills already inline near-identical probe blocks; an eighth copy is the
-duplication `/discipline:point-dont-copy` forbids.
+session. A separate probe here would duplicate that read.
 
 **Slug selection** for artifact-grounded reads: an explicit argument wins; else the
 most-recently-modified topic slice; else the branch-derived slug. Resolve every path through the
@@ -154,9 +153,9 @@ Per bucket:
 - **Tier 2. Everything else in that bucket, by bare invocation name, with an explicit count.**
   `Also live now (23): /a:b, /c:d, …`
 
-**Budget: the whole output stays around 60 lines.** Measured evidence for the cap: the one-tier form
-of this same design rendered 139 options across 275 lines, 97.8% of the catalog, i.e. the generated
-cheat sheet with an extra column, which an operator reads once and never again.
+**Budget: the shape is the cap.** Five ranked options per bucket at three lines each, plus one
+wrapped tier-2 line per bucket, is the whole output. Rendering every option in full is the
+generated cheat sheet with an extra column, which an operator reads once and never again.
 
 One word expands any tier-2 roster to full treatment (`expand now`, `spotlight all`). That is
 progressive disclosure, not filtering: nothing was withheld, only deferred a keystroke.

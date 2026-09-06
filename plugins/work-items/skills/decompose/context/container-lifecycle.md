@@ -14,7 +14,7 @@ container like any other item).
 **Opt-in at approval, never silent.** The offer is made at Step 3 (above) only when slices span
 more than one session; the default answer is no, and the `decompose_container_publish` user
 config only pre-selects the offer, the Step 3 approval gate stays mandatory for the container
-exactly as for the slices. This skill's gate-free upstream analog is explicitly excluded.
+exactly as for the slices.
 
 **Coordination provider required.** Offer the container only when the bound provider is a
 coordination surface. A `local-markdown` binding is worktree-confined, each worktree sees its

@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when /skill-doctor, added in 2.1.261, or /doctor resolves in your session, prefer it for that one-shot, alongside the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
@@ -39,7 +39,8 @@ from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
 carries the counterexamples, the greps, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
-reports that in `/doctor` and the Stats tab. It is **which skills are starved by
+reports that in `/skill-doctor` (added in 2.1.261), `/doctor`, and the Stats tab,
+when they resolve in your session. It is **which skills are starved by
 that loop and still wanted, versus genuinely unwanted, versus not observable at
 all.**
 
@@ -47,8 +48,8 @@ all.**
 
 A usage store younger than the window being asked about **cannot** distinguish
 "never invoked" from "never observed". Reporting the second as the first libels
-most of a fleet on any fresh install. Measured here: a 3-day-old install
-against 30/90-day tiers put 210 of 213 skills in a "never used" bucket.
+most of a fleet on any fresh install. A days-old install measured against
+30-day and 90-day tiers puts nearly the whole fleet in a "never used" bucket.
 
 This skill therefore computes an `observed_horizon`, clamps every window to it,
 and routes any claim the span cannot support into a first-class `withheld`
@@ -95,14 +96,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill
 ```
 
 It reads `~/.claude/plugins` by default (pass a directory to `--installed` to
-point elsewhere). The two answers differ on purpose: measured here, the repo
-held **221** skills and the installed fleet **216**. Three plugins present in
-the checkout were not installed. Neither number is wrong; they answer
-different questions.
+point elsewhere). The two answers differ on purpose: a checkout can hold
+plugins that are not installed, so the repo count and the installed count
+disagree. Neither number is wrong; they answer different questions.
 
-**The manifest lists one entry per install SCOPE, not per plugin.** Here 67
-plugins carried 134 entries, a `project` and a `user` install of the same
-marketplace. This resolves to one entry per plugin, and the report states both
+**The manifest lists one entry per install SCOPE, not per plugin.** A
+marketplace installed at both `project` and `user` scope carries two entries
+per plugin. This resolves to one entry per plugin, and the report states both
 numbers so the collapse is auditable. Counting entries would inflate the fleet
 and, since the fleet is the denominator, roughly double the reported overflow.
 
@@ -112,9 +112,9 @@ the highest-precedence *applicable* one, **never the newest version installed**.
 That rule and its "not the newest" warning are stated in this plugin's own
 [`skills/plugins/context/scope-semantics.md`](../plugins/context/scope-semantics.md),
 which verified it against the official plugins-reference docs. Getting it wrong
-is not cosmetic: 7 plugins here ship different skill *sets* between scopes and
-19 skills different `description` text. Superseded records are listed under
-**Fleet resolution** so a pin being outranked is visible.
+is not cosmetic: plugins pinned at different versions across scopes can ship
+different skill *sets* and different `description` text. Superseded records are
+listed under **Fleet resolution** so a pin being outranked is visible.
 
 Applicability matters as much as precedence: `project` and `local` records load
 **only** in the `projectPath` they name, so another project's records are
@@ -186,7 +186,7 @@ a user as documented.
 | Question | Owner |
 |---|---|
 | Why is my fleet unused, starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill**, the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
-| Which skills are unused vs their context cost, right now? | Claude Code's own `/doctor` and Stats tab |
+| Which skills are unused vs their context cost, right now? | Claude Code's own `/skill-doctor` (added in 2.1.261), `/doctor`, and Stats tab, when they resolve in the session |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/claude-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/claude-ops:observability` |

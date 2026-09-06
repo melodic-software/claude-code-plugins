@@ -86,7 +86,7 @@ Repo → Validate → THEN Synthesize.
 
 **Output:** Contact sheets, dedup report, manifests per lesson.
 
-**Note:** If frames not extracted (MCP course has 0 frames), skip this phase but note summaries will be `[transcript-only]`.
+**Note:** If no frames were extracted, skip this phase but note summaries will be `[transcript-only]`.
 
 ## Phase 2c-i: Download Course Resources
 

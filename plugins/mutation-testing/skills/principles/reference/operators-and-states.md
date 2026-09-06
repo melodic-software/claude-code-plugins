@@ -6,7 +6,7 @@ Sources: [Stryker — mutant states and
 metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/);
 [PIT mutation operators](https://pitest.org/quickstart/mutators/); Petrović & Ivanković, *State of
 Mutation Testing at Google* (ICSE-SEIP 2018) and Petrović, Ivanković, Fraser & Just, *Practical
-Mutation Testing at Scale* (<https://arxiv.org/abs/2102.11378>). Fetched 2026-08-10.
+Mutation Testing at Scale* (<https://arxiv.org/abs/2102.11378>). Fetched 2026-08-10. Recheck when Stryker changes its mutant-state vocabulary or PIT changes its default mutator set, or at the next fleet audit; the two cited papers, and the SBR share drawn from them, are fixed.
 
 ## The mutant lifecycle
 

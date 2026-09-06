@@ -18,7 +18,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-failed-logs.sh"
 # POSIX path for stub PATH entries (Git Bash PATH lookup fails on Windows-form
-# paths like C:/Users/...). Production script accepts either form via env vars.
+# paths like C:/Users/<user>/...). Production script accepts either form via env vars.
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 

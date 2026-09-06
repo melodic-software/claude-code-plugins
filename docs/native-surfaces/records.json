@@ -186,7 +186,8 @@
         "`doctor` present in the 2026-08-23 extraction as bundled-skill (markers: gated; aliases: checkup), per the two sibling rows",
         "the shipped doctor skill carries a check titled 'Check 1: unused skills, MCP servers, and plugins' whose prompt groups unused components, labels each group with a benefit estimate ('37 unused skills, saves ~2.2k est. tokens/session'), and applies only the groups the user selects; confirmed by string search of the installed v2.1.252 binary on 2026-08-31",
         "our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill",
-        "our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch"
+        "our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch",
+        "recheck trigger FIRED, 2026-09-04: Claude Code 2.1.261 moved the unused-components check into a dedicated /skill-doctor command ('Added /skill-doctor to show which loaded skills go unused and what they cost in context, so you can prune them'; raw CHANGELOG at https://code.claude.com/docs/en/changelog, entry 2.1.261 line 8, confirmed verbatim by an independent verifier on 2026-09-04). This container runs 2.1.258, so the new surface could not be extracted; a dedicated skill-doctor row awaits an upstream-source pin (the anthropics/claude-code CHANGELOG commit SHA), which this session could not obtain within its repository scope. Until then the description's Not-for clause, the body, and the Scope boundary table name /skill-doctor and /doctor together behind one presence gate, and this row carries the routing for both"
       ],
       "observation": {
         "class": "extraction",
@@ -195,9 +196,9 @@
       },
       "recheck": {
         "trigger": "a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch",
-        "verified": "2026-08-31"
+        "verified": "2026-09-04"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": { "description_phrase": true, "boundary_section": false },
       "budget_caveat": true
     },
     {

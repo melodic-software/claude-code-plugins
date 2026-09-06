@@ -3,6 +3,28 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Changed
+
+- **`target`**: dropped the past-tense account of the retracted WDAC diagnosis and the layer-attribution
+  instinct, restating both as present-tense rules that keep the 15x-spread and 88%-of-the-cost
+  figures. Consolidated the `Use when:` trigger list into three intents.
+- **`goal`**: removed the narration of the run that set an unreachable p50 target and the run that
+  learned a counter outlives a duration; both now state the mechanism directly. Consolidated the
+  `Use when:` trigger list.
+- **`snapshot`**: replaced "this host spread 15.7x" with a deferral to `is_measurable()`, which is
+  the gate that owns where the line sits, and restated the drifting-host, harness-integrity,
+  stalled-counter and `PATH`-shim passages in the present tense. Consolidated the `Use when:`
+  trigger list.
+- **`verify`**: restated the separate-phase rationale, the two-verifier floor, the mode-coverage
+  rule, the both-arms-differ rule and the green-CI gotcha as present-tense mechanisms instead of
+  tallies from one past run. Consolidated the `Use when:` trigger list.
+- **Evals**: `target` case 3 and `verify` cases 2, 3 and 7 now assert the rewritten mechanisms
+  rather than the removed narration. The prompts and the graded expectations are unchanged.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.1.1]
 
 ### Fixed

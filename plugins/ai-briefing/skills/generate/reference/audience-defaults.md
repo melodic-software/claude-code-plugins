@@ -1,8 +1,9 @@
 # Audience defaults for /ai-briefing:generate
 
 The engine's **default** audience framing, pragmatic-use ranking lens, and apolitical
-filter. Loaded by S4 categorize (ranking) and Step 4.5 enrichment (impact tag). These
-are documented, **overridable** defaults: a consumer profile can refine or replace them
+filter. Loaded at the categorize-and-rank step of `/ai-briefing:generate`, and again for the
+optional per-item impact tag. These are documented, **overridable** defaults: a consumer
+profile can refine or replace them
 (a profile's `audience.md` in `.claude/ai-briefing/[<profile>/]` may refine this file).
 
 ## Pragmatic-use filter (ranking lens)

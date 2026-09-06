@@ -1,0 +1,45 @@
+{
+  "skill_name": "audit-type-debt",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reports-both-percentages-without-anchoring-them",
+      "prompt": "/code-metrics:audit-type-debt",
+      "expected_output": "Runs the bundled audit-type-debt.sh against the change, presents the markdown report with its Coverage of this run table, and states that no standard or CWE anchors the measure so the reference is null, without declaring any lane a pass or a failure.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/audit-type-debt.sh rather than grepping for any by hand",
+        "Presents the per-lane percentages for TypeScript and Python with the collector named for each",
+        "States that no standard or CWE anchors the measure and that the reference is null",
+        "Does not average the TypeScript and Python percentages or compare them with each other",
+        "Does not declare any lane a failure, defect, or violation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "csharp-is-not-applicable-rather-than-a-count",
+      "prompt": "/code-metrics:audit-type-debt src/ (this repository is mostly C# with one TypeScript front end)",
+      "expected_output": "The run table shows the dotnet lane as not-applicable with the sentence that no tool produces a comparable percentage for C# and that a dynamic or object occurrence count is not comparable to a ratio, while the TypeScript lane still reports its percentage.",
+      "files": [],
+      "expectations": [
+        "The dotnet row is reported as not-applicable with its stated reason",
+        "Explains that an occurrence count is not comparable to a ratio rather than offering one",
+        "Still reports the TypeScript percentage from the same run"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "absent-type-coverage-is-visible-not-silent",
+      "prompt": "/code-metrics:audit-type-debt --json --all so I can compare it after the typing sweep (type-coverage is not installed here)",
+      "expected_output": "Produces the code-metrics/v1 JSON document, reports the typescript lane as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
+      "files": [],
+      "expectations": [
+        "Runs audit-type-debt.sh with --json and keeps the document for the later comparison",
+        "Says the typescript lane is unavailable and offers the install hint without installing anything",
+        "Notes that type-coverage needs a resolvable typescript in the project",
+        "Mentions /verification:measure only behind an if-installed gate with a stated fallback",
+        "States that a report with status empty on either side makes the comparison inconclusive"
+      ]
+    }
+  ]
+}

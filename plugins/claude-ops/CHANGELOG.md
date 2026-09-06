@@ -3,6 +3,215 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.15]
+
+### Changed
+
+- The `plugins` skill writes its native-Windows path examples with placeholders: `cache-content-check.sh`
+  and `fleet-state.sh` say `C:\Users\<user>\...`, and the `projectPath` gotcha says
+  `D:\repos\{repo}` against `/d/repos/{repo}`. The org machine-specific-path detector reads a
+  literal user-home or checkout path as a leaked machine path whatever the surrounding prose says,
+  and the placeholder form states the same contrast without tripping it. The gotcha uses braces
+  rather than angle brackets because a `<` directly after a backslash is the GNU word-boundary
+  escape `\<`, which the shell-portability gate reads as a GNU-only construct.
+
+## [0.42.14]
+
+### Changed
+
+- **The `plugins` skill now records where project-scope install records come from, not only that it
+  cannot reap them (#3688).** The skill already reported stale project-scope records and already
+  said no CLI verb removes one by path, but it never said what produces them, so a user reading a
+  count in the hundreds had no way to tell a careless install habit from a repo doing it on its own.
+  A new `scope-semantics.md` subsection, "Where project-scope records come from, and why the skill
+  cannot reap them", sources the mechanism: a repo's committed `.claude/settings.json`
+  `enabledPlugins` block is the documented cloud install mechanism, and project scope outranks user
+  scope. That every project-scope `true` merely duplicating a user-scope install still gets its own
+  version-pinned record keyed by that checkout's absolute path is recorded as the leading hypothesis
+  for local sessions, not as an established fact, because precedence alone does not establish the
+  write and the probe that would has not been run. Nothing on either side of the boundary reaps the result: `git worktree remove` does not touch
+  `~/.claude`, no CLI verb removes a record by path, and the "Cleaned up automatically" list in the
+  claude-directory docs names nothing under `~/.claude/plugins/`. Changelog 2.1.224 shows the
+  per-project records are a live mechanism rather than vestigial state. Synced plugins are recorded
+  as the contrast case, enablement with no install record at all, so they are not mistaken for a
+  source of these rows.
+- **Two questions the docs do not answer are recorded as open probes rather than asserted.** Which
+  code path writes the records locally is unverified, and one machine's 64 records sharing a single
+  `installedAt` second is written down as one observation on Claude Code 2.1.261, not as the
+  mechanism; the probe that would settle it is named. Whether a project-scope `false` writes any
+  record is undocumented and untested. The file's opening promise that every claim below it was
+  verified now names this subsection as the exception.
+- **Pointers, not restatements.** The mechanism is stated once, in the new subsection.
+  `SKILL.md`'s stale-records section gains a short paragraph naming the committed block as the
+  leading candidate source, flagging the local write path as unverified, and pointing at the
+  subsection, keeping its existing guidance that the tool owning those directories' lifecycle is
+  where records should be dropped. A new gotcha covers the failure mode alone, reading a large
+  absent-path count as careless installs, and cites the subsection rather than restating it. No
+  remediation is proposed; that decision is open on the issue.
+
+## [0.42.13]
+
+### Added
+
+- **A standing cache-content check in the `plugins` skill, so a version-and-sha match is no
+  longer taken as proof that the files on disk are the build the record names (#3681).**
+  `claude plugin update` re-points an install record's `gitCommitSha` without rewriting the
+  plugin's cache directory when the manifest version number is unchanged across the two commits,
+  because the cache is keyed by version. The record then claims the new commit while the directory
+  still holds the older build, and every check the skill had passed in that state. On the reporting
+  machine six plugins were in it at once, twelve stale files in the worst case, including a reviewed
+  dispatcher and two `hooks.json` files. Any measurement or behaviour test against those caches was
+  a test of a different build. The new `cache-content-check.sh` byte-compares every file in a cache
+  directory against the recorded commit in the marketplace clone, in both directions: a changed
+  file, a file the commit has and the cache lacks, and a file deleted at the commit but still
+  sitting in the cache. It runs as Step 5b of `sync` and of `audit`, ungated, because an unchanged
+  version number is exactly the case in which every other step reports success. Cache-only files the
+  marketplace repo's own `.gitignore` covers are excluded: a cache directory is a live plugin root,
+  so it accumulates `__pycache__` and vendored dependencies that were never in any commit, and
+  without that filter three installs on the authoring machine reported stale on generated state
+  alone. The report gains a `Cache content:` row naming the affected ids and the remediation that
+  was proved to work, which is removing that version's directory and re-running the update.
+- **The check reports and never repairs, and never reaches the network.** It writes no state file,
+  removes no cache directory, and does not `git fetch` a commit the marketplace clone lacks. A
+  missing commit is reported as `sha-not-local` and counted as unverifiable rather than as a pass,
+  because fetching it would be a mutation the audit does not perform and would erase the very
+  condition the verdict exists to report. A project-scope record whose `projectPath` is not on this
+  machine is counted as skipped rather than verdicted, on the same reasoning the skill already
+  applies to stale project records: absent is not dead.
+- **The compare reads the plugin's source path from the RECORDED commit, not from the marketplace
+  clone's current checkout.** A plugin directory renamed or moved after the recorded commit was
+  otherwise looked up under its present-day path against an older tree, and `git ls-tree` treats a
+  pathspec that matches nothing as success with empty output rather than an error — so every file in
+  a perfectly healthy cache became an extra and the install reported `stale-content`. The manifest is
+  now read with `git show <sha>:.claude-plugin/marketplace.json`, with no fallback to the checkout,
+  so the source path and the expected tree describe the same revision. A pathspec that still matches
+  nothing at that sha gets its own `no-source-at-sha` verdict, counted unverifiable, so an empty
+  expected tree can never be reported as a content difference. The manifest read is cached per
+  distinct sha rather than paid per install record.
+- **Pathnames travel NUL-separated end to end.** `ls-tree -z`, `find -print0` and `check-ignore -z`
+  replace their line-oriented forms. Without `-z`, git quotes and escapes any pathname carrying
+  non-ASCII, a tab, a newline or a backslash, and the compare then read that quoted spelling and the
+  raw path as two different files — an unchanged accented filename was reported as both
+  missing-from-cache and extra-in-cache. `git hash-object --stdin-paths` has no `-z` switch, so a
+  cache path containing a newline, and only that character, is hashed by its own process instead.
+- **Tracked symlinks are compared mode-aware instead of reported missing.** A symlink is an ordinary
+  blob whose content is the link target text, but `find -type f` excluded it, so every tracked link
+  read as permanently missing from the cache. The cache walk now enumerates links as well as regular
+  files and hashes a link's `readlink` output, which is what git itself stores.
+- **Install records are decoded with a US (0x1f) separator rather than a tab.** Bash treats tab as
+  IFS whitespace, so an empty middle column collapsed: a record carrying no `gitCommitSha` shifted
+  its `installPath` into the sha field and reported `install-path-missing` with a fabricated sha
+  instead of the honest `no-git-commit-sha`. This is the separator `fleet-state.sh` already uses for
+  its own internal records.
+- **Route (b) of the three the issue offered, taken deliberately.** Route (a), a repo rule that
+  every plugin change bumps the version, prevents nothing already delivered and depends on every
+  future author remembering it; route (c), an upstream report, has no delivery date this repo
+  controls and leaves the machine undetected in the meantime. Route (b) is a check that runs on
+  every sync and audit, needs no author discipline, and holds whatever upstream does. It does not
+  preclude the other two.
+
+## [0.42.12]
+
+### Changed
+
+- **`audit-skill-visibility` routes the one-shot unused-versus-context-cost question to
+  `/skill-doctor` as well as `/doctor`.** Claude Code 2.1.261 added `/skill-doctor` ("show which
+  loaded skills go unused and what they cost in context, so you can prune them"), which is the
+  unused-components check this skill's native-surfaces row already deferred to `/doctor` for.
+  That row's recheck trigger fired; the description's Not-for clause, the body, and the Scope
+  boundary table now name both surfaces behind a presence gate, per the native-references
+  convention, and the existing store row records the fired trigger with the 2.1.261 CHANGELOG
+  evidence and re-verifies its date. This container runs 2.1.258 and cannot extract the new
+  surface, and a dedicated `skill-doctor` row needs an upstream commit pin the session could not
+  obtain in scope, so that row is deferred and named in the evidence. Verdict unchanged:
+  `complementary`.
+
+## [0.42.11]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1, and the reference sink reads the spine
+  first.** The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a fleet producer emits, each only when present as a plain id.
+  `hook-telemetry-sink.sh` (and the repo-local copy under `.claude/hooks/`)
+  now routes on the spine `session_id` and falls back to `data.session_id`,
+  which the nine audit hooks still send, so envelopes from producers on 1.0
+  keep their route and every producer on 1.1 lands in
+  `sessions/<session_id>.jsonl`. The per-session report's "hooks fired" table
+  therefore covers the formatters and guards, not only the nine audit hooks
+  (#3758). `schema_version` reads `1.1`; the sink suite pins the spine route
+  and its precedence over the data key. Numbered above 0.42.9 (#3765) and
+  0.42.8, which a sibling change holds.
+  The four keys are read from the payload ROOT only, so a same-named key inside
+  `tool_input` or `tool_response` can never reach the spine and file a row
+  under another session; above a 65536-byte payload only the region ahead of
+  the first nested container is read, which omits `tool_use_id` rather than
+  guessing it (#3784). A row in the per-session report is therefore the
+  harness's own id, never a tool argument.
+
+## [0.42.10]
+
+### Changed
+
+- **Restored the plugin description content #3770 dropped.** That change
+  reverted this manifest's `description` to a pre-#3750 state, losing the
+  per-session hook event log, the setup action's log-root and guard wording,
+  the sink's per-session routing, and `audit-performance`'s Windows
+  kernel-object census (730 characters, none of it replaced by new wording).
+  The full text is restored here and the generated catalog regenerated with it.
+- **Per-session report: the "Rewrote" block is live.** The eight rewriting
+  formatters (bash, biome, eol-normalizer, go, markdown, powershell, ruff,
+  typos) now send `data.changed`, which the reference sink already copied to
+  the per-session row when present. The observability skill's context renders
+  a row per `changed == true` envelope, `_nothing rewritten_` when rows carry
+  the key and every value is false, and the no-data line only when no row in
+  the session carries it. The suite's per-session fixture carries one
+  `changed: true` row and one `changed: false` row, and the case that asserted
+  the block empty now asserts the rewritten file is named (#3755).
+
+## [0.42.9]
+
+### Changed
+
+- **audit-install-state:** the deny-listed subtree, IDE lock, cross-review, and dedupe rules state
+  the mechanism instead of retelling the audit that motivated them; the evidence-discipline,
+  name-scheme, and scope-and-handoff references do the same, and the stale zero-byte
+  `AGENTS.md`/`CLAUDE.md` worked example is gone.
+- **audit-performance:** the read allowlist explains what the last two entries buy rather than
+  which ones are new.
+- **audit-skill-visibility:** the fleet-count, scope-entry, and skill-set-divergence rules state
+  the mechanism instead of one machine's measured counts.
+- **changelog:** the plan phase states the goal instead of four generic planning steps, and the
+  classification rubric uses a model placeholder instead of a pinned model name.
+- **inventory:** the runtime-resolution rationale describes how a regex-only pass fails instead of
+  narrating earlier drafts.
+- **known-issues:** the GitHub search step takes whatever authentication the consumer already has,
+  and the maintainer to-do list of unintegrated sources is dropped.
+- **lanes:** every tracker reference is out of the body, the description, and the reference files;
+  the prompt-storage contract is stated in the present tense with `prompt_dir` as its seam; and the
+  telemetry-upsert summary points at the script's `--help` header instead of copying it.
+- **morning-brief:** the stranded-findings rationale drops its tracker reference.
+- **observability:** the compute/privacy/render step names its three references, the Collector
+  duplicate-mechanism rule is stated positively, the provisioning issue links are gone, and three
+  roadmap notes are replaced by the current boundary.
+- **plugins:** the `fleet-state.sh` project-root citation names the resolution rather than a line
+  range, the pin-confirmation and marketplace-refresh rules drop their brief citations, and the
+  Windows CRLF and `--ids current-project` notes drop their incident tallies and version diffs.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.42.8]
+
+### Fixed
+
+- **`lanes`, `observability`:** the git pre-compute lines moved out of `## Pre-computed context`
+  into a "Repository context. Gather first" body section of individual Bash calls, one command per
+  call, each `head` bound kept inside its command and a failure read as an unknown value. The
+  harness composes a skill's whole pre-compute block into one shell invocation, and a
+  worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
+  loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
+  lines stay where they were.
+
 ## [0.42.7]
 
 ### Changed

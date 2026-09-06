@@ -305,7 +305,7 @@ keeps this check from flagging a repo that followed the other half of the same p
 
 **How to check**: Compare rule content against CLAUDE.md sections. Flag significant overlap.
 
-**Which CLAUDE.md** — two can be in scope now, so name the pairing rather than leaving it to be
+**Which CLAUDE.md**: two can be in scope, so name the pairing rather than leaving it to be
 guessed. Compare against the one at the rule's **own scope**: a project rule against the project
 `CLAUDE.md`, a user rule against the user `CLAUDE.md`. R1 is a redundancy the owner of that layer fixes
 by deleting one of the two, and only a same-scope pair is theirs to fix. Overlap **across** scopes is

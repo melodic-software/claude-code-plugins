@@ -3,6 +3,34 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.14]
+
+### Changed
+
+- `ConvertFrom-Jsonc.Tests.ps1`'s backslash-backslash case uses `C:\Users\<user>` as its subject.
+  It is still a Windows user-home path with doubled separators, which is the whole of what the
+  test exercises, and the org machine-specific-path detector no longer reads it as a leaked path.
+
+## [0.12.13]
+
+### Changed
+
+- **audit:** `references/shared/discovery-guide.md` attributes catalog and `TODO.md` writes to the
+  skill's post-run step, matching `Invoke-Discovery.ps1`, which only probes and reports.
+  `references/shared/approvals.md` states the state-root design's properties in the present tense,
+  frames the checkbox migration by its trigger condition, and lists known limits without version
+  pins. `references/shared/correlation-rules.md` names which rule is implemented instead of a
+  version label. `references/windows/check-catalog.md` states the KEV match rule and the drive-root
+  residue shapes as current facts, and the `DISABLE_AUTOUPDATER` note without the motivating
+  incident. `references/windows/remediation-policy.md` points at the approvals reference for the
+  checkbox carry-forward instead of restating it. Both `scripts/*/NOT_IMPLEMENTED.md` stubs gate
+  their removal on the current catalog instead of a stale count of eight. The description names
+  the intent categories with fewer example phrases.
+- **setup:** the split-state-root paragraph states the stray-root rule without narrating the
+  earlier version or the retirement-manifest rationale.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.12.12]
 
 ### Changed

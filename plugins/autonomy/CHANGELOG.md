@@ -3,6 +3,41 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.28]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
+## [0.22.27]
+
+### Changed
+
+- `setup`: dropped the "(v0)" version marker and the roadmap line about slices that have not
+  shipped, rewrote the gotchas pointer to name the run-time failure modes the file actually
+  holds, added a sentence saying how an argument-selected slice is selected, cited the
+  marketplace conventions by published URL instead of a relative path that resolves to nothing
+  in a plugin cache, moved the spell-gate contributor note to a new plugin-level `AGENTS.md`,
+  removed the duplicated ownership sentence in the guardrail slice, dropped the roadmap wrapper
+  around the capture slice's disclosed limits and the history narration in the isolation-probe
+  template, and lowered the all-caps emphasis register across the skill files.
+- `reference/`: removed the pull-request, issue, and ADR pointers and the design-process
+  narration from the guardrail, verification-topology, work-classes, isolation-ladder,
+  trigger-dispatch, escalation, and prerequisite-resolution contracts; replaced the roadmap
+  statements in `runner.md`, `guardrails.md`, and `prerequisite-resolution.md` with what the
+  file tree now holds; dropped the research-record row pointers from `routines.md` and the ten
+  routine leaves; replaced the `/architect` routing in `runner/seams.md` with the build trigger;
+  cited sibling-plugin and marketplace docs by published URL; and lowered the all-caps emphasis
+  register across the six cited reference contracts.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.22.26]
 
 ### Changed

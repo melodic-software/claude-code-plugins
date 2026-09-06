@@ -1,5 +1,5 @@
 ---
-description: "Stress-test plans and proposals via systematic adversarial review. Assumption extraction, evidence check, failure scenarios, operational gotchas. Before implementation begins. Use when: 'devil's advocate', 'stress test', 'poke holes', 'what could go wrong', 'challenge this plan', 'find the holes in this', 'argue against this', new dependencies, infrastructure/CI/build changes, or any architecture decision with cross-module blast radius. An `incumbent` mode turns the same adversarial lens on the status quo. 'is there a better way now', 'should we still use X', 'reconsider the current approach', 'is the incumbent still the right choice'. Surveying alternatives before a plan commits to keeping an existing tool or approach. Not for code correctness bugs or pre-PR verification."
+description: "Stress-test plans and proposals via systematic adversarial review. Assumption extraction, evidence check, failure scenarios, operational gotchas. Before implementation begins. Use when: asked to attack a plan or proposal ('devil's advocate', 'stress test', 'poke holes', 'what could go wrong'), or before implementation on new dependencies, infrastructure/CI/build changes, or any architecture decision with cross-module blast radius. An `incumbent` mode turns the same adversarial lens on the status quo ('is there a better way now', 'should we still use X'), surveying alternatives before a plan commits to keeping an existing tool or approach. Not for code correctness bugs or pre-PR verification."
 argument-hint: "[incumbent [target]] or [plan text or file path]. An optional leading deep/shallow sets research depth; works from conversation context if no argument given"
 user-invocable: true
 disable-model-invocation: false
@@ -9,10 +9,18 @@ metadata:
   summary: Stress-test a plan or the incumbent approach adversarially
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -5`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 

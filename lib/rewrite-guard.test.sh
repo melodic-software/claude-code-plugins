@@ -60,15 +60,30 @@ if [[ "$(scratch_count)" == "0" ]]; then
 else
   fail "take left $(scratch_count) file(s) behind (unchanged path)"
 fi
+if [[ "$HOOK_REWRITE_CHANGED" == "false" ]]; then
+  ok "take on unchanged file sets the changed verdict to false"
+else
+  fail "take on unchanged file set HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
+fi
 
 # --- changed file: message set, snapshot released ----------------------------
 hook::rewrite_guard_begin "$target"
+if [[ -z "$HOOK_REWRITE_CHANGED" ]]; then
+  ok "begin resets the changed verdict to unknown"
+else
+  fail "begin left HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
+fi
 printf 'two\n' >"$target"
 hook::rewrite_take_disclosure "$target" "msg-changed"
 if [[ "$HOOK_REWRITE_MESSAGE" == "msg-changed" ]]; then
   ok "take on changed file yields the message"
 else
   fail "take on changed file yielded '$HOOK_REWRITE_MESSAGE'"
+fi
+if [[ "$HOOK_REWRITE_CHANGED" == "true" ]]; then
+  ok "take on changed file sets the changed verdict to true"
+else
+  fail "take on changed file set HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
 fi
 if [[ "$(scratch_count)" == "0" ]]; then
   ok "take releases the snapshot (changed path)"
@@ -82,6 +97,20 @@ if [[ -z "$HOOK_REWRITE_MESSAGE" ]]; then
   ok "second take resets the message (destructive read)"
 else
   fail "second take yielded '$HOOK_REWRITE_MESSAGE'"
+fi
+if [[ "$HOOK_REWRITE_CHANGED" == "true" ]]; then
+  ok "second take keeps the first take's changed verdict"
+else
+  fail "second take reset HOOK_REWRITE_CHANGED to '$HOOK_REWRITE_CHANGED'"
+fi
+
+# --- take with no begin at all: nothing was attempted, so not changed --------
+HOOK_REWRITE_CHANGED=""
+hook::rewrite_take_disclosure "$target" "msg-never-armed"
+if [[ -z "$HOOK_REWRITE_MESSAGE" && "$HOOK_REWRITE_CHANGED" == "false" ]]; then
+  ok "take without begin yields empty message and a false verdict"
+else
+  fail "take without begin yielded message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
 fi
 
 # --- exit without take: the EXIT trap releases the snapshot ------------------
@@ -171,6 +200,11 @@ if [[ -z "$HOOK_REWRITE_MESSAGE" ]]; then
   ok "take after failed snapshot yields empty message (inert guard)"
 else
   fail "take after failed snapshot yielded '$HOOK_REWRITE_MESSAGE'"
+fi
+if [[ -z "$HOOK_REWRITE_CHANGED" ]]; then
+  ok "take after failed snapshot leaves the changed verdict unknown"
+else
+  fail "take after failed snapshot set HOOK_REWRITE_CHANGED='$HOOK_REWRITE_CHANGED'"
 fi
 
 # --- disclose emits one systemMessage-only document on change ----------------

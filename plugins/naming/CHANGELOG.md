@@ -3,6 +3,13 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- name-it-better: the description names the two intents (a fresh name, a retry on a rejected one) instead of listing eight near-synonym phrases; removed the restated never-enter-the-bracket sentence from the tournament section; the three undated source-availability claims in `context/sources.md` (Belshee origin, Clean Code chapter, .NET guidelines) now carry a basis, an as-of date, and a recheck trigger.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.5.3]
 
 ### Changed

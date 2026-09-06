@@ -111,7 +111,7 @@ code.claude.com/docs/en/memory):
 
 There is no auto-memory-only built-in command — selective deletion is manual removal of these
 files. `claude project purge` deletes the store only as part of the full per-project wipe (see
-"Out of scope" below, including the sourcing status of the `v2.1.124+` version floor).
+"Out of scope" below).
 
 ## Settings scopes and precedence
 
@@ -185,11 +185,9 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > - The project's entry in `~/.claude.json`"
   > — code.claude.com/docs/en/claude-directory (verified 2026-08-10)
 
-  As of that check the page no longer carries its "requires Claude Code v2.1.124 or later"
-  sentence, and code.claude.com/docs/en/cli-reference documents `claude project purge` with no
-  version requirement at all (verified 2026-08-10). The `v2.1.124+` floor this plugin still
-  states is therefore a retained claim with no current upstream source — treat it as a lower
-  bound to re-source, not as doc-backed.
+  code.claude.com/docs/en/claude-directory and code.claude.com/docs/en/cli-reference document
+  `claude project purge` with no version requirement (verified 2026-08-10). Do not state a
+  version floor for the command.
 
   What it leaves alone, from the same page:
 

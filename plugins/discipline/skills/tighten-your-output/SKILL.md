@@ -44,7 +44,10 @@ of those constraints is spent to get there.
 
 Say the same thing in fewer words with **no semantic loss**. Drop filler,
 hedging, and restatement, never a directive, qualifier, threshold, or
-example. Unlike the code side, prose terseness usually has **no dedicated
+example. Tightening selects what to include; it does not compress prose into
+fragments, abbreviations, arrow chains, or jargon, and it keeps complete
+sentences a reader who did not watch the work can follow. When brevity and
+readability conflict, readability wins. Unlike the code side, prose terseness usually has **no dedicated
 standards convention** to discipline: when the consuming project's standards
 source declares one, route through it; when it does not, treat that as a
 flagged gap (a candidate upstream standards addition), not license to invent

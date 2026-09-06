@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for the PMD CPD adapter (collectors/cpd.py): unverified against a
+     live run. The element and attribute shape follows the CPD XML report
+     format documented at
+     https://docs.pmd-code.org/latest/pmd_userdocs_cpd_report_formats.html
+     (read 2026-09-05): a namespaced pmd-cpd root, per-file token totals,
+     duplication elements carrying lines and tokens with one file child per
+     instance, and the recoverable-error element PMD 7.3.0 added. Paths are
+     written relative to the repository root; a live PMD run emits absolute
+     paths, which the adapter relativizes against the working directory. -->
+<pmd-cpd xmlns="https://pmd-code.org/schema/cpd-report"
+         pmdVersion="7.27.0"
+         timestamp="2026-09-05T09:00:00+02:00"
+         version="1.0.0">
+   <file path="internal/alpha/orchard.go" totalNumberOfTokens="412"/>
+   <file path="internal/beta/orchard.go" totalNumberOfTokens="418"/>
+   <duplication lines="41" tokens="110">
+      <file column="1" endcolumn="2" endline="41" line="1"
+            begintoken="12" endtoken="122"
+            path="internal/alpha/orchard.go"/>
+      <file column="1" endcolumn="2" endline="53" line="13"
+            begintoken="40" endtoken="150"
+            path="internal/beta/orchard.go"/>
+      <codefragment><![CDATA[func harvest(basket string) int {
+    return len(basket)
+}]]></codefragment>
+   </duplication>
+   <duplication lines="3" tokens="52">
+      <file column="1" endcolumn="2" endline="63" line="61"
+            path="internal/alpha/orchard.go"/>
+      <file column="1" endcolumn="2" endline="90" line="88"
+            path="internal/beta/orchard.go"/>
+      <codefragment><![CDATA[func label() string {
+    return "harvest"
+}]]></codefragment>
+   </duplication>
+   <error filename="internal/gamma/broken.go" msg="LexException: unexpected token">stack trace elided</error>
+</pmd-cpd>

@@ -56,7 +56,7 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
   errors rather than under-matching, so the survey silently loses the form and a container's
   landing-page title survives as Form-2 residue that container mode excludes
 - Form 14's ATX and Setext alternatives embed `(?i)` so title-case headings match; do **not** add
-  `-i` globally — declaration alternatives must stay case-sensitive (#1394)
+  `-i` globally — declaration alternatives must stay case-sensitive
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
 **Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching

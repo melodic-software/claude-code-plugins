@@ -322,19 +322,12 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py
   Never rely on "I dispatched a worker for this PR earlier, it's probably done by now" as
   justification to skip this check — the check is cheap and authoritative; memory of an earlier
   dispatch is not.
-- **Continuing or checking on a possibly-still-running worker uses the harness's real
-  agent-messaging capability, never the dispatch tool with an invented parameter.** To check on,
-  extend the scope of, or continue a worker that may still be running, use the host runtime's
-  actual mechanism for messaging an already-running agent (in Claude Code, the `SendMessage` tool
-  targeting the worker's agent id — one example among possibly other harnesses' equivalents).
-  Never re-invoke the worker-dispatch primitive (in Claude Code, the `Agent` tool) with an ad hoc
-  "continue"/"target"/"resume"-style parameter it does not actually support: an unsupported
-  parameter is typically ignored silently rather than raising an error, so the call spawns a
-  brand-new, independent agent in the same worktree instead of resuming the original one — a
-  second writer in the same worktree, which is exactly the concurrent-write collision the lease
-  check above exists to prevent. If the harness's dispatch tool genuinely has no way to message an
-  existing agent, the safe fallback is to wait for that worker's completion notification rather
-  than attempting to reach it another way.
+- **Continue or check on a possibly-still-running worker through the harness's agent-messaging
+  capability** (in Claude Code, the `SendMessage` tool targeting the worker's agent id). A new
+  dispatch call (in Claude Code, the `Agent` tool) always starts a fresh, independent agent, which
+  in the same worktree is exactly the concurrent-write collision the lease check above exists to
+  prevent. If the harness has no way to message an existing agent, wait for that worker's
+  completion notification rather than dispatching again.
 
 ## Cross-PR Dependency Signalling
 

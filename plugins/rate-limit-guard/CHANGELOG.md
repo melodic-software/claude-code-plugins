@@ -3,6 +3,101 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **The tee snapshot names the account whose windows it carries.** The drain stamps
+  `account: {"email": "<address>"}` at the top level, read from Claude Code's own
+  `.oauthAccount.emailAddress` in `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`. A reader can now tell
+  whether a snapshot describes the account it is running under, which is the writer-side half of the
+  account-identity design. Reader-side invalidation of latched state and the lane-floor re-audit are
+  not built, so the multi-account gap narrows rather than closes.
+
+  **Mislabeling is worse than absence, so the field is omitted in four cases:** the state file is
+  missing, unreadable, or holds no email-shaped value; the stdin payload already carried a top-level
+  `account*` key (that one wins, and the writer adds nothing beside it); the state file is not
+  **strictly older** than the chosen record's spool file, which means a switch may have happened
+  between the observation and the flush; or the writer ran on a path with no spool to date that
+  comparison against (`RLG_TEE_ASYNC=1`, or bash below 4.2). Statusline output and exit codes are
+  unchanged in every case, as they are for every other tee outcome.
+
+  **Strictly older, so an equal timestamp omits.** Mtime resolution is coarse on several
+  filesystems this writer runs on, and there a login that rewrites the state file inside the same
+  tick as the observation is indistinguishable from one that happened later. Admitting the equal
+  case would attach the new account's address to the old account's windows, which is exactly the
+  misattribution the guard exists to refuse, so equality is treated as a possible switch. A missing
+  spool file still omits, so the degenerate inputs stay on the same side.
+
+  **Cost is one process per 30-second drain, and the render path stays fork-free** (the zero-fork
+  trace case still passes). Mechanism measured on the target desktop, 2026-09-04, against an 88 KB
+  state file: bash `$(<file)` plus parameter-expansion extraction 3.6–4.0 s, unusable on any path;
+  `jq -r` over stdin 35 ms; `claude auth status --json` 175 ms. Bash opens the file and jq reads
+  stdin, so the Windows MSYS-path limitation that keeps every other file out of jq's argv does not
+  apply. The batch jq pass gained two output lines for this — the chosen record's shard name, which
+  is what the staleness comparison dates against, and a structural `keys_unsorted` test for an
+  existing account key, asked the same way the window-bearing verdict is asked with `has()` rather
+  than as a substring scan.
+
+  `.oauthAccount.emailAddress` is **internal CLI state**, not a documented surface: the reader
+  contract carries it as a recheck trigger, and the untrusted-value rule applies to the field
+  unchanged. **The value is judged on its codepoints inside jq, before it leaves the parser** —
+  3 to 254 of them, none below 32 and none equal to 34, 92, or 127, and at least one `@`. Judging
+  it after the value crossed into bash would not hold: command substitution strips embedded null
+  bytes and trailing newlines, so an address carrying a JSON-escaped control character would arrive
+  clean and be injected, and the snapshot would name an address the state file never held. The
+  equivalent bash tests are kept as a second line of defense. Either way this is a shape whitelist,
+  not an assertion that the address is real. (Refs #1218)
+
+### Fixed
+
+- **A native jq's CRLF no longer decides which of the tee's own verdicts is readable.** Every line
+  after the payload in the shared jq pass is now CR-stripped in `_rlg_absorb_jq_lines`. A native jq
+  on Windows terminates its output lines with CRLF and `read -r` splits on LF only, so a token line
+  arrived as `true\r` and compared equal to nothing; only the LAST line was reliably clean, because
+  MSYS command substitution drops the trailing CRLF. Which verdict was correct therefore depended on
+  how many lines the pass emitted and on whether the enablement verdict was empty — with an empty
+  verdict the window-bearing token was clean and the verdict was not, and with a configured verdict
+  the reverse. Adding two lines for the account field would have left both wrong, which is how this
+  surfaced. The payload keeps its CR deliberately: the snapshot's bytes stay what jq wrote, and the
+  no-change compare already normalizes its key rather than the payload. Invisible on a Linux runner,
+  where jq emits LF; a case driven by the suite's existing CRLF `jq` shim now covers it on every
+  platform.
+
+### Changed
+
+- **The operable floor's staleness bullet no longer claims the file carries no account identifier.**
+  Amended in `reference/reader-contract.md` and in all six inlined copies in the same change, which
+  `scripts/check-loop-lane-floor-drift.sh` proves moved together. A write is still the signal that
+  the windows changed under you; it is no longer the *only* one.
+
+## [0.7.35]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.7.34]
+
+### Changed
+
+- setup: dropped the ADR rationale for the bespoke legacy detection, restated the compose warning
+  as the present-tense failure it prevents, and lowercased the all-caps emphasis.
+- setup: the shared `legacy-statusline-detect.md` and `unwrap-before-compose.md` spokes drop the
+  wrong `< 0.2.0` shim boundary, the ADR rationale, the incident narration, and the all-caps
+  emphasis; edited at the context-guard source and re-synced.
+- reference/reader-contract.md: replaced the `TODO(#1218)` tracker pointer with a present-tense
+  statement of the account-identity gap, and replaced the hardcoded consumer counts with a pointer
+  to the drift-check registry that owns the roster.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.33]
 
 ### Changed

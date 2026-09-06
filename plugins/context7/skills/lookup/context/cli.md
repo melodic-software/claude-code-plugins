@@ -31,25 +31,17 @@ Set it wherever your project manages local environment variables (shell profile,
 
 | Command | Purpose |
 |---|---|
-| `ctx7 library <name> [query]` | Resolve library name → Context7 library ID (query optional since 0.5.x; still pass one for ranking) |
+| `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
 | `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it — see below) |
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it — env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
 | `ctx7 upgrade` | Self-upgrade the CLI |
 | `ctx7 skills install <repo> [skill]` | Install skills from a GitHub repo (this plugin does NOT use it — see below) |
-| `ctx7 skills search <keywords>` | Search the Context7 skills registry |
-| `ctx7 skills suggest` | Auto-suggest skills based on project dependencies |
-| `ctx7 skills info <repo>` | Show skills available in a repository |
-| `ctx7 skills generate` | Interactive AI skill generator (Pro feature, requires login) |
-| `ctx7 skills list` | List installed skills in the current directory |
-| `ctx7 skills remove <name>` | Uninstall a skill |
 
 **The whole `ctx7 skills` surface is deprecated upstream as of 0.5.5** — hidden from `--help`, still
 runnable, with an in-tool warning that it "will stop working in the next major release". This plugin
 never invokes it (see below), so no behavior here depends on it.
-
-Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls`, `search` ↔ `s`, `generate` ↔ `gen`, `remove` ↔ `rm`.
 
 ## Flags
 
@@ -67,7 +59,7 @@ Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls
 |---|---|
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 
-**No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`) — returns ~1.8× more content by default.
+**No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
 
 ### Setup / install flags (why this plugin doesn't use them)
 

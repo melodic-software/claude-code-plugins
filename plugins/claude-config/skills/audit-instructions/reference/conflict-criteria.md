@@ -70,9 +70,7 @@ and rules files". Its live discovery is
 root-level project `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**`, plus
 `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and `…/rules/**` — each tagged so project-scoped criteria
 can skip personal files. Step 3 of the audit workflow then compares user-scope surfaces against
-project ones as live C6 conflicts. That widening closed the silent gap the previous edition of this
-section documented: a user-global instruction contradicting a project one is no longer deferred by
-I15 into a check that could not see it.
+project ones as live C6 conflicts.
 
 Route on that population:
 
@@ -81,7 +79,7 @@ Route on that population:
 | Both anchors in the **discover-instruction-surfaces** population (any mix of project / user / `both` scope among root-level `CLAUDE.md` / `CLAUDE.local.md` / rules) — **including user↔project** | `claude-memory`'s C6 |
 | Anything else — **any nested `CLAUDE.md` / `CLAUDE.local.md` side**, any auto-memory side, settings, hooks, skills, agents, output styles, or any other surface outside that population | I15 |
 
-**Nested memory files stay with I15**, for the same reason as before. Phase A inventories every nested
+**Nested memory files stay with I15.** Phase A inventories every nested
 `CLAUDE.md` / `CLAUDE.local.md` in the project tree, while discover-instruction-surfaces is depth-1 by
 design — so routing a nested pair to C6 hands it to a check that never reads the file.
 
@@ -101,9 +99,8 @@ finding so nothing is silently dropped. This mirrors the reciprocal routing `cla
 performs for content-fit findings.
 
 The rule remains **route on the population a check actually enumerates, never on the name of the
-layer** — a boundary drawn from a label rather than from the incumbent's discovery script is how a
-gap the size of the pre-widening user↔project hole stays invisible. When that script's population
-moves again, this table moves with it.
+layer**: a boundary drawn from a label rather than from the incumbent's discovery script leaves whole
+pair classes audited by neither skill. When that script's population moves, this table moves with it.
 
 ## Prerequisite: co-residency
 
@@ -219,8 +216,8 @@ context". That is a statement about the hook *mechanism*: a hook definition is n
 to be re-injected, the way root `CLAUDE.md` is. It says nothing about the handler's output, and the
 same page says the opposite about that output — in the `desc` text of its embedded context-window
 simulation, a `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That
-field enters Claude's context." Reading the compaction row as an exclusion rule is what produced
-this gap.
+field enters Claude's context." Reading the compaction row as an exclusion rule drops every
+context-injecting hook from the comparison set.
 
 Three consequences for residency, and each one bounds a pair rather than admitting it wholesale:
 
@@ -267,7 +264,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   event and `matcher` and marks it; the lane then treats it exactly as the liveness gate below treats
   a `liveness-unresolved` surface — report the pair as such, and never infer the text from the script
   name, the handler's arguments, or what a hook of that shape usually emits. Inventing the half you
-  cannot read is a worse failure than the exclusion this section replaces, because it manufactures a
+  cannot read is a worse failure than excluding the surface, because it manufactures a
   quotation.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
@@ -342,10 +339,8 @@ available rather than missing.
 What Phase A still does not enumerate is the **authoring** tree: `plugins/**` in a marketplace
 repository is plugin *source*, not an installed plugin, and nothing there is loaded into the session
 being audited. Pairs drawn wholly from it — a skill's stated default against its own plugin README —
-therefore have no second side. ADR 0005 makes extending Phase A a precondition of that placement,
-and it is tracked as
-[#1421](https://github.com/melodic-software/claude-code-plugins/issues/1421) rather than folded in
-here, since it widens what *every* phase reads. **Report that narrower limit in the pass's
+therefore have no second side. Extending Phase A to the authoring tree is a separate change, since it
+widens what every phase reads. **Report that narrower limit in the pass's
 tier-transparency line** — and only that one: reporting installed-plugin surfaces as uncovered would
 understate coverage the pass now has.
 
@@ -579,33 +574,23 @@ memory surface. It was not a style nit: in `repo-hygiene:clean` and `disk-hygien
 mechanism while resolving toward the skill disobeyed a standing instruction. Both anchors were
 reported and the choice left to the operator.
 
-**What changed on the mandate side — and why that is not a verdict.** Both skills now state the gate
-as invariant-plus-surface: the confirmation bar is unconditional, while the surface prefers
-`AskUserQuestion` and falls back to an inline question when it is absent. That rewrite was made on its
-own grounds, not to win this pair: the old wording named a tool that can be absent — permission mode
+Both skills state the gate as invariant-plus-surface: the confirmation bar is unconditional, while the
+surface prefers `AskUserQuestion` and falls back to an inline question when it is absent. That wording
+exists on its own grounds, because a mandate naming a tool that can be absent (permission mode
 `dontAsk` denies it *"even if you've allowed"* it, a **bare-name** `permissions.deny` rule *"removes
 the tool from Claude's context entirely"*, and a `disallowed-tools` entry removes it *"from Claude's
-available pool while this skill is active"* — so the mandate was unsatisfiable in exactly the sessions
-that most needed a gate.
-
-**This file deliberately does not adjudicate the resulting pair.** The rewrite was authored in the
-same repository as this criteria doc, so a verdict recorded here would be the author grading their own
-text — and the pair's operator-level half is an open, undecided question
-([#1722](https://github.com/melodic-software/claude-code-plugins/issues/1722)). Run the gates against
-the current text as you would for any pair. Two things not to assume while doing it: that the pair
-dissolved because one side acquired a condition (gate 5 is unaffected — see above), and that a
-softened verb settles gate 3 — the branch that decides it is the one where the tool *is* present.
-
-What the closed history does establish: **no winner was named**, and none was available to name. The
-authority relation the Unresolved table denies still does not exist, and a rewrite on one side is not
-the operator's decision — it must never be recorded as one.
+available pool while this skill is active"*) is unsatisfiable in exactly the sessions that most need a
+gate. It is not a verdict on the pair. Run the gates against the current text as you would for any
+pair, and do not assume that the pair dissolved because one side acquired a condition (gate 5 is
+unaffected; see above) or that a softened verb settles gate 3, whose deciding branch is the one where
+the tool *is* present. No winner is available to name: the authority relation the Unresolved table
+denies still does not exist, and a rewrite on one side is not the operator's decision.
 
 **2. A near-miss the gates correctly reject — description-versus-body divergence.**
 `claude-memory:audit`'s `description` (in `SKILL.md`) sells "memory health" and greps zero for
 conflict, contradict, or consistency, while that skill's own `reference/criteria.md` ships C6, an explicit
-contradiction check. Two different files, both readable, genuinely out of step — and the divergence
-has real cost: it is why repeated incumbent searches over skill descriptions concluded no conflict
-detector existed in this repository.
+contradiction check. Two different files, both readable, genuinely out of step, and the divergence
+has real cost: a search over skill descriptions alone would conclude no conflict detector exists.
 
 **It is still not a conflict, and the pass must not report it as one.** Gate 3 fails: a description
 that omits a capability does not prescribe an action incompatible with performing it. Nothing about

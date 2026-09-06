@@ -1,5 +1,5 @@
 ---
-description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths, lane-script permission reachability). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
+description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-overlay layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
 argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
 user-invocable: true
 disable-model-invocation: true
@@ -116,9 +116,6 @@ diagnostics:
   same key: the neutral value wins (rungs 1–2 over rung 3) and the stale markdown is inert but
   misleading. Recommend `apply` to retire the duplicate (migration removes it), per
   [reference/apply-convention.md](reference/apply-convention.md) "Migration retires duplicates".
-  This probe stays bespoke rather than becoming a retirement-manifest record: it is conditional on
-  live resolver state (a neutral file resolving *and* carrying the key — markdown-H2 alone is still
-  the sanctioned rung 3), which the repo-scope retirement schema's presence checks cannot express.
 
 **Retired conventions** — when this plugin ships `retirements.yaml`: run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`.
@@ -332,8 +329,6 @@ used. `check` alone reports the effective configuration across both surfaces and
 
 ## Gotchas
 
-Skill-behavior failure patterns hit in real runs. Add to this section when new ones are discovered.
-
 - **Omitting a key never resets it.** Per-key fallthrough means a section left out of a higher
   layer inherits the lower layer's value. Resetting to the portable default *over* a lower layer
   that sets the key requires writing the explicit default value; omission only inherits (the
@@ -352,7 +347,7 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   in a linked worktree `.git` is a file, and `core.hooksPath` can move the directory anywhere.
 - **History inference clocks: `--since` filters by committer date.** Render `%cd`, not `%ad`, a
   rebased or cherry-picked commit enters the window by committer date but would bucket by its old
-  author date, skewing the recency split (review-caught during #1139). A shallow clone truncates
+  author date, skewing the recency split. A shallow clone truncates
   the window silently. Probe `git rev-parse --is-shallow-repository` and report the actual span.
 - **Same-session `userConfig` reads are stale.** Reconfigured babysit values become visible only
   in a fresh session. Re-running `check` in the same session reports a false failure.

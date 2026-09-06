@@ -2354,8 +2354,8 @@ class HygieneTests(unittest.TestCase):
         # Windows — a string compare would let it bypass the gate. The match is
         # by filesystem identity, simulated here (CI is case-sensitive Linux) by
         # having samefile report the two distinct spellings as one file.
-        target = Path("/users/alice")
-        home = Path("/Users/alice")
+        target = Path("/users") / "alice"
+        home = Path("/Users") / "alice"
         self.assertNotEqual(os.fspath(target), os.fspath(home))
         with (
             mock.patch.object(hygiene, "user_home", return_value=home),
@@ -2369,10 +2369,10 @@ class HygieneTests(unittest.TestCase):
         # samefile raises when a path is missing; a home that cannot be stat'd
         # must be no match, never a crash.
         with (
-            mock.patch.object(hygiene, "user_home", return_value=Path("/home/missing")),
+            mock.patch.object(hygiene, "user_home", return_value=Path("/home") / "missing"),
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
-            self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
+            self.assertEqual([], hygiene.large_scan_reasons(Path("/home") / "target"))
 
 
 class ChildrenRollupTests(unittest.TestCase):

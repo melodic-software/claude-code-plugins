@@ -95,7 +95,7 @@ hold everywhere else:
    second invalid case, which owns the rule and why; nothing is re-derived here. The findings file
    follows for the same undecidability applied to this skill's own contract: the destination may be
    an **index-tracked deletion** in the checkout the detection missed, and writing it there produces
-   a *modified tracked file* rather than a new untracked one — measured. "Read-only with respect to
+   a *modified tracked file* rather than a new untracked one. "Read-only with respect to
    tracked source" admits no such write, so the branch that cannot rule it out cannot take it.
 
    Report the resolved destination, say that no checkout could be shown to govern it and the findings
@@ -180,7 +180,7 @@ destination is tracked space*, and is reported as that. Any other exit means *th
 evaluate this path*, and is reported as that, quoting the resolved path and the exit status. Both
 non-zero cases refuse — fail closed, because a probe that did not answer is never permission — but
 reporting an undetermined probe as "tracked space" sends the reader after a repair that does not
-exist. Collapsing those two states is what let a worktree-anchored probe pass for a working proof.
+exist.
 
 Step 5 is positive, and the distinction matters because the obvious alternative is worthless: a
 `.gitignore` whose content is `*` matches **itself**, so a resolved root inside tracked space leaves

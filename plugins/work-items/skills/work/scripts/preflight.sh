@@ -190,7 +190,7 @@ norm_path() {
   case "$p" in
   [A-Za-z]:/*)
     # Windows filesystems are case-insensitive: fold the WHOLE path, not just
-    # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
+    # the drive letter, so <drive>:/Repos/.Worktrees and /d/repos/.worktrees compare
     # equal. Non-drive (POSIX) paths stay case-sensitive.
     p="${p,,}"
     p="/${p%%:*}${p#*:}"

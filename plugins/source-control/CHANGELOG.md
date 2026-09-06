@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.53]
+## [0.55.57]
 
 ### Fixed
 
@@ -77,6 +77,47 @@ All notable changes to the `source-control` plugin are documented here. Format f
   A read-only `gh api graphql -f query='query{viewer{login}}'` tells the operator up front whether
   this session hits the wall. A refusal is INFO, not FAILED, because the engine keeps running over
   REST; what gets reported is the one loss that stops merges, every PR held as readiness UNPROVEN.
+
+## [0.55.56]
+
+### Changed
+
+- `landed-work.sh` and `landed-work.test.sh` write both drive spellings with a `<repo>`
+  placeholder, and the two `pull-request` fetch tests say `C:/Users/<user>/...`. `path_key` only
+  swaps separators, folds the drive form and lowercases, so the MSYS-versus-Windows assertion
+  compares exactly what it compared before. The org machine-specific-path detector reads a literal
+  user-home or checkout path as a leaked machine path wherever it appears.
+
+## [0.55.55]
+
+### Changed
+
+- babysit-loop: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+
+## [0.55.54]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
+## [0.55.53]
+
+### Changed
+
+- babysit-loop: removed issue numbers and "today" phrasing from the loop-knob, budget, and promotion-gate rules; restated the promotion-evidence seam state as a present-tense fail-closed rule with a recheck trigger; dropped the merge-authority protocol and the trigger-phrase list from the description
+- babysit-prs: removed incident narration and issue numbers from the pre-compute note, the autopilot merge tier, the gotchas, and the safety, freshness, cadence, independent-resolution, orchestration, runbook-cycle, and stuck-checks references; stated the classifier-denial and reachability rules in the present tense; replaced the description's trigger-phrase list with intent categories; regenerated guard-contract.md from the edited claim strings
+- commit: removed revision history and pinned model names from the pre-compute, trailer, and key-spelling sections; the exec-bit reference states the rename-arm rule without the decision record
+- pull-request: lowered the register of the monitor checklists; removed observed-incident narration from the gotchas and the monitor, readiness, create, and merge references; made the stale-base guard portable to consuming repos
+- resolve-conflicts: merged the two pre-compute notes into one present-tense rule
+- setup: dropped the review-finding ids, the gotchas session-log intro, and the retirement-manifest justification sentence on the shadowed-markdown probe; tightened the description to intent categories
+- worktree: removed pre-compute archaeology, the closed upstream issue pointers, and the author-machine record counts; stated the reap-record rules in the present tense
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
 ## [0.55.52]
 

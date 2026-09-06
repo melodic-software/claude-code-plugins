@@ -10,10 +10,10 @@ Find files in scope:
 ```bash
 # CLAUDE.md and rules files, PROJECT and USER scope, each tagged with its scope.
 # The bundled script resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude} the same way the
-# memory-dir resolver does. A bare `find .` sees project scope only, which left
-# ~/.claude/CLAUDE.md and ~/.claude/rules/*.md audited by nothing — they load in
-# every session. C6 owns instruction-content conflicts across this population
-# (including user↔project); I15 owns pairs with an anchor outside it.
+# memory-dir resolver does. A bare `find .` sees project scope only and misses
+# ~/.claude/CLAUDE.md and ~/.claude/rules/*.md, which load in every session.
+# C6 owns instruction-content conflicts across this population (including user
+# and project pairs); I15 owns pairs with an anchor outside it.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
 # Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`
 
@@ -70,12 +70,8 @@ each discovered file. Apply by entity type:
   `CLAUDE.md` / `.claude/rules/` declare for its instruction layer (see SKILL.md
   "Consumer-convention extension seam")
 
-For each check:
-
-1. Read the "How to check" instructions literally
-2. Execute the check steps
-3. Record the finding with severity (FAIL/WARN/INFO) or PASS
-4. Include the specific evidence (line count, file path, contradicting text)
+For each check, record PASS or a FAIL/WARN/INFO finding with the evidence its criteria row asks
+for: the line count, file path, or contradicting text.
 
 **Be mechanical on the deterministic spine (C1/M1/RD1, and M2's script-backed half)** — the
 criteria file defines what passes and fails there, so same criteria = same results. M2's other
@@ -112,11 +108,10 @@ resolver SKILL.md names. Derive it there rather than restating a path here, so t
 readers (`report` and `fix`) cannot drift apart. Create the directory if absent; audit output stays
 contributor-local because it covers personal auto-memory.
 
-**No migration from the pre-rename `health/` layout, deliberately.** Both older layouts wrote a
-machine-global file with no project segment, so nothing records which repository produced it, and it
-cannot be adopted into a project's key without inventing that attribution — the exact defect the key
-removes. Where one is present, name its path to the user as a leftover they may delete. See SKILL.md
-"Report location".
+**A `health/` directory or an unkeyed `audit/last-audit.md` is never migrated into a project's
+key.** It carries no project segment, so nothing records which repository produced it, and adopting
+it would invent that attribution. Where one is present, name its path to the user as a leftover
+they may delete. See SKILL.md "Report location".
 
 Present the report to the user with:
 

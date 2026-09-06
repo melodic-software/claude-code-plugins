@@ -92,7 +92,7 @@ playwright-cli run-code "async page => {
 playwright-cli -s=login open https://app.example.com/login --persistent
 playwright-cli -s=login snapshot
 playwright-cli -s=login fill e1 "user@example.com"
-playwright-cli -s=login fill e2 "password123" --submit
+playwright-cli -s=login fill e2 "$E2E_TEST_PASSWORD" --submit
 playwright-cli -s=login state-save auth.json
 playwright-cli -s=login close
 
@@ -102,6 +102,9 @@ playwright-cli -s=test open https://app.example.com/dashboard
 # ... run tests against authenticated app ...
 playwright-cli -s=test close
 ```
+
+Set `E2E_TEST_PASSWORD` in your own environment before running this. An unset variable
+expands to an empty string and the fill succeeds while typing nothing.
 
 ## Security invariants
 

@@ -18,17 +18,17 @@
 
 Techniques here are community-reported and **not Suno-documented**. Exact magnitudes vary by prompt.
 
-**Confidence is per section, not per file** — read the flag on the section you are using. This file's blanket "community-validated through empirical testing" header was removed in 1.1.2: it asserted validation the file cannot back, while two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.
+**Confidence is per section, not per file** — read the flag on the section you are using. This file carries no blanket rung, because two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.
 
 Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section style overrides" (lyrics-as-second-style-channel technique).
 
 ## Tag order
 
-**The two halves of this rule now have different standing.** The r/SunoAI pass that 1.1.3 said could not run **did run**, via the browser route, on 2026-08-12. It sources one half at the bottom rung and leaves the other exactly where it was.
+**The two halves of this rule have different standing.** An r/SunoAI pass run via the browser route on 2026-08-12 sources the first half at the bottom rung and leaves the second unsourced.
 
 - **Front-loading — now community-attested at LOW-MEDIUM.** An upvoted r/SunoAI guide post, [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/) (13 votes, 28 comments), leads with **"Key Insight 1: Order Matters"** and states that Suno assigns importance by order, that the first descriptors set the stage while later ones add flavor, and that you should put the most crucial element first. It gives a paired optimized/less-effective example differing **only** in which half leads. Read by eye from the rendered page on 2026-08-12.
 
-  **LOW-MEDIUM, not MEDIUM** — and the rung is the ladder's, not a judgment call. `SKILL.md` defines LOW-MEDIUM as *"at most a single community post plus its own comment thread"*, which is exactly what this is: **one** post. MEDIUM needs multiple guides **plus** Reddit consensus, and no second independent source states per-tag weighting — the first-party beat article speaks to category order, not tag weight, and the v4.5 help article points away from prioritized tokens. This is a genuine upgrade from 1.1.1's *"never checked in either direction"*, and it stops there.
+  **LOW-MEDIUM, not MEDIUM** — and the rung is the ladder's, not a judgment call. `SKILL.md` defines LOW-MEDIUM as *"at most a single community post plus its own comment thread"*, which is exactly what this is: **one** post. MEDIUM needs multiple guides **plus** Reddit consensus, and no second independent source states per-tag weighting — the first-party beat article speaks to category order, not tag weight, and the v4.5 help article points away from prioritized tokens.
 - **Middle-tag softening (roughly 4-7) — still unsourced, in either direction.** The post above says nothing about middle positions, and nothing else found does either. This half stays an untested rule of thumb; do not let the sourcing of the first half carry it.
 - **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested. Searched for directly: no source addresses placement at all.
 
@@ -48,7 +48,7 @@ Practical: if mood matters more than genre for a specific song, lead with mood. 
 
 **It varies the right variable but cannot measure the effect, and this skill's own guidance says why.** `tips.md` "Generate 4 versions per prompt" states *"Variance is high. First generation is rarely best."* Against a stochastic generator, one run per ordering leaves run-to-run variance as an uncontrolled confounder: two different outputs are exactly what you would expect from the *same* prompt twice. Isolating position needs repeated or seed-controlled comparison, which nobody has published. The same thread's other reply says merged styles need no particular order.
 
-So: **a hypothesis with a clean design and no power behind it.** Recorded as an anecdote and as the shape a real test would take — not as evidence. The old wording "Order encodes priority" stays out, and prefer the hierarchy framing below, which independent sources do support.
+So: **a hypothesis with a clean design and no power behind it.** Recorded as an anecdote and as the shape a real test would take, not as evidence. Prefer the hierarchy framing below, which independent sources do support; do not state that order encodes priority.
 
 ```
 synth-pop with dream-pop textures
@@ -62,13 +62,9 @@ dream-pop with synth-pop production
 
 These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once — so use it as an illustration of anchor/accent, never as evidence about position. The comma-swap report above varies position alone but, as noted, has no power behind it, so **no source here isolates position with evidence**.
 
-**Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. The former "hard cap: 2" was this file's own sharpening; two sources model exactly one anchor plus one accent, a third warns against "three-way competition", and none states a numeric cap. Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
+**Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. No source states a numeric cap: two sources model exactly one anchor plus one accent, and a third warns against "three-way competition". Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
 
-**Still between LOW-MEDIUM and MEDIUM — but now because the Reddit pass ran, not because it could not.** `SKILL.md` defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides give the first half. The 2026-08-12 r/SunoAI pass found **one** corroborating post (its "first descriptors set the stage, later ones add flavor" is the same stage/flavor hierarchy) and one thread split on bare order — corroboration, not consensus. One post is the ladder's own LOW-MEDIUM ceiling, so the Reddit clause is **still unmet**, and the section is not rounded up.
-
-What changed is the basis, not the rung: 1.1.2 and 1.1.3 rated this down for an *untried* corpus, which was wrong twice over — the corpus was reachable, and the pass now says something specific. Surface as an opt-in suggestion, not a default.
-
-1.1.2 and 1.1.3 recorded the Reddit half as unmet and untried on the belief that `reddit.com` was unreachable. **It was reachable the whole time** — via the browser route this plugin's own `workflow-recipes.md` already documented. The gap was an unread in-repo note, not a blocked corpus.
+**Between LOW-MEDIUM and MEDIUM.** `SKILL.md` defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides give the first half. The 2026-08-12 r/SunoAI pass found **one** corroborating post (its "first descriptors set the stage, later ones add flavor" is the same stage/flavor hierarchy) and one thread split on bare order: corroboration, not consensus. One post is the ladder's own LOW-MEDIUM ceiling, so the Reddit clause is **still unmet**, and the section is not rounded up. Surface as an opt-in suggestion, not a default. Reach r/SunoAI through the browser route `workflow-recipes.md` documents; web search and direct fetch both fail there, and a failed search is not a closed corpus.
 
 Verified 2026-08-12; each web page below fetched live by `curl` (bodies arrived whole; character counts are of the extracted text, quotes verbatim), each Reddit thread read by eye from the rendered page.
 
@@ -333,9 +329,7 @@ Suno is aware; treat as known issue until fixed.
 
 ## Confidence note
 
-Community-validated through extensive empirical testing across multiple users on hookgenius, blakecrosley, jackrighteous, songaifarm guides + Reddit r/SunoAI consensus + creator-community testing. Suno does not officially document most. Effects reproducible; exact magnitudes (e.g., "20% higher adherence") are folk wisdom, not measured.
-
-Treat as **MEDIUM-HIGH confidence empirical patterns** — solid enough for production prompts, but always A/B test against straight-formula approach when stakes are high.
+There is no per-file rung. Read the flag on the section you are using: an unflagged section has not been audited, and `SKILL.md` "Confidence flags" defines what each rung requires. Sources drawn on across this file are the hookgenius, blakecrosley, jackrighteous and songaifarm guides plus r/SunoAI; Suno documents most of these techniques nowhere. Exact magnitudes such as "20% higher adherence" are folk wisdom, not measured, so A/B test against the straight-formula approach when stakes are high.
 
 **Conflicts / unverified:**
 

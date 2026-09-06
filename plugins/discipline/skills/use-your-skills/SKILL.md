@@ -97,23 +97,15 @@ those:
   route to `/claude-config:audit`, invoked via the Skill tool (degrade to prose).
   `/doctor` estimates the
   listing's cost.
+- **Deterministic per-prompt routing.** A `UserPromptSubmit` hook that injects a
+  task-to-skill mapping on every message is an always-on mechanism with a
+  per-prompt token cost, owned by a hooks-capable plugin, not by this corrector.
+  Recommend it to the user only when the soft re-anchor repeatedly fails to
+  surface a skill that was in the listing.
 
 The dividing line: if a skill was in the listing and simply went unused, that
 is this skill. If a skill could not surface because its description was thin or
 the listing overflowed its budget, that is the routed territory above.
-
-## Deferred, a per-prompt routing hook
-
-A soft re-anchor is a standing instruction: it persists across turns and
-raises the habit of consulting the listing, but it does not *deterministically*
-route every prompt to its skills. Deterministic per-prompt routing needs a
-`UserPromptSubmit` hook that injects the mapping as additional context on every
-message, a heavier, always-on mechanism with a per-prompt token cost. This is
-**deliberately deferred**, not built here. Trigger to revisit: audits of this
-skill repeatedly show "the skill existed, the description never surfaced it," or
-skills are repeatedly not firing despite the soft re-anchor. The hook seam is
-owned by a hooks-capable plugin (the `claude-ops` hook-ownership precedent), not
-by this corrector.
 
 ## What this skill does NOT do
 

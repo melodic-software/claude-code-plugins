@@ -1,5 +1,5 @@
 ---
-description: "Answers mutation-testing questions from the primary literature (DeMillo/Lipton/Sayward, Jia & Harman, Google's ICSE-SEIP papers, and the Stryker/PIT/Infection tool docs), producing WHY reasoning about what a surviving mutant means. Use when: 'what is mutation testing', 'mutation score vs coverage', 'what is test strength', 'killed vs survived mutant', 'equivalent mutant', 'which mutation operators', 'why is my mutation score low', 'is mutation testing worth it', 'should we gate on mutation score', 'what is an arid node', 'coupling effect', 'competent programmer hypothesis', not for HOW to run a mutation tool in your project (use `/mutation-testing:setup` and `/mutation-testing:audit`)."
+description: "Answers mutation-testing questions from the primary literature (DeMillo/Lipton/Sayward, Jia & Harman, Google's ICSE-SEIP papers, and the Stryker/PIT/Infection tool docs), producing WHY reasoning about what a surviving mutant means. Use when: the user asks what mutation testing is or whether it is worth doing, asks how the score relates to coverage ('mutation score vs coverage', 'what is test strength'), asks what a mutant's state or disposition means ('equivalent mutant', 'what is an arid node'), asks which operators to use or why a score is low, asks whether to gate a build on the score, or names the underlying theory ('coupling effect', 'competent programmer hypothesis'); not for HOW to run a mutation tool in your project (use `/mutation-testing:setup` and `/mutation-testing:audit`)."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -75,3 +75,7 @@ the tests.
 - Answer general test-design questions (mocking, four pillars, classical vs London). Those belong to
   `/tdd:principles` when the `tdd` plugin is installed; without it, consult your project's own
   test-design guidance.
+- Explain what a coverage, CRAP, or complexity number can and cannot say on its own. Those
+  cross-metric caveats belong to `/code-metrics:principles` when the `code-metrics` plugin is
+  installed; without it, hold to the one rule this skill does own: coverage records execution,
+  not detection, and no coverage figure substitutes for a mutation score.

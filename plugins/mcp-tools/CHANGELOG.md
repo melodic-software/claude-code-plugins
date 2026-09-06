@@ -3,6 +3,13 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Changed
+
+- audit: dropped the two Claude Code version floors from the C18 and C19 checklist rows; removed the orientation-section annotation sentence whose spec-provenance claim was wrong for C17 to C19 (the scoped rule at C12 to C14 and in SKILL.md stays); Phase 1 discovery is one command with its `--path` scoping clause instead of two steps saying the same thing; the Python server-constructor note names both spellings without the module-rename history.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.3.2]
 
 ### Changed

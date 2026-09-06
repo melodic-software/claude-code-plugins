@@ -36,7 +36,7 @@
       "expectations": [
         "Does not silently omit the timeout step on macOS",
         "Does not substitute an unverified probe command as if it were checked",
-        "States that synthesized input does not reset the idle timer on any platform"
+        "States that the idle-timer hazard applies on macOS as well, without claiming it was measured there"
       ]
     }
   ]

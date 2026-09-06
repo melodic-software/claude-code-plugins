@@ -26,8 +26,8 @@ The construction site is usually **not** one of that server's `Tool file:` paths
 constructs itself at one entry point while tools are registered elsewhere. Search the directory subtree
 those paths share for the per-language spelling, rather than reading the tool files alone:
 
-- **python:** the `instructions=` keyword argument to the server constructor (`FastMCP(...)`, or
-  `MCPServer(...)` since the SDK renamed the module to `mcp.server.mcpserver`)
+- **python:** the `instructions=` keyword argument to the server constructor, spelled either
+  `FastMCP(...)` or `MCPServer(...)`
 - **typescript:** the `instructions` field of the options object passed to
   `new McpServer(serverInfo, { ... })` — the SDK's `ServerOptions.instructions`
 - **dotnet:** the `ServerInstructions` property on `McpServerOptions`, set where server options are

@@ -42,25 +42,18 @@ Run this in place of the sibling's inline audit and correct-forward steps:
    subsystem/repo under review. Each config block, API call site, infra
    definition, and documented contract the work rests on. Do not spot-check
    one.
-2. **Fan out, throttled, doc-by-doc.** Dispatch fresh-context subagents
-   (blind to the assumptions that produced each surface) to fetch the
-   CURRENT official upstream docs for that surface and classify its
-   divergence per the sibling's three categories. Throttle the dispatch in
-   bounded waves rather than launching one agent per surface at once. A
-   sustained wide fan-out trips server-side burst overload (529s) and loses
-   agents mid-run. Cap concurrency to a modest wave (roughly a dozen or
-   fewer); process the surfaces wave by wave.
-3. **Retry the failed subset only.** If an agent errors or times out, retry
-   that surface once; on a second failure mark it unverifiable, an honest
-   skip, never a false pass. Never blind-re-run the whole fan-out to recover
-   a few stragglers.
-4. **Checkpoint the partial ledger mid-run, if a durable slice exists.** So
+2. **Fan out, throttled, doc-by-doc.** Dispatch per
+   [`${CLAUDE_PLUGIN_ROOT}/context/fan-out.md`](../../context/fan-out.md):
+   blind fresh-context subagents, bounded waves, failed-subset retry. Each
+   subagent fetches the CURRENT official upstream docs for its surface and
+   classifies the divergence per the sibling's three categories.
+3. **Checkpoint the partial ledger mid-run, if a durable slice exists.** So
    a crash mid-fan-out does not lose completed waves, checkpoint the partial
    ledger to the session's durable topic-memory slice when one is available;
    where the session has no such durable store, proceed without it rather
    than asserting a persistence surface. This is the only persistence this
    tier performs. Nothing is mandatory beyond it.
-5. **Merge and report an inline divergence ledger.** One list keyed by
+4. **Merge and report an inline divergence ledger.** One list keyed by
    surface: its category (gap / deliberate / undocumented) and the current
    upstream source that resolved it. Correct gaps toward upstream this turn;
    re-check that deliberate divergences still hold and flag any the docs have
@@ -87,12 +80,3 @@ Run this in place of the sibling's inline audit and correct-forward steps:
   invents one.
 - **Does not fabricate conformance or a finding.** An honest per-surface
   "matches current docs" or "unverifiable" is the right output when true.
-
-## Gotchas
-
-- **Throttle is not optional at scale.** The failure mode is a
-  surface-heavy subsystem firing one agent per surface simultaneously; the
-  wave cap and failed-subset retry are what keep the fan-out reliable.
-- **Blind subagents, or it is not fresh context.** An agent handed the
-  assumption that produced a surface re-confirms the same drift. Verify
-  against the current upstream doc, not the reasoning for the state.

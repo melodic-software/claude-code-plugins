@@ -38,14 +38,11 @@ Private surface — external consumers invoke
 
 ## Worker tiering
 
-Verify and execute are judgment stages (gate rulings, wrong-abstraction
-calls, prose rewrites), so workers there run a strong general-purpose
-tier — as of 2026-08 that means an Opus-class model (example, not a
-pin; resolve the current tier names from the platform's model docs at
-run time). Mechanical stages — phrase sweeps, lint passes, count
-scripts — run cheaper tiers or plain scripts. Never let the whole fleet
-silently inherit the orchestrator's tier: at fleet volume, every notch
-of over-provisioning multiplies.
+Verify and execute are judgment stages (gate rulings, wrong-abstraction calls, prose rewrites), so
+workers there run a strong general-purpose tier; resolve the current tier names from the platform's
+model docs at run time. Mechanical stages — phrase sweeps, lint passes, count scripts — run cheaper
+tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
+volume, every notch of over-provisioning multiplies.
 
 ## Concurrency — static, conservative, capped
 
@@ -89,8 +86,9 @@ installed plugin cannot read a sibling plugin's files at runtime.
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
   consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries **no account-identifier field**, so a write is the only signal that the windows changed
-  under you (account switch, another session's refresh).
+  carries an **`account.email` field when the writer could attribute the observation**, so a write
+  is still the signal that the windows changed under you (account switch, another session's
+  refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 

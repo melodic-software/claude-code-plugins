@@ -52,7 +52,7 @@ re-query the sections by hand.
 A review that lands after a merge has nowhere to go: the ruleset's
 `required_review_thread_resolution` is a merge-time predicate that already passed, the babysit lane
 works *open* PRs, and nothing on a merged PR surfaces its open threads. This section is the only
-place they appear (#1777). The comment-vs-merge timestamp comparison is the discriminator, a thread
+place they appear. The comment-vs-merge timestamp comparison is the discriminator, a thread
 that predates the merge was visible to the gate and is an ordinary unresolved thread, not this
 failure mode.
 

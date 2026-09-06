@@ -205,7 +205,7 @@ assert_contains "GAP (c) names additionalDirectories" "$OUT" "additionalDirector
 assert_eq "uncovered root → one gap" "1" "$(run "$REPO" "$CFG8" --count --worktree-root "$POSIX_CHILD")"
 
 # --- Case 9: cross-form Windows/POSIX path coverage --------------------------
-# additionalDirectories entry in Windows form (D:\repos\.worktrees) must cover a
+# additionalDirectories entry in Windows form (<drive>:\repos\.worktrees) must cover a
 # child expressed in git-bash POSIX form (/d/repos/.worktrees/495-x).
 assert_eq "Windows-form entry covers POSIX-form child" "0" "$(run "$REPO" "$CFG3" --count --worktree-root "$POSIX_CHILD")"
 
