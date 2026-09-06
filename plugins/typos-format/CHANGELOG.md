@@ -27,7 +27,6 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   answered; `command -v typos` is no longer captured. The typos exec, jq
   payload parse, and isolation of a missing binary are unchanged.
 
-
 ## [0.6.46]
 
 ### Changed

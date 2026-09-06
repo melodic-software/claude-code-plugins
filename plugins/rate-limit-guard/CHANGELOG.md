@@ -21,7 +21,6 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
   argv, unresolved-root fallback, and relative-path redaction are unchanged.
 
-
 ## [0.8.3]
 
 ### Changed

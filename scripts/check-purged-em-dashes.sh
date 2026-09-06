@@ -185,7 +185,9 @@ glob_matches_path() {
       [[ -z "${pparts[i]}" ]] || return 1
       continue
     fi
-    # shellcheck disable=SC2254  # unquoted pattern is the glob; components already cannot contain /
+    # Unquoted RHS is the glob; quoting would compare literals and let `*`
+    # match across the slash we just split on. SC2053/SC2254 warn about that.
+    # shellcheck disable=SC2053,SC2254
     [[ "${pparts[i]}" == ${gparts[i]} ]] || return 1
   done
   return 0

@@ -21,7 +21,6 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
   argv, unresolved-root fallback, and relative-path redaction are unchanged.
 
-
 ## [0.6.40]
 
 ### Changed

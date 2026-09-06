@@ -21,7 +21,6 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
   over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
   argv, unresolved-root fallback, and relative-path redaction are unchanged.
 
-
 ## [0.8.40]
 
 ### Changed

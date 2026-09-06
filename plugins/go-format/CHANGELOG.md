@@ -21,7 +21,6 @@ All notable changes to the `go-format` plugin are documented here. Format follow
   over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
   argv, unresolved-root fallback, and relative-path redaction are unchanged.
 
-
 ## [0.3.43]
 
 ### Changed

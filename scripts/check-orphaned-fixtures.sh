@@ -102,6 +102,9 @@ ere_escape_to() {
   for ((__i = 0; __i < ${#__s}; __i++)); do
     __c="${__s:__i:1}"
     case "$__c" in
+    # Unquoted `\\` is one backslash. A quoted `'\\'` arm is two backslash
+    # characters, so a basename containing a single `\` would not be escaped
+    # and `grep -E` would treat `\b` as a word boundary.
     \\ | '.' | '|' | '$' | '(' | ')' | '[' | ']' | '{' | '}' | '?' | '+' | '*' | '^')
       __out+="\\$__c"
       ;;
