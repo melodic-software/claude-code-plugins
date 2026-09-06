@@ -50,14 +50,32 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# ONE process for the field, not four. A command substitution whose body carries
+# a redirection OF ITS OWN forks the substitution subshell and then forks again
+# to run the command; hoisted onto a group holding exactly ONE command, bash
+# execs jq in the substitution's own subshell instead. The `printf … |` feed and
+# the `| tr` strip were two more processes on top of that: the payload now rides
+# in on the group's here-string (a bash-internal pipe, no process) and the CR
+# strip is the same all-CRs-removed contract done with parameter expansion. One
+# command in the group is the safety property — `2>/dev/null` silences exactly
+# what `jq … 2>/dev/null` silenced before and nothing else. Same hoist as the
+# containment sibling; strace counted 4 creations / 2 execve before, 1 / 1 after.
+{ COMMAND=$(jq -r '.tool_input.command // empty'); } <<<"$INPUT" 2>/dev/null
+COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Ii][Tt][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
-SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -d '\r')
+# Same single-command-group hoist as the command read above. Two groups rather
+# than one jq reading both fields: the group's ONE-command shape is what proves
+# the redirection silences nothing extra, and two jq execs on this path cost
+# less than the batched reader's process substitution (3 creations) plus the
+# NUL-flag verdict contract a blocking-adjacent caller would then have to honour.
+{ HOOK_CWD=$(jq -r '.cwd // empty'); } <<<"$INPUT" 2>/dev/null
+HOOK_CWD="${HOOK_CWD//$'\r'/}"
+{ SESSION=$(jq -r '.session_id // empty'); } <<<"$INPUT" 2>/dev/null
+SESSION="${SESSION//$'\r'/}"
 
 CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"
 [[ -f "$CLAIM" ]] || exit 0
@@ -235,10 +253,17 @@ for target in "${CLAIM_TARGETS[@]}"; do
   if [[ -n "$SESSION" ]]; then
     args+=(--session-id "$SESSION")
   fi
-  err_file="$(mktemp "${TMPDIR:-/tmp}/worktree-add-claim.XXXXXX")" || continue
   claim_rc=0
-  claim_out="$(bash "$CLAIM" "${args[@]}" 2>"$err_file")" || claim_rc=$?
-  rm -f "$err_file"
+  # The helper's stderr is discarded, and `2>/dev/null` is the whole of what the
+  # temp file used to do: it was created, written by the redirection, and
+  # removed without ever being read. Dropping it removes two processes (mktemp,
+  # rm) and the `|| continue` fail-open that silently skipped the claim whenever
+  # TMPDIR was unwritable. The redirection sits on a group holding exactly ONE
+  # command, so it silences the helper's stderr and nothing else, and `$?` on
+  # the group is still the HELPER's status — `claim_rc=$?` stays outside it, per
+  # the reason spelled out in the create-gate sibling: read inside `if ! cmd`
+  # it would be a constant 0.
+  { claim_out="$(bash "$CLAIM" "${args[@]}")"; } 2>/dev/null || claim_rc=$?
   if [[ "$claim_out" == *"worktree-claim.sh: lane active"* && "$claim_rc" -eq 0 ]]; then
     claimed_any=1
   fi

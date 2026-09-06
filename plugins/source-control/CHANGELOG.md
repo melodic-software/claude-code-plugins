@@ -3,6 +3,54 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.61]
+
+### Changed
+
+- **The three worktree gates read their payload fields in one process each instead of four.**
+  `worktree-add-containment-gate.sh`, `worktree-add-claim-gate.sh` and `worktree-create-gate.sh`
+  each read the hook payload through `$(printf '%s' "$INPUT" | jq … 2>/dev/null | tr -d '\r')`.
+  A command substitution whose body carries a redirection of its own forks the substitution
+  subshell and then forks again to run the command; hoisted onto a group holding exactly one
+  command, bash execs in the substitution's own subshell. The payload now arrives on the group's
+  here-string and the CR strip is a parameter expansion, so each field costs one process. The
+  same hoist moved `git_unlocated`'s `2>/dev/null` onto its subshell, collapsed the block
+  message's `git config --get-all | tail -n 1 | tr -d '\r'` root lookup to one `git`, and
+  replaced the claim gate's write-only stderr temp file (a `mktemp` and an `rm` whose contents
+  were never read) with `2>/dev/null`, which also removes the `|| continue` that silently skipped
+  a claim whenever `TMPDIR` was unwritable. The create gate's field reader became a `_to` form,
+  keeping its jq program text byte-for-byte so a non-string `.name` still falls through to the
+  string-shaped fallback rung and is still refused.
+
+  Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`, process creations then
+  `execve`, before → after:
+
+  | Path | creations | `execve` |
+  | --- | --- | --- |
+  | containment, a `worktree` command that is not an `add` | 8 → 5 | 3 → 2 |
+  | containment, an `add` outside every repository | 22 → 14 | 7 → 5 |
+  | containment, an `add` into a working tree (blocks) | 21 → 14 | 7 → 5 |
+  | containment, an `add` into a `.git` directory (blocks) | 27 → 18 | 9 → 7 |
+  | containment, `git -C <repo> worktree add` (blocks, names the configured root) | 26 → 16 | 10 → 6 |
+  | claim, a `worktree` command that is not an `add` | 8 → 5 | 3 → 2 |
+  | claim, a parsed `add` target | 28 → 16 | 11 → 6 |
+  | create, a payload carrying no `.name` | 19 → 7 | 6 → 4 |
+
+  The `execve` drops are named removals, not removed work: `tr -d '\r'` (a parameter expansion
+  now), `tail -n 1` (a `${r##*$'\n'}` expansion), `head -n 1` (a `${v%%$'\n'*}` expansion), and
+  the claim gate's `mktemp`/`rm` pair. Every remaining `jq`, `git` and `sed` call is the same
+  call with the same arguments. Four of the five creations left on the hot path belong to
+  `lib/hook-utils.sh` (the `hook::buffer_stdin` substitution and `hook::json_complete`'s
+  `printf | jq -e .`), which is synced across 17 plugin copies and out of scope here.
+
+### Added
+
+- **`hooks/worktree-gates-spawn-budget.test.sh`** holds those counts as ceilings, measured with
+  `strace` because the cost is a fork that never execs and neither `set -x` nor a `PATH` shim can
+  see one. Upper bounds, not equalities, so a later library change that removes more work does
+  not fail it. Proven non-vacuous against seven mutants, one per hoist. It skips as a suite where
+  `strace` is absent or cannot ptrace, rather than asserting on empty trace output.
+
 ## [0.55.58]
 
 ### Changed

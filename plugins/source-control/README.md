@@ -233,6 +233,30 @@ two hook processes. The same best-effort caveat applies: a command containing `$
 backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
 what the substitution expands to.
 
+#### Measured cost
+
+The two Bash-matcher worktree gates and the `WorktreeCreate` gate, counted as kernel
+process creations rather than wall time: the host that reported these hooks timing out
+pays 0.3-0.9 s per spawn, so wall time there describes contention more than it describes
+the hook. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`:
+
+| Path | clone-family | `execve` |
+| --- | --- | --- |
+| Either Bash gate, a `worktree` command that is not an `add` | 5 | 2 |
+| `worktree-add-containment-gate`, an `add` it allows | 14 | 5 |
+| `worktree-add-containment-gate`, an `add` it blocks | 14-18 | 5-7 |
+| `worktree-add-claim-gate`, a parsed `add` target | 16 | 6 |
+| `worktree-create-gate`, before it reaches the placement helper | 7 | 4 |
+
+Four of the five creations on the not-an-`add` path belong to
+[`lib/hook-utils.sh`](../../lib/hook-utils.sh), not to these gates: the
+`hook::buffer_stdin` substitution and `hook::json_complete`'s `printf | jq -e .`. The
+gates' own share of that path is one `jq`. The block-path spread is the ancestor walk:
+a `.git`-directory target asks `git rev-parse` a third time, and a block message that
+names a configured root reads the `melodic.worktreeroot` key.
+`hooks/worktree-gates-spawn-budget.test.sh` holds these numbers as ceilings and proves
+itself non-vacuous against seven mutants, one per hoist.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
