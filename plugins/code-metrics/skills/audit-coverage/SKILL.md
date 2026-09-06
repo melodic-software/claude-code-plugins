@@ -67,9 +67,18 @@ otherwise keep the JSON beside your notes and compare by hand.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end
   line), `line-range` when the range came from the complexity collector, in which case nested
-  function ranges are subtracted from the parent first, and `statement-ratio` on a file row whose
-  percentage came from a Go profile's statements rather than from a line table. The markdown table
-  renders the values; the per-row `cov_source` and `hit` fields are in the `--json` document.
+  function ranges are subtracted from the parent first, `statement-ratio` on a file row whose
+  percentage came from a Go profile's statements rather than from a line table, and `ambiguous`
+  on a function the join refused. The markdown table renders the values; the per-row `cov_source`
+  and `hit` fields are in the `--json` document.
+- A function the artifact names by a short name binds to the function whose line range holds the
+  lines the artifact recorded, not to whichever function the name happens to end at. Two `run`
+  methods in one file and a record named `run` are one function's coverage, and the range says
+  whose. Where nothing separates the candidates, because the artifact placed none of them at a
+  line or because two of them fall inside the same range, the join is refused rather than guessed:
+  the row reads `cov_source: ambiguous`, every value is null, it carries a `coverage-ambiguous`
+  label, and the lane's run row turns `partial` and names the functions it left unjoined. A
+  missing number an operator can see beats a wrong number they cannot.
 - `hit` is the artifact's function-hit flag. When it says the function was never entered,
   `coverage_pct` is 0 rather than the 1/N a declaration line executed at import would produce.
 - A function with no executable lines in the artifact reports `coverage_pct: null` and
@@ -88,7 +97,8 @@ otherwise keep the JSON beside your notes and compare by hand.
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
   executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
   no artifact covers is `unavailable` with that count; when no artifact was found at all, the
-  reason lists every path searched.
+  reason lists every path searched. A lane that left a function unjoined is `partial` for that
+  reason too.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
   `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;
