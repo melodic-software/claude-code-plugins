@@ -273,7 +273,14 @@ ensure_convention_patterns() {
       fi
     done
     for conv_key in subject_pattern pr_title_pattern; do
-      conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key" 2>/dev/null) || conv_val=""
+      # The redirect sits on a single-command group, NOT inside the
+      # substitution. Bash execs the body in the substitution's own subshell
+      # only when that body carries no redirection of its own, so
+      # `$(cmd 2>/dev/null)` pays a second fork that `{ v=$(cmd); } 2>/dev/null`
+      # does not (measured with `strace -f -e trace=clone,clone3,execve`). The
+      # group holds exactly one command, so its status is still the resolver's
+      # and the `|| conv_val=""` fallback fires on exactly the same failures.
+      { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); } 2>/dev/null || conv_val=""
       case "$conv_key" in
       subject_pattern) SUBJECT_ERE="$conv_val" ;;
       *) TITLE_ERE="$conv_val" ;;
@@ -443,7 +450,11 @@ effective_dir() {
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
   local dir repo="$1" f
-  dir=$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null) || return 1
+  # Redirect on a single-command group, not inside the substitution — see the
+  # note in ensure_convention_patterns. One command in the group, so the
+  # `|| return 1` still reads git's own status and a sequencer probe that fails
+  # is still "no sequencer", exactly as before.
+  { dir=$(git -C "$repo" rev-parse --absolute-git-dir); } 2>/dev/null || return 1
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
     [[ -e "$dir/$f" ]] && return 0
@@ -576,7 +587,12 @@ check_segment() {
       local pexp
       [[ -n "$seg_dir" ]] ||
         seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
-      pexp=$(git -C "$seg_dir" config --get "alias.$sub" 2>/dev/null)
+      # Redirect on a single-command group, not inside the substitution — see
+      # the note in ensure_convention_patterns. This is the one of the three
+      # that sits on the per-tool-call path: every non-builtin git subcommand
+      # is probed for an alias. `pexp` empty (git found nothing, or git is
+      # absent) still means "no alias", unchanged.
+      { pexp=$(git -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
           local preparse pa

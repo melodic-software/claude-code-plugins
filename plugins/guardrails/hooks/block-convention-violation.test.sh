@@ -495,4 +495,110 @@ CLAUDE_PROJECT_DIR="$r" bash "$HOOK" <<<"$(jq -n --arg d "$r" \
   '{tool_name:"Bash",tool_input:{command:("git status" + ([0]|implode))},cwd:$d}')" >/dev/null 2>&1 || nul_rc=$?
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
+# --- process-creation budget on this file's three external call sites ---------
+# WHY A KERNEL TRACE AND NOT A PATH SHIM OR xtrace. The cost this asserts on is
+# a fork that never execs, so neither of the counters this repo already uses can
+# see it: a PATH shim (plugins/performance/scripts/spawn-census.sh) only fires
+# when something is EXECUTED, and `bash -x` prints one line per command in
+# command position whether that command cost one process or two. Only
+# clone/execve from the kernel distinguishes them.
+#
+# THE MECHANIC. GNU Bash runs a command substitution in a forked subshell, and
+# execs the body IN that subshell instead of forking a second time only when the
+# body is a single command carrying NO REDIRECTION OF ITS OWN. So
+# `v=$(cmd 2>/dev/null)` costs two process creations for one exec, while
+# `{ v=$(cmd); } 2>/dev/null` costs one. On the Windows Git Bash hosts this
+# marketplace targets a fork is a full process creation, which is the whole
+# reason the difference is worth a test.
+#
+# THE ASSERTION is per call site, not a total, so it does not go stale when the
+# synced `hook-utils.sh` or the vendored `resolve-convention-pattern.sh` change
+# their own spawn shape (neither is this file's to fix, and both still show the
+# wasted-fork signature in the same trace). For each external command THIS FILE
+# starts, the process that execs it must have a parent that itself execve'd —
+# that is, the exec landed in the substitution's own subshell. A parent that
+# never execs and has exactly one child is the extra fork, and is a failure.
+#
+# NON-VACUITY is asserted, not assumed: each site must actually appear in the
+# trace, so a scenario that stops reaching a site fails here rather than passing
+# by absence.
+STRACE_OK=0
+if command -v strace >/dev/null 2>&1 && strace -f -qq -o /dev/null -e trace=execve true >/dev/null 2>&1; then
+  STRACE_OK=1
+fi
+if ((STRACE_OK == 0)); then
+  echo "skip: strace is unavailable or not permitted here, so the process-creation budget is UNVERIFIED in this run"
+else
+  # Parent map + exec set from one trace. `-s 512` matters: strace truncates
+  # strings at 32 bytes by default, which would cut every argv this matches on.
+  # `<unfinished ...>` / `<... clone resumed>` splits are handled by keying on
+  # any clone/fork line that ends in the child pid.
+  trace_sites() { # <trace log> -> "<label> <yes|NO>" per external command
+    awk '
+      { pid = $1 }
+      (/clone\(|clone3\(|vfork\(|[^e]fork\(/ || /clone resumed|fork resumed/) && / = [0-9]+$/ {
+        n = split($0, a, " = "); child = a[n]
+        if (child ~ /^[0-9]+$/) { parent[child] = pid; kids[pid]++ }
+      }
+      /execve\(/ {
+        execed[pid] = 1
+        line[pid] = $0
+      }
+      END {
+        for (p in line) {
+          l = line[p]
+          lab = ""
+          if (l ~ /resolve-convention-pattern\.sh/) lab = "resolver"
+          else if (l ~ /"rev-parse", "--absolute-git-dir"/) lab = "sequencer-probe"
+          else if (l ~ /"config", "--get", "alias\./) lab = "alias-probe"
+          if (lab == "") continue
+          q = (p in parent) ? parent[p] : "-"
+          printf "%s %s %s\n", lab, (q in execed ? "yes" : "NO"), (q == "-" ? 0 : kids[q]+0)
+        }
+      }
+    ' "$1" | sort
+  }
+  # trace_run <label> <repo> <plugin-data> <command> -> TRACE_LOG
+  trace_run() {
+    local repo="$2" pdata="$3" cmd="$4" json
+    TRACE_LOG="$TEST_TMPDIR/strace-$1.log"
+    json=$(jq -n --arg c "$cmd" --arg d "$repo" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+    CLAUDE_PROJECT_DIR="$repo" CLAUDE_PLUGIN_DATA="$pdata" HOOK_TELEMETRY_SINK="" \
+      strace -f -qq -s 512 -o "$TRACE_LOG" -e trace=clone,clone3,fork,vfork,execve \
+      bash "$HOOK" <<<"$json" >/dev/null 2>/dev/null
+    return 0
+  }
+  # assert_site <site label> <trace output> — every occurrence must be direct.
+  assert_site() {
+    local site="$1" rows="$2" seen extra
+    seen=$(printf '%s\n' "$rows" | grep -c "^$site " || true)
+    if ((seen == 0)); then
+      bad "budget: $site never ran in the traced scenario, so its budget is untested"
+      return
+    fi
+    extra=$(printf '%s\n' "$rows" | grep "^$site " | grep -cv ' yes ' || true)
+    if ((extra == 0)); then
+      ok "budget: $site execs in the substitution's own subshell ($seen call(s), no extra fork)"
+    else
+      bad "budget: $site pays an extra fork in $extra of $seen call(s) — the redirect is back inside the substitution"
+    fi
+  }
+
+  # Cold cache + a stdin-form commit: both resolver forks and the sequencer probe.
+  rt="$(newrepo "$TICKET")"
+  rt_data="$TEST_TMPDIR/pdata-budget"
+  rm -rf "$rt_data"
+  trace_run commit "$rt" "$rt_data" "$GOOD_COMMIT"
+  BUDGET_ROWS="$(trace_sites "$TRACE_LOG")"
+  assert_site resolver "$BUDGET_ROWS"
+  assert_site sequencer-probe "$BUDGET_ROWS"
+
+  # A non-builtin subcommand is the alias probe's only trigger, and it is the
+  # one of the three that sits on the per-tool-call path.
+  trace_run alias "$rt" "$rt_data" "git wibble --dry-run"
+  BUDGET_ROWS="$(trace_sites "$TRACE_LOG")"
+  assert_site alias-probe "$BUDGET_ROWS"
+fi
+
 report
