@@ -3,6 +3,59 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`justify`, a third lane skill.** `/overengineering:justify <target>` applies the plugin's
+  scrutiny method to whatever single artifact you point at, against a two-part test: was there a
+  reason for this when it was built, and does that reason still hold today. It takes a path, a
+  `path#heading`, or a kind-prefixed identifier; a line or comment target widens to its enclosing
+  heading or file and the report's first line says so. It is read-only, reports before it discusses,
+  and never applies a remedy. With no target it never sweeps: it uses what the session has been
+  discussing, else offers to rank candidates by age and waits, else asks.
+- **`context/justification-lane.md`**, the lane binding. Routing precedence first, so a target the
+  enforcement lane already inventories goes to `audit` and gets no row here; then the item inventory,
+  five layers with their discovery probes, evidence sources on the method's tiers, protected-class
+  defaults, the lane's preflight additions, the two gates, the no-target ladder, the boundary against
+  existing owners, and the limits this lane accepts.
+- **A sanctioning-records probe in the shared preflight**, which both lanes run. A repetition that a
+  decision record sanctions and a check maintains is never duplication to collapse, because a finding
+  against it reports a working control as a defect.
+
+### Changed
+
+- **The findings artifact is `schema: 2`.** Five layer values for non-enforcement artifacts
+  (`decision-records`, `documents`, `components`, `dependencies`, `source`), appended so the
+  sort-significant enum order is preserved. A non-spine `Basis` field records whether a verdict is
+  `measured`, `class-inferred`, or `unexamined`, required only on rows a schema-2 run writes, so rows
+  carried forward from schema 1 stay legal. Frontmatter gains `mode` and `targets`, and a
+  targeted-run clause governs the merge rules so a pointed run never closes a finding it did not
+  fully examine. Closing takes every site in `targets`; refreshing a verdict or a suppression
+  disposition takes any one of them, so a finding binding two artifacts is not frozen by a lane that
+  points at one at a time. That clause defines target membership on the sites a run actually
+  derived rather than on a matching path string, because a target naming a heading matches no site's
+  surface and a target naming a file or directory would otherwise sweep in sections nobody opened.
+  Finding ids gain a producer segment, an `artifact-item` claim, a `package:<ecosystem>/<name>`
+  prefix, and a heading locator; a routed target produces no id and no row.
+- **Re-read before write is now a producer obligation on every writer**, stated in the contract
+  rather than in one lane. Two producers write one file, and a merge against a copy loaded earlier in
+  a run drops the other's rows with no closure record, since a closure row is written only for a
+  layer the run walked and the two producers walk disjoint layers.
+- **The contract's obligations table carries a column per skill**, including the second producer, so
+  the schema refusal, the branch refusal, the missing-artifact behaviour and the evidence-availability
+  duty are stated for it rather than inferred.
+- **`realign` presents a `justify`-producer row, judges it, and never remediates it here**, naming
+  the owner from the lane's boundary and offering no rung, because its rollback ladder is
+  enforcement-shaped. The operator still decides such a row: `REJECTED` records a keep and earns its
+  durable judgment entry, and `DELEGATED-EXTERNAL` stays available where custody is upstream. What is
+  withheld is the ladder, not the decision. One eval covers the presentation and the withheld rung;
+  the disposition half is stated in the skill body and not yet graded.
+- **`delta` reports this lane's layers as not walkable rather than not walked**, since it composes
+  `audit` and no cycle at any scope will compare them. `Basis` stays outside the spine and never
+  enters the diff.
+- **`audit` writes `schema: 2` and `mode: walk`**, and accepts either schema on read.
+
 ## [0.3.8]
 
 ### Changed

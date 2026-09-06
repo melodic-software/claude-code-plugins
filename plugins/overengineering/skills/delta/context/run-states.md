@@ -82,6 +82,26 @@ load-bearing:
   in them**. Never as findings. A layer-scoped cycle that read as a clean bill of health for the
   whole surface would be worse than no cycle at all.
 
+**Two kinds of absence, distinguished in that coverage line.** A layer this cycle could have walked
+and did not is *not walked this run*, and a later cycle with a wider `scope` will cover it. The
+justification lane's layers (`decision-records`, `documents`, `components`, `dependencies`,
+`source`) are *not walkable by `audit`* at all: this lane composes `overengineering:audit`, whose
+`scope` draws only on the ten enforcement layers, so no cycle at any scope will ever compare a
+finding produced by `overengineering:justify`. Report them under that second label with their held
+count, so an operator reads "outside this lane" rather than "pending next cycle". Those findings are
+re-judged by pointing that lane at the artifact again, never by a delta cycle.
+
+**An intervening targeted run cannot move an evidence-availability token, and this lane could not
+see one if it did.** A `mode: targeted` artifact appends its own per-target availability lines and
+leaves the walk's per-tier tokens untouched, so every token this lane compares was written by a
+walk and a difference between two of them is a real move. That guarantee is what makes the
+comparison sound, because the detection is not reliably available: **the spine baseline** records
+`source-date` and `source-scope` and no mode, so the baseline alone never says whether a pointed run
+sat inside the span. The current artifact's frontmatter does carry `mode`, but it is present rather
+than consulted here, and it would answer only what the latest write was, never what happened across
+the span. Rely on the guarantee rather than looking for the run, and never report an
+availability move as uncertain on the grounds that one might have.
+
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
 `scope` carries baseline rows that are themselves stale carry-forwards. A verdict move there is
 genuine, but its "since" is the older run's stamped date, not the baseline artifact's `date`. Take

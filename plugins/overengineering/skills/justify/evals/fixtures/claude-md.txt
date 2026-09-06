@@ -1,0 +1,23 @@
+> Fixture. This file is shaped like a project instruction file but is deliberately not named as one,
+> so it is read as a fixture rather than loaded as live instructions.
+
+# project-instructions
+
+@docs/conventions/testing.md
+@docs/conventions/naming.md
+
+## Running the suite
+
+The suite is one command. It takes about four minutes cold and about forty seconds warm, so run the
+whole thing rather than picking at it.
+
+## What to do about a flaky test
+
+Quarantining is not available here. A test that fails intermittently is a bug report against the
+code it covers until someone shows otherwise.
+
+## House style
+
+Prose in this repository is written for someone reading it under time pressure. Lead with the
+answer. The two imported convention files above own naming and test structure, and this file does
+not restate either of them.
