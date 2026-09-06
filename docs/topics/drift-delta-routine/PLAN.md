@@ -376,10 +376,12 @@ Order inside the PR: leaf → catalog → generator comment → regenerate → c
    "discoverability and persistence only" scope.
 3. Should this repository bind the new class for itself (a `.github/recurring-schedule.json`
    row per recurring-wiring Shape 4, or an autonomy binding once the runner ships)?
-4. Reviewer ruling: `v1` on the class-level pattern (the plan's proposal), or
-   `join: proven recurring manual pattern` until a lane-specific run record exists (which
-   ships no leaf and makes #3819's leaf criteria and #3803's criterion 2 unsatisfiable as
-   written, re-slicing #3819)? This must be settled before #3819 is dispatched.
+4. Reviewer ruling: `v1` on the class-level pattern (the plan's proposal, and what the
+   container Brief's leaf constraint presupposes), or `join: proven recurring manual
+   pattern` until a lane-specific run record exists (which ships no leaf and makes #3819's
+   leaf criteria and #3803's criterion 2 unsatisfiable as written, re-slicing #3819)?
+   Recorded in #3819 as a PR-review switch condition so the slice stays dispatch-ready; a
+   human may pre-empt it on #3809's closing comment.
 
 ## Contract-slice lifecycle for this plan
 
