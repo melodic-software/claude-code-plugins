@@ -3497,6 +3497,68 @@ else
   fail "corr (unterminated tail): sink empty"
 fi
 rm -f "$corr_sink"
+# The tail window's "does this payload end outside a string" check reads a
+# 64-byte SUFFIX of the window, so trailing whitespace a caller left on the
+# buffered value is tolerated up to that suffix and no further: at 63 bytes the
+# closing brace is still in the suffix and the tail walk runs, at 64 the suffix
+# is nothing but whitespace, does not read as a close, and the walk is dropped
+# rather than run a quote out of step. Both sides are pinned because the
+# boundary is a constant in the code, not a property of any payload — the
+# suffix length or the strip order could change under it silently otherwise.
+for corr_ws_n in 63 64; do
+  corr_sink="$(mktemp)"
+  (
+    corr_big=""
+    while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+    corr_ws=""
+    while ((${#corr_ws} < corr_ws_n)); do corr_ws+=' '; done
+    INPUT='{"session_id":"s-ws","tool_input":{"c":"'"$corr_big"'","tool_use_id":"NESTED"},"tool_use_id":"toolu_ws"}'"$corr_ws"
+    HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+      hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+  )
+  wait_for_sink "$corr_sink"
+  if ((corr_ws_n < 64)); then corr_ws_want="s-ws toolu_ws"; else corr_ws_want="s-ws omitted"; fi
+  if [[ -s "$corr_sink" ]]; then
+    if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "$corr_ws_want" ]]; then
+      ok "corr: $corr_ws_n trailing whitespace bytes give '$corr_ws_want'"
+    else
+      fail "corr (trailing whitespace $corr_ws_n): want '$corr_ws_want', got $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+    fi
+  else
+    fail "corr (trailing whitespace $corr_ws_n): sink empty"
+  fi
+  rm -f "$corr_sink"
+done
+# The tail window also needs to start at a byte it can prove is not inside an
+# escape, and it proves that from 64 bytes of slack. Slack that is nothing but
+# backslashes proves nothing, so the tail walk is dropped there too — omitted,
+# never a value read a quote out of step.
+corr_sink="$(mktemp)"
+(
+  corr_big=""
+  while ((${#corr_big} < 200000)); do corr_big+='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done
+  # The run must SPAN the whole 64-byte slack, so it has to start at or before
+  # 16448 bytes from the end and reach past 16384. An even count keeps the
+  # escaped backslashes paired, so the payload stays well-formed JSON.
+  corr_run=""
+  while ((${#corr_run} < 200)); do corr_run+='\\'; done
+  corr_pad=""
+  while ((${#corr_pad} < 16250)); do corr_pad+='yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'; done
+  INPUT='{"session_id":"s-bs","tool_input":{"c":"'"$corr_big$corr_run${corr_pad:0:16250}"'","tool_use_id":"NESTED"},"tool_use_id":"toolu_bs"}'
+  HOOK_TELEMETRY_SINK="$(make_sink "$corr_sink")" \
+    hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write"}' 2>/dev/null
+)
+wait_for_sink "$corr_sink"
+if [[ -s "$corr_sink" ]]; then
+  if [[ "$(jq -r '[.session_id, (.tool_use_id // "omitted")] | join(" ")' "$corr_sink")" == "s-bs omitted" ]]; then
+    ok "corr: all-backslash slack drops the tail walk instead of guessing"
+  else
+    fail "corr (backslash slack): $(jq -c '{session_id,tool_use_id}' "$corr_sink")"
+  fi
+else
+  fail "corr (backslash slack): sink empty"
+fi
+rm -f "$corr_sink"
 # A root key more than a window from either end is omitted, never guessed, and
 # a nested decoy in the same dead zone is not taken in its place. This is the
 # bound the two windows buy, stated as a test so it cannot drift into a lie.

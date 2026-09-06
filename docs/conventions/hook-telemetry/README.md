@@ -76,15 +76,24 @@ the four. A sink on 1.0 sees four unknown keys and ignores them under the tolera
 `agent_id` cannot put a value on the spine. A consumer can therefore treat a present key as the
 harness's own, not as tool-supplied input.
 
-**A key may be absent in the middle of a large payload.** Selecting by depth costs more than the
-emitter can spend on a payload carrying a whole file, so above 65536 bytes the library reads a
-16384-byte window at each END of the payload instead of the whole of it — forward from the first
-byte, backward from the last. Both windows select by depth, so the root-only guarantee above holds
-at every payload size. What a window cannot see is a root key sitting more than 16384 bytes from
-both ends, which is omitted. The documented payload puts `session_id` and `prompt_id` at the front
-and `tool_use_id` and `agent_id` behind `tool_input`, so all four are in reach; a payload that
-buries a root key between two multi-kilobyte containers loses that one. Absent still means absent —
-never guessed, and never a value from somewhere else.
+**A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
+on a payload carrying a whole file, so above 65536 bytes the library reads a window at each END of
+the payload instead of the whole of it — forward from the first byte, backward from the last, each
+spanning at least 16384 bytes. Both windows select by depth, so the root-only guarantee above holds
+at every payload size. The documented payload puts `session_id` and `prompt_id` at the front and
+`tool_use_id` and `agent_id` behind `tool_input`, so all four are in reach.
+
+Four things are out of reach up there, and each of them omits rather than guesses:
+
+- A root key sitting more than a window from BOTH ends — buried between two multi-kilobyte containers, say.
+- Every key the backward window would have read, when the payload does not end by closing an object or an array. A payload cut off inside a string is the case this catches.
+- The same, when 64 or more bytes of whitespace follow that close.
+- The same, when the 64 bytes at which the backward window starts are all backslashes.
+
+The last three drop the backward window whole. It is anchored on the payload's last byte, and an
+anchor it cannot verify is not one it guesses from. `session_id` and `prompt_id` lead the payload
+and come from the forward window, so the session route survives all four. Absent still means
+absent — never guessed, and never a value from somewhere else.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠

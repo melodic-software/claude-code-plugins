@@ -1984,11 +1984,14 @@ hook::emit_telemetry() {
   # they are given and are superlinear in its escape count — 4 / 10 / 24 / 235 /
   # 6670 ms per emit for a 16 KiB / 64 KiB / 128 KiB / 512 KiB / 2 MB
   # escape-bearing payload, measured on this container — so a large payload is
-  # never walked whole. It is walked at each END instead, in a fixed 16384-byte
-  # window: forward from the first byte, and BACKWARD from the last. Both walks
-  # are the same exact depth walk and neither can reach a nested key at any
-  # payload size; what a window cannot see is a root key sitting more than
-  # 16384 bytes from both ends, which is omitted rather than guessed. The
+  # never walked whole. It is walked at each END instead, in a window spanning
+  # at least 16384 bytes: forward from the first byte, and BACKWARD from the
+  # last. Both walks are the same exact depth walk and neither can reach a
+  # nested key at any payload size; a root key sitting more than a window from
+  # both ends is omitted rather than guessed, as is everything the backward
+  # window would have read whenever it cannot verify its own anchor (see the
+  # three guards below). docs/conventions/hook-telemetry/README.md lists all
+  # four omissions, because a consumer has to be able to read them. The
   # backward walk is what closes #3784: it reads `tool_use_id` and `agent_id`,
   # which the documented payload places AFTER `tool_input` (session-event-log.sh
   # says so in its own early-stop note: "tool_input closed, tool_use_id still to
