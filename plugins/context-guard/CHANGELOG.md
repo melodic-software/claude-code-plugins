@@ -5,6 +5,25 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.48]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks in the command tokenizer
+  and path helpers.** `hook::bash_parse_segments` walks `${cmd:i:1}` instead of
+  `read -N1` from a process substitution, and `$'…'` bodies decode through
+  `ansi_c_decode_to` (`printf -v`) instead of `$(ansi_c_decode)`. `repo_root`
+  and `repo_relative_path` gain `_to` forms so a caller does not pay a capture
+  subshell around the necessary git process or around builtins-only work.
+  GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
+  argv, unresolved-root fallback, and relative-path redaction are unchanged.
+
+
 ## [0.7.47]
 
 ### Changed

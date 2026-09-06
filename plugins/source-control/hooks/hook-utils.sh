@@ -1247,27 +1247,41 @@ hook::read_file_path() {
 # Guards that must fail closed branch on the return code or on
 # HOOK_REPO_ROOT_UNRESOLVED.
 #   ROOT=$(hook::repo_root "$some_path")
+#   hook::repo_root_to ROOT "$some_path"
+# The print form is the public contract. `_to` writes in THIS shell so a
+# caller that was about to capture with `$(hook::repo_root …)` does not pay
+# an extra subshell around the necessary git process (Command Substitution,
+# Bash Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
-hook::repo_root() {
-  local hint="${1:-.}"
-  local root
+hook::repo_root_to() {
+  local __hu_rr_dest="$1"
+  local __hu_rr_hint="${2:-.}"
+  local __hu_rr_val
   HOOK_REPO_ROOT_UNRESOLVED=0
   # CR-stripped in the shell, not `git | tr`: that pipeline paid a `tr` exec
   # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
   # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
   # same substitution buffer_stdin already uses for the payload.
-  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null) || root=""
-  root="${root//$'\r'/}"
-  if [[ -n "$root" ]]; then
-    printf '%s' "$root"
+  __hu_rr_val=$(git -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
+  __hu_rr_val="${__hu_rr_val//$'\r'/}"
+  if [[ -n "$__hu_rr_val" ]]; then
+    printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
     return 0
   fi
-  root="$hint"
-  root="${root%/.claude}"
-  root="${root%\\.claude}"
+  __hu_rr_val="$__hu_rr_hint"
+  __hu_rr_val="${__hu_rr_val%/.claude}"
+  __hu_rr_val="${__hu_rr_val%\\.claude}"
   HOOK_REPO_ROOT_UNRESOLVED=1
-  printf '%s' "$root"
+  printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
   return 1
+}
+
+hook::repo_root() {
+  local __hu_rr
+  hook::repo_root_to __hu_rr "${1:-.}"
+  local __hu_rr_st=$?
+  printf '%s' "$__hu_rr"
+  return "$__hu_rr_st"
 }
 
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
@@ -1290,44 +1304,57 @@ hook::repo_root() {
 # value; a caller that feeds the result to a TOOL must branch on it, because a
 # bare basename resolved against the repo root names a different file.
 #   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
+#   hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 #
 # Callers under `set -e` must not take the status from a bare assignment: a
 # degraded answer returns 1, and `FILE_REL=$(hook::repo_relative_path ...)`
 # would abort the shell. Append `|| <flag>=1` (what every tool-feeding caller
-# here does) or `|| :` to keep the failure handled.
+# here does) or `|| :` to keep the failure handled. The `_to` form writes in
+# THIS shell so a Linux caller (no cygpath) does not pay a leftover capture
+# subshell around builtins-only work (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
-hook::repo_relative_path() {
-  local file="$1" root="$2" rel="$1"
+hook::repo_relative_path_to() {
+  local __hu_rp_dest="$1"
+  local __hu_rp_file="$2" __hu_rp_root="$3" __hu_rp_rel="$2"
   HOOK_REPO_RELATIVE_DEGRADED=0
   # An empty root anchors nothing, and the strip must not run against one:
   # `${file#""/}` merely shaves the leading slash, handing back a path that is
   # still the caller's absolute path but no longer LOOKS absolute to the
   # redaction below, so it would leak with a success status. Skipping the strip
   # leaves rel as the input, which the redaction then degrades correctly.
-  if [[ -n "$root" ]]; then
+  if [[ -n "$__hu_rp_root" ]]; then
     if command -v cygpath >/dev/null 2>&1; then
-      local file_lm root_lm
-      file_lm=$(cygpath -lm "$file" 2>/dev/null)
-      root_lm=$(cygpath -lm "$root" 2>/dev/null)
-      if [[ -n "$file_lm" && -n "$root_lm" ]]; then
-        rel="${file_lm#"$root_lm"/}"
+      local __hu_rp_file_lm __hu_rp_root_lm
+      __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
+      __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
+      if [[ -n "$__hu_rp_file_lm" && -n "$__hu_rp_root_lm" ]]; then
+        __hu_rp_rel="${__hu_rp_file_lm#"$__hu_rp_root_lm"/}"
       fi
     else
-      rel="${file#"$root"/}"
+      __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
     fi
   fi
   # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped
   # path arrives in. Trim on either separator: a mixed-form path carries both.
-  case "$rel" in
+  case "$__hu_rp_rel" in
   /* | [A-Za-z]:* | \\\\*)
-    rel="${rel##*/}"
-    rel="${rel##*\\}"
+    __hu_rp_rel="${__hu_rp_rel##*/}"
+    __hu_rp_rel="${__hu_rp_rel##*\\}"
     HOOK_REPO_RELATIVE_DEGRADED=1
     ;;
   *) ;; # already repo-relative, nothing to redact
   esac
-  printf '%s' "$rel"
+  printf -v "$__hu_rp_dest" '%s' "$__hu_rp_rel"
   ((HOOK_REPO_RELATIVE_DEGRADED == 0))
+}
+
+hook::repo_relative_path() {
+  local __hu_rp
+  hook::repo_relative_path_to __hu_rp "$1" "$2"
+  local __hu_rp_st=$?
+  printf '%s' "$__hu_rp"
+  return "$__hu_rp_st"
 }
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
@@ -2245,10 +2272,23 @@ hook::emit_additional_context() {
 # \n, \\, …). %-escaped so the body can never act as a printf format specifier;
 # `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
 # malformed body — the raw text still flows through the caller unchanged).
-hook::ansi_c_decode() {
-  local b="${1//%/%%}"
+#
+# hook::ansi_c_decode_to <var> <body> writes in THIS shell. The print form is
+# the public contract. A `$(hook::ansi_c_decode …)` capture is a fork even
+# though the body is only `printf` (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is
+# a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+# Creation).
+hook::ansi_c_decode_to() {
+  local __hu_acd_b="${2//%/%%}"
   # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
-  printf -- "$b" 2>/dev/null
+  printf -v "$1" -- "$__hu_acd_b" 2>/dev/null || printf -v "$1" '%s' ""
+}
+
+hook::ansi_c_decode() {
+  local __hu_acd
+  hook::ansi_c_decode_to __hu_acd "$1"
+  printf '%s' "$__hu_acd"
 }
 
 # Split a GNU `env -S` operand the way env does: whitespace-separated words
@@ -2795,9 +2835,16 @@ hook::git_alias_expansion() {
 hook::bash_parse_segments() {
   local cmd="$1" cb="$2"
   local -a chars=()
-  local c nx
-  while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$cmd")
-  local n=${#chars[@]} i
+  local c nx n=${#cmd} i __hu_acd
+  # Walk ${cmd:i:1} in-process. The previous `read -N1` from a process
+  # substitution forked a subshell (and a printf) per parse even though both
+  # are builtins (Command Substitution, Bash Reference Manual;
+  # https://mywiki.wooledge.org/CommandSubstitution). Same character walk as
+  # hook::env_s_split. Cygwin's fork is a non-copy-on-write Win32 CreateProcess
+  # (Cygwin User's Guide, Process Creation).
+  for ((i = 0; i < n; i++)); do
+    chars+=("${cmd:i:1}")
+  done
   local word="" have=0 skipnext=0
   local -a seg=()
   # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
@@ -2852,7 +2899,8 @@ hook::bash_parse_segments() {
           body+="${chars[i]}"
           ((i++))
         done
-        word+="$(hook::ansi_c_decode "$body")"
+        hook::ansi_c_decode_to __hu_acd "$body"
+        word+="$__hu_acd"
         have=1
       else
         word+="$c"

@@ -3200,6 +3200,72 @@ else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
 
+# ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).
+bps_acd_cmd='git commit -m $'"'"'hello\nworld'"'"
+hook::bash_parse_segments "$bps_acd_cmd" bps_collect
+if [[ "${bps_last[0]-}" == git && "${bps_last[1]-}" == commit && "${bps_last[2]-}" == -m && "${bps_last[3]-}" == $'hello\nworld' ]]; then
+  ok "bash_parse_segments: ANSI-C \$'…' decodes newline"
+else
+  fail "bash_parse_segments ANSI-C: got [${bps_last[*]-}]"
+fi
+acd_to=""
+hook::ansi_c_decode_to acd_to 'tab\tx'
+if [[ "$acd_to" == $'tab\tx' ]]; then
+  ok "ansi_c_decode_to: writes the decoded body in-process"
+else
+  fail "ansi_c_decode_to: got $(printf %q "$acd_to")"
+fi
+acd_print=$(hook::ansi_c_decode 'a\nb')
+if [[ "$acd_print" == $'a\nb' ]]; then
+  ok "ansi_c_decode: print form still decodes"
+else
+  fail "ansi_c_decode print form: got $(printf %q "$acd_print")"
+fi
+
+# The tokenizer and $'…' decode must run in this shell, not a leftover
+# command-substitution / process-substitution subshell.
+acd_pin_dir="$(mktemp -d)"
+acd_pin_file="$acd_pin_dir/pids"
+eval "$(declare -f hook::ansi_c_decode_to | sed '1s/^hook::ansi_c_decode_to/__pin_acd_to/')"
+hook::ansi_c_decode_to() {
+  printf 'acd %s %s\n' "$$" "$BASHPID" >>"$acd_pin_file"
+  __pin_acd_to "$@"
+}
+hook::bash_parse_segments "$bps_acd_cmd" bps_collect
+if grep -q "^acd $$ $$" "$acd_pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "bash_parse_segments: ansi_c_decode_to runs in-process"
+else
+  fail "bash_parse_segments ansi_c_decode_to not in-process: $(tr '\n' ';' <"$acd_pin_file")"
+fi
+eval "$(declare -f __pin_acd_to | sed '1s/^__pin_acd_to/hook::ansi_c_decode_to/')"
+rm -rf "$acd_pin_dir"
+
+# repo_root_to / repo_relative_path_to write in this shell (print forms wrap them).
+rr_to=""
+hook::repo_root_to rr_to "."
+rr_print=$(hook::repo_root ".")
+if [[ -n "$rr_to" && "$rr_to" == "$rr_print" ]]; then
+  ok "repo_root_to: matches print form"
+else
+  fail "repo_root_to: to=$(printf %q "$rr_to") print=$(printf %q "$rr_print")"
+fi
+rp_to=""
+HOOK_REPO_RELATIVE_DEGRADED=1
+hook::repo_relative_path_to rp_to "/repo/a/b.md" "/repo" || true
+if [[ "$rp_to" == "a/b.md" && "${HOOK_REPO_RELATIVE_DEGRADED:-1}" == "0" ]]; then
+  ok "repo_relative_path_to: strips in-process"
+else
+  fail "repo_relative_path_to: got $(printf %q "$rp_to") degraded=${HOOK_REPO_RELATIVE_DEGRADED-}"
+fi
+rp_deg=""
+HOOK_REPO_RELATIVE_DEGRADED=0
+hook::repo_relative_path_to rp_deg "/elsewhere/a/b.md" "/repo" || true
+if [[ "$rp_deg" == "b.md" && "${HOOK_REPO_RELATIVE_DEGRADED:-0}" == "1" ]]; then
+  ok "repo_relative_path_to: degraded basename is distinguishable"
+else
+  fail "repo_relative_path_to degraded: got $(printf %q "$rp_deg") flag=${HOOK_REPO_RELATIVE_DEGRADED-}"
+fi
+
 # --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
 # GNU Bash forks a subshell for $( ) and process substitution even when the
 # body is builtins only. The previous buffer_stdin startup paid two of those
