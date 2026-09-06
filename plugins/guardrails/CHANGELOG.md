@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.11]
+
+### Changed
+
+- **`hooks/block-convention-violation.sh` hoists three `2>/dev/null` redirects
+  off the command substitutions they sat inside.** GNU Bash execs the body of a
+  command substitution in the substitution's own subshell, instead of forking a
+  second time, only when that body carries no redirection of its own (Command
+  Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). So `v=$(cmd 2>/dev/null)`
+  costs two process creations to run one program where
+  `{ v=$(cmd); } 2>/dev/null` costs one, and on the Windows Git Bash hosts this
+  marketplace targets a fork is a full process creation. The three sites are the
+  convention resolver fork, the `rev-parse --absolute-git-dir` sequencer probe,
+  and the `config --get alias.<sub>` probe that runs for every non-builtin git
+  subcommand, which is the one of the three on the per-tool-call path. Counted
+  from the kernel with `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  (a PATH shim cannot see a fork that never execs, and `bash -x` prints one line
+  either way), process creations per invocation: cold-cache stdin-form commit
+  **34 → 31**, warm-cache commit **19 → 18**, non-builtin git subcommand
+  **14 → 13**, `echo hello` and `git status --short` unchanged at 11. `execve`
+  is unchanged at every one of those, which is the evidence this drops latency
+  rather than work. Verdicts are unchanged: each redirect now sits on a group
+  holding exactly one command, so the group's status is still that command's and
+  nothing extra is silenced. The contract test gains a per-site kernel-trace
+  budget assertion that fails when a redirect moves back inside its
+  substitution.
+
 ## [0.32.10]
 
 ### Changed
