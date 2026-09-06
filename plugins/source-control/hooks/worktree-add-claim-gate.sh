@@ -50,31 +50,31 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
 
-# ONE process for the field, not four. A command substitution whose body carries
-# a redirection OF ITS OWN forks the substitution subshell and then forks again
-# to run the command; hoisted onto a group holding exactly ONE command, bash
-# execs jq in the substitution's own subshell instead. The `printf … |` feed and
-# the `| tr` strip were two more processes on top of that: the payload now rides
-# in on the group's here-string (a bash-internal pipe, no process) and the CR
-# strip is the same all-CRs-removed contract done with parameter expansion. One
-# command in the group is the safety property — `2>/dev/null` silences exactly
-# what `jq … 2>/dev/null` silenced before and nothing else. Same hoist as the
-# containment sibling; strace counted 4 creations / 2 execve before, 1 / 1 after.
-{ COMMAND=$(jq -r '.tool_input.command // empty'); } <<<"$INPUT" 2>/dev/null
+# ONE `jq` for the field and no `tr` behind it. The payload is fed through
+# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
+# payload (hook::jq_field, hook::json_complete) and NEVER a here-string: bash
+# fills a here-string's pipe itself, so a payload at or above the pipe capacity
+# (65536 bytes, traced on Git Bash in #1587) blocks the shell before jq is ever
+# exec'd, and that hang is this hook's timeout. The separate writer process is
+# the correct trade: 3 creations for the read where a here-string costs 1. The
+# CR strip is the same all-CRs-removed contract done with parameter expansion
+# instead of a `| tr -d '\r'` stage. Same form as the containment sibling;
+# strace counted 4 creations / 2 execve before, 3 / 1 after.
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Ii][Tt][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-# Same single-command-group hoist as the command read above. Two groups rather
-# than one jq reading both fields: the group's ONE-command shape is what proves
-# the redirection silences nothing extra, and two jq execs on this path cost
-# less than the batched reader's process substitution (3 creations) plus the
-# NUL-flag verdict contract a blocking-adjacent caller would then have to honour.
-{ HOOK_CWD=$(jq -r '.cwd // empty'); } <<<"$INPUT" 2>/dev/null
+# Same `printf | jq` feed as the command read above. Two reads rather than one
+# hook::jq_fields call for both: the batched reader's `// ""` and `tostring`
+# semantics differ from `// empty` on a non-string field, and its NUL-flag
+# verdict contract is one a blocking-adjacent caller would then have to honour.
+# Keeping each field's own `// empty` read is what keeps this behaviour-preserving.
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
-{ SESSION=$(jq -r '.session_id // empty'); } <<<"$INPUT" 2>/dev/null
+SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 SESSION="${SESSION//$'\r'/}"
 
 CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"

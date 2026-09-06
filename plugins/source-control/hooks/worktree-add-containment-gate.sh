@@ -77,18 +77,19 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
 
-# ONE process for the field, not four. A command substitution whose body carries
-# a redirection OF ITS OWN forks the substitution subshell and then forks again
-# to run the command; hoisted onto a group holding exactly ONE command, bash
-# execs jq in the substitution's own subshell instead. The `printf … |` feed and
-# the `| tr` strip were two more processes on top of that: the payload now rides
-# in on the group's here-string (a bash-internal pipe, no process) and the CR
-# strip is the same all-CRs-removed contract done with parameter expansion. One
-# command in the group is the safety property — `2>/dev/null` silences exactly
-# what `jq … 2>/dev/null` silenced before and nothing else.
+# ONE `jq` for the field and no `tr` behind it. The payload is fed through
+# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
+# payload (hook::jq_field, hook::json_complete) and NEVER a here-string: bash
+# fills a here-string's pipe itself, so a payload at or above the pipe capacity
+# (65536 bytes, traced on Git Bash in #1587, the platform these gates time out
+# on) blocks the shell before jq is ever exec'd. Here that hang IS the hook
+# timeout, which on a containment gate is a stall and a fail-open at once, so the
+# separate writer process is the correct trade: 3 creations for the read where a
+# here-string costs 1. The CR strip is the same all-CRs-removed contract done
+# with parameter expansion instead of a `| tr -d '\r'` stage (one process fewer).
 # strace -f -e trace=clone,clone3,fork,vfork,execve: 4 creations / 2 execve
-# before, 1 / 1 after.
-{ COMMAND=$(jq -r '.tool_input.command // empty'); } <<<"$INPUT" 2>/dev/null
+# before, 3 / 1 after.
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
 # Applicability pre-filter before any parsing: `git` as its own word (or a
@@ -99,8 +100,8 @@ COMMAND="${COMMAND//$'\r'/}"
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-# Same single-command-group hoist as the command read above.
-{ HOOK_CWD=$(jq -r '.cwd // empty'); } <<<"$INPUT" 2>/dev/null
+# Same `printf | jq` feed and parameter-expansion CR strip as the command read.
+HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
 
 # Set once a segment changes the working directory; every later segment then

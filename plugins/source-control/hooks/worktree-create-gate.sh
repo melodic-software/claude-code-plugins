@@ -141,15 +141,18 @@ fi
 # two flat, harness-generated string fields.
 #
 # json_field_to <var> <field> — writes the field into <var> in THIS shell rather
-# than printing it, and reads it in ONE process per rung. Three separate taxes
-# were being paid to read two flat strings: a command substitution around the
-# whole helper, a second one around hook::jq_field, and a third inside it whose
-# body carried a redirection of its own — a substitution body that carries a
-# redirection forks the substitution subshell and then forks AGAIN to run the
-# command, whereas the same redirection hoisted onto a group holding exactly ONE
-# command lets bash exec in the substitution's own subshell. The `_to` shape is
-# the same fork-avoidance convention hook-utils.sh documents on its own `_to`
-# helpers.
+# than printing it, so the two substitutions that used to wrap each read (one
+# around the whole helper, one around hook::jq_field) are gone; what remains per
+# rung is the reader's own `printf | jq` (or `printf | sed`) pipeline. The `_to`
+# shape is the same fork-avoidance convention hook-utils.sh documents on its own
+# `_to` helpers.
+#
+# The payload is fed through `printf '%s' "$payload" |`, the form hook-utils.sh
+# prescribes for a hook payload and NEVER a here-string: bash fills a
+# here-string's pipe itself, so a payload at or above the pipe capacity (65536
+# bytes, traced on Git Bash in #1587) blocks the shell before the reader is ever
+# exec'd, and that hang is this hook's timeout. The separate writer process is
+# the correct trade.
 #
 # The jq PROGRAM TEXT is byte-for-byte what hook::jq_field builds, gsub included.
 # That is deliberate and load-bearing: `gsub` is string-only, so a payload whose
@@ -161,14 +164,13 @@ fi
 json_field_to() {
   local __dest="$1" field="$2" value=""
   if command -v jq >/dev/null 2>&1; then
-    { value=$(jq -r "(.${field} // empty)"' | gsub("\r";"")'); } <<<"$payload" 2>/dev/null
+    value=$(printf '%s' "$payload" | jq -r "(.${field} // empty)"' | gsub("\r";"")' 2>/dev/null)
   fi
   if [[ -z "$value" ]]; then
-    # Only the here-string is hoisted here, and no `2>/dev/null` is added: sed's
-    # stderr reached this hook's stderr before and still does. `head -n 1` and
-    # `tr -d '\r'` are parameter expansions now, which is where two of the three
-    # processes went.
-    { value=$(sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'); } <<<"$payload"
+    # No `2>/dev/null` is added on this rung: sed's stderr reached this hook's
+    # stderr before and still does. `head -n 1` and `tr -d '\r'` are parameter
+    # expansions now, which is where two of the pipeline's processes went.
+    value=$(printf '%s' "$payload" | sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     value="${value%%$'\n'*}"
     value="${value//$'\r'/}"
     # The harness emits JSON-escaped Windows paths, so a fallback read has to undo

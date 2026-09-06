@@ -242,20 +242,24 @@ the hook. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`:
 
 | Path | clone-family | `execve` |
 | --- | --- | --- |
-| Either Bash gate, a `worktree` command that is not an `add` | 5 | 2 |
-| `worktree-add-containment-gate`, an `add` it allows | 14 | 5 |
-| `worktree-add-containment-gate`, an `add` it blocks | 14-18 | 5-7 |
-| `worktree-add-claim-gate`, a parsed `add` target | 16 | 6 |
-| `worktree-create-gate`, before it reaches the placement helper | 7 | 4 |
+| Either Bash gate, a `worktree` command that is not an `add` | 7 | 2 |
+| `worktree-add-containment-gate`, an `add` it allows | 18 | 5 |
+| `worktree-add-containment-gate`, an `add` it blocks | 18-22 | 5-7 |
+| `worktree-add-claim-gate`, a parsed `add` target | 22 | 6 |
+| `worktree-create-gate`, before it reaches the placement helper | 13 | 4 |
 
-Four of the five creations on the not-an-`add` path belong to
+Four of the seven creations on the not-an-`add` path belong to
 [`lib/hook-utils.sh`](../../lib/hook-utils.sh), not to these gates: the
 `hook::buffer_stdin` substitution and `hook::json_complete`'s `printf | jq -e .`. The
-gates' own share of that path is one `jq`. The block-path spread is the ancestor walk:
-a `.git`-directory target asks `git rev-parse` a third time, and a block message that
-names a configured root reads the `melodic.worktreeroot` key.
-`hooks/worktree-gates-spawn-budget.test.sh` holds these numbers as ceilings and proves
-itself non-vacuous against seven mutants, one per hoist.
+gates' own share of that path is one `printf '%s' "$INPUT" | jq` field read, 3 creations
+and 1 `execve`. That feed is the form the library prescribes and is kept on purpose: a
+here-string would cost 1 creation, but bash fills a here-string's pipe itself and
+deadlocks at the pipe capacity on Git Bash (#1587), which on a hook is the timeout. The
+block-path spread is the ancestor walk: a `.git`-directory target asks `git rev-parse` a
+third time, and a block message that names a configured root reads the
+`melodic.worktreeroot` key. `hooks/worktree-gates-spawn-budget.test.sh` holds these
+numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
+fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
