@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.59]
+## [0.55.60]
 
 ### Changed
 
@@ -42,11 +42,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `git remote get-url` its scope guard needs. That library is a synced shared file and is not
   touched here.
 
-  **No verdict changes.** A differential harness ran HEAD's gates and these gates over 110
-  payloads — every body-flag spelling, heredoc and `--body-file` form, `env -S` and wrapper
-  shapes, `--repo` and `cd` escapes, CRLF bodies, and the MCP tool/owner/body matrix — and
-  compared exit code and stderr byte-for-byte; 31 of those are DENY verdicts, all reproduced
-  exactly. A second harness ran the validator against 425 bodies including a seeded fuzz corpus.
+  **Verdicts, checked differentially rather than asserted.** A harness ran the merge-base gates
+  and these gates over 154 payloads (85 Bash, 69 MCP) and compared exit code, stdout and stderr
+  byte-for-byte: every body-flag spelling, heredoc and `--body-file` form, `env -S` and wrapper
+  shapes, `--repo` and `cd` escapes, CRLF and mid-line-CR bodies, NUL bytes, Unicode whitespace,
+  non-string bodies, and trailing newlines or carriage returns inside `owner`, `repo`,
+  `tool_name` and `cwd`. The Bash gate is verdict-identical on all 85. The MCP gate is
+  verdict-identical on 67 of 69 and STRICTER on the other two: a carriage return inside `owner`
+  or `tool_name` used to leave the value unmatched and the call allowed, and now matches and is
+  judged, because `hook::jq_fields` strips the CR the per-field reader left in place. Three
+  things hold the batched reader to the per-field reader's verdicts: the CR probe is
+  `tostring`ed first, so a non-string body (`5`, `true`, an object) is judged as text instead of
+  erroring the whole batch; a batch that still fails falls back to the per-field reads rather
+  than allowing outright; and trailing newlines on `tool_name`, `owner`, `repo`, `cwd` and the
+  body are chomped in-shell, as `$( )` chomped them. A second harness ran the validator against
+  425 bodies including a seeded fuzz corpus.
   The MCP body is deliberately kept out of the batch when it carries a carriage return, because
   `hook::jq_fields` CR-strips and stripping is the permissive direction: `## Sum<CR>mary` would
   become a section that was previously missing, turning a block into an allow.

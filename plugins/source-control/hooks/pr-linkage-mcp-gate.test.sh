@@ -113,6 +113,29 @@ run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OW
 run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" ""
 
+# Field-shape regressions from the #3871 review of the batched reader. A
+# non-string body is rendered as text and judged (it can hold no section, so it
+# blocks); the per-field reader did that, and a CR probe that errored on the
+# type turned every one of these into an allow. Trailing newlines on the
+# exact-match fields were chomped by `$( )` and must still be. A CR inside
+# owner is the accepted STRICTER case: the per-field reader let it through
+# unmatched, the batched reader strips it and gates the call. A tool_input
+# that is not an object fails the batch and takes the per-field fallback, whose
+# verdict for an undeterminable target is allow.
+payload_raw_body() { # <cwd> <tool> <owner> <repo> <body-json>
+  jq -cn --arg d "$1" --arg t "$2" --arg o "$3" --arg r "$4" --argjson b "$5" \
+    '{session_id:"test", cwd:$d, tool_name:$t, tool_input:{owner:$o, repo:$r, title:"t", body:$b}}'
+}
+for raw in 5 true '{"a":1}' '["x"]'; do
+  run 2 "non-string body $raw is judged as text and blocks" "$(payload_raw_body "$GATED" $CREATE $OWNER $REPO "$raw")"
+done
+run 2 "owner with a trailing newline still names this repo" "$(payload "$GATED" $CREATE "$OWNER"$'\n' $REPO "$NO_RELATED")"
+run 2 "repo with a trailing newline still names this repo" "$(payload "$GATED" $CREATE $OWNER "$REPO"$'\n' "$NO_RELATED")"
+run 2 "tool name with a trailing newline still matches" "$(payload "$GATED" "$CREATE"$'\n' $OWNER $REPO "$NO_RELATED")"
+run 2 "owner with a carriage return is gated (accepted stricter case)" "$(payload "$GATED" $CREATE "$OWNER"$'\r' $REPO "$NO_RELATED")"
+run 0 "tool_input that is not an object allows (undeterminable target)" \
+  "$(jq -cn --arg d "$GATED" --arg t $CREATE '{session_id:"test", cwd:$d, tool_name:$t, tool_input:"x"}')"
+
 # Defer-guard: a consumer repo tracking its OWN equivalent gate in
 # .claude/settings.json makes the plugin copy yield (deferred, exit 0) so the
 # two never double-fire; unrelated settings wiring does not defer.

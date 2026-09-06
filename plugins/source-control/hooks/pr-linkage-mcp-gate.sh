@@ -101,10 +101,40 @@ hook::require_jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
 # becomes a section that was previously missing, turning a BLOCK into an ALLOW.
 # The batch reports whether the raw body holds a CR at all and the next block
 # re-reads it losslessly only in that case, which no real payload hits.
+#
+# THE CR PROBE IS TOTAL OVER EVERY JSON TYPE. `contains` errors on a non-string,
+# one erroring filter fails the WHOLE batch, and a failed batch used to exit 0
+# here — so a body of `5`, `true`, `{"a":1}` or `["x"]`, which the per-field
+# reader rendered as text and BLOCKED, was let through by the very guard that
+# exists to close the permissive direction. `tostring` first makes the probe
+# total; the value the batch hands back is already tostring'ed by
+# hook::jq_fields, so a non-string body is judged as text, as before.
+#
+# A batch that STILL fails — a `tool_input` or a payload root that is not an
+# object — falls back to the per-field reads this batch replaced rather than
+# allowing outright: that reader's verdict, blocks included, is the reference
+# this gate is held to, so a batch failure can no longer turn a BLOCK into an
+# ALLOW. Every filter here is total over an object tool_input, so the fallback
+# is unreachable on any path the spawn budget fences and costs nothing there.
+read_fields_singly() {
+  local f v
+  HOOK_JQ_FIELDS=()
+  for f in '.tool_name // empty' '.cwd // empty' \
+    '.tool_input.owner // empty' '.tool_input.repo // empty' \
+    '.tool_input | has("body")' \
+    '(.tool_input.body // "") | tostring | contains("\r")' \
+    '.tool_input.body // ""'; do
+    v=$(printf '%s' "$INPUT" | jq -r "$f" 2>/dev/null)
+    HOOK_JQ_FIELDS+=("$v")
+  done
+  # `.cwd` alone was `tr -d '\r'`-cleaned by the per-field reader.
+  HOOK_JQ_FIELDS[1]="${HOOK_JQ_FIELDS[1]//$'\r'/}"
+}
 hook::jq_fields "$INPUT" \
   '.tool_name' '.cwd' '.tool_input.owner' '.tool_input.repo' \
-  '(.tool_input | has("body"))' '((.tool_input.body // "") | contains("\r"))' \
-  '(.tool_input.body // "")' || exit 0
+  '(.tool_input | has("body"))' \
+  '((.tool_input.body // "") | tostring | contains("\r"))' \
+  '(.tool_input.body // "")' || read_fields_singly
 TOOL="${HOOK_JQ_FIELDS[0]}"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 T_OWNER="${HOOK_JQ_FIELDS[2]}"
@@ -112,6 +142,25 @@ T_REPO="${HOOK_JQ_FIELDS[3]}"
 HAS_BODY="${HOOK_JQ_FIELDS[4]}"
 BODY_HAS_CR="${HOOK_JQ_FIELDS[5]}"
 BODY="${HOOK_JQ_FIELDS[6]}"
+
+# chomp <var> — strip trailing newlines from the named variable. `$( )` did
+# that for every per-field read, so an `"owner": "acme-corp\n"` or a tool name
+# with a trailing newline compared EQUAL in the exact-match guards below and
+# was gated; hook::jq_fields hands values back with trailing newlines intact,
+# and without this both would slip past those guards. Applied to the four
+# fields the per-field reader chomped plus the body, so each is byte-identical
+# to its `$(jq -r …)` whenever it carries no CR. In-shell, no fork.
+#
+# CR is the one place these four fields are now STRICTER than the per-field
+# reader: it left a CR inside `tool_name`, `owner` or `repo` in place, so such
+# a value never matched and the call was allowed; hook::jq_fields strips it,
+# the value matches, and the body is judged. Accepted as the safer direction.
+chomp() {
+  local __v="${!1}"
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
+for v in TOOL HOOK_CWD T_OWNER T_REPO BODY; do chomp "$v"; done
 
 case "$TOOL" in
 mcp__github__create_pull_request | mcp__github__update_pull_request) ;;
