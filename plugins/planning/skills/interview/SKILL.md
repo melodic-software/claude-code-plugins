@@ -172,6 +172,17 @@ It is **not** a `Q<N>` decision. Never write it into the open-question register,
 `blocked`, and never route it to `### Deferred questions`. The register gates the contract, and a
 coverage check parked there would hold a lock hostage to a question that carries no decision.
 
+**It therefore does not bring the Step 3 register gate into scope by itself.** A synthesize-directly
+run whose ONLY question was this prompt wrote no register, has nothing to gate, and skips the gate
+exactly as a run that asked nothing does. Without this, that path would ask a question it is
+forbidden to register and then trip a gate demanding the row.
+
+**The exemption covers this prompt and nothing else.** It is not a licence for a question asked
+beside it. Any OTHER question — a residue decision, a frontier round, a gap surfaced mid-synthesis,
+a `blocked` row from an unattended run — is a register question as usual: it writes its row at
+ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
+breath. One coverage check is exempt; a round that happens to contain one is not.
+
 Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
 synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
 is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
@@ -304,6 +315,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 ```
 
 Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**. `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly with no open decision. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
+
+**One thing is not a question for this purpose: the acceptance-criteria coverage prompt.** It carries no decision, writes no register row, and asking it does not by itself make a register exist or bring this gate into scope, so a synthesize-directly run whose only question was the coverage prompt still skips the gate. Read it narrowly. It exempts that one prompt, never a real question asked in the same round or the same session: any other question still writes its row at ask-time and still brings the gate into scope. See "Acceptance-criteria capture".
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).
 
