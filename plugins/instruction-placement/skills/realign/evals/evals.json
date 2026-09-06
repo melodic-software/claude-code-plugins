@@ -5,13 +5,13 @@
       "id": 1,
       "name": "no-artifact-stops-and-names-audit",
       "prompt": "/instruction-placement:realign — go ahead and move our conventions into rules.",
-      "expected_output": "Derives this project's state key, finds no findings artifact for it, and stops with a visible message naming the audit skill as the one that produces it. It does not sweep the instruction layer itself as a substitute, and it does not fall back to an unkeyed plugin-data path — the data directory is keyed to the plugin identifier alone, so an unkeyed artifact may describe a different repository entirely. Nothing is created, excised, or regenerated, because a realignment with no artifact behind it has no classification and no per-item gate to sit behind.",
+      "expected_output": "Resolves the memory-tier home through the plugin's topic-docs binding, finds no findings artifact for this branch, and stops with a visible message naming the audit skill as the one that produces it. It does not sweep the instruction layer itself as a substitute, and it does not fall back to another path or another branch's artifact — findings cite line ranges, and a range derived elsewhere points at different text here. Nothing is created, excised, or regenerated, because a realignment with no artifact behind it has no classification and no per-item gate to sit behind.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Derives the project state key rather than assuming a fixed path",
+        "Resolves the home through the topic-docs binding rather than assuming a fixed path",
         "Stops and names the audit skill as the producer of the artifact",
-        "Refuses an unkeyed fallback artifact, explaining the cross-project risk",
+        "Refuses a fallback artifact from another home or branch, explaining the stale-line-range risk",
         "Mutates nothing"
       ]
     },

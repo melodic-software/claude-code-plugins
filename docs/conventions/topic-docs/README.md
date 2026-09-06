@@ -764,6 +764,7 @@ relationship to the contract is fully stated by their table row.
 | session-flow | handoffs; running-retro ledgers; suggested destination for user-run `/export` conversation snapshots | memory (`handoffs/`, `running-retros/`, `exports/`) | delta doc |
 | review | review reports | memory (`reviews/`) | delta doc |
 | overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
+| instruction-placement | `findings.md` — placement audit findings, statuses updated in place by its realign skill; `baselines/placement-baseline.md` — its delta lane's spine plus the operator's declined set (constant-slug slice; the baseline carries no branch segment, so a decline outlives the branch it was made on) | memory | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees; `SOURCES.md` (docpage-digest's source inventory, a reserved artifact name) — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names); inside the seam the corpus tree is shape-unified to this contract's slice and `INDEX.md` rules (see [The corpus seam](#the-corpus-seam)) | memory (carved out) | by reference — the carve-out above is its entire delta |

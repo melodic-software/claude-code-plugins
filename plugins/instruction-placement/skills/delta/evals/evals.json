@@ -55,11 +55,25 @@
       "name": "no-prior-artifact-routes-out",
       "prompt": "/instruction-placement:delta — first time running this here.",
       "narration": true,
-      "expected_output": "Resolves the state key, finds no prior artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
+      "expected_output": "Resolves the memory-tier home through the plugin's topic-docs binding, finds no stored baseline and no findings artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
       "expectations": [
-        "Reports the absent prior artifact rather than treating it as an error",
+        "Resolves the home through the topic-docs binding rather than a machine-global key",
+        "Reports the absent baseline rather than treating it as an error",
         "Routes to the full audit instead of silently becoming one",
         "Writes nothing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "declined-finding-stays-declined-from-another-checkout",
+      "prompt": "/instruction-placement:delta — running this from a second worktree of the same repo. Last week I declined IP-004 (the deploy-conventions section) from the main checkout.",
+      "narration": true,
+      "expected_output": "Reads the placement baseline at the home the topic-docs binding resolves, finds IP-004 in its decisions table with status declined, and suppresses it — it is not reported as new, changed, or 'for review'. The baseline's path carries no branch segment and no checkout discriminator, so a decline recorded anywhere in this repository holds here; the run says which decisions it is honoring and counts them in the suppressed total. If the resolved memory root is the per-checkout default and this worktree has no baseline yet, it says that plainly rather than presenting the declined finding as new.",
+      "expectations": [
+        "Suppresses the declined finding rather than re-proposing it",
+        "Attributes the suppression to the persisted baseline, not to ephemeral state",
+        "Counts the suppression in the reported total",
+        "States plainly when the resolved home holds no baseline instead of treating declines as absent"
       ]
     }
   ]

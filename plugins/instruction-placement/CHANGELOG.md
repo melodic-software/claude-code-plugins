@@ -3,6 +3,54 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **`reference/artifact-protocol.md`** — the marketplace's shared lifecycle artifact protocol,
+  byte-identical to the canonical copy. This plugin is now a protocol participant, and
+  `scripts/validate-plugin-contracts.mjs` checks its copy alongside the other five.
+- **`reference/topic-docs.md` — the binding that resolves both artifact homes.** Memory tier,
+  constant slug `instruction-placement`, with the rung order, the two axes, the child-slice
+  non-predicate, the detached-`HEAD` consequence, and the self-ignore guard all cited from the
+  contract rather than restated.
+- **The placement baseline, in the protocol's `baselines/` slot.** `delta` captures
+  `baselines/placement-baseline.md` at the end of a cycle: this run's detector spine, plus a
+  decisions table carrying every finding the operator has declined or applied. Its frontmatter,
+  its two body tables, and the four rules binding a capture are owned by
+  `context/findings-artifact.md` under "The baseline-capture obligation". A capture merges the
+  stored decisions rather than replacing them, because a run that did not observe a declined
+  finding has learned nothing about that decision.
+
+### Changed
+
+- **Both artifacts move from the `${CLAUDE_PLUGIN_DATA}` state key to the memory tier** (#3811).
+  The findings artifact resolves to `<memory_dir>/instruction-placement/<branch-slug>/findings.md`;
+  the baseline to `<memory_dir>/instruction-placement/baselines/placement-baseline.md`. `audit`,
+  `realign`, and `delta` resolve those homes through the new binding, and `lib/state-key.sh` is
+  removed from this plugin rather than kept as a fallback.
+- **A declined finding now outlives the checkout it was declined in.** The state key's second
+  segment was a `<worktree-discriminator>` — a hash of the checkout root, present by design so two
+  worktrees "must not share a report". Correct for a per-checkout report, wrong for an operator's
+  judgment. The baseline's path has no branch segment and no checkout discriminator, so it is one
+  file per repository and a decline holds everywhere the resolved `memory_dir` reaches. On the
+  documented default that root is `.work/` inside the checkout, so a freshly created linked
+  worktree starts without it unless the repository carries the memory root in via
+  `.worktreeinclude`; a repository whose tracked `.claude/topic-docs.yaml` names a shared root
+  shares one baseline outright.
+- **`delta` writes the baseline and no longer writes the findings artifact.** It reads this
+  branch's artifact for statuses, merges them into the baseline's decisions table, and suppresses
+  every id that table carries. What it detects, its noise budget, and its report shape are
+  unchanged.
+- **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act
+  on another home's artifact is now argued from stale line ranges rather than from cross-project
+  collision, which is what the branch axis actually protects against.
+
+### Removed
+
+- **`lib/state-key.sh`.** No skill in this plugin resolves a machine-global key any more, and the
+  file is dropped from the `scripts/sync-state-key.sh` carrier list rather than left unreferenced.
+
 ## [0.11.32]
 
 ### Changed
@@ -40,7 +88,6 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
   Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
   Notice JSON, timeout resolution, and skip-notice latching are unchanged.
-
 ## [0.11.30]
 
 ### Changed

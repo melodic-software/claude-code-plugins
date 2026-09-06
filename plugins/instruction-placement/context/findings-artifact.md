@@ -5,7 +5,10 @@ nothing else. `realign` is its **only** mutating consumer and the only writer of
 into it. `check` never reads it at all — it verifies the repository's state directly, so a stale
 artifact can never make a broken repo look healthy.
 
-All three skills read this document; none restates it.
+`delta` reads the artifact and writes a second, smaller file — the placement baseline — whose shape
+this document also owns, under "The baseline-capture obligation".
+
+All four skills read this document; none restates it.
 
 ## Deliberately not `type: review-findings`
 
@@ -25,30 +28,35 @@ imply an auto-apply disposition that does not exist.
 
 ## Where it lives
 
-Under the plugin data directory, **keyed by project**, never committed to the consuming repository.
+In the repository's memory tier, resolved through the plugin's topic-docs binding
+([`../reference/topic-docs.md`](../reference/topic-docs.md)), never committed to the consuming
+repository. Default:
 
 ```text
-${CLAUDE_PLUGIN_DATA}/findings/<state-key>/<branch-slug>/findings.md
+<memory_dir>/instruction-placement/<branch-slug>/findings.md
 ```
 
-`<state-key>` comes from `lib/state-key.sh` — the plugin data directory is keyed to the plugin
-identifier and nothing else, so an unkeyed filename is one file per *machine* and can serve one
-project's findings as another's. The branch segment keeps concurrent branches and worktrees from
-clobbering each other.
+**Resolve the home; never hardcode the default's shape.** The binding owns the rung order, the
+constant slug, the branch axis, and the guards. It is also where the plugin's `baselines/` slot
+lives — the shared lifecycle artifact protocol names that slot
+([`../reference/artifact-protocol.md`](../reference/artifact-protocol.md)), and this plugin's
+baseline is its use of it.
 
 Two properties the contract fixes:
 
 - **What proves an artifact belongs to a branch is its own `branch:` frontmatter**, never the
   directory it sits in. The slug mapping is lossy and two branch names can slug to one directory. A
   consumer that finds a mismatch reports it and refuses rather than proceeding.
-- **One stable filename per key, rewritten in place.** A re-audit merges into the existing file
+- **One stable filename per home, rewritten in place.** A re-audit merges into the existing file
   rather than depositing a timestamped sibling; the run timestamp lives in frontmatter where a
   reader and a diff can both find it.
 
-The artifact is **ephemeral by design** — a reclaimed container or removed worktree loses it. That
-is fine for evidence and classifications, which are recomputed. It is not fine for operator
-decisions, which is why `realign` records those inline (below) and why an applied move is
-reconstructable from the repository's own git history regardless.
+The findings artifact is **branch-scoped by design** — its line ranges are only true for the branch
+it was derived on, and a deleted memory root loses it. That is fine for evidence and
+classifications, which are recomputed. It is not fine for operator decisions, which is why a
+`declined` decision is mirrored into the baseline below, whose path carries no branch segment and no
+checkout discriminator, and why an applied move is reconstructable from the repository's own git
+history regardless.
 
 ## Frontmatter
 
@@ -117,11 +125,65 @@ A second `audit` on the same key merges rather than replacing:
 
 Identifiers are stable across runs and never reused after a finding is dropped.
 
+## The baseline-capture obligation
+
+`delta` compares this run's detector output against the **previous run's** state, so that state has
+to be persisted somewhere the next run can find it. The findings artifact cannot serve: a re-audit
+merges into it in place, so after the sweep there is nothing left to diff against. A separately
+persisted baseline is therefore mandatory, and it is the one file `delta` writes.
+
+It lives in the `baselines/` slot the lifecycle artifact protocol names, at the location the
+topic-docs binding resolves — **one per repository, with no branch segment and no checkout
+discriminator in the path**. Default `<memory_dir>/instruction-placement/baselines/placement-baseline.md`.
+
+```yaml
+---
+type: instruction-placement-baseline
+schema: 1
+date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
+captured_from_branch: <branch at capture time, or "unknown">
+compared: <ISO-basic UTC of the run that last consumed this baseline, or —>
+---
+```
+
+Two body sections, both required, both written as tables so a diff between runs stays aligned:
+
+- **`## Spine`** — one row per detector record, `SECTION` and `RULE` alike: its key, its kind, and a
+  digest of the content the classification depends on. This is what `changed`, `broken-glob`, and
+  `stale` are computed against. It is a snapshot, never a second record of a finding: nothing here
+  is actionable, and `realign` has no code path that reads it.
+- **`## Decisions`** — one row per finding the operator has ruled on: its stable id, its status
+  (`declined` or `applied`), the source heading it was raised against, and the date. This is the
+  durable half. `delta` reads it before it reports and suppresses every id in it.
+
+Four rules bind the capture:
+
+- **`captured_from_branch` is provenance, not a gate.** A baseline is never refused for describing
+  another branch. The branch check belongs to the findings artifact, whose line ranges are
+  branch-specific; a decline is a judgment about content and outlives the branch it was made on.
+- **The decisions table is additive.** A capture merges this run's decisions into the stored set and
+  never drops a row it did not observe: a run on a branch where a declined finding does not appear
+  has learned nothing about that decision. A row leaves only when `realign` moves that id's status
+  off `declined` in the findings artifact, which is the operator reversing themselves explicitly.
+- **The capture happens at the end of a cycle that completed its comparison.** A run that stopped
+  early — no detector output, an unrecognized `schema:`, a resolution that yielded no home — leaves
+  the stored baseline exactly as it is and writes none. A half-captured spine reports the missing
+  half as movement on the next run.
+- **`type: instruction-placement-baseline`, never `review-findings`.** The reasoning is the one
+  stated above for the findings artifact and it applies with more force here: nothing in this file
+  is a proposal, so an auto-apply relay that located it by frontmatter would be acting on a
+  snapshot.
+
+An unrecognized `schema:` is a stop with a visible message, not a silent re-baseline: silently
+discarding a baseline discards the declined set with it.
+
 ## Stability, and what promotion to a shared seam would require
 
 This artifact is currently consumed by **three skills inside this plugin and nothing else**: `audit`
 writes it, `realign` writes operator decisions into it, `delta` diffs it across runs. `check`
 deliberately reads it never, so a stale artifact can never make a broken repository look healthy.
+
+The baseline is narrower still: `delta` is its only reader and its only writer.
 
 It is therefore **not** a cross-plugin convention, and there is no owner doc under
 `docs/conventions/` for it. That is deliberate. The convention registry's rule — a shared convention
@@ -137,7 +199,7 @@ implementation.
 - Field names and the `Status` vocabulary do not change within a schema version. Fields may be
   *added*; a reader that ignores unknown fields keeps working.
 - Identifiers are stable across runs within a key and are never reused.
-- The location formula — plugin data directory, project state key, branch segment, one stable
+- The location formula — memory tier, constant slug, branch segment, one stable
   filename — is fixed within a schema version.
 
 **What promotion would require**, recorded so the work is not rediscovered:

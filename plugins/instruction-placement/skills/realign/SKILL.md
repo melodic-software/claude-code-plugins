@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Edit",
     "Write",
@@ -66,16 +65,13 @@ it is presented.** Say so in the run's opening line, then hold it literally.
 
 ## Prerequisites
 
-Read the artifact from **this project's derived key**:
+Read the artifact from the home the plugin's topic-docs binding resolves
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
-
-If it is absent, say no audit has been run for this project and offer to run one. Do **not** fall
-back to an unkeyed path: a machine-global artifact carries no project segment, so its findings may
-describe a different repository's instruction layer entirely. Name such a file as a leftover and run
-a fresh audit instead of acting on it.
+If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall
+back to another path or another branch's artifact: findings cite line ranges, and a range derived
+elsewhere points at different text here. Name such a file as a leftover and run a fresh audit
+instead of acting on it.
 
 Three staleness checks before the first edit, because acting on a stale artifact edits the wrong
 lines:
