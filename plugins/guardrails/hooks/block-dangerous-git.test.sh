@@ -1347,4 +1347,117 @@ run_pwsh "PS: quoted Path+Value is not a git signal (allowed — #2906 containme
 run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
 
+# --- Process creations on the guard's own paths (#3529) ----------------------
+# run-guards.test.sh pins the dispatcher's PATH-visible execs through shims, and
+# a shim cannot see a fork: `$(builtin-only function)`, `< <(printf …)` and a
+# substitution whose body carries its own redirect each create a process that
+# never execs (or, for the redirect case, a second process for one exec). The
+# kernel is the instrument that counts them: strace follows the dispatcher's
+# subshells (-f) and reports each clone/clone3/fork/vfork return, and execve
+# separately, so an exec cannot pass for a removed fork or the reverse. The
+# guard's own share is the difference against a no-op guard dispatched through
+# the same run-guards.sh on the same payload, which subtracts the dispatcher's
+# stdin, jq and isolation forks. HOOK_TELEMETRY_SINK is cleared: the envelope is
+# opt-in and off by default, and it is the one path that still derives the
+# subject through a substitution. A host without a working strace (Windows Git
+# Bash, macOS) skips visibly; the Linux CI lane is where the pins hold.
+#
+# The benign pin is EXACT on purpose. The two creations left are
+# `$(hook::buffer_stdin)` and the shared parser's `< <(printf …)`, both in
+# lib/hook-utils.sh (#3740, #3838); when those land this figure drops and the
+# pin moves with it. A count that rises is a fork put back on every Bash call.
+# The other pins are DELTAS against that benign share, so they read the cost of
+# one path (a `!` alias reparse, its trailing arguments, the hash-width probe)
+# rather than the library's total. Under -f strace may split a call into
+# `<unfinished ...>` and `<... resumed>` halves, so both spellings of a completed
+# call are counted.
+strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
+  local log="$TEST_TMPDIR/strace.log"
+  CENSUS_RC=0
+  (cd "$REPO_SHA1" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
+    strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
+    bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1) || CENSUS_RC=$?
+  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
+}
+# guard_share <command> → SHARE_RC SHARE_CREATIONS SHARE_EXECVE (guard minus no-op)
+guard_share() {
+  local payload noop_cre noop_exe
+  payload="$(command_json_cwd "$1" "$REPO_SHA1")"
+  strace_census "$payload" "$TEST_TMPDIR/noop-guard.sh"
+  noop_cre=$CENSUS_CREATIONS
+  noop_exe=$CENSUS_EXECVE
+  strace_census "$payload" block-dangerous-git.sh
+  SHARE_RC=$CENSUS_RC
+  SHARE_CREATIONS=$((CENSUS_CREATIONS - noop_cre))
+  SHARE_EXECVE=$((CENSUS_EXECVE - noop_exe))
+}
+if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
+
+  guard_share 'git status --short'
+  benign_creations=$SHARE_CREATIONS
+  assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
+  assert_eq "strace: guard's own process creations on a benign Bash call" 2 "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
+
+  # The verdict path costs nothing the benign path did not: the eager telemetry
+  # subject is gone from file scope, and emit_tel's own substitution stays
+  # behind the sink gate.
+  guard_share 'git push --force origin main'
+  assert_exit "strace: dispatched force-push still blocks under the tracer" 2 "$SHARE_RC"
+  assert_eq "strace: a blocked force-push creates no more processes than a benign call" \
+    "$benign_creations" "$SHARE_CREATIONS"
+
+  # A `!` alias reparse re-enters the shared parser once (its `< <(printf …)`,
+  # the library's) and composes the relocated base without a fork
+  # (effective_dir_to, not `$(effective_dir …)`).
+  guard_share "git -c alias.y='!git status' y"
+  alias_creations=$SHARE_CREATIONS
+  assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"
+  assert_eq "strace: a ! alias reparse is one creation over benign (the parser's re-entry only)" \
+    $((benign_creations + 1)) "$SHARE_CREATIONS"
+
+  # Trailing arguments are shell-quoted with `printf -v`, so three of them add
+  # nothing to the reparse's count.
+  guard_share "git -c alias.y='!git push' y --force origin main"
+  assert_exit "strace: force-push through a ! alias's trailing args still blocks under the tracer" 2 "$SHARE_RC"
+  assert_eq "strace: trailing ! alias arguments add no process creations" \
+    "$alias_creations" "$SHARE_CREATIONS"
+
+  # The hash-width probe is the guard's one external command. Its `2>&1` must
+  # stay inside the substitution (git's stderr is quoted by the block message),
+  # so the body is `exec git …`: one creation and one execve, not two and one.
+  guard_share "git push --force-with-lease=main:$SHA1_OID origin main"
+  assert_exit "strace: lease pinned to a full SHA-1 object id still allowed under the tracer" 0 "$SHARE_RC"
+  assert_eq "strace: the hash-width probe is one creation over benign" \
+    $((benign_creations + 1)) "$SHARE_CREATIONS"
+  assert_eq "strace: the hash-width probe is one execve" 1 "$SHARE_EXECVE"
+
+  # Same site, per-process: standalone (so the guard's main bash is the parent
+  # of every substitution it opens), the process that execs `git rev-parse
+  # --show-object-format` must have a parent that itself execve'd. A parent that
+  # never exec'd is the substitution's own subshell forking a second time,
+  # which is the shape the `exec` removed.
+  probe_log="$TEST_TMPDIR/strace-probe.log"
+  (cd "$REPO_SHA1" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
+    strace -f -s 512 -e trace=clone,clone3,fork,vfork,execve -o "$probe_log" \
+    bash "$HOOK" <<<"$(command_json_cwd "git push --force-with-lease=main:$SHA1_OID origin main" "$REPO_SHA1")" >/dev/null 2>&1)
+  probe_direct=$(awk '
+    { pid = $1 }
+    (/clone\(|clone3\(|vfork\(|[^e]fork\(/ || /clone resumed|fork resumed/) && / = [0-9]+$/ {
+      n = split($0, a, " = "); child = a[n]
+      if (child ~ /^[0-9]+$/) parent[child] = pid
+    }
+    /execve\(/ && / = 0$/ { execed[pid] = 1; if ($0 ~ /"rev-parse", "--show-object-format"/) probe = pid }
+    END {
+      if (probe == "") { print "absent"; exit }
+      q = (probe in parent) ? parent[probe] : "-"
+      print (q in execed) ? "direct" : "extra-fork"
+    }' "$probe_log")
+  assert_eq "strace: the hash-width probe execs in the substitution's own subshell" direct "$probe_direct"
+else
+  echo "ok: process-creation pins skipped (no working strace on this host)"
+fi
+
 report

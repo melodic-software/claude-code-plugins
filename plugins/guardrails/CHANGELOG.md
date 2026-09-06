@@ -3,6 +3,54 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.13]
+
+### Changed
+
+- **`block-dangerous-git` no longer forks for work that had no process in
+  it.** On every Bash and PowerShell call the guard created three processes
+  of its own and executed none, so the PATH-shim census read it as free. One
+  of the three was this file's: an eager
+  `SUBJECT=$(hook::extract_bash_subject ...)` at file scope, feeding a
+  telemetry envelope that is off by default and that the verdict never reads.
+  It is now derived inside `emit_tel`, behind the start-stamp and sink gates.
+  Off the common path, three more sites paid a fork for a string: the
+  hash-width probe `$(git ... rev-parse --show-object-format 2>&1)` cost two
+  creations for one exec, because bash execs a substitution's body in the
+  substitution's own subshell only when that body carries no redirection of
+  its own, and the `2>&1` has to stay inside (git's stderr is the diagnostic
+  the block message quotes), so the body is now `exec git ...` and the
+  subshell becomes git; a `!` alias reparse spent one `$(printf '%q')` per
+  trailing argument, now `printf -v`; and its `$(effective_dir ...)` around a
+  builtins-only function is now `effective_dir_to`, a nameref assignment.
+  Verdicts are unchanged: 190 paired runs against `origin/main` (87 Bash and
+  8 PowerShell commands, standalone and dispatched, three repository shapes,
+  every force-push, lease, reset, clean, checkout, restore and switch form the
+  guard matches plus their near-miss safe spellings, `!` and inline aliases,
+  `bash -c` wrappers, and commands carrying a CR, BOM, zero-width space or
+  U+2028) agree on exit code and stderr, with one input those runs did not
+  cover: on a `PATH` carrying no `git`, the diagnostic the block message
+  quotes now reads `exec: git: not found` where it read
+  `git: command not found`. The status is still 127, the same `*` branch
+  runs, and the push is still blocked; the wording of that quoted error is
+  the only thing that changes. The 479-case contract suite passes. The two
+  creations that remain on the common path are
+  `$(hook::buffer_stdin)` and the shared parser's `< <(printf ...)`; both
+  belong to `lib/hook-utils.sh` (#3740, #3838), so the "at most two spawns"
+  line in #3529 is not closed from inside this file, and the PowerShell
+  lane's own fourteen creations live in `lib/powershell/ps-command.sh`.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+  guard share = dispatched count minus a no-op guard dispatched the same way,
+  this repository as cwd, `HOOK_TELEMETRY_SINK` unset: benign
+  `git status --short` and blocked `git push --force origin main` creations
+  **3 -> 2**, execve **0 -> 0**; lease with a full-width object id
+  **5 -> 3**, execve **1 -> 1**; `!` alias with three trailing arguments
+  **8 -> 3**, execve **0 -> 0**; whole Bash dispatcher on the benign payload
+  **35 -> 34**, execve **3 -> 3**. The unchanged execve column is the
+  evidence this is latency, not removed work. The contract suite now pins
+  each of these by the same instrument and skips visibly where strace is
+  absent.
+
 ## [0.32.10]
 
 ### Changed

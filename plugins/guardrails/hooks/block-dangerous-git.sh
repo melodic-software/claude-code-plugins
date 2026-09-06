@@ -165,16 +165,27 @@ TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
-
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
 # spawns no telemetry-only subprocess.
+#
+# The privacy-safe subject (`Bash:<first-token>`, never the full command) is
+# derived HERE, behind both gates, not at file scope. The shared helper answers
+# through a command substitution, and a command substitution is a fork on every
+# fire even when its body is builtins only (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution); on Windows Git Bash
+# that fork is a process. Only the envelope reads the subject, the envelope is
+# off by default, and the verdict never reads it, so deriving it eagerly spent a
+# process on every Bash and PowerShell call for a value nothing consumed
+# (#3529). The PowerShell lane rewrites COMMAND before its verdict, but the
+# helper answers a PowerShell payload with the bare tool name regardless of the
+# command, so the subject the envelope carries is the one it carried before.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local data
-  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
+  local data subject
+  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-dangerous-git" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -338,7 +349,18 @@ repo_oid_width() {
   _repo_oid_width_key="$key"
   _repo_oid_width=""
   _repo_oid_width_err=""
-  out="$(git "$@" rev-parse --show-object-format 2>&1)" || true
+  # `exec` inside the substitution, because the `2>&1` has to stay inside it:
+  # git's stderr is the diagnostic the block message quotes, so it must land
+  # in `out`, and moving the redirect onto a group outside the substitution
+  # would send it to the hook's own stdout instead. Bash execs a substitution's
+  # body in the substitution's own subshell only when that body carries no
+  # redirection of its own, so `$(git … 2>&1)` cost two process creations for
+  # one exec; an explicit `exec` makes the subshell become git, which is one
+  # (measured with `strace -f -e trace=clone,clone3,fork,vfork,execve`). If git
+  # is absent, the failed exec ends the subshell with bash's own "not found"
+  # diagnostic on the captured stream and a non-zero status, which is the same
+  # `*` branch below that a missing git reached before.
+  out="$(exec git "$@" rev-parse --show-object-format 2>&1)" || true
   case "$out" in
   sha1) _repo_oid_width=40 ;;
   sha256) _repo_oid_width=64 ;;
@@ -494,7 +516,16 @@ git_inherited_locating_opts_from_words() {
 # the inherited `--git-dir` / `--work-tree` / `--namespace` spellings separately
 # via HOOK_GIT_INHERITED_LOCATING_OPTS (#2151) — only `-C` is composed here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-effective_dir() {
+#
+# effective_dir_to <var> <locating-option...> assigns the composed directory
+# into the variable named by $1 rather than printing it. The body is builtins
+# only, so the `$(effective_dir …)` this replaced at the `!` alias reparse was
+# a fork spent on nothing but carrying a string out of a subshell (#3529). The
+# default base is read into a local before the nameref is written, so a caller
+# may name HOOK_EFFECTIVE_BASE itself as the destination.
+effective_dir_to() {
+  local -n _ed_out="$1"
+  shift
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
@@ -508,7 +539,7 @@ effective_dir() {
       ((i++))
     fi
   done
-  printf '%s' "$base"
+  _ed_out="$base"
 }
 
 # Has an earlier lease spelling in this same command already claimed <refname>?
@@ -728,7 +759,7 @@ check_segment() {
   # and finite distinct alias keys guarantee termination. Terminating is not the
   # same as tractable — the walk branches per hop, and alias_reexpand_admit is what
   # keeps its cost proportional to the chain's length.
-  local exp reparse a alias_rc s seen_hit=0 saved_base="" saved_inherited=()
+  local exp reparse a alias_rc s seen_hit=0 saved_base="" saved_inherited=() quoted_arg composed_base
   local -a expw=() saved_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
@@ -790,7 +821,12 @@ check_segment() {
         # dropping it probes the payload cwd while git pushes from the relocated
         # repository, which is this guard's misprobe one recursion level down.
         reparse="${exp#!}"
-        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+        # `printf -v`, not `$(printf …)`: the substitution was a fork per
+        # trailing argument (alias_reexpand_admit makes the same choice).
+        for a in "${w[@]:sub_idx+1}"; do
+          printf -v quoted_arg '%q' "$a"
+          reparse+=" $quoted_arg"
+        done
         HOOK_ALIAS_SEEN=()
         saved_inherited=(${HOOK_GIT_INHERITED_LOCATING_OPTS[@]+"${HOOK_GIT_INHERITED_LOCATING_OPTS[@]}"})
         git_inherited_locating_opts_from_words "$gi" "$sub_idx" "${w[@]}"
@@ -802,7 +838,13 @@ check_segment() {
         # function ever grows a second leading synthetic pair, or stops leading
         # with the base, this line breaks silently and the wrapper dirs are
         # read starting one pair too late.
-        HOOK_EFFECTIVE_BASE="$(effective_dir ${git_locating_opts[@]+"${git_locating_opts[@]:2}"})"
+        #
+        # Assigned through effective_dir_to, not `$(effective_dir …)`: that
+        # substitution was a fork on every `!` alias reparse for a builtins-only
+        # function. The scratch variable keeps the function reading the CURRENT
+        # base as its default while it composes the new one.
+        effective_dir_to composed_base ${git_locating_opts[@]+"${git_locating_opts[@]:2}"}
+        HOOK_EFFECTIVE_BASE="$composed_base"
         alias_reexpand_admit shell "$reparse" &&
           hook::bash_parse_segments "$reparse" check_segment
         HOOK_EFFECTIVE_BASE="$saved_base"
