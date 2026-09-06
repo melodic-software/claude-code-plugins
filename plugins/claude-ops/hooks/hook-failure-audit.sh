@@ -68,9 +68,15 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # Advisory finding -> fail open, with the standard once-per-session notice.
 hook::require_jq Stop claude-ops "$INPUT"
 
-TRANSCRIPT=$(hook::jq_field "$INPUT" '.transcript_path') || exit 0
-[[ -f "$TRANSCRIPT" ]] || exit 0
-SESSION=$(hook::jq_field "$INPUT" '.session_id') || SESSION="no-session"
+# Both payload fields in ONE jq process (hook::jq_fields), not two: a jq spawn is
+# a process, and two hook::jq_field calls read the same envelope twice for it.
+# An absent field arrives as the empty string here rather than as a non-zero
+# return, so each guard below is spelled out instead of riding on `||`.
+hook::jq_fields "$INPUT" '.transcript_path' '.session_id' || exit 0
+TRANSCRIPT="${HOOK_JQ_FIELDS[0]}"
+[[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || exit 0
+SESSION="${HOOK_JQ_FIELDS[1]}"
+[[ -n "$SESSION" ]] || SESSION="no-session"
 # data.session_id (additive, hook-telemetry rule 1): the sink routes an
 # envelope carrying one into the per-session log beside session-event-log.sh.
 SESSION_ID=""
@@ -81,14 +87,16 @@ SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 # the cap truncates, the first in-window line is likely partial — drop it, as
 # guard_launch_monitor.py does. The override exists for the contract test.
 TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
-SIZE=$(wc -c <"$TRANSCRIPT" 2>/dev/null) || exit 0
-read_window() {
-  if ((SIZE > TAIL_BYTES)); then
-    tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d'
-  else
-    cat -- "$TRANSCRIPT" 2>/dev/null
-  fi
-}
+# `wc -c -- <file>`, not `wc -c <file>`: bash runs the command of a command
+# substitution in the substitution's own subshell and skips the extra fork ONLY
+# when that command carries no redirection of its own, so the `<` bought a whole
+# second process for one byte count (#3779). Naming the file instead adds a
+# filename column, which `read` drops along with the leading padding some `wc`
+# builds emit. The `2>/dev/null` rides on the surrounding single-command group,
+# where it silences the same stream without re-arming the fork.
+SIZE=""
+{ read -r SIZE _ < <(wc -c -- "$TRANSCRIPT"); } 2>/dev/null
+[[ -n "$SIZE" ]] || exit 0
 
 # grep is a cheap pre-filter only; the structural jq selection decides. The
 # no-match common case exits on the pre-filter's emptiness, before paying for
@@ -143,8 +151,34 @@ read_window() {
 # in a narrower shape. The per-class counts below keep every class present in a
 # group visible, and the message flags are computed from those counts, never
 # from a single collapsed value.
-RECORDS=$(read_window | grep -F '"hook_non_blocking_error"')
+#
+# The window is read INTO grep, not through a `read_window` helper: a function
+# call inside `$( )` is a second subshell on top of the substitution's own, and
+# `cat -- file | grep` paid a further process to hand grep bytes it can open
+# itself. Under the cap, grep now opens the transcript directly and the whole
+# pre-filter is one process. Over the cap the pipeline is unchanged — the
+# truncated first in-window line is likely partial and `sed '1d'` drops it, as
+# guard_launch_monitor.py does — and its `2>/dev/null` stays exactly where it
+# was, on `tail`, because a pipeline element forks either way and moving the
+# redirect out would newly silence sed and grep for no saving.
+if ((SIZE > TAIL_BYTES)); then
+  RECORDS=$(tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d' |
+    grep -F '"hook_non_blocking_error"')
+else
+  # Group-scoped redirect: `grep … 2>/dev/null` inside the substitution would
+  # cost the extra fork the file-argument form just saved (#3779). The group
+  # holds one command, so nothing beyond grep's own stderr is silenced — and
+  # that stream was already discarded before, by `cat`'s own `2>/dev/null`.
+  { RECORDS=$(grep -F '"hook_non_blocking_error"' -- "$TRANSCRIPT"); } 2>/dev/null
+fi
 [[ -n "$RECORDS" ]] || exit 0
+# `printf | jq` and NOT a here-string, even though the pipeline costs a process
+# the here-string would not: bash fills a here-string's pipe itself, so a
+# payload at or above the pipe capacity blocks before jq is exec'd — the same
+# deadlock hook::jq_field documents. `$RECORDS` is every matching transcript
+# record in the window and routinely clears that capacity, so this one stays a
+# pipeline. It is also off the common path entirely: a turn with no failure
+# record exits above, before this line.
 SUMMARY=$(printf '%s' "$RECORDS" |
   jq -cRs '[
       split("\n")[] | fromjson?
@@ -177,10 +211,17 @@ MARKER=""
 WARNED=""
 if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   MARKER_DIR="${CLAUDE_PLUGIN_DATA}/hook-failure-audit"
-  if mkdir -p "$MARKER_DIR" 2>/dev/null; then
+  # `-d` first: after the first warned turn the directory always exists, and
+  # `mkdir -p` on an existing directory is a whole process to reach the same
+  # no-op. A directory that exists but is unwritable fell through `mkdir -p`
+  # successfully before too, and still fails at the marker write below.
+  if [[ -d "$MARKER_DIR" ]] || mkdir -p "$MARKER_DIR" 2>/dev/null; then
     find "$MARKER_DIR" -type f -mtime +7 -delete 2>/dev/null
     MARKER="$MARKER_DIR/${SESSION}"
-    [[ -f "$MARKER" ]] && WARNED=$(cat -- "$MARKER" 2>/dev/null)
+    # `$(<file)`, not `$(cat -- file)`: bash reads the file itself here, with no
+    # subshell and no exec at all. Same trailing-newline stripping as the
+    # substitution around `cat` had.
+    [[ -f "$MARKER" ]] && { WARNED=$(<"$MARKER"); } 2>/dev/null
   fi
 fi
 
@@ -259,9 +300,15 @@ hook::emit_system_message "$MSG"
 
 # Record what was warned about before telemetry: the warning is the contract,
 # the envelope is best-effort.
+# `tr -d '\r'` is gone, not its effect: the CRs come from a Windows jq build
+# writing stdout in text mode, and bash strips them from the captured string
+# for free. The pipeline cost a process to delete one byte class from a string
+# bash can rewrite in place, and the substitution around a bare jq carries no
+# redirection, so it costs one process rather than two.
 if [[ -n "$MARKER" ]]; then
-  jq -rn --argjson new "$NEW" '$new[] | .hookName + "	" + .command' 2>/dev/null |
-    tr -d '\r' >>"$MARKER" || true
+  FINGERPRINTS=""
+  { FINGERPRINTS=$(jq -rn --argjson new "$NEW" '$new[] | .hookName + "	" + .command'); } 2>/dev/null
+  [[ -n "$FINGERPRINTS" ]] && printf '%s\n' "${FINGERPRINTS//$'\r'/}" >>"$MARKER" 2>/dev/null
 fi
 
 # Telemetry subjects stay hookName-only (privacy-safe); the command detail is
