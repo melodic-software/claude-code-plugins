@@ -174,13 +174,27 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
 
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
-
+# Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
+# on the high-res start stamp and the opt-in sink, so the unwired default path
+# spawns no telemetry-only subprocess.
+#
+# The privacy-safe subject (`Bash:<first-token>`, never the full command) is
+# derived HERE, behind both gates, not at file scope. The shared helper answers
+# through a command substitution, and a command substitution is a fork on every
+# fire even when its body is builtins only (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution); on Windows Git Bash
+# that fork is a process. Only the envelope reads the subject, the envelope is
+# off by default, and the verdict never reads it, so deriving it eagerly spent a
+# process on every Bash and PowerShell call for a value nothing consumed
+# (#3514). The PowerShell lane rewrites COMMAND before its verdict, but the
+# helper answers a PowerShell payload with the bare tool name regardless of the
+# command, so the subject the envelope carries is the one it carried before.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local data
-  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
+  local data subject
+  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-noncanonical-commit" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -200,14 +214,20 @@ allowed() {
 # when absent. One extractor for every locating global rather than a loop per
 # option — `explicit_git_dir` below is the original caller, and the alias-identity
 # probe needs `--work-tree` through the same shape.
-# Call as: explicit_global <option-name-without-dashes> <invocation-prefix words...>
+# Call as: explicit_global_to <var> <option-name-without-dashes> <invocation-prefix words...>
+# The value lands in the variable named by $1 rather than on stdout: the body
+# is builtins only, so the `$(explicit_git_dir …)` this replaced on the block
+# path was a fork spent on nothing but carrying a string out of a subshell
+# (#3514). The nameref is written once, after the scan, so a caller may name
+# any variable that is not one of this function's own locals.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 # The LAST occurrence wins, as git itself does — scanning does not stop at the
 # first match. A repeated `--git-dir` otherwise aimed the sequencer probe at the
 # wrong git dir, which decides an exemption.
-explicit_global() {
-  local opt="--$1"
-  shift
+explicit_global_to() {
+  local -n _eg_out="$1"
+  local opt="--$2"
+  shift 2
   local i n=$# arg found=""
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
@@ -221,14 +241,19 @@ explicit_global() {
     *) ;;
     esac
   done
-  printf '%s' "$found"
+  _eg_out="$found"
 }
 
-# Value of an explicit `--git-dir` (attached or separated), empty when absent.
-# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
-# probing the cwd's state would refuse to exempt a real in-progress merge.
+# Value of an explicit `--git-dir` (attached or separated) into the variable
+# named by $1, empty when absent. A commit driven with --git-dir concludes a
+# sequencer in THAT git dir, so probing the cwd's state would refuse to exempt
+# a real in-progress merge.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-explicit_git_dir() { explicit_global git-dir "$@"; }
+explicit_git_dir_to() {
+  local _egd_out="$1"
+  shift
+  explicit_global_to "$_egd_out" git-dir "$@"
+}
 
 # The directory git launches a `!` shell-alias body in, which is also the hop
 # identity in the shell-alias cycle key. NOT unconditionally the work-tree top
@@ -504,8 +529,18 @@ shell_alias_inherited_locating() {
 # HOOK_GIT_RESOLVED_WRAPPER_DIRS, and the caller passes them here as leading `-C`
 # words so they compose ahead of git's own globals, in that order. Dropping them
 # reads the payload cwd's aliases while git runs the relocated repository's.
+#
+# effective_dir_to <var> <words...> assigns the composed directory into the
+# variable named by $1 rather than printing it. The body is builtins only, so
+# the `$(effective_dir …)` this replaced at each of its three call sites was a
+# fork spent on nothing but carrying a string out of a subshell (#3514); on the
+# blocked multi-line commit path that fork was paid on every fire. The default
+# base is read into a local before the nameref is written, so a caller may
+# name HOOK_EFFECTIVE_BASE itself as the destination.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-effective_dir() {
+effective_dir_to() {
+  local -n _ed_out="$1"
+  shift
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
@@ -519,7 +554,7 @@ effective_dir() {
       ((i++))
     fi
   done
-  printf '%s' "$base"
+  _ed_out="$base"
 }
 
 # Is a merge / rebase / cherry-pick / revert in progress? Those commits carry a
@@ -678,8 +713,11 @@ check_segment() {
   local inline_alias_handled=0
   # This segment's effective repo directory, resolved at most once per frame and
   # only where a path is actually needed — a segment carrying no alias and no
-  # commit must not pay effective_dir's subshell.
+  # commit must not pay effective_dir_to's composition.
   local seg_dir=""
+  # Scratch for the fork-free spellings below: a `printf -v` target for the `!`
+  # alias reparse quoting, and the explicit --git-dir the sequencer probe reads.
+  local quoted_arg="" explicit_gd=""
   # Locating globals this invocation carries, replayed onto the identity probe.
   local -a locating_globals=()
 
@@ -786,8 +824,13 @@ check_segment() {
           # segment's launch directory, so the body's relative `-C` composes
           # onto it.
           reparse="${exp#!}"
-          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+          # `printf -v`, not `$(printf …)`: the substitution was a fork per
+          # trailing argument (alias_reexpand_admit makes the same choice).
+          for a in "${w[@]:sub_idx+1}"; do
+            printf -v quoted_arg '%q' "$a"
+            reparse+=" $quoted_arg"
+          done
+          [[ -n "$seg_dir" ]] || effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
           alias_launch_dir "$seg_dir" ${#locating_globals[@]} ||
             HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
           HOOK_ALIAS_SEEN=()
@@ -815,7 +858,7 @@ check_segment() {
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
       ! git_subcommand_ignores_alias "$sub"; then
       local pexp
-      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+      [[ -n "$seg_dir" ]] || effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
       persisted_alias_expansions "$seg_dir" "$sub"
       for pexp in ${HOOK_PERSISTED_ALIAS_EXPS[@]+"${HOOK_PERSISTED_ALIAS_EXPS[@]}"}; do
         [[ -n "$pexp" ]] || continue
@@ -856,7 +899,12 @@ check_segment() {
             HOOK_SHELL_ALIAS_SEEN+=("$pkey")
             local preparse pa
             preparse="${pexp#!}"
-            for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+            # `printf -v`, not `$(printf …)`: one fork per trailing argument
+            # otherwise, same as the inline `!` branch above.
+            for pa in "${w[@]:sub_idx+1}"; do
+              printf -v quoted_arg '%q' "$pa"
+              preparse+=" $quoted_arg"
+            done
             HOOK_ALIAS_SEEN=()
             saved_locating=(${HOOK_EFFECTIVE_LOCATING[@]+"${HOOK_EFFECTIVE_LOCATING[@]}"})
             shell_alias_inherited_locating
@@ -958,8 +1006,12 @@ check_segment() {
   # and repeated single-line `-m` paragraphs (git joins them itself) all pass.
   ((msg_newline)) || return 0
   allowed "message-flag" && return 0
-  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
-  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:gi:sub_idx-gi}")" && return 0
+  # Both composed without a command substitution: each was a fork on every
+  # blocked multi-line commit for a builtins-only function (#3514). The
+  # sequencer probe's own `git rev-parse` fork is the one this path still pays.
+  [[ -n "$seg_dir" ]] || effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
+  explicit_git_dir_to explicit_gd "${w[@]:gi:sub_idx-gi}"
+  sequencer_in_progress "$seg_dir" "$explicit_gd" && return 0
 
   echo "BLOCKED: \`git commit -m\` with a multi-line message — a \`-m\` newline flattens" >&2
   echo "unpredictably across shells, so the body lands mangled in history." >&2
@@ -998,7 +1050,11 @@ check_segment() {
 # The ~41 KB classifier is sourced only on the PowerShell lane (#2663); the
 # Bash path is a no-op (COMMAND unchanged).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # `$_HOOK_SELF/..` names the plugin root as a path; `source` resolves it the
+  # same as the canonical spelling `$(cd … && pwd)` produced, and that
+  # substitution was a fork on every PowerShell fire when CLAUDE_PLUGIN_ROOT
+  # was unset (#3514). Nothing reads PLUGIN_ROOT but the `source` below.
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}"
   # shellcheck source=../lib/powershell/ps-command.sh
   source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
