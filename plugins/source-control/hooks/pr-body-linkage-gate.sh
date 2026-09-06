@@ -120,7 +120,28 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PreToolUse" "source-control-pr-body-linkage-gate" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+# Both payload fields in ONE jq process (#3509). The per-field form this
+# replaced was `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'` twice
+# over: measured with `strace -f -e trace=clone,clone3,fork,vfork,execve`, each
+# such pipeline costs 4 forks and 2 execs, so reading two fields cost 8 forks and
+# 4 execs to answer two questions about one buffered string. hook::jq_fields
+# answers both in 3 forks and 1 exec, and CR-strips each value exactly as the
+# `tr -d '\r'` it replaces did.
+#
+# `.cwd` is now read BEFORE the applicability pre-filter rather than after it.
+# That reorders nothing observable — both values come out of the same process,
+# neither read has a side effect, and the filter still gates every line below —
+# and it is what makes the single process possible.
+#
+# `|| exit 0` matches the value the per-field form produced when jq failed or
+# rejected the payload: an empty COMMAND, which the next line already turned
+# into an ALLOW. HOOK_JQ_FIELDS_NUL is deliberately NOT consulted: this gate's
+# declared posture is FAIL-OPEN on extraction (see the header), and both the old
+# and new readers strip NUL bytes from the value identically, so failing closed
+# on the flag would be a new verdict rather than a preserved one.
+hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' || exit 0
+COMMAND="${HOOK_JQ_FIELDS[0]}"
+HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$COMMAND" ]] || exit 0
 # Applicability pre-filter before any repo I/O or parsing. `gh` must appear as
 # its own word (or a path's last segment) so `npm run lighthouse-prod` does not
@@ -130,7 +151,6 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Hh][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *"pr"* ]] || exit 0
 
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 
 # The consuming repo's own gate definition is the authority; no gate, no
@@ -154,9 +174,11 @@ DIR_CHANGED=0
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
+  # hook::json_str_object_to, not `jq -n --arg`: the library builder is
+  # documented byte-identical to that jq form for an all-string object, and
+  # costs neither the fork nor the exec (#3509). Both fields are strings.
   local data
-  data=$(jq -n --arg outcome "$1" --arg form "$FORM" \
-    '{outcome:$outcome,form:$form}' 2>/dev/null) || data='{"outcome":"","form":""}'
+  hook::json_str_object_to data outcome "$1" form "$FORM"
   hook::emit_telemetry "pr-body-linkage-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -169,18 +191,29 @@ emit_tel() {
 source "$HOOK_DIR/pr-linkage-validator.sh"
 # --- Command extraction ------------------------------------------------------
 
-# Body of the SOLE heredoc in the given text. Covers both stdin forms the
-# authoring corpus uses: `--body-file -` fed by a heredoc, and a `--body
-# "$(cat <<'EOF' … EOF)"` command substitution, whose quoted value the segment
-# tokenizer hands back verbatim (it strips heredoc bodies only outside quotes).
-# Returns 1 with no heredoc, an unterminated one, or SEVERAL — with more than
-# one, which of them reaches `gh` is not statically knowable, and judging the
-# wrong text would block a compliant call.
+# Body of the SOLE heredoc in the given text, into <dest>. Covers both stdin
+# forms the authoring corpus uses: `--body-file -` fed by a heredoc, and a
+# `--body "$(cat <<'EOF' … EOF)"` command substitution, whose quoted value the
+# segment tokenizer hands back verbatim (it strips heredoc bodies only outside
+# quotes). Returns 1 with no heredoc, an unterminated one, or SEVERAL — with
+# more than one, which of them reaches `gh` is not statically knowable, and
+# judging the wrong text would block a compliant call.
+#
+# Out-variable rather than stdout, and linkage::split_lines rather than
+# `< <(printf …)`, for the reason spelled out under PROCESS BUDGET in
+# pr-linkage-validator.sh (sourced above): the two together cost this function
+# 2 forks per call and 0 execs, which is pure Windows spawn latency (#3509).
+# linkage::chomp_to reproduces the trailing-newline strip `$( )` performed.
+# <dest> is cleared first, so every `return 1` path leaves it empty.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-sole_heredoc_body() {
-  local text="$1" line delim="" in_hd=0 t out="" count=0
+sole_heredoc_body_to() {
+  local __pbl_dest="$1" text="$2" line delim="" in_hd=0 t out="" count=0 li=0
   local start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  printf -v "$__pbl_dest" '%s' ""
+  linkage::split_lines "$text"
+  local -a hd_lines=("${LINKAGE_LINES[@]}")
+  for ((li = 0; li < ${#hd_lines[@]}; li++)); do
+    line="${hd_lines[li]}"
     if ((in_hd)); then
       t="${line%$'\r'}"
       t="${t#"${t%%[![:space:]]*}"}"
@@ -203,10 +236,10 @@ sole_heredoc_body() {
       delim="${delim%\"}"
       in_hd=1
     fi
-  done < <(printf '%s\n' "$text") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
   # Still inside the body at end of text: the delimiter never appeared.
   ((count == 1 && in_hd == 0)) || return 1
-  printf '%s' "$out"
+  linkage::chomp_to "$__pbl_dest" "$out"
 }
 
 # A value the tokenizer could not fully resolve — an unexpanded expansion or a
@@ -436,7 +469,7 @@ parse_wrapper_flag() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
-  local n=$# i=0 d k word next have_next bin wrapper split_from reparse
+  local n=$# i=0 d k word next have_next bin wrapper split_from reparse qword
   local body_flag="" body_val="" body=""
 
   if hook::shell_c_operand "$@"; then
@@ -503,7 +536,12 @@ check_segment() {
             split_from=$((i + 1))
             ((WRAP_ATE_NEXT)) && split_from=$((i + 2))
             reparse="$WRAP_VAL"
-            for ((k = split_from; k < n; k++)); do reparse+=" $(printf '%q' "${w[k]}")"; done
+            # `printf -v`, not `$(printf %q …)`: the substitution forks once per
+            # remaining operand for a builtin that needs no subshell (#3509).
+            for ((k = split_from; k < n; k++)); do
+              printf -v qword '%q' "${w[k]}"
+              reparse+=" $qword"
+            done
             hook::bash_parse_segments "$reparse" check_segment
             return 0
             ;;
@@ -608,13 +646,20 @@ check_segment() {
   if [[ "$body_flag" == "file" ]]; then
     if [[ "$body_val" == "-" ]]; then
       # The heredoc feeding stdin lives outside the value, in the raw command.
-      body=$(sole_heredoc_body "$COMMAND") || return 0
+      sole_heredoc_body_to body "$COMMAND" || return 0
       FORM="stdin-heredoc"
     else
       local path="$body_val"
       [[ "$path" == /* || "$path" =~ ^[A-Za-z]:[\\/] ]] || path="${HOOK_CWD:-$REPO_ROOT}/$path"
       [[ -r "$path" && -f "$path" ]] || return 0
-      body=$(cat -- "$path") || return 0
+      # `$(<file)`, not `$(cat -- file)`: bash reads the file itself, so this
+      # costs neither a fork nor an exec where `cat` cost one of each (#3509).
+      # It strips trailing newlines exactly as the `cat` substitution did, and
+      # needs no `--` guard because a redirection target is never option-parsed.
+      # The [[ -r && -f ]] probe above still owns the readability verdict; on the
+      # residual race where the file vanishes between probe and read, both forms
+      # yield an empty body, a non-zero status, and one stderr line.
+      body=$(<"$path") || return 0
       FORM="body-file"
     fi
   else
@@ -622,7 +667,7 @@ check_segment() {
     if is_dynamic "$body_val"; then
       # The `$(cat <<'EOF' … EOF)` substitution is inside the value itself, so
       # judge only that — a heredoc elsewhere in the command is not this body.
-      body=$(sole_heredoc_body "$body_val") || return 0
+      sole_heredoc_body_to body "$body_val" || return 0
       FORM="body-substitution"
     else
       body="$body_val"

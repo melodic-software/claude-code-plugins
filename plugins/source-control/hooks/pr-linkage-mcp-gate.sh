@@ -77,13 +77,96 @@ INPUT=$(hook::buffer_stdin) || exit 0
 
 hook::require_jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+# Every payload field this gate reads, in ONE jq process (#3509). The per-field
+# form this replaced ran `printf '%s' "$INPUT" | jq -r … 2>/dev/null` five times
+# plus a sixth `jq -e` for the has("body") probe — measured with
+# `strace -f -e trace=clone,clone3,fork,vfork,execve`, 3-4 forks and 1-2 execs
+# EACH, all six asking about the same buffered string. One hook::jq_fields call
+# answers all of them for 3 forks and 1 exec.
+#
+# Reading every field up front means owner/repo/body are extracted before the
+# tool-name and scope guards would have short-circuited. Nothing observable
+# reorders: the reads have no side effects, they come out of one process either
+# way, and each guard below still exits exactly where it did.
+#
+# `has("body")` rides along as the string "true"/"false" — the probe's own jq -e
+# is what the boolean replaces, and a missing `.tool_input` makes the whole
+# filter null, which hook::jq_fields renders "" (neither "true" nor the empty
+# check below passes, so an absent tool_input still ALLOWS as before).
+#
+# BODY IS DELIBERATELY NOT TAKEN FROM THIS BATCH. hook::jq_fields CR-strips
+# every value it returns, and the validator only strips a CR at end of line; a
+# body carrying a MID-LINE CR would therefore be judged against different text
+# than before, and stripping is the permissive direction — `## Sum<CR>mary`
+# becomes a section that was previously missing, turning a BLOCK into an ALLOW.
+# The batch reports whether the raw body holds a CR at all and the next block
+# re-reads it losslessly only in that case, which no real payload hits.
+#
+# THE CR PROBE IS TOTAL OVER EVERY JSON TYPE. `contains` errors on a non-string,
+# one erroring filter fails the WHOLE batch, and a failed batch used to exit 0
+# here — so a body of `5`, `true`, `{"a":1}` or `["x"]`, which the per-field
+# reader rendered as text and BLOCKED, was let through by the very guard that
+# exists to close the permissive direction. `tostring` first makes the probe
+# total; the value the batch hands back is already tostring'ed by
+# hook::jq_fields, so a non-string body is judged as text, as before.
+#
+# A batch that STILL fails — a `tool_input` or a payload root that is not an
+# object — falls back to the per-field reads this batch replaced rather than
+# allowing outright: that reader's verdict, blocks included, is the reference
+# this gate is held to, so a batch failure can no longer turn a BLOCK into an
+# ALLOW. Every filter here is total over an object tool_input, so the fallback
+# is unreachable on any path the spawn budget fences and costs nothing there.
+read_fields_singly() {
+  local f v
+  HOOK_JQ_FIELDS=()
+  for f in '.tool_name // empty' '.cwd // empty' \
+    '.tool_input.owner // empty' '.tool_input.repo // empty' \
+    '.tool_input | has("body")' \
+    '(.tool_input.body // "") | tostring | contains("\r")' \
+    '.tool_input.body // ""'; do
+    v=$(printf '%s' "$INPUT" | jq -r "$f" 2>/dev/null)
+    HOOK_JQ_FIELDS+=("$v")
+  done
+  # `.cwd` alone was `tr -d '\r'`-cleaned by the per-field reader.
+  HOOK_JQ_FIELDS[1]="${HOOK_JQ_FIELDS[1]//$'\r'/}"
+}
+hook::jq_fields "$INPUT" \
+  '.tool_name' '.cwd' '.tool_input.owner' '.tool_input.repo' \
+  '(.tool_input | has("body"))' \
+  '((.tool_input.body // "") | tostring | contains("\r"))' \
+  '(.tool_input.body // "")' || read_fields_singly
+TOOL="${HOOK_JQ_FIELDS[0]}"
+HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
+T_OWNER="${HOOK_JQ_FIELDS[2]}"
+T_REPO="${HOOK_JQ_FIELDS[3]}"
+HAS_BODY="${HOOK_JQ_FIELDS[4]}"
+BODY_HAS_CR="${HOOK_JQ_FIELDS[5]}"
+BODY="${HOOK_JQ_FIELDS[6]}"
+
+# chomp <var> — strip trailing newlines from the named variable. `$( )` did
+# that for every per-field read, so an `"owner": "acme-corp\n"` or a tool name
+# with a trailing newline compared EQUAL in the exact-match guards below and
+# was gated; hook::jq_fields hands values back with trailing newlines intact,
+# and without this both would slip past those guards. Applied to the four
+# fields the per-field reader chomped plus the body, so each is byte-identical
+# to its `$(jq -r …)` whenever it carries no CR. In-shell, no fork.
+#
+# CR is the one place these four fields are now STRICTER than the per-field
+# reader: it left a CR inside `tool_name`, `owner` or `repo` in place, so such
+# a value never matched and the call was allowed; hook::jq_fields strips it,
+# the value matches, and the body is judged. Accepted as the safer direction.
+chomp() {
+  local __v="${!1}"
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
+for v in TOOL HOOK_CWD T_OWNER T_REPO BODY; do chomp "$v"; done
+
 case "$TOOL" in
 mcp__github__create_pull_request | mcp__github__update_pull_request) ;;
 *) exit 0 ;;
 esac
 
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 
 # The consuming repo's own gate definition is the authority; no gate, no
@@ -105,9 +188,13 @@ done
 # payload missing owner/repo — the target is undeterminable and the call is
 # allowed: imposing this checkout's policy on a repository it was never proven
 # to be is the worse failure (see FAIL-OPEN above).
-T_OWNER=$(printf '%s' "$INPUT" | jq -r '.tool_input.owner // empty' 2>/dev/null)
-T_REPO=$(printf '%s' "$INPUT" | jq -r '.tool_input.repo // empty' 2>/dev/null)
-ORIGIN=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)
+# The redirect sits on the enclosing GROUP, not inside the substitution: bash
+# elides the extra fork and execs in the substitution's own subshell only when
+# the command carries no redirection of its own, so `$(git … 2>/dev/null)` cost
+# two forks for one program where this costs one (#3509). The group holds
+# exactly one command, so nothing beyond that git call is silenced; `|| ORIGIN=""`
+# reproduces what the old `|| true` produced, an empty ORIGIN on failure.
+{ ORIGIN=$(git -C "$REPO_ROOT" remote get-url origin) || ORIGIN=""; } 2>/dev/null
 [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
 norm="${ORIGIN%/}"
 norm="${norm%.git}"
@@ -117,10 +204,18 @@ norm="${norm//:/\/}"
 # An update that carries no body leaves the body CI already validated
 # untouched.
 if [[ "$TOOL" == "mcp__github__update_pull_request" ]]; then
-  printf '%s' "$INPUT" | jq -e '.tool_input | has("body")' >/dev/null 2>&1 || exit 0
+  [[ "$HAS_BODY" == "true" ]] || exit 0
 fi
 
-BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
+# The batched BODY is already correct for every payload the batch reported no
+# CR in — the strip had nothing to remove, so the value is byte-identical to
+# what the dedicated `jq -r` returned. Only a body that DOES carry a CR is
+# re-read losslessly, at the cost of the one jq process this whole batch exists
+# to avoid; see the note on the hook::jq_fields call above for why that
+# direction is the unsafe one to guess at.
+if [[ "$BODY_HAS_CR" == "true" ]]; then
+  BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
+fi
 
 # emit_tel <outcome> [status] — status defaults to the outcome; pass an
 # explicit documented status (ok|error|skipped|blocked) when the domain
@@ -129,9 +224,11 @@ BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
+  # hook::json_str_object_to, not `jq -n --arg`: the library builder is
+  # documented byte-identical to that jq form for an all-string object, and
+  # costs neither the fork nor the exec (#3509). Both fields are strings.
   local data
-  data=$(jq -n --arg outcome "$1" --arg tool "$TOOL" \
-    '{outcome:$outcome,tool:$tool}' 2>/dev/null) || data='{"outcome":"","tool":""}'
+  hook::json_str_object_to data outcome "$1" tool "$TOOL"
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "${2:-$1}" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
