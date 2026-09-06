@@ -16,13 +16,32 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings; the only mutating surface, with no blanket-approve path |
 | `/instruction-placement:check` | Deterministic pass/fail gate | Verifies every rule glob resolves and the always-loaded index is current |
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
-| `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget |
+| `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
 `realign`. Use `delta` for repeat runs, so a re-audit costs attention proportional to what actually
 moved. Wire `check`
 into CI beside the linters.
+
+## Where the artifacts land
+
+This plugin is a participant in the marketplace's lifecycle artifact protocol
+([`reference/artifact-protocol.md`](reference/artifact-protocol.md), byte-identical to the canonical
+copy) and resolves every path through its topic-docs binding
+([`reference/topic-docs.md`](reference/topic-docs.md)). Two files, both memory tier, neither ever
+committed:
+
+| Artifact | Default location | Axis |
+|---|---|---|
+| Findings — `audit` writes, `realign` updates statuses | `.work/instruction-placement/<branch-slug>/findings.md` | Branch: a finding's line range is only true on the branch it was derived on |
+| Placement baseline — `delta` reads and captures | `.work/instruction-placement/baselines/placement-baseline.md` | Repository: one per repo, so a declined finding stays declined |
+
+The baseline's path is composed from the repository's own tracked `.claude/topic-docs.yaml` and a
+constant slug, with no branch segment and no checkout discriminator. That is deliberate. A decline is
+a judgment about content, not about a line number, and an operator who has already said no should not
+be asked again from the next checkout. What the two files contain is owned by
+[`context/findings-artifact.md`](context/findings-artifact.md).
 
 ## Why this is not just "move things into `.claude/rules/`"
 

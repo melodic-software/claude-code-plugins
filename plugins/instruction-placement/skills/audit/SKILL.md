@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Grep",
     "Glob",
@@ -127,16 +126,16 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the project key and write under it. `findings-artifact.md` owns the full path shape:
+Resolve the home through the plugin's topic-docs binding
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+and write under it. That document owns the rung order, the constant slug, the branch axis, and the
+memory root's self-ignore guard; `findings-artifact.md` owns what the file contains.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
-
-The plugin data directory is keyed to the plugin identifier and nothing else, so an unkeyed filename
-is one file per **machine**: a later run in a different repository would read this one's findings as
-its own. Never skip the key. If a prior artifact exists for this key, merge per the contract's
-re-run semantics rather than overwriting. An operator's `declined` decision must survive a re-audit.
+**Resolve the home; never hardcode the default's shape.** A skill that composes the documented
+default itself writes where the consumer's configured root is not, and the reader's failure mode is
+a missing-artifact stop indistinguishable from "the audit was never run". If a prior artifact exists
+at the resolved home, merge per the contract's re-run semantics rather than overwriting. An
+operator's `declined` decision must survive a re-audit.
 
 ## Routing out
 
