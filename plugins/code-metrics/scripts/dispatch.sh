@@ -287,23 +287,32 @@ rebase_onto_cwd() {
 # and cannot know which directory an audit will be run from. Matching them
 # against the cwd-relative scope would make the same exclusion apply at the
 # root and silently apply to nothing one directory down.
+#
+# Prefixing alone is not enough. An explicitly scoped sibling (`../vendor` from
+# a subdirectory) still carries `..` after the prefix, and the matcher compares
+# text rather than resolving paths, so `src/keep/../vendor/a.py` would not match
+# a `src/vendor/**` exclusion. The segments are collapsed lexically instead of
+# with `realpath`, because a scoped path need not exist on disk and a symlink
+# must not silently move a file out of the directory the pattern names.
 to_root_relative() {
-  local root_prefix climb slashes i q
+  local root_prefix
   root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
-  climb=""
-  if [[ -n "$root_prefix" ]]; then
-    slashes="${root_prefix//[^\/]/}"
-    for ((i = 0; i < ${#slashes}; i++)); do climb+="../"; done
-  fi
-  while IFS= read -r q; do
-    if [[ -z "$root_prefix" ]]; then
-      printf '%s\n' "$q"
-    elif [[ -n "$climb" && "$q" == "$climb"* ]]; then
-      printf '%s\n' "${q#"$climb"}"
-    else
-      printf '%s\n' "$root_prefix$q"
-    fi
-  done
+  awk -v prefix="$root_prefix" '
+    function normalize(path,   parts, count, i, kept, top, segment, out) {
+      count = split(path, parts, "/")
+      top = 0
+      for (i = 1; i <= count; i++) {
+        segment = parts[i]
+        if (segment == "" || segment == ".") continue
+        if (segment == ".." && top > 0 && kept[top] != "..") { top--; continue }
+        kept[++top] = segment
+      }
+      out = ""
+      for (i = 1; i <= top; i++) out = (i == 1) ? kept[i] : out "/" kept[i]
+      return out
+    }
+    { print normalize(prefix $0) }
+  '
 }
 
 BASE_SHA=""

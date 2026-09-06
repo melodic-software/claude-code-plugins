@@ -284,6 +284,12 @@ from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_P
 assert_eq "the exclusion applies from the repository root" "python	src/keep/keep.py" "$from_root"
 from_sub="$(cd "$repo/src" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
 assert_eq "the same exclusion applies from a subdirectory" "python	keep/keep.py" "$from_sub"
+# 17. The same exclusion, reached through an explicitly scoped sibling. Mapping
+#     a path back to the root by prefixing alone leaves the `..` in place, so
+#     `src/keep/../vendor/skip.py` is what the matcher sees and a `src/vendor/**`
+#     pattern does not match the text. The segments have to collapse first.
+from_sibling="$(cd "$repo/src/keep" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope -- . ../vendor)"
+assert_eq "the exclusion applies to an explicitly scoped sibling path" "python	keep.py" "$from_sibling"
 rm -rf "$repo"
 
 # 10. The config cascade: a team file sets the reference, an exclusion, and a

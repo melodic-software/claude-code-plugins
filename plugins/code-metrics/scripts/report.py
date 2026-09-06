@@ -115,7 +115,14 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
     `duplicated_lines` (sum of `values.lines`, each group counted once) and
     `clone_groups`, and their instance files count toward `files`."""
     files: set[str] = set()
-    functions: set[tuple[str, str]] = set()
+    # (file, name) -> the distinct start lines reported for it. A name is not an
+    # identity: one file can hold two `render` methods. A start line is not one
+    # either, because a collector that reports Halstead for a function need not
+    # report where it begins, and splitting on a missing line would count that
+    # function twice. So the rows for a name are grouped and the group counts as
+    # many functions as it has distinct known start lines, and as one when it
+    # has none.
+    functions: dict[tuple[str, str], set[int]] = {}
     over_counts: dict[str, int] = {}
     duplicated_lines = 0
     clone_groups = 0
@@ -125,10 +132,14 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
         # One function produces one row per collector that resolves for it
         # (lizard's cyclomatic row and radon's halstead row for the same
         # Python function), so a per-row count reports more functions than the
-        # scope holds. A function is its file and its name; a row with no
-        # `function` is a file row and is not one.
+        # scope holds. A row with no `function` is a file row and is not one.
         if row.get("function"):
-            functions.add((row.get("file") or "", row["function"]))
+            starts = functions.setdefault(
+                (row.get("file") or "", row["function"]), set()
+            )
+            start = row.get("start_line")
+            if isinstance(start, int) and not isinstance(start, bool):
+                starts.add(start)
         for measure in row.get("over_reference", []):
             over_counts[measure] = over_counts.get(measure, 0) + 1
         instances = row.get("instances")
@@ -142,7 +153,7 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
                     files.add(instance["file"])
     summary: dict[str, Any] = {
         "files": len(files),
-        "functions": len(functions),
+        "functions": sum(max(1, len(starts)) for starts in functions.values()),
         "over_reference": over_counts,
     }
     if clone_groups:

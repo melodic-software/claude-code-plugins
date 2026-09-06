@@ -280,6 +280,50 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(doc["summary"]["functions"], 3)
         self.assertEqual(doc["summary"]["files"], 2)
 
+    def test_two_same_named_methods_count_as_two_functions(self) -> None:
+        # One file, two `render` methods in two classes, which a collector that
+        # reports unqualified names gives the same name. Folding on the name
+        # alone counts them once, so the summary undercounts a file the
+        # coverage join deliberately keeps apart by source position. The
+        # Halstead row for the first carries no start line and must still fold
+        # into it rather than becoming a third function.
+        doc = self.assemble(
+            [
+                {
+                    "lane": "python",
+                    "measure": "cyclomatic",
+                    "collector": "lizard 1.24.0",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            [
+                {
+                    "file": "a.py",
+                    "function": "render",
+                    "start_line": 1,
+                    "lane": "python",
+                    "values": {"cyclomatic": 3},
+                },
+                {
+                    "file": "a.py",
+                    "function": "render",
+                    "start_line": 10,
+                    "lane": "python",
+                    "values": {"cyclomatic": 2},
+                },
+                {
+                    "file": "a.py",
+                    "function": "render",
+                    "start_line": None,
+                    "lane": "python",
+                    "values": {"halstead_difficulty": 4.0},
+                },
+            ],
+            [],
+        )
+        self.assertEqual(doc["summary"]["functions"], 2)
+
     def test_partial_and_empty_status_and_unavailable_list(self) -> None:
         run_rows = [
             {
