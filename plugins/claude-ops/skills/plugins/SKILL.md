@@ -348,25 +348,24 @@ readable here either. See [context/scope-semantics.md](context/scope-semantics.m
 and why it differs from `enabledPlugins`, which this same skill reads from project and local scope.
 
 Crucially, the manifest's `"default": "ask"` is **not** substituted for
-an unset key (verified 2026-07-23 against CC 2.1.218: an unset key leaves the placeholder token
-unchanged, the same shape as `${user_config.…}`, while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes
-in the same render). **Recheck trigger:** re-verify on any Claude Code minor-version bump that
-touches plugin `userConfig` substitution, or once `plugins-reference` gains text on unset-key
-rendering, the docs are silent on it today, so this claim rests entirely on that one probe, and the
-probe's CLI version has since moved (2.1.218 → 2.1.261) with the claim unre-tested.
+an unset key (first verified 2026-07-23 against CC 2.1.218, **re-verified 2026-09-06 against CC
+2.1.263**: an unset key leaves the placeholder token unchanged, the same shape as
+`${user_config.…}`, while a sibling key set in `~/.claude/settings.json` and `${CLAUDE_PLUGIN_ROOT}`
+both substitute in the same render). The current `plugins-reference` page says the manifest
+`default` "is used if specified" for an unset key; the 2.1.263 render contradicts that for skill
+content, so this skill keeps trusting the probe over the page. **Recheck trigger:** re-verify on any
+Claude Code minor-version bump that touches plugin `userConfig` substitution, or when
+`plugins-reference` changes its unset-key wording.
 
-A 2026-09-05 attempt to re-run it on 2.1.261 was **inconclusive, not a confirmation**, and the
-reason is worth carrying: a throwaway plugin was loaded from a local marketplace with one
-`userConfig` key left unset and a sibling key set through `--settings` `pluginConfigs` under the
-plugin's fully-qualified id. In the rendered skill body `${CLAUDE_PLUGIN_ROOT}` substituted, so the
-render pass certainly ran, but **both** `userConfig` tokens came through literal, including the one
-that was explicitly set. With the positive control failing there is no way to tell an unset key
-leaving its placeholder apart from `userConfig` substitution not reaching skill content on that
-path at all. The remaining discriminator, setting the key in `~/.claude/settings.json`, was out of
-bounds for a probe that must not mutate real machine state. Treat the claim as still resting on the
-2.1.218 probe, and treat the failed control as its own open question rather than as evidence for
-the claim. So for the common default-config user — no `pluginConfigs` set anywhere — the
-**Configured value** line above still shows that literal placeholder token, not `ask`.
+When re-running that probe, the `pluginConfigs` payload must nest the key under `options`
+(`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`); a key placed directly
+under the plugin id is ignored without warning, and a control set that way renders literal, which
+looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
+as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings), so
+either source is a valid positive control. `claude plugin install <id> --config <key>=<value>`
+writes the user-settings entry in that shape, which is the cheapest way to set one. So for the common
+default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line above still
+shows that literal placeholder token, not `ask`.
 
 Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
 report it as an invalid value. Only a rendered value that is a real word other than
