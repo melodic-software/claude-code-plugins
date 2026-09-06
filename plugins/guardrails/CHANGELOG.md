@@ -26,20 +26,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Verdicts are unchanged: 244 paired runs against `origin/main` (61 commands,
   Bash and PowerShell payloads, standalone and dispatched, plus 70 KiB
   single-line and 3000-line commands) agree on exit code and first stderr
-  line, and the 611-case contract suite passes. The creation that remains is
-  `$(hook::buffer_stdin)`; its fork-free form belongs to `lib/hook-utils.sh`
-  (#3740, #3838), so the "at most two spawns" line in #3513 is not closed
-  from inside this file.
+  line, and the 611-case contract suite passes. The seventh creation,
+  `$(hook::buffer_stdin)`, is gone too: #3838 landed the fork-free
+  `hook::buffer_stdin_to` in `lib/hook-utils.sh` and this guard now calls it,
+  so the guard's own share on a benign Bash call is zero processes.
   Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve` on
   the dispatched path (`run-guards.sh block-hook-bypass.sh`, this repository
   as cwd, `HOOK_TELEMETRY_SINK` unset), guard share = count minus a no-op
   guard dispatched the same way, three identical repeats: benign
-  `git status --short` creations **7 -> 1**, execve **0 -> 0**; blocked
-  `echo hi > notes.md` creations **10 -> 5**, execve **1 -> 1**. Whole Bash
+  `git status --short` creations **7 -> 0**, execve **0 -> 0**; blocked
+  `echo hi > notes.md` creations **10 -> 4**, execve **1 -> 1**. Whole Bash
   dispatcher on the benign payload: creations **36 -> 30**, execve **3 -> 3**
   (bash plus the two primed `jq`). The unchanged execve column is the
   evidence this is latency, not removed work. The contract suite now pins
-  the guard's benign share at exactly 1 by the same instrument, and skips
+  the guard's benign share at exactly 0 by the same instrument, and skips
   visibly where strace is absent.
 
 ## [0.32.11]

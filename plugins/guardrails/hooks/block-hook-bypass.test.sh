@@ -2144,10 +2144,11 @@ run_pwsh "PS: double-quoted dash-prefixed path is a literal (blocked — #2906)"
 # subject through a substitution. A host without a working strace (Windows Git
 # Bash, macOS) skips visibly; the Linux CI lane is where the pin holds.
 #
-# The pin is EXACT on purpose. The one creation left is the guard's own
-# `$(hook::buffer_stdin)`, whose fork-free form belongs to lib/hook-utils.sh
-# (#3740, #3838); when that lands this figure drops to 0 and the pin moves with
-# it. A count that rises is a fork put back on every Bash call. Under -f strace
+# The pin is EXACT on purpose. It was 1 while the guard still read stdin
+# through `$(hook::buffer_stdin)`; #3838 landed the fork-free
+# `hook::buffer_stdin_to` in lib/hook-utils.sh, so that last creation is gone
+# and the pin is now 0 — the guard creates no process of its own on a benign
+# Bash call. A count that rises is a fork put back on every Bash call. Under -f strace
 # may split a call into `<unfinished ...>` and `<... resumed>` halves, so both
 # spellings of a completed call are counted.
 strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
@@ -2169,7 +2170,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
     assert_exit "strace: dispatcher with only the no-op guard exits 0 (${benign%%$'\n'*})" 0 "$noop_rc"
     assert_exit "strace: dispatched benign command exits 0 (${benign%%$'\n'*})" 0 "$CENSUS_RC"
     assert_eq "strace: guard's own process creations on a benign Bash call (${benign%%$'\n'*})" \
-      1 "$((CENSUS_CREATIONS - noop_cre))"
+      0 "$((CENSUS_CREATIONS - noop_cre))"
     assert_eq "strace: guard's own execve count on a benign Bash call (${benign%%$'\n'*})" \
       0 "$((CENSUS_EXECVE - noop_exe))"
   done

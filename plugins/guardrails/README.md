@@ -385,9 +385,11 @@ a shim cannot see a fork: `$(builtin-only function)`, `< <(printf ...)` and a
 pipeline each create a process that never execs. On a benign Bash call this
 guard created seven such processes and executed none. Six were in the guard
 itself (an eager telemetry subject at file scope, a `$(strip_literals)`, four
-process-substitution line loops); the seventh is `$(hook::buffer_stdin)`,
-whose fork-free form is `lib/hook-utils.sh` work (#3740, #3838) and is
-untouched here. No verdict changed: 244 paired runs against `origin/main`
+process-substitution line loops); the seventh was `$(hook::buffer_stdin)`,
+whose fork-free form is `lib/hook-utils.sh` work. That form landed in #3838
+and this guard now calls `hook::buffer_stdin_to`, so all seven are gone and
+the guard's own share on a benign Bash call is zero processes.
+No verdict changed: 244 paired runs against `origin/main`
 (61 commands, Bash and PowerShell payloads, standalone and dispatched, plus
 70 KiB single-line and 3000-line commands) agree on exit code and first
 stderr line, and the 611-case contract suite passes.
@@ -404,16 +406,22 @@ after 2 warmup, sides interleaved, on a host whose `bash -c :` floor is about
 
 | Counter | before | after |
 |---|---|---|
-| Guard share, benign `git status --short`: creations / execve | 7 / 0 | 1 / 0 |
-| Guard share, blocked `echo hi > notes.md`: creations / execve | 10 / 1 | 5 / 1 |
+| Guard share, benign `git status --short`: creations / execve | 7 / 0 | 0 / 0 |
+| Guard share, blocked `echo hi > notes.md`: creations / execve | 10 / 1 | 4 / 1 |
 | Whole Bash dispatcher, benign: creations / execve | 36 / 3 | 30 / 3 |
 | Guard alone under the dispatcher, wall p50 / p95 (n=20) | 27.4 / 29.2 ms | 24.3 / 27.5 ms |
 | Whole Bash dispatcher, wall p50 / p95 (n=20) | 51.6 / 60.4 ms | 48.2 / 49.6 ms |
 
 The execve column does not move, which is what makes this latency rather than
-removed work. The contract suite pins the guard's benign share at exactly 1 by
+removed work. The contract suite pins the guard's benign share at exactly 0 by
 the same instrument, so the figure moves with the code rather than with this
 table.
+
+The two guard-share rows are current after merging #3838. The
+whole-dispatcher and wall-clock rows were measured against this branch's
+base before #3838 landed, so they still carry the dispatcher's own pre-fusion
+cost; the reduction that change made to the dispatcher is recorded in the
+0.32.11 row below, not here.
 
 **0.32.11, fused stdin completeness and field extract.** 2026-09-06,
 Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`
