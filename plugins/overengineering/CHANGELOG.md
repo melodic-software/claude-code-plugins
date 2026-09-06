@@ -3,6 +3,26 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **Eval 8 graded the opposite of the rule `0.4.1` had just written.** That release scoped an
+  unresolved import out of `Routed-to`, on the grounds the field records a routing that actually
+  happened and an import pointing at nothing was handed to no one. The eval still required both
+  import lines named in `Routed-to`, on a fixture whose imports it states do not resolve, so the
+  case contradicted both the lane and itself: a run following the new rule failed it and a run
+  violating the rule passed. The imports now belong in the row's prose, with the skill file's
+  always-loaded part kept as the contrast, since that one really was routed.
+- **Eval 14 repeated the defect `0.4.1` fixed in eval 2.** It reuses the decision-record fixture,
+  for which two other cases establish that a correct run must ask the operator before writing
+  UNPROVEN, and supplied no answer. The correct run therefore asks, stops, emits no verdict, and
+  fails the case's own requirement that it emit a full report including the verdict. The prompt now
+  supplies the answer, as eval 2's does.
+- **The skill's description advertised unqualified read-only** while the lane can make the
+  ask-gated tracked write of the resolved artifact home, which the placement binding asserts each
+  producer discloses. The sibling walking lane already carves this out; this one now does too.
+
 ## [0.4.1]
 
 ### Fixed

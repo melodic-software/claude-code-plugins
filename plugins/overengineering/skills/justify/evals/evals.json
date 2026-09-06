@@ -107,15 +107,16 @@
       "id": 8,
       "name": "partly-inventoried-file-is-classified",
       "prompt": "/overengineering:justify evals/fixtures/SKILL.md, then /overengineering:justify evals/fixtures/claude-md.txt. Both paths are relative to the skill directory.",
-      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row naming its two import lines in `Routed-to`. Neither import resolves to a file that exists, and that is the point of this half of the case: the row records each as an import whose target was not found, never as instruction text it read. It does not describe their contents, does not infer what they must contain from their names, and does not judge them as part of this item. An unresolvable import is evidence about the host file, and inventing its contents would put a verdict on a file that does not exist. Neither row silently absorbs the routed part into its own verdict.",
+      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row naming its two import lines in the row's own PROSE, and deliberately NOT in `Routed-to`. Neither import resolves to a file that exists, and that is the point of this half of the case: the row records each as an import whose target was not found, never as instruction text it read, and `Routed-to` stays empty of them because that field is scoped to a routing that actually happened and an import pointing at nothing was handed to no one. The skill file's always-loaded part is the contrast: that one really was routed, so it really does belong in `Routed-to`. It does not describe their contents, does not infer what they must contain from their names, and does not judge them as part of this item. An unresolvable import is evidence about the host file, and inventing its contents would put a verdict on a file that does not exist. Neither row silently absorbs the routed part into its own verdict.",
       "files": [
         "evals/fixtures/SKILL.md",
         "evals/fixtures/claude-md.txt"
       ],
       "expectations": [
         "Skill file classified under `components`, with the always-loaded part named in `Routed-to`",
-        "Instruction file classified under `documents`, with both import lines named in `Routed-to`",
+        "Instruction file classified under `documents`, with both import lines named in the row's PROSE",
         "Records each import as one whose target was NOT FOUND, since neither resolves, rather than as instruction text it read",
+        "Does NOT put the unresolved imports in `Routed-to`, because nothing was handed to anyone",
         "Does NOT describe or infer the imported files' contents from their names",
         "Neither row judges the routed part as part of this item"
       ]
@@ -194,7 +195,7 @@
     {
       "id": 14,
       "name": "detached-checkout-judges-but-persists-nothing",
-      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory, from a detached checkout with no logical ref supplied by the environment.",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory, from a detached checkout with no logical ref supplied by the environment. When the run asks whether anything outside the repository records why the relay was kept after the provider change, the operator answers: yes, the platform team reconfirmed it at the 2024 review.",
       "expected_output": "The pass runs in full and the inline report is emitted in full: the target is judged, the verdict argued, the tiers named. What is declined is the persisted write, and the run says why in those terms. No findings artifact is written, and no home is keyed, because a branch identity that does not resolve keys no home: `HEAD` is the same string for every ref and a commit sha is a different one every commit, so either substitute collapses the axis the branch segment exists to separate. The run does not fall back to `HEAD`, to the sha, or to whatever slug the default would produce. The defect this case exists to catch is a run that quietly writes to a shared home every detached run of every branch would also write to.",
       "files": ["evals/fixtures/decision-0001.md"],
       "narration": true,
