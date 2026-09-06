@@ -11,6 +11,7 @@
 - [Step 2 — In-repo update (the primary value path)](#step-2--in-repo-update-the-primary-value-path)
 - [Step 3 — User-scope update sweep](#step-3--user-scope-update-sweep)
 - [Steps 4 and 5 — install and enable](#steps-4-and-5--install-and-enable)
+- [Step 5b — Cache content check](#step-5b--cache-content-check)
 - [Step 6 — Report](#step-6--report)
 
 `sync` is the default action: bring the effective fleet current where you stand. Every step below
@@ -544,6 +545,45 @@ cannot stand in for `pre-enable.$mp.json`. Do not collapse the two.
 
 When Step 1's refresh failed for this marketplace, both steps are deferred rather than run — the
 spoke carries what to say about that; see Step 1 above for why.
+
+## Step 5b — Cache content check
+
+Read-only, runs after Step 5's enables and before the report, and is the same call in `sync` and in
+`audit`. It is not gated on anything: an unchanged manifest version is exactly the case in which
+every earlier step reports success, so a check that only ran when something else looked wrong would
+never fire on the condition it exists to catch.
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace "$mp" \
+  >"$run_dir/cache-content.$mp.json"
+```
+
+In `sync` that redirect lands in the run journal beside the `fleet-state.sh` snapshots, so Step 6
+reads the finding rather than remembering it. In `audit` it lands in the throwaway scratch directory
+that run deletes, the same way `audit` handles every other report it writes.
+
+Read the ids to act on with `--ids` rather than a hand-written `jq` extraction over the JSON, for
+the reason [gotchas.md](gotchas.md) gives: on Windows a `jq -r … | while read` appends a `\r` to
+every id but the last.
+
+```bash
+while IFS=$'\t' read -r id; do
+  echo "cache content disagrees with recorded sha: $id"
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace "$mp" --ids)
+```
+
+**Neither action repairs what this finds, and `sync` is no exception.** The remediation is a
+directory removal under Claude Code's own plugin cache, which is outside the boundary the rest of
+this skill keeps: `sync` mutates only through documented `claude plugin` CLI calls, and no CLI verb
+rewrites a cache directory whose version number has not moved. So both actions report the ids and
+the remediation and stop. Emit SKILL.md's `Cache content:` row, and omit it entirely when the check
+found nothing.
+
+The check reads the marketplace clone at the recorded commit. It never fetches one it does not have
+— that would be a network mutation, and it would repair the very condition being reported — so an
+install whose sha is not in the clone is reported as `sha-not-local` and counted as unverifiable,
+not as a pass. A report in which most installs are unverifiable has established very little; say so
+rather than leading with the match count.
 
 ## Step 6 — Report
 
