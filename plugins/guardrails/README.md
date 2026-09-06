@@ -390,7 +390,7 @@ whose fork-free form is `lib/hook-utils.sh` work (#3740, #3838) and is
 untouched here. No verdict changed: 244 paired runs against `origin/main`
 (61 commands, Bash and PowerShell payloads, standalone and dispatched, plus
 70 KiB single-line and 3000-line commands) agree on exit code and first
-stderr line, and the 602-case contract suite passes.
+stderr line, and the 611-case contract suite passes.
 
 *Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
 on the dispatched path (`run-guards.sh block-hook-bypass.sh`), this repository

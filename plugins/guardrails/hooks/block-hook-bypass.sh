@@ -162,8 +162,8 @@ HOOK_CWD="${HOOK_JQ_FIELDS[2]:-}"
 # so deriving it eagerly spent a process on every Bash call for a value nothing
 # consumed (#3513). The verdict never reads it. The shared helper is still used
 # rather than a local copy so the aborts that keep an assignment VALUE out of
-# the subject — a quoted value spanning the whitespace the tokenizer splits on,
-# and a bare/trailing `NAME=value` no following command consumed — hold here
+# the subject (a quoted value spanning the whitespace the tokenizer splits on,
+# and a bare/trailing `NAME=value` no following command consumed) hold here
 # too (#3372).
 emit_tel() {
   [[ -n "$start" ]] || return 0

@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.11]
+## [0.32.12]
 
 ### Changed
 
@@ -26,7 +26,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Verdicts are unchanged: 244 paired runs against `origin/main` (61 commands,
   Bash and PowerShell payloads, standalone and dispatched, plus 70 KiB
   single-line and 3000-line commands) agree on exit code and first stderr
-  line, and the 602-case contract suite passes. The creation that remains is
+  line, and the 611-case contract suite passes. The creation that remains is
   `$(hook::buffer_stdin)`; its fork-free form belongs to `lib/hook-utils.sh`
   (#3740, #3838), so the "at most two spawns" line in #3513 is not closed
   from inside this file.
