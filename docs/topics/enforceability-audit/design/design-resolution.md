@@ -23,11 +23,15 @@ skill will actually touch rather than by a design round.
    through a stated ladder, never dropping a row it cannot classify. Recorded in `PLAN.md`
    Phase 1 and in the implementation slice body.
 2. **The stub shape and home.** A stub carries `type: enforceability-stub`, never a
-   findings-file marker, and lands in the topic-slice memory tier, never under the branch findings
-   directory. Recorded in `PLAN.md` Phase 1 and the slice body.
+   findings-file marker, and lands under a new reserved concern name in the memory tier,
+   `enforceability/<branch-slug>/`, a sibling of `reviews/` resolved through the same binding
+   shape, never inside the directory the fix action scans. A topic-slice home was tried first
+   and withdrawn: the binding cannot derive a memory root at its middle rungs, a branch slug is
+   not a topic slug, and a second artifact family in a leaf slice creates an index obligation.
+   Recorded in `PLAN.md` Phase 1 and Phase 3 and the slice body.
 3. **The stub-writer CLI.** One script owns the deterministic half (parse the table, write stubs,
-   refuse a home inside the findings directory, self-check for markers); the model owns
-   classification. Recorded in `PLAN.md` Phase 2.
+   refuse a home inside the fix action's scan directory or the input's directory, self-check for
+   markers); the model owns classification. Recorded in `PLAN.md` Phase 2.
 
 ## Threads resolved by research, not by the Brief
 
@@ -43,6 +47,7 @@ skill will actually touch rather than by a design round.
 ## What would reopen design
 
 A second consumer of the stubs (a recurrence detector, a realign-style executor) would turn the
-stub from a proposal into an input contract and would argue for a reserved concern-scoped home
-under the topic-docs convention rather than a topic slice. Cross-run recurrence is deferred on the
-container and is the trigger.
+stub from a proposal into an input contract, which would earn the write a persist gate and a
+stated consumer-side admission test. Cross-run recurrence is deferred on the container and is the
+trigger. A decision to adopt the fleet standard's enforceability-tier vocabulary in place of the
+Brief's seven-rung ladder would also reopen the crosswalk's first column.
