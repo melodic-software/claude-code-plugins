@@ -98,7 +98,7 @@ start=${EPOCHREALTIME:-}
 # needs the buffered input only when the fail-open sibling would scope a notice;
 # this guard denies instead, so the buffer is for jq_fields below, not for a skip
 # notice.
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0

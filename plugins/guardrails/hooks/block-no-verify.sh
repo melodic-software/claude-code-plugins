@@ -67,7 +67,7 @@ start=${EPOCHREALTIME:-}
 # stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
 # jq-optional), so it runs before the jq gate below.
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0

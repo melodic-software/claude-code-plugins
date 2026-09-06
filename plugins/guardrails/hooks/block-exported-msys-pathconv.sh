@@ -108,7 +108,7 @@ start=${EPOCHREALTIME:-}
 # out before a complete payload) FAILS CLOSED — the guard cannot evaluate the
 # tool call, and a silent skip would pass exactly the traffic this guard exists
 # to stop. buffer_stdin already printed the BLOCKED reason to stderr.
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0

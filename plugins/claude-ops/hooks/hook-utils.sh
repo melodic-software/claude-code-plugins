@@ -1351,7 +1351,8 @@ hook::repo_relative_path() {
 # rationale as plugins/context-guard/scripts/statusline-tee.sh. The re-arming
 # loop wraps both forms, so 3.2 gets the progress semantics too — just in
 # byte-at-a-time-sized steps.
-#   INPUT=$(hook::buffer_stdin) || exit 0
+#   hook::buffer_stdin_to INPUT || exit 0
+#   INPUT=$(hook::buffer_stdin) || exit 0   # print form; the $() is a subshell
 
 # The `read -N` availability guard, split out as its own predicate so the
 # pre-4.1 path stays reachable in tests on a modern host: BASH_VERSINFO is
@@ -1506,53 +1507,79 @@ hook::resolve_read_slice() {
   printf '%s %s' "$slice" "$count"
 }
 
-hook::buffer_stdin() {
-  local input="" chunk="" read_rc=0 stalled=0 idle_slices=0 validated=0
-  local read_timeout read_slice slice_count
+# hook::buffer_stdin_to <var> [jq-filter...]
+# Write the buffered payload into <var> in THIS shell. GNU Bash forks a
+# subshell for every command substitution even when the body is only
+# builtins (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, paid on every hook that captures via
+# INPUT=$(hook::buffer_stdin) before the payload is parsed. The _to form is
+# the in-process capture, matching hook::resolve_read_timeout_to.
+#
+# Optional jq filters fuse the completeness check with hook::jq_fields so a
+# caller that was about to extract fields anyway spends one jq process, not
+# two (`jq -e .` plus a second jq for fields). On success HOOK_JQ_FIELDS is
+# populated, index-parallel to the filters, with the same NUL-flag contract
+# as a direct hook::jq_fields call. jq absent still fails open (return 0,
+# empty fields), matching the print form's completeness check.
+#
+# Return codes match hook::buffer_stdin: 0 payload, 1 empty, 2 stalled or
+# malformed. The print form below is the compatibility wrapper.
+hook::buffer_stdin_to() {
+  local __hu_dest="$1"
+  shift
+  # Every local is `__hu_`-prefixed so a caller dest named `input`,
+  # `read_timeout`, `fields_rc`, or any other ordinary name cannot collide
+  # with this function's own variables (the `_to` helper convention at the
+  # path helpers above). An unprefixed local would make `printf -v` write
+  # the payload into THIS frame and return 0 while the caller kept stale data.
+  local __hu_input="" __hu_chunk="" __hu_read_rc=0 __hu_stalled=0
+  local __hu_idle_slices=0 __hu_validated=0
+  local __hu_read_timeout __hu_read_slice __hu_slice_count
   # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
   # even when the body is builtins only. Those two forks were the documented
   # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe inside
   # resolve_read_slice_to still uses $(read) — that is the remaining, smaller
   # fork, paid only when the computed slice needs a live `read -t` probe.
-  hook::resolve_read_timeout_to read_timeout
-  hook::resolve_read_slice_to "$read_timeout" read_slice slice_count
-  local -a read_opts=(-r -t "$read_slice")
+  hook::resolve_read_timeout_to __hu_read_timeout
+  hook::resolve_read_slice_to "$__hu_read_timeout" __hu_read_slice __hu_slice_count
+  local -a __hu_read_opts=(-r -t "$__hu_read_slice")
   if hook::read_supports_nchars; then
-    read_opts+=(-N 65536)
+    __hu_read_opts+=(-N 65536)
   else
-    read_opts+=(-d '')
+    __hu_read_opts+=(-d '')
   fi
   while :; do
-    chunk=""
-    read_rc=0
-    # shellcheck disable=SC2162 # -r is in read_opts; shellcheck cannot see through the array
-    IFS= read "${read_opts[@]}" chunk || read_rc=$?
-    input+="$chunk"
+    __hu_chunk=""
+    __hu_read_rc=0
+    # shellcheck disable=SC2162 # -r is in __hu_read_opts; shellcheck cannot see through the array
+    IFS= read "${__hu_read_opts[@]}" __hu_chunk || __hu_read_rc=$?
+    __hu_input+="$__hu_chunk"
     # Any byte at all resets the idle count — that, not the read's exit status,
     # is what makes this an idle timer rather than a per-read deadline.
-    [[ -n "$chunk" ]] && idle_slices=0
-    if ((read_rc == 0)); then
+    [[ -n "$__hu_chunk" ]] && __hu_idle_slices=0
+    if ((__hu_read_rc == 0)); then
       # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
       # read that consumed nothing, however, cannot make progress, so continuing
       # would spin: break instead. hook::resolve_read_timeout already excludes
       # the only known way to reach that (`read -t 0`, which returns success
       # without consuming); this keeps loop termination a structural property
       # rather than a consequence of validation staying correct.
-      [[ -n "$chunk" ]] || break
+      [[ -n "$__hu_chunk" ]] || break
       continue
     fi
-    if ((read_rc > 128)); then
+    if ((__hu_read_rc > 128)); then
       # A slice expired. Bytes in it mean the producer is alive: keep them and
       # read on. Only slice_count CONSECUTIVE empty slices — one whole
       # stdin_read_timeout with nothing arriving — is the stall this guard
       # exists to catch, which is why the count is not reset here.
-      if [[ -n "$chunk" ]]; then
+      if [[ -n "$__hu_chunk" ]]; then
         # ... but stop immediately if what we already hold is a whole JSON
         # document. That is the Win32 late-EOF case — the payload arrived, the
         # pipe just never closed — and reading on there would spend the rest of
         # the bound waiting for an EOF that is not coming.
-        if hook::json_complete "${input//$'\r'/}"; then
-          validated=1
+        if hook::json_complete "${__hu_input//$'\r'/}"; then
+          __hu_validated=1
           break
         fi
         continue
@@ -1570,13 +1597,13 @@ hook::buffer_stdin() {
       # a jq process per slice to re-derive the same answer — enough overhead on
       # a slow-spawning host to cost more than slicing saves. idle_slices resets
       # the moment a byte lands, so the next quiet period checks again.
-      if ((idle_slices == 0)) && hook::json_complete "${input//$'\r'/}"; then
-        validated=1
+      if ((__hu_idle_slices == 0)) && hook::json_complete "${__hu_input//$'\r'/}"; then
+        __hu_validated=1
         break
       fi
-      ((idle_slices++))
-      ((idle_slices >= slice_count)) || continue
-      stalled=1
+      ((__hu_idle_slices++))
+      ((__hu_idle_slices >= __hu_slice_count)) || continue
+      __hu_stalled=1
     fi
     break # EOF (rc 1), a full idle bound with no bytes, or a read error
   done
@@ -1584,34 +1611,52 @@ hook::buffer_stdin() {
   # fork AND an exec (~280 ms together on Windows Git Bash) to delete one byte
   # class from a string bash can already rewrite in place. Same bytes either way
   # — which is what lets the completeness verdict below be reused.
-  input="${input//$'\r'/}"
-  [[ -n "$input" ]] || return 1
-  local jq_rc=0
+  __hu_input="${__hu_input//$'\r'/}"
+  [[ -n "$__hu_input" ]] || return 1
+  local __hu_jq_rc=0
   # The loop above breaks on hook::json_complete only when jq PARSED this exact
   # CR-stripped buffer as a whole document, so re-probing it here would spend a
   # second jq process to re-derive an answer already in hand. jq's absence or
   # failure never sets that flag (json_complete returns non-zero for both), so
   # the fail-open path below is unchanged: an unvalidated buffer still gets the
   # probe, and a host without jq still reaches the 127 branch.
-  if ((validated == 0)) && command -v jq >/dev/null 2>&1; then
+  #
+  # Filters fuse that remaining probe with hook::jq_fields: a valid payload
+  # that the caller was going to parse anyway is extracted in the same jq
+  # process that would have been `jq -e .`. jq_fields rc 2 is the malformed
+  # path (parse failure or cardinality mismatch); rc 1 is jq absent, which
+  # fails open like jq -e's 127.
+  if (($#)); then
+    local __hu_fields_rc=0
+    hook::jq_fields "$__hu_input" "$@" || __hu_fields_rc=$?
+    if ((__hu_fields_rc == 2)); then
+      __hu_jq_rc=2
+    fi
+  elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1; then
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
     # a hook payload routinely exceeds it.
-    printf '%s' "$input" | jq -e . >/dev/null 2>&1 || jq_rc=$?
+    printf '%s' "$__hu_input" | jq -e . >/dev/null 2>&1 || __hu_jq_rc=$?
   fi
-  if ((jq_rc != 0 && jq_rc != 127)); then
-    if ((stalled)); then
+  if ((__hu_jq_rc != 0 && __hu_jq_rc != 127)); then
+    if ((__hu_stalled)); then
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
     # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
     # payload, not a malformed one — keep the silent rc=1 path advisory hooks
     # treat as a no-op.
-    [[ -n "${input//[[:space:]]/}" ]] || return 1
+    [[ -n "${__hu_input//[[:space:]]/}" ]] || return 1
     echo "BLOCKED: hook stdin is not valid JSON." >&2
     return 2
   fi
-  printf '%s' "$input"
+  printf -v "$__hu_dest" '%s' "$__hu_input"
+}
+
+hook::buffer_stdin() {
+  local __hu_buf
+  hook::buffer_stdin_to __hu_buf || return $?
+  printf '%s' "$__hu_buf"
 }
 
 # Extract a single jq field from a buffered input string. CR-stripped. Returns 1
