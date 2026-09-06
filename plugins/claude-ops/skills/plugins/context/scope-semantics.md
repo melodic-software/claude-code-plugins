@@ -5,7 +5,10 @@ machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
-plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below.
+plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The one
+exception is "Where project-scope records come from, and why the skill cannot reap them", which
+carries two questions no probe has answered yet; both are labelled there as open probes and neither
+may be relied on as a fact.
 
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
 The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
@@ -163,6 +166,68 @@ applicable. Read it precisely:
 because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against an absent path. Naming
 the condition is this skill's whole role here; reaping the record is not something it can or should
 do.
+
+## Where project-scope records come from, and why the skill cannot reap them
+
+The section above says the records cannot be reaped. This one says where they come from. Two of the
+claims below are open probes rather than verified facts, and they are labelled as such; the rest are
+doc-sourced or observed, each with its source named. **Recheck trigger:** any change to how a repo's
+committed `enabledPlugins` block is applied at session start, or any `claude plugin` release note
+adding a verb that removes an install record by path.
+
+**A repo's committed `.claude/settings.json` `enabledPlugins` block is the documented cloud install
+mechanism.** Per
+[cloud-environments](https://code.claude.com/docs/en/cloud-environments) ("What carries over from
+your setup", fetched 2026-09-05), plugins declared in that committed block are "Installed at session
+start from the marketplace you declared." Plugins enabled only in a user's own settings do not carry
+over to a cloud session at all. So the block exists to make a team's plugin set reproducible
+somewhere the user's `~/.claude` is not.
+
+**Locally, the documented behaviour is narrower, and the write path is an open probe.** Per
+[discover-plugins](https://code.claude.com/docs/en/discover-plugins) ("Configure team marketplaces",
+fetched 2026-09-05), as of v2.1.195 a plugin that only project settings enable, coming from an
+external source, "doesn't load until the team member installs it." Separately, **observed on this
+machine on Claude Code 2.1.261**: all 64 project-scope records for a single repo path carried the
+same `installedAt` second, which is the shape of one session-start batch rather than 64 deliberate
+installs, for a user who already had that marketplace registered and the same plugins present at
+user scope. That observation is one machine, one path, one CLI version. **Open probe 1: which code
+path writes those records locally is not verified.** The probe that would settle it is a fresh
+worktree of a repo carrying the block, with `installed_plugins.json` watched across the first
+session start. Do not present the batch as the mechanism until that probe has run.
+
+**Precedence explains why a user-scope duplicate does not prevent the project record.** Per
+[settings-reference](https://code.claude.com/docs/en/settings-reference#enabledplugins) (fetched
+2026-09-05), `enabledPlugins` resolves managed > `--settings` > local > project > user, and
+"Project settings take precedence over user settings, so setting a plugin to false in
+~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
+To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
+instead." Precedence settles which `enabledPlugins` value is effective; on its own it does not
+establish that a local session writes an install record. The leading hypothesis, consistent with the
+single observed batch above and with nothing that contradicts it, is that every project-scope `true`
+duplicating a user-scope install still produces its own version-pinned project record keyed by
+absolute path, one per plugin per checkout. Treat it as a hypothesis until Open probe 1 above, a
+fresh worktree of a repo carrying the block with `installed_plugins.json` watched across the first
+session start, confirms the write. **Open probe 2:
+whether a project-scope `false` writes any install record is undocumented**, and no probe in this
+repo has tested it.
+
+**Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
+directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
+record by path (`-s project` acts on the cwd only, `prune` is dependency-only). The product's own
+retention sweep does not cover them either: the "Cleaned up automatically" list at
+[claude-directory](https://code.claude.com/docs/en/claude-directory) (fetched 2026-09-05) names
+nothing under `~/.claude/plugins/`. That the per-project records are a live, maintained mechanism
+rather than vestigial state is visible in the Claude Code changelog for 2.1.224, "Fixed plugin
+install records being silently corrupted when the same plugin is installed in multiple projects".
+Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
+
+**Synced plugins are the contrast case, not a source of these records.** Per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference) ("Synced plugins", fetched
+2026-09-05), plugins enabled on a claude.ai account load as `<name>@synced` in Cowork and cloud
+sessions "with no marketplace and no install record", and "Claude Code doesn't load them in sessions
+you start in your own terminal." That is enablement without any record at all, so a synced plugin
+never explains a project-scope row. Whether a custom GitHub marketplace can be enabled at account
+level on a personal account is undocumented.
 
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
