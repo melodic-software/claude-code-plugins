@@ -17,8 +17,8 @@ version. These claims were **not re-run on 2.1.261** and keep their older stamps
 the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
-`--force` `≥ 2.1.163` gate, neither of which the current docs state; and the `userConfig` unset-key
-render, whose re-run attempt was inconclusive for the reason `SKILL.md` records.
+`--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
+render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in `SKILL.md`.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -301,7 +301,10 @@ else.
 `code.claude.com/docs/en/plugins-reference`: "Claude
 Code reads all `pluginConfigs` values from only three settings sources" — user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
-managed → `--settings` → user. And explicitly:
+managed → `--settings` → user. In every one of those sources the value nests under `options`:
+`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
+under the plugin id is silently ignored and the render shows the literal placeholder (verified
+2026-09-06 on **Claude Code 2.1.263**). And explicitly:
 
 > Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
 > files live in the workspace, so a cloned repository could supply values there, and those values
