@@ -9,9 +9,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - The `plugins` skill writes its native-Windows path examples with placeholders: `cache-content-check.sh`
   and `fleet-state.sh` say `C:\Users\<user>\...`, and the `projectPath` gotcha says
-  `D:\repos\<repo>` against `/d/repos/<repo>`. The org machine-specific-path detector reads a
+  `D:\repos\{repo}` against `/d/repos/{repo}`. The org machine-specific-path detector reads a
   literal user-home or checkout path as a leaked machine path whatever the surrounding prose says,
-  and the placeholder form states the same contrast without tripping it.
+  and the placeholder form states the same contrast without tripping it. The gotcha uses braces
+  rather than angle brackets because a `<` directly after a backslash is the GNU word-boundary
+  escape `\<`, which the shell-portability gate reads as a GNU-only construct.
 
 ## [0.42.14]
 

@@ -7,9 +7,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- `lib/state-key.test.sh` case 8 names its Windows-path remote with a `<central>` placeholder.
+- `lib/state-key.test.sh` case 8 names its Windows-path remote with a `{central}` placeholder.
   The assertions are that the remote is hashed and that no backslash reaches the key, and both
-  hold on any spelling of the segment.
+  hold on any spelling of the segment. Braces rather than angle brackets because a `<` directly
+  after a backslash is the GNU word-boundary escape `\<`, which the shell-portability gate reads
+  as a GNU-only construct.
 
 ### Fixed
 

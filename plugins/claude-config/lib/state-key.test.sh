@@ -118,7 +118,7 @@ assert_not_contains "case 7: absolute path not embedded" "$k" "var/lib"
 assert_contains "case 7: absolute local remote is hashed" "$k" "remote/"
 
 # --- Case 8: a Windows-path remote is hashed ----------------------------------
-r="$(mkrepo winpath 'C:\repos\<central>.git')"
+r="$(mkrepo winpath 'C:\repos\{central}.git')"
 k="$(key "$r")"
 # A literal backslash, built without a backslash-bearing literal: shellcheck's
 # SC1003 fires on every spelling of one inside quotes, and this assertion is
