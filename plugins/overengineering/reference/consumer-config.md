@@ -247,7 +247,7 @@ Two obligations this plugin takes on top of the convention:
 - **Offered, never taken.** `overengineering:realign` proposes an entry, shows it, and writes it only
   on an explicit yes, behind the same per-item gate that authorized the remediation. A producer that
   wrote one unprompted would record an acceptance nobody made.
-- **Visible, never silent.** On the next run the audit reports every suppressed finding with its
+- **Visible, never silent.** On the next run the producer reports every suppressed finding with its
   reason, date, and contributing layer — and every entry that did *not* suppress, including each
   personal-only and each malformed one.
 

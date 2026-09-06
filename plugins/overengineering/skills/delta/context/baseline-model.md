@@ -72,7 +72,7 @@ artifact's stored judgment and this run's fresh one.
 its body may and may not carry, its deliberately-not-`overengineering-findings` type, and why it is a
 snapshot rather than a second record are owned by
 `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` under "The spine-capture obligation". **This
-skill does not restate them.** Two rules bind the run directly:
+skill does not restate them.** Three rules bind the run directly:
 
 **A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is
 earned by having completed the comparison, and nothing else earns it. If the cycle stopped short

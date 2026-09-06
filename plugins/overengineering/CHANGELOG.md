@@ -3,6 +3,31 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Fixed
+
+- **The shared contract's obligations table denied both producers a write the placement binding
+  grants them.** Its "mutates anything outside the artifact" row read `never` for `audit` and
+  `justify` alike, while `audit`'s own read-only contract sanctions two auxiliary writes and the
+  binding calls the concern-file persistence "the one sanctioned tracked write of either producer".
+  The row is about all writes outside the artifact, not only the audited surface, since its `delta`
+  cell enumerates memory-tier writes as mutations. A skill loading the table as governing would have
+  declined the sanctioned write, or reported it as a contract violation when it happened. Both cells
+  now name the two auxiliary writes and keep the absolute where it belongs, on the surface.
+- **Two more unscoped copies of the same absolute survived** the previous release, which had scoped
+  it in five places: `realign`'s Purpose section still said "the only mutating surface in this
+  plugin", and `delta`'s read-only contract said the same, three lines above its own list of three
+  sanctioned writes. Both now scope to the surface under scrutiny.
+- **A suppression duty was attributed to one producer** after a second shipped. The consumer-config
+  reference had "the audit reports every suppressed finding"; a targeted run reports them too, on
+  the narrower terms the merge clause sets.
+- **A count and a modifier.** The baseline model said "Two rules bind the run directly" above three,
+  and the README row this chain added attached "to the memory tier" to the inline summary as well as
+  the artifact, when the summary is emitted to the conversation and written nowhere. The README's
+  "Both files the plugin writes" is now "writes without asking", since the confirmation-gated
+  concern-file write is a third.
+
 ## [0.4.3]
 
 ### Fixed

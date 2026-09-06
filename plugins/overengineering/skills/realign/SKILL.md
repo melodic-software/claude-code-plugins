@@ -28,7 +28,7 @@ contains git.
 ## Purpose
 
 Execute what an `overengineering:audit` run found, one finding at a time, with the operator
-deciding each one. This is the **only** mutating surface in this plugin, and the per-item gate below
+deciding each one. This is the **only** skill that mutates the surface under scrutiny, and the per-item gate below
 is the entire reason it is safe to point at a surface nobody has reviewed in a year.
 
 The method is **not restated here.** Read `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` before
