@@ -207,7 +207,7 @@ Ownership itself resolves through §12, and ownerless is not a valid terminal st
 ## Consumer-agnostic
 
 Nothing here assumes an organization, a repository, a forge, a CI system, a branch name, or an agent
-harness. Layers are the ten forge-neutral names in the artifact's vocabulary, and every discovery
+harness. Layers are the ten forge-neutral enforcement names this lane walks, and every discovery
 probe in the walk resolves what a consumer actually declares.
 
 **Custody is detected, never assumed.** A managed, vendored, or synced file, a copy whose upstream
@@ -230,7 +230,10 @@ artifact upgrades it, and a row carried forward untouched from that run keeps no
 as `not recorded (schema 1)` until the row is re-evaluated rather than backfilled with a guess.
 Every finding carries `Basis`: `measured` where a tier-1–4 citation supports the verdict,
 `class-inferred` where it rests on §6's non-derivable-oracle clause or a §7 class match and every
-consult was silent or tier-5-only, and `unexamined` only alongside `UNPROVEN`. The `check`
+consult was silent or tier-5-only, and `unexamined` only alongside `UNPROVEN`. **Where a row
+satisfies both**, which happens whenever a class-resting verdict also measured nothing,
+`class-inferred` wins: the discriminator is what the verdict rests on, never how little came back.
+The `check`
 constituent of every id this lane derives carries `audit` as its producer segment.
 
 ## A detached checkout has no branch identity

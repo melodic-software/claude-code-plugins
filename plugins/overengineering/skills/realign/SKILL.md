@@ -82,7 +82,10 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
    wrote, and that failure is indistinguishable from the audit never having run.
 2. **No artifact → stop.** Report, visibly, that no findings artifact exists at the resolved home,
-   name `overengineering:audit` as the skill that produces one, and name the home resolved so the
+   name the two skills that produce one, `overengineering:audit` for a walk of the enforcement
+   surface and `overengineering:justify` for a single artifact the operator points at, so an
+   operator who wanted one document judged is not sent into a hundred-item walk to get it. Name the
+   home resolved so the
    operator can tell "never audited" from "resolved elsewhere". **Do not scan, judge, or remediate
    anything on your own**. This skill has no evidence and no verdict of its own, so an improvised
    pass would put a mutation behind a gate with nothing behind it.

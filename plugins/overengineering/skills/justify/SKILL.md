@@ -36,9 +36,13 @@ owner the finding names, never here.
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`, section "Read-only contract", governs, and is not
 restated. Five things are specific to this lane:
 
-- **The one write is the findings artifact**, at the memory-tier home resolved through
-  `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. Never the artifact being judged. Emit the
-  read-only opening line naming the resolved path, immediately after resolving it.
+- **The only write that is this lane's own is the findings artifact**, at the memory-tier home
+  resolved through `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. Never the artifact being judged.
+  Emit the read-only opening line naming the resolved path, immediately after resolving it. The two
+  auxiliary writes the governing contract sanctions, the topic-docs self-ignore guard and the
+  concern-file persistence on the resolution rungs, are unaffected and still happen: they belong to
+  the binding this lane runs, not to this lane, and skipping the guard would leave the memory root
+  un-gitignored.
 - **Always `mode: targeted`**, with `targets` naming what this run examined. A run of this lane never
   writes `mode: walk`, because it never walks.
 - **The frontmatter this lane writes** is `type: overengineering-findings`, `schema: 2`,
@@ -51,13 +55,15 @@ restated. Five things are specific to this lane:
 - **Re-read before write.** Load the on-disk artifact immediately before writing, merge against that
   copy, and read its `date` to see whether another producer wrote while this run was working. The
   merge rules protect only what the writer actually read.
-- **A run that wrote no row writes no artifact.** Two runs reach that state: one where the no-target
-  ladder ended at an offer or a question, so no target was ever resolved, and one where every target
-  resolved but routed away, since a routed target produces no id and no row. Both emit their inline
-  report in full, naming the rung or the routing, and neither persists anything. Writing an artifact
-  for them would stamp a new `date` and `targets` on the file, and recompute its summary, on behalf
-  of a run that judged nothing. The case below is different: a detached checkout declines the write
-  for a run that did judge something.
+- **A run that wrote no row writes no artifact, however it got there.** The condition is the row
+  count and nothing else, so do not read the examples below as the only ways to reach it. A run
+  reaches it when the no-target ladder ended at an offer or a question, when every target routed
+  away, when every target was declined as an ambiguous heading, or in any other way that leaves the
+  run with nothing filed. Each emits its inline report in full, naming the rung, the routing, or the
+  collision, and none persists anything. Writing an artifact for such a run would stamp a new `date`
+  and `targets` on the file and recompute its summary on behalf of a pass that judged nothing,
+  over a walk that did. The case below is different: a detached checkout declines the write for a
+  run that did judge something.
 
 ## A detached checkout has no branch identity
 
@@ -153,7 +159,8 @@ empirical source or is UNPROVEN naming the tier consulted and whether it was sil
   every consult came back silent or unavailable, is UNPROVEN and `unexamined`; where the verdict
   rests on the non-derivable oracle or a protected-class match it is `class-inferred` instead, per
   lane section 9. A KEEP is `measured` or it is not a KEEP.
-- **`ablation: n/a`**, because that gate does not apply on this lane's layers (lane section 8). The
+- **`Ablation: n/a`**, spelled with the contract's own capitalisation, because that gate does not
+  apply on this lane's layers (lane section 8). The
   earned-keep gate is the one every row answers, and a row fusing a class claim with an earned-keep
   verdict is a defect, not a shortcut. The `check` constituent of every id this lane derives carries
   `justify` as its producer segment.

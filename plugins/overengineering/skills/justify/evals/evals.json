@@ -19,14 +19,14 @@
       "id": 2,
       "name": "pointed-target-full-row",
       "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory.",
-      "expected_output": "One finding for the decision record. Its spine carries `Layer: decision-records`, an `Artifact` naming the fixture, a `Verdict` that is one of the six tokens, and a `Status`. Its prose carries a `Basis` of measured, class-inferred, or unexamined; the evidence tiers consulted, each marked silent or unavailable where it returned nothing; and `ablation: n/a` because the ablation gate does not apply on this lane's layers. The artifact frontmatter reads `schema: 2`, `mode: targeted`, and a `targets` list naming the fixture and nothing else. The record's own text is tier 5, so a verdict resting only on it is marked unverified rather than promoted.",
+      "expected_output": "One finding for the decision record. Its spine carries `Layer: decision-records`, an `Artifact` naming the fixture, a `Verdict` that is one of the six tokens, and a `Status`. Its prose carries a `Basis` of measured, class-inferred, or unexamined; the evidence tiers consulted, each marked silent or unavailable where it returned nothing; and `Ablation: n/a` because the ablation gate does not apply on this lane's layers. The artifact frontmatter reads `schema: 2`, `mode: targeted`, and a `targets` list naming the fixture and nothing else. The record's own text is tier 5, so a verdict resting only on it is marked unverified rather than promoted.",
       "files": ["evals/fixtures/decision-0001.md"],
       "expectations": [
         "Exactly one finding, with `Layer: decision-records`",
         "Verdict is one of KEEP, RETIRE, DOWNGRADE, CONSOLIDATE, UNPROVEN, FLAG-FOR-HUMAN",
         "Carries a `Basis` value of measured, class-inferred, or unexamined",
         "Names each evidence tier consulted and marks it silent or unavailable where it returned nothing",
-        "Carries `ablation: n/a`",
+        "Carries `Ablation: n/a`",
         "Artifact frontmatter shows `schema: 2`, `mode: targeted`, and `targets` naming only this fixture"
       ]
     },
@@ -106,15 +106,16 @@
       "id": 8,
       "name": "partly-inventoried-file-is-classified",
       "prompt": "/overengineering:justify evals/fixtures/SKILL.md, then /overengineering:justify evals/fixtures/claude-md.txt. Both paths are relative to the skill directory.",
-      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row, with its two import lines named as the routed instruction text. The imports are read rather than inferred: the row says what the imported files are, and does not judge them as part of this item. Neither row silently absorbs the routed part into its own verdict.",
+      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row naming its two import lines in `Routed-to`. Neither import resolves to a file that exists, and that is the point of this half of the case: the row records each as an import whose target was not found, never as instruction text it read. It does not describe their contents, does not infer what they must contain from their names, and does not judge them as part of this item. An unresolvable import is evidence about the host file, and inventing its contents would put a verdict on a file that does not exist. Neither row silently absorbs the routed part into its own verdict.",
       "files": [
         "evals/fixtures/SKILL.md",
         "evals/fixtures/claude-md.txt"
       ],
       "expectations": [
         "Skill file classified under `components`, with the always-loaded part named in `Routed-to`",
-        "Instruction file classified under `documents`, with the imported instruction text named in `Routed-to`",
-        "Reads the import lines rather than inferring the import graph",
+        "Instruction file classified under `documents`, with both import lines named in `Routed-to`",
+        "Records each import as one whose target was NOT FOUND, since neither resolves, rather than as instruction text it read",
+        "Does NOT describe or infer the imported files' contents from their names",
         "Neither row judges the routed part as part of this item"
       ]
     },
@@ -148,7 +149,7 @@
       "id": 11,
       "name": "ambiguous-heading-is-refused-not-guessed",
       "prompt": "/overengineering:justify evals/fixtures/repeated-heading.md#Rationale relative to the skill directory.",
-      "expected_output": "The target names a heading whose full ancestry is not unique: the file carries `## Outbound webhooks` twice, each with a `### Rationale` beneath it, so the ancestry `[file, Outbound webhooks, Rationale]` matches two different sections. The run DECLINES the target, names the collision, and asks for a whole-file target or a disambiguating rename. It does not pick the first occurrence, does not report an occurrence count such as 'the second Rationale', and does not silently widen to the file. No finding id is derived and no row is written, because nothing was judged. The refusal is stated with its reason: an identity that rests on which occurrence came first stops reproducing as soon as an edit reorders them, so the same item would carry two ids across two runs.",
+      "expected_output": "The target names a heading whose full ancestry is not unique: the file carries `## Outbound webhooks` twice, each with a `### Rationale` beneath it, so the ancestry `[file, Outbound webhooks, Rationale]` matches two different sections. The run DECLINES the target, names the collision, and asks for a whole-file target or a disambiguating rename. It does not pick the first occurrence, does not report an occurrence count such as 'the second Rationale', and does not silently widen to the file. No finding id is derived and no row is written, because nothing was judged, and because it wrote no row it persists nothing: a findings artifact already at the resolved home keeps its own `date`, `targets`, `scope` and summary, exactly as the run that wrote them left them. The defect this guards is a declined run rewriting a walk's artifact on behalf of a pass that judged nothing. The refusal is stated with its reason: an identity that rests on which occurrence came first stops reproducing as soon as an edit reorders them, so the same item would carry two ids across two runs.",
       "files": ["evals/fixtures/repeated-heading.md"],
       "narration": true,
       "expectations": [
@@ -156,6 +157,7 @@
         "Does NOT fall back to the first occurrence or to an occurrence count",
         "Does NOT silently widen to the whole file; it asks for a whole-file target or a rename",
         "Derives no finding id and writes no row for the ambiguous target",
+        "Persists NOTHING: having written no row, it leaves any pre-existing artifact untouched, with its own `date`, `targets`, `scope` and summary",
         "States the reason: an occurrence-ordinal identity does not survive an edit that reorders the sections"
       ]
     },
