@@ -1,0 +1,13 @@
+[
+    {
+        "PkgName": "sample",
+        "FuncName": "Classify",
+        "Complexity": 2,
+        "Pos": {
+            "Filename": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.go",
+            "Offset": 254,
+            "Line": 7,
+            "Column": 1
+        }
+    }
+]

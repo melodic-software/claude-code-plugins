@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.44]
+## [0.7.46]
 
 ### Changed
 
@@ -34,7 +34,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   disk at any size. Output is byte-identical, but a `PostToolBatch` payload carrying every
   serialized tool result routinely clears 64KiB, so large fires now write and read a temp file.
   This is a real cost on the target platform, whose Defender real-time protection scans temp-file
-  writes — the trade is one guaranteed process creation per fire against disk I/O on the oversized
+  writes: the trade is one guaranteed process creation per fire against disk I/O on the oversized
   fires only. Recorded in the README's hook-cost accounting.
 - **`payload.sh` grows `cg::read_payload_to`.** Assigns the drained payload to a caller-named
   variable via `printf -v` rather than printing it for the caller to capture, which cost a
@@ -51,8 +51,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Redirection-placement behaviour tests.** A malformed `zones.json` drives the resolver's only
   stderr path on this hook's route and pins that the notice reaches neither of the hook's streams,
   that stdout stays one parseable JSON document, and that the shipped default bands still resolve
-  and inject; an unparseable payload pins that the payload pass's nonzero status still propagates
+  and inject; an unparsable payload pins that the payload pass's nonzero status still propagates
   out of its new enclosing group rather than being absorbed by it.
+
+## [0.7.45]
+
+### Changed
+
+- **`hooks/zone-gate.sh` exits on the default advisory posture before sourcing
+  `hook-utils.sh`.** The gate is inert unless `zone_hook_mode` is `blocking`;
+  parsing the shared library to discover that was the entire cost of the
+  default path. The MODE predicate is inlined above every `source`, the same
+  shape as the kill-switch hoist, because the library IS the cost.
+  Spawn census stays at **0** PATH-visible execs. `bash -x` sources of
+  `hook-utils.sh`: **1 → 0**. Wall clock on this measurable Linux host (spawn
+  floor 0.5 ms, spread 1.78×, n=20 after 2 warmup): p50 4.8 → 1.4 ms, p95
+  5.0 → 1.5 ms. Blocking mode is unchanged: it still sources the library after
+  the MODE check.
+
+## [0.7.44]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered payload onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
 
 ## [0.7.43]
 

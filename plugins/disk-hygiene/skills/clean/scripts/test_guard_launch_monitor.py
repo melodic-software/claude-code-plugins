@@ -78,7 +78,7 @@ def _record(
         "session_id": record_session_id,
         "userType": "external",
         "entrypoint": "cli",
-        "cwd": "C:\\Projects\\melodic\\claude-code-plugins",
+        "cwd": "C:\\Projects\\<org>\\claude-code-plugins",
         "sessionId": "10bcff28-b64c-490d-8848-de5d6c76a43a",
         "version": "2.1.218",
         "gitBranch": "feat/example",

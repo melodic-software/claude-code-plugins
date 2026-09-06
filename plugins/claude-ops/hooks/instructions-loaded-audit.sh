@@ -19,10 +19,17 @@
 #   CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true   — opt back into session_start
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
 hook::check_enabled "INSTRUCTIONS_LOADED_AUDIT"
 hook::telemetry_enabled || exit 0
 

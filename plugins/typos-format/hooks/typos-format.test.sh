@@ -603,6 +603,11 @@ if wait_for_sink "$TELRF" 50; then
   else
     fail "stub/reflow: telemetry claims rewrites: $(jq -s -c '.[-1].data.applied' "$TELRF")"
   fi
+  if [[ "$(jq -s -r '.[-1].data.changed' "$TELRF" 2>/dev/null)" == "false" ]]; then
+    ok "stub/reflow: data.changed false when nothing was applied"
+  else
+    fail "stub/reflow: data.changed=$(jq -s -c '.[-1].data.changed' "$TELRF")"
+  fi
 else
   fail "stub/reflow: telemetry sink never populated — the assertion below it never ran"
 fi
@@ -1082,6 +1087,11 @@ if [[ -s "$TELA" ]]; then
     ok "stub/telemetry: data.applied.line is a positive number, as the schema requires"
   else
     fail "stub/telemetry: data.applied.line wrong: $(jq -c '.data.applied' "$TELA")"
+  fi
+  if [[ "$(jq -r '.data.changed' "$TELA")" == "true" ]]; then
+    ok "stub/telemetry: data.changed true when a correction was applied (#3755)"
+  else
+    fail "stub/telemetry: data.changed=$(jq -c '.data.changed' "$TELA")"
   fi
   if [[ "$(jq -r '.data.findings[0].typo' "$TELA")" == "disallowme" ]]; then
     ok "stub/telemetry: data.findings still carries residual findings only"
@@ -1574,6 +1584,21 @@ else
   fail "telemetry/sink-unset: rc=$RC_NS out=$OUT_NS"
 fi
 
+# --- Stub sink + clean file -> status ok, data.changed false (#3755) ----------
+# typos ran and had nothing to apply: a known false, not an omitted key, so an
+# all-clean session reads "nothing rewritten" rather than "no data".
+TELCL="$(mktemp)"
+SINKCL="$(make_sink "cat >\"$TELCL\"")"
+run_hook_env "$REPO/tel-clean.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKCL" >/dev/null
+wait_for_sink "$TELCL"
+if [[ -s "$TELCL" ]]; then
+  if [[ "$(jq -r '.status' "$TELCL")" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status=$(jq -r '.status' "$TELCL")"; fi
+  if [[ "$(jq -r '.data.changed' "$TELCL")" == "false" ]]; then ok "telemetry/clean: data.changed false on a clean run"; else fail "telemetry/clean: data.changed=$(jq -c '.data.changed' "$TELCL")"; fi
+else
+  fail "telemetry/clean: no envelope written"
+fi
+rm -f "$TELCL"
+
 # --- Stub sink + unfixable finding -> envelope status ok with findings -------
 printf 'this has a disallowme term\n' >"$REPO/tel.txt"
 TEL="$(mktemp)"
@@ -1591,7 +1616,7 @@ if [[ -s "$TEL" ]]; then
   done
   if [[ "$(jq -r '.hook' "$TEL")" == "typos-format" ]]; then ok "envelope: hook is typos-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
   if [[ "$(jq -r '.data.findings[0].typo' "$TEL")" == "disallowme" ]]; then ok "envelope: findings[0].typo correct"; else fail "envelope: findings[0].typo=$(jq -r '.data.findings[0].typo' "$TEL")"; fi
   if [[ "$(jq -r '.data.findings[0].corrections' "$TEL")" == "null" ]]; then ok "envelope: findings[0].corrections null for disallowed entry"; else fail "envelope: findings[0].corrections=$(jq -r '.data.findings[0].corrections' "$TEL")"; fi

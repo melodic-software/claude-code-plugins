@@ -106,3 +106,19 @@ docs/topics/*
 # Repository top-level prose and licensing, already covered by *.md above; the
 # bare LICENSE file has no extension, so it needs its own line.
 LICENSE
+
+# Eval fixtures carrying a non-markdown, non-JSON extension. `.md` and `.json`
+# fixtures are already covered by the two entries above; a fixture shaped like
+# shell or like an instruction file is deliberately given a `.txt` extension so
+# that scripts/check-shell-portability.sh does not lint a file that is input
+# data rather than code, and so a fixture shaped like a memory file is not named
+# in a way that would load it as live instructions. That rename is what leaves
+# these with no extension-based entry.
+#
+# The lane covering them is the skill-quality gate, which reads every file under
+# an evals/fixtures/ tree twice: scripts/check-orphaned-fixtures.sh --check
+# fails when a fixture is consumed by no grader, and
+# plugins/skill-quality/scripts/check-evals-quality.sh fails when a case names a
+# fixture that does not resolve. A fixture that a shell suite genuinely names is
+# still selected by the reference rule before this line is consulted.
+plugins/*/evals/fixtures/*.txt

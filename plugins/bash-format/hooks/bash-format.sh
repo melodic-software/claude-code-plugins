@@ -22,12 +22,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -69,7 +76,12 @@ esac
 
 # Resolve repo root early — used to bound the .editorconfig opt-in walk and to
 # compute the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+# Parameter expansion, not a `$(dirname …)` subshell: same answers as dirname
+# (no slash -> `.`, a root-level `/x` -> `/` rather than empty).
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
 # resolved only when a sink is wired: the unwired default path spawns zero
@@ -98,7 +110,9 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
+    '{tool:$tool,file:$file,findings:$findings}
+     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -125,8 +139,11 @@ section_applies_to_shell() {
 # from the file to the repo root, stopping at a `root = true` config per
 # EditorConfig search semantics. This gate is the whole formatting opt-in.
 shell_editorconfig_opt_in() {
-  local dir root cfg line is_root parent
-  dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || return 1
+  local dir root cfg line is_root parent file_dir
+  file_dir="${FILE%/*}"
+  [[ "$file_dir" == "$FILE" ]] && file_dir=.
+  [[ -n "$file_dir" ]] || file_dir=/
+  dir="$(cd "$file_dir" 2>/dev/null && pwd)" || return 1
   root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
   while :; do
     cfg="$dir/.editorconfig"
@@ -143,7 +160,8 @@ shell_editorconfig_opt_in() {
       [[ $is_root -eq 1 ]] && return 1 # root config, no shell section → stop
     fi
     [[ -n "$root" && "$dir" == "$root" ]] && return 1
-    parent="$(dirname "$dir")"
+    parent="${dir%/*}"
+    [[ -n "$parent" ]] || parent=/
     [[ "$parent" == "$dir" ]] && return 1 # reached filesystem root
     dir="$parent"
   done
@@ -302,6 +320,13 @@ if [[ -n "$NOTICE" ]]; then
   SYSMSG+="$NOTICE"
 fi
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
+
+# Settle the data.changed verdict for the telemetry emit below. On a run where
+# shfmt formatted, the take inside that branch already recorded it and this
+# call keeps it; on a run where shfmt never ran (no .editorconfig opt-in, no
+# binary), no snapshot was ever taken and the verdict is false: this hook did
+# not rewrite the file. The message this resets was consumed above.
+hook::rewrite_take_disclosure "$FILE" ""
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"

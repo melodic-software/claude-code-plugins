@@ -3,6 +3,156 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Fixed
+
+- **The shared contract's obligations table denied both producers a write the placement binding
+  grants them.** Its "mutates anything outside the artifact" row read `never` for `audit` and
+  `justify` alike, while `audit`'s own read-only contract sanctions two auxiliary writes and the
+  binding calls the concern-file persistence "the one sanctioned tracked write of either producer".
+  The row is about all writes outside the artifact, not only the audited surface, since its `delta`
+  cell enumerates memory-tier writes as mutations. A skill loading the table as governing would have
+  declined the sanctioned write, or reported it as a contract violation when it happened. Both cells
+  now name the two auxiliary writes and keep the absolute where it belongs, on the surface.
+- **Two more unscoped copies of the same absolute survived** the previous release, which had scoped
+  it in five places: `realign`'s Purpose section still said "the only mutating surface in this
+  plugin", and `delta`'s read-only contract said the same, three lines above its own list of three
+  sanctioned writes. Both now scope to the surface under scrutiny.
+- **A suppression duty was attributed to one producer** after a second shipped. The consumer-config
+  reference had "the audit reports every suppressed finding"; a targeted run reports them too, on
+  the narrower terms the merge clause sets.
+- **A count and a modifier.** The baseline model said "Two rules bind the run directly" above three,
+  and the README row this chain added attached "to the memory tier" to the inline summary as well as
+  the artifact, when the summary is emitted to the conversation and written nowhere. The README's
+  "Both files the plugin writes" is now "writes without asking", since the confirmation-gated
+  concern-file write is a third.
+
+## [0.4.3]
+
+### Fixed
+
+- **The README still carried the unqualified read-only claim `0.4.2` corrected in the skill
+  description**, and stated it more strongly: "the only skill that changes anything" of `realign`,
+  and "everything that changes the repo happens through" it. Both are false against the placement
+  binding, which records a confirmation-gated tracked write to the consumer's concern file as "the
+  one sanctioned tracked write of either producer". A reader evaluating the plugin from its README
+  concluded no producer touches tracked content, then saw one offer to. The claims are now scoped to
+  the surface under scrutiny, which is what they were always about, and the `justify` row carries the
+  same carve-out its description does. Found by verifying the previous fix rather than by a gate;
+  the parity fix had reached the description and stopped there.
+
+## [0.4.2]
+
+### Fixed
+
+- **Eval 8 graded the opposite of the rule `0.4.1` had just written.** That release scoped an
+  unresolved import out of `Routed-to`, on the grounds the field records a routing that actually
+  happened and an import pointing at nothing was handed to no one. The eval still required both
+  import lines named in `Routed-to`, on a fixture whose imports it states do not resolve, so the
+  case contradicted both the lane and itself: a run following the new rule failed it and a run
+  violating the rule passed. The imports now belong in the row's prose, with the skill file's
+  always-loaded part kept as the contrast, since that one really was routed.
+- **Eval 14 repeated the defect `0.4.1` fixed in eval 2.** It reuses the decision-record fixture,
+  for which two other cases establish that a correct run must ask the operator before writing
+  UNPROVEN, and supplied no answer. The correct run therefore asks, stops, emits no verdict, and
+  fails the case's own requirement that it emit a full report including the verdict. The prompt now
+  supplies the answer, as eval 2's does.
+- **The skill's description advertised unqualified read-only** while the lane can make the
+  ask-gated tracked write of the resolved artifact home, which the placement binding asserts each
+  producer discloses. The sibling walking lane already carves this out; this one now does too.
+
+## [0.4.1]
+
+### Fixed
+
+- **`justify` could not load inside a worktree-isolated session**, and this is a regression of the
+  fix `0.3.7` applied to the other three skills. Its branch call sat in `## Pre-computed context`,
+  which the harness runs as one shell invocation, and such a session refuses a compound command
+  containing git. The call moves into a "Repository context. Gather first" body section like its
+  siblings. The `|| echo` sentinel goes with it: `0.3.7` removed exactly that pattern because it
+  swallows the exit status, which is the datum the branch-identity step reads, and it guaranteed the
+  pre-compute line was never absent, so the skill's own escape hatch could never fire. Neither the
+  pre-compute-compose gate nor any other check flags this; it was found by reading the new skill
+  against its three siblings.
+- **An unresolved import was directed into `Routed-to`**, a field the contract scopes to a routing
+  that actually happened. An import pointing at nothing was handed to no one, so it is recorded in
+  the row's prose instead, and a consumer reading `Routed-to` no longer looks for a neighbour skill
+  that was never named.
+- **The placement binding still described three consumers and one producer.** Its detached-checkout
+  consequence named `audit`, `realign` and `delta` while asserting four skills read it, so a reader
+  concluded the new lane was unconstrained; and it attributed the ask-gated concern-file write to
+  the audit alone after a second producer began running the same rung order.
+- **The lane binding stated a measurement of this repository as though it were the consumer's.** It
+  gave a ranked-candidate precision figure counted here, in a document that loads inside someone
+  else's tree, where it reads as a fact about the tree in front of the reader. The claim is now the
+  general one the number supported.
+
+### Changed
+
+- **Four evals added and two tightened**, closing coverage gaps in what the lane's own suite grades.
+  Nothing exercised the targeted-run merge clause, which is the reason the schema-2 contract exists,
+  so a run that closed every prior finding in a layer it never walked passed the whole suite. Nothing
+  exercised either write refusal, the detached checkout or the unrecognized schema, though the
+  sibling lane grades both. Nothing exercised the corroboration step, so presenting a raw age ranking
+  as candidates passed. The line-widening case permitted widening to the whole file on a judgment the
+  body does not grant, and its fixture's line sits under a heading, so an incorrect run passed; and
+  the full-row case shared a fixture with the case that asserts the operator must be asked first,
+  while supplying no answer, so a correct run asked, stopped, and failed it.
+
+## [0.4.0]
+
+### Added
+
+- **`justify`, a third lane skill.** `/overengineering:justify <target>` applies the plugin's
+  scrutiny method to whatever single artifact you point at, against a two-part test: was there a
+  reason for this when it was built, and does that reason still hold today. It takes a path, a
+  `path#heading`, or a kind-prefixed identifier; a line or comment target widens to its enclosing
+  heading or file and the report's first line says so. It is read-only, reports before it discusses,
+  and never applies a remedy. With no target it never sweeps: it uses what the session has been
+  discussing, else offers to rank candidates by age and waits, else asks.
+- **`context/justification-lane.md`**, the lane binding. Routing precedence first, so a target the
+  enforcement lane already inventories goes to `audit` and gets no row here; then the item inventory,
+  five layers with their discovery probes, evidence sources on the method's tiers, protected-class
+  defaults, the lane's preflight additions, the two gates, the no-target ladder, the boundary against
+  existing owners, and the limits this lane accepts.
+- **A sanctioning-records probe in the shared preflight**, which both lanes run. A repetition that a
+  decision record sanctions and a check maintains is never duplication to collapse, because a finding
+  against it reports a working control as a defect.
+
+### Changed
+
+- **The findings artifact is `schema: 2`.** Five layer values for non-enforcement artifacts
+  (`decision-records`, `documents`, `components`, `dependencies`, `source`), appended so the
+  sort-significant enum order is preserved. A non-spine `Basis` field records whether a verdict is
+  `measured`, `class-inferred`, or `unexamined`, required only on rows a schema-2 run writes, so rows
+  carried forward from schema 1 stay legal. Frontmatter gains `mode` and `targets`, and a
+  targeted-run clause governs the merge rules so a pointed run never closes a finding it did not
+  fully examine. Closing takes every site in `targets`; refreshing a verdict or a suppression
+  disposition takes any one of them, so a finding binding two artifacts is not frozen by a lane that
+  points at one at a time. That clause defines target membership on the sites a run actually
+  derived rather than on a matching path string, because a target naming a heading matches no site's
+  surface and a target naming a file or directory would otherwise sweep in sections nobody opened.
+  Finding ids gain a producer segment, an `artifact-item` claim, a `package:<ecosystem>/<name>`
+  prefix, and a heading locator; a routed target produces no id and no row.
+- **Re-read before write is now a producer obligation on every writer**, stated in the contract
+  rather than in one lane. Two producers write one file, and a merge against a copy loaded earlier in
+  a run drops the other's rows with no closure record, since a closure row is written only for a
+  layer the run walked and the two producers walk disjoint layers.
+- **The contract's obligations table carries a column per skill**, including the second producer, so
+  the schema refusal, the branch refusal, the missing-artifact behaviour and the evidence-availability
+  duty are stated for it rather than inferred.
+- **`realign` presents a `justify`-producer row, judges it, and never remediates it here**, naming
+  the owner from the lane's boundary and offering no rung, because its rollback ladder is
+  enforcement-shaped. The operator still decides such a row: `REJECTED` records a keep and earns its
+  durable judgment entry, and `DELEGATED-EXTERNAL` stays available where custody is upstream. What is
+  withheld is the ladder, not the decision. One eval covers the presentation and the withheld rung;
+  the disposition half is stated in the skill body and not yet graded.
+- **`delta` reports this lane's layers as not walkable rather than not walked**, since it composes
+  `audit` and no cycle at any scope will compare them. `Basis` stays outside the spine and never
+  enters the diff.
+- **`audit` writes `schema: 2` and `mode: walk`**, and accepts either schema on read.
+
 ## [0.3.8]
 
 ### Changed

@@ -72,7 +72,7 @@ artifact's stored judgment and this run's fresh one.
 its body may and may not carry, its deliberately-not-`overengineering-findings` type, and why it is a
 snapshot rather than a second record are owned by
 `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` under "The spine-capture obligation". **This
-skill does not restate them.** Two rules bind the run directly:
+skill does not restate them.** Three rules bind the run directly:
 
 **A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is
 earned by having completed the comparison, and nothing else earns it. If the cycle stopped short
@@ -81,6 +81,14 @@ the audit was never invoked, the audit failed, the schema was unrecognized, the 
 or the branch identity was unresolved.
 Overwriting it would move the comparison's origin silently forward past a cycle nobody ever compared,
 and whatever moved in between would then be reported by no cycle at all.
+
+**A `schema: 2` artifact changes what is captured in one way only: nothing.** The spine is still
+`(id, layer, artifact, verdict, status)`. `Basis`, `mode`, and `targets` are outside it by
+construction, so a capture taken after a targeted run holds the same tuples a capture after a walk
+would, and a `Basis` move produces no delta. A row this lane can never compare, one whose `Layer` is
+one of the justification lane's five, is captured like any other so the snapshot stays a faithful
+record of the artifact; it simply never appears in a comparison. The layer is what identifies such a
+row, never the `check` producer segment, which is an id constituent the artifact does not serialize.
 
 **A baseline older than one cycle widens the span rather than being discarded.** When the stored
 baseline's `source-date` predates the immediately preceding cycle, an interrupted cycle left it

@@ -152,8 +152,13 @@ methodology evals,event-storming
 # what a surviving mutant means. Adjacent domains, not the same one: the first
 # is judgment about test design, the second is a measurement of fault detection
 # — which is why tdd's own coverage reference points HERE for the measurement
-# rather than absorbing it. The namespace supplies the domain in both.
-principles mutation-testing,tdd
+# rather than absorbing it. code-metrics:principles routes the static-measure
+# literature (McCabe, Halstead, Campbell, Savoia and Evans, ISO/IEC 5055) and
+# answers what a complexity, size, duplication, coverage, CRAP, or type-debt
+# number can and cannot say; it owns the cross-metric caveats and points at
+# mutation-testing:principles for fault detection rather than restating it.
+# The namespace supplies the domain in all three.
+principles code-metrics,mutation-testing,tdd
 
 # D19, kept on merit. planning:plan is the root-echo core action of its domain;
 # testing:plan is a test-strategy plan. The bare token still belongs to the

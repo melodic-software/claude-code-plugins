@@ -135,7 +135,7 @@ reported as 3 was creating **8** processes. Each of the three call sites carried
 inside the substitution and so cost double, and the payload pass cost triple because it was fed by
 a `printf | jq` pipeline. Moving every redirection onto an enclosing `{ ...; }` group, and reading
 the payload into a variable in-process rather than through a command substitution, brings the real
-count to 3 — the figure this section always claimed:
+count to 3, the figure this section always claimed:
 
 | Steady PostToolBatch fire | Process creations | Program launches (`execve`) |
 |---|---|---|
@@ -274,10 +274,19 @@ interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
 | Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
 
 The spawn-equivalents above are command-position counts. Re-measured as process creations under
-`strace -f` (0.7.44), the steady PostToolBatch and UserPromptSubmit fire was creating 8 processes
+`strace -f` (0.7.46), the steady PostToolBatch and UserPromptSubmit fire was creating 8 processes
 where those rows report 3; moving every redirection off the inside of a command substitution
 brings it to 3 with the program launches unchanged. See "Counting invocations is not counting
 processes" above for why the two counts differ and what it costs on a slow-spawn host.
+
+**0.7.45, advisory `zone-gate.sh` sources nothing.** 2026-09-06, Linux CI host.
+The default `zone_hook_mode` is advisory, so the gate is inert. It still parsed
+`hook-utils.sh` (and `payload.sh`) to discover that. The MODE check now sits
+above every `source`, the same shape as the kill-switch hoist. Spawn census
+stays at 0 PATH-visible execs; `bash -x` sources of `hook-utils.sh` go 1 → 0.
+Wall clock, n=20 after 2 warmup, host `spawn_probe` measurable (min 0.5 ms,
+spread 1.78×): p50 4.8 → 1.4 ms, p95 5.0 → 1.5 ms. Blocking mode still sources
+the library after the MODE check and is unchanged.
 
 The two advisory rows keep their 60-second timeout: the 0.4.8 measurement put this script at
 22.0 s on Windows with Defender real-time protection, and a timeout caps a stalled hook without

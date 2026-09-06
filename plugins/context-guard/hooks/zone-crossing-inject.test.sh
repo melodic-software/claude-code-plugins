@@ -772,9 +772,9 @@ B_OUT=$(printf 'not json at all' |
   HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>"$B_ERR")
 B_RC=$?
 if [[ $B_RC -eq 0 && -z "$B_OUT" && ! -s "$B_ERR" ]]; then
-  ok "unparseable payload: silent on both channels, exit 0"
+  ok "unparsable payload: silent on both channels, exit 0"
 else
-  fail "unparseable payload: rc=$B_RC out=[$B_OUT] err=[$(cat "$B_ERR")]"
+  fail "unparsable payload: rc=$B_RC out=[$B_OUT] err=[$(cat "$B_ERR")]"
 fi
 
 echo

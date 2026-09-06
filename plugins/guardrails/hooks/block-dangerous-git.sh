@@ -69,17 +69,19 @@ set -uo pipefail
 # and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED:-true}" == "true" ]] || exit 0
 
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-# Bundled PowerShell-command classifier — the git guards are matched on both the
-# Bash and the (opt-in) PowerShell tool, whose command arrives in the same
-# tool_input.command field with PowerShell grammar. Resolved under the plugin
-# root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract
-# tests working when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+source "$_HOOK_SELF/hook-utils.sh"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
@@ -1379,42 +1381,49 @@ fi
 # When a sink-shape token IS allowlisted, blank that opaque region and keep
 # checking any remaining visible text — do not fail-open the whole compound
 # command (Codex review on #2667: `iex '…'; git reset --hard`).
-ps::classify_git_command "$TOOL_NAME" "$COMMAND"
-_ps_rc=$?
-_ps_sink_attempts=0
-while ((_ps_rc == 2)); do
-  # The allow token is namespaced separately from the telemetry form token
-  # (powershell-unparsable-*) so an operator configuring the allow-list cannot
-  # confuse the two namespaces, and so no pre-#2664 allow value gains power.
-  sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
-  if ! allowed "$sink_allow"; then
-    ps::print_unparsable_git_block_message
-    # The trigger rides along in the form token: four distinct shapes reach this
-    # sink, and one collapsed token cannot show which of them is over-blocking.
-    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
-    exit 2
-  fi
-  # Sink shape allowed — blank its opaque region(s) and re-classify the
-  # remainder so independently parseable siblings still reach check_segment.
-  ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
-  COMMAND="$PS_SAFE_COMMAND"
-  if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
-    emit_tel "ok" ""
-    exit 0
-  fi
-  _ps_sink_attempts=$((_ps_sink_attempts + 1))
-  if ((_ps_sink_attempts > 4)); then
-    # Only opaque residue left after bounded blanks — treat as allowed.
-    emit_tel "ok" ""
-    exit 0
-  fi
+#
+# The ~41 KB classifier is sourced only on the PowerShell lane (#2663).
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   _ps_rc=$?
-done
-case $_ps_rc in
-1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
-*) COMMAND="$PS_SAFE_COMMAND" ;;
-esac
+  _ps_sink_attempts=0
+  while ((_ps_rc == 2)); do
+    # The allow token is namespaced separately from the telemetry form token
+    # (powershell-unparsable-*) so an operator configuring the allow-list cannot
+    # confuse the two namespaces, and so no pre-#2664 allow value gains power.
+    sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
+    if ! allowed "$sink_allow"; then
+      ps::print_unparsable_git_block_message
+      # The trigger rides along in the form token: four distinct shapes reach this
+      # sink, and one collapsed token cannot show which of them is over-blocking.
+      emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
+      exit 2
+    fi
+    # Sink shape allowed — blank its opaque region(s) and re-classify the
+    # remainder so independently parseable siblings still reach check_segment.
+    ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
+    COMMAND="$PS_SAFE_COMMAND"
+    if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
+      emit_tel "ok" ""
+      exit 0
+    fi
+    _ps_sink_attempts=$((_ps_sink_attempts + 1))
+    if ((_ps_sink_attempts > 4)); then
+      # Only opaque residue left after bounded blanks — treat as allowed.
+      emit_tel "ok" ""
+      exit 0
+    fi
+    ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+    _ps_rc=$?
+  done
+  case $_ps_rc in
+  1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
+  *) COMMAND="$PS_SAFE_COMMAND" ;;
+  esac
+fi
 
 # Resolved-subcommand names already expanded in the CURRENT alias chain — git's
 # own alias-loop guard. Initialized here (not in check_segment, which recurses

@@ -1,0 +1,6 @@
+# unverified against a live run
+file,func,lineno,lloc,ccn,lines,comment,blank
+plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh,<begin>,0,0,0,0,0,0
+plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh,greet,8,5,3,7,0,0
+plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh,<main>,1,2,1,16,5,2
+plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh,<end>,16,0,0,16,5,2

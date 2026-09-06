@@ -191,7 +191,7 @@ if [[ -s "$TEL" ]]; then
   if [[ "$(jq -r '.hook' "$TEL")" == "desktop-notification" ]]; then ok "telemetry/envelope: hook id"; else fail "telemetry/envelope: hook id = $(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.hook_event' "$TEL")" == "Notification" ]]; then ok "telemetry/envelope: hook_event Notification"; else fail "telemetry/envelope: hook_event = $(jq -r '.hook_event' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status = $(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "telemetry/envelope: schema_version 1.0"; else fail "telemetry/envelope: schema_version = $(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "telemetry/envelope: schema_version 1.1"; else fail "telemetry/envelope: schema_version = $(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq -r '.data.notification_type' "$TEL")" == "permission_prompt" ]]; then ok "telemetry/envelope: data.notification_type"; else fail "telemetry/envelope: notification_type = $(jq -r '.data.notification_type' "$TEL")"; fi
   if jq -e '.data.channels | index("terminal_notify") and index("bell")' "$TEL" >/dev/null 2>&1; then ok "telemetry/envelope: channels has terminal_notify + bell"; else fail "telemetry/envelope: channels = $(jq -c '.data.channels' "$TEL")"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "telemetry/envelope: duration_ms non-negative integer"; else fail "telemetry/envelope: duration_ms = $(jq '.duration_ms' "$TEL")"; fi
