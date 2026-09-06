@@ -68,14 +68,22 @@ externally-unverifiable part `needs-review` rather than guessing.
 
 This skill verifies **factual claims** in a repo's docs, config, code, and architecture notes
 against the repo's actual state. Seven adjacent lanes each own a different kind of drift, and this
-skill owns none of them. Every route below is a soft dependency: when the named plugin is installed,
-route there and invoke it via the Skill tool; when it is not installed, say the lane is out of this
-skill's scope and name what would have owned it, rather than running claim-extraction over that
-surface. Never assert that an absent skill is available.
+skill owns none of them.
+
+**This table is a router for the operator, not a dispatch list for this skill.** Bare `audit` is
+READ-ONLY, and some of these lanes mutate: `/discipline:recheck-against-upstream` says to "Correct
+each forward now: fix gaps toward upstream", and others carry a fix mode. Invoking one from inside a
+read-only run would let this skill edit the repo through a sibling, which its own verb contract
+forbids. So a request that belongs to another lane is **reported as uncovered**, and that lane is
+**named as the next thing the operator can run** rather than invoked here. Name the lane whether or
+not its plugin is installed, and never assert that an absent one is available. `--fix` authorizes
+remediation of this skill's own findings only; it does not extend to running a sibling's.
+
+Each row states its own invocation form, since one row is an agent and the rest are skills.
 
 | The drift is about | Owner |
 |---|---|
-| Docs that no longer match the code, classified stale, missing, or aspirational, whether scoped to a change under review or swept repo-wide | the `review` plugin's `doc-drift-detector` agent, invoked as `@review:doc-drift-detector` or as a leaf of `/review:fanout`. Invoked with no scope that agent audits every doc area, the one mode where it overlaps this skill's `documentation` dimension. Split the repo-wide sweep by question: whether a page should exist at all is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are true is this skill's, and `--docs-only` scopes a run to it |
+| Whether a page **deserves to exist**: derivable from the code it describes, aspirational, or redundant. Also doc freshness scoped to a change under review | the `review` plugin's `doc-drift-detector` **agent**, so invoke it with the Agent tool as `@review:doc-drift-detector`, or run `/review:fanout run-everything`. Name that mode: fanout's default lifecycle-tiered mode never dispatches this agent, only `run-everything` does (`plugins/review/skills/fanout/context/run-everything-mode.md`), so an unqualified `/review:fanout` can finish without ever reaching the owner. **The dispatch rule is the question asked, not the scope swept:** whether a page should exist is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are TRUE is always this skill's, repo-wide included. `--docs-only` is this skill's own exhaustive claim pass and never routes out |
 | A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
 | Whether the surface in flight still matches the CURRENT official upstream docs | `/discipline:recheck-against-upstream` |
 | Prose restating an external source with no pointer, and verification stamps past their expiry window | `/provenance:audit` |

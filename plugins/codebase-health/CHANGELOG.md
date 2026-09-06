@@ -10,15 +10,27 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 - **`audit`:** a `Boundary, the adjacent drift lanes` section routes the seven sibling drift lanes,
   one table row each: the `review` plugin's `doc-drift-detector` agent, `/session-flow:reanchor`,
   `/discipline:recheck-against-upstream`, `/provenance:audit`, `/claude-config:audit`,
-  `/instruction-placement:delta`, and `/overengineering:delta`. Every route is presence-gated, an
-  absent plugin means the lane is named as out of scope, never asserted as available. The two rows
-  that overlap this skill say where the line falls: `doc-drift-detector` sweeps repo-wide when it is
-  invoked with no scope, so the sweep splits by question (does the page deserve to exist, the
-  agent's derivability gate, versus are its claims true, this skill's), and the `claude-config` row
-  adds `/claude-config:audit-instructions` for the instruction surfaces Phase 0 reads only as the
+  `/instruction-placement:delta`, and `/overengineering:delta`. The table is a **router for the
+  operator, not a dispatch list for the skill**: a request owned by another lane is reported as
+  uncovered and that lane is named as the next thing to run, never invoked from inside a bare
+  read-only `audit`. That keeps the verb contract intact, since several of these lanes mutate,
+  `/discipline:recheck-against-upstream` most directly ("Correct each forward now"), and `--fix`
+  authorizes remediation of this skill's own findings only. Lanes are named whether or not their
+  plugin is installed, and an absent one is never asserted as available. Each row states its own
+  invocation form, because one route is an agent (Agent tool) and the rest are skills. The two rows
+  that overlap this skill say where the line falls: the `doc-drift-detector` route is scoped to
+  whether a page deserves to exist, its derivability admission gate, while whether a page's claims
+  are true stays here repo-wide, so `--docs-only` runs this skill's exhaustive claim pass and never
+  routes out; that row also names `/review:fanout run-everything` explicitly, since fanout's default
+  lifecycle-tiered mode never dispatches the agent. The `claude-config` row adds
+  `/claude-config:audit-instructions` for the instruction surfaces Phase 0 reads only as the
   convention lens. The prior claude-config-only scope notes in the skill body and the README are
   folded into the table rather than stated three times, and the README points at the section instead
   of repeating it. Frontmatter description unchanged (#3810).
+
+  The read-only routing contract, and the observation that automatic dispatch was scope the
+  implementation added rather than anything #3810 asked for, come from the parallel independent work
+  on this issue in #3829 (closed as a duplicate), ported here with attribution.
 
 ## [0.8.9]
 
