@@ -236,7 +236,7 @@ or warning is ever dropped, and a destination's own structural contract survives
 - `markdownlint-cli2 "plugins/writing/**/*.md"` reports 0 issues. The glob is quoted so the tool expands it rather than the shell, which has globstar off by default in bash and Git Bash.
 - `bash scripts/check-purged-em-dashes.sh --check` exits 0, **and** the new paths are actually enforced: `grep -c 'plugins/writing' scripts/em-dash-purged-paths.txt` is at least 1. Without the allowlist entry the gate passes vacuously.
 
-### Phase 3: Evals [TODO]
+### Phase 3: Evals [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
@@ -295,7 +295,7 @@ phrase the table gives the other.
 - Description length did not regress past the 1024-codepoint warning: for each edited skill, `python3 -c` measuring the description's codepoint count reports a number no larger than before the edit. `write-for-humans` already sits near 1110, so its edit must not lengthen it.
 - The trigger-migration table exists and is disjoint: no phrase appears in both `writing:be-concise` and `discipline:tighten-your-output` descriptions.
 
-### Phase 5: Composition-site pointers [TODO]
+### Phase 5: Composition-site pointers [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
