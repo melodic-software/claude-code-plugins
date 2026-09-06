@@ -13,7 +13,8 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - **`reference/topic-docs.md` — the binding that resolves both artifact homes.** Memory tier,
   constant slug `instruction-placement`, with the rung order, the two axes, the child-slice
   non-predicate, the detached-`HEAD` consequence, and the self-ignore guard all cited from the
-  contract rather than restated.
+  contract rather than restated. The slice root carries an `INDEX.md` because it holds two artifact
+  families, written at the same first memory-tier write as the self-ignore guard.
 - **The placement baseline, in the protocol's `baselines/` slot.** `delta` captures
   `baselines/placement-baseline.md` at the end of a cycle: this run's detector spine, plus a
   decisions table carrying every finding the operator has declined or applied. Its frontmatter,

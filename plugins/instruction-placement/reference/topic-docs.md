@@ -73,14 +73,25 @@ why the artifact's own `branch:` frontmatter, never its directory, proves which 
 
 **Neither `<branch-slug>/` nor `baselines/` is a child slice.** Both hold kebab-case auxiliary
 ledgers and no reserved uppercase stage file, so the contract's child-slice predicate does not fire
-and no `INDEX.md` is owed at either level.
+and neither level owes an `INDEX.md` of its own.
 
-**When no branch identity resolves, no findings home is keyed.** All three skills resolve the branch
-with `git symbolic-ref --quiet --short HEAD`, which fails on a detached checkout rather than
-answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD` does. Where that fails,
-there is no `<branch-slug>` to compose: `audit` persists no artifact and `realign` refuses. The
-baseline is unaffected — its path has no branch segment — so a detached scheduled run still reads the
-declined set and still suppresses what the operator already dismissed.
+**The slice root does owe one**, because it carries two artifact families rather than one: the
+contract requires `INDEX.md` in "a slice with child slices, or with more than one artifact family",
+and only a single-artifact leaf omits it. It is created by the same skill at the same moment as the
+self-ignore guard below — the session's first memory-tier write — and lists the two families and
+their homes so a consumer entering the slice reads it first, per the contract's normative read-first
+binding, which is cited here and not restated.
+
+**Where the branch comes from, and what a detached checkout means.** The branch is the
+`- Branch:` line of each skill's pre-compute block, which runs
+`git rev-parse --abbrev-ref HEAD`. That command answers the **literal string `HEAD`** on a detached
+checkout rather than failing, so `HEAD` is not a branch identity here: it is the same string for
+every ref, and keying a findings home to it would collide every detached run into one directory —
+which is the common case, since scheduled runners check out detached. Treat a branch of `HEAD`, or
+an empty one, as **no branch identity**: no findings home is keyed, `audit` persists no artifact,
+and `realign` refuses rather than comparing. The baseline is unaffected — its path has no branch
+segment — so a detached scheduled run still reads the declined set and still suppresses what the
+operator already dismissed, and its `captured_from_branch` records `unknown`.
 
 ## Resolution (the contract's five-rung order, earlier wins)
 
@@ -140,5 +151,6 @@ consumer configuration able to join them.
   the **invalid roots at which the guard does not run**; they are enumerated in its
   [Runtime guards](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md)
   section and deliberately not listed here, so this binding cannot drift from them.
-- Create the slice directory, and the `baselines/` subdirectory, when absent.
+- Create the slice directory, its `INDEX.md`, and the `baselines/` subdirectory when absent — at the
+  same first memory-tier write the guard above is scoped to.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.
