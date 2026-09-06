@@ -62,13 +62,37 @@ optional; using one when your setup provides it is not, per Phase 2's external-r
 such tool, follow the inline graceful-degrade guidance, which confidence-tags the
 externally-unverifiable part `needs-review` rather than guessing.
 
-Scope boundary with adjacent audit lanes: this skill verifies **factual claims** in docs/config
-against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
-permissions) and automation-landscape gap analysis are different lanes, when the
-`claude-config` plugin is installed, route those to `/claude-config:audit` and
-`/claude-config:audit-automation-gaps`, invoked via the Skill tool; otherwise state they are out of
-scope rather than
-running claim-extraction over them.
+---
+
+## Boundary, the adjacent drift lanes
+
+This skill verifies **factual claims** in a repo's docs, config, code, and architecture notes
+against the repo's actual state. Seven adjacent lanes each own a different kind of drift, and this
+skill owns none of them.
+
+**This table is a router for the operator, not a dispatch list for this skill.** Bare `audit` is
+READ-ONLY, and some of these lanes mutate: `/discipline:recheck-against-upstream` says to "Correct
+each forward now: fix gaps toward upstream", and others carry a fix mode. Invoking one from inside a
+read-only run would let this skill edit the repo through a sibling, which its own verb contract
+forbids. So a request that belongs to another lane is **reported as uncovered**, and that lane is
+**named as the next thing the operator can run** rather than invoked here. Name the lane whether or
+not its plugin is installed, and never assert that an absent one is available. `--fix` authorizes
+remediation of this skill's own findings only; it does not extend to running a sibling's.
+
+Each row states its own invocation form, since one row is an agent and the rest are skills.
+
+| The drift is about | Owner |
+|---|---|
+| Whether a page **deserves to exist**: derivable from the code it describes, aspirational, or redundant. Also doc freshness scoped to a change under review | the `review` plugin's `doc-drift-detector` **agent**, so invoke it with the Agent tool as `@review:doc-drift-detector`, or run `/review:fanout run-everything`. Name that mode: fanout's default lifecycle-tiered mode never dispatches this agent, only `run-everything` does (`plugins/review/skills/fanout/context/run-everything-mode.md`), so an unqualified `/review:fanout` can finish without ever reaching the owner. **The dispatch rule is the question asked, not the scope swept:** whether a page should exist is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are TRUE is always this skill's, repo-wide included. `--docs-only` is this skill's own exhaustive claim pass and never routes out |
+| A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
+| Whether the surface in flight still matches the CURRENT official upstream docs | `/discipline:recheck-against-upstream` |
+| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/provenance:audit` |
+| Claude Code's own configuration and instruction surfaces: `settings.json`, `.mcp.json`, hooks, permissions, environment variables, and the text of `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/` judged against current model capability or against how Claude Code actually behaves | `/claude-config:audit`, with `/claude-config:audit-automation-gaps` for automation-landscape gaps and `/claude-config:audit-instructions` for instruction-surface drift. Phase 0 reads those instruction files here too, but only as the convention lens: a claim they make about this repo is this skill's to verify, a claim they make about the harness or a prescription aimed at the model is not |
+| What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` |
+| What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` |
+
+The last two are delta lanes over their own prior runs, not over this audit's findings. This skill
+keeps no baseline and reports no deltas: each run is a full pass.
 
 ---
 
