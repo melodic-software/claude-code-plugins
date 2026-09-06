@@ -75,11 +75,11 @@ surface. Never assert that an absent skill is available.
 
 | The drift is about | Owner |
 |---|---|
-| Docs that no longer match the code in a change under review, classified stale, missing, or aspirational | the `review` plugin's `doc-drift-detector` agent, invoked as `@review:doc-drift-detector` or as a leaf of `/review:fanout` |
+| Docs that no longer match the code, classified stale, missing, or aspirational, whether scoped to a change under review or swept repo-wide | the `review` plugin's `doc-drift-detector` agent, invoked as `@review:doc-drift-detector` or as a leaf of `/review:fanout`. Invoked with no scope that agent audits every doc area, the one mode where it overlaps this skill's `documentation` dimension. Split the repo-wide sweep by question: whether a page should exist at all is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are true is this skill's, and `--docs-only` scopes a run to it |
 | A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
 | Whether the surface in flight still matches the CURRENT official upstream docs | `/discipline:recheck-against-upstream` |
 | Prose restating an external source with no pointer, and verification stamps past their expiry window | `/provenance:audit` |
-| Claude Code's own configuration: `settings.json`, `.mcp.json`, hooks, permissions, environment variables | `/claude-config:audit`, with `/claude-config:audit-automation-gaps` for automation-landscape gaps |
+| Claude Code's own configuration and instruction surfaces: `settings.json`, `.mcp.json`, hooks, permissions, environment variables, and the text of `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/` judged against current model capability or against how Claude Code actually behaves | `/claude-config:audit`, with `/claude-config:audit-automation-gaps` for automation-landscape gaps and `/claude-config:audit-instructions` for instruction-surface drift. Phase 0 reads those instruction files here too, but only as the convention lens: a claim they make about this repo is this skill's to verify, a claim they make about the harness or a prescription aimed at the model is not |
 | What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` |
 | What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` |
 

@@ -11,9 +11,14 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
   one table row each: the `review` plugin's `doc-drift-detector` agent, `/session-flow:reanchor`,
   `/discipline:recheck-against-upstream`, `/provenance:audit`, `/claude-config:audit`,
   `/instruction-placement:delta`, and `/overengineering:delta`. Every route is presence-gated, an
-  absent plugin means the lane is named as out of scope, never asserted as available. The prior
-  claude-config-only scope note is folded into the table rather than stated twice, and the README
-  points at the section instead of repeating it. Frontmatter description unchanged (#3810).
+  absent plugin means the lane is named as out of scope, never asserted as available. The two rows
+  that overlap this skill say where the line falls: `doc-drift-detector` sweeps repo-wide when it is
+  invoked with no scope, so the sweep splits by question (does the page deserve to exist, the
+  agent's derivability gate, versus are its claims true, this skill's), and the `claude-config` row
+  adds `/claude-config:audit-instructions` for the instruction surfaces Phase 0 reads only as the
+  convention lens. The prior claude-config-only scope notes in the skill body and the README are
+  folded into the table rather than stated three times, and the README points at the section instead
+  of repeating it. Frontmatter description unchanged (#3810).
 
 ## [0.8.9]
 
