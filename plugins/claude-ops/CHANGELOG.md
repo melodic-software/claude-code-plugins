@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.16]
+
+### Changed
+
+- **The reference sink's header states the route it actually takes.** 0.42.11 moved
+  routing to the envelope spine (`.session_id // .data.session_id`) but left the
+  header saying the route is "decided by the envelope's `data.session_id`". That
+  header is the file's only description of the rule, so a reader of the sink got
+  the pre-1.1 answer while `docs/conventions/hook-telemetry/README.md` gave the
+  right one. Comment only, in both the plugin copy and the repo-local
+  `.claude/hooks/` copy; no behavior change.
+
 ## [0.42.15]
 
 ### Changed

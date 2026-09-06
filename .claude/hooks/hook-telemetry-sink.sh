@@ -4,7 +4,9 @@
 # the log root (.observability/claude by default, project-relative; the
 # session_event_log_dir option moves it).
 #
-# Two routes, decided by the envelope's `data.session_id`:
+# Two routes, decided by the envelope's session id, read from the spine
+# (`session_id`, carried by every 1.1 producer) and falling back to
+# `data.session_id`, which the claude-ops audit hooks still send:
 #   * present and well-formed: one spine-shaped line appended to
 #     sessions/<session_id>.jsonl, beside the per-session event log
 #     (session-event-log.sh); `source: "envelope"` tells the reader which
