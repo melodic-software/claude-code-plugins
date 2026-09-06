@@ -337,7 +337,7 @@ that scheduled itself on install would be an unratified standing commitment.
 ## Consumer-agnostic
 
 Nothing here assumes an organization, a repository, a forge, a CI system, a scheduler, a branch name,
-or an agent harness. Layers are the ten forge-neutral names in the artifact's vocabulary; the tracker
+or an agent harness. Layers are the ten forge-neutral enforcement names this lane walks; the tracker
 route is opt-in and then presence-gated, with a named inline fallback; a logical ref is taken from
 the environment where one is supplied, without naming any vendor's variables; the cadence is
 documented, never adopted.

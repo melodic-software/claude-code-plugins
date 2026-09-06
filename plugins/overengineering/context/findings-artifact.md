@@ -104,7 +104,7 @@ branch: <branch at audit time; never `HEAD`, and never written at all when the b
 |---|---|---|
 | `type` | yes | Exactly `overengineering-findings`. The selector realign matches on. |
 | `schema` | yes | Integer contract version, currently `2`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
-| `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. |
+| `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. Required of every run this contract governs, which means every `schema: 2` run: a `schema: 1` artifact predates the key and legitimately carries none, and merging into one upgrades it, so the writer supplies `mode` for its own run rather than reading an absence as a fault. |
 | `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run carries the prior artifact's value forward and adds the layers those targets fall in, and the added layers are for ordering only and assert no exhaustive walk. |
 | `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
@@ -125,6 +125,7 @@ Where the identity does not resolve, and no logical ref is supplied by the envir
   inline summary is still emitted; only the persisted write is declined, and the run says so.
 - **`justify` writes no artifact either**, on the same terms: the pass runs against the target, the
   inline report is emitted in full, and only the persisted write is declined, with the run saying so.
+  Both producers decline alike, because the hazard is the home key rather than the lane.
 - **`realign` refuses**, both when its own checkout has no identity and when an artifact it finds
   carries `branch:` absent, empty, or `HEAD`. It never reaches the comparison, because a degenerate
   `HEAD`-to-`HEAD` match passes by construction and would authorize mutations from another ref's
@@ -169,6 +170,11 @@ load-bearing for sorting, so the five are appended rather than interleaved.
 
 <per-tier present / partial / unavailable, with the probe that established each — scrutiny-method §8
  obligation 1. This section leads the report; it changes what UNPROVEN means for every row below.>
+
+<a targeted run appends its own lines here, each prefixed `targeted <target>:` and never replacing a
+ per-tier token above. The prefix is required, and it is what lets a consumer separate the two: the
+ spine capture copies only the unprefixed per-tier tokens, and a cross-run comparison reads only
+ those, so an appended line can never be mistaken for a tier moving.>
 
 ## Summary
 
@@ -438,7 +444,7 @@ reader can never mistake a member count for a finding count.
 | `Delegation` | no | `DELEGATED-EXTERNAL` only | The pointer to the delegation artifact. |
 | `Ablation` | no | `ABLATION-*` only, and `n/a` on every row in a justification layer | Rung reached, window length, window end date, and the durable pointer. On a justification-layer row the literal `n/a`, because a document or a decision record has nothing to disable and watch, and a row that simply omitted the field would leave a reader unable to tell a gate that does not apply from one nobody answered. |
 | `Judgment` | no | when one was persisted | The suppression entry id and the layer it was written to. |
-| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: nothing was measured, either because no tier was consulted or because every tier consulted came back silent or unavailable, **and the verdict rests on no oracle or class either**; this value is legal **only** with `Verdict: UNPROVEN`. The two readings of "measured nothing" share a value on purpose: a consult that returned nothing supports a verdict no better than a consult never made, and the `Evidence` field already records which tiers were tried and what each returned. **`class-inferred` takes precedence where both would fit.** Measuring nothing is the condition the two values share, so it cannot be what separates them; what the verdict rests on is. A row whose consults were all silent but whose verdict rests on a §7 class match is `class-inferred`, because something is carrying that verdict and the reader needs to know what. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
+| `Basis` | no | on every row a `schema: 2` run writes or rewrites | The evidentiary basis of the verdict, one of three values. `measured`: at least one tier-1–4 citation supports it. `class-inferred`: it rests on §6's non-derivable-oracle clause or a §7 protected-class match, and every consult was silent or tier-5-only. `unexamined`: nothing was measured, either because no tier was consulted or because every tier consulted came back silent or unavailable, **and the verdict rests on no oracle or class either**; this value is legal **only** with `Verdict: UNPROVEN`. The two readings of "measured nothing" share a value on purpose: a consult that returned nothing supports a verdict no better than a consult never made, and the `Evidence` field already records which tiers were tried and what each returned. **`class-inferred` takes precedence where both would fit**, and that precedence binds both producers rather than only the pointed lane. Measuring nothing is the condition the two values share, so it cannot be what separates them; what the verdict rests on is. A row whose consults were all silent but whose verdict rests on a §7 class match is `class-inferred`, because something is carrying that verdict and the reader needs to know what. A `KEEP` is `measured` or it is not a `KEEP`, because §6 already requires a tier-1–4 citation for one; a `class-inferred` KEEP would have to cite its own oracle, which makes it `measured`. A row carried forward from a `schema: 1` run has no `Basis` until it is re-evaluated, and consumers display `not recorded (schema 1)` rather than inventing one. |
 
 **The audit perturbs the telemetry it reads.** Writing this artifact fires the very recorders whose
 rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
@@ -547,7 +553,8 @@ names, so:
   layers are for ordering only and never assert a walk.
 - The run-level sections `## Evidence availability`, `## Suppressed`, and `## Closed since last run`
   are **not rewritten for anything outside `targets`**. A targeted run appends its own per-target
-  evidence-availability lines rather than replacing the walk's per-tier tokens, and computes
+  evidence-availability lines, each carrying the `targeted <target>:` prefix the section's shape
+  requires, rather than replacing the walk's per-tier tokens, and computes
   suppression dispositions only for entries whose ids have **any** site in `targets`, reporting the
   rest as **not evaluated this run**. This follows rules 1 and 2 rather than rule 3, for their
   reason: a disposition reports whether a live finding is currently suppressed, which is a refresh
@@ -657,7 +664,8 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
 | Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, whether the no-target ladder ended at an offer or a question or every resolved target routed away | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, however it got there | **stop** with a visible message naming both producers, `overengineering:audit` for a walk and `overengineering:justify` for a pointed run — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+
 | Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's

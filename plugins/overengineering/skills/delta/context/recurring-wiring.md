@@ -22,7 +22,8 @@ Every shape below invokes the same line, and the two arguments are not optional 
   watching, so the caller owns the flag — and a scheduled run that omits it will sit waiting on a
   checkpoint question nobody will answer.
 - **Layer scope is how a large surface fits.** A mature surface runs past a hundred items and does
-  not fit one context window. A rotation — one or two layers per cycle, covering the ten-value
+  not fit one context window. A rotation — one or two layers per cycle, covering the ten-layer
+  enforcement
   vocabulary over several cycles — composes correctly, because a re-run merges into the same
   artifact by stable finding id. What it costs is stated in the skill body: findings in the layers a
   cycle did not walk contribute to no delta class, and the cycle's report names them as coverage.

@@ -18,9 +18,9 @@ side effect of not having looked at them.
 
 Five things carry the change:
 
-- **A targeted-run clause placed AHEAD of the numbered merge rules and governing them.** It scopes
-  rules 1 to 3 to `targets`, carries everything else forward untouched under rule 4, and stops a
-  targeted run rewriting the run-level `Evidence availability`,
+- **A targeted-run clause placed AHEAD of the numbered merge rules and governing them.** It reaches
+  rules 1 to 4 and rule 6, carries everything not covered forward untouched under rule 4, and stops
+  a targeted run rewriting the run-level `Evidence availability`,
   `Suppressed`, and `Closed since last run` sections or re-disposing suppression entries it never
   examined. **The quantifier splits by what the rule does**: closing a finding (rule 3) takes every
   site in `targets`, because partial coverage must never retire something the run did not fully
@@ -37,6 +37,15 @@ Five things carry the change:
   or directory target matches every site beneath it, so rule 3 closes findings the run never opened,
   which is the single loss the clause exists to prevent. A site is therefore in `targets` when this
   run derived that site from a `targets` entry.
+
+  **The clause's two quantifiers differ on purpose.** Rules 1 and 2 apply to a finding **any** of
+  whose sites is in `targets`; rule 3 applies only to one **every** of whose sites is. Rule 3 closes
+  a finding, so it must be conservative, since closing on partial coverage retires something the run
+  never fully examined. Rules 1 and 2 only refresh one, so they must be permissive: this lane takes
+  one target per run, so a finding binding two sites can never have every site in a one-entry
+  `targets`, and a restrictive reading would stamp it not re-evaluated on every later run that
+  demonstrably did re-evaluate it, with no walk able to rescue it. Unifying them in either direction
+  breaks one half.
 - **Re-read before write, as a producer obligation on every writer.** Admitting a second producer is
   what makes it load-bearing: a producer merging against a copy loaded earlier in its run drops the
   other's rows, and drops them with no record, because a closure row is written only for a layer the

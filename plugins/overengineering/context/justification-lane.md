@@ -230,7 +230,7 @@ restated here. This lane adds four:
 the evidence cited.
 
 **The ablation gate does not apply on this lane's five layers**, and every row says so with
-`ablation: n/a`. Ablation means disabling a mechanism and watching what escapes; a document or a
+`Ablation: n/a`. Ablation means disabling a mechanism and watching what escapes; a document or a
 decision record has no such observable. The gate applies only to the enforcement kinds section 1
 routes away, and it is that lane's to answer.
 
@@ -248,7 +248,7 @@ same item in the same layer derives the **same id** as the first. One item, one 
 ## 9. Basis assignment
 
 `Basis` is defined in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Per-finding
-fields", and is not redefined here. Two consequences bind this lane directly:
+fields", and is not redefined here. Three consequences bind this lane directly:
 
 - **A row that measured nothing, and rests on nothing else, is UNPROVEN and `unexamined`.** That
   covers a row with no tier consulted and a row whose every consult came back silent or unavailable
