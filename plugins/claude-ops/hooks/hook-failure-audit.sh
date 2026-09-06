@@ -63,7 +63,7 @@ hook::check_enabled "HOOK_FAILURE_AUDIT"
 
 START=${EPOCHREALTIME:-}
 
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # Advisory finding -> fail open, with the standard once-per-session notice.
 hook::require_jq Stop claude-ops "$INPUT"

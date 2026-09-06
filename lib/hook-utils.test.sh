@@ -3220,6 +3220,60 @@ eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::reso
 eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
 rm -rf "$pin_dir"
 
+# --- buffer_stdin_to writes in-process; fused filters are one jq -------------
+# Drive _to WITHOUT $( ): a command substitution is a subshell, so dest would
+# be set only there and this case would "prove" the opposite of the helper.
+bs_to=""
+bs_to_file="$(mktemp)"
+hook::buffer_stdin_to bs_to >"$bs_to_file" <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+bs_to_rc=$?
+if ((bs_to_rc == 0)) && [[ ! -s "$bs_to_file" ]] && [[ "$bs_to" == *$'"tool_name":"Bash"'* ]]; then
+  ok "buffer_stdin_to: writes dest, prints nothing"
+else
+  fail "buffer_stdin_to dest: rc=$bs_to_rc outlen=$(wc -c <"$bs_to_file") dest=$(printf %q "$bs_to")"
+fi
+rm -f "$bs_to_file"
+
+bs_print_file="$(mktemp)"
+bs_to_dump="$(mktemp)"
+hook::buffer_stdin >"$bs_print_file" <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+printf '%s' "$bs_to" >"$bs_to_dump"
+# cmp, not $(cat): command substitution strips trailing newlines and would
+# hide a dest-vs-stdout mismatch that is exactly the $() tax _to removes.
+if cmp -s "$bs_print_file" "$bs_to_dump"; then
+  ok "buffer_stdin print form matches buffer_stdin_to dest"
+else
+  fail "buffer_stdin print/to mismatch"
+fi
+rm -f "$bs_print_file" "$bs_to_dump"
+
+HOOK_JQ_FIELDS=()
+HOOK_JQ_FIELDS_NUL=1
+bs_fused=""
+hook::buffer_stdin_to bs_fused '.tool_input.command' '.tool_name' <<'EOF'
+{"tool_name":"Bash","tool_input":{"command":"git status --short"}}
+EOF
+bs_fused_rc=$?
+if ((bs_fused_rc == 0)) && [[ "$bs_fused" == "$bs_to" ]] &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "git status --short" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$HOOK_JQ_FIELDS_NUL" == "0" ]]; then
+  ok "buffer_stdin_to fused filters populate HOOK_JQ_FIELDS"
+else
+  fail "buffer_stdin_to fused: rc=$bs_fused_rc dest=$(printf %q "$bs_fused") fields=(${HOOK_JQ_FIELDS[*]-}) nul=$HOOK_JQ_FIELDS_NUL"
+fi
+
+bs_bad=""
+bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_bad_rc=$?
+if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]]; then
+  ok "buffer_stdin_to fused malformed JSON fails closed"
+else
+  fail "buffer_stdin_to fused malformed: rc=$bs_bad_rc err=$(printf %q "$bs_bad_err")"
+fi
+
 # --- hook::json_str_object_to matches jq -nc --arg ... -----------------------
 jso_want=$(jq -nc --arg tool Bash --arg subject "git status --short" --arg form "" \
   '{tool:$tool,subject:$subject,form:$form}')

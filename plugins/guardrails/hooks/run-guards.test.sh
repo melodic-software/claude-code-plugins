@@ -41,7 +41,7 @@ SEEN="$TEST_TMPDIR/seen"
 # The stub bodies are written verbatim into the stub scripts, so the `$` in them
 # must NOT expand here.
 # shellcheck disable=SC2016
-stub allow.sh 'INPUT=$(hook::buffer_stdin) || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
+stub allow.sh 'hook::buffer_stdin_to INPUT || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"
 exit 0'
@@ -49,10 +49,10 @@ stub block.sh 'echo "BLOCKED: stub" >&2; exit 2'
 stub ctx1.sh 'hook::emit_channels PreToolUse "ctx one" ""; exit 0'
 stub ctx2.sh 'hook::emit_channels PreToolUse "ctx two" "sys two"; exit 0'
 stub crash.sh 'exit 3'
-stub nul.sh 'INPUT=$(hook::buffer_stdin) || exit 0
+stub nul.sh 'hook::buffer_stdin_to INPUT || exit 0
 hook::jq_fields "$INPUT" ".tool_input.command" || exit 0
 printf "nul=%s cmd=%s\n" "$HOOK_JQ_FIELDS_NUL" "$HOOK_JQ_FIELDS" >>"'"$SEEN"'"'
-stub miss.sh 'INPUT=$(hook::buffer_stdin) || exit 0
+stub miss.sh 'hook::buffer_stdin_to INPUT || exit 0
 hook::jq_fields "$INPUT" ".session_id" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"'
 stub lib.sh 'printf "ps=%s\n" "${_GUARDRAILS_PS_COMMAND_LOADED:-unset}" >>"'"$SEEN"'"'
@@ -174,7 +174,7 @@ assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
 SHIM="$TEST_TMPDIR/spawn-shim"
 mkdir -p "$SHIM"
 SPAWN_LOG="$SHIM/spawns.log"
-for tool in dirname sed; do
+for tool in dirname sed jq; do
   real=$(type -P "$tool")
   if [[ -z "$real" ]]; then
     bad "need $tool on PATH to pin its absence from the dispatcher"
@@ -184,14 +184,14 @@ for tool in dirname sed; do
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q >>%q\nexec %q "$@"\n' "$tool" "$SPAWN_LOG" "$real" >"$SHIM/$tool"
   chmod +x "$SHIM/$tool"
 done
-if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" ]]; then
+if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" && -x "$SHIM/jq" ]]; then
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
     block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
     flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
     block-convention-violation.sh block-windows-drive-tmp.sh \
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
-  assert_eq "benign Bash dispatcher execs neither dirname nor sed" "" "$(cat "$SPAWN_LOG")"
+  assert_eq "benign Bash dispatcher spends one jq and neither dirname nor sed" "jq" "$(cat "$SPAWN_LOG")"
 fi
 DISPATCH_XTRACE=$(bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
   block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \

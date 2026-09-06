@@ -1351,7 +1351,8 @@ hook::repo_relative_path() {
 # rationale as plugins/context-guard/scripts/statusline-tee.sh. The re-arming
 # loop wraps both forms, so 3.2 gets the progress semantics too — just in
 # byte-at-a-time-sized steps.
-#   INPUT=$(hook::buffer_stdin) || exit 0
+#   hook::buffer_stdin_to INPUT || exit 0
+#   INPUT=$(hook::buffer_stdin) || exit 0   # print form; the $() is a subshell
 
 # The `read -N` availability guard, split out as its own predicate so the
 # pre-4.1 path stays reachable in tests on a modern host: BASH_VERSINFO is
@@ -1506,7 +1507,27 @@ hook::resolve_read_slice() {
   printf '%s %s' "$slice" "$count"
 }
 
-hook::buffer_stdin() {
+# hook::buffer_stdin_to <var> [jq-filter...]
+# Write the buffered payload into <var> in THIS shell. GNU Bash forks a
+# subshell for every command substitution even when the body is only
+# builtins (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, paid on every hook that captures via
+# INPUT=$(hook::buffer_stdin) before the payload is parsed. The _to form is
+# the in-process capture, matching hook::resolve_read_timeout_to.
+#
+# Optional jq filters fuse the completeness check with hook::jq_fields so a
+# caller that was about to extract fields anyway spends one jq process, not
+# two (`jq -e .` plus a second jq for fields). On success HOOK_JQ_FIELDS is
+# populated, index-parallel to the filters, with the same NUL-flag contract
+# as a direct hook::jq_fields call. jq absent still fails open (return 0,
+# empty fields), matching the print form's completeness check.
+#
+# Return codes match hook::buffer_stdin: 0 payload, 1 empty, 2 stalled or
+# malformed. The print form below is the compatibility wrapper.
+hook::buffer_stdin_to() {
+  local __hu_dest="$1"
+  shift
   local input="" chunk="" read_rc=0 stalled=0 idle_slices=0 validated=0
   local read_timeout read_slice slice_count
   # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
@@ -1593,7 +1614,19 @@ hook::buffer_stdin() {
   # failure never sets that flag (json_complete returns non-zero for both), so
   # the fail-open path below is unchanged: an unvalidated buffer still gets the
   # probe, and a host without jq still reaches the 127 branch.
-  if ((validated == 0)) && command -v jq >/dev/null 2>&1; then
+  #
+  # Filters fuse that remaining probe with hook::jq_fields: a valid payload
+  # that the caller was going to parse anyway is extracted in the same jq
+  # process that would have been `jq -e .`. jq_fields rc 2 is the malformed
+  # path (parse failure or cardinality mismatch); rc 1 is jq absent, which
+  # fails open like jq -e's 127.
+  if (($#)); then
+    local fields_rc=0
+    hook::jq_fields "$input" "$@" || fields_rc=$?
+    if ((fields_rc == 2)); then
+      jq_rc=2
+    fi
+  elif ((validated == 0)) && command -v jq >/dev/null 2>&1; then
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
     # a hook payload routinely exceeds it.
@@ -1611,7 +1644,13 @@ hook::buffer_stdin() {
     echo "BLOCKED: hook stdin is not valid JSON." >&2
     return 2
   fi
-  printf '%s' "$input"
+  printf -v "$__hu_dest" '%s' "$input"
+}
+
+hook::buffer_stdin() {
+  local __hu_buf
+  hook::buffer_stdin_to __hu_buf || return $?
+  printf '%s' "$__hu_buf"
 }
 
 # Extract a single jq field from a buffered input string. CR-stripped. Returns 1
