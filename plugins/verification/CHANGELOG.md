@@ -3,6 +3,15 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Changed
+
+- **measure (metrics):** the proxy table's complexity, size, duplication, and coverage rows and
+  the `baseline` capture step point at the matching `/code-metrics:audit-*` skill when the
+  `code-metrics` plugin is installed, treating a report whose `status` is `empty` on either side
+  as INCONCLUSIVE; the manual counts stay as the fallback.
+
 ## [0.6.4]
 
 ### Changed

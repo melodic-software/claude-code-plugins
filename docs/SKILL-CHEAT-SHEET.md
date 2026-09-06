@@ -161,6 +161,12 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
+| [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
+| [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
+| [`/code-metrics:audit-duplication`](../plugins/code-metrics/skills/audit-duplication/SKILL.md) | `code-metrics` | Clone groups minus the replication the repo declares, no verdict |
+| [`/code-metrics:audit-size`](../plugins/code-metrics/skills/audit-size/SKILL.md) | `code-metrics` | Lines per file beside a cited reference, no verdict |
+| [`/code-metrics:audit-type-debt`](../plugins/code-metrics/skills/audit-type-debt/SKILL.md) | `code-metrics` | Typed-code percentage per lane, with no standard behind it |
+| [`/code-metrics:principles`](../plugins/code-metrics/skills/principles/SKILL.md) | `code-metrics` | What each code measure can and cannot tell you |
 | [`/code-tidying:audit-dead-code`](../plugins/code-tidying/skills/audit-dead-code/SKILL.md) | `code-tidying` | Whole-repo dead-code hunt across four labelled lanes with adjudicated candidates |
 | [`/code-tidying:tidy`](../plugins/code-tidying/skills/tidy/SKILL.md) | `code-tidying` | Proactively hunt one lane for safe structural tidyings and ship a structure-only PR |
 | [`/codebase-health:audit`](../plugins/codebase-health/skills/audit/SKILL.md) | `codebase-health` | Audit for drift between docs, config, code, and architecture via verified findings |

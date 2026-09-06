@@ -1,0 +1,44 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-layers-references-and-collectors-without-writing",
+      "prompt": "/code-metrics:setup check",
+      "expected_output": "Runs the bundled setup-check.sh and presents its table: the interpreter row, each configuration layer as absent or parsed, the tracked-file guard on the team file, every reference with the layer that supplied it, and one row per collector adapter with a version or missing plus its install hint. Writes nothing and installs nothing.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/setup-check.sh rather than inspecting files by hand",
+        "Presents a row per collector adapter, naming missing ones with their install hint and calling them optional",
+        "Presents each reference with the layer that supplied it",
+        "Does not install any tool and does not write any file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-with-complete-arguments-is-non-interactive-and-idempotent",
+      "prompt": "/code-metrics:setup apply size.file_lines=500 complexity.cyclomatic.reference=15",
+      "expected_output": "Runs check, then setup-apply.py once with both key=value arguments against the repository root, re-runs check, and reports the persisted values from the table with the tracked-file pair result: written but untracked means commit it, never success. Asks no questions because the arguments were complete.",
+      "files": [],
+      "expectations": [
+        "Asks no interview questions when complete key=value arguments are given",
+        "Calls setup-apply.py with the repository root and the given key=value pairs in one invocation",
+        "Re-runs check and reports the values from its table, not from the write alone",
+        "States that the untracked team file must be committed to reach the team"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-without-arguments-interviews-one-key-at-a-time-and-never-touches-gitignore",
+      "prompt": "/code-metrics:setup apply",
+      "expected_output": "Runs check, then interviews one key at a time with a recommendation first (the cyclomatic reference with its ISO citation and the two alternatives, the file-length reference with its plugin-default label, exclusions, lanes), preserves keys the existing file carries, writes only the team file, and recommends the .claude/**/*.local.* ignore line without editing .gitignore.",
+      "files": [],
+      "expectations": [
+        "Interviews one key at a time, leading with a recommendation and its provenance",
+        "Preserves keys already present in the existing team file",
+        "Recommends the recursive .claude/**/*.local.* line rather than editing .gitignore",
+        "Writes only .claude/code-metrics.yaml, never the user-global or local layers"
+      ]
+    }
+  ]
+}

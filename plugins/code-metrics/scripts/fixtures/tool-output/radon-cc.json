@@ -1,0 +1,1 @@
+{"plugins/code-metrics/scripts/fixtures/sources/cm_sample.py": [{"type": "function", "rank": "A", "endline": 20, "complexity": 3, "name": "classify", "lineno": 9, "col_offset": 0, "closures": [{"type": "function", "rank": "A", "endline": 14, "complexity": 2, "name": "inner", "lineno": 12, "col_offset": 4, "closures": []}]}]}

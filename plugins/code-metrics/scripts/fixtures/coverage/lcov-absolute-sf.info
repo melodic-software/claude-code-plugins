@@ -1,0 +1,15 @@
+TN:code-metrics fixture
+SF:/workspace/repo/plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts
+FN:4,classify
+FNDA:2,classify
+FNF:1
+FNH:1
+DA:4,2
+DA:5,2
+DA:6,1
+DA:8,1
+DA:9,0
+DA:11,1
+LF:6
+LH:5
+end_of_record

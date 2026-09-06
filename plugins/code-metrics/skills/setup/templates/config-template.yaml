@@ -1,0 +1,52 @@
+# .claude/code-metrics.yaml (team layer). Every key is optional; an absent
+# key keeps the bundled default. Written in the YAML subset the plugin reads:
+# block mappings, block sequences, flow sequences of scalars, scalars, and
+# comments (no flow mappings, anchors, tags, or block scalars). Layers:
+# ~/.claude/code-metrics.yaml, this file, .claude/code-metrics.local.yaml,
+# merged per key. Keys and provenance: the plugin's reference/config.md.
+
+scope:
+  default: change          # change | all
+  base: auto               # auto (merge-base with the default branch) | <ref>
+  exclude: []              # path globs dropped from every measure, e.g. ["vendor/**"]
+
+complexity:
+  cyclomatic:
+    reference: 20          # ISO/IEC 5055:2021 §8.2.117 (normative); 10 (McCabe 1976) and 15 (NIST SP 500-235) are the cited alternatives
+  cognitive:
+    reference: null        # Campbell, SonarSource; no standard sets a threshold
+  halstead:
+    difficulty: null       # Halstead 1977; no standard sets a threshold
+
+size:
+  mode: file-lines         # file-lines | iso-8.2.115
+  file_lines: 1000         # the plugin's own number, not ISO-backed; 500 is the operator-list figure
+  function_lines_pct: 5    # ISO/IEC 5055:2021 §8.2.115, used when mode is iso-8.2.115
+
+duplication:
+  min_tokens: 50
+  min_lines: 5
+  ignore: []
+  registries: []           # sanctioned-replication registries, one relative path per line
+
+coverage:
+  artifacts: []            # explicit artifact paths; empty means auto-discover
+  path_prefix_strip: []
+  reference: null          # no default bar
+  crap:
+    reference: null        # Savoia and Evans 2007; not a validated predictor
+
+type_debt:
+  reference: null          # no standard or CWE anchors the measure
+
+lanes:
+  typescript:
+    enabled: true
+  python:
+    enabled: true
+  bash:
+    enabled: true
+  go:
+    enabled: true
+  dotnet:
+    enabled: true          # detected; complexity deferred in this version

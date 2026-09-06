@@ -1,0 +1,43 @@
+{
+  "skill_name": "audit-coverage",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reads-the-discovered-artifact-and-never-runs-the-tests",
+      "prompt": "/code-metrics:audit-coverage",
+      "expected_output": "Runs the bundled audit-coverage.sh against the change, which discovers coverage/lcov.info under the repository root, presents the markdown report with its Coverage of this run table and per-file and per-function coverage, and does not run the project's test command to refresh the artifact.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/audit-coverage.sh rather than parsing the artifact by hand",
+        "Names the artifact it read and the format detected for it",
+        "Does not run a test command, a test runner, or an install to produce coverage",
+        "Presents the coverage numbers without declaring any file or function a failure"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "a-named-artifact-that-is-missing-is-a-usage-error-not-a-skip",
+      "prompt": "/code-metrics:audit-coverage --artifacts build/lcov.info src/",
+      "expected_output": "The script exits 2 because the named path does not exist, and the answer reports that as a usage error, offers to re-run once the artifact exists or with a corrected path, and does not silently fall back to auto-discovery or report zero coverage.",
+      "files": [],
+      "expectations": [
+        "Reports the exit-2 usage error and names the path that does not exist",
+        "Does not present zero coverage, empty results, or an unqualified success",
+        "Offers the corrected path or the auto-discovery run as the next step, without running any test command"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "crap-reported-with-its-provenance-and-no-verdict",
+      "prompt": "/code-metrics:audit-coverage --json --all src/ and tell me which functions have the worst CRAP",
+      "expected_output": "Produces the code-metrics/v1 document, ranks the functions by their crap value, states the formula and that it is Savoia and Evans 2007 rather than a validated change-risk predictor with no standard threshold, points at /code-metrics:principles for the caveats, and reports any null crap as unmeasured rather than as zero or as a pass.",
+      "files": [],
+      "expectations": [
+        "Runs audit-coverage.sh with --json and reads the crap values from the document",
+        "States the formula and its Savoia and Evans provenance, and that no standard sets a threshold for it",
+        "Says a null coverage or crap value means not measured, never zero and never a pass",
+        "Renders no verdict: no function is called a failure, a violation, or a blocker"
+      ]
+    }
+  ]
+}
