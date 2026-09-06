@@ -902,6 +902,156 @@ if [[ $PROBE_RC -eq 0 ]]; then ok "armed fd-bound session: exit 0"; else fail "a
 if [[ -z "$PROBE_LEFT" ]]; then ok "armed session drains stdin (the buffered read still runs when the gate is armed)"; else fail "armed session left ${#PROBE_LEFT} bytes unread — the payload never reached the gate"; fi
 if is_block "$PROBE_OUT"; then ok "armed session still blocks an unsignaled stop (payload reads intact below the buffer)"; else fail "armed session did not block — the reorder changed armed-lane behavior: $PROBE_OUT"; fi
 
+# ============================================================================
+# #3515 — one jq per settings file for every key, same per-key verdicts.
+# ============================================================================
+
+# --- Case 49: gate_settings_options_to answers three keys from one pass -----
+# Sourced from the staged lib like case 39. The multi-key reader must give the
+# verdict the single-key reader gave for each key: a boolean as true/false, a
+# string as-is with trailing newlines chomped (what the old `$(jq -r …)`
+# capture did), no verdict for an absent key, and no verdict for any key when
+# the entry's `options` is not an object (the one jq error the filter raises,
+# which is key-independent).
+OPTS_STUB="$WORK/opts-stub.json"
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_resolve_install "$STAGED_DIR/.." || exit 1
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_sentinel":"X\\n\\n"}}}}\n' >"$OPTS_STUB"
+  gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker || exit 1
+  [[ "${GATE_FILE_OPT_HAVE[*]}" == "1 1 0" ]] || exit 1
+  [[ "${GATE_FILE_OPT_VALUE[0]}" == "true" && "${GATE_FILE_OPT_VALUE[1]}" == "X" && -z "${GATE_FILE_OPT_VALUE[2]}" ]] || exit 1
+  # The single-key print form still agrees with the batch, key by key.
+  [[ "$(gate_settings_option "$OPTS_STUB" lane_stop_gate_sentinel)" == "X" ]] || exit 1
+  gate_settings_option "$OPTS_STUB" lane_stop_gate_marker >/dev/null 2>&1 && exit 1
+  # `options` holding a string: no verdict for any key, return 1.
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":"lane_stop_gate_enabled"}}}\n' >"$OPTS_STUB"
+  gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel && exit 1
+  [[ "${GATE_FILE_OPT_HAVE[*]}" == "0 0" ]] || exit 1
+  exit 0
+); then
+  ok "one settings pass answers every key with the single-key verdicts"
+else
+  fail "gate_settings_options_to disagrees with the per-key reader (#3515)"
+fi
+
+# --- Case 50: a sentinel that holds a newline matches only as a whole block --
+# The shell's regex match replaced `grep -qE` over a here-string. grep read a
+# newline inside the configured token as a PATTERN SEPARATOR and authorized a
+# stop on a line matching either half; the regex treats the token as one
+# pattern, so only the whole token standing alone matches — the thing the block
+# reason asks for. Pinned so the disclosed divergence (0.22.30 changelog) is a
+# decision this suite owns, not drift.
+OUT="$(run "$(build_input Stop "A" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
+if is_block "$OUT"; then ok "newline-bearing sentinel: half the token does not authorize"; else fail "newline-bearing sentinel: half the token authorized a stop: $OUT"; fi
+OUT="$(run "$(build_input Stop $'done\nA\nB' false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
+if is_block "$OUT"; then fail "newline-bearing sentinel: the whole token on its own lines was not honored: $OUT"; else ok "newline-bearing sentinel: the whole token on its own lines authorizes"; fi
+
+# ============================================================================
+# #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
+# ============================================================================
+# This hook fires on EVERY Stop of every session, gated or not, so its cost on
+# the interactive default path is paid per turn fleet-wide against the 500 ms
+# per-turn ceiling in docs/conventions/hook-budget/README.md. Reading the code
+# cannot prove the count: bash execs a bare `$(cmd)` in the substitution's own
+# subshell only when the command carries no redirection of its own; a
+# `2>/dev/null`, a `<<<` or a pipeline written INSIDE the substitution forks
+# twice for one program, and a fork that never execs is invisible to an xtrace
+# command count. On the #3508 hosts a process creation is the unit of cost
+# (180-2,841 ms each), so the count that binds is this one.
+#
+# Two paths are traced from the staged install:
+#   default (no gate footprint anywhere): EXACTLY 1 creation and 1 launch, the
+#     `uname -s` the managed-settings platform selection rests on (its trust
+#     primitive; $OSTYPE is a variable a repo env block can set). Everything
+#     else this path paid was the hook's own: a subshell per path helper and a
+#     grep per settings file.
+#   enabled (user settings, first stop, no signal → block): a CEILING of 10
+#     creations and 5 launches. This hook's own share is 6 creations: the
+#     hook::jq_fields payload pass (3: process substitution, printf writer, jq),
+#     uname, the one settings jq, the block-decision jq. The remainder is
+#     hook::buffer_stdin in the synced shared library (its capture, its
+#     read-slice probe, its `printf | jq -e` validation pass), which this plugin
+#     does not own. A shared-library saving lowers the count without failing
+#     here; a regression in this plugin's own files raises it and does.
+# The named-program check pins what the reduction removed: no dirname, tr, sed,
+# grep, cksum or date on either path. Skipped where strace is unavailable (it
+# needs ptrace, which containers and macOS commonly withhold); CI keeps a Linux
+# lane that does not skip.
+if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
+  # trace_hook <input> → TRACE_CREATIONS, TRACE_LAUNCHES, TRACE_PROGS, TRACE_OUT.
+  # Same hermetic env as run/run_bare; the settings file is whatever the case
+  # left in place.
+  trace_hook() {
+    local input="$1" log="$WORK/gate-strace.log"
+    TRACE_OUT=$(cd "$UNRELATED" && printf '%s' "$input" |
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
+        strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$log" bash "$HOOK" 2>/dev/null)
+    TRACE_CREATIONS=$(grep -cE '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null | tr -cd '0-9')
+    # Programs launched after the harness's own `bash "$HOOK"`; a failed execve
+    # attempt (a PATH miss, reported with ENOENT) launched nothing.
+    TRACE_PROGS=$(grep -E '^[0-9]+ +execve\(' "$log" 2>/dev/null | grep -v 'ENOENT' |
+      sed -E 's/^[0-9]+ +execve\("([^"]*)".*/\1/; s|.*/||' | tail -n +2 | tr '\n' ' ')
+    TRACE_LAUNCHES=$(printf '%s' "$TRACE_PROGS" | wc -w | tr -cd '0-9')
+    [[ -s "$log" ]]
+  }
+  replaced_helper_back() { # <progs> — true when a helper this change removed is back
+    case " $1" in
+    *' dirname '* | *' tr '* | *' sed '* | *' grep '* | *' cksum '* | *' date '*) return 0 ;;
+    *) return 1 ;;
+    esac
+  }
+
+  rm -f "$SETTINGS"
+  if trace_hook "$(build_input Stop "no token" false)"; then
+    ok "strace: the interactive default path was traced"
+    if [[ -z "$TRACE_OUT" ]]; then ok "strace: the traced default path stayed silent (it is the real default path)"; else fail "strace: the traced default path emitted output: $TRACE_OUT"; fi
+    if [[ "$TRACE_CREATIONS" == "1" ]]; then
+      ok "strace: the default path creates exactly 1 process"
+    else
+      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 1 (launches: $TRACE_PROGS)"
+    fi
+    if [[ "$TRACE_PROGS" == "uname " ]]; then
+      ok "strace: the default path launches only uname"
+    else
+      fail "strace: default path launched '$TRACE_PROGS', expected only uname"
+    fi
+  else
+    fail "strace: no usable trace captured for the default path"
+  fi
+
+  write_settings true
+  if trace_hook "$(build_input Stop "no token" false)"; then
+    ok "strace: the enabled block path was traced"
+    if is_block "$TRACE_OUT"; then ok "strace: the traced enabled path is the real block path"; else fail "strace: the traced enabled path did not block: $TRACE_OUT"; fi
+    if [[ -n "$TRACE_CREATIONS" && "$TRACE_CREATIONS" -le 10 ]]; then
+      ok "strace: the enabled block path creates $TRACE_CREATIONS processes (ceiling 10)"
+    else
+      fail "strace: enabled block path creates $TRACE_CREATIONS processes, ceiling is 10 (launches: $TRACE_PROGS)"
+    fi
+    if [[ -n "$TRACE_LAUNCHES" && "$TRACE_LAUNCHES" -le 5 ]]; then
+      ok "strace: the enabled block path launches $TRACE_LAUNCHES programs (ceiling 5)"
+    else
+      fail "strace: enabled block path launches $TRACE_LAUNCHES programs, ceiling is 5: $TRACE_PROGS"
+    fi
+    if replaced_helper_back "$TRACE_PROGS"; then
+      fail "strace: a helper process this change replaced is back on the enabled path: $TRACE_PROGS"
+    else
+      ok "strace: no dirname, tr, sed, grep, cksum or date on the enabled path"
+    fi
+  else
+    fail "strace: no usable trace captured for the enabled path"
+  fi
+else
+  ok "SKIP: strace unavailable — process-creation budget not asserted here"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

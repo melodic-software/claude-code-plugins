@@ -71,10 +71,22 @@ gate_resolve_anchor() {
 gate_resolve_plugin_name() {
   local manifest="$1/.claude-plugin/plugin.json" name
   [[ -f "$manifest" ]] || return 1
-  name=$(jq -r '.name | select(type == "string")' <"$manifest" 2>/dev/null) || return 1
+  # Redirections sit on the enclosing group, not inside the substitution: bash
+  # execs a bare `$(jq …)` in the substitution's own subshell, but a redirect
+  # written inside it forces a second fork for the same one program. Same
+  # program, same input, same suppressed stderr, one process instead of two.
+  { name=$(jq -r '.name | select(type == "string")'); } <"$manifest" 2>/dev/null || return 1
   [[ -n "$name" ]] || return 1
   GATE_PLUGIN_NAME="$name"
 }
+
+# --- In-process result forms --------------------------------------------------
+# Every path helper below has a `_to <var>` form that writes its result into
+# the caller's variable with `printf -v`, and a print form that delegates to
+# it. The gate hook uses the `_to` forms: a `v=$(gate_x)` capture forks a
+# subshell for a function that is nothing but parameter expansion, and on the
+# Windows Git Bash host this gate is tuned for that fork is a process. The print
+# forms stay for the arm helper and for callers that capture stdout.
 
 # Resolve this install's identity from the caller-supplied plugin root: the
 # marketplace-qualified id when the plugins/cache anchor is present, else the
@@ -101,49 +113,74 @@ gate_resolve_install() {
 # "no writable data dir → deletion is the only latch" behavior #1851 already
 # documented and accepted for the marker channel, not a new exposure. Anchored
 # installs never touch this fallback.
-gate_data_dir() {
+gate_data_dir_to() {
   if [[ -n "$GATE_CONFIG_ROOT" ]]; then
-    printf '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
+    printf -v "$1" '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
   else
-    printf '%s' "${CLAUDE_PLUGIN_DATA:-}"
+    printf -v "$1" '%s' "${CLAUDE_PLUGIN_DATA:-}"
   fi
+}
+gate_data_dir() {
+  local __gate_out
+  gate_data_dir_to __gate_out
+  printf '%s' "$__gate_out"
 }
 
 # Install-derived data directory ONLY — no env fallback. Fails when unanchored.
 # Arm records live here because a record can GRANT gate behavior: an env-derived
 # store would let a repo point the gate at records it authored.
-gate_trusted_data_dir() {
+gate_trusted_data_dir_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
-  printf '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
+  printf -v "$1" '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
+}
+gate_trusted_data_dir() {
+  local __gate_out
+  gate_trusted_data_dir_to __gate_out || return 1
+  printf '%s' "$__gate_out"
 }
 
-gate_arm_record_path() {
-  local id="$1" dir
+gate_arm_record_path_to() {
+  local id="$2" dir
   [[ "$id" =~ $GATE_ARM_ID_RE ]] || return 1
-  dir=$(gate_trusted_data_dir) || return 1
-  printf '%s/lane-arms/%s' "$dir" "$id"
+  gate_trusted_data_dir_to dir || return 1
+  printf -v "$1" '%s/lane-arms/%s' "$dir" "$id"
+}
+gate_arm_record_path() {
+  local __gate_out
+  gate_arm_record_path_to __gate_out "$1" || return 1
+  printf '%s' "$__gate_out"
 }
 
 # The sidecar that binds an arm record to exactly one session: the gate creates
 # it exclusively to claim a record, the arm helper clears it so a re-armed id
 # starts unclaimed. One spelling so those two can never diverge. It sits beside
 # the record, inside lane-arms/, so the helper's own TTL sweep retires it too.
-gate_arm_claim_path() {
+gate_arm_claim_path_to() {
   local rec
-  rec=$(gate_arm_record_path "$1") || return 1
-  printf '%s.claim' "$rec"
+  gate_arm_record_path_to rec "$2" || return 1
+  printf -v "$1" '%s.claim' "$rec"
+}
+gate_arm_claim_path() {
+  local __gate_out
+  gate_arm_claim_path_to __gate_out "$1" || return 1
+  printf '%s' "$__gate_out"
 }
 
 # The user settings file that carries pluginConfigs, derived from the anchor.
-gate_user_settings_file() {
+gate_user_settings_file_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
-  printf '%s/settings.json' "$GATE_CONFIG_ROOT"
+  printf -v "$1" '%s/settings.json' "$GATE_CONFIG_ROOT"
+}
+gate_user_settings_file() {
+  local __gate_out
+  gate_user_settings_file_to __gate_out || return 1
+  printf '%s' "$__gate_out"
 }
 
 # --- Managed settings ---------------------------------------------------------
 # Fixed per-platform paths (settings docs), primary file first, then the
 # `managed-settings.d/` drop-ins in glob (sorted) order — later files override
-# earlier ones in gate_managed_option, mirroring Claude Code's merge. Prints
+# earlier ones in gate_managed_options_to, mirroring Claude Code's merge. Yields
 # nothing on an unrecognized platform. Platform comes from `uname -s`, never
 # `$OSTYPE` (see the header): the exemplar killswitch_config.py keys on
 # sys.platform, and this is the bash equivalent.
@@ -152,9 +189,24 @@ gate_user_settings_file() {
 # `~/.claude/remote-settings.json`, which fails this list's trust test —
 # root-owned paths a repo cannot forge — and the page itself calls the channel
 # "a client-side control, not a security boundary".
-gate_managed_settings_files() {
-  local primary
-  case "$(uname -s 2>/dev/null)" in
+#
+# gate_managed_settings_files_load fills the GATE_MANAGED_FILES array in THIS
+# shell and marks it loaded; the print form below re-derives the list on every
+# call. The `uname -s` it runs is the one process the gate's interactive
+# default path pays, so a caller that needs the list twice in one run (the
+# gate's payload-free pre-filter, then its option resolution) loads it once and
+# gate_managed_options_to reuses the loaded list rather than asking the kernel
+# a second time for an answer that cannot have changed.
+GATE_MANAGED_FILES=()
+GATE_MANAGED_FILES_LOADED=0
+gate_managed_settings_files_load() {
+  local primary platform=""
+  GATE_MANAGED_FILES=()
+  GATE_MANAGED_FILES_LOADED=1
+  # Redirect on the group, not inside the substitution (see
+  # gate_resolve_plugin_name): one process for uname, not two.
+  { platform=$(uname -s); } 2>/dev/null || platform=""
+  case "$platform" in
   Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
   MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
   Linux) primary="/etc/claude-code/managed-settings.json" ;;
@@ -167,22 +219,42 @@ gate_managed_settings_files() {
   /* | [A-Za-z]:[/\\]*) ;;
   *) return 0 ;;
   esac
-  [[ -f "$primary" ]] && printf '%s\n' "$primary"
+  [[ -f "$primary" ]] && GATE_MANAGED_FILES+=("$primary")
   local dropin="${primary%/*}/managed-settings.d" f
   if [[ -d "$dropin" ]]; then
     for f in "$dropin"/*.json; do
-      [[ -f "$f" ]] && printf '%s\n' "$f"
+      [[ -f "$f" ]] && GATE_MANAGED_FILES+=("$f")
     done
   fi
   return 0
 }
+gate_managed_settings_files() {
+  local f
+  gate_managed_settings_files_load
+  for f in ${GATE_MANAGED_FILES[@]+"${GATE_MANAGED_FILES[@]}"}; do
+    printf '%s\n' "$f"
+  done
+  return 0
+}
 
 # --- Option reads -------------------------------------------------------------
-# Print the configured value of pluginConfigs[<this plugin>].options[<key>]
-# from one settings file: a boolean as true/false, a string as-is (including
-# the empty string). Returns 1 when the file contributes no verdict for the key
-# — absent file, unparsable JSON, no entry, JSON null, or a non-boolean/string
-# type. An anchored install matches the EXACT marketplace-qualified id, as the
+# Read the configured value of pluginConfigs[<this plugin>].options[<key>]
+# from one settings file for EVERY key asked for, in ONE jq process: a boolean
+# as true/false, a string as-is (including the empty string). Results land in
+# GATE_FILE_OPT_HAVE / GATE_FILE_OPT_VALUE, index-parallel to the keys: HAVE is
+# 1 where the file configures the key and 0 where it contributes no verdict —
+# no entry, JSON null, or a non-boolean/string type. Returns 1, with every HAVE
+# at 0, when the file contributes no verdict for any key: absent file,
+# unparsable JSON, no entry at all.
+#
+# One pass, not one per key, because the gate resolves three keys per stop and
+# a jq process is the unit of cost on the host this gate is tuned for. The
+# per-key verdicts are the same as three single-key passes would give: the
+# entry selection does not depend on the key, and the one jq error the filter
+# can raise (`.value.options` holding a non-object) is raised for every key
+# alike, so a file either answers for all keys or for none — exactly as before.
+#
+# An anchored install matches the EXACT marketplace-qualified id, as the
 # channel-F exemplar does, so another marketplace's entry cannot mask this
 # install's; an unanchored one has no qualifier to match and falls back to the
 # manifest name, accepting a bare or any qualified key (last wins). Only
@@ -190,33 +262,108 @@ gate_managed_settings_files() {
 # location to offer without the anchor.
 # The file is opened by bash (`< file`), not by jq: a native jq on Windows
 # cannot open an MSYS-style path, while a shell redirection always can.
-gate_settings_option() {
-  local file="$1" key="$2" out
+#
+# Values travel NUL-separated through a process substitution (a `$( )` capture
+# would drop the separators): a string option may carry a newline, so no
+# printable delimiter is safe, and a value cannot itself carry a NUL the way a
+# bash variable cannot. The separator is built with `[0] | implode` so the jq
+# program text holds no NUL byte. The redirections sit on the group around the
+# loop, so jq is exec'd straight from the substitution's fork: one process.
+# Trailing newlines are removed from each value as the former `$(jq -r …)`
+# capture removed them, so a value reads the same on either path.
+#   gate_settings_options_to <file> <key>...
+# shellcheck disable=SC2034 # result arrays are consumed by the sourcing hook
+gate_settings_options_to() {
+  local file="$1"
+  shift
+  GATE_FILE_OPT_HAVE=()
+  GATE_FILE_OPT_VALUE=()
+  local i
+  for ((i = 0; i < $#; i++)); do
+    GATE_FILE_OPT_HAVE[i]=0
+    GATE_FILE_OPT_VALUE[i]=""
+  done
+  (($#)) || return 1
   [[ -f "$file" ]] || return 1
   [[ -n "$GATE_PLUGIN_ID" || -n "$GATE_PLUGIN_NAME" ]] || return 1
-  out=$(jq -r --arg id "$GATE_PLUGIN_ID" --arg n "$GATE_PLUGIN_NAME" --arg k "$key" '
-    [ (.pluginConfigs // {}) | to_entries[]
-      | select(if $id != "" then .key == $id
-               else .key == $n or (.key | startswith($n + "@")) end)
-      | .value.options[$k]
-      | if type == "boolean" then (if . then "v:true" else "v:false" end)
-        elif type == "string" then "v:" + .
-        else empty end ] | last // empty' <"$file" 2>/dev/null) || return 1
-  [[ "$out" == v:* ]] || return 1
-  printf '%s' "${out#v:}"
+  local keys="" k
+  for k in "$@"; do
+    # The key list is a JSON array literal built here, so only identifier-shaped
+    # keys are accepted; every caller passes the fixed lane_stop_gate_* names.
+    [[ "$k" =~ ^[A-Za-z0-9_]+$ ]] || return 1
+    keys+="${keys:+,}\"$k\""
+  done
+  local -a recs=()
+  local rec
+  {
+    while IFS= read -r -d '' rec; do
+      while [[ "$rec" == *$'\n' ]]; do rec="${rec%$'\n'}"; done
+      recs+=("$rec")
+    done < <(jq -j --arg id "$GATE_PLUGIN_ID" --arg n "$GATE_PLUGIN_NAME" --argjson keys "[$keys]" '
+      [ (.pluginConfigs // {}) | to_entries[]
+        | select(if $id != "" then .key == $id
+                 else .key == $n or (.key | startswith($n + "@")) end)
+        | .value.options ] as $opts
+      | $keys[] as $k
+      | ([ $opts[] | .[$k]
+           | if type == "boolean" then (if . then "v:true" else "v:false" end)
+             elif type == "string" then "v:" + .
+             else empty end ] | last // "-")
+      | (., ([0] | implode))')
+  } <"$file" 2>/dev/null
+  ((${#recs[@]} == $#)) || return 1
+  local have=1
+  for ((i = 0; i < $#; i++)); do
+    [[ "${recs[i]}" == v:* ]] || continue
+    GATE_FILE_OPT_HAVE[i]=1
+    GATE_FILE_OPT_VALUE[i]="${recs[i]#v:}"
+    have=0
+  done
+  return "$have"
 }
 
-# The managed-scope verdict for a key, or return 1 when managed configures
-# none. Later files override earlier ones (drop-ins over the primary).
-gate_managed_option() {
-  local key="$1" f v verdict="" have=1
-  while IFS= read -r f; do
+# Print form, one key: the value, or return 1 when the file contributes no
+# verdict for it.
+gate_settings_option() {
+  gate_settings_options_to "$1" "$2" || return 1
+  ((GATE_FILE_OPT_HAVE[0])) || return 1
+  printf '%s' "${GATE_FILE_OPT_VALUE[0]}"
+}
+
+# The managed-scope verdict for every key asked for, in GATE_MANAGED_OPT_HAVE /
+# GATE_MANAGED_OPT_VALUE (index-parallel to the keys); return 1 when managed
+# configures none of them. Later files override earlier ones (drop-ins over the
+# primary), key by key. Reuses a GATE_MANAGED_FILES list the caller already
+# loaded this run, else loads one.
+#   gate_managed_options_to <key>...
+# shellcheck disable=SC2034 # result arrays are consumed by the sourcing hook
+gate_managed_options_to() {
+  GATE_MANAGED_OPT_HAVE=()
+  GATE_MANAGED_OPT_VALUE=()
+  local i f have=1
+  for ((i = 0; i < $#; i++)); do
+    GATE_MANAGED_OPT_HAVE[i]=0
+    GATE_MANAGED_OPT_VALUE[i]=""
+  done
+  ((GATE_MANAGED_FILES_LOADED)) || gate_managed_settings_files_load
+  for f in ${GATE_MANAGED_FILES[@]+"${GATE_MANAGED_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
-    if v=$(gate_settings_option "$f" "$key"); then
-      verdict="$v"
+    gate_settings_options_to "$f" "$@" || continue
+    for ((i = 0; i < $#; i++)); do
+      ((GATE_FILE_OPT_HAVE[i])) || continue
+      GATE_MANAGED_OPT_HAVE[i]=1
+      GATE_MANAGED_OPT_VALUE[i]="${GATE_FILE_OPT_VALUE[i]}"
       have=0
-    fi
-  done < <(gate_managed_settings_files)
-  ((have == 0)) || return 1
-  printf '%s' "$verdict"
+    done
+  done
+  return "$have"
+}
+
+# Print form, one key: the managed verdict, or return 1 when managed configures
+# none. Derives the file list fresh, as it always did.
+gate_managed_option() {
+  GATE_MANAGED_FILES_LOADED=0
+  gate_managed_options_to "$1" || return 1
+  ((GATE_MANAGED_OPT_HAVE[0])) || return 1
+  printf '%s' "${GATE_MANAGED_OPT_VALUE[0]}"
 }

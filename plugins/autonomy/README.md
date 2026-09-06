@@ -168,6 +168,32 @@ evaluated outcome (`hook: "lane-stop-gate"`; payload contract in the marketplace
 convention, `data/lane-stop-gate.schema.json`), so premature lane stops are measurable fleet-wide.
 The payload is a fixed vocabulary, never the sentinel token, marker path, cwd, or branch.
 
+### Hook cost
+
+`lane-stop-gate.sh` fires on every `Stop`, so its default path (no gate footprint in any settings
+file, which is every interactive session) draws on the 500 ms per-turn ceiling in the marketplace's
+hook-budget convention. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve` from a
+staged install on Linux, 2026-09-06, autonomy 0.22.30 against 0.22.29. Process creations are the
+drift-immune proxy #3508 asks for: a spawn costs about 1 ms on the measuring host and 180 to
+2,841 ms on the affected Windows hosts, where the wall-clock share the convention binds still needs
+measuring.
+
+| Path | Creations before | After | Launches before | After |
+|---|---|---|---|---|
+| Default: no gate footprint anywhere (every interactive `Stop`) | 4 | 1 | 2 (`grep`, `uname`) | 1 (`uname`) |
+| Enabled by user settings, first stop, no signal (block) | 48 | 10 | 18 | 5 |
+| Enabled, sentinel on its own line (allow) | 44 | 9 | 16 | 4 |
+| Enabled, second stop after the nudge (allow, notify) | 54 | 10 | 21 | 5 |
+| Enabled, marker file present (allow, consume) | 51 | 12 | 19 | 6 |
+| Armed by the launcher, first stop (block) | 60 | 11 | 20 | 5 |
+
+The default path's one process is `uname -s`, the managed-settings platform primitive (`$OSTYPE`
+is a variable a repository's env block can set). Of the enabled block path's 10 creations, 4 are
+`hook::buffer_stdin` in the synced shared library (its capture, its read-slice probe and its
+`printf | jq -e` validation pass); the hook's own 6 are the one `hook::jq_fields` payload pass (3),
+`uname`, one settings `jq` and the block-decision `jq`. The suite pins these counts by trace where
+`strace` is available.
+
 | userConfig option | Default | Effect |
 |---|---|---|
 | `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |

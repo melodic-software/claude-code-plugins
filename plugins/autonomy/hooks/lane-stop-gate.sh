@@ -106,10 +106,14 @@ START=${EPOCHREALTIME:-}
 # a closed fixed vocabulary by design: never the sentinel value, the marker
 # path, the cwd, or the branch, so the envelope cannot leak the completion
 # token or lane-identifying paths into the sink.
+#
+# The data object is assembled in the shell, not by `jq -nc --arg …`: both
+# fields are literals from the closed vocabulary at the call sites below (no
+# quote, backslash or control byte among them), so the bytes are the ones jq's
+# compact printer wrote — `{"outcome":"…","signal":"…"}` — without spending a
+# process on every evaluated stop, sink or no sink.
 emit_tel() {
-  local data
-  data=$(jq -nc --arg outcome "$2" --arg signal "$3" \
-    '{outcome:$outcome,signal:$signal}' 2>/dev/null) || return 0
+  local data='{"outcome":"'"$2"'","signal":"'"$3"'"}'
   hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -123,24 +127,46 @@ emit_tel() {
 # into evaluation, where the trusted sources decide.
 #
 # Everything this reads is already in scope above: the two env presences, and
-# the two settings-file locators from lane-stop-gate-lib.sh — gate_user_settings_file,
+# the two settings-file locators from lane-stop-gate-lib.sh — gate_user_settings_file_to,
 # which derives from the GATE_CONFIG_ROOT that gate_resolve_install establishes
-# at the top of this file, and gate_managed_settings_files, which depends on
-# nothing but `uname -s` and fixed absolute paths.
+# at the top of this file, and gate_managed_settings_files_load, which depends
+# on nothing but `uname -s` and fixed absolute paths.
 # Nothing here is payload-derived, so it MUST stay above the buffer — and
 # everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
 # SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
+#
+# This is the path every interactive stop takes, so it spawns nothing but the
+# `uname -s` inside the managed-files load: the file scan is a builtin read
+# where it used to be a `grep -q` process, and the locators write into
+# variables where they used to be captured through a subshell. The loaded
+# managed list is kept for the option resolution below, which would otherwise
+# ask uname again.
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" ]] && return 0
   local f
-  if f=$(gate_user_settings_file) && [[ -f "$f" ]]; then
-    grep -q lane_stop_gate "$f" 2>/dev/null && return 0
+  if gate_user_settings_file_to f && [[ -f "$f" ]]; then
+    gate_file_mentions "$f" && return 0
   fi
-  while IFS= read -r f; do
+  gate_managed_settings_files_load
+  for f in ${GATE_MANAGED_FILES[@]+"${GATE_MANAGED_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
-    grep -q lane_stop_gate "$f" 2>/dev/null && return 0
-  done < <(gate_managed_settings_files)
+    gate_file_mentions "$f" && return 0
+  done
+  return 1
+}
+# gate_file_mentions <file> — `grep -q lane_stop_gate <file>` with no process:
+# the file is read in NUL-delimited chunks (a `read -d ''` returns 1 at EOF
+# while still assigning the final chunk) and each chunk is substring-tested.
+# The token holds no NUL, so it cannot straddle a chunk boundary, and an
+# unreadable file yields no chunk, which is the same "no match" grep gave.
+gate_file_mentions() {
+  local chunk=""
+  # Terminates: every successful read consumed a NUL, and at EOF `read`
+  # assigns the empty remainder and returns 1, which ends the loop.
+  while IFS= read -r -d '' chunk || [[ -n "$chunk" ]]; do
+    [[ "$chunk" == *lane_stop_gate* ]] && return 0
+  done <"$1" 2>/dev/null
   return 1
 }
 gate_maybe_configured || exit 0
@@ -154,14 +180,44 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # the notice reaches both the agent and the user.
 hook::require_jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
 
+# Every payload field the gate reads, in ONE jq pass (hook::jq_fields, the
+# shared helper): five `printf | jq | tr` pipelines used to read the same
+# buffer one field at a time, each a subshell plus two pipeline forks plus the
+# `tr`. The helper's values are CR-stripped, as the `tr -d '\r'` here was, and a
+# malformed payload leaves every field empty, which exits at the event guard
+# exactly as an empty per-field read did. `// false | tostring` keeps
+# stop_hook_active reading "false" (not the helper's empty default) when the
+# key is absent, the value `jq -r '… // false'` printed.
+#
+# The five values are then chomped the way the `$( )` captures chomped them —
+# trailing newlines only — so each reads byte-for-byte as before.
+chomp_nl() {
+  local __v="${!1}"
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
+hook::jq_fields "$INPUT" \
+  '.hook_event_name // ""' \
+  '.session_id // ""' \
+  '.cwd // ""' \
+  '.stop_hook_active // false | tostring' \
+  '.last_assistant_message // ""' || HOOK_JQ_FIELDS=()
+EVENT="${HOOK_JQ_FIELDS[0]-}"
+SESSION_ID="${HOOK_JQ_FIELDS[1]-}"
+CWD="${HOOK_JQ_FIELDS[2]-}"
+STOP_ACTIVE="${HOOK_JQ_FIELDS[3]-}"
+LAST="${HOOK_JQ_FIELDS[4]-}"
+chomp_nl EVENT
+chomp_nl SESSION_ID
+chomp_nl CWD
+chomp_nl STOP_ACTIVE
+chomp_nl LAST
+
 # Fire ONLY on a true top-level session stop. A subagent finishing is delivered
 # as SubagentStop; guarding on the event name keeps a Task-tool worker's normal
 # completion from ever tripping the lane gate, whichever way the platform routes
 # the registration.
-EVENT=$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null | tr -d '\r')
 [[ "$EVENT" == "Stop" ]] || exit 0
-
-SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null | tr -d '\r')
 
 # --- Arm record ---------------------------------------------------------------
 # Load (and claim) the arm record named by the env-carried id, if any. Success
@@ -237,16 +293,44 @@ gate_arm_owned() {
   [[ -n "$me" && "$owner" == "$me" ]]
 }
 
+# The record is read in ONE jq pass that yields, NUL-separated: armed_at,
+# session_id, the sentinel and marker options (each `v:<value>`, or `-` when
+# the record carries no string for it) and the compact document. Three jq
+# processes used to read it — a validating `jq -ec .`, then one `printf | jq`
+# pipeline per field — and two more ran later, one per option the arm record
+# was asked for. The verdicts are unchanged: a document jq cannot parse, or
+# one that is not an object, yields no records and is refused exactly as the
+# failed validation refused it; `null` yields an empty armed_at and is refused
+# at the digit check, as `-e` refused it. The separator is `[0] | implode` so
+# the program text carries no NUL byte, and the value read for each field is
+# chomped of trailing newlines as the former `$( )` captures were.
+GATE_ARM_OPT_HAVE=(0 0 0)
+GATE_ARM_OPT_VALUE=("" "" "")
 gate_load_arm_record() {
-  local id="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" rec claim json armed_at now claimed
+  local id="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" rec claim armed_at now claimed f
+  local -a fields=()
   [[ -n "$id" ]] || return 1
-  rec=$(gate_arm_record_path "$id") || return 1
-  claim=$(gate_arm_claim_path "$id") || return 1
+  gate_arm_record_path_to rec "$id" || return 1
+  gate_arm_claim_path_to claim "$id" || return 1
   [[ -f "$rec" ]] || return 1
-  json=$(jq -ec '.' <"$rec" 2>/dev/null) || return 1
-  armed_at=$(printf '%s' "$json" | jq -r '.armed_at // empty' 2>/dev/null)
+  {
+    while IFS= read -r -d '' f; do
+      while [[ "$f" == *$'\n' ]]; do f="${f%$'\n'}"; done
+      fields+=("$f")
+    done < <(jq -j '
+      [ (.armed_at // "" | tostring),
+        (.session_id // "" | tostring),
+        (.sentinel | if type == "string" then "v:" + . else "-" end),
+        (.marker | if type == "string" then "v:" + . else "-" end),
+        tojson ] | .[] | (., ([0] | implode))')
+  } <"$rec" 2>/dev/null
+  ((${#fields[@]} == 5)) || return 1
+  armed_at="${fields[0]}"
   [[ "$armed_at" =~ ^[0-9]+$ ]] || return 1
-  now=$(date +%s 2>/dev/null) || now=""
+  # EPOCHSECONDS (Bash 5.0+) is the same wall clock `date +%s` reads, without
+  # the process; an older bash still pays the date.
+  now="${EPOCHSECONDS:-}"
+  [[ "$now" =~ ^[0-9]+$ ]] || { { now=$(date +%s); } 2>/dev/null || now=""; }
   if [[ -n "$now" ]] && ((now - armed_at > GATE_ARM_TTL_SECONDS)); then
     rm -f -- "$rec" "$claim" 2>/dev/null
     return 1
@@ -257,7 +341,7 @@ gate_load_arm_record() {
   # already bound to a live lane; nothing writes it any more. Mid-lane downgrade
   # (newer hook → older without sidecar support) can leave a sidecar the older
   # hook ignores — over-gating only; re-arm after downgrade.
-  claimed=$(printf '%s' "$json" | jq -r '.session_id // empty' 2>/dev/null)
+  claimed="${fields[1]}"
   if [[ -n "$claimed" ]]; then
     [[ -n "$SESSION_ID" && "$claimed" == "$SESSION_ID" ]] || return 1
   else
@@ -265,7 +349,17 @@ gate_load_arm_record() {
   fi
   # Assigned only past the ownership verdict: an unowned record contributes no
   # config, which is what keeps a replaying session from being honored at all.
-  GATE_ARM_JSON="$json"
+  # The option slots are index-parallel to GATE_OPTION_KEYS below (enabled is
+  # implied by the arm itself and never read from the record).
+  if [[ "${fields[2]}" == v:* ]]; then
+    GATE_ARM_OPT_HAVE[1]=1
+    GATE_ARM_OPT_VALUE[1]="${fields[2]#v:}"
+  fi
+  if [[ "${fields[3]}" == v:* ]]; then
+    GATE_ARM_OPT_HAVE[2]=1
+    GATE_ARM_OPT_VALUE[2]="${fields[3]#v:}"
+  fi
+  GATE_ARM_JSON="${fields[4]}"
 }
 gate_load_arm_record || true
 
@@ -281,30 +375,55 @@ gate_load_arm_record || true
 # Per-key resolution: managed ▷ arm record ▷ user settings ▷ caller default
 # (return 1). An armed session IS enabled; its record may also carry the
 # sentinel and marker the launcher captured from the lane's config.
-gate_option() {
-  local key="$1" v
-  if v=$(gate_managed_option "$key"); then
-    printf '%s' "$v"
+#
+# gate_option_to <var> <key> writes the value into <var> in this shell. Each
+# scope is read ONCE for all three keys, on first need, and answered from
+# memory after that: the managed files and the user settings file each cost
+# one jq per file (gate_settings_options_to) instead of one per file per key,
+# and the arm record was read above. Three keys used to cost three passes over
+# every scope, each behind a `$( )` capture of its own — the same files, read
+# the same way, giving the same per-key verdicts.
+GATE_OPTION_KEYS=(lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker)
+GATE_MANAGED_RESOLVED=0
+GATE_USER_RESOLVED=0
+GATE_USER_OPT_HAVE=(0 0 0)
+GATE_USER_OPT_VALUE=("" "" "")
+gate_option_to() {
+  local __dest="$1" key="$2" i idx=-1 uf
+  for i in "${!GATE_OPTION_KEYS[@]}"; do
+    [[ "${GATE_OPTION_KEYS[i]}" == "$key" ]] && idx=$i
+  done
+  ((idx >= 0)) || return 1
+  if ((!GATE_MANAGED_RESOLVED)); then
+    GATE_MANAGED_RESOLVED=1
+    gate_managed_options_to "${GATE_OPTION_KEYS[@]}" || true
+  fi
+  if ((GATE_MANAGED_OPT_HAVE[idx])); then
+    printf -v "$__dest" '%s' "${GATE_MANAGED_OPT_VALUE[idx]}"
     return 0
   fi
   if [[ -n "$GATE_ARM_JSON" ]]; then
     if [[ "$key" == "lane_stop_gate_enabled" ]]; then
-      printf 'true'
+      printf -v "$__dest" 'true'
       return 0
     fi
-    v=$(printf '%s' "$GATE_ARM_JSON" | jq -r --arg k "${key#lane_stop_gate_}" \
-      '.[$k] | if type == "string" then "v:" + . else empty end' 2>/dev/null)
-    if [[ "$v" == v:* ]]; then
-      printf '%s' "${v#v:}"
+    if ((GATE_ARM_OPT_HAVE[idx])); then
+      printf -v "$__dest" '%s' "${GATE_ARM_OPT_VALUE[idx]}"
       return 0
     fi
   fi
-  local uf
-  uf=$(gate_user_settings_file) || return 1
-  gate_settings_option "$uf" "$key"
+  if ((!GATE_USER_RESOLVED)); then
+    GATE_USER_RESOLVED=1
+    if gate_user_settings_file_to uf && gate_settings_options_to "$uf" "${GATE_OPTION_KEYS[@]}"; then
+      GATE_USER_OPT_HAVE=("${GATE_FILE_OPT_HAVE[@]}")
+      GATE_USER_OPT_VALUE=("${GATE_FILE_OPT_VALUE[@]}")
+    fi
+  fi
+  ((GATE_USER_OPT_HAVE[idx])) || return 1
+  printf -v "$__dest" '%s' "${GATE_USER_OPT_VALUE[idx]}"
 }
 
-ENABLED=$(gate_option lane_stop_gate_enabled) || ENABLED=""
+gate_option_to ENABLED lane_stop_gate_enabled || ENABLED=""
 if [[ "$ENABLED" != "true" ]]; then
   # No trusted source says "on". A trusted explicit false stays silent — that is
   # a configured verdict, not a claim the gate declined to honor. The two ways a
@@ -346,17 +465,39 @@ SIGNAL="none"
 # An empty configured sentinel falls back to the default rather than silencing
 # the token channel: emptiness is not a documented way to disable it, and the
 # block reason below would otherwise instruct the agent to emit an empty token.
-SENTINEL=$(gate_option lane_stop_gate_sentinel) || SENTINEL=""
+gate_option_to SENTINEL lane_stop_gate_sentinel || SENTINEL=""
 [[ -n "$SENTINEL" ]] || SENTINEL="LANE-STOP-OK"
-LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
-# Escape any regex metacharacters in the (configurable) sentinel before use.
-SENTINEL_RE=$(printf '%s' "$SENTINEL" | sed 's/[][\.^$*+?(){}|/]/\\&/g')
-# Here-string, NOT `printf | grep -q`: under pipefail, grep -q exits on the
-# first match, and when a long message continues past the pipe buffer the
-# producer takes SIGPIPE — the pipeline then reads as false and a genuinely
-# signaled completion would be blocked. A here-string has no pipeline, so an
-# early match can never be lost.
-if grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$" <<<"$LAST"; then
+# Escape any regex metacharacters in the (configurable) sentinel before use —
+# the same fifteen characters the former `sed 's/[][\.^$*+?(){}|/]/\\&/g'`
+# escaped, one backslash each, done by the shell.
+SENTINEL_RE=""
+for ((i = 0; i < ${#SENTINEL}; i++)); do
+  c="${SENTINEL:i:1}"
+  case "$c" in
+  '[' | ']' | "\\" | '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|' | '/') SENTINEL_RE+="\\$c" ;;
+  *) SENTINEL_RE+="$c" ;;
+  esac
+done
+# Matched by the shell's own ERE engine (`[[ =~ ]]`), not `grep -qE` over a
+# here-string: no process, and no pipeline for an early match to be lost in.
+# grep judged one LINE at a time, `^[[:space:]]*TOKEN[[:space:]]*$`; the same
+# verdict over the whole message is "TOKEN preceded by start-of-message or a
+# newline plus whitespace, followed by whitespace plus a newline or
+# end-of-message". The two agree on every message: whitespace never contains
+# the token, so the last newline before it and the first after it bound one
+# line holding nothing but whitespace and the token, and any such line
+# satisfies the pattern in both directions. bash compiles the pattern without
+# REG_NEWLINE, so `^` and `$` are message ends here, never line ends, which is
+# why the newline alternatives are spelled out.
+#
+# The one message class where the two engines part: a configured token that
+# itself holds a newline. grep read that newline as a pattern separator and
+# authorized the stop on a line matching EITHER half of the token; here the
+# token is one pattern, so only the whole token standing alone matches, which
+# is what the block reason below asks the agent to emit. Disclosed in the
+# 0.22.30 changelog entry; no shipped launcher writes such a token.
+SENTINEL_LINE_RE="(^|"$'\n'")[[:space:]]*${SENTINEL_RE}[[:space:]]*("$'\n'"|\$)"
+if [[ "$LAST" =~ $SENTINEL_LINE_RE ]]; then
   SIGNALED=1
   SIGNAL="sentinel"
 fi
@@ -387,26 +528,41 @@ fi
 # costs one skipped completion signal, while a wrong "recreated" verdict costs
 # the unearned second authorization the ledger exists to prevent. A withheld
 # stop is the correct failure direction, so the portable spelling stands.
-marker_identity() {
+#
+# marker_identity_to <var> <path> writes the identity into <var>. Each rung is
+# its own `{ …; } 2>/dev/null` group so the one stat that answers is exec'd
+# straight from its substitution's fork; the former single capture around the
+# whole `||` ladder forked once more for the same stat.
+marker_identity_to() {
+  local __id=""
   # portability-ok: GNU-first of a dual-dialect ladder — the BSD `-f` spelling is
   # the next alternative, and a host with neither returns the empty identity this
   # function documents (#1784)
-  stat -c '%Y %s' -- "$1" 2>/dev/null ||
+  { __id=$(stat -c '%Y %s' -- "$2"); } 2>/dev/null ||
     # portability-ok: BSD ladder rung paired with GNU `stat -c` above (#1784)
-    stat -f '%m %z' -- "$1" 2>/dev/null ||
-    printf ''
+    { __id=$(stat -f '%m %z' -- "$2"); } 2>/dev/null ||
+    __id=""
+  printf -v "$1" '%s' "$__id"
 }
 
 # Ledger path for a marker path. cksum keys the file name (POSIX, present where
 # md5sum is not); the recorded path is re-checked on read, so a cksum collision
 # costs a miss, never a wrong verdict.
-marker_ledger_path() {
+#
+# marker_ledger_path_to <var> <path>. The key is the digits of cksum's output
+# (checksum and byte count run together), exactly what the former
+# `printf | cksum | tr -cd '0-9'` pipeline produced, so an existing ledger
+# entry is still found. cksum reads the path from a process substitution
+# (printf, no exec) rather than a pipeline in a capture, and the digit filter
+# is a parameter expansion, so the key costs two forks where it cost four.
+marker_ledger_path_to() {
   local dir key
-  dir=$(gate_data_dir)
+  gate_data_dir_to dir
   [[ -n "$dir" ]] || return 1
-  key=$(printf '%s' "$1" | cksum 2>/dev/null | tr -cd '0-9') || return 1
+  { key=$(cksum); } < <(printf '%s' "$2") 2>/dev/null || return 1
+  key="${key//[^[:digit:]]/}"
   [[ -n "$key" ]] || return 1
-  printf '%s/consumed-markers/%s' "$dir" "$key"
+  printf -v "$1" '%s/consumed-markers/%s' "$dir" "$key"
 }
 
 # Has the file now at <path> already authorized a stop? True when a ledger entry
@@ -418,11 +574,11 @@ marker_ledger_path() {
 # documented coarseness above.
 marker_already_consumed() {
   local path="$1" ledger recorded_path="" recorded_id="" current
-  ledger=$(marker_ledger_path "$path") || return 1
+  marker_ledger_path_to ledger "$path" || return 1
   [[ -f "$ledger" ]] || return 1
   { IFS= read -r recorded_path && IFS= read -r recorded_id; } <"$ledger" 2>/dev/null
   [[ "$recorded_path" == "$path" ]] || return 1
-  current=$(marker_identity "$path")
+  marker_identity_to current "$path"
   if [[ -n "$current" && -n "$recorded_id" && "$current" != "$recorded_id" ]]; then
     rm -f -- "$ledger" 2>/dev/null
     return 1
@@ -435,10 +591,13 @@ marker_already_consumed() {
 # leaves the deletion as the only latch, which is the behavior that predates
 # this ledger.
 marker_record_consumed() {
-  local path="$1" ledger
-  ledger=$(marker_ledger_path "$path") || return 0
-  mkdir -p -- "$(dirname -- "$ledger")" 2>/dev/null || return 0
-  printf '%s\n%s\n' "$path" "$(marker_identity "$path")" >"$ledger" 2>/dev/null || true
+  local path="$1" ledger identity
+  marker_ledger_path_to ledger "$path" || return 0
+  # `${ledger%/*}`, not `$(dirname …)`: the ledger path always carries the
+  # consumed-markers/ segment, so the strip is dirname's answer with no process.
+  mkdir -p -- "${ledger%/*}" 2>/dev/null || return 0
+  marker_identity_to identity "$path"
+  printf '%s\n%s\n' "$path" "$identity" >"$ledger" 2>/dev/null || true
 }
 
 # Signal 2 — the completion-marker file. Absolute path used as-is; a relative
@@ -446,12 +605,11 @@ marker_record_consumed() {
 # consumed by an earlier stop is not a signal, however long it survives on
 # disk. On use it is deleted AND — when the delete did not take — recorded, so
 # the next run reads the same verdict the delete was meant to produce.
-MARKER=$(gate_option lane_stop_gate_marker) || MARKER=""
+gate_option_to MARKER lane_stop_gate_marker || MARKER=""
 if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   case "$MARKER" in
   /* | [A-Za-z]:[/\\]*) ;;
   *)
-    CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // ""' 2>/dev/null | tr -d '\r')
     [[ -n "$CWD" ]] && MARKER="${CWD%/}/$MARKER"
     ;;
   esac
@@ -474,17 +632,23 @@ if [[ "$SIGNALED" -eq 1 ]]; then
   exit 0
 fi
 
-STOP_ACTIVE=$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)
-
 # Already nudged once this stop cluster (stop_hook_active), yet the lane still
 # stops without signaling completion → a genuine down/stuck lane. Alert the
 # operator (member 4) and ALLOW the stop — blocking again risks a runaway loop,
 # and Claude Code hard-caps consecutive Stop blocks regardless. The one bounded
 # structural nudge is the mechanism; the notification is the fail-safe handoff.
 if [[ "$STOP_ACTIVE" == "true" ]]; then
-  CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // ""' 2>/dev/null | tr -d '\r')
   BRANCH=""
-  [[ -n "$CWD" ]] && BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null | tr -d '\000-\037')
+  if [[ -n "$CWD" ]]; then
+    # git alone in the capture, stderr on the group; a failed git leaves BRANCH
+    # empty as the old pipeline did. The control-byte strip that `tr -d
+    # '\000-\037'` did is a parameter expansion: `[[:cntrl:]]` covers those
+    # bytes and DEL, and git refuses every one of them in a ref name, so no
+    # branch git can print is changed by either spelling. lane::notify strips
+    # C0 bytes again on its own before any sink.
+    { BRANCH=$(git -C "$CWD" branch --show-current); } 2>/dev/null || BRANCH=""
+    BRANCH="${BRANCH//[[:cntrl:]]/}"
+  fi
   LANE="${CWD##*/}"
   [[ -n "$BRANCH" ]] && LANE="$LANE ($BRANCH)"
   [[ -n "$LANE" ]] || LANE="unknown"

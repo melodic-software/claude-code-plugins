@@ -3,6 +3,56 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.30]
+
+### Changed
+
+- **`hooks/lane-stop-gate.sh` spends one process on the interactive default path, and
+  about a fifth of what it did on an enabled lane's stop.** Counted with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` from a staged install: the default
+  path (no gate footprint in any settings file, the path every interactive `Stop` takes)
+  went from 4 process creations and 2 launches (`grep`, `uname`) to 1 and 1 (`uname`); an
+  enabled lane's first unsignaled stop from 48 creations and 18 launches to 10 and 5; a
+  signaled stop from 44 and 16 to 9 and 4; an armed lane's stop from 60 and 20 to 11 and 5.
+  The cost was in how the work was written, not in what the work was: every `$( )` capture
+  of a lib helper that is nothing but parameter expansion has a `_to <var>` form now; the
+  five per-field `printf | jq | tr` payload reads are one `hook::jq_fields` pass; the three
+  per-key settings reads are one jq per settings file (`gate_settings_options_to`), read
+  once and answered from memory; the arm record is read in one jq pass instead of five;
+  the `grep -q` scan of each settings file is a builtin read; the sentinel escape (`sed`)
+  and match (`grep -E`) are the shell's own; `uname -s` runs once per stop with its
+  redirection on the enclosing group, the placement that lets bash exec a substitution's
+  one command without a second fork; the telemetry data object is assembled in the shell
+  from its closed vocabulary. Unchanged on purpose: `uname -s` stays the managed-settings
+  platform primitive, `hook::buffer_stdin` and its validation pass belong to the synced
+  shared library, and the block decision is still one `jq`. Process counts are the proxy
+  reported because a spawn is about 1 ms on the measuring Linux host; #3508 measures
+  180 to 2,841 ms per spawn on the affected Windows hosts, where the wall-clock share the
+  hook-budget convention binds still needs measuring. (#3515; parent #3508; the in-file
+  approach follows #3779)
+- **Disclosed divergence, one degenerate config: a sentinel that itself holds a newline.**
+  `grep` read that newline as a pattern separator and authorized a stop on a line matching
+  either half of the token; the shell match treats the token as one pattern, so only the
+  whole token standing alone authorizes, which is what the block reason asks the agent to
+  emit. No shipped launcher writes such a token. Every other verdict is the same: 95
+  old-versus-new scenarios were compared byte for byte (rc, stdout, marker and ledger side
+  effects), including malformed payloads, every settings shape the reader distinguishes,
+  and the arm record's claim and TTL paths.
+- **`hooks/lane-stop-gate-lib.sh` grows an in-process form beside every print form**
+  (`gate_*_to`, `gate_managed_settings_files_load`, `gate_settings_options_to`,
+  `gate_managed_options_to`); the print forms delegate to them, so `lane-stop-gate-arm.sh`
+  and existing callers read exactly what they read before.
+
+### Added
+
+- **The suite pins the process budget by trace** (`lane-stop-gate.test.sh`): exactly 1
+  creation and 1 launch (`uname`) on the default path; a ceiling of 10 creations and 5
+  launches on the enabled block path, the ceiling leaving the shared library's
+  `hook::buffer_stdin` share room to shrink without failing here; and no `dirname`, `tr`,
+  `sed`, `grep`, `cksum` or `date` on either. Moving one redirection back inside its
+  substitution takes the default path to 2 and fails it. Skipped where `strace` is
+  unavailable; the CI Linux lane does not skip.
+
 ## [0.22.29]
 
 ### Changed
