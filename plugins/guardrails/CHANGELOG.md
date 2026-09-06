@@ -20,7 +20,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `gh pr create`. After: builtins are not probed (a leftover
   `alias.status = commit` can no longer false-block `git status`), and
   the convention pair loads on first need. Persisted aliases that are
-  not builtins (`git ci`, `git qc`) still resolve as before.
+  not builtins (`git ci`, `git qc`) still resolve as before. Deprecated
+  builtins stay probed: git.c marks `whatchanged` DEPRECATED, and git
+  2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh).
   Spawn census through a stable PATH shim
   (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK`
   unset, this repository as cwd. Counted PATH-visible execs:

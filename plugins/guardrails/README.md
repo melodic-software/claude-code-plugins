@@ -389,7 +389,9 @@ a leftover ignored alias names one), and one `git rev-parse --show-toplevel`
 from `block-convention-violation` (the convention pair is only needed for a
 commit subject or a `gh pr create --title`). After: builtins are not probed,
 and the convention pair loads on first need. Neither guard's decision on a
-real commit alias (`git ci`, `git qc`) changed.
+real commit alias (`git ci`, `git qc`) changed. Deprecated builtins stay
+probed (`whatchanged`: git.c `DEPRECATED` bit; git 2.51+ honors
+`alias.whatchanged = commit`).
 
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, this repository as cwd. Same-session before

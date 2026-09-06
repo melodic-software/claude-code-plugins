@@ -461,6 +461,27 @@ if [[ -d "$PSTAT/.git" ]]; then
   assert_exit "git status is not a commit even when alias.status names one" 0 $?
 fi
 
+# git-config's ignore rule exempts deprecated commands. git.c marks
+# `whatchanged` DEPRECATED (master fetched 2026-09-06); git 2.51+ honors
+# `alias.whatchanged = commit` (t/t0014-alias.sh). This host's git 2.43 still
+# ignores that alias, but the guard must probe the name so a newer git cannot
+# smuggle a newline `-m` through it.
+PWC="$TEST_TMPDIR/persisted-whatchanged"
+mkdir -p "$PWC"
+(
+  cd "$PWC" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.whatchanged $'commit -m "bypass\nb"'
+) >/dev/null 2>&1
+if [[ -d "$PWC/.git" ]]; then
+  MSYS_NO_PATHCONV=1 jq -n --arg d "$PWC" \
+    '{tool_name:"Bash",tool_input:{command:"git whatchanged"},cwd:$d}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git whatchanged alias to newline -m is still a commit" 2 $?
+fi
+
 # --- #1022: persisted alias.<sub>.command subkey (plain alias.$sub absent) ----
 PCMD="$TEST_TMPDIR/persisted-command"
 mkdir -p "$PCMD"

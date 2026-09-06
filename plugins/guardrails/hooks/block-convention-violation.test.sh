@@ -154,6 +154,15 @@ run "configured alias commit: violating subject blocked" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
 run "configured alias commit: conforming subject allowed" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+# Deprecated builtins can be aliased (git-config; git.c DEPRECATED bit).
+# `whatchanged` must keep probing so `alias.whatchanged = commit` cannot skip
+# the subject gate on a git that honors the exception.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.whatchanged commit
+run "deprecated builtin alias.whatchanged: violating subject blocked" "$r" \
+  $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "deprecated builtin alias.whatchanged: conforming subject allowed" "$r" \
+  $'git whatchanged -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
 # --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
 # The alias lookup is the reachable consumer: it has no stdin-form gate and no
