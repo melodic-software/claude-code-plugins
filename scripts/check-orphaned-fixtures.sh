@@ -102,12 +102,12 @@ ere_escape_to() {
   for ((__i = 0; __i < ${#__s}; __i++)); do
     __c="${__s:__i:1}"
     case "$__c" in
-      '\\' | '.' | '|' | '$' | '(' | ')' | '[' | ']' | '{' | '}' | '?' | '+' | '*' | '^')
-        __out+="\\$__c"
-        ;;
-      *)
-        __out+="$__c"
-        ;;
+    \\ | '.' | '|' | '$' | '(' | ')' | '[' | ']' | '{' | '}' | '?' | '+' | '*' | '^')
+      __out+="\\$__c"
+      ;;
+    *)
+      __out+="$__c"
+      ;;
     esac
   done
   printf -v "$1" '%s' "$__out"
@@ -187,6 +187,7 @@ consumed() {
     case "$test_file" in
     "$skill_dir"/*) skill_tests+=("$test_file") ;;
     "$plugin"/*) plugin_other_tests+=("$test_file") ;;
+    *) ;;
     esac
   done
   if ((${#skill_tests[@]} > 0)) && grep -qE -- "$base_re" "${skill_tests[@]}"; then

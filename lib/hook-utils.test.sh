@@ -2052,6 +2052,7 @@ fi
 
 # Bash 3.2 has no fractional `read -t` (CHANGES bash-4.0-alpha). Override the
 # predicate the way the pre-4.1 nchars cases do: BASH_VERSINFO is readonly.
+# shellcheck disable=SC2016 # $1 is the child shell's positional, not this one's
 force_no_frac='source "$1"; hook::read_supports_fractional_timeout() { return 1; }; '
 frac_branch=$(bash -c "${force_no_frac}"'hook::read_supports_fractional_timeout && echo modern || echo legacy' \
   _ "$HOOK_DIR/hook-utils.sh")
@@ -3387,10 +3388,12 @@ rm -rf "$tr_shim"
 # rewrite-guard arms) fail closed on leftover hook-utils-read-t.$$ files.
 hu_scratch="$(mktemp -d)"
 hu_scratch_rc=0
-(
-  export TMPDIR="$hu_scratch" TMP="$hu_scratch" TEMP="$hu_scratch"
-  printf '{"ok":true}' | hook::buffer_stdin >/dev/null
-) || hu_scratch_rc=$?
+# Env prefix on a child bash, not a subshell: SC2031 would fire on
+# `export TMPDIR=...` inside `( )`, and the isolation must not leak into
+# later cases in this file.
+TMPDIR="$hu_scratch" TMP="$hu_scratch" TEMP="$hu_scratch" \
+  bash -c 'source "$1"; printf "{\"ok\":true}" | hook::buffer_stdin >/dev/null' \
+  _ "$HOOK_DIR/hook-utils.sh" || hu_scratch_rc=$?
 hu_left=$(find "$hu_scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')
 if ((hu_scratch_rc == 0)) && [[ "${hu_left:-1}" == "0" ]]; then
   ok "buffer_stdin: isolated TMPDIR is empty after a successful read (no probe file)"
