@@ -379,7 +379,7 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
-**0.32.11, forks with no exec in `block-hook-bypass`.** 2026-09-06, Linux CI
+**0.32.12, forks with no exec in `block-hook-bypass`.** 2026-09-06, Linux CI
 host. Every earlier row in this section counts execs through a PATH shim, and
 a shim cannot see a fork: `$(builtin-only function)`, `< <(printf ...)` and a
 pipeline each create a process that never execs. On a benign Bash call this
@@ -414,6 +414,32 @@ The execve column does not move, which is what makes this latency rather than
 removed work. The contract suite pins the guard's benign share at exactly 1 by
 the same instrument, so the figure moves with the code rather than with this
 table.
+
+**0.32.11, fused stdin completeness and field extract.** 2026-09-06,
+Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`
+execs on a benign Bash call: `jq -e .` (stdin JSON-complete check) plus
+the dispatcher's primed `jq_fields`. After: `hook::buffer_stdin_to`
+captures the payload in-process (`printf -v`, no command-substitution
+subshell) and, when given the prime filters, uses `hook::jq_fields` as
+the completeness check, so those two execs are one. Isolation
+`$(source …)` forks are unchanged (#3685). Neither guard's decision
+changed.
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, this repository as cwd. Host `spawn_probe`
+characterised as measurable. Wall clock is p50/p95 of 20 samples after 2
+warmup.
+
+| Counter | before | after |
+|---|---|---|
+| `git status --short` PATH-shim spawns | 2 (`2 jq`) | 1 (`1 jq`) |
+| `echo hello` PATH-shim spawns | 2 (`2 jq`) | 1 (`1 jq`) |
+| Write of in-repo `.md` PATH-shim spawns | 5 (`3 git`, `2 jq`) | 4 (`3 git`, `1 jq`) |
+
+The milliseconds are context on this cheap-spawn host. The durable figure
+is the one `jq` process that disappeared. The remaining exec is the fused
+payload parse. The three git processes on a Write are the
+`hardcoded-path-check` probes previously measured and not folded.
 
 **0.32.10, git probes that cannot change a benign Bash verdict.** 2026-09-06,
 Linux CI host. The 0.32.9 table still carries five PATH-visible execs on

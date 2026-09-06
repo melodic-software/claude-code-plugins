@@ -109,7 +109,7 @@ emit_tel() {
   hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2" "${3:-[]}" "${4:-}")" "$REPO_ROOT"
 }
 
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # NotebookEdit carries its target as tool_input.notebook_path, NOT file_path
 # (verified against the tool's own input schema), so every path-reading step

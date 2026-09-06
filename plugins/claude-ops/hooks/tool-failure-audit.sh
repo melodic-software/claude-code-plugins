@@ -27,7 +27,7 @@ hook::telemetry_enabled || exit 0
 
 START=${EPOCHREALTIME:-}
 
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # data.session_id (additive, hook-telemetry rule 1): the sink routes an
 # envelope carrying one into the per-session log beside session-event-log.sh.

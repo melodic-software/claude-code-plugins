@@ -42,6 +42,28 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the guard's benign share at exactly 1 by the same instrument, and skips
   visibly where strace is absent.
 
+## [0.32.11]
+
+### Changed
+
+- **The always-on Bash dispatcher spends one `jq` process, not two, and
+  captures stdin in-process.** `hook::buffer_stdin_to` writes the payload
+  into a caller variable with `printf -v` so `INPUT=$(hook::buffer_stdin)`
+  is no longer a command-substitution subshell (GNU Bash forks even when
+  the body is only builtins: Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Passing the dispatcher's
+  prime filters fuses the JSON completeness check with field extraction:
+  the remaining two PATH-visible execs on a benign `git status --short`
+  were `jq -e .` plus `jq_fields`; they are now one `jq`. Isolation
+  `$(source …)` forks are unchanged. Spawn census through a stable PATH
+  shim (`plugins/performance/scripts/spawn-census.sh`), `HOOK_TELEMETRY_SINK`
+  unset, this repository as cwd: `git status --short` **2 → 1** (`2 jq` →
+  `1 jq`); `echo hello` **2 → 1**. Guards and formatter hooks that used
+  the print form now call `_to` so the capture fork is gone there too.
+  `_to` locals (library and the dispatcher's override) use a `__hu_` /
+  `__rg_` prefix so a caller dest named `input` or `dest` still receives
+  the payload.
+
 ## [0.32.10]
 
 ### Changed

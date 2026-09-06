@@ -109,7 +109,7 @@ start=${EPOCHREALTIME:-}
 # does not require jq (hook::buffer_stdin's own JSON-completeness check is
 # jq-optional), so it runs before the jq gate below — hook::require_jq needs
 # the buffered input for its once-per-session notice scoping.
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
