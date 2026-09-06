@@ -149,7 +149,7 @@ scale with the repo's plugin list rather than with anyone's intent, so report th
 distinct paths, treat deliberate installs as one possible cause among others, and do not tell a user
 to stop installing at project scope until you know they did.
 
-Sourcing, precedence, and the two questions still open on the local write path are in
+Sourcing, precedence, and the verified local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
 cannot reap them". Do not restate them here.
 

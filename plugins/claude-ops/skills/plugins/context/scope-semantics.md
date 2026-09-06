@@ -5,10 +5,9 @@ machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
-plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The one
-exception is "Where project-scope records come from, and why the skill cannot reap them", which
-carries two questions no probe has answered yet; both are labelled there as open probes and neither
-may be relied on as a fact.
+plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
+probes in "Where project-scope records come from, and why the skill cannot reap them" were run
+2026-09-06 on **Claude Code 2.1.263** and carry that stamp.
 
 **The file-level date is the date of the pass, not a blanket CLI stamp — per-claim stamps govern.**
 The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` settings exemption
@@ -169,11 +168,10 @@ do.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 
-The section above says the records cannot be reaped. This one says where they come from. Two of the
-claims below are open probes rather than verified facts, and they are labelled as such; the rest are
-doc-sourced or observed, each with its source named. **Recheck trigger:** any change to how a repo's
-committed `enabledPlugins` block is applied at session start, or any `claude plugin` release note
-adding a verb that removes an install record by path.
+The section above says the records cannot be reaped. This one says where they come from. Every claim
+below is doc-sourced or verified by a probe, each with its source or CLI version named. **Recheck
+trigger:** any change to how a repo's committed `enabledPlugins` block is applied at session start,
+or any `claude plugin` release note adding a verb that removes an install record by path.
 
 **A repo's committed `.claude/settings.json` `enabledPlugins` block is the documented cloud install
 mechanism.** Per
@@ -183,17 +181,23 @@ start from the marketplace you declared." Plugins enabled only in a user's own s
 over to a cloud session at all. So the block exists to make a team's plugin set reproducible
 somewhere the user's `~/.claude` is not.
 
-**Locally, the documented behaviour is narrower, and the write path is an open probe.** Per
+**Locally, session start writes the records.** Per
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins) ("Configure team marketplaces",
 fetched 2026-09-05), as of v2.1.195 a plugin that only project settings enable, coming from an
-external source, "doesn't load until the team member installs it." Separately, **observed on this
-machine on Claude Code 2.1.261**: all 64 project-scope records for a single repo path carried the
-same `installedAt` second, which is the shape of one session-start batch rather than 64 deliberate
-installs, for a user who already had that marketplace registered and the same plugins present at
-user scope. That observation is one machine, one path, one CLI version. **Open probe 1: which code
-path writes those records locally is not verified.** The probe that would settle it is a fresh
-worktree of a repo carrying the block, with `installed_plugins.json` watched across the first
-session start. Do not present the batch as the mechanism until that probe has run.
+external source, "doesn't load until the team member installs it." That sentence covers the case
+where the user has never installed the plugin. When the user already holds it at user scope, the
+session start does the install itself. **Verified 2026-09-06 on Claude Code 2.1.263**: a scratch git
+repo under the temp directory with a committed `.claude/settings.json` declaring
+`extraKnownMarketplaces` for an already-registered marketplace and two `enabledPlugins: true` ids
+already installed at user scope; one headless `claude -p` session run from that directory; then
+`installed_plugins.json` diffed against a copy taken before the run. The diff was exactly two new
+`scope: "project"` records, one per enabled id, keyed by the scratch repo's absolute `projectPath`,
+both with the same `installedAt` millisecond, each pinned to the version the user scope already held
+and pointing `installPath` at the user scope's existing cache directory. No new cache directory was
+created and the user-scope records were untouched. A field sample on 2.1.261 (64 records for one
+repo path sharing one `installedAt` second) has the same shape: one session-start batch, one record
+per `true` entry per checkout path. The write happens even though nothing new was fetched; the
+record is a pin, not a download.
 
 **Precedence explains why a user-scope duplicate does not prevent the project record.** Per
 [settings-reference](https://code.claude.com/docs/en/settings-reference#enabledplugins) (fetched
@@ -201,15 +205,25 @@ session start. Do not present the batch as the mechanism until that probe has ru
 "Project settings take precedence over user settings, so setting a plugin to false in
 ~/.claude/settings.json doesn't disable a plugin that the project's .claude/settings.json enables.
 To opt out of a project-enabled plugin on your machine, set it to false in .claude/settings.local.json
-instead." Precedence settles which `enabledPlugins` value is effective; on its own it does not
-establish that a local session writes an install record. The leading hypothesis, consistent with the
-single observed batch above and with nothing that contradicts it, is that every project-scope `true`
-duplicating a user-scope install still produces its own version-pinned project record keyed by
-absolute path, one per plugin per checkout. Treat it as a hypothesis until Open probe 1 above, a
-fresh worktree of a repo carrying the block with `installed_plugins.json` watched across the first
-session start, confirms the write. **Open probe 2:
-whether a project-scope `false` writes any install record is undocumented**, and no probe in this
-repo has tested it.
+instead." Precedence settles which `enabledPlugins` value is effective, and the probe above
+establishes that an effective project-scope `true` writes its own record regardless of the user
+scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
+project record per plugin per checkout.
+
+**A project-scope `false` writes nothing.** **Verified 2026-09-06 on Claude Code 2.1.263** in the
+same scratch repo: the block reduced to one entry, `"<id>": false` for a plugin installed at user
+scope; one headless session; `installed_plugins.json` byte-identical before and after (no new
+record, no touched timestamp), and the session reported that plugin's skill as unavailable while a
+sibling user-scope plugin's skill stayed available. A `false` entry is enablement state only; it
+never manufactures an install record.
+
+**Removing the records rewrites the committed block.** Observed in the same pass on 2.1.263:
+`claude plugin uninstall -s project <id>` run from inside the checkout removed the project record
+and also deleted that id from the repo's `.claude/settings.json` `enabledPlugins`, leaving an empty
+`enabledPlugins: {}` and reordering the file's top-level keys. Undoing a stranded record for a live
+checkout therefore dirties the working tree; do it before committing, or expect to revert the
+settings file afterwards. For an absent path there is no cwd to run it from, which is the case the
+section above records as unreapable.
 
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
