@@ -246,7 +246,8 @@ fi
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ -n "$FILE" ]] || exit 0
 
-NORM_FILE="$(hook::normalize_path "$FILE")"
+NORM_FILE=""
+hook::normalize_path_to NORM_FILE "$FILE"
 
 # Case-preserved, slash-normalized path for the allowlist globs below. On
 # Windows hook::normalize_path lower-cases the remainder so the membership
@@ -261,7 +262,8 @@ ALLOW_FILE="${FILE//\\//}"
 # repo the target lives in. A file outside the project root is not ours to scan
 # — that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
-PROJECT_DIR="$(hook::normalize_path "${CLAUDE_PROJECT_DIR:-}")"
+PROJECT_DIR=""
+hook::normalize_path_to PROJECT_DIR "${CLAUDE_PROJECT_DIR:-}"
 PROJECT_DIR="${PROJECT_DIR%/}"
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
@@ -313,14 +315,15 @@ emit_tel() {
   local file_dir="${FILE%/*}"
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
-  [[ -n "$root" ]] || root="$(hook::repo_root "$file_dir")"
+  [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
   # The helper strips "$root/", so a root that already ends in a separator
   # makes the prefix "/repo//" and matches nothing: every in-project file
   # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
   # a trailing slash is a supported spelling, so trim it here. The copy this
   # replaced did the same, and hook::repo_root never returns one.
   root="${root%/}"
-  file_rel="$(hook::repo_relative_path "$FILE" "$root")"
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$root"
   local data
   data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
     '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||

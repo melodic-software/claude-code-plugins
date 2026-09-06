@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.14]
+
+### Changed
+
+- **PostToolUse verifiers and PreToolUse telemetry drop leftover
+  helper-capture forks.** `skill-reference-verify`, `stale-path-verify`,
+  and `cli-flag-verify` call `repo_root_to` / `repo_relative_path_to`
+  in-process; `hardcoded-path-check` and `secret-pattern-detection` use
+  `normalize_path_to` (and `_to` relative-path forms) instead of
+  leftover `$(hook::normalize_path)` / `$(hook::repo_relative_path)`
+  captures. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a Write with no
+  skill refs: 18→17 clones (execs unchanged). Clean secret-pattern Write:
+  10→8 clones (PATH-visible execs unchanged). Isolation `$(source …)`
+  forks are unchanged (#3685). Finding text and redaction are unchanged.
+
 ## [0.32.13]
 
 ### Changed

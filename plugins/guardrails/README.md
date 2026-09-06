@@ -379,6 +379,30 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.14, leftover helper-capture forks on verifiers and PreToolUse
+telemetry.** 2026-09-06, Linux CI host characterised measurable by
+`spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
+the leftover `$(hook::repo_root)` / `$(hook::repo_relative_path)` /
+`$(hook::normalize_path)` captures the always-on verifiers and
+PreToolUse scanners still paid around helpers that already have `_to`
+forms. Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`:
+
+| Counter | before | after |
+|---|---|---|
+| `skill-reference-verify` Write with no skill refs | 18 clones (8 execs) | 17 clones (8 execs) |
+| `secret-pattern-detection` clean Write | 10 clones (4 execs) | 8 clones (4 execs) |
+
+PATH-visible execs unchanged. Isolation `$(source …)` forks are
+unchanged (#3685). Finding text and redaction are unchanged.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
 **0.32.13, leftover tokenizer and path-helper forks.** 2026-09-06, Linux CI host
 characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
 The 0.32.12 PATH-shim and kernel-census tables are unchanged for stdin,
