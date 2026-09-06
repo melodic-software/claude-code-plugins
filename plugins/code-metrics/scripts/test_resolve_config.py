@@ -168,6 +168,33 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             self.assertEqual(result.stdout, "")
 
+    def test_a_scalar_exclude_is_a_named_type_error_not_a_glob_per_character(
+        self,
+    ) -> None:
+        # `scope.exclude` is a closed list, and setup-apply.py will write a
+        # one-glob value as a scalar. Iterating that scalar emits `v`, `e`,
+        # `n`, ... as globs, so the audit exits 0 having measured the
+        # directory it was told to drop.
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text('scope:\n  exclude: "vendor/**"\n', encoding="utf-8")
+            result = run(USER, str(team), "--format", "excludes")
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("scope.exclude", result.stderr)
+            self.assertIn("must be a list", result.stderr)
+            self.assertIn("team", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            # The dispatcher reads this format through --from-json, which
+            # never runs resolve(), so the guard has to hold there too.
+            resolved = Path(tmp) / "resolved.json"
+            resolved.write_text(
+                json.dumps({"scope": {"exclude": "vendor/**"}}), encoding="utf-8"
+            )
+            through = run("--from-json", str(resolved), "--format", "excludes")
+            self.assertEqual(through.returncode, 2, through.stdout)
+            self.assertEqual(through.stdout, "")
+
     def test_a_layer_outside_the_subset_is_a_named_error(self) -> None:
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 2)

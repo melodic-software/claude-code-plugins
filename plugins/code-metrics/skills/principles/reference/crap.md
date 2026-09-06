@@ -92,9 +92,13 @@ CRAP is a derived output of `/code-metrics:audit-coverage`, which takes `comp` f
 complexity run and `cov` from a coverage artifact that already exists. The join has stated semantics
 because every one of them can change a number:
 
-1. **The artifact's own per-function region wins** when it carries one: coverage.py JSON `functions`
-   regions (7.6.0 and later) and Go cover profile blocks, which are exact statement ranges. The row
-   records `cov_source: artifact-region`.
+1. **The artifact's own per-function region wins** when it carries one, either the function's own
+   line map or its start and end lines: coverage.py JSON `functions` regions (7.6.0 and later),
+   lcov 2.2 `FNL`/`FNA` leaders that carry an end line, and Cobertura `method` regions. The row
+   records `cov_source: artifact-region`. A Go cover profile is not one of these: its blocks are
+   statement counts over line ranges, it names no function, and it says which lines carry the
+   statements in no block at all, so a Go function has neither a region nor executable lines to
+   join and its `cov_source` is `line-range` with `cov` and CRAP both `null`.
 2. **Otherwise a line-range join**: executable lines with a non-zero hit count between the
    function's start and end lines, with nested function ranges subtracted from the parent first. The
    row records `cov_source: line-range`. The range comes from a collector that reports function end

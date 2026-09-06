@@ -181,8 +181,11 @@ assert_doc "a fully covered function has CRAP equal to its complexity" "$out" \
 out="$(run_json cobertura.xml go-cover.out)"
 assert_doc "the bash file row comes from the Cobertura report" "$out" \
   'any(r["file"].endswith("cm-sample.sh") and r["values"]["coverage_pct"]==80 for r in d["measures"])'
+# A Go profile weighs statements, not lines: its four hit statements out of
+# five are the 80% `go tool cover -func` prints, and it never says which lines
+# carry them, so the line counts are null rather than a count of nothing.
 assert_doc "the go profile joins by its unique basename" "$out" \
-  'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["lines_executable"]==8 for r in d["measures"])'
+  'any(r["file"].endswith("cm-sample.go") and r["function"] is None and r["values"]["coverage_pct"]==80.0 and r["values"]["lines_executable"] is None for r in d["measures"])'
 # Both lanes name the format they read. Go's single file is fully matched, so
 # it is `ok`; the Cobertura report covers one of Bash's three, which is neither
 # ok nor unavailable and must not let the document settle as complete.

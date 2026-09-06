@@ -115,15 +115,20 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
     `duplicated_lines` (sum of `values.lines`, each group counted once) and
     `clone_groups`, and their instance files count toward `files`."""
     files: set[str] = set()
-    functions = 0
+    functions: set[tuple[str, str]] = set()
     over_counts: dict[str, int] = {}
     duplicated_lines = 0
     clone_groups = 0
     for row in measures:
         if row.get("file"):
             files.add(row["file"])
+        # One function produces one row per collector that resolves for it
+        # (lizard's cyclomatic row and radon's halstead row for the same
+        # Python function), so a per-row count reports more functions than the
+        # scope holds. A function is its file and its name; a row with no
+        # `function` is a file row and is not one.
         if row.get("function"):
-            functions += 1
+            functions.add((row.get("file") or "", row["function"]))
         for measure in row.get("over_reference", []):
             over_counts[measure] = over_counts.get(measure, 0) + 1
         instances = row.get("instances")
@@ -137,7 +142,7 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
                     files.add(instance["file"])
     summary: dict[str, Any] = {
         "files": len(files),
-        "functions": functions,
+        "functions": len(functions),
         "over_reference": over_counts,
     }
     if clone_groups:

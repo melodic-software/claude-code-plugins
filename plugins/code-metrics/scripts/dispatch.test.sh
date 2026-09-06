@@ -264,6 +264,28 @@ out="$(cd "$repo/link/sub" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUD
 assert_eq "an ignored tree stays out of scope through a symlinked work tree" "" "$out"
 rm -rf "$repo"
 
+# 16. A team writes `scope.exclude` against the repository root, because a
+#     configuration file cannot know which directory an audit will run from.
+#     Matched against the cwd-relative scope, the same exclusion covers the
+#     files from the root and covers nothing one directory down.
+repo="$(mktemp -d)"
+(
+  cd "$repo" || exit 1
+  git init -q -b main
+  git config user.email t@example.com
+  git config user.name t
+  mkdir -p .claude src/vendor src/keep
+  printf 'a = 1\n' >src/vendor/skip.py
+  printf 'b = 2\n' >src/keep/keep.py
+  printf 'scope:\n  exclude: ["src/vendor/**"]\n' >.claude/code-metrics.yaml
+  git add -A && git commit -q -m base
+)
+from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
+assert_eq "the exclusion applies from the repository root" "python	src/keep/keep.py" "$from_root"
+from_sub="$(cd "$repo/src" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
+assert_eq "the same exclusion applies from a subdirectory" "python	keep/keep.py" "$from_sub"
+rm -rf "$repo"
+
 # 10. The config cascade: a team file sets the reference, an exclusion, and a
 #     lane opt-out; an ecosystem file redefines the bash lane by globs. The
 #     resolver reads them from the repo root and a home directory with no

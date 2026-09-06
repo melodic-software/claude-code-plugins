@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse a Go cover profile into the plugin's parser shape.
 
-    parse(path) -> {file: {"lines": {line: hits}, "functions": None}}
+    parse(path) -> {file: {"lines": {}, "functions": None, "statements": {...}}}
 
 Command line: `python3 go_cover.py <artifact>` prints that mapping as JSON.
 
@@ -16,17 +16,44 @@ line per basic block:
                                 |     end line and column
                                 start line and column
 
-A block covers its whole line range, so every line from the start line to the
-end line takes the block's count; overlapping blocks (a closing brace shared
-with the next block's start) keep the larger count rather than adding, so a
-line is counted once. In `set` mode the count is 0 or 1; in `count` and
-`atomic` mode it is the real number of executions.
+A block is a statement count over a line range. It never says which of those
+lines carry the statements, and the range routinely spans blank lines,
+comments and braces that carry none. So a cover profile does not give per-line
+executability, and this parser reports none: `lines` is always empty, and a Go
+file's percentage comes from the statement counts below instead.
 
-A profile names no functions, only blocks, so `functions` is always `None` and
-the coverage of a Go function is joined from its complexity collector's line
-range over these exact statement lines. The file path is the one the compiler
-saw, usually prefixed by the module path, so the join resolves it against the
-scope rather than assuming it is repository-relative.
+Expanding each block over its whole line range gets both numbers wrong. It
+counts every line of the range as executable, and it weighs every statement by
+the lines around it instead of by the block's own count. A real profile for
+
+    func F(x int) int {
+        if x > 0 {
+            return 1
+        }
+        a := 1; b := 2; c := 3; d := 4; return a + b + c + d
+    }
+
+is three blocks, 7 statements, 2 of them hit, which `go tool cover -func`
+reports as 28.6%. The expansion gives 5 executable lines with 4 hit, which the
+join would turn into 80%, and the wrong percentage would feed CRAP as well.
+The weights cannot ride on the line table either: that function holds 7
+statements across 6 physical lines, so no map keyed by its line numbers can
+carry 7 executable units at all.
+
+`statements` is the profile's own weighting, and is where a Go percentage
+comes from: `total` is every statement the profile lists for the file and
+`hit` is the statements in blocks whose count is above zero, so `hit / total`
+is exactly the ratio `go tool cover -func` prints. The join reads this key for
+a file whose line table is empty and reports that ratio, leaving
+`lines_executable` and `lines_hit` null, because they count lines and this
+artifact counted something else. A block repeated across concatenated
+profiles is folded on its
+full `start.col,end.col` identity, keeping the larger count, so its statements
+are weighed once.
+
+A profile names no functions, so `functions` is always `None`. The file path is
+the one the compiler saw, usually prefixed by the module path, so the join
+resolves it against the scope rather than assuming it is repository-relative.
 
 The format carries no comment syntax, so `../fixtures/coverage/go-cover.out`
 cannot label itself: it is hand-written to this shape and is unverified
@@ -43,7 +70,8 @@ import sys
 MIN_PYTHON = (3, 9)
 FORMAT = "go_cover"
 BLOCK = re.compile(
-    r"^(?P<file>.+):(?P<start>\d+)\.\d+,(?P<end>\d+)\.\d+ (?P<statements>\d+) (?P<count>\d+)$"
+    r"^(?P<file>.+):(?P<start>\d+)\.(?P<start_col>\d+),"
+    r"(?P<end>\d+)\.(?P<end_col>\d+) (?P<statements>\d+) (?P<count>\d+)$"
 )
 
 
@@ -56,7 +84,7 @@ def _norm(path: str) -> str:
 
 def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
-    files: dict[str, dict] = {}
+    blocks: dict[str, dict[tuple[int, int, int, int], list[int]]] = {}
     seen_mode = False
     with open(path, encoding="utf-8", errors="replace") as handle:
         for raw in handle:
@@ -69,18 +97,34 @@ def parse(path: str) -> dict[str, dict]:
             match = BLOCK.match(line)
             if not match:
                 continue
-            section = files.setdefault(
-                _norm(match.group("file")), {"lines": {}, "functions": None}
+            key = (
+                int(match.group("start")),
+                int(match.group("start_col")),
+                int(match.group("end")),
+                int(match.group("end_col")),
             )
+            statements = int(match.group("statements"))
             count = int(match.group("count"))
-            start, end = int(match.group("start")), int(match.group("end"))
-            if end < start:
-                start, end = end, start
-            for number in range(start, end + 1):
-                section["lines"][number] = max(section["lines"].get(number, 0), count)
+            per_file = blocks.setdefault(_norm(match.group("file")), {})
+            record = per_file.get(key)
+            if record is None:
+                per_file[key] = [statements, count]
+            else:
+                record[0] = max(record[0], statements)
+                record[1] = max(record[1], count)
     if not seen_mode:
         raise ValueError("not a Go cover profile (no `mode:` header)")
-    return files
+    return {
+        name: {
+            "lines": {},
+            "functions": None,
+            "statements": {
+                "total": sum(weight for weight, _ in per_file.values()),
+                "hit": sum(weight for weight, count in per_file.values() if count > 0),
+            },
+        }
+        for name, per_file in blocks.items()
+    }
 
 
 def main(argv: list[str]) -> int:

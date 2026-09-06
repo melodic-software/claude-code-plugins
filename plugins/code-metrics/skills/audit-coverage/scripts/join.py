@@ -19,7 +19,11 @@ from, so a reason can name it.
 What comes out:
 
   * one row per file in scope that an artifact covers: `coverage_pct`,
-    `lines_executable`, `lines_hit`.
+    `lines_executable`, `lines_hit`. A Go cover profile weighs statements
+    rather than lines and never says which lines carry them, so a Go file row
+    takes its percentage from the profile's own statement counts, which is the
+    ratio `go tool cover -func` prints, and reports the two line counts as
+    `null` rather than as a count of nothing.
   * one row per function that has a cyclomatic row with a real end line:
     `coverage_pct`, `cyclomatic`, `crap`, plus `cov_source` and `hit`.
     `cov_source` is `artifact-region` when the artifact carried the function's
@@ -161,12 +165,23 @@ def merge_artifacts(
                 unmatched.append(normalize(raw_path))
                 continue
             entry = merged.setdefault(
-                target, {"lines": {}, "functions": [], "formats": []}
+                target, {"lines": {}, "functions": [], "formats": [], "statements": {}}
             )
             if fmt not in entry["formats"]:
                 entry["formats"].append(fmt)
             for number, hits in _lines(section.get("lines")).items():
                 entry["lines"][number] = max(entry["lines"].get(number, 0), hits)
+            # A statement-weighted artifact (a Go cover profile) carries its
+            # own totals rather than a line table. Two artifacts covering the
+            # same file keep the larger of each, on the same rule the line
+            # table uses, so a file listed twice is not counted twice.
+            statements = section.get("statements") or {}
+            for key in ("total", "hit"):
+                value = statements.get(key)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    entry["statements"][key] = max(
+                        entry["statements"].get(key, 0), value
+                    )
             for function in section.get("functions") or []:
                 _fold_function(
                     entry["functions"],
@@ -257,10 +272,28 @@ def _fold_function(
     claimed.add(len(functions) - 1)
 
 
-def _coverage(lines: dict[int, int]) -> tuple[int, int, float | None]:
+def _coverage(
+    lines: dict[int, int], statements: dict[str, int] | None = None
+) -> tuple[int | None, int | None, float | None]:
+    """The file's percentage and the line counts behind it.
+
+    A Go cover profile is the one artifact that weighs statements instead of
+    lines: a block says how many statements it holds over a line range and
+    never which lines hold them, so it contributes no line table. Its own
+    ratio is exact, and is what `go tool cover -func` prints, so it supplies
+    the percentage while `lines_executable` and `lines_hit` stay `null`. A
+    count of 0 there would claim the artifact measured no executable lines,
+    which is not what it said."""
     executable = len(lines)
     hit = sum(1 for value in lines.values() if value > 0)
     if executable == 0:
+        total = (statements or {}).get("total") or 0
+        if total:
+            return (
+                None,
+                None,
+                round(100.0 * (statements or {}).get("hit", 0) / total, 2),
+            )
         return 0, 0, None
     return executable, hit, round(100.0 * hit / executable, 2)
 
@@ -419,7 +452,7 @@ def join(
         entry = merged.get(path)
         if not entry:
             continue
-        executable, hits, percent = _coverage(entry["lines"])
+        executable, hits, percent = _coverage(entry["lines"], entry.get("statements"))
         measures.append(
             {
                 "file": path,

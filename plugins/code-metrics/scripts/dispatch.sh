@@ -282,6 +282,30 @@ rebase_onto_cwd() {
   done
 }
 
+# The inverse of rebase_onto_cwd. `scope.exclude` patterns are written against
+# the repository root, because a team configuration file says `plugins/x/**`
+# and cannot know which directory an audit will be run from. Matching them
+# against the cwd-relative scope would make the same exclusion apply at the
+# root and silently apply to nothing one directory down.
+to_root_relative() {
+  local root_prefix climb slashes i q
+  root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  climb=""
+  if [[ -n "$root_prefix" ]]; then
+    slashes="${root_prefix//[^\/]/}"
+    for ((i = 0; i < ${#slashes}; i++)); do climb+="../"; done
+  fi
+  while IFS= read -r q; do
+    if [[ -z "$root_prefix" ]]; then
+      printf '%s\n' "$q"
+    elif [[ -n "$climb" && "$q" == "$climb"* ]]; then
+      printf '%s\n' "${q#"$climb"}"
+    else
+      printf '%s\n' "$root_prefix$q"
+    fi
+  done
+}
+
 BASE_SHA=""
 case "$MODE" in
 all)
@@ -360,16 +384,22 @@ done <"$WORK/dedup"
 # scope.exclude: drop every file a configured glob matches, counting them.
 EXCLUDED=0
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
-  : >"$WORK/excluded"
+  : >"$WORK/excluded-rootrel"
+  # Matched against root-relative paths, then mapped back, so an exclusion a
+  # team wrote once covers the same files whatever directory the audit runs in.
+  to_root_relative <"$SCOPED" >"$WORK/scoped-rootrel"
+  paste "$WORK/scoped-rootrel" "$SCOPED" >"$WORK/scope-map"
   for pattern in "${EXCLUDE_GLOBS[@]}"; do
     [[ -n "$pattern" ]] || continue
     # An exclusion the matcher cannot use is a configuration error, not an
     # exclusion that matched nothing: continuing would measure the very files
     # the consumer asked to leave out and still exit 0.
-    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$SCOPED" >>"$WORK/excluded"; then
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$WORK/scoped-rootrel" >>"$WORK/excluded-rootrel"; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
     fi
   done
+  awk -F'\t' 'NR == FNR { hit[$0] = 1; next } hit[$1] { print $2 }' \
+    "$WORK/excluded-rootrel" "$WORK/scope-map" >"$WORK/excluded"
   if [[ -s "$WORK/excluded" ]]; then
     sort -u "$WORK/excluded" >"$WORK/excluded.sorted"
     EXCLUDED="$(wc -l <"$WORK/excluded.sorted" | tr -d ' ')"

@@ -48,6 +48,14 @@ number or `null`), `collector`, `labels` (strings such as `comment-agnostic`), `
 
 A value the collector did not produce is `null`, never `0`.
 
+A Go cover profile is the one artifact that gives no line table. Its blocks are statement counts
+over line ranges and never say which lines hold the statements, so a Go file row takes
+`coverage_pct` from the profile's own statement ratio, which is the number `go tool cover -func`
+prints, and reports `lines_executable` and `lines_hit` as `null`: those two count lines, and the
+artifact counted something else. A Go function row reports `coverage_pct` and `crap` as `null`,
+because the profile names no functions and attributing the file's ratio to each of them would be a
+number the artifact never gave.
+
 ## Exit codes
 
 | Code | Meaning |

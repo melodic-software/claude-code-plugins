@@ -322,7 +322,20 @@ def ladder_overrides(config: dict[str, Any]) -> list[str]:
 
 
 def excludes(config: dict[str, Any]) -> list[str]:
-    patterns = (config.get("scope") or {}).get("exclude") or []
+    patterns = (config.get("scope") or {}).get("exclude")
+    if patterns is None:
+        patterns = []
+    # `scope.exclude` is a closed list. A scalar (`exclude: "vendor/**"`, the
+    # shape setup-apply.py writes for a one-glob value) iterates as characters,
+    # so the dispatcher would receive `v`, `e`, `n`, ... as globs: the audit
+    # exits 0 having measured the directory it was told to drop, and having
+    # possibly dropped unrelated single-character paths.
+    if not isinstance(patterns, list):
+        layer = (config.get("_layers") or {}).get("scope.exclude", "bundled default")
+        raise ConfigTypeError(
+            f"scope.exclude (layer {layer}) must be a list of globs or null, "
+            f"got {type(patterns).__name__} {patterns!r}"
+        )
     return [_field(config, "scope.exclude", p) for p in patterns if str(p).strip()]
 
 

@@ -226,6 +226,60 @@ class AssembleTests(unittest.TestCase):
         )
         self.assertEqual(doc["summary"]["functions"], 2)
 
+    def test_functions_counts_distinct_functions_not_rows(self) -> None:
+        # The row shapes the committed Python fixture produces: lizard reports
+        # cyclomatic for `classify` and `classify.inner`, radon reports
+        # halstead for `classify`, so `classify` arrives twice. A same-named
+        # function in another file is a different function, and a file row
+        # (`function: null`) is not one at all.
+        doc = self.assemble(
+            [
+                {
+                    "lane": "python",
+                    "measure": "cyclomatic",
+                    "collector": "lizard 1.24.0",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            [
+                {
+                    "file": "cm_sample.py",
+                    "function": "classify.inner",
+                    "lane": "python",
+                    "values": {"cyclomatic": 2},
+                },
+                {
+                    "file": "cm_sample.py",
+                    "function": "classify",
+                    "lane": "python",
+                    "values": {"cyclomatic": 3},
+                },
+                {
+                    "file": "cm_sample.py",
+                    "function": "classify",
+                    "lane": "python",
+                    "values": {"halstead_difficulty": 2.0},
+                },
+                {
+                    "file": "other.py",
+                    "function": "classify",
+                    "lane": "python",
+                    "values": {"cyclomatic": 1},
+                },
+                {
+                    "file": "cm_sample.py",
+                    "function": None,
+                    "lane": "python",
+                    "values": {"lines_non_blank": 11},
+                },
+            ],
+            [],
+        )
+        self.assertEqual(len(doc["measures"]), 5)
+        self.assertEqual(doc["summary"]["functions"], 3)
+        self.assertEqual(doc["summary"]["files"], 2)
+
     def test_partial_and_empty_status_and_unavailable_list(self) -> None:
         run_rows = [
             {

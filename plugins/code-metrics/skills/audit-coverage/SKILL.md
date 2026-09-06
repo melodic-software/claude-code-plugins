@@ -29,7 +29,7 @@ complexity from the sibling `audit-complexity` script, run over the same scope.
 | lcov `.info` | most JavaScript and C/C++ toolchains, `coverage lcov` | line hits; function records from `FN`/`FNDA` (1.x) or `FNL`/`FNA` (2.2 and later), which is where a function end line can come from at all |
 | Cobertura XML | gcovr, coverlet, kcov (which is how a Bash lane gets an artifact) | line hits, `<sources>` prefixes, and `<method>` regions with their hit flag |
 | coverage.py JSON | `coverage json` | executed and missing lines, and the per-function regions it has carried since 7.6.0 |
-| Go cover profile | `go test -coverprofile` | exact statement blocks per file; the format names no functions, so a Go function joins by line range over those blocks |
+| Go cover profile | `go test -coverprofile` | statement counts over line ranges, which is not a line table: the profile never says which lines carry the statements, so a Go file reports the statement ratio `go tool cover -func` prints and reports `lines_executable` and `lines_hit` as null. The format names no functions either, so a Go function joins by line range and reports `coverage_pct` and `crap` as null |
 
 The SQLite data file coverage.py writes while measuring is never read: its schema is internal by
 its own documentation and free to change without a major version bump. Run `coverage json` or

@@ -115,7 +115,7 @@ major version bump.
 | lcov tracefile | `DA:` line records, `FN:`/`FNDA:` or lcov 2.2 `FNL:`/`FNA:` | function hit flag |
 | Cobertura XML | `line` elements with `number` and `hits` | `method` elements where present |
 | coverage.py JSON | `coverage json` output | its own `functions` regions, 7.6.0 and later |
-| Go cover profile | `file:start.col,end.col numstmt count` blocks | exact statement ranges |
+| Go cover profile | `file:start.col,end.col numstmt count` blocks | none: statement counts over line ranges, exact in total and silent about which line holds which statement |
 
 Four traps a parser has to handle, and the report is only as good as the handling. lcov 2.2 replaced
 the `FN:`/`FNDA:` pairing with index-based `FNL:`/`FNA:` records, so a parser written to the older
