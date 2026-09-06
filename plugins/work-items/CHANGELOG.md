@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.68]
+
+### Changed
+
+- **gitea adapter, `list-items`:** pages and normalized items now travel through temp files and
+  one final `jq` pass instead of re-serializing the whole accumulated array through `jq` once per
+  page and once per item, so a large repository walks in linear rather than quadratic time, and
+  no page-sized or list-sized payload is fed to `jq` as a here-string (the form that hangs Git
+  Bash at 65536 bytes). The per-item cost is now the dependency request plus one `jq` (the
+  dependency count helper's two `jq` calls are fused into one), down from that request plus five.
+  Output is unchanged.
+- **gitea adapter, paging ceiling:** `WIT_GITEA_LIST_ITEMS_MAX` is read from
+  `limits.list_items_max` in `capabilities.json` at load time, the way the github, jira and
+  local-markdown adapters already read theirs, instead of being a second hardcoded copy of the
+  manifest value; every walk that used the constant (list-items, the per-item dependency count,
+  create-item's repository and organization label walks) follows the manifest. A manifest whose
+  value is not a positive integer fails at load with exit 3 rather than running an unbounded walk.
+- **gitea adapter tests:** the "a clamped walk still reaches the declared ceiling" case runs
+  against a fixture copy of the adapter whose manifest declares a ceiling of 40 (two pages and 50
+  dependency requests instead of 21 and 1,050) and asserts ceiling-relative, reading the ceiling
+  back from that manifest. New cases pin manifest/code agreement and the null-ceiling refusal
+  (`common.test.sh`), the per-item blocker-count join across pages, and a per-item `jq` spawn
+  budget (`list-items.test.sh`). `mock.sh` gains `gitea_fixture_adapter`.
+
 ## [0.39.67]
 
 ### Fixed

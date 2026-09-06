@@ -178,26 +178,107 @@ else
   pass "and no extra page was requested"
 fi
 
-# --- the declared ceiling counts ROWS RETURNED, not pages × requested size ---
-# These diverge under exactly the server-side clamp. With page_size 100 against a server
-# capping at 50, `PAGE * page_size` reaches 1000 after ten pages that returned only 500
-# issues — a walk counting that way would stop half way and announce a ceiling it never
-# reached. Simulated here by asking for 100 and having the mock answer 50 every time, with a
-# total-count far above the ceiling so only the ceiling can end the walk.
+# --- each item keeps ITS OWN blocker count, in page order ---
+# Counts are joined to items by number in one jq pass at the end rather than paired inside
+# the per-item loop, so a mis-keyed join would hand every item some other item's count
+# while every other case in this file (one item, or all counts zero) still passed. Five
+# items across two pages, with counts that differ item to item. Each item's dependency
+# route is seeded BEFORE the page routes: the dependency URLs also contain "page=1".
+gitea_write_binding '{"page_size":4}'
 gitea_reset_routes
+gitea_seed "/issues/12/dependencies" 200 '[{"number":1,"state":"open"},{"number":2,"state":"open"},{"number":3,"state":"open"}]'
+gitea_seed "/issues/13/dependencies" 200 '[{"number":1,"state":"open"},{"number":2,"state":"open"},{"number":3,"state":"closed"}]'
+gitea_seed "/issues/14/dependencies" 200 '[{"number":1,"state":"open"}]'
+gitea_seed "/issues/15/dependencies" 200 '[]'
+gitea_seed "/issues/16/dependencies" 200 '[{"number":1,"state":"closed"},{"number":2,"state":"open"}]'
+gitea_seed "page=2" 200 "[$(gitea_issue_json 16 open 'fifth')]"
+gitea_seed "page=1" 200 "$(jq -cn --argjson i "$(gitea_issue_json 12 open 'first')" \
+  '[$i, ($i | .number = 13), ($i | .number = 14), ($i | .number = 15)]')"
+rc="$(gitea_run "$S")"
+assert_eq "five items across two pages → exit 0" "0" "$rc"
+assert_eq "items come out in page order" "12 13 14 15 16" \
+  "$(jq -r '[.items[].id | sub("^gitea:acme/webapp#"; "")] | join(" ")' <<<"$(gitea_out)")"
+assert_eq "each item carries its own open-blocker count" "3 2 1 0 1" \
+  "$(jq -r '[.items[].blocked_by_count | tostring] | join(" ")' <<<"$(gitea_out)")"
+gitea_write_binding
+
+# --- the per-item cost is the dependency request, not a fan-out of jq processes ---
+# Before the rows moved into files, every item cost three jq processes in this script on
+# top of the dependency count's own two: one to read its number, one to normalize it, and
+# one to re-serialize the whole accumulated array with it appended, which also made the
+# walk quadratic. A jq shim on PATH counts spawns. The fixed cost (binding parse, manifest
+# read, envelope) is measured on an empty repository and subtracted, so the assertion is
+# about the per-item share alone: fewer than two jq processes per item, the dependency
+# count's own included. The shim is on PATH only for the runs under measurement, never for
+# this file's own jq calls.
+JQ_SHIM="$GITEA_FIX/jq-shim"
+REAL_JQ="$(command -v jq)"
+mkdir -p "$JQ_SHIM"
+cat >"$JQ_SHIM/jq" <<SHIM
+#!/usr/bin/env bash
+printf 'x\n' >>"$GITEA_FIX/jq-spawns"
+exec "$REAL_JQ" "\$@"
+SHIM
+chmod +x "$JQ_SHIM/jq"
+gitea_reset_routes
+gitea_seed "/issues?" 200 '[]'
+: >"$GITEA_FIX/jq-spawns"
+rc="$(PATH="$JQ_SHIM:$PATH" gitea_run "$S")"
+assert_eq "empty repository under the jq shim → exit 0" "0" "$rc"
+FIXED_SPAWNS="$(grep -c . "$GITEA_FIX/jq-spawns")"
+N=40
+gitea_reset_routes
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed "/issues?" 200 "$(jq -cn --argjson n "$N" '[range($n)] | map({number: (. + 1), title: "i", state: "open", assignees: [], labels: [], html_url: "https://gitea.example/acme/webapp/issues/1", repository: {full_name: "acme/webapp"}})')"
+: >"$GITEA_FIX/jq-spawns"
+rc="$(PATH="$JQ_SHIM:$PATH" gitea_run "$S")"
+assert_eq "$N items under the jq shim → exit 0" "0" "$rc"
+assert_eq "all $N items listed" "$N" "$(jq -r '.items | length' <<<"$(gitea_out)")"
+ITEM_SPAWNS=$(($(grep -c . "$GITEA_FIX/jq-spawns") - FIXED_SPAWNS))
+if ((ITEM_SPAWNS < 2 * N)); then
+  pass "fewer than two jq processes per item ($ITEM_SPAWNS for $N items, $FIXED_SPAWNS fixed)"
+else
+  fail "fewer than two jq processes per item" "<$((2 * N))" "$ITEM_SPAWNS"
+fi
+
+# --- the declared ceiling counts ROWS RETURNED, not pages × requested size ---
+# These diverge under exactly the server-side clamp: when the mock answers fewer rows than
+# the requested page_size, `PAGE * page_size` clears the ceiling a page BEFORE the rows
+# returned do, so a walk counting that way stops short and announces a ceiling it never
+# reached. Run against a fixture copy of the adapter whose manifest declares a ceiling of 40
+# rather than the shipped 1000: the property is the same at any ceiling, and 40 makes it two
+# pages and 50 dependency requests instead of twenty-one and 1,050 (at 1,050 this was the
+# slowest case in the plugin contract corpus, about 48 s on the hosted runner). The ceiling
+# is read BACK from the fixture manifest rather than repeated here, so the assertions track
+# the manifest and not a literal. Asking for 100 and answering 25: the requested arithmetic
+# (2 * 100) clears 40 after page one, when only 25 rows have arrived, so a walk counting that
+# way collects 25 and the ceiling-relative assertion rejects it; counting rows returned, the
+# walk takes page two and stops at 50.
+gitea_reset_routes
+gitea_fixture_adapter 40
+CEILING="$(jq -r '.limits.list_items_max' "$GITEA_FIX_ADAPTER/capabilities.json")"
+assert_eq "the fixture manifest declares the lowered ceiling" "40" "$CEILING"
 gitea_write_binding '{"page_size":100}'
-CLAMPED_PAGE="$(jq -cn '[range(50)] | map({number: (. + 1), title: "i", state: "open", assignees: [], labels: [], html_url: "https://gitea.example/acme/webapp/issues/1", repository: {full_name: "acme/webapp"}})')"
+CLAMPED_PAGE="$(jq -cn '[range(25)] | map({number: (. + 1), title: "i", state: "open", assignees: [], labels: [], html_url: "https://gitea.example/acme/webapp/issues/1", repository: {full_name: "acme/webapp"}})')"
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed_total "/issues?state=open&type=issues" 200 "$CLAMPED_PAGE" 9999
-rc="$(gitea_run "$S")"
+rc="$(WIT_SEAM_LIB_DIR="$GITEA_SEAM_LIB" gitea_run "$GITEA_FIX_ADAPTER/list-items.sh")"
 assert_eq "a clamped walk still reaches the declared ceiling → exit 0" "0" "$rc"
 COLLECTED_N="$(jq -r '.items | length' <<<"$(gitea_out)")"
-if ((COLLECTED_N > 1000)); then
-  pass "more than the ceiling's worth of rows was collected before truncating ($COLLECTED_N)"
+if ((COLLECTED_N > CEILING)); then
+  pass "more than the ceiling's worth of rows was collected before truncating ($COLLECTED_N > $CEILING)"
 else
-  fail "more than the ceiling's worth of rows was collected before truncating" ">1000" "$COLLECTED_N"
+  fail "more than the ceiling's worth of rows was collected before truncating" ">$CEILING" "$COLLECTED_N"
 fi
 assert_contains "and the truncation is announced" "$(gitea_err)" "truncated"
+assert_contains "naming the manifest's ceiling, not a built-in one" "$(gitea_err)" "ceiling of $CEILING items"
+# The lowered ceiling is what ended the walk: under the shipped 1000 this mock would have
+# been asked for a third page, and eighteen more after it.
+if [[ "$(gitea_requests)" == *"page=3"* ]]; then
+  fail "the fixture ceiling governed the walk" "no page=3" "page=3 requested"
+else
+  pass "the fixture ceiling governed the walk"
+fi
 gitea_write_binding
 
 [[ $FAILED -eq 0 ]] || exit 1
