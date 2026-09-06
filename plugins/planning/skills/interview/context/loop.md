@@ -228,6 +228,8 @@ The ladder, in order:
 4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.
 5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.
 
+**The acceptance-criteria coverage prompt is exempt from this ladder.** It is a coverage check, not a decision: unattended it is skipped, reported unexamined in the returned summary, and recorded under `### Captured assumptions`. Never a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the run. Step 4's "Acceptance criteria" guidance owns it.
+
 **This preserves the auto-guard rather than carving an exception in it.** SKILL.md Step 1.5's guard forbids *silently* folding a user decision into the Brief as an assumption — the failure it exists to prevent is the choice disappearing. A named blocker is the opposite: the choice is surfaced, attributed to the user, and blocks the contract until they make it. The sibling `plugin-quality:audit` resolves its contract-lock the same way — safe defaults resolve silently and are recorded; anything without a safe default becomes a named blocker.
 
 ### Gate before locking
