@@ -162,6 +162,6 @@ jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
        | ($bbc_by_number[.number | tostring]) as $bbc
        | if $bbc == null then error("no blocker count for issue " + (.number | tostring)) else . end
        | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ]}' "$ROWS" || {
-  printf 'list-items.sh: could not normalize the gitea issues in %s — refusing to report a partial list as complete\n' "$REPO" >&2
+  printf 'list-items.sh: could not normalize the gitea issues in %s; refusing to report a partial list as complete\n' "$REPO" >&2
   exit "$EX_INTERNAL"
 }
