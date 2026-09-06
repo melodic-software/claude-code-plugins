@@ -13,7 +13,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   #3788 established that twice). Bash runs the command of a command substitution in the
   substitution's own subshell and skips the extra fork only when that command carries no redirection
   of its own, so `$(wc -c <file 2>/dev/null)` and `$(cat -- file 2>/dev/null)` each paid a whole
-  process for a redirect. Five sites in `hook-failure-audit.sh` changed and no shared library did:
+  process for a redirect. Six sites in `hook-failure-audit.sh` changed and no shared library did:
   `wc` now names the file and `read` drops the filename column; the `read_window` helper is gone and
   `grep` opens the transcript directly under the tail cap instead of being fed by `cat` through a
   function call that was a second subshell; the marker read is `$(<file)`, which forks nothing at

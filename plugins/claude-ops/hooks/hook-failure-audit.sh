@@ -173,11 +173,17 @@ else
 fi
 [[ -n "$RECORDS" ]] || exit 0
 # `printf | jq` and NOT a here-string, even though the pipeline costs a process
-# the here-string would not: bash fills a here-string's pipe itself, so a
-# payload at or above the pipe capacity blocks before jq is exec'd — the same
-# deadlock hook::jq_field documents. `$RECORDS` is every matching transcript
-# record in the window and routinely clears that capacity, so this one stays a
-# pipeline. It is also off the common path entirely: a turn with no failure
+# the here-string would not. What is known, stated as known: hook::jq_field in
+# the shared library documents this hazard and refuses the here-string form for
+# it — bash fills a here-string's pipe itself, so a payload at or above the pipe
+# capacity can block before jq is exec'd — and the reproduction behind that note
+# is from this repo's Windows Git Bash hosts (#1587: 65536 bytes hung
+# indefinitely, 65000 returned at once). It does NOT reproduce on Linux bash
+# 5.2: 65535, 65536, 65537, 200 kB and 2 MB each return immediately, including
+# under an unwritable TMPDIR. `$RECORDS` is every matching transcript record in
+# the window and routinely clears that capacity, so this call keeps the
+# library's conservative form rather than bet the hazard is Linux-only. The
+# forgone saving is one fork on the warning path only: a turn with no failure
 # record exits above, before this line.
 SUMMARY=$(printf '%s' "$RECORDS" |
   jq -cRs '[
