@@ -35,16 +35,16 @@ Sections 1–12 are lane-independent. A lane supplies four things and inherits e
 3. **The evidence sources available in this lane**, mapped onto the tiers in §2.
 4. **The lane's protected-class default patterns**, extending §7's list.
 
-Two lanes ship. The first is the enforcement surface (agent hooks and standing instructions,
-repository and version-control hooks, CI lanes and gate scripts, branch protections, forge apps and
-automations, declared external integrations), walked layer by layer.
+Two lanes ship. The **enforcement surface** (agent hooks and standing instructions, repository and
+version-control hooks, CI lanes and gate scripts, branch protections, forge apps and automations,
+declared external integrations) is walked by `overengineering:audit`, and owns the first ten layers
+of the artifact's vocabulary.
 
-The second shipping lane is justification, in [`justification-lane.md`](justification-lane.md),
-which supplies its own four for artifacts no enforcement probe inventories: decision records,
-documents, components, dependencies, and source constructs. It is pointed at one artifact rather
-than walked, so it inherits §§1–12 unchanged while inverting how items arrive.
+The **justification lane** supplies its own four in
+[`justification-lane.md`](justification-lane.md) and owns the last five layers. It is pointed at one
+artifact at a time rather than walked, and its skill is `/overengineering:justify`.
 
-A third lane, product code, supplies its own four in
+A third lane, **product code**, supplies its own four in
 [`product-code-lane.md`](product-code-lane.md) and reuses §§1–12 verbatim. That document is a
 specification ahead of its skill; the shipping shape is
 [ADR 0017](../../../docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md).

@@ -123,8 +123,9 @@ stopping halfway is a normal end to a run.
 
 ## The queue
 
-**A finding this skill cannot execute is presented and never actioned.** Read each finding's
-`Layer`: where it is one of `decision-records`, `documents`, `components`, `dependencies` or
+**A finding this skill cannot execute is presented, judged, and never remediated here.** The
+operator still decides it and the decision is still recorded; what is withheld is the ladder, not
+the judgment. Read each finding's `Layer`: where it is one of `decision-records`, `documents`, `components`, `dependencies` or
 `source`, this skill has no rollback ladder for it. Dispatch on the layer rather than on the `check`
 producer segment, because `check` is a hash input and never a serialized field, so it cannot be read
 back off an artifact; the layer partition that makes this sound is stated in
@@ -141,7 +142,9 @@ merely listed.
 
 Present every finding in the artifact's order, those five layers included, and dispose of each by
 its current status. The rung is what the five layers do not get; the disposition below still runs
-for them, and `REJECTED` is the one outcome available:
+for them. `REJECTED` is the outcome the missing ladder leaves, and `DELEGATED-EXTERNAL` stays
+available where the custody read placed the artifact upstream, since a delegation is a handoff
+rather than a rung:
 
 | Status | What this run does with it |
 |---|---|
