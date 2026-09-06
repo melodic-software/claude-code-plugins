@@ -49,7 +49,7 @@ start=${EPOCHREALTIME:-}
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. stdin is
 # read ONCE here and both fields are parsed from the buffered value; reading fd0
 # twice would drain the pipe.
-INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin_to INPUT || exit 0
 
 # jq is load-bearing for parsing and for the terminalSequence emission; absent →
 # visible once-per-session notice instead of silently dropping every

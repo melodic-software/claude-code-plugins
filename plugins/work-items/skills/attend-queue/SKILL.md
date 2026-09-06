@@ -183,6 +183,10 @@ answer without stopping the pass to ask which item is in front of them.
 Answers and dispositions written by the agent on the operator's behalf carry triage's AI
 disclaimer; the operator's own words need none.
 
+The operator reads those answers between rows, so each one opens with the decision and stops
+there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed;
+otherwise apply that discipline inline. It never trims the per-row restatement above.
+
 ## Telemetry
 
 This lane maintains exactly ONE sentinel-identified status comment **per lane instance** on its

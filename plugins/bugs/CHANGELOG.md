@@ -3,6 +3,13 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.11]
+
+### Changed
+
+- **`write`:** the report is read by a person, so the emit step points at `/writing:be-concise`,
+  presence-gated with a stated fallback. The five-field structure is unchanged.
+
 ## [0.9.10]
 
 ### Changed

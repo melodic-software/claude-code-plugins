@@ -379,6 +379,67 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.11, fused stdin completeness and field extract.** 2026-09-06,
+Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`
+execs on a benign Bash call: `jq -e .` (stdin JSON-complete check) plus
+the dispatcher's primed `jq_fields`. After: `hook::buffer_stdin_to`
+captures the payload in-process (`printf -v`, no command-substitution
+subshell) and, when given the prime filters, uses `hook::jq_fields` as
+the completeness check, so those two execs are one. Isolation
+`$(source …)` forks are unchanged (#3685). Neither guard's decision
+changed.
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, this repository as cwd. Host `spawn_probe`
+characterised as measurable. Wall clock is p50/p95 of 20 samples after 2
+warmup.
+
+| Counter | before | after |
+|---|---|---|
+| `git status --short` PATH-shim spawns | 2 (`2 jq`) | 1 (`1 jq`) |
+| `echo hello` PATH-shim spawns | 2 (`2 jq`) | 1 (`1 jq`) |
+| Write of in-repo `.md` PATH-shim spawns | 5 (`3 git`, `2 jq`) | 4 (`3 git`, `1 jq`) |
+
+The milliseconds are context on this cheap-spawn host. The durable figure
+is the one `jq` process that disappeared. The remaining exec is the fused
+payload parse. The three git processes on a Write are the
+`hardcoded-path-check` probes previously measured and not folded.
+
+**0.32.10, git probes that cannot change a benign Bash verdict.** 2026-09-06,
+Linux CI host. The 0.32.9 table still carries five PATH-visible execs on
+`git status --short` (`3 git` + `2 jq`). This entry is the three git
+processes: two `git config --get alias.status[.command]` from
+`block-noncanonical-commit` (git ignores aliases that hide current builtins,
+so those lookups cannot expand `status` to `commit` and can false-block when
+a leftover ignored alias names one), and one `git rev-parse --show-toplevel`
+from `block-convention-violation` (the convention pair is only needed for a
+commit subject or a `gh pr create --title`). After: builtins are not probed,
+and the convention pair loads on first need. Neither guard's decision on a
+real commit alias (`git ci`, `git qc`) changed. Deprecated builtins stay
+probed (`whatchanged`: git.c `DEPRECATED` bit; git 2.51+ honors
+`alias.whatchanged = commit`).
+
+*Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
+`HOOK_TELEMETRY_SINK` unset, this repository as cwd. Same-session before
+is `origin/main` at `5101f5a2` (the two guards only). Host `spawn_probe`
+characterised as measurable (min 0.4 ms, spread 2.26×). Wall clock is
+p50/p95 of 20 samples after 2 warmup.
+
+| Counter | before | after |
+|---|---|---|
+| `git status --short` PATH-shim spawns | 5 (`3 git`, `2 jq`) | 2 (`2 jq`) |
+| `echo hello` PATH-shim spawns | 3 (`1 git`, `2 jq`) | 2 (`2 jq`) |
+| `git status --short` wall p50 / p95 | 58 / 59 ms | 42 / 43 ms |
+| `echo hello` wall p50 / p95 | 53 / 55 ms | 41 / 42 ms |
+| `git config --get alias.status[.command]` (`bash -x`) | 2 | 0 |
+| `git rev-parse --show-toplevel` on `echo hello` (`bash -x`) | 1 | 0 |
+
+The milliseconds are context on this cheap-spawn host. The durable figure
+is the three git processes that disappeared. The remaining two execs are
+the dispatcher's primed `jq` payload parse and stdin JSON-complete check.
+The per-guard `$(source …)` isolation fork is still a function-level fork
+the census does not count (#3685).
+
 **0.32.9, `ps-command.sh` parse tax on the Bash dispatcher.** 2026-09-06,
 Linux CI host. The 0.32.6 table still carries the remaining five PATH-visible
 execs (`3 git` + `2 jq`); this entry does not change that count. `ps-command.sh`

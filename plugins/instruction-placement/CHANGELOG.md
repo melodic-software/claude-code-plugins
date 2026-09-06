@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.30]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh`.** `hook::buffer_stdin_to` captures the
+  hook payload in-process (no command-substitution subshell) and can fuse
+  the JSON completeness check with field extraction so a caller that was
+  about to run `jq` twice spends one process. This plugin's own hook
+  behavior is unchanged.
+
 ## [0.11.29]
 
 ### Changed

@@ -27,6 +27,8 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale, and the ledger entry when it's a rejected enhancement).
 
+**Outcome comments are read by people.** Whatever an outcome writes to the tracker (rationale, decision-defaulted note, membership comment, needs-info prompt) opens with the outcome itself and carries no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It shapes wording only, never the labels, the templates below, or anything a comment must state.
+
 **Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment, **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
 
 **Umbrella-fold routing (atomic).** When routing folds a member into an umbrella, treat the fold as **one indivisible sequence** per the Title section of [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md). Do not advance to the next item until every step completes:

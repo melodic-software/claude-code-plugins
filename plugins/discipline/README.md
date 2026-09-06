@@ -32,6 +32,7 @@ first-class use, and the audit may honestly return clean.
   - [scrutinize-dont-coast](#scrutinize-dont-coast)
   - [sweep-all (composed runbook)](#sweep-all-composed-runbook)
   - [wait-what (one-shot communication repair)](#wait-what-one-shot-communication-repair)
+  - [hold-my-hand (standing session posture)](#hold-my-hand-standing-session-posture)
 - [Consumer conventions](#consumer-conventions)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -61,12 +62,13 @@ report, lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
 
-Beyond the correctors, the plugin ships two **declared further species**: skills that are *not* correctors and re-anchor no discipline of their own:
+Beyond the correctors, the plugin ships three **declared further species**: skills that are *not* correctors and re-anchor no discipline of their own:
 
 | Skill | Species | What it does |
 |---|---|---|
 | `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass. Fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
 | `/discipline:wait-what` | One-shot communication repair | User-invoked only. Type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
+| `/discipline:hold-my-hand` | Standing session posture | Partitions the remaining work into phases and presents only the current one, never the phases after it beyond a one-line count. Each phase names where to be, its numbered steps and exact commands, the expected output, the common failure, who performs each step, and the exact reply that advances. Never in the batch |
 
 ## What each skill does
 
@@ -358,6 +360,32 @@ sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
 
 ```shell
 /discipline:wait-what   # that didn't land; re-pitch it
+```
+
+### hold-my-hand (standing session posture)
+
+A **declared further species**, not a corrector and not a one-shot: invoking it
+sets a delivery posture that holds for the rest of the session, until the user
+ends it with a plain cancellation ("stop phasing", "normal output"). The remaining
+work is cut into phases at points the user can confirm, and only the current
+phase is ever on screen. A one-line count (`Phase 3 of 8`) gives the shape of
+the job without showing what is in the later phases.
+
+Each phase names where to be (machine, terminal kind, elevation, working
+directory), its numbered steps with the exact commands in fenced blocks, the
+expected output after each command, the common failure and its repair, and the
+literal reply that advances. The assistant performs everything it can perform
+before presenting, so the user's steps are only the ones it cannot do:
+elevation, another machine, a vendor console, credentials, an approval that is
+theirs. On the advancing reply the assistant checks what is mechanically
+checkable, and a failed check produces a repair sub-phase rather than the next
+phase.
+
+It carries no `discipline-batch` tier: a sweep must never impose a delivery
+posture the user did not ask for.
+
+```shell
+/discipline:hold-my-hand   # phase it, one phase at a time
 ```
 
 ## Consumer conventions

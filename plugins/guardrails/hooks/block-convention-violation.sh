@@ -67,7 +67,7 @@ source "$_HOOK_SELF/hook-utils.sh"
 
 start=${EPOCHREALTIME:-}
 
-INPUT=$(hook::buffer_stdin) || {
+hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
@@ -98,18 +98,51 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 HOOK_CWD="${HOOK_JQ_FIELDS[2]}"
 
-REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 HOOK_SELF_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_SELF_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_SELF_DIR="."
 RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
 
+# git-config (https://git-scm.com/docs/git-config, fetched 2026-09-06):
+# "aliases that hide existing Git commands are ignored except for deprecated
+# commands." A current non-deprecated builtin therefore cannot expand to
+# commit, so asking git for alias.<builtin> cannot change this gate's verdict
+# and can false-block when a leftover ignored alias happens to name commit.
+# Asking the installed git for its builtin list would put a spawn back on
+# every `git status`. This is a static subset of names that were already
+# builtins in git 2.25, minus names git marks DEPRECATED
+# (`git --list-cmds=deprecated`; git.c `DEPRECATED` bit, master fetched
+# 2026-09-06: `whatchanged` and `pack-redundant`). Names added later
+# (`bugreport` 2.27, `maintenance` 2.31, `diagnose` 2.38) stay probed, so an
+# older git that still honors `alias.bugreport = commit` cannot slip through.
+# git 2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh). A name
+# not listed here is still probed. Skipping a non-builtin would miss a
+# commit alias.
+git_subcommand_ignores_alias() {
+  case "$1" in
+  add | am | annotate | apply | archive | bisect | blame | branch | bundle | \
+    cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
+    checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
+    commit-tree | config | describe | diff | diff-files | diff-index | diff-tree | \
+    difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
+    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | merge | \
+    merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
+    replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
+    show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \
+    update-ref | version | worktree)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 # --- resolved pattern cache ---------------------------------------------------
-# Resolving costs two resolver forks, because the resolver answers one key per
-# call. This gate runs on EVERY Bash and PowerShell tool call, and the
-# answer changes only when the convention files do: measured at 423 ms, 10.1
-# spawn-equivalents against a 42 ms spawn floor on Windows Git Bash, paid on
-# every command the agent runs. So the resolved pair is cached per repo root and
-# invalidated by mtime and by existence against every file the resolver reads.
+# Resolving costs two resolver forks plus `git rev-parse --show-toplevel`.
+# That used to run on EVERY Bash and PowerShell tool call, including
+# `echo hello` and `git status`, even though this gate can only block a commit
+# subject or a `gh pr create --title`. The pair is loaded on first need and
+# cached per repo root; the answer still changes only when the convention
+# files do. Measured at 423 ms, 10.1 spawn-equivalents against a 42 ms spawn
+# floor on Windows Git Bash for the resolver itself.
 #
 # The resolver is not edited and not re-implemented here. It stays the single
 # authority for what a pattern IS. What is cached is only its answer.
@@ -134,10 +167,10 @@ RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
 # file below. Such a change is picked up when any dependency is next written,
 # not at the moment of `git add`. Probing it would cost the `git ls-files` spawn
 # this cache exists to avoid.
-CONV_DEPS=(
-  "$REPO_ROOT/.claude/source-control.md"
-  "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
-)
+
+SUBJECT_ERE=""
+TITLE_ERE=""
+CONV_LOADED=0
 
 # An explicit `## convention_source` H2 names a third file the resolver reads.
 # Scanned with bash builtins, never a process: the whole point here is that the
@@ -166,99 +199,104 @@ conv_pointer() {
   done <"$f"
   return 0
 }
-conv_pointer
-[[ -n "$CONV_POINTER" ]] && CONV_DEPS+=("$REPO_ROOT/$CONV_POINTER")
 
-CONV_CACHE=""
-[[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] &&
-  CONV_CACHE="$CLAUDE_PLUGIN_DATA/convention-pattern/${REPO_ROOT//[^A-Za-z0-9]/_}"
+ensure_convention_patterns() {
+  ((CONV_LOADED)) && return 0
+  CONV_LOADED=1
+  REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
+  CONV_DEPS=(
+    "$REPO_ROOT/.claude/source-control.md"
+    "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
+  )
+  conv_pointer
+  [[ -n "$CONV_POINTER" ]] && CONV_DEPS+=("$REPO_ROOT/$CONV_POINTER")
 
-SUBJECT_ERE=""
-TITLE_ERE=""
-CONV_HIT=0
-# Entry layout: root, subject pattern, title pattern, one `DEP <0|1> <path>`
-# line per dependency in CONV_DEPS order (1 = existed at warm time), `END`.
-# One pass over the file, bash builtins only: a dependency line is checked as
-# it is read, and the first stale one ends the read as a miss.
-# shellcheck disable=SC2094  # the entry is only READ here; the write below is a separate branch
-if [[ -n "$CONV_CACHE" && -f "$CONV_CACHE" ]]; then
-  conv_root=""
-  conv_subj=""
-  conv_title=""
-  conv_end=""
-  conv_i=0
-  conv_fresh=1
-  {
-    IFS= read -r conv_root
-    IFS= read -r conv_subj
-    IFS= read -r conv_title
-    while IFS= read -r conv_line; do
-      if [[ "$conv_line" == "END" ]]; then
-        conv_end="END"
-        break
-      fi
-      # Recorded set must be the current set, in order: a pointer that changed
-      # already moved the team file's mtime, but this keeps the read honest.
-      [[ "$conv_line" == "DEP "[01]" "* && "${conv_line:6}" == "${CONV_DEPS[conv_i]:-}" ]] || {
-        conv_fresh=0
-        break
-      }
-      conv_dep="${conv_line:6}"
+  CONV_CACHE=""
+  [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] &&
+    CONV_CACHE="$CLAUDE_PLUGIN_DATA/convention-pattern/${REPO_ROOT//[^A-Za-z0-9]/_}"
+
+  CONV_HIT=0
+  # Entry layout: root, subject pattern, title pattern, one `DEP <0|1> <path>`
+  # line per dependency in CONV_DEPS order (1 = existed at warm time), `END`.
+  # One pass over the file, bash builtins only: a dependency line is checked as
+  # it is read, and the first stale one ends the read as a miss.
+  # shellcheck disable=SC2094  # the entry is only READ here; the write below is a separate branch
+  if [[ -n "$CONV_CACHE" && -f "$CONV_CACHE" ]]; then
+    conv_root=""
+    conv_subj=""
+    conv_title=""
+    conv_end=""
+    conv_i=0
+    conv_fresh=1
+    {
+      IFS= read -r conv_root
+      IFS= read -r conv_subj
+      IFS= read -r conv_title
+      while IFS= read -r conv_line; do
+        if [[ "$conv_line" == "END" ]]; then
+          conv_end="END"
+          break
+        fi
+        # Recorded set must be the current set, in order: a pointer that changed
+        # already moved the team file's mtime, but this keeps the read honest.
+        [[ "$conv_line" == "DEP "[01]" "* && "${conv_line:6}" == "${CONV_DEPS[conv_i]:-}" ]] || {
+          conv_fresh=0
+          break
+        }
+        conv_dep="${conv_line:6}"
+        if [[ -e "$conv_dep" ]]; then
+          [[ "${conv_line:4:1}" == 1 && "$CONV_CACHE" -nt "$conv_dep" ]] || conv_fresh=0
+        else
+          [[ "${conv_line:4:1}" == 0 ]] || conv_fresh=0
+        fi
+        ((conv_fresh)) || break
+        ((conv_i++))
+      done
+    } <"$CONV_CACHE"
+    if ((conv_fresh && conv_i == ${#CONV_DEPS[@]})) &&
+      [[ "$conv_end" == "END" && "$conv_root" == "$REPO_ROOT" ]]; then
+      SUBJECT_ERE="$conv_subj"
+      TITLE_ERE="$conv_title"
+      CONV_HIT=1
+    fi
+  fi
+
+  if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
+    # Existence is sampled BEFORE the resolver forks, so the entry records the
+    # dependency set the answer was resolved against.
+    conv_dep_lines=""
+    for conv_dep in "${CONV_DEPS[@]}"; do
       if [[ -e "$conv_dep" ]]; then
-        [[ "${conv_line:4:1}" == 1 && "$CONV_CACHE" -nt "$conv_dep" ]] || conv_fresh=0
+        conv_dep_lines+="DEP 1 $conv_dep"$'\n'
       else
-        [[ "${conv_line:4:1}" == 0 ]] || conv_fresh=0
+        conv_dep_lines+="DEP 0 $conv_dep"$'\n'
       fi
-      ((conv_fresh)) || break
-      ((conv_i++))
     done
-  } <"$CONV_CACHE"
-  if ((conv_fresh && conv_i == ${#CONV_DEPS[@]})) &&
-    [[ "$conv_end" == "END" && "$conv_root" == "$REPO_ROOT" ]]; then
-    SUBJECT_ERE="$conv_subj"
-    TITLE_ERE="$conv_title"
-    CONV_HIT=1
-  fi
-fi
-
-if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
-  # Existence is sampled BEFORE the resolver forks, so the entry records the
-  # dependency set the answer was resolved against.
-  conv_dep_lines=""
-  for conv_dep in "${CONV_DEPS[@]}"; do
-    if [[ -e "$conv_dep" ]]; then
-      conv_dep_lines+="DEP 1 $conv_dep"$'\n'
-    else
-      conv_dep_lines+="DEP 0 $conv_dep"$'\n'
-    fi
-  done
-  for conv_key in subject_pattern pr_title_pattern; do
-    conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key" 2>/dev/null) || conv_val=""
-    case "$conv_key" in
-    subject_pattern) SUBJECT_ERE="$conv_val" ;;
-    *) TITLE_ERE="$conv_val" ;;
-    esac
-  done
-  # Write through a temp name and rename, so a reader never sees a half file.
-  if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
-    if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
-      >"$CONV_CACHE.$$" 2>/dev/null; then
-      mv -f "$CONV_CACHE.$$" "$CONV_CACHE" 2>/dev/null || rm -f "$CONV_CACHE.$$" 2>/dev/null
-    else
-      rm -f "$CONV_CACHE.$$" 2>/dev/null
+    for conv_key in subject_pattern pr_title_pattern; do
+      conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key" 2>/dev/null) || conv_val=""
+      case "$conv_key" in
+      subject_pattern) SUBJECT_ERE="$conv_val" ;;
+      *) TITLE_ERE="$conv_val" ;;
+      esac
+    done
+    # Write through a temp name and rename, so a reader never sees a half file.
+    if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
+      if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
+        >"$CONV_CACHE.$$" 2>/dev/null; then
+        mv -f "$CONV_CACHE.$$" "$CONV_CACHE" 2>/dev/null || rm -f "$CONV_CACHE.$$" 2>/dev/null
+      else
+        rm -f "$CONV_CACHE.$$" 2>/dev/null
+      fi
     fi
   fi
-fi
-# Neither key enforceable -> nothing this gate could ever block.
-[[ -n "$SUBJECT_ERE" || -n "$TITLE_ERE" ]] || exit 0
-
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+}
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local data
-  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
+  local data subject
+  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-convention-violation" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -444,29 +482,30 @@ check_segment() {
     *) break ;;
     esac
   done
-  if [[ -n "$TITLE_ERE" && "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
-    local t="" ti
-    for ((ti = gs + 3; ti < gn; ti++)); do
-      case "${gw[ti]}" in
-      --title)
-        ((ti + 1 < gn)) && t="${gw[ti + 1]}"
-        ;;
-      --title=*)
-        t="${gw[ti]#--title=}"
-        ;;
-      -t)
-        ((ti + 1 < gn)) && t="${gw[ti + 1]}"
-        ;;
-      *) ;;
-      esac
-    done
-    if [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
-      block_title "$t"
+  if [[ "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
+    ensure_convention_patterns
+    if [[ -n "$TITLE_ERE" ]]; then
+      local t="" ti
+      for ((ti = gs + 3; ti < gn; ti++)); do
+        case "${gw[ti]}" in
+        --title)
+          ((ti + 1 < gn)) && t="${gw[ti + 1]}"
+          ;;
+        --title=*)
+          t="${gw[ti]#--title=}"
+          ;;
+        -t)
+          ((ti + 1 < gn)) && t="${gw[ti + 1]}"
+          ;;
+        *) ;;
+        esac
+      done
+      if [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
+        block_title "$t"
+      fi
     fi
     return 0
   fi
-
-  [[ -n "$SUBJECT_ERE" ]] || return 0
 
   hook::git_resolve_index "$@" || return 0
   gi=$HOOK_GIT_RESOLVED_GI
@@ -489,11 +528,10 @@ check_segment() {
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
 
-  # The directory this segment's git actually runs in. Computed ONCE: it is the
-  # same answer for the alias lookup and the sequencer probe, and each call is a
-  # subshell this hook pays on every git command it sees.
-  local seg_dir
-  seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+  # The directory this segment's git actually runs in. Computed ONCE, and only
+  # when an alias probe or a commit needs it — a `git status` that cannot hide
+  # behind an alias must not pay effective_dir's subshell.
+  local seg_dir=""
 
   # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
   # -F - <<EOF` and persisted `git qc` aliases create commits) — mirror the
@@ -518,6 +556,8 @@ check_segment() {
           # The body is a fresh top-level parse, so it carries no wrapper and no
           # git globals. Hand it the directory this invocation resolved to, or
           # the reparse silently restarts from the payload cwd.
+          [[ -n "$seg_dir" ]] ||
+            seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
           local saved_base="${HOOK_EFFECTIVE_BASE:-}"
           HOOK_EFFECTIVE_BASE="$seg_dir"
           hook::bash_parse_segments "$reparse" check_segment
@@ -531,8 +571,11 @@ check_segment() {
         fi
       done
     fi
-    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
+      ! git_subcommand_ignores_alias "$sub"; then
       local pexp
+      [[ -n "$seg_dir" ]] ||
+        seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
       pexp=$(git -C "$seg_dir" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
@@ -557,6 +600,10 @@ check_segment() {
   fi
 
   [[ "$sub" == "commit" ]] || return 0
+  ensure_convention_patterns
+  [[ -n "$SUBJECT_ERE" ]] || return 0
+  [[ -n "$seg_dir" ]] ||
+    seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
 
   for ((k = sub_idx + 1; k < nseg; k++)); do
     word="${w[k]}"

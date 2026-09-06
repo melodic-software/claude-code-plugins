@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.39]
+
+### Changed
+
+- **`write-for-humans`:** the surfaces it excludes, existing prose and PR bodies, now route to
+  `/writing:be-concise` in the body, presence-gated with a stated fallback. The frontmatter
+  description is byte-identical, since it already sits past the 1024-codepoint field cap.
+- **`write-for-humans` evals:** case 5 asserts the route alongside the decline, pinned to the
+  skill by name so the case cannot load the skill whose boundary it tests.
+- **`write-for-agents`:** points at the two universal rules in `/writing:be-concise`, no excess
+  words and factual tone, and states that the human-only scannability rules do not apply to
+  agent-facing text.
+
 ## [0.21.38]
 
 ### Changed

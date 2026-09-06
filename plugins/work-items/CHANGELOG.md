@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.66]
+## [0.39.68]
 
 ### Fixed
 
@@ -57,6 +57,36 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   the invariant, its enforcement points, and the remediation for items already
   carrying the pair; `tools/work-item-tracker/CONTRACT.md` records the new
   `list-frontier` filter term.
+
+## [0.39.67]
+
+### Fixed
+
+- work-item-tracker GitHub adapter: `list-sub-items` scopes sub-issues to the parent's own repo
+  by the node's `url` rather than `repository.nameWithOwner`. `gh issue view --json subIssues`
+  projects each node down to `id`, `number`, `title`, `url`, `state` and drops the `repository`
+  object, so the old predicate matched no node and every container enumerated as childless,
+  which also blinded `list-frontier --parent` and container rollup. A node that does carry
+  `repository.nameWithOwner` still filters on it. A node attributable to neither field is still
+  dropped, but the verb now names it on stderr, so a further narrowing of gh's projection shows
+  up as a message rather than as another silently empty list; a node in a different repo stays a
+  silent drop, since that is the documented cross-repo truncation. The adapter README records the
+  projection and the gh version the fix was checked against.
+- work-item-tracker GitHub adapter: the `list-sub-items` same-repo test folds case on both sides.
+  GitHub owner and repo names are case-insensitive and the id grammar accepts any case, so an id
+  written `github:acme/widgets#99` read every child of a repo the API spells `Acme/Widgets` as
+  foreign and returned an empty list with no signal, reaching the same blindness as the bug above by
+  a different route. Folding widens the match on case alone: a genuinely cross-repo node still
+  drops, and an unattributable node still warns on stderr.
+
+## [0.39.66]
+
+### Changed
+
+- **`track`, `triage`, `decompose`, `attend-queue`:** the five places these skills compose prose a
+  person reads in a tracker (the `add` body, the `done` closing comment, a triage outcome comment,
+  a decompose slice body, and the attend-queue answer-back) now point at `/writing:be-concise`,
+  presence-gated with a stated fallback. Additions only; no template or required section changed.
 
 ## [0.39.65]
 
