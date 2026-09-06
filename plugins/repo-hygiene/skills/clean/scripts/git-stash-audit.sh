@@ -4,6 +4,8 @@
 #
 # Output contract (stable labels):
 #   StashStore: <absolute git-common-dir | unknown>   (dedup key across worktrees)
+#   PRCount: <n>  OR  PRDataUnavailable: <why>        (PR map status; exactly one)
+#   PRDataTruncated: <why>                            (only when the cap was hit)
 #   per stash — Stash, Commit, Age days, Source branch, Diffstat, PR, Advisory
 #   Stash count: <N>
 #   Summary: stashes=<N> likely-superseded=<M> (never auto-dropped)
@@ -54,17 +56,20 @@ printf 'StashStore: %s\n' "${COMMON_DIR:-unknown}"
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 # PR map (best-effort): source-branch → state, so a stash whose source branch was
-# merged can be flagged likely-superseded. Same batched gh call as the branch audit.
+# merged can be flagged likely-superseded. Same shared lookup as the branch audit,
+# including its PRCount / PRDataTruncated / PRDataUnavailable status lines: a
+# short or missing map silently withholds the superseded advisory, so it is
+# reported rather than swallowed.
 declare -A PR_STATE=()
 declare -A PR_NUM=()
-if command -v gh >/dev/null 2>&1; then
-  while IFS=$'\t' read -r head state num; do
-    [[ -z "$head" ]] && continue
-    PR_STATE["$head"]="$state"
-    PR_NUM["$head"]="$num"
-  done < <(gh pr list --state all --json headRefName,state,number --limit 200 2>/dev/null |
-    jq -r '.[] | [.headRefName, .state, .number] | @tsv' 2>/dev/null | tr -d '\r')
-fi
+PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
+trap 'rm -f "$PR_MAP_FILE"' EXIT
+clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number'
+while IFS=$'\t' read -r head state num; do
+  [[ -z "$head" ]] && continue
+  PR_STATE["$head"]="$state"
+  PR_NUM["$head"]="$num"
+done <"$PR_MAP_FILE"
 
 NOW=$(date +%s)
 count=0 superseded=0
