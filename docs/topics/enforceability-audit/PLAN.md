@@ -144,9 +144,10 @@ contract), `audit-catchability` (coined), `audit-enforcement-lookup` (weakest fo
 
 The naming skill never auto-locks. `audit-enforceability` is recorded as the **working name** in
 the #3815 body so the slice is dispatch-ready; the operator may override it before dispatch by
-editing the one name in the issue body. One caution: every convention README in this repository
-carries an `## Enforceability` section in the sense "is this convention machine-checkable", tiered
-by a fleet standard (`enforceability-tiers.md`). The skill description states its own sense (can
+editing the one name in the issue body. One caution: several convention READMEs in this repository
+carry an `## Enforceability` section in the sense "is this convention machine-checkable", tiered
+by a fleet standard (`enforceability-tiers.md`, in the standards repository, not this one). The
+skill description states its own sense (can
 this finding be caught deterministically, and at which rung) so the two do not blur, and the
 Deferred section asks whether the crosswalk should adopt that tier vocabulary.
 
@@ -167,8 +168,10 @@ Frontmatter, with these literal forms:
 - `allowed-tools`: the two-form `${CLAUDE_SKILL_DIR}` grant the `ai-slop` audit skill uses,
   `"Bash(${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh:*)"` and
   `"Bash(\"${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh\":*)"`, plus `Bash(git:*)`,
-  `Bash(grep:*)`, `Bash(head:*)`, `Bash(sha256sum:*)`, `Bash(shasum:*)`. Never an
-  interpreter-led `Bash(bash ...)` grant; those never match.
+  `Bash(grep:*)`, `Bash(head:*)`. No digest grant: the script computes `source-sha256` under its
+  own grant. The classification TSV is passed to the script on stdin (`--classes -`) inside the
+  same granted command, so no file-write grant is needed for it. Never an interpreter-led
+  `Bash(bash ...)` grant; those never match.
 - `metadata` in **block form** (the cheat-sheet generator matches `^metadata:\s*$` and reads the
   keys beneath it; an inline mapping is invisible to it and fails its `--check`):
 
@@ -332,7 +335,7 @@ where `<slug>` is the first 40 chars of the `Location` sanitized to `[a-z0-9._-]
 
 - `test -f plugins/review/skills/audit-enforceability/SKILL.md` exits 0 (now 1).
 - `test -f plugins/review/skills/audit-enforceability/context/crosswalk.md && test -f plugins/review/skills/audit-enforceability/context/stub-shape.md` exits 0 (now 1).
-- `test -d plugins/review/skills/audit-enforceability && ! grep -rq -e '@melodic-software' -e 'MELODIC_' -e 'docs/conventions/' plugins/review/skills/audit-enforceability/` exits 0 (now 1; the `test -d` is what makes it fail, since a bare `! grep` on a missing directory passes).
+- `test -d plugins/review/skills/audit-enforceability && ! grep -rE -e '@melodic-software' -e 'MELODIC_' -e 'docs/conventions/' plugins/review/skills/audit-enforceability/ | grep -v '://' | grep -q .` exits 0 (now 1; the `test -d` is what makes it fail, since a bare `! grep` on a missing directory passes; the `grep -v '://'` exempts the fetchable raw URL the verification record cites as its basis, which the fanout fix-pass context already carries, while still catching a repo-relative `docs/conventions/` path).
 - `grep -q 'C1' plugins/review/skills/audit-enforceability/SKILL.md && grep -qi 'different meaning' plugins/review/skills/audit-enforceability/SKILL.md` exits 0 (now 2).
 - `test "$(grep -c 'if the .* plugin is installed' plugins/review/skills/audit-enforceability/SKILL.md 2>/dev/null || true)" -ge 2` exits 0 (now 2: an empty substitution on a missing file; on an existing file `grep -c` prints the count and the `|| true` keeps a zero-match exit 1 from aborting the substitution).
 - `grep -qE '^metadata:\s*$' plugins/review/skills/audit-enforceability/SKILL.md` exits 0 (now 2).
@@ -355,9 +358,11 @@ emit-stubs.sh --findings <file> --classes <tsv> --out <dir> --scan-dir <dir> [--
   a `> DEGRADED:` blockquote above the heading is skipped. This is the fleet's first
   findings-table reader; the safe anchoring idiom is the one
   `scripts/check-detector-findings-crosswalk.sh` uses to locate a table by its exact header.
-- `--classes`: TSV, one line per rank: `rank<TAB>class<TAB>basis<TAB>rung<TAB>owner`. A rank
-  present in the table but absent from the TSV gets `unclassified / unresolved / llm-only / none`
-  rather than no stub. A rank in the TSV absent from the table is a diagnostic, not a stub.
+- `--classes`: TSV, one line per rank: `rank<TAB>class<TAB>basis<TAB>rung<TAB>owner`; a path,
+  or `-` to read it from stdin (the skill's path, since the caller composes the TSV in the same
+  granted command). A rank present in the table but absent from the TSV gets
+  `unclassified / unresolved / llm-only / none` rather than no stub. A rank in the TSV absent
+  from the table is a diagnostic, not a stub.
 - `--out`: the resolved stub home. `--scan-dir`: the resolved reviews location the fix action
   scans for this branch (required; missing → exit 2). Both are resolved by the caller through the
   binding; the script never resolves either. The script refuses (exit 3, writes nothing) when
@@ -385,7 +390,8 @@ Cases, each named:
 5. missing `--findings` → exit 2; a file without `type: review-findings` → exit 2; missing
    `--scan-dir` → exit 2;
 6. a `Finding` cell containing `\|` reaches the stub unescaped and unsplit;
-7. a rank missing from `--classes` still yields a stub with rung `llm-only`;
+7. a rank missing from `--classes` still yields a stub with rung `llm-only`, with the TSV passed
+   as `--classes -` on stdin (case 1 uses the path form, so both forms are covered);
 8. re-running into the same `--out` writes `-2` siblings, never overwrites;
 9. the fixture's `## By dimension` section, which re-renders every row, produces no extra stubs
    (N, never 2N);
@@ -406,8 +412,8 @@ consumed; the `.tsv` is consumed the same way (basename in the test, `files[]` i
 - `bash plugins/review/skills/audit-enforceability/scripts/emit-stubs.test.sh` exits 0 (now 127,
   the file does not exist).
 - `bash scripts/affected-tests.sh --explain plugins/review/skills/audit-enforceability/scripts/emit-stubs.sh 2>&1 | grep -q 'emit-stubs.test.sh'` exits 0 (now 1; the selector itself exits 0 with "No suites selected", so the grep is the check).
-- `grep -c '^| ' plugins/review/skills/audit-enforceability/evals/fixtures/findings-one-per-rung.md` prints at least 18 (header rows plus seven findings rows plus seven re-rendered rows; now the file is absent).
-- After the test runs its fixture into a temp dir `$T`: `! grep -rq -e '^type: review-findings' -e '^branch:' -e '^## Findings' "$T"` exits 0 and `ls "$T"/*.md | wc -l` prints 7.
+- `test "$(grep -c '^| ' plugins/review/skills/audit-enforceability/evals/fixtures/findings-one-per-rung.md 2>/dev/null || true)" -ge 17` exits 0 (one header, seven rows, two By-dimension headers, seven re-rendered rows; now 2, the file is absent).
+- After the test runs its fixture into a temp dir `$T`: `test -d "$T" && ! grep -rq -e '^type: review-findings' -e '^branch:' -e '^## Findings' "$T" && test "$(ls "$T"/*.md | wc -l)" -eq 7` exits 0 (an empty or missing `$T` fails the `test -d` and the count, so the line cannot pass vacuously).
 
 ## Phase 3. Reserved concern name, evals, plugin bookkeeping. #3815 [TODO]
 
