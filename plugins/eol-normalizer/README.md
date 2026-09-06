@@ -59,7 +59,9 @@ interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
 | PostToolUse `Write`, already-normalized `.md` | 1 | 41.0 before, 21.5 after (0.6.28) | sixteen of twenty-seven processes gone: one `git check-attr` for both attributes, `dirname` and `basename` as parameter expansions, the NUL sniff as one `read`, and no temp file, `cp`, `cmp` or `rm` for a file that needs no rewrite |
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.29 by the
-vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope).
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope). 0.6.41 drops leftover
+`$(hook::repo_root)` / `$(hook::repo_relative_path)` capture subshells around those helpers'
+`_to` forms; the git check-attr probe is unchanged.
 
 ## Install
 

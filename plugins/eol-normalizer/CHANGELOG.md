@@ -3,6 +3,19 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.41]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture forks.**
+  `repo_root_to` / `repo_relative_path_to` write in-process instead of
+  `$(hook::repo_root)` / `$(hook::repo_relative_path)`. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). The git check-attr
+  probe, LF rewrite, and disclosure snapshot are unchanged.
+
 ## [0.6.40]
 
 ### Changed

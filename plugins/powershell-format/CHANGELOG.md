@@ -3,6 +3,24 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.44]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture and
+  basename forks.** `FILE_BASE` is `${FILE##*/}` (and a backslash trim);
+  `repo_root_to` / `repo_relative_path_to` write in-process; nested
+  `$(normalize_path "$(physical_path …)")` uses the `_to` forms so the
+  caller does not pay a leftover capture around builtins-only normalize
+  or around physical_path's print wrapper. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on the no-settings
+  skip path: 23→16 clones; PATH-visible execs unchanged (4 realpath, jq,
+  git). The pwsh exec, settings walk, and trust gate are unchanged.
+
 ## [0.7.43]
 
 ### Changed

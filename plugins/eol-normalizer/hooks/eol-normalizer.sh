@@ -87,7 +87,8 @@ FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
 # resolved only when a sink is wired: the unwired default path spawns zero
@@ -101,7 +102,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the

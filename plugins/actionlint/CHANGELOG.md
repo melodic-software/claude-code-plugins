@@ -3,6 +3,20 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.42]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture, basename,
+  and normalize_path forks.** `FILE_BASE` is `${FILE##*/}` (and a
+  backslash trim); `normalize_path_to`, `repo_root_to`, and
+  `repo_relative_path_to` write in-process. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). The actionlint exec and
+  workflow-path gate are unchanged.
+
 ## [0.8.41]
 
 ### Changed

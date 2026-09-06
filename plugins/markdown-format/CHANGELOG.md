@@ -3,6 +3,22 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.51]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture and
+  dirname forks on the root-resolution path.** `resolve_repo_root_to`
+  writes in-process via `repo_root_to`; the jq-absent opt-in probe and
+  membership dirname use parameter expansion; `repo_relative_path_to`
+  writes telemetry `FILE_REL` in-process. Physical `pwd -P` containment
+  and config discovery stay, because those walks compare resolved
+  spellings. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). The markdownlint-cli2 exec is unchanged.
+
 ## [0.11.50]
 
 ### Changed

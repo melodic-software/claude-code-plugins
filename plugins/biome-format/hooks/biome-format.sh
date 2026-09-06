@@ -76,13 +76,22 @@ case "$FILE" in
 *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
 *) exit 0 ;;
 esac
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a matching file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Resolve repo root early — used to bound the biome-config opt-in walk and to
 # compute the schema-required repo-relative path in data.file.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (Biome is
 # invoked with a CONFIG_DIR-relative path computed below), so both are resolved
@@ -97,7 +106,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
@@ -123,10 +133,13 @@ emit_skipped() {
   exit 0
 }
 
-# Resolve the file's directory in `pwd` form once. Both walks below start here,
-# and it anchors the CONFIG_DIR-relative path passed to Biome.
-FILE_DIR_POSIX="$(cd "$FILE_DIR" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
-root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
+# (and pwd) on every fire to canonicalize a path git already answered as
+# absolute, or a fallback hint that the config walk already accepts relative.
+FILE_DIR_POSIX=""
+[[ -d "$FILE_DIR" ]] && FILE_DIR_POSIX="$FILE_DIR"
+root=""
+[[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
 
 # Consumer opt-in: a Biome configuration that governs the edited file. Walk up
 # from the file's directory to the repo root, recording the TOPMOST config dir
@@ -176,7 +189,9 @@ while [[ -n "$dir" ]]; do
   dir="$parent"
 done
 if [[ -z "$BIOME_BIN" ]]; then
-  BIOME_BIN="$(command -v biome 2>/dev/null)" || BIOME_BIN=""
+  # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
+  # just to learn the path. The later exec looks the name up on PATH itself.
+  command -v biome >/dev/null 2>&1 && BIOME_BIN=biome
 fi
 
 # The repo opted in via a Biome config but no binary is available → visible
@@ -196,7 +211,7 @@ fi
 # the file, so it always matches. Falls back to the absolute path if it does not.
 BIOME_ARG="$FILE"
 if [[ -n "$FILE_DIR_POSIX" ]]; then
-  _file_posix="$FILE_DIR_POSIX/$(basename "$FILE")"
+  _file_posix="$FILE_DIR_POSIX/$FILE_BASE"
   _rel="${_file_posix#"$CONFIG_DIR"/}"
   [[ "$_rel" != "$_file_posix" ]] && BIOME_ARG="$_rel"
 fi
@@ -221,7 +236,7 @@ fi
 # composition live in the shared rewrite-guard lib (#3406, #3409): the
 # disclosure is TAKEN once after the check runs and composed into the exiting
 # arm's one JSON document, never emitted mid-run as a second document.
-BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $(basename "$FILE") via Biome."
+BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $FILE_BASE via Biome."
 hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
@@ -243,7 +258,7 @@ hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
 # reflects whether the tool ran, not whether it was clean.
 FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
 if [[ -n "$FINDINGS" ]]; then
-  BIOME_CTX="biome-format: $(basename "$FILE") has Biome findings (advisory):"
+  BIOME_CTX="biome-format: $FILE_BASE has Biome findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -291,7 +306,7 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran), the same status as the no-config /
 # no-binary paths.
-BIOME_CTX="biome-format: biome failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+BIOME_CTX="biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   BIOME_CTX+=$'\n'"  $line"

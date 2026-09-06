@@ -3,6 +3,23 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.43]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture, basename,
+  and pwd forks.** `FILE_BASE` is `${FILE##*/}` (and a backslash trim);
+  `repo_root_to` / `repo_relative_path_to` write in-process; the
+  `$(cd && pwd)` canonicalize in the EditorConfig walk is an existence
+  check on the path git already answered. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a no-EditorConfig
+  shell file with a ShellCheck finding: 17→13 clones; PATH-visible
+  `basename` 1→0. The shfmt/ShellCheck execs and opt-in walk are unchanged.
+
 ## [0.7.42]
 
 ### Changed

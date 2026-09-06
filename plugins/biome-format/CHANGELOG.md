@@ -3,6 +3,21 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.41]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture, basename,
+  and pwd forks.** `FILE_BASE` is `${FILE##*/}` (and a backslash trim);
+  `repo_root_to` / `repo_relative_path_to` write in-process; the
+  `$(cd && pwd)` canonicalize is an existence check on the path git already
+  answered; `command -v biome` is no longer captured. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). The Biome exec, config
+  opt-in, and isolation of a missing binary are unchanged.
+
 ## [0.6.40]
 
 ### Changed

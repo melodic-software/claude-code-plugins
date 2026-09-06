@@ -3,6 +3,20 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.45]
+
+### Changed
+
+- **The always-on Write/Edit hook drops leftover helper-capture, basename,
+  and `command -v` forks.** `FILE_BASE` is `${FILE##*/}` (and a backslash
+  trim); `repo_root_to` / `repo_relative_path_to` write in-process;
+  `command -v goimports` is no longer captured. GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). The goimports exec and
+  `go list -m` local-prefix probe are unchanged.
+
 ## [0.3.44]
 
 ### Changed
