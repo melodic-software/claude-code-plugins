@@ -379,6 +379,46 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.13, forks with no exec in `block-dangerous-git`.** 2026-09-06, Linux CI
+host. A PATH shim counts execs, and a fork that never execs is invisible to
+it. On every Bash and PowerShell call this guard created three such
+processes and executed none. One was the guard's own, an eager telemetry
+subject at file scope that the verdict never reads; it is now derived inside
+`emit_tel`, behind the gates that keep the envelope off by default. Off the
+common path, the hash-width probe `$(git ... 2>&1)` paid a second fork for
+its in-substitution redirect (now `exec git ...`, the redirect stays inside
+because git's stderr is what the block message quotes), and a `!` alias
+reparse paid one `$(printf '%q')` per trailing argument plus one
+`$(effective_dir ...)` (now `printf -v` and a nameref assignment). The two
+creations left on the common path are `$(hook::buffer_stdin)` and the shared
+parser's `< <(printf ...)`, both `lib/hook-utils.sh` work (#3740, #3838).
+No verdict changed: 190 paired runs against `origin/main` agree on exit code
+and full stderr, and the 479-case contract suite passes.
+
+*Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+on the dispatched path (`run-guards.sh block-dangerous-git.sh`), this
+repository as cwd, `HOOK_TELEMETRY_SINK` unset, `CLAUDE_PROJECT_DIR` empty.
+The guard's share is the count minus a no-op guard dispatched the same way.
+Creations are clone-family returns; execve is counted separately so an exec
+cannot pass for a removed fork. Three repeats, identical each time. Wall
+clock is not reported: this host's spawn floor is under a millisecond and the
+figure would not transfer to the Windows hosts the budget is written for; the
+process count is the durable number.
+
+| Counter | before | after |
+|---|---|---|
+| Guard share, benign `git status --short`: creations / execve | 3 / 0 | 2 / 0 |
+| Guard share, blocked `git push --force origin main`: creations / execve | 3 / 0 | 2 / 0 |
+| Guard share, lease `--force-with-lease=main:<40-hex>`: creations / execve | 5 / 1 | 3 / 1 |
+| Guard share, `!` alias with three trailing args: creations / execve | 8 / 0 | 3 / 0 |
+| Guard share, PowerShell `git status`: creations / execve | 15 / 3 | 14 / 3 |
+| Whole Bash dispatcher, benign: creations / execve | 35 / 3 | 34 / 3 |
+
+The execve column does not move, which is what makes this latency rather
+than removed work. The PowerShell lane's remaining fourteen creations are in
+`lib/powershell/ps-command.sh`, not in this guard. The contract suite pins the
+benign share, the lease probe and the alias reparse by the same instrument.
+
 **0.32.10, git probes that cannot change a benign Bash verdict.** 2026-09-06,
 Linux CI host. The 0.32.9 table still carries five PATH-visible execs on
 `git status --short` (`3 git` + `2 jq`). This entry is the three git
