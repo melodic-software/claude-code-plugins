@@ -20,10 +20,17 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
+source "$HOOK_DIR/hook-utils.sh"
 # Capture $EPOCHREALTIME immediately after the kill-switch so duration_ms covers
 # the work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash
 # 5.0+; on older bash it is unset, so default to empty — referencing it bare
@@ -88,7 +95,10 @@ fi
 
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument actionlint runs on from the repo root. A path the prefix strip
 # could not make relative degrades to its basename, which is right for telemetry
