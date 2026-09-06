@@ -450,8 +450,19 @@ treats as the record: the flag drops a duplicate, never data. Quiet output keeps
 `status`, `target`, the three coverage terms, `empty_directory_count`, both byte totals,
 `truncated_paths`, `errors`, `policy_sources` and `os_autoclean`, so every field a keep-or-review
 decision rests on survives, and it replaces the closing note with a short one naming where the
-rows went. The default stays the full payload: a caller already parsing `children_rollup` off
-stdout must not be quietened by an upgrade.
+rows went. That field set holds in `--root-children` mode too, which reports
+`empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
+full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
+upgrade.
+
+Root-children mode's quiet note is its own. That mode's default note carries a coverage
+qualification the ordinary one has no reason to: the volume root itself and every skipped
+OS-owned, hidden, system or reparse entry were never walked, so the inventory is partial by
+construction. Nothing else on stdout encodes that. The skipped entries are recorded as
+`root_children_skipped` in the snapshot alone, and `truncated_paths` does not stand in for them,
+so a quiet note that dropped the qualification would be dropping a fact rather than a duplicate.
+The quiet root-children note therefore keeps the coverage sentence and drops only the rollup
+prose.
 
 The `scan-complete` summary reports hint coverage in three terms — `entries`, `hinted_entries`, and
 `unhinted_entries` (`entries` minus `hinted_entries`). The third is what makes the first two

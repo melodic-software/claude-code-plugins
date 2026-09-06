@@ -129,6 +129,26 @@ QUIET_SCAN_NOTE = (
     "discovery signals, never cleanup verdicts."
 )
 
+# Root-children mode's coverage qualification is not a restatement of the
+# rollup, so the quiet note cannot drop it the way it drops the rest of the
+# interpretation prose: the volume root and every excluded entry were never
+# walked, and that limit is not recoverable from any other stdout field.
+# `root_children_skipped` lives in the snapshot alone, and `truncated_paths`
+# does not represent those entries, so a caller reading only quiet stdout has
+# no other signal that the inventory is partial by construction.
+QUIET_ROOT_CHILDREN_SCAN_NOTE = (
+    "Quiet output: children_rollup is omitted from stdout only; the snapshot "
+    'file named by "snapshot" carries every row in full. Coverage limit, '
+    "unchanged by --quiet: root-children mode inventoried only the selected "
+    "immediate directories, so the volume root itself and every skipped "
+    "OS-owned/hidden/system/reparse entry were never walked, and "
+    "children_rollup covers the selected children only. The skipped entries "
+    'are listed as "root_children_skipped" in the snapshot and are not '
+    "represented in truncated_paths. Re-run without --quiet for the rollup "
+    "and the full interpretation note. Hints are discovery signals, never "
+    "cleanup verdicts."
+)
+
 
 def emit(payload: dict[str, Any], code: int = 0) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -144,11 +164,21 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     stdout copy, and with it the long interpretation note that mostly explains
     the rollup, and changes nothing else: the same run happens, the same
     snapshot is written, and the decision-relevant fields all survive.
+
+    Root-children mode gets its own quiet note. Its default note carries a
+    coverage qualification (the volume root and the skipped OS-owned, hidden,
+    system and reparse entries were never walked) that no other stdout field
+    encodes, so replacing it with the ordinary quiet note would drop a fact
+    rather than a duplicate.
     """
     if not quiet:
         return payload
     trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
-    trimmed["note"] = QUIET_SCAN_NOTE
+    trimmed["note"] = (
+        QUIET_ROOT_CHILDREN_SCAN_NOTE
+        if payload.get("root_children_mode")
+        else QUIET_SCAN_NOTE
+    )
     return trimmed
 
 
@@ -3553,6 +3583,9 @@ def main(argv: list[str] | None = None) -> int:
                             "entries": len(snapshot["entries"]),
                             "hinted_entries": hinted,
                             "unhinted_entries": len(snapshot["entries"]) - hinted,
+                            "empty_directory_count": snapshot[
+                                "empty_directory_count"
+                            ],
                             "target_logical_bytes": snapshot["target_logical_bytes"],
                             "target_reclaimable_local_bytes": snapshot[
                                 "target_reclaimable_local_bytes"

@@ -1183,7 +1183,16 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(0, code)
             self.assertEqual("scan-complete", payload["status"])
             self.assertNotIn("children_rollup", payload)
-            self.assertEqual(hygiene.QUIET_SCAN_NOTE, payload["note"])
+            # Root-children mode keeps its own quiet note: the coverage
+            # qualification it carries is not recoverable from any other
+            # stdout field, so quieting must not replace it with the ordinary
+            # note the way it does for a full scan.
+            self.assertEqual(hygiene.QUIET_ROOT_CHILDREN_SCAN_NOTE, payload["note"])
+            self.assertNotEqual(hygiene.QUIET_SCAN_NOTE, payload["note"])
+            self.assertIn("never walked", payload["note"])
+            self.assertIn("root_children_skipped", payload["note"])
+            # The documented quiet field set applies to this mode too.
+            self.assertIn("empty_directory_count", payload)
             self.assertEqual(["builds"], payload["root_children_selected"])
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")

@@ -18,6 +18,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **clean:** the Bash guard admits `--quiet` as a third valueless scan flag, at most one per
   invocation and with no trailing value, so the flag is reachable without widening the grammar. No
   pipe, redirect, or shell-operator allowance is added; that rejection is unchanged.
+- **clean:** `--root-children` scans get their own quiet note, and report `empty_directory_count`
+  on stdout like an ordinary scan does. Root-children mode's default note carries a coverage
+  qualification nothing else on stdout encodes: the volume root and every skipped
+  OS-owned/hidden/system/reparse entry were never walked, so the inventory is partial by
+  construction and `children_rollup` covers the selected children only. The skipped entries are
+  recorded as `root_children_skipped` in the snapshot alone and `truncated_paths` does not stand in
+  for them, so quieting that sentence away would drop a fact rather than a duplicate. The quiet
+  root-children note keeps the coverage sentence and drops only the rollup prose, and the field set
+  `--quiet` documents now holds in both scan modes rather than in ordinary scans alone.
 
 ## [0.21.9]
 
