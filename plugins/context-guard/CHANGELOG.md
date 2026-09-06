@@ -5,6 +5,21 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.45]
+
+### Changed
+
+- **`hooks/zone-gate.sh` exits on the default advisory posture before sourcing
+  `hook-utils.sh`.** The gate is inert unless `zone_hook_mode` is `blocking`;
+  parsing the shared library to discover that was the entire cost of the
+  default path. The MODE predicate is inlined above every `source`, the same
+  shape as the kill-switch hoist, because the library IS the cost.
+  Spawn census stays at **0** PATH-visible execs. `bash -x` sources of
+  `hook-utils.sh`: **1 → 0**. Wall clock on this measurable Linux host (spawn
+  floor 0.5 ms, spread 1.78×, n=20 after 2 warmup): p50 4.8 → 1.4 ms, p95
+  5.0 → 1.5 ms. Blocking mode is unchanged: it still sources the library after
+  the MODE check.
+
 ## [0.7.44]
 
 ### Changed

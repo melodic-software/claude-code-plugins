@@ -80,7 +80,12 @@
 
 set -uo pipefail
 
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_WT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$_WT_DIR" == "${BASH_SOURCE[0]}" ]] && _WT_DIR=.
+case "$_WT_DIR" in
+/* | ?:[/\\]*) HOOK_DIR="$_WT_DIR" ;;
+*) HOOK_DIR="$(cd "$_WT_DIR" && pwd)" ;;
+esac
 # shellcheck source=hook-utils.sh
 . "$HOOK_DIR/hook-utils.sh"
 

@@ -73,14 +73,6 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh"
 
-# Bundled PowerShell-command classifier — this guard is matched on both the Bash
-# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
-# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-# shellcheck source=../lib/powershell/ps-command.sh
-source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
-
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
@@ -113,6 +105,9 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # mention inside message text is inert and a real invocation after a here-string
 # is still seen. Advisory-only: never blocks, so best-effort is proportionate.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
+  # shellcheck source=../lib/powershell/ps-command.sh
+  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
   ps::blank_herestrings "$COMMAND"
   COMMAND="$PS_BLANKED"
 fi

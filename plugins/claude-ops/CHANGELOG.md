@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.16]
+## [0.42.17]
 
 ### Changed
 
@@ -12,8 +12,23 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   header saying the route is "decided by the envelope's `data.session_id`". That
   header is the file's only description of the rule, so a reader of the sink got
   the pre-1.1 answer while `docs/conventions/hook-telemetry/README.md` gave the
-  right one. Comment only, in both the plugin copy and the repo-local
-  `.claude/hooks/` copy; no behavior change.
+  right one. The header also states the spine key as OPTIONAL, matching contract
+  1.1: a producer carries `session_id` when its payload held a well-formed one
+  and omits it otherwise, in which case this sink takes the legacy route.
+  Comment only, in both the plugin copy and the repo-local `.claude/hooks/`
+  copy; no behavior change.
+
+## [0.42.16]
+
+### Changed
+
+- **Production hooks locate the hook directory with parameter expansion, not `dirname`.**
+  GNU Bash forks a subshell for every command substitution even when the body is a
+  builtin (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that fork
+  is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
+  takes; the fallback covers a bare filename, where the strip is a no-op and
+  dirname answers `.`. What the hook checks is unchanged.
 
 ## [0.42.15]
 
