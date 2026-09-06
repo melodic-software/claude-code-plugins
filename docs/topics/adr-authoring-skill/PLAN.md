@@ -358,7 +358,7 @@ Files:
 - `bash scripts/check-orphaned-fixtures.sh --check` exits 0 (exits 0 today; about ten minutes of wall clock on this tree, so it is not hung)
 - `jq -c '.keywords | sort' plugins/architecture/.claude-plugin/plugin.json` and `jq -c '.plugins[] | select(.name=="architecture").tags | sort' .claude-plugin/marketplace.json` print the same list (sorted, so element order in the files does not matter)
 - `bash scripts/check-purged-em-dashes.sh --check` exits 0 (both READMEs are declared-clean surfaces; exits 0 today)
-- `bash scripts/check-skill-portability.sh` exits 0 (exits 0 today)
+- `bash scripts/check-skill-portability.sh origin/main` exits 0 (exits 0 today; the bare form without a base ref exits 2, a usage error)
 - `node scripts/validate-plugin-contracts.mjs` exits 0
 - `bash scripts/validate-plugins.sh` exits 0
 - `bash scripts/check-changed-skills.sh origin/main` exits 0
