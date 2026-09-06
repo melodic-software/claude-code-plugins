@@ -23,14 +23,19 @@ shell sits in).
 
 ## T2 — Fleet-hygiene seam (RESOLVED)
 
-**Decision.** When the `repo-fleet-hygiene` plugin is installed and `--root` was given, invoke
+**Decision.** When the `repo-fleet-hygiene` plugin is installed and `--root` was given, it owns
+bounded fleet discovery and canonical-checkout resolution: resolve the topic slug per the
+topic-docs binding, `mkdir -p` the memory slice, then invoke
 `/repo-fleet-hygiene:audit <root>... --plan-file <memory_dir>/<topic-slug>/fleet-plan.json`
-via the Skill tool, then read `repositories[].canonical` and `repositories[].remote` from that
-file after confirming `schema_version` is `1`. When the plugin is absent, or the plan file is
-missing or carries another `schema_version`, fall back to the bundled walk: recurse from each
-root to depth 5, treat a `.git` entry as a repository and do not descend into it, skip
+via the Skill tool, confirm `schema_version` is `1`, and read `repositories[]` keeping only
+entries whose `discovered` path lies under a requested root (the collaborator's config-supplied
+scope is additive to CLI scope, so an unfiltered read could chart the operator's whole configured
+fleet); from the kept entries use `canonical` and `remote`. When the plugin is absent, or the
+plan file is missing or carries another `schema_version`, fall back to the bundled walk: recurse
+from each root to depth 5, treat a `.git` entry as a repository and do not descend into it, skip
 `node_modules`, `vendor`, `.venv`; canonical checkout = first record of
-`git worktree list --porcelain`. The fallback is announced in the run summary.
+`git worktree list --porcelain`. The fallback is announced in the run summary, as is the fact
+that the collaborator's audit collects GitHub evidence and may need `gh` authentication.
 
 **Rationale.** The collaborator's discovery is skill-private beyond its slash invocation
 (`docs/PLUGIN-PHILOSOPHY.md` "Do not path-cite into a skill in a different plugin";
@@ -91,23 +96,48 @@ vendored `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` (exit 0 resolved
 pointer, 2 usage, 3 FAIL); the skill runs it and follows the exit code, never parsing the root
 file itself. Ladder per key: topic doc → infer from repo evidence (an existing `*.dsl` file →
 `structurizr`; an existing `docs/architecture/` or `architecture/` directory → that dir) → ask
-once → documented default. Inference proposes; only the operator's confirmation binds, and on
-confirmation the skill prints the topic-doc recipe (path plus YAML block) for the operator to
-commit rather than writing the consumer's root instruction file region itself.
+once → for `landscape_dialect` the documented default `mermaid`; for `architecture_dir` there is
+no silent default: a non-interactive run with no declaration and no confirmed inference stops
+and prints the topic-doc recipe, because the Brief says the location is the consumer's, never
+this plugin's pick. Inference proposes; only the operator's confirmation binds. Persisting the
+declaration (pointer line region plus the topic doc) is owned by `architecture:setup` (T11);
+`map-landscape` itself never writes the consumer's root instruction file.
 
 **Rationale.** No "architecture home" declaration exists anywhere in the marketplace (grep of
 `architecture home|architecture_dir|structurizr|system landscape`: zero hits), so the plan has to
-create one, and ADR 0018 already fixes the shape for team-shared prose configuration with no
-per-operator axis: a convention doc at the consumer's convention home, bound by the pointer line
+create one, and
+`docs/adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md` already fixes
+the shape for team-shared prose configuration with no per-operator axis: a convention doc at
+the consumer's convention home, bound by the pointer line
 (`docs/conventions/config-cascade/README.md` "Expression doctrine";
 `plugins/plugin-quality/reference/config.md` is the pilot). The resolver is shared by vendoring
-with a sync gate (ADR 0019; `scripts/sync-resolve-convention-home.sh` canonical copy in
-`plugins/claude-config/lib/`, carriers enrolled in its `copies=()` array). Not persisting the
-pointer line keeps the skill's write surface to the two artifacts and matches plugin-quality's
-"inference proposes, never writes" rule; a setup skill can own persistence later (deferred).
+with a sync gate (`docs/adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md`;
+`scripts/sync-resolve-convention-home.sh` canonical copy in `plugins/claude-config/lib/`,
+carriers enrolled in its `copies=()` array). Keeping `map-landscape`'s write surface to the two
+artifacts matches plugin-quality's "inference proposes, never writes" rule; persistence belongs
+to the setup skill the philosophy requires once a consumer configuration surface exists (T11).
 Rejected: the topic-docs memory tier `improve` uses (`.work/`, never committed) because a
 landscape is a durable team artifact, and `${CLAUDE_PLUGIN_DATA}` because the consumer must
 own where its architecture lives.
+
+## T11 — `architecture:setup` owns the configuration surface (RESOLVED)
+
+**Decision.** Phase 1 also ships a thin check-centric `architecture:setup`
+(`disable-model-invocation: true`, `argument-hint` leading with `check`, actions `check` and
+`apply`). `check` runs the vendored resolver and reports: no pointer line (exit 1) with the
+recipe, a resolved home with no `architecture/README.md` topic doc, a topic doc with an unknown
+key or value, or a conforming declaration. `apply` is operator-gated: it proposes the inferred
+`architecture_dir` and `landscape_dialect`, and on confirmation writes the topic doc at the
+resolved home; when no pointer line exists it prints the region recipe for the operator to add
+rather than editing the root instruction file. No retired layers, no retirement records.
+
+**Rationale.** `docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable": a plugin requires
+a `setup` skill iff it has a consumer-project configuration surface; T5 creates one. The pilot
+(`plugin-quality`) ships one and routes its resolution ladder's ask rung to `setup apply`. The
+setup contract is validated by `scripts/validate-plugin-contracts.mjs` (frontmatter and
+argument-hint rules for `skills/setup/**`). Writing the topic doc but not the root instruction
+file keeps the mutation to a new file under the consumer's own convention home; the pointer
+region is shared by every plugin and is the operator's to place.
 
 ## T6 — Dialect asymmetry (RESOLVED)
 

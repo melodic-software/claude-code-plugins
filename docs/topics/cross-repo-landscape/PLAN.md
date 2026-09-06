@@ -3,7 +3,8 @@
 Container #3801 (`melodic-software/claude-code-plugins`). Planning slice #3807. Implementation
 slices #3816 (map-landscape skill) and #3817 (design-handoff coverage table). Plan written
 2026-09-06 against `origin/main` `912d6b3ec`. Design contract: `design/design-threads.md`
-(T1–T10) and `design/design-resolution.md`.
+(T1–T11) and `design/design-resolution.md`. Verified 2026-09-06 by a fresh-context reviewer
+(17 findings, all verified against the files and applied; summary under "Stress-test summary").
 
 This file is contract-tier and never merges (`scripts/check-contract-slice-prune.sh`). Every
 contract a worker needs is restated in the slice issue body; this file is the planner's and
@@ -32,9 +33,12 @@ over the six dimensions without importing a framework.
   fallback. Amended 2026-09-06: the collaborator's discovery is scoped, not argument-free, so
   "the argument" is either an explicit repository list or a scan root (T1, T2).
 - Output lands in the consumer's declared architecture home, not a location this plugin picks.
-  Amended 2026-09-06: no declaration mechanism existed; this lane creates it as an ADR 0018
-  convention doc `<convention-home>/architecture/README.md` with `architecture_dir` and
-  `landscape_dialect` keys (T5).
+  Amended 2026-09-06: no declaration mechanism existed; this lane creates it as a convention
+  doc `<convention-home>/architecture/README.md` with `architecture_dir` and
+  `landscape_dialect` keys, per
+  `docs/adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md` (T5), written
+  by an operator-gated `architecture:setup apply` (T11). `architecture_dir` has no silent
+  default: undeclared and unconfirmed, the skill stops and prints the recipe.
 - The completeness check is advisory: it reports coverage and never blocks the gate on its own.
 - No TOGAF or Zachman framework prose ships in either deliverable.
 
@@ -66,7 +70,8 @@ over the six dimensions without importing a framework.
   structures.
 - A standalone design-document skill.
 - Container-level or component-level C4 views.
-- Persisting the convention-home pointer line into a consumer's root instruction file.
+- Editing a consumer's root instruction file. The pointer region is shared by every plugin and
+  is the operator's to place; `architecture:setup` prints the recipe.
 
 ## Plan
 
@@ -85,10 +90,15 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
    Body sections, in order: Repository context (individual Bash calls, as `improve` does);
    Purpose; Resolve the architecture home and dialect (T5 ladder; run the vendored resolver,
    follow exit codes; inference proposes, confirmation binds; print the topic-doc recipe on
-   confirmation); Discover repositories (T1 grammar; T2 seam with the gate sentence "invoke
-   `/repo-fleet-hygiene:audit` via the Skill tool when the `repo-fleet-hygiene` plugin is
-   installed; without it, run the bundled walk below and say so", the plan-file read, and the
-   fallback walk rules); Collect facts (run `${CLAUDE_SKILL_DIR}/scripts/portfolio-facts.sh`,
+   confirmation; the reference doc is cited as `${CLAUDE_PLUGIN_ROOT}/reference/config.md`,
+   never as a bare `reference/config.md`, which check 5 resolves against the skill directory);
+   Discover repositories (T1 grammar; T2 seam with the gate sentence "when the
+   `repo-fleet-hygiene` plugin is installed it owns bounded fleet discovery and
+   canonical-checkout resolution: invoke `/repo-fleet-hygiene:audit` via the Skill tool with
+   `--plan-file`; without it, run the bundled walk below and say so", the slug resolution and
+   `mkdir -p` of the memory slice, the plan-file read filtered to `discovered` paths under a
+   requested root, and the fallback walk rules); Collect facts (run
+   `${CLAUDE_SKILL_DIR}/scripts/portfolio-facts.sh`,
    never derive by hand); Draw relationships (T4 evidence rule); Emit artifacts (T6, T7
    filenames and shapes, both dialects spelled out with a minimal example each in fences);
    What this skill does NOT do (modify any discovered repository; container/component views;
@@ -103,7 +113,9 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
    `pyproject.toml`; one `go.mod`; one empty repo; one with `CODEOWNERS`; one with an `origin`
    remote and no CODEOWNERS), each `git init`-ed with one commit so `last_touched` is real.
    Asserts every T3 field per fixture, including `unknown` on the empty repo, the dependency
-   cap, and the owner ladder order. `scripts/run-plugin-tests.sh` discovers it.
+   cap, and the owner ladder order. The test adopts the skill-script shape from
+   `docs/conventions/shell-test-helpers/README.md` (`pass`/`fail`, `FAILED`/`CASE_NUM`
+   counters) rather than a bespoke idiom. `scripts/run-plugin-tests.sh` discovers it.
 3. `plugins/architecture/lib/resolve-convention-home.sh` (vendored copy): add the path to the
    `copies=(...)` array in `scripts/sync-resolve-convention-home.sh`, then run the script to
    copy. The canonical copy stays in `plugins/claude-config/lib/`.
@@ -126,9 +138,24 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
    0.22.0, 0.25.0).
    `plugins/architecture/.claude-plugin/plugin.json` version `0.7.0`; extend `description`
    and `keywords` (`c4`, `landscape`, `portfolio`). `.claude-plugin/marketplace.json` carries
-   no version field; add `landscape` to the plugin's `tags` only.
+   no version field; its `tags` list for the plugin is kept identical to `keywords` (they are
+   byte-identical today; no gate enforces it, so parity is a convention kept by hand).
 8. Regenerate `docs/SKILL-CHEAT-SHEET.md` and `docs/CATALOG.md` with their generators
    (`scripts/generate-cheatsheet.mjs`, `scripts/generate-catalog.mjs`); never hand-edit.
+   `docs/CATALOG.md` changes because the plugin `description` changes.
+9. `plugins/architecture/skills/setup/SKILL.md` (new) plus `evals/evals.json` (setup skills are
+   not evals-exempt): T11 verbatim. Frontmatter per the setup contract enforced by
+   `scripts/validate-plugin-contracts.mjs` (`disable-model-invocation: true`, `argument-hint`
+   leading with `check`), modelled on `plugins/plugin-quality/skills/setup/SKILL.md` minus its
+   retirement records. Eval cases: `check` with no pointer line (reports exit 1 and the
+   recipe); `check` with a conforming topic doc; `apply` proposes and waits for confirmation
+   before writing; `apply` never edits the root instruction file.
+10. `docs/conventions/config-cascade/README.md` "Implementers" table: add the `architecture`
+    row (consumer config path = convention doc at the consumer's convention home,
+    `<home>/architecture/README.md`; layers = `team, via pointer line`; conformance =
+    new surface under the expression doctrine, no retirement record; keys owned by the plugin's
+    `reference/config.md`). Conformance is tracked, not assumed; a new surface with no row is
+    the gap that table exists to expose.
 
 **Sanity Check** (each line records its result on unmodified `origin/main` `912d6b3ec`, run
 2026-09-06, then the expected result after the phase):
@@ -146,18 +173,24 @@ Branch `feat/3816-map-landscape` from fresh `origin/main`. Files:
 | A9 | `grep -qE 'repo-fleet-hygiene' plugins/architecture/skills/map-landscape/SKILL.md && grep -qiE 'plugin is installed' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A10 | `grep -q 'systemLandscape' plugins/architecture/skills/map-landscape/SKILL.md && grep -q 'C4Context' plugins/architecture/skills/map-landscape/SKILL.md` | n/a (no file) | PASS |
 | A11 | `bash plugins/architecture/skills/map-landscape/scripts/portfolio-facts.test.sh` | n/a (no file) | exit 0 |
+| A12 | `test -f plugins/architecture/skills/setup/SKILL.md && grep -q 'architecture' docs/conventions/config-cascade/README.md` | FAIL | PASS |
 | C1 | `bash scripts/sync-resolve-convention-home.sh --check` | PASS | PASS |
 | C2 | `bash scripts/check-skill-count-claims.sh --check` | PASS | PASS |
 | C3 | `bash scripts/check-orphaned-fixtures.sh --check` | PASS | PASS |
 | C4 | `node scripts/validate-plugin-contracts.mjs` | PASS | PASS |
 | C5 | `bash scripts/check-changelog-parity.sh --check-bump origin/main` | PASS | PASS |
-| C6 | `bash scripts/check-changed-skills.sh main` | n/a | exit 0 |
+| C6 | `bash scripts/check-changed-skills.sh origin/main` (the base ref is also `CHECK_SKILL_BASE_REF`; a stale local `main` skews both) | n/a | exit 0 |
 | C7 | `npx markdownlint-cli2 <every changed .md>` | n/a | 0 issues |
 | C8 | `shellcheck plugins/architecture/skills/map-landscape/scripts/*.sh` | n/a | clean |
+| C9 | `bash scripts/validate-plugins.sh` (runs the contracts validator plus `generate-catalog.mjs --check` and `generate-cheatsheet.mjs --check`) | PASS | PASS |
+| C10 | `bash scripts/check-changelog-parity.sh --check-preserved origin/main` | PASS | PASS |
+| C11 | `bash scripts/check-changelog-parity.sh --check-order` | PASS | PASS |
 
-Absence checks (A7, A8) are paired with presence checks on the same file (A9, A10) so a missing
-file cannot pass the pair. `grep -q` is used throughout; `grep -c` exits 1 on zero matches and
-is never used as an absence assertion.
+Table cells escape `|` as `\|`; the commands as typed are `grep -qiE 'zachman|togaf'` and
+`grep -qE '^\| *why *\|'` (the ERE alternation must be a bare `|`, or the absence check matches
+only the literal string and passes vacuously). Absence checks (A7, A8) are paired with presence
+checks on the same file (A9, A10) so a missing file cannot pass the pair. `grep -q` is used
+throughout; `grep -c` exits 1 on zero matches and is never used as an absence assertion.
 
 **Manual smoke** (recorded in the PR body, not a gate): run the skill against three local
 repositories of different ecosystems with `--repos`, then once with `--root` and the
@@ -198,13 +231,13 @@ Branch `feat/3817-design-handoff-coverage` from fresh `origin/main`. Files:
 | Check | Command | Main | After |
 |---|---|---|---|
 | B1 | `! grep -qiE 'zachman\|togaf' plugins/planning/skills/design-handoff/SKILL.md` | PASS | PASS |
-| B2 | `grep -qE '^\| *why *\|' plugins/planning/skills/design-handoff/SKILL.md` | FAIL | PASS |
+| B2 | `grep -qE '^\| *why *\|' plugins/planning/skills/design-handoff/SKILL.md` (the six reading rules are rendered as the example table itself, one row per dimension, so this row is the presentation contract, not an accident) | FAIL | PASS |
 | B3 | `grep -q 'Dimension \| Covered by \| Status' plugins/planning/skills/design-handoff/SKILL.md` | FAIL | PASS |
 | B4 | `test $(grep -c '"id":' plugins/planning/skills/design-handoff/evals/evals.json) -gt 5` | FAIL (5) | PASS (8) |
 | B5 | `grep -q 'unresolved AND untagged is a silent gap' plugins/planning/skills/design-handoff/SKILL.md` | PASS | PASS |
 | B6 | `grep -q '^## \[0.37.0\]' plugins/planning/CHANGELOG.md` | FAIL | PASS |
-| B7 | `git diff origin/main -- plugins/planning/skills/design-handoff/SKILL.md \| grep -q '^-.*Use when:'` | n/a | must be FALSE (description line may change only by addition; the check-3 gate is the authority) |
-| C2–C7 | as Phase 1 | PASS | PASS |
+| B7 | `! (git diff origin/main -- plugins/planning/skills/design-handoff/SKILL.md \| grep -q '^-.*Use when:')` | PASS (no diff) | PASS; this is the only real gate on the description edit, since skill-quality check 3 is advisory and never FAILs |
+| C2–C7, C9–C11 | as Phase 1 (C6 with `origin/main`) | PASS | PASS |
 
 B1 passes on main by itself; B2 and B3 are the presence pair that fails today, so the trio
 only passes once the section exists and still names no framework.
@@ -227,12 +260,22 @@ Manual smoke for Phase 2 (recorded in the PR body): run `/planning:design-handof
 three new fixtures copied into a scratch topic slice; confirm the verdict sentence is
 byte-identical to today's on the single-gap fixture and the table has six rows on every run.
 
+Criteria no gate in this repository can verify mechanically, and which the PR bodies must mark
+as manual-smoke evidence so close-out does not read a green CI as proof: #3816 "produces both
+artifacts over exactly the listed repositories", "uses its canonical-repository discovery", "is
+a C4 System Landscape in the dialect the consumer's convention names", "written to the
+consumer's declared architecture home"; #3817 "with the same message as today" (B5 pins one
+sentence; byte-identity is the smoke). The setup skill's eval cases are schema-checked like
+every other.
+
 ## Files affected
 
 Phase 1: `plugins/architecture/skills/map-landscape/{SKILL.md,evals/evals.json,evals/fixtures/*,scripts/portfolio-facts.sh,scripts/portfolio-facts.test.sh}`,
+`plugins/architecture/skills/setup/{SKILL.md,evals/evals.json,evals/fixtures/*}`,
 `plugins/architecture/lib/resolve-convention-home.sh`, `plugins/architecture/reference/config.md`,
 `plugins/architecture/{README.md,CHANGELOG.md,.claude-plugin/plugin.json}`,
 `scripts/sync-resolve-convention-home.sh`, `.claude-plugin/marketplace.json` (tags only),
+`docs/conventions/config-cascade/README.md` (one Implementers row),
 `docs/SKILL-CHEAT-SHEET.md`, `docs/CATALOG.md` (generated).
 
 Phase 2: `plugins/planning/skills/design-handoff/{SKILL.md,evals/evals.json,evals/fixtures/*}`,
@@ -263,8 +306,14 @@ The two sets are disjoint except the generated docs, which Phase 2 does not touc
   publish a contract.
 - **Resolver cluster drift.** Enrolling a third carrier means every canonical change bumps
   three plugins (`--check-bump`). Accepted: that is the ADR 0019 cost and CI enforces it.
-- **Description trigger-phrase regression in design-handoff.** Check 3 fails the PR if any
-  "Use when:" phrase is dropped; the edit is additive only.
+- **Description trigger-phrase regression in design-handoff.** skill-quality check 3 is
+  advisory (WARN, never FAIL), so the protection is B7: a diff assertion the PR must run
+  proving no `Use when:` line was removed. The edit is additive only.
+- **Fleet discovery is not free.** `/repo-fleet-hygiene:audit` collects GitHub evidence
+  (`gh api`, `git ls-remote`) on every run, so discovery-only use pays for a full audit and may
+  need `gh` authentication. The skill says so; deferred question 1 asks for a lighter mode.
+- **Config-additive scope.** The collaborator walks every configured root in addition to the
+  CLI root; the `discovered`-prefix filter (T2) keeps the landscape to what was asked for.
 - **Coverage table read as a criterion.** The skill text and the Gotcha say advisory; eval
   case `coverage-gaps-still-pass` pins it.
 
@@ -276,6 +325,24 @@ changes an existing gate's output shape but not its verdict; `/planning:plan` re
 artifacts on disk rather than the gate's emitted text (`plugins/planning/skills/plan/SKILL.md`
 "Has `/planning:design` been done?"), so no downstream hop consumes the changed output. Both
 plugins are published; consumers receive the changes on update. All changes are git-revertible.
+
+## Stress-test summary
+
+One fresh-context verifier round (2026-09-06), 17 findings, each verified against the files
+before acting: 1 CRITICAL (the issue bodies were not yet amended and #3816's criterion 2
+contradicted T1; amended, see the issue notes), 5 IMPORTANT (config-additive scope could
+widen the mapped fleet, fixed by the `discovered` filter in T2; skill-quality check 3 is
+advisory, so B7 is the real gate on the description edit; the philosophy requires a `setup`
+skill once a consumer configuration surface exists, added as T11; the config-cascade
+Implementers table needs a row; three CI gates were missing from the C-series, added as
+C9–C11), 11 SUGGESTION (all applied: table-escaping note, B2 presentation contract, C6 base
+ref, slug and `mkdir -p` before the seam call, ownership framing in the gate sentence, ADR
+filenames, collector path in design-resolution, `${CLAUDE_PLUGIN_ROOT}`-anchored reference
+cite, keyword/tag parity, skill-script test shape, manual-smoke marking of unverifiable
+criteria). Verified sound by the same round: plan-file keys, no-scope failure, read-only audit,
+discovery restatement, verb-table stance, T8 status rule, no downstream consumer of the gate's
+emitted text, marketplace version fields, bump levels, sync enrollment, generator inputs,
+eval schema, test discovery, org-agnosticism tokens.
 
 ## Execution shape
 
@@ -298,9 +365,10 @@ this plan's summary.
 1. Should `repo-fleet-hygiene` publish a `discover`-only mode or a documented plan-JSON schema
    for consumers? File against that plugin when Phase 1 lands; until then the `schema_version`
    check plus fallback carries the coupling.
-2. Should an `architecture:setup` skill own persisting the convention-home pointer line and
-   writing the architecture topic doc (ADR 0018 infer-and-persist rung)? Out of scope here;
-   the skill prints the recipe.
+2. Resolved during verification: `architecture:setup` ships in Phase 1 (T11) because the
+   plugin philosophy requires a setup skill once a consumer configuration surface exists. What
+   stays open is whether any plugin should ever write the shared pointer region itself; today
+   every carrier prints the recipe.
 3. Should `/planning:design` Phase 2 prompt for threads across the six dimensions at design
    time (upstream of the gate)? Out of scope by #3817's exclusion; revisit after the table has
    been read in practice.

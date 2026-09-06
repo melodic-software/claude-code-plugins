@@ -5,7 +5,7 @@ consumer-facing configuration surface, a new helper script contract, and a cross
 plus a light change to an existing gate (`planning:design-handoff`). Resolved in one planning
 session (2026-09-06) against the actual plugin sources rather than a multi-round `/planning:design`
 session: every thread had a single defensible answer once the collaborator's real contract was
-read. Threads and rationale: `design-threads.md` beside this file (T1–T10, all RESOLVED).
+read. Threads and rationale: `design-threads.md` beside this file (T1–T11, all RESOLVED).
 
 ## Contract surfaces introduced
 
@@ -14,7 +14,8 @@ read. Threads and rationale: `design-threads.md` beside this file (T1–T10, all
 | Skill argument grammar | `architecture:map-landscape` | `[--repos <path>[,<path>...]] [--root <dir>]...` (T1) |
 | Fleet-hygiene seam | `architecture:map-landscape` (consumer) | invocation of `/repo-fleet-hygiene:audit` with `--plan-file`; reads `schema_version`, `repositories[].canonical`, `repositories[].remote` (T2) |
 | Facts collector | `architecture:map-landscape` | `plugins/architecture/skills/map-landscape/scripts/portfolio-facts.sh`, one JSON object per repo on stdout (T3) |
-| Consumer topic doc | the consuming repository | `<convention-home>/architecture/README.md`, keys `architecture_dir`, `landscape_dialect` (T5) |
+| Consumer topic doc | the consuming repository; written by `architecture:setup apply` on confirmation | `<convention-home>/architecture/README.md`, keys `architecture_dir`, `landscape_dialect` (T5, T11) |
+| Setup skill | `architecture:setup` | `check` reports the declaration state; `apply` is operator-gated (T11) |
 | Vendored resolver | `claude-config` (canonical), `architecture` (carrier) | `plugins/architecture/lib/resolve-convention-home.sh`, enrolled in `scripts/sync-resolve-convention-home.sh` (T5) |
 | Artifacts | the consuming repository | `<architecture_dir>/landscape.dsl` or `landscape.md`, `<architecture_dir>/portfolio.md` (T6, T7) |
 | Gate output | `planning:design-handoff` | six-row advisory coverage table in the gate output and resume prompt (T8) |
@@ -28,5 +29,5 @@ PLAN.md follows this.
 ## Not designed here, by exclusion
 
 Baseline-versus-target comparison, container/component C4 views, capability maps, a standalone
-design-document skill, and persistence of the convention-home pointer line (see PLAN.md deferred
-questions).
+design-document skill, and editing the consumer's root instruction file (the pointer region is
+shared by every plugin and is the operator's to place; `setup` prints the recipe).
