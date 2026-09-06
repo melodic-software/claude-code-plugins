@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.66]
+
+### Fixed
+
+- work-item-tracker GitHub adapter: `list-sub-items` scopes sub-issues to the parent's own repo
+  by the node's `url` rather than `repository.nameWithOwner`. `gh issue view --json subIssues`
+  projects each node down to `id`, `number`, `title`, `url`, `state` and drops the `repository`
+  object, so the old predicate matched no node and every container enumerated as childless,
+  which also blinded `list-frontier --parent` and container rollup. A node that does carry
+  `repository.nameWithOwner` still filters on it. The adapter README records the projection and
+  the gh version the fix was checked against.
+
 ## [0.39.65]
 
 ### Changed

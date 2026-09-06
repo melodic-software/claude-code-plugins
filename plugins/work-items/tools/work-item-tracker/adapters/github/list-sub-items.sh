@@ -43,10 +43,26 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 
 # Native child numbers, scoped to the parent's own repo (a cross-repo sub-issue's
 # number would collide with an unrelated same-numbered issue in this repo).
+#
+# The same-repo test reads the node's `url`, not `repository.nameWithOwner`. gh's
+# GraphQL query does request `repository{nameWithOwner}`, but its `--json
+# subIssues` projection drops it again, emitting only id/number/title/url/state
+# (checked in gh's export path, 2.94.0 through 2.98.0). Selecting on the absent
+# field matched nothing, so every container read as childless (#3825). A node's
+# `url` is `<host>/<owner>/<repo>/issues/<n>`, so owner/repo are the two path
+# segments before `issues`. `repository.nameWithOwner` still wins where a gh
+# build does emit it; a node attributable to neither repo is dropped, as before.
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
-child_nums="$(jq -c --arg repo "$target_repo" \
-  '[(.subIssues.nodes // [])[] | select(.repository.nameWithOwner == $repo) | .number]' \
-  <<<"$WIT_GH_OUT")"
+child_nums="$(jq -c --arg repo "$target_repo" '
+  def node_repo:
+    (.repository.nameWithOwner? // null)
+    // (((.url // "") | split("/")) as $seg
+        | if ($seg | length) >= 5 and $seg[-2] == "issues"
+          then ($seg[-4:-2] | join("/"))
+          else null
+          end);
+  [(.subIssues.nodes // [])[] | select(node_repo == $repo) | .number]
+' <<<"$WIT_GH_OUT")"
 
 if [[ "$child_nums" == "[]" ]]; then
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'
