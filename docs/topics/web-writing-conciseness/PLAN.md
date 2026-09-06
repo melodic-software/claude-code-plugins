@@ -162,7 +162,7 @@ this session and cited per phase.
 | Validation | `README.md` "Validate a change"; `scripts/affected-tests.sh` | team |
 | PR body | `.claude/rules/pr-body-contract.md`; `.claude/source-control.md` `pr_body_required_sections` | team |
 
-### Phase 1: Plugin skeleton and the skill body [TODO]
+### Phase 1: Plugin skeleton and the skill body [DONE]
 
 The integration slice. Nothing else can point at a skill that does not resolve.
 
