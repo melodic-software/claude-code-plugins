@@ -38,7 +38,10 @@ restated. Five things are specific to this lane:
 
 - **The only write that is this lane's own is the findings artifact**, at the memory-tier home
   resolved through `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. Never the artifact being judged.
-  Emit the read-only opening line naming the resolved path, immediately after resolving it. The two
+  Emit the read-only opening line immediately after resolving the home, naming that home as where a
+  finding **would** be written rather than asserting one was: this lane may end up filing no row, and
+  a line that named the path as written would then be a false statement the operator has no reason to
+  doubt. The two
   auxiliary writes the governing contract sanctions, the topic-docs self-ignore guard and the
   concern-file persistence on the resolution rungs, are unaffected and still happen: they belong to
   the binding this lane runs, not to this lane, and skipping the guard would leave the memory root
@@ -208,7 +211,10 @@ artifact as the single source of truth, an inline summary always. Three addition
 widened target puts the widening in the **first line**, before anything else. A routed target is
 reported inline with the layer that claimed it and no row at all, so the operator can tell a route
 from a skip. The template's "always" on writing the artifact carries this lane's two exceptions,
-both in the read-only contract above: no branch identity, and a run that examined nothing.
+both in the read-only contract above: no branch identity, and a run that filed no row, however it
+got there. Because this lane cannot know at line-one time which it will be, the read-only opening
+line names the resolved home rather than asserting a write, per the template's item 1, and the
+closing summary states whether anything was persisted.
 
 ## Gotchas
 

@@ -3,6 +3,46 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.12]
+
+### Changed
+
+- **`audit-skill-visibility` routes the one-shot unused-versus-context-cost question to
+  `/skill-doctor` as well as `/doctor`.** Claude Code 2.1.261 added `/skill-doctor` ("show which
+  loaded skills go unused and what they cost in context, so you can prune them"), which is the
+  unused-components check this skill's native-surfaces row already deferred to `/doctor` for.
+  That row's recheck trigger fired; the description's Not-for clause, the body, and the Scope
+  boundary table now name both surfaces behind a presence gate, per the native-references
+  convention, and the existing store row records the fired trigger with the 2.1.261 CHANGELOG
+  evidence and re-verifies its date. This container runs 2.1.258 and cannot extract the new
+  surface, and a dedicated `skill-doctor` row needs an upstream commit pin the session could not
+  obtain in scope, so that row is deferred and named in the evidence. Verdict unchanged:
+  `complementary`.
+
+## [0.42.11]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1, and the reference sink reads the spine
+  first.** The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope a fleet producer emits, each only when present as a plain id.
+  `hook-telemetry-sink.sh` (and the repo-local copy under `.claude/hooks/`)
+  now routes on the spine `session_id` and falls back to `data.session_id`,
+  which the nine audit hooks still send, so envelopes from producers on 1.0
+  keep their route and every producer on 1.1 lands in
+  `sessions/<session_id>.jsonl`. The per-session report's "hooks fired" table
+  therefore covers the formatters and guards, not only the nine audit hooks
+  (#3758). `schema_version` reads `1.1`; the sink suite pins the spine route
+  and its precedence over the data key. Numbered above 0.42.9 (#3765) and
+  0.42.8, which a sibling change holds.
+  The four keys are read from the payload ROOT only, so a same-named key inside
+  `tool_input` or `tool_response` can never reach the spine and file a row
+  under another session; above a 65536-byte payload only the region ahead of
+  the first nested container is read, which omits `tool_use_id` rather than
+  guessing it (#3784). A row in the per-session report is therefore the
+  harness's own id, never a tool argument.
+
 ## [0.42.10]
 
 ### Changed

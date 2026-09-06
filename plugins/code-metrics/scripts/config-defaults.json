@@ -1,0 +1,97 @@
+{
+  "scope": {
+    "default": "change",
+    "base": "auto",
+    "exclude": []
+  },
+  "complexity": {
+    "cyclomatic": { "reference": 20 },
+    "cognitive": { "reference": null },
+    "halstead": { "difficulty": null }
+  },
+  "size": {
+    "mode": "file-lines",
+    "file_lines": 1000,
+    "function_lines_pct": 5
+  },
+  "duplication": {
+    "min_tokens": 50,
+    "min_lines": 5,
+    "ignore": [],
+    "registries": []
+  },
+  "coverage": {
+    "artifacts": [],
+    "path_prefix_strip": [],
+    "reference": null,
+    "crap": { "reference": null }
+  },
+  "type_debt": {
+    "reference": null
+  },
+  "lanes": {
+    "typescript": { "enabled": true },
+    "python": { "enabled": true },
+    "bash": { "enabled": true },
+    "go": { "enabled": true },
+    "dotnet": { "enabled": true }
+  },
+  "thresholds": [
+    {
+      "measure": "cyclomatic",
+      "config_key": "complexity.cyclomatic.reference",
+      "value_key": "cyclomatic",
+      "direction": "at_or_above",
+      "provenance": "ISO/IEC 5055:2021 §8.2.117 (normative); selectable alternatives 10 (McCabe 1976, \"reasonable, but not magical\") and 15 (NIST SP 500-235, with its six practices)"
+    },
+    {
+      "measure": "cognitive",
+      "config_key": "complexity.cognitive.reference",
+      "value_key": "cognitive",
+      "direction": "at_or_above",
+      "provenance": "Campbell, SonarSource (Cognitive Complexity white paper); no standard sets a threshold"
+    },
+    {
+      "measure": "halstead_difficulty",
+      "config_key": "complexity.halstead.difficulty",
+      "value_key": "halstead_difficulty",
+      "direction": "at_or_above",
+      "provenance": "Halstead 1977; no standard sets a threshold"
+    },
+    {
+      "measure": "file_lines",
+      "config_key": "size.file_lines",
+      "value_key": "lines_non_blank",
+      "direction": "at_or_above",
+      "provenance": "plugin default; coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500 is the operator-list figure, selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
+    },
+    {
+      "measure": "function_lines_pct",
+      "config_key": "size.function_lines_pct",
+      "value_key": "function_lines_pct",
+      "direction": "at_or_above",
+      "provenance": "ISO/IEC 5055:2021 §8.2.115 (normative): a function whose non-empty lines exceed this percentage of the file's; used when size.mode is iso-8.2.115"
+    },
+    {
+      "measure": "coverage",
+      "config_key": "coverage.reference",
+      "value_key": "coverage_pct",
+      "direction": "below",
+      "provenance": "no default bar; ISO/IEC 25023:2016 files test coverage under Reliability/Maturity and sets no value"
+    },
+    {
+      "measure": "crap",
+      "config_key": "coverage.crap.reference",
+      "value_key": "crap",
+      "direction": "at_or_above",
+      "provenance": "Savoia and Evans 2007 (Agitar Labs); not a validated change-risk predictor; no standard sets a threshold"
+    },
+    {
+      "measure": "type_coverage",
+      "config_key": "type_debt.reference",
+      "value_key": "type_coverage_pct",
+      "direction": "below",
+      "provenance": "no standard or CWE anchors the measure"
+    }
+  ]
+}

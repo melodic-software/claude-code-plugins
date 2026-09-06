@@ -12,7 +12,8 @@
         "States which rung of the no-target ladder it used",
         "Does NOT enumerate the repository or emit a candidate list unasked",
         "Offers git-age discovery and waits, rather than running it",
-        "Writes no findings artifact on a run that examined nothing"
+        "Writes no findings artifact, because the run filed no row",
+        "The read-only opening line names the resolved home as where a finding would go, and never asserts that a file was written"
       ]
     },
     {

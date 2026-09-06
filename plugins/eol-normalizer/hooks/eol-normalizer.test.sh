@@ -219,7 +219,7 @@ if [[ -s "$TEL" ]]; then
   done
   if [[ "$(jq -r '.hook' "$TEL")" == "eol-normalizer" ]]; then ok "envelope: hook is eol-normalizer"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
+  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq -r '.data.action' "$TEL")" == "lf" ]]; then ok "envelope: data.action lf"; else fail "envelope: data.action=$(jq -r '.data.action' "$TEL")"; fi
   if [[ "$(jq -r '.data.changed' "$TEL")" == "true" ]]; then ok "envelope: data.changed true (CRLF file was rewritten to LF)"; else fail "envelope: data.changed=$(jq -c '.data.changed' "$TEL")"; fi
   FREL=$(jq -r '.data.file' "$TEL")

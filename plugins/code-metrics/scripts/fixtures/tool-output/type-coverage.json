@@ -1,0 +1,34 @@
+{
+  "succeeded": true,
+  "details": [
+    {
+      "character": 22,
+      "filePath": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts",
+      "line": 0,
+      "text": "input"
+    },
+    {
+      "character": 8,
+      "filePath": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts",
+      "line": 1,
+      "text": "value"
+    },
+    {
+      "character": 21,
+      "filePath": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts",
+      "line": 1,
+      "text": "input"
+    },
+    {
+      "character": 9,
+      "filePath": "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts",
+      "line": 2,
+      "text": "value"
+    }
+  ],
+  "atLeastFailed": false,
+  "correctCount": 5,
+  "percent": 55.55,
+  "percentString": "55.55",
+  "totalCount": 9
+}

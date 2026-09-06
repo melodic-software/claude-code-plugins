@@ -54,6 +54,14 @@ it.
    artifact is written."* The layers-walked half is unchanged — the walk still happened, and this
    summary is the only record of it. The condition and its reasoning belong to the skill's
    "A detached checkout has no branch identity"; this document owns only how the line reads.
+   **When the run ends up writing no row**, the path resolved but nothing was persisted to it, and
+   the first wording would assert a write that never happened. A lane that can reach that state
+   names the resolved path as the home it *would* have written to, and says the write was declined
+   and why: *"Read-only pass; findings artifact home resolved at `<resolved path>`, nothing written
+   because this run filed no finding."* A pointed lane cannot know at line-one time whether it will
+   file one, so it either defers this line until it does, or emits the conditional form and states
+   the outcome in its closing summary. What it must never do is name a path as written and then not
+   write it.
 2. **Evidence availability, one line per tier**: present / partial / unavailable, with the probe. A
    shallow clone and a missing telemetry sink each get named here explicitly.
 3. **Counts**, per verdict class and per layer. A small table, not prose.

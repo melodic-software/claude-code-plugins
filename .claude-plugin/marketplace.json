@@ -412,6 +412,12 @@
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
+      "name": "code-metrics",
+      "source": "./plugins/code-metrics",
+      "category": "quality",
+      "tags": ["code-metrics", "complexity", "cyclomatic", "cognitive-complexity", "halstead", "duplication", "coverage", "crap", "type-coverage", "lines-of-code", "measurement", "audit", "skill"]
+    },
+    {
       "name": "discipline",
       "source": "./plugins/discipline",
       "category": "quality",

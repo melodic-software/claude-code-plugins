@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.55]
+
+### Changed
+
+- babysit-loop: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+
+## [0.55.54]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hooks emit, each only when present as a plain
+  id, so the claude-ops per-session report lists these hooks with no change
+  to the hooks themselves (#3758). `schema_version` reads `1.1`; no hook
+  behavior changes.
+
 ## [0.55.53]
 
 ### Changed

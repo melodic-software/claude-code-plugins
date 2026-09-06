@@ -164,7 +164,7 @@ load-bearing for sorting, so the five are appended rather than interleaved.
 <frontmatter above>
 ---
 
-# Overengineering audit — findings
+# Overengineering findings
 
 ## Evidence availability
 
@@ -587,9 +587,14 @@ each finding:
 2. **Id absent from the prior artifact.** A new finding, `Status: OPEN`.
 3. **Prior id absent from this run, and its layer WAS walked.** The underlying artifact is gone
    (deleted, renamed, or already retired). The finding is **dropped with a note**: a
-   `## Closed since last run` row records the id, its last verdict, its last status, and the reason
-   class — `artifact absent`, `renamed to <successor id>` where the rename is evidenced, or
-   `layer no longer configured`. A finding that vanishes with no row is the failure this section
+   `## Closed since last run` row records the id, **its `Layer`**, its last verdict, its last status,
+   and the reason class — `artifact absent`, `renamed to <successor id>` where the rename is
+   evidenced, or `layer no longer configured`. The layer is required for the same reason it is
+   required on a spine row: it is the only serialized thing that says which producer owned the
+   finding, since `check` is a hash input no consumer can read back. Without it a consumer filtering
+   by producer cannot tell a closure in a justification layer from one in an enforcement layer, and
+   `overengineering:delta`, which compares only the ten enforcement layers, would report a closure it
+   is elsewhere told it never compares. A finding that vanishes with no row is the failure this section
    exists to prevent.
 4. **Prior id absent from this run because its layer was NOT walked** (`scope` says so). The finding
    is **carried forward untouched**, prose and all, marked not re-evaluated this run and stamped
