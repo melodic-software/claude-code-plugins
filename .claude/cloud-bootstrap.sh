@@ -160,15 +160,38 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       echo "cloud-bootstrap: warning: could not register the $marketplace_name marketplace" >&2
   fi
 
-  # Enabled-and-not-yet-installed, computed from the tracked settings file so
-  # this script can never drift from the catalog the repo actually enables.
+  # Enabled set: the fleet list the shared environment baked into the snapshot
+  # (standards cloud-environment component; the /tmp copy is its fallback when
+  # /opt was unwritable at cache build), overlaid with the tracked settings
+  # file, so a repo entry set to false opts out of a fleet entry and a repo
+  # entry beyond the fleet is added. Only this marketplace's ids count, and
+  # they resolve against the checkout registered above, so a settings block
+  # reduced to deltas still dogfoods the whole catalog from the current
+  # branch. Absent outside a managed environment, in which case the settings
+  # file is the only source, as before. CLOUD_BOOTSTRAP_FLEET_LIST is the test
+  # seam.
+  fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-}"
+  if [[ -z "$fleet_list" ]]; then
+    for candidate in /opt/melodic-fleet-plugins.json /tmp/melodic-fleet-plugins.json; do
+      if [[ -f "$candidate" ]]; then
+        fleet_list="$candidate"
+        break
+      fi
+    done
+  fi
+  # A present-but-unparsable list (partial write at cache build) must degrade
+  # to settings-only, not empty the whole enabled set: `--slurpfile` fails
+  # before emitting anything.
+  if ! [[ -f "$fleet_list" ]] || ! jq empty "$fleet_list" 2>/dev/null; then
+    fleet_list=.claude/settings.json
+  fi
   mapfile -t wanted < <(
-    jq -r --arg n "$marketplace_name" \
-      '.enabledPlugins // {} | to_entries[]
+    jq -r --arg n "$marketplace_name" --slurpfile f "$fleet_list" \
+      '(($f[0].enabledPlugins // {}) + (.enabledPlugins // {})) | to_entries[]
        | select(.value == true and (.key | endswith("@" + $n))) | .key' \
-      .claude/settings.json 2>/dev/null
+      .claude/settings.json 2>/dev/null | tr -d '\r'
   )
-  mapfile -t have < <("$claude_bin" plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
+  mapfile -t have < <("$claude_bin" plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null | tr -d '\r')
 
   # A directory-source install cache is keyed by the semver in plugin.json, not
   # by commit, so a later commit under the same version never replaces the
