@@ -948,6 +948,44 @@ if is_block "$OUT"; then ok "newline-bearing sentinel: half the token does not a
 OUT="$(run "$(build_input Stop $'done\nA\nB' false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
 if is_block "$OUT"; then fail "newline-bearing sentinel: the whole token on its own lines was not honored: $OUT"; else ok "newline-bearing sentinel: the whole token on its own lines authorizes"; fi
 
+# --- Case 51: an UNREADABLE settings file is silent, as the grep scan was ----
+# The pre-filter's settings scan is a builtin read (`done 2>/dev/null <"$f"`)
+# where it was `grep -q … 2>/dev/null`. Bash applies a command's redirections
+# left to right, so writing the input redirection first would attempt the open
+# BEFORE stderr is silenced and print "Permission denied" for a settings file
+# that exists but this hook may not read — per-turn noise from a hook that runs
+# on every Stop. The verdict (no verdict, gate off, exit 0) is the same either
+# way, so only stderr discriminates: assert it is EMPTY, and that the stop is
+# still allowed silently on stdout.
+UNREADABLE_ERR="$WORK/unreadable.err"
+write_settings true
+chmod 000 "$SETTINGS" 2>/dev/null || true
+if [[ -r "$SETTINGS" ]]; then
+  # Running as root (or on a filesystem without POSIX modes): chmod 000 denies
+  # nothing, so there is no unreadable file to assert on. Visible, and the
+  # ordering is still pinned by the CI lanes that run as a normal user.
+  ok "SKIP: chmod 000 does not deny for this user — unreadable-source stderr not asserted here"
+else
+  OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
+    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+      -u CLAUDE_PLUGIN_DATA \
+      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+      bash "$HOOK" 2>"$UNREADABLE_ERR")"
+  RC=$?
+  UNREADABLE_STDERR="$(<"$UNREADABLE_ERR")"
+  if [[ -z "$UNREADABLE_STDERR" ]]; then
+    ok "an unreadable settings file produces no stderr (redirection order holds)"
+  else
+    fail "an unreadable settings file leaked to stderr — silence stderr BEFORE the input redirection: $UNREADABLE_STDERR"
+  fi
+  if [[ $RC -eq 0 ]] && ! is_block "$OUT"; then ok "an unreadable settings file contributes no verdict (stop allowed)"; else fail "unreadable settings file changed the verdict (rc=$RC out=$OUT)"; fi
+fi
+chmod 600 "$SETTINGS" 2>/dev/null || true
+rm -f "$SETTINGS"
+
 # ============================================================================
 # #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
 # ============================================================================
