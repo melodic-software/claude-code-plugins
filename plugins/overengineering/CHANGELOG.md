@@ -3,6 +3,103 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Fixed
+
+- **The shared contract's obligations table denied both producers a write the placement binding
+  grants them.** Its "mutates anything outside the artifact" row read `never` for `audit` and
+  `justify` alike, while `audit`'s own read-only contract sanctions two auxiliary writes and the
+  binding calls the concern-file persistence "the one sanctioned tracked write of either producer".
+  The row is about all writes outside the artifact, not only the audited surface, since its `delta`
+  cell enumerates memory-tier writes as mutations. A skill loading the table as governing would have
+  declined the sanctioned write, or reported it as a contract violation when it happened. Both cells
+  now name the two auxiliary writes and keep the absolute where it belongs, on the surface.
+- **Two more unscoped copies of the same absolute survived** the previous release, which had scoped
+  it in five places: `realign`'s Purpose section still said "the only mutating surface in this
+  plugin", and `delta`'s read-only contract said the same, three lines above its own list of three
+  sanctioned writes. Both now scope to the surface under scrutiny.
+- **A suppression duty was attributed to one producer** after a second shipped. The consumer-config
+  reference had "the audit reports every suppressed finding"; a targeted run reports them too, on
+  the narrower terms the merge clause sets.
+- **A count and a modifier.** The baseline model said "Two rules bind the run directly" above three,
+  and the README row this chain added attached "to the memory tier" to the inline summary as well as
+  the artifact, when the summary is emitted to the conversation and written nowhere. The README's
+  "Both files the plugin writes" is now "writes without asking", since the confirmation-gated
+  concern-file write is a third.
+
+## [0.4.3]
+
+### Fixed
+
+- **The README still carried the unqualified read-only claim `0.4.2` corrected in the skill
+  description**, and stated it more strongly: "the only skill that changes anything" of `realign`,
+  and "everything that changes the repo happens through" it. Both are false against the placement
+  binding, which records a confirmation-gated tracked write to the consumer's concern file as "the
+  one sanctioned tracked write of either producer". A reader evaluating the plugin from its README
+  concluded no producer touches tracked content, then saw one offer to. The claims are now scoped to
+  the surface under scrutiny, which is what they were always about, and the `justify` row carries the
+  same carve-out its description does. Found by verifying the previous fix rather than by a gate;
+  the parity fix had reached the description and stopped there.
+
+## [0.4.2]
+
+### Fixed
+
+- **Eval 8 graded the opposite of the rule `0.4.1` had just written.** That release scoped an
+  unresolved import out of `Routed-to`, on the grounds the field records a routing that actually
+  happened and an import pointing at nothing was handed to no one. The eval still required both
+  import lines named in `Routed-to`, on a fixture whose imports it states do not resolve, so the
+  case contradicted both the lane and itself: a run following the new rule failed it and a run
+  violating the rule passed. The imports now belong in the row's prose, with the skill file's
+  always-loaded part kept as the contrast, since that one really was routed.
+- **Eval 14 repeated the defect `0.4.1` fixed in eval 2.** It reuses the decision-record fixture,
+  for which two other cases establish that a correct run must ask the operator before writing
+  UNPROVEN, and supplied no answer. The correct run therefore asks, stops, emits no verdict, and
+  fails the case's own requirement that it emit a full report including the verdict. The prompt now
+  supplies the answer, as eval 2's does.
+- **The skill's description advertised unqualified read-only** while the lane can make the
+  ask-gated tracked write of the resolved artifact home, which the placement binding asserts each
+  producer discloses. The sibling walking lane already carves this out; this one now does too.
+
+## [0.4.1]
+
+### Fixed
+
+- **`justify` could not load inside a worktree-isolated session**, and this is a regression of the
+  fix `0.3.7` applied to the other three skills. Its branch call sat in `## Pre-computed context`,
+  which the harness runs as one shell invocation, and such a session refuses a compound command
+  containing git. The call moves into a "Repository context. Gather first" body section like its
+  siblings. The `|| echo` sentinel goes with it: `0.3.7` removed exactly that pattern because it
+  swallows the exit status, which is the datum the branch-identity step reads, and it guaranteed the
+  pre-compute line was never absent, so the skill's own escape hatch could never fire. Neither the
+  pre-compute-compose gate nor any other check flags this; it was found by reading the new skill
+  against its three siblings.
+- **An unresolved import was directed into `Routed-to`**, a field the contract scopes to a routing
+  that actually happened. An import pointing at nothing was handed to no one, so it is recorded in
+  the row's prose instead, and a consumer reading `Routed-to` no longer looks for a neighbour skill
+  that was never named.
+- **The placement binding still described three consumers and one producer.** Its detached-checkout
+  consequence named `audit`, `realign` and `delta` while asserting four skills read it, so a reader
+  concluded the new lane was unconstrained; and it attributed the ask-gated concern-file write to
+  the audit alone after a second producer began running the same rung order.
+- **The lane binding stated a measurement of this repository as though it were the consumer's.** It
+  gave a ranked-candidate precision figure counted here, in a document that loads inside someone
+  else's tree, where it reads as a fact about the tree in front of the reader. The claim is now the
+  general one the number supported.
+
+### Changed
+
+- **Four evals added and two tightened**, closing coverage gaps in what the lane's own suite grades.
+  Nothing exercised the targeted-run merge clause, which is the reason the schema-2 contract exists,
+  so a run that closed every prior finding in a layer it never walked passed the whole suite. Nothing
+  exercised either write refusal, the detached checkout or the unrecognized schema, though the
+  sibling lane grades both. Nothing exercised the corroboration step, so presenting a raw age ranking
+  as candidates passed. The line-widening case permitted widening to the whole file on a judgment the
+  body does not grant, and its fixture's line sits under a heading, so an incorrect run passed; and
+  the full-row case shared a fixture with the case that asserts the operator must be asked first,
+  while supplying no answer, so a correct run asked, stopped, and failed it.
+
 ## [0.4.0]
 
 ### Added

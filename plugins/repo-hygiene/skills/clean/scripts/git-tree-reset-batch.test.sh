@@ -89,7 +89,7 @@ fi
 
 # --- 5. clean_path_key: case folding only on Windows ---
 if [[ "$is_windows" == "true" ]]; then
-  if clean_skip_matches "$(clean_path_key 'C:/Repos/Acme/KeepMe')" 'acme\keepme'; then
+  if clean_skip_matches "$(clean_path_key '<drive>:/Repos/Acme/KeepMe')" 'acme\keepme'; then
     pass "Windows: skip match is case-insensitive"
   else
     fail "Windows: skip match is case-insensitive" "match" "no-match"

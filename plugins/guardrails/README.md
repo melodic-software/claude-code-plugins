@@ -379,7 +379,7 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
-**0.32.8, `ps-command.sh` parse tax on the Bash dispatcher.** 2026-09-06,
+**0.32.9, `ps-command.sh` parse tax on the Bash dispatcher.** 2026-09-06,
 Linux CI host. The 0.32.6 table still carries the remaining five PATH-visible
 execs (`3 git` + `2 jq`); this entry does not change that count. `ps-command.sh`
 (~41 KB) was sourced on every Bash fire: once in the dispatcher because

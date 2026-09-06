@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.46]
+
+### Changed
+
+- `run-args.test.js` names its Windows corpus directory `D:\repos\<corpus>`. The assertion is that
+  backslashes survive substitution untouched, which holds on any spelling of the last segment, and
+  the org machine-specific-path detector reads a literal checkout path as a leaked machine path
+  even inside a test.
+
 ## [0.13.45]
 
 ### Changed

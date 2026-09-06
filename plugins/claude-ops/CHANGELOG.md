@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.14]
+## [0.42.16]
 
 ### Changed
 
@@ -14,6 +14,52 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   is a process. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE
   takes; the fallback covers a bare filename, where the strip is a no-op and
   dirname answers `.`. What the hook checks is unchanged.
+
+## [0.42.15]
+
+### Changed
+
+- The `plugins` skill writes its native-Windows path examples with placeholders: `cache-content-check.sh`
+  and `fleet-state.sh` say `C:\Users\<user>\...`, and the `projectPath` gotcha says
+  `D:\repos\{repo}` against `/d/repos/{repo}`. The org machine-specific-path detector reads a
+  literal user-home or checkout path as a leaked machine path whatever the surrounding prose says,
+  and the placeholder form states the same contrast without tripping it. The gotcha uses braces
+  rather than angle brackets because a `<` directly after a backslash is the GNU word-boundary
+  escape `\<`, which the shell-portability gate reads as a GNU-only construct.
+
+## [0.42.14]
+
+### Changed
+
+- **The `plugins` skill now records where project-scope install records come from, not only that it
+  cannot reap them (#3688).** The skill already reported stale project-scope records and already
+  said no CLI verb removes one by path, but it never said what produces them, so a user reading a
+  count in the hundreds had no way to tell a careless install habit from a repo doing it on its own.
+  A new `scope-semantics.md` subsection, "Where project-scope records come from, and why the skill
+  cannot reap them", sources the mechanism: a repo's committed `.claude/settings.json`
+  `enabledPlugins` block is the documented cloud install mechanism, and project scope outranks user
+  scope. That every project-scope `true` merely duplicating a user-scope install still gets its own
+  version-pinned record keyed by that checkout's absolute path is recorded as the leading hypothesis
+  for local sessions, not as an established fact, because precedence alone does not establish the
+  write and the probe that would has not been run. Nothing on either side of the boundary reaps the result: `git worktree remove` does not touch
+  `~/.claude`, no CLI verb removes a record by path, and the "Cleaned up automatically" list in the
+  claude-directory docs names nothing under `~/.claude/plugins/`. Changelog 2.1.224 shows the
+  per-project records are a live mechanism rather than vestigial state. Synced plugins are recorded
+  as the contrast case, enablement with no install record at all, so they are not mistaken for a
+  source of these rows.
+- **Two questions the docs do not answer are recorded as open probes rather than asserted.** Which
+  code path writes the records locally is unverified, and one machine's 64 records sharing a single
+  `installedAt` second is written down as one observation on Claude Code 2.1.261, not as the
+  mechanism; the probe that would settle it is named. Whether a project-scope `false` writes any
+  record is undocumented and untested. The file's opening promise that every claim below it was
+  verified now names this subsection as the exception.
+- **Pointers, not restatements.** The mechanism is stated once, in the new subsection.
+  `SKILL.md`'s stale-records section gains a short paragraph naming the committed block as the
+  leading candidate source, flagging the local write path as unverified, and pointing at the
+  subsection, keeping its existing guidance that the tool owning those directories' lifecycle is
+  where records should be dropped. A new gotcha covers the failure mode alone, reading a large
+  absent-path count as careless installs, and cites the subsection rather than restating it. No
+  remediation is proposed; that decision is open on the issue.
 
 ## [0.42.13]
 

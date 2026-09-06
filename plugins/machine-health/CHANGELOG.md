@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.14]
+
+### Changed
+
+- `ConvertFrom-Jsonc.Tests.ps1`'s backslash-backslash case uses `C:\Users\<user>` as its subject.
+  It is still a Windows user-home path with doubled separators, which is the whole of what the
+  test exercises, and the org machine-specific-path detector no longer reads it as a leaked path.
+
 ## [0.12.13]
 
 ### Changed

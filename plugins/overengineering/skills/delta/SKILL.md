@@ -71,7 +71,7 @@ It inherits that boundary from `overengineering:audit`, which it composes, and a
 
 **It never invokes `overengineering:realign`, and it never enters it.** Not on a verdict that moved,
 not on a finding an earlier run already accepted, not when a route is unavailable, not when the
-operator asks for it inside this run. Realign is the only mutating surface in this plugin and it is
+operator asks for it inside this run. Realign is the only skill that mutates the surface under scrutiny and it is
 gated on an explicit per-item human acceptance given at the moment the item is presented; a lane that
 can run on a schedule has nobody to give one. Name realign as the next step and stop there, the same
 posture `audit` holds, for the same reason. Where the operator wants remediation, they invoke

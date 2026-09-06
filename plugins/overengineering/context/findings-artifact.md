@@ -26,7 +26,9 @@ One markdown file is the whole seam between this plugin's four skills. **Two of 
 `overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
 read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
 only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
-here at all. All four skills read this document; **none restates it**, and no other plugin is
+here at all. All four skills read this document; **none restates a rule of it as a second
+authority** — where a skill states one in its own voice, as `realign` does for the moved-verdict
+trigger it acts on, this document governs and settles every disagreement. No other plugin is
 assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
@@ -662,7 +664,7 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Obligation | `audit` | `justify` | `realign` | `delta` |
 |---|---|---|---|---|
 | Writes the artifact | yes — the walking producer, `mode: walk` | yes — the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes — status and status-bound fields only | **never** — a reader, and no writer of any field here |
-| Mutates anything outside the artifact | **never** | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
+| Mutates anything outside the artifact | the two auxiliary writes its own read-only contract sanctions, and nothing else: the memory-tier self-ignore guard, and the concern-file persistence on the resolution rungs, which happens only on explicit confirmation; **never the surface it walks** | the same two, on the same terms, since it runs the same rung order; **never the artifact it judges** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
 | Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |

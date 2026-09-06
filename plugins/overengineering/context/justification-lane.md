@@ -43,8 +43,10 @@ point at, the target was inventoried whole and routes.
 **Imports are read, not inferred.** An instruction file that pulls in others is a different item from
 the files it pulls in. Open them, decide which of them an enforcement probe claims, and classify only
 what is left. Guessing at an import graph produces a verdict about a file nobody examined. **An
-import that does not resolve is recorded as unresolved**, named in `Routed-to` as an import whose
-target was not found, and never treated as though the file had been read: an unresolvable import is
+import that does not resolve is recorded as unresolved** in the row's own prose, named as an import
+whose target was not found, and never treated as though the file had been read. It does **not** go
+in `Routed-to`: that field is contract-scoped to a routing that actually happened, and an import
+pointing at nothing was handed to no one. An unresolvable import is
 itself evidence about the host file, and inventing its contents would put a verdict on a file that
 does not exist.
 
@@ -273,8 +275,9 @@ used:
 2. **Offer git-age discovery.** Offer to rank candidates by first-seen date, oldest first, and
    **wait**. Never run it unasked, and never present its output as findings.
 
-   **Corroborate before presenting.** Age plus low churn ranks; it does not evidence disuse, and on
-   this repository it was measured at 1 real candidate in 638 ranked ones. So the ranking is a
+   **Corroborate before presenting.** Age plus low churn ranks; it does not evidence disuse, and
+   where the precision of that ranking has been measured it has been poor, with the overwhelming
+   majority of ranked paths turning out to be cited. So the ranking is a
    shortlist to check, not a shortlist to show: every ranked path is searched for inbound references
    under section 7's varied query forms, and a path that has one is dropped before the operator ever
    sees it. The search counts a citation from **anywhere in the repository, the path's own directory

@@ -19,7 +19,7 @@
     {
       "id": 2,
       "name": "pointed-target-full-row",
-      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory.",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory. When the run asks whether anything outside the repository records why the relay was kept after the provider change, the operator answers: yes, the platform team reconfirmed it at the 2024 review, the send log is still the only audit trail we have.",
       "expected_output": "One finding for the decision record. Its spine carries `Layer: decision-records`, an `Artifact` naming the fixture, a `Verdict` that is one of the six tokens, and a `Status`. Its prose carries a `Basis` of measured, class-inferred, or unexamined; the evidence tiers consulted, each marked silent or unavailable where it returned nothing; and `Ablation: n/a` because the ablation gate does not apply on this lane's layers. The artifact frontmatter reads `schema: 2`, `mode: targeted`, and a `targets` list naming the fixture and nothing else. The record's own text is tier 5, so a verdict resting only on it is marked unverified rather than promoted.",
       "files": ["evals/fixtures/decision-0001.md"],
       "expectations": [
@@ -107,15 +107,16 @@
       "id": 8,
       "name": "partly-inventoried-file-is-classified",
       "prompt": "/overengineering:justify evals/fixtures/SKILL.md, then /overengineering:justify evals/fixtures/claude-md.txt. Both paths are relative to the skill directory.",
-      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row naming its two import lines in `Routed-to`. Neither import resolves to a file that exists, and that is the point of this half of the case: the row records each as an import whose target was not found, never as instruction text it read. It does not describe their contents, does not infer what they must contain from their names, and does not judge them as part of this item. An unresolvable import is evidence about the host file, and inventing its contents would put a verdict on a file that does not exist. Neither row silently absorbs the routed part into its own verdict.",
+      "expected_output": "Both targets are only partly inventoried by an enforcement probe, so both are classified here with the routed part named. The skill file gets a `components` row judging the skill as a unit, with its always-loaded frontmatter description named in `Routed-to` as the part handed to audit. The instruction file gets a `documents` row naming its two import lines in the row's own PROSE, and deliberately NOT in `Routed-to`. Neither import resolves to a file that exists, and that is the point of this half of the case: the row records each as an import whose target was not found, never as instruction text it read, and `Routed-to` stays empty of them because that field is scoped to a routing that actually happened and an import pointing at nothing was handed to no one. The skill file's always-loaded part is the contrast: that one really was routed, so it really does belong in `Routed-to`. It does not describe their contents, does not infer what they must contain from their names, and does not judge them as part of this item. An unresolvable import is evidence about the host file, and inventing its contents would put a verdict on a file that does not exist. Neither row silently absorbs the routed part into its own verdict.",
       "files": [
         "evals/fixtures/SKILL.md",
         "evals/fixtures/claude-md.txt"
       ],
       "expectations": [
         "Skill file classified under `components`, with the always-loaded part named in `Routed-to`",
-        "Instruction file classified under `documents`, with both import lines named in `Routed-to`",
+        "Instruction file classified under `documents`, with both import lines named in the row's PROSE",
         "Records each import as one whose target was NOT FOUND, since neither resolves, rather than as instruction text it read",
+        "Does NOT put the unresolved imports in `Routed-to`, because nothing was handed to anyone",
         "Does NOT describe or infer the imported files' contents from their names",
         "Neither row judges the routed part as part of this item"
       ]
@@ -124,10 +125,11 @@
       "id": 9,
       "name": "line-target-widens-and-says-so",
       "prompt": "/overengineering:justify evals/fixtures/lonely-doc.md:7 relative to the skill directory.",
-      "expected_output": "The first line of the report states the widening: the operator pointed at a line, and the item being judged is the enclosing heading, or the file where the run judges the heading too small to stand alone. It names both, so nothing is silently substituted. One row follows, for the widened item, with the layer and basis a `documents` row carries. The reason for widening is available: an identity that rests on a line number breaks the moment an edit above it shifts the line, so the same item would derive two ids across two runs. No row is filed against the line itself.",
+      "expected_output": "The first line of the report states the widening: the operator pointed at a line, and the item being judged is `## Before you start`, the heading enclosing line 7. The file HAS headings, so the rule resolves to the heading and the whole file is the wrong answer here, not a permitted alternative. It names both the target and the widened item, so nothing is silently substituted. One row follows, for the widened item, with the layer and basis a `documents` row carries. The reason for widening is available: an identity that rests on a line number breaks the moment an edit above it shifts the line, so the same item would derive two ids across two runs. No row is filed against the line itself.",
       "files": ["evals/fixtures/lonely-doc.md"],
       "expectations": [
         "The FIRST line of the report states the widening and names both the target and the widened item",
+        "Widens to the ENCLOSING HEADING, not the whole file, because this file has headings",
         "Exactly one row, for the widened item, never for the line",
         "The row carries a `documents` layer and a `Basis`",
         "The widening is stated as a rule with a reason, not performed silently"
@@ -174,6 +176,62 @@
         "Persists NOTHING: the pre-existing artifact keeps its own `date`, `scope`, summary and run-level sections",
         "Still reports inline what routed and which layer claimed it",
         "Does not write a `targets` list for a run that produced no finding"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "targeted-run-closes-nothing-it-did-not-examine",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory. The findings artifact at the resolved home already holds four findings from an earlier walk: two in `ci-lanes`, one in `agent-hooks`, and one in `documents` about a different file. The operator confirms the relay's reason still holds and says so.",
+      "expected_output": "The run writes or refreshes its own row for the decision record and leaves all four prior findings intact. None is closed. The three in enforcement layers are not this producer's at all, and the `documents` one is about a file this run never opened, so none of them is a deleted artifact. `## Closed since last run` gains no row. Every prior finding is carried forward with its status verbatim and marked not re-evaluated this run. The defect this case exists to catch is the reason the whole schema-2 contract was written: a pointed run applying the closure rule to a layer it never walked, and silently retiring every finding it simply did not look at. `scope` grows rather than being replaced, so the record of what the last walk covered survives.",
+      "files": ["evals/fixtures/decision-0001.md"],
+      "narration": true,
+      "expectations": [
+        "Closes NOTHING: `## Closed since last run` gains no row for any of the four prior findings",
+        "Carries all four prior findings forward with their statuses verbatim, marked not re-evaluated this run",
+        "Writes or refreshes only the row for the target it actually examined",
+        "`scope` carries the earlier walk's layers forward and adds this run's, rather than replacing them"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "detached-checkout-judges-but-persists-nothing",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory, from a detached checkout with no logical ref supplied by the environment. When the run asks whether anything outside the repository records why the relay was kept after the provider change, the operator answers: yes, the platform team reconfirmed it at the 2024 review.",
+      "expected_output": "The pass runs in full and the inline report is emitted in full: the target is judged, the verdict argued, the tiers named. What is declined is the persisted write, and the run says why in those terms. No findings artifact is written, and no home is keyed, because a branch identity that does not resolve keys no home: `HEAD` is the same string for every ref and a commit sha is a different one every commit, so either substitute collapses the axis the branch segment exists to separate. The run does not fall back to `HEAD`, to the sha, or to whatever slug the default would produce. The defect this case exists to catch is a run that quietly writes to a shared home every detached run of every branch would also write to.",
+      "files": ["evals/fixtures/decision-0001.md"],
+      "narration": true,
+      "expectations": [
+        "Runs the pass and emits the full inline report, including the verdict and the tiers consulted",
+        "Writes NO findings artifact, and says the write was declined because no branch identity resolved",
+        "Does NOT substitute `HEAD`, a commit sha, or a fixed literal as the branch identity",
+        "Declines the persisted write only, never the judgment"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "unrecognized-schema-stops-before-merging",
+      "prompt": "/overengineering:justify evals/fixtures/decision-0001.md relative to the skill directory. The findings artifact at the resolved home declares `schema: 7`.",
+      "expected_output": "The run STOPS with a visible message naming the unrecognized value, and merges nothing into that artifact. It does not guess at the shape, does not treat the file as absent and overwrite it, and does not strip or rewrite the frontmatter to a value it recognizes. `1` and `2` are the recognized values; anything else is a shape this lane cannot merge into without inventing what the fields mean. The defect this case exists to catch is a producer that reads an unknown contract version and writes anyway, destroying an artifact written by something it does not understand.",
+      "files": ["evals/fixtures/decision-0001.md"],
+      "narration": true,
+      "expectations": [
+        "STOPS with a visible message that names the unrecognized `schema` value",
+        "Merges nothing and overwrites nothing in the existing artifact",
+        "Does NOT downgrade, strip, or rewrite the frontmatter to a recognized value",
+        "Does NOT treat the unreadable artifact as absent and start a fresh one over it"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "age-ranking-is-corroborated-before-it-is-shown",
+      "prompt": "/overengineering:justify\n\nThen, when the run offers to rank candidates by age: yes, go ahead.",
+      "expected_output": "Having taken the offer, the run ranks by first-seen date and then CORROBORATES before presenting anything. Each ranked path is searched for inbound references under varied query forms, counting a citation from anywhere in the repository including the path's own directory, and every path that has one is dropped before the operator sees it. What is presented is the survivors, with both counts given: how many were ranked and how many survived, so the operator can tell an uncited path from an unsearched one. The list is offered as candidates to choose from, never as findings, and no verdict is attached to any of them. The defect this case exists to catch is presenting a raw age ranking as if age evidenced disuse, which the measurement behind this lane showed has poor precision: of the two candidates it originally confirmed, one was cited by a live link from a neighbouring document.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Corroborates each ranked path for inbound references BEFORE presenting, and drops those that have any",
+        "Counts a citation from anywhere in the repository, including the path's own directory",
+        "Reports both the ranked count and the surviving count",
+        "Presents survivors as candidates to choose from, never as findings, and attaches no verdict"
       ]
     }
   ]
