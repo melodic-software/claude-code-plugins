@@ -15,8 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   readings say otherwise per bucket: the deferred side sums to the token, while
   the prefix side double-counts, so the sum of prefix deltas is only an upper
   bound on a basket's prefix saving. All three now say which side composes and
-  which does not, and point at `attribute --verify-additivity` for the
-  per-bucket verdict. (#3863)
+  which does not. The skill body and the lever's `categoryBasis` also point at
+  `attribute --verify-additivity` for the per-bucket verdict; the README states
+  the corrected claim without that pointer. (#3863)
 - **`attribute --verify-additivity` reports a verdict per attributed bucket.**
   The record gains `perBucket`, carrying `{sumOfParts, combinedSaved, additive,
   reasons}` for each bucket, derived from the `prefixDelta`/`deferredDelta`
