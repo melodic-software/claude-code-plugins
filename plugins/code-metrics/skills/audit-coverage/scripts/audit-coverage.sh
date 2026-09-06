@@ -163,7 +163,11 @@ for artifact in ${ARTIFACT_PATHS[@]+"${ARTIFACT_PATHS[@]}"}; do
     continue
   fi
   parsed="$WORK/parsed-$index.json"
-  if ! "${PY[@]}" "$PARSERS/$format.py" "$artifact" >"$parsed"; then
+  # A parser that resolves a report path against the tree on disk (Cobertura
+  # chooses among several declared source roots that way) is told which tree
+  # that is. The session's working directory need not be the measured tree,
+  # and a probe run in the wrong place answers "absent" for every candidate.
+  if ! CODE_METRICS_SCAN_ROOT="$ROOT" "${PY[@]}" "$PARSERS/$format.py" "$artifact" >"$parsed"; then
     echo "audit-coverage.sh: $format parser produced nothing for $artifact, skipped" >&2
     continue
   fi

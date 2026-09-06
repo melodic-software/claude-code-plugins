@@ -153,8 +153,15 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
   the counts behind a number they did not produce. The lane's `collector` still names both formats
   read. Function rows are line-based, so a Go function does take its region from a line artifact
   when one covers it.
-- A Cobertura report with several `<source>` roots is read with the first one only; a class whose
-  filename resolves under a later root lands in the partial count rather than in an error.
+- A Cobertura report with several `<source>` roots is read against all of them: a relative class
+  filename takes the first root under which that path exists in the scanned tree, and falls back
+  to the first root when no candidate exists. Two roots that both hold the file is an ambiguity
+  the report cannot settle, so the first one wins and the class lands under it. The probe settles
+  anything only when the roots are relative, or absolute and present on the machine running the
+  audit. A report built elsewhere declares absolute roots (the usual coverlet, kcov and gcovr shape
+  for a CI run) naming directories this machine does not have, so every candidate misses and every
+  class lands under the first root the way it did before the roots were read at all. Rewriting a
+  root from another machine onto the local tree needs a mapping the report does not carry.
 - Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to
   each other's artifact region when the artifact carries only the short name; the file-level
   numbers are unaffected.

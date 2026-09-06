@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "code-metrics",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read-only code measures for a change, with cited references and no verdict: lines per file (audit-size), cyclomatic, cognitive, and Halstead complexity (audit-complexity), duplication with sanctioned-replication exclusions (audit-duplication), coverage per function with CRAP from existing lcov, Cobertura, coverage.py, or Go artifacts (audit-coverage), type debt for TypeScript and Python (audit-type-debt), the literacy router for what each number can and cannot say (principles), and a setup skill for the consumer's .claude/code-metrics.yaml. Runs external collectors only when they already resolve, never installs, never runs tests, never emits a finding.",
   "author": {
     "name": "Melodic Software",
