@@ -6,7 +6,7 @@ Three exclusion lists gate every tidy run, in order of how they apply:
 2. **GLOBAL SOFT EXCLUSIONS** — technically allowed but an autonomous run is not equipped to verify changes safely. Touch only with explicit user override.
 3. **SELF-UPDATE EXTRA HARD** — additional restrictions that ONLY apply when the `self-update` lane is the active lane. Applied on top of the global lists.
 
-**Re-read this file at the start of every tidy run** — memory of the lists across sessions is unreliable. The lists below are the canonical universal baseline; the consuming project's own instructions extend them.
+These lists are the canonical universal baseline; the consuming project's own instructions extend them.
 
 ---
 
@@ -69,7 +69,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 ### Frontmatter (entire YAML block of every skill file)
 
 - `name`, `description`, `argument-hint`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `model`, `effort`, `paths`, `hooks`, `context`, `agent`, `shell`
-- Applies to both of this plugin's SKILL.md files AND any future skill files that grow frontmatter
+- Applies to every `skills/*/SKILL.md` in this plugin, including skills added later
 
 ### Safety-mechanism content
 
@@ -95,6 +95,6 @@ If during a self-update run you find drift in any of the following, **clean exit
 1. **Phase A (Triage)** — re-read this file AND the consuming project's declared protections. Note the active lane's lane-specific extra exclusions on top of these globals.
 2. **Phase D (Hunt)** — when classifying candidates, drop anything that touches a GLOBAL HARD path. Move SOFT candidates to the deferred-items list unless the user has explicitly authorized them in interactive mode.
 3. **Phase E (Implement)** — every Edit / Write call has the file path validated against the HARD list above. If a tidying would require touching a HARD file, abort the tidying and continue with the next candidate. Stage with `git add <path>` only, never `-A` or `.`.
-4. **Self-update specifically** — `lanes/self-update.md` summarizes the EXTRA HARD list at run-time; this file is the canonical version. Trust this list, not memory.
+4. **Self-update specifically** — `lanes/self-update.md` summarizes the EXTRA HARD list; this file is the canonical version, so the two are reconciled here when they differ.
 
 If a HARD-list entry is wrong (the file moved, the concern is stale), the fix is a deliberate user-driven edit — NOT an autonomous tidying that "discovers" the entry should change.

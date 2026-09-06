@@ -17,17 +17,24 @@ identity, and treating it as one breaks this lane twice over: every ref keys to 
 `<branch-slug>` home, and the branch-match check in step 2 compares `HEAD` to `HEAD`, passes, and
 accepts some other ref's spine as this ref's baseline, after which the lane reports the difference
 between two refs as a delta. Scheduled runners very commonly check out detached, so this is the
-ordinary case for the mode this lane was built for, which is why the precompute uses
+ordinary case for the mode this lane was built for, which is why the branch call uses
 `git symbolic-ref` and refuses to invent a name.
 
 When the branch identity does not resolve:
 
-- **Prefer a logical ref where the environment supplies one.** Some execution environments hand the
-  run the ref it was launched for even though the checkout is detached. Where such a value is present
-  and names a branch, use it as the branch identity for both the home key and the match check, and
-  name in the report where it came from. **No vendor's variables are named here or assumed**. This
-  plugin is consumer-agnostic, and hardcoding one CI system's environment would be a claim about the
-  consumer's toolchain that the rest of this plugin refuses to make.
+- **Prefer a logical ref where the environment supplies one, after the same normalize-then-validate
+  steps `audit` applies.** Some execution environments hand the run the ref it was launched for even
+  though the checkout is detached. Before such a value may key a home or feed the match check, strip
+  a leading `refs/heads/` (and only that prefix), then refuse it if it is empty, if any path segment
+  is `.` or `..`, or if `git check-ref-format --branch -- <value>` exits non-zero. A value that
+  passes is the branch identity for both the home key and the match check, and the report names
+  where it came from; a value that fails is treated as absent and falls through to the refusal
+  below. The two lanes must derive the same home from the same value: the composed audit normalizes
+  before it keys its home, so a raw `refs/heads/main` here would key one home while the audit writes
+  to another, and the run would report a resolution defect instead of a delta. **No vendor's
+  variables are named here or assumed**. This plugin is consumer-agnostic, and hardcoding one CI
+  system's environment would be a claim about the consumer's toolchain that the rest of this plugin
+  refuses to make.
 - **Otherwise, treat the run as no baseline and say why**. "detached checkout, no logical ref
   supplied; no branch identity, so nothing is compared". Do not fall back to `HEAD`, to the commit
   sha, or to whatever home the slug happens to produce, and do not compare.
@@ -74,6 +81,26 @@ load-bearing:
 - **The report names the unwalked layers once, as a coverage line, with the count of findings held
   in them**. Never as findings. A layer-scoped cycle that read as a clean bill of health for the
   whole surface would be worse than no cycle at all.
+
+**Two kinds of absence, distinguished in that coverage line.** A layer this cycle could have walked
+and did not is *not walked this run*, and a later cycle with a wider `scope` will cover it. The
+justification lane's layers (`decision-records`, `documents`, `components`, `dependencies`,
+`source`) are *not walkable by `audit`* at all: this lane composes `overengineering:audit`, whose
+`scope` draws only on the ten enforcement layers, so no cycle at any scope will ever compare a
+finding produced by `overengineering:justify`. Report them under that second label with their held
+count, so an operator reads "outside this lane" rather than "pending next cycle". Those findings are
+re-judged by pointing that lane at the artifact again, never by a delta cycle.
+
+**An intervening targeted run cannot move an evidence-availability token, and this lane could not
+see one if it did.** A `mode: targeted` artifact appends its own per-target availability lines and
+leaves the walk's per-tier tokens untouched, so every token this lane compares was written by a
+walk and a difference between two of them is a real move. That guarantee is what makes the
+comparison sound, because the detection is not reliably available: **the spine baseline** records
+`source-date` and `source-scope` and no mode, so the baseline alone never says whether a pointed run
+sat inside the span. The current artifact's frontmatter does carry `mode`, but it is present rather
+than consulted here, and it would answer only what the latest write was, never what happened across
+the span. Rely on the guarantee rather than looking for the run, and never report an
+availability move as uncertain on the grounds that one might have.
 
 The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
 `scope` carries baseline rows that are themselves stale carry-forwards. A verdict move there is

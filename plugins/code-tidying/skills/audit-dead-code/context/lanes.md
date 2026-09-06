@@ -5,7 +5,8 @@ of each lane, and the shape/tier table live in SKILL.md; this file carries the i
 degradation mechanics, and the reasons a lane is shaped the way it is.
 
 Every number here is measurement, not documentation. A change that contradicts one needs a new
-measurement, not an argument.
+measurement, not an argument. Basis: the tool versions named per lane below, as recorded on
+2026-08-23. Recheck trigger: a major version bump in knip, vulture, gopls, or the Go toolchain.
 
 ## Lane reference
 
@@ -19,12 +20,11 @@ measurement, not an argument.
   root and under no nested root, never a path excluded from candidate scope (`node_modules`, `dist`,
   `build`, `vendor`, `**/evals/fixtures/**`), and never a file outside the scoped `TS_FILES` set.
   Invoking knip at a root does not restrict what it *reports*: it walks the whole subtree, nested
-  workspaces included, and has no per-file input mode that preserves cross-file usage. Measured on
-  this marketplace before the ownership filter existed, the repo-root run emitted **213 of its 288
-  candidates** for files owned by roots the same scan had already declared `degraded` — the
-  withheld false positives came back in through the outer root. A narrow target such as
-  `src/one-file.ts` still invokes knip at the project root (so usage across files is visible) and
-  then drops every finding whose path is not in that target set.
+  workspaces included, and has no per-file input mode that preserves cross-file usage. Without the
+  ownership filter an outer root re-emits the very candidates a nested degraded root withheld, so
+  one broken workspace's false positives reach the report through the repo-root run. A narrow
+  target such as `src/one-file.ts` still invokes knip at the project root (so usage across files is
+  visible) and then drops every finding whose path is not in that target set.
 - **Binary resolution:** the repo-local `node_modules/.bin` walk first (upward from the project
   root, symlinks followed with a hop cap, physical target required to stay inside the repository),
   then PATH. A pinned devDependency is the version that matches the project it is judging.

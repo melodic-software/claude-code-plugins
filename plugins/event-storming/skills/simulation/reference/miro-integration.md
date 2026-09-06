@@ -12,12 +12,10 @@ tags, and overlap detection. It is a **separate plugin from `event-storming`**: 
 default output, and the board capability is opt-in, so enabling `event-storming` does not start a
 Miro MCP server.
 
-> **Remote-MCP trust (resolved).** Miro's official hosted server (`mcp.miro.com`, remote HTTP,
-> OAuth 2.1) was **rejected** as the live-board target: it has no board-delete tool (the skill's
-> teardown cannot be expressed on it) and would delegate board/workshop content egress to a
-> third-party remote MCP. The live-board path targets the first-party bundled server instead
-> (owner's own code, local stdio, no third-party remote egress). Durable accept record + rationale:
-> the marketplace repo's MCP decision table in `docs/MIGRATION-PLAYBOOK.md` — not restated here.
+> **Why the bundled server and not Miro's hosted one.** The live-board path targets the first-party
+> bundled server so that board teardown is expressible (the hosted server exposes no board-delete
+> tool) and so board and workshop content never leaves for a third-party remote MCP. The decision
+> record lives in the marketplace repo's MCP decision table in `docs/MIGRATION-PLAYBOOK.md`.
 
 ### Tool namespace
 
@@ -121,9 +119,11 @@ Miro uses x,y coordinates with (0,0) at canvas center. Sticky notes are ~199px w
 
 **Vertical spacing: 250px minimum between ALL adjacent rows.** Sticky notes are ~199px tall. Any spacing below 200px creates overlaps. 250px provides a 50px visual buffer.
 
-**CRITICAL — No reactor sub-rows (v12 lesson).** Using 80px offset between "primary" and "reactor" rows created 212 overlapping stickies. Each persona gets ONE y-row. Track hermit/reactor behavioral mode in persona profile files, not on the board.
+**No reactor sub-rows.** Any offset below the 199px sticky height overlaps by construction, so each
+persona gets ONE y-row and hermit/reactor behavioral mode is tracked in persona profile files, not
+as a second board row. Confirm with `miro_detect_overlaps` rather than by eye.
 
-### Big Picture Y-Coordinate Table (v13+)
+### Big Picture Y-Coordinate Table
 
 **Single source of truth for Big Picture y-coordinates.** `agentic-simulation.md` and
 `simulation-evaluation.md` reference this table rather than restating values. Every gap between
@@ -150,8 +150,8 @@ Persona 1 sits at the `y=0` timeline baseline.
 | Value Created (green) | 5200 | |
 | Value Destroyed (pink) | 5500 | 300px between value rows |
 | UL Terms (gray) | 5900 | |
-| Problems (violet) | 6200 | 300px in Problems zone |
-| Opportunities (light_green) | 6500 | |
+| Problems | 6200 | 300px in Problems zone |
+| Opportunities | 6500 | |
 | Arrow Votes (light_blue) | 6800 | |
 | BC Labels (cyan) | 7100 | Bottom of board |
 
@@ -214,7 +214,10 @@ Next Event       x=1600    row: Domain Events
 - Design-Level legend (8+ types): `500w x 1800h`
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
 - **Visual check required:** After placing legend stickies, verify via screenshot that all stickies are visible within the frame bounds. Frame overflow = stickies hidden behind the white frame background
-- **Do NOT use parent_id** for legend stickies — place them at absolute coordinates within the frame's bounding box. The `parent_id` parameter has MCP reliability issues
+- **Place legend stickies at absolute coordinates, not with `parent_id`** — setting `parent_id`
+  switches x and y from board-centre-relative to frame-top-left-relative, so any coordinate computed
+  against the y-coordinate tables above lands in the wrong place. Keeping the legend stickies
+  parentless also means they survive deletion of the legend frame
 
 **Spacing summary:**
 
@@ -253,13 +256,20 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 ## Limitations
 
 - **No sticky rotation** — can't rotate stickies 45 degrees (Brandolini's "not an event" signal)
-- **No arrows** — can't draw connections between stickies (which is actually consistent with Brandolini's advice to avoid arrows)
+- **Arrows are available but deliberately unused during Big Picture** — `miro_create_connector`
+  draws connectors between items, and the skill declines to use them in Big Picture on Brandolini's
+  reasoning: once an arrow is drawn, the brain avoids moving stickies to preserve it. Use proximity
+  and temporal order instead
+- **Overlap detection is available** — `miro_detect_overlaps` returns every pair of stickies whose
+  centres are closer than a pixel threshold, which is the mechanical form of the density check the
+  quality gate would otherwise do by eye. Its 195px default is tuned for square stickies; raise it
+  on rectangle-heavy boards
 - **Bulk limit** — max 20 items per bulk operation
 - **Rate limits** — Miro API has rate limits; space out bulk operations
 - **No real-time collaboration** — MCP operations are request/response, not live collaborative editing
 - **Color approximation** — Miro's 16 colors don't perfectly match physical sticky note colors, but are close enough
 
-## Gotchas (learned from simulation testing)
+## Gotchas
 
 - **Frame positioning uses center point** — `x, y` is the CENTER of the frame, not the top-left corner. A frame at `x=0, width=6000` spans from `x=-3000` to `x=3000`. Calculate center as: `x = (content_min_x + content_max_x) / 2`
 - **Frame z-order** — frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely — rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies

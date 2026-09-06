@@ -57,8 +57,8 @@ instead of this runbook.
    a bulk (no `--thread-id`) call, so the comment-state pins are always enforced (a reply or edit
    after vetting blocks the resolve). Those pins do NOT catch displacement — a push that flips
    `isOutdated` while the comment count and last-updated still match is still resolved — so keeping
-   such a thread unresolved rests on the pre-push-outdated agent-discipline rule, with the
-   machine-enforced fix tracked in #571. In autopilot, after addressing the findings, additionally
+   such a thread unresolved rests on the pre-push-outdated agent-discipline rule. In autopilot,
+   after addressing the findings, additionally
    resolve AI-review and human threads with `--resolve --include-human`, then run the same pinned
    merge gate — the gate is never bypassed. After any `--resolve` run, parse its JSON output
    (per-thread `action`, and `resolvedCount`) before re-running the merge gate.

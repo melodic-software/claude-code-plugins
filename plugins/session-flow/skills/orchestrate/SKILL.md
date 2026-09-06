@@ -175,40 +175,33 @@ the default.)
 
 **Treat a clean return as unverified, especially a suspiciously clean one.** An under-specified
 worker rarely stalls and asks; it substitutes the nearest plausible interpretation and reports
-success. Observed in this plugin's own development: a fan-out of eleven audit workers was given a
-brief missing a resource they needed. Ten located it themselves and closed the gap; one silently
-audited a different, similar artifact and returned a confident, well-formed, entirely
-wrong-target result. Nothing in its return distinguished it from the ten. This is why imperative 3's
-fresh-context verify is not optional at depth, and why a return payload benefits from naming its
-sources. Provenance is the field that makes a wrong-target answer detectable from above.
+success. In a fan-out, most workers given a brief missing a resource will locate it and close the
+gap, and one will silently audit a different, similar artifact and return a confident,
+well-formed, wrong-target result that nothing in its return distinguishes from the others. This
+is why imperative 3's fresh-context verify is not optional at depth, and why a return payload
+benefits from naming its sources. Provenance is the field that makes a wrong-target answer
+detectable from above.
 
-**Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
-moved repeatedly, a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
-configurable default of three (v2.1.219), all inside seven weeks
-([changelog](https://code.claude.com/docs/en/changelog)). A **different** cap disappeared entirely
-after that list was written, the per-session spawn total, removed in v2.1.220–v2.1.224
-([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified 2026-08-10). The depth
-ceiling itself is still where v2.1.219 left it; what the removal changes is how many caps there are.
-Two remain, each separately capped and separately overridable
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`), but those two
-govern Agent-tool subagents only: workflow agents and agent-team teammates follow their own limits
-instead ([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15), and the
-workflow runtime's concurrency limit is CPU-dependent with no env-var override
-([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-15), so "read the current
-values" must include the workflows page whenever the run will use the Workflow tool. Read the
-current values rather than assuming them, and
+**Never author a tree that needs a specific depth.** The platform's nesting default is
+configurable and has changed more than once within weeks, so any number written here is stale by
+the time it is read. Two caps govern Agent-tool subagents, each separately overridable
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); workflow agents
+and agent-team teammates follow their own limits, and the workflow runtime's concurrency limit is
+CPU-dependent with no env-var override, so "read the current values" includes the
+[workflows](https://code.claude.com/docs/en/workflows) page whenever the run will use the Workflow
+tool (both pages as of 2026-08-15; recheck on any changelog entry touching subagent limits, or
+when `context/sources.md` is re-verified). Read the current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork
-([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15, the docs state only
-that narrow claim; whether a below-limit fork can parent non-fork children is implied but not
-stated, so do not treat a fork as a forbidden intermediate tier on this sentence alone).
+([sub-agents](https://code.claude.com/docs/en/sub-agents)); whether a below-limit fork can parent
+non-fork children is implied but not stated, so do not treat a fork as a forbidden intermediate
+tier on that sentence alone. The version history behind the caps lives in `context/sources.md`.
 
-**Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose docs
-track it: on 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
-described the superseded off-by-default state while the changelog and the harness had nesting on, so
-a tree authored from either alone can be wrong in *both* directions. The cheap check is behavioral:
-have a worker of the SAME definition you plan to use as the intermediate tier attempt a trivial
-nested spawn and report the outcome. The gate is definition-specific, so another agent type proves
+**Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose
+docs track it, and the docs page and the changelog can lag each other by a release, so a tree
+authored from either alone can be wrong in both directions. The cheap check is behavioral: have a
+worker of the SAME definition you plan to use as the intermediate tier attempt a trivial nested
+spawn and report the outcome. The gate is definition-specific, so another agent type proves
 nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
 names depth; a permission refusal (classified pre-launch) does not. Quotes: `context/sources.md`.
 

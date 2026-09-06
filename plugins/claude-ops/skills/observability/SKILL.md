@@ -10,10 +10,21 @@ metadata:
   cadence: weekly
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Repo slug, `git rev-parse --show-toplevel | sed 's|.*/||'`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Repo slug: !`git rev-parse --show-toplevel >/dev/null 2>&1 && git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "(git toplevel unavailable)"`
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
 Hook log root (rendered option, empty or unrendered means the default `.observability/claude`): `${user_config.session_event_log_dir}`
 Hook event log: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events --root "${user_config.session_event_log_dir}" 2>/dev/null || echo "unknown"`
@@ -138,7 +149,8 @@ Read [context/data-sources.md](context/data-sources.md). Summary:
 
 ### 2–5. Compute, privacy, render, output
 
-Unchanged. [context/data-sources.md](context/data-sources.md), [context/privacy.md](context/privacy.md),
+Compute the sections per [context/data-sources.md](context/data-sources.md), redact per
+[context/privacy.md](context/privacy.md), and render per
 [context/output-format.md](context/output-format.md). Every report ends with the "Toggles and
 retention in effect" section, the six probe lines verbatim.
 

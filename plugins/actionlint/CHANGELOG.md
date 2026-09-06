@@ -3,6 +3,40 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.38]
+
+### Changed
+
+- **The hook locates its own directory and the edited file's directory with
+  parameter expansion, not `dirname`.** GNU Bash forks a subshell for every
+  command substitution even when the body is a builtin (Command Substitution,
+  Bash Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
+  On Windows Git Bash that fork is a process. `${BASH_SOURCE[0]%/*}` and
+  `${FILE%/*}` equal `dirname` for every shape those paths take; the empty-strip
+  fallback answers `/` at the filesystem root, matching GNU. What the hook
+  lints is unchanged.
+
+## [0.8.37]
+
+### Changed
+
+- **Telemetry envelope at contract 1.1: the session id rides on the spine.**
+  The synced `hooks/hook-utils.sh` copies the payload's `session_id`,
+  `prompt_id`, `tool_use_id` and `agent_id` from the buffered `INPUT` onto
+  every envelope this plugin's hook emits, each only when present as a plain
+  id, so the claude-ops per-session report lists this hook with no change to
+  the hook itself (#3758). `schema_version` reads `1.1`; no hook behavior
+  changes.
+
+## [0.8.36]
+
+### Changed
+
+- **setup:** the `stdin_read_timeout` gotcha states the declare-it rule without naming the plugin
+  that declared it first.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.8.35]
 
 ### Changed

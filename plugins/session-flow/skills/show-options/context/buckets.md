@@ -3,30 +3,13 @@
 How `show-options` sorts the resolved catalog into five buckets and renders them in two tiers. The
 two rules in `SKILL.md` govern *presence*; everything here governs *order*, *grouping*, and *shape*.
 
-## Why five, and why not the obvious four
+## Why five
 
-An earlier cut of this design used **Backfill / Now / Next / Standing**. Built out against a real
-~140-skill catalog at a real moment (a pre-PR session), it measured:
-
-| Bucket | Options |
-|---|---|
-| Backfill | 27 |
-| Now | 28 |
-| Next | 25 |
-| Standing | 60 |
-| **Total** | **139** — 275 lines, ~7 screens, 97.8% of the catalog |
-
-That is not a recommender; it is the generated cheat sheet with an extra column. Two of the four
-buckets were structurally broken rather than merely large:
-
-- **"Standing" (anytime hygiene) held 60 options — 43% of the catalog.** A bucket holding nearly half
-  the population predicts nothing about its members. It was a dumping ground.
-- **"Backfill" was definitionally every upstream stage.** At any given moment, every decision already
-  made is upstream by construction, so "could still be run for a decision already made" selected the
-  entire early catalog — 27 items, of which about two were genuinely useful.
-
-The current five keep the two that earned their place, replace the two that did not, and add
-`Later` — the catch-all whose absence would have made the never-omit rule unsatisfiable.
+Now and Next are the decision buckets. Skipped upstream is artifact-grounded so it stays small.
+Later is the catch-all whose absence would make the never-omit rule unsatisfiable, and it renders
+tier 2 only so it cannot become a dumping ground. Spotlight rotates. A bucket defined as "every
+upstream stage" or "anytime hygiene" selects nearly half the catalog and predicts nothing about
+its members, which is why neither exists here.
 
 ## The five
 
@@ -46,8 +29,8 @@ artifact is the evidence: a plan file, a research index, cited sources, green te
 `workflow`'s existing rule applied here — verify a stage from its artifact or output, not from
 conversation vibes.
 
-Grounding it this way collapsed the measured 27 to 2 in the scenario above, and both survivors were
-real. Grounding it in conversation instead reinflates it toward the whole upstream catalog.
+Grounding it this way keeps the bucket to the two or three stages that were genuinely skipped.
+Grounding it in conversation instead reinflates it toward the whole upstream catalog.
 
 **When the memory root is unreadable or empty, this bucket does not fall back to inference.** In a
 worktree, a sibling lane, or a fresh clone the memory slice is invisible, so every artifact reads
@@ -62,15 +45,14 @@ checkout, so artifact absence is not evidence of a skipped stage.
 ### Later — the in-domain remainder, tier 2 only
 
 Everything relevant to this project that sits beyond the Next horizon: testing, review, and
-verification skills early in a session; migration and release skills mid-build. Under the earlier
-four-bucket cut these fit nowhere — not Now, not the two-to-three-step Next, not upstream, and not a
-three-entry Spotlight — so the never-omit rule could only be honoured by stretching another bucket's
-definition or by dropping them. Both are failures; this bucket is the fix.
+verification skills early in a session; migration and release skills mid-build. Without this bucket
+they fit nowhere: not Now, not the two-to-three-step Next, not upstream, and not a three-entry
+Spotlight, so the never-omit rule could only be honoured by stretching another bucket's definition
+or by dropping them. Both are failures.
 
-**It renders tier 2 only** — bare invocation names with a count, roughly one wrapped line — and that
-constraint is what keeps it from becoming the 60-row dumping ground "Standing" was. A catch-all is
-safe precisely because it costs a line; a catch-all with full treatment is the failure mode measured
-above.
+**It renders tier 2 only**, bare invocation names with a count, roughly one wrapped line, and that
+constraint is what keeps it from becoming a dumping ground. A catch-all is safe precisely because
+it costs a line; a catch-all with full treatment is the whole catalog with an extra column.
 
 It holds relevance, not everything. An out-of-domain skill (songwriting in a code session) is still
 omitted under the irrelevant test in `SKILL.md`. If `Later` starts approaching the whole catalog,
@@ -143,12 +125,13 @@ can see that 23 more exist and that none was silently dropped.
 
 ## The budget
 
-**The whole output stays around 60 lines.** Five per bucket at three lines each is ~60 lines of tier
-1 before headings; tier 2 adds roughly one wrapped line per bucket. The measured alternative was 275
-lines.
+**The shape is the cap.** Five per bucket at three lines each is the tier-1 body before headings;
+tier 2 adds roughly one wrapped line per bucket. Rendering the full catalog in one tier runs to
+several screens and is read once.
 
-The cap is on **presentation volume**, never on the candidate set. Ranking and tiering are permitted;
-suppression is not. If a bucket has 60 members, all 60 names appear — five in full, 55 counted.
+The cap is on **presentation volume**, never on the candidate set. Ranking and tiering are
+permitted; suppression is not. If a bucket has 60 members, all 60 names appear: five in full, 55
+counted.
 
 ## Expansion
 

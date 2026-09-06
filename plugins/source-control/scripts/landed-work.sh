@@ -103,7 +103,7 @@ die() {
 # Path comparison
 # ---------------------------------------------------------------------------
 
-# Windows shells render a drive as /d/repos/x while git emits D:/repos/x, so the
+# Windows shells render a drive as /d/repos/<repo> while git emits D:/repos/<repo>, so the
 # two operands compared here differ by CONSTRUCTION — one comes from git, the
 # other from the filesystem. audit-fleet.sh:500's path_key() never had to
 # reconcile that because both of its operands come from one source.

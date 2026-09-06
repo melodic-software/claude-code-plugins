@@ -76,9 +76,11 @@ Parse the first token of `$ARGUMENTS`.
 
 ## Chart mode
 
-Charting is a human-in-the-loop session. If the session is non-interactive
-(`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop), STOP and report that charting needs
-an interactive session. Do not fabricate a map.
+Charting is a human-in-the-loop session. A session cannot detect on its own that nobody is
+watching, so the condition is declared by the caller, the same rule `/planning:interview`
+applies: when the invocation says the run is unattended (a loop, a spawned worker, a
+`claude -p` run, another skill's chain), STOP and report that charting needs an interactive
+session. Do not fabricate a map.
 
 1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
    commits, the topic). Sort every uncertainty through the fog test: sharp → candidate

@@ -61,7 +61,7 @@ The value below substitutes from this plugin's stored configuration when this sk
 
 | Key | Value | Unset behavior |
 | --- | --- | --- |
-| `workspace_root` | `${user_config.workspace_root}` | unset → continue down the ladder (rungs 3–5). Value grammar per the `knowledge.library_dir` precedent: absolute, `~`-home-relative, or `${NAME}`/`%NAME%` env refs; a relative value resolves against the project. A value inside the consuming repo is refused (rung-1 project declaration is the only path to a committed root). |
+| `workspace_root` | `${user_config.workspace_root}` | unset → continue down the ladder (rungs 3–5). Value grammar: absolute, `~`-home-relative, or `${NAME}`/`%NAME%` env refs; a relative value resolves against the project. A value inside the consuming repo is refused (rung-1 project declaration is the only path to a committed root). |
 
 ### The ladder
 
@@ -73,7 +73,7 @@ Resolve `<workspace-root>` by the first rung that answers. Cross-root semantics:
 **Resolved roots are inert data, from every rung.** Pass a resolved root to `list-workspaces.sh`, the assets splice, and the open-lesson command as a literal argv argument only. Never interpolated into a hand-composed shell string where substitution could fire, and never as part of a command name. This applies to every place a `<workspace-root>`-derived path appears in this skill and its context docs.
 3. **Ask-once (`topic` mode only)**. First TOPIC workspace creation with rungs 1–2 unset in an interactive session: ask ONCE where learning state should live, offering the rung-4 default. A `codebase` workspace never triggers this rung and its creation never offers a Documents root. Codebase state leaves plugin-data only via explicit rung 1–2 configuration (see Mode split). Persist the answer in the pointer file `${CLAUDE_PLUGIN_DATA}/workspace-root` (never a `pluginConfigs` write), and recommend making it durable via the native `workspace_root` userConfig (`/education:setup`). The pointer file is a **machine-local cache only**: before asking, adopt without asking an existing `Claude Learning/` home at the rung-4 location or an existing workspace tree at a configured root. It also records the migration-offer outcome (below). Non-interactive/headless sessions skip this rung silently; when plugin-data is unavailable, fall through silently rather than erroring.
 4. **OS Documents default. `topic` mode only.** Resolve mechanically with `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" --default-root`: the platform Documents directory (Windows Documents known folder resolved native-side and converted per the marketplace `docs/conventions/windows-path-emit/` convention. OneDrive-redirected and space-bearing paths handled, fail-loud; macOS `~/Documents`; Linux `xdg-user-dir DOCUMENTS`) qualifies ONLY when it already exists AND is not `$HOME` itself (unconfigured `xdg-user-dir` echoes `$HOME`), and the home inside it is the properly-cased `Claude Learning/` (English name; localize only if the user asks). Exit 1 from `--default-root` = no eligible default → rung 5.
-5. **`${CLAUDE_PLUGIN_DATA}` fallback**. Headless/unset/no-Documents hosts, and the compat home where every pre-ladder workspace already lives.
+5. **`${CLAUDE_PLUGIN_DATA}` fallback**. Headless/unset/no-Documents hosts, and the compat home where plugin-data workspaces live.
 
 **Mode split:** the Documents default applies to `topic` workspaces only; **`codebase` workspaces stay under `${CLAUDE_PLUGIN_DATA}` by default**. Documents roots are commonly cloud-synced (OneDrive/iCloud), and codebase lessons embed repo snippets that must not silently leave the machine for a private repo, a codebase workspace lands at a user-chosen root only via explicit rung 1–2 configuration.
 
@@ -83,7 +83,7 @@ Resolve `<workspace-root>` by the first rung that answers. Cross-root semantics:
 
 ## Pre-computed Context
 
-Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks; #1687. And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a bash `bad substitution` that kills the whole call before any fallback):
+Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks. And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a bash `bad substitution` that kills the whole call before any fallback):
 
 - Plugin-data workspaces, `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
 

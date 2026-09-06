@@ -5,6 +5,26 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## 1.1 — 2026-09-05
+
+Additive minor: four optional correlation keys on the envelope spine (#3758, closing the thread #930
+opened).
+
+- `session_id`, `prompt_id`, `tool_use_id`, `agent_id`: optional strings matching `[A-Za-z0-9._-]+`,
+  each copied verbatim from the hook payload by `hook::emit_telemetry` when present and well-formed,
+  omitted otherwise. Placed between `duration_ms` and `data`.
+- Read from the payload ROOT only: a same-named key nested inside `tool_input` or `tool_response` is
+  never taken, so tool-supplied arguments cannot put a value on the spine. Above a 65536-byte payload
+  the library reads only the region ahead of the first nested container, which omits `tool_use_id`
+  (it follows `tool_input` in the documented payload) rather than guessing it; `session_id` and
+  `prompt_id` lead the payload and are unaffected. See #3784.
+- The library reads the payload from `HOOK_TELEMETRY_PAYLOAD`, else the producer's `INPUT` variable;
+  no producer change is needed for a hook that buffers stdin the fleet way.
+- The claude-ops reference sink routes on the spine `session_id` first and falls back to
+  `data.session_id`, so envelopes from 1.0 producers keep their route.
+- No field removed, renamed, or type-changed; a 1.0 consumer ignores the four keys under the
+  tolerate-unknown rule.
+
 ## 1.0 — 2026-06-24
 
 Initial published contract.

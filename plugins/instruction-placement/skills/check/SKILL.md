@@ -47,7 +47,7 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Index in sync | `render-index.sh check` | Deferred surfaces are unreachable from subagents |
 | Index target loaded at all | `render-index.sh reachable` | The index exists and Claude Code never reads it |
 
-The last one is the newest and the least obvious. Claude Code reads `CLAUDE.md`, not `AGENTS.md`. A
+The last one is the least obvious. Claude Code reads `CLAUDE.md`, not `AGENTS.md`. A
 repository carrying both with no import between them gets a perfectly-generated, perfectly-in-sync
 index that never enters context, the entire subagent-gap mitigation doing nothing while every other
 check reports green. Sync and reachability are independent questions; ask both.

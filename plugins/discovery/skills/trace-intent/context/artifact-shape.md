@@ -15,13 +15,6 @@ It is deliberately **not** a shared lifecycle-protocol kind: it has no entry in
 `reference/artifact-protocol.md`, no downstream skill consumes it by name, and nothing outside this
 plugin is entitled to its shape.
 
-That is a decision with a cost and a reason. The cost is that a planning step cannot pick this
-artifact up by protocol the way it picks up a `PLAN.md`. The reason is that the protocol file is one
-of five byte-identical copies across five plugins, so promoting a kind into it obliges an identical
-edit to all five plus a protocol version bump — a price worth paying for an artifact several plugins
-consume, and not worth paying for one this skill writes and this skill's reader reads. Promote it
-when a second plugin actually needs it, and pay the five-copy cost then.
-
 ## The index — `INTENT.md`
 
 Everything the shared shape requires, plus one section the other two families do not have:

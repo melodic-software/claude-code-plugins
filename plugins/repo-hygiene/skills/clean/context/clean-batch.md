@@ -62,8 +62,8 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 | shell glob | the shell expands it into repeated `--repo DIR` |
 | `ghq list` | `ghq list -p \| … --repos-from -` (or `--repos-from FILE`) |
 
-Backslash paths from `ghq list -p` (`D:\repos\...`) are normalized once to the
-git-friendly `D:/repos/...` form; inputs are resolved to their canonical toplevel
+Backslash paths from `ghq list -p` (`<drive>:\repos\...`) are normalized once to the
+git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical toplevel
 (`git rev-parse --show-toplevel`) and deduped, so the same repo named two ways is
 processed once. A non-directory or non-git input is reported as a `blocked`
 outcome, never silently dropped.
@@ -88,8 +88,7 @@ reports the deduped count.
 representative. If that specific worktree vanishes before apply while a live
 sibling still shares the store, the prune is reported `skipped`, not run — it is
 deferred, not lost: `git` prune/gc is non-destructive and idempotent, and a fresh
-dry-run → apply over the live siblings picks a new representative. Widening the
-plan to carry fallback candidates is a possible future refinement.
+dry-run → apply over the live siblings picks a new representative.
 
 ### The batch plan IS the gated set
 

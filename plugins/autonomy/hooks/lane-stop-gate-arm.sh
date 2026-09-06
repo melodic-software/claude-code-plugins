@@ -39,10 +39,17 @@
 # stays fail-open at stop time.
 
 set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=lane-stop-gate-lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lane-stop-gate-lib.sh"
-
+source "$HOOK_DIR/lane-stop-gate-lib.sh"
 err() { printf 'ERROR: lane-stop-gate-arm: %s\n' "$*" >&2; }
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
@@ -96,8 +103,12 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-if ! gate_resolve_anchor "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"; then
-  err "no plugins/cache install anchor for $(dirname -- "${BASH_SOURCE[0]}") — a --plugin-dir checkout install has no trusted record store, so the gate cannot be armed (managed settings remain the only enable path there)"
+case "$HOOK_DIR" in
+/* | ?:[/\\]*) _arm_root="$HOOK_DIR/.." ;;
+*) _arm_root="$(cd "$HOOK_DIR/.." 2>/dev/null && pwd)" ;;
+esac
+if ! gate_resolve_anchor "$_arm_root"; then
+  err "no plugins/cache install anchor for $HOOK_DIR — a --plugin-dir checkout install has no trusted record store, so the gate cannot be armed (managed settings remain the only enable path there)"
   exit 4
 fi
 

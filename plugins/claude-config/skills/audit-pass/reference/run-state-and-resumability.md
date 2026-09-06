@@ -16,10 +16,9 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 collide or fragment depending on where the operator happened to stand.
 
 **`<state-key> = <repo-identity>/<worktree-discriminator>`** — the grammar and both segment
-derivations are specified by the marketplace's `plugin-data-report-keying` convention (rule 1). The
-scheme started here and the convention now carries it, defined once for every adopter; that
+derivations are specified by the marketplace's `plugin-data-report-keying` convention (rule 1). That
 repo-level doc does not ship with an installed copy of this plugin, so the one-line grammar above
-stays as an intentional duplicate naming that convention as its source. The operational definition
+is an intentional duplicate naming that convention as its source. The operational definition
 ships in-plugin: `run-state.sh paths` computes the key through the shared `lib/state-key.sh` (whose
 header states the full derivation), and every path below is relative to what it prints.
 
@@ -123,12 +122,12 @@ enforced by that script and covered by `run-state.test.sh`, negative tests inclu
 and names the partial after it, so the epoch is a value on disk rather than a notion — but nothing
 increments it or fences a previous holder, and a run performing an adoption is performing it itself.
 Stated here because the rest of this section reads as machinery, and a contract that reads as
-enforced while nothing enforces it is the defect this section was carrying.
+enforced while nothing enforces it misleads.
 
 **An applying run writes its lease before it takes the lock**, and the order is normative rather
 than incidental: reclamation reads the holder's lease as its second conjunct, so a lock whose lease
-does not yet exist would be classified stale and reclaimed on age alone — the failure this section
-removes, reappearing through a window between the two writes. Writing the lease first closes the
+does not yet exist would be classified stale and reclaimed on age alone — the age-only reclamation
+the age bound exists to prevent, reappearing through a window between the two writes. Writing the lease first closes the
 window in the safe direction: a lease with no lock is simply a run that has not acquired yet, which
 no reclamation test consults.
 
@@ -139,17 +138,15 @@ no reclamation test consults.
   **`stale_after_s`** and **`skew_grace_s`** thresholds this writer committed to.
 - **Refresh is boundary-driven, not timed.** The holder rewrites `heartbeat_at` at acquisition, at
   every lane's persistence point, and at release. It is **not** rewritten on a wall clock: a
-  skill-driven run acts between tool calls and has no timer, so a 60-second cadence — which this
-  section specified before the script existed — named a mechanism no run could keep, which is the
-  same defect as specifying a lease and shipping no writer.
+  skill-driven run acts between tool calls and has no timer, so a wall-clock cadence would name a
+  mechanism no run could keep.
 - **Liveness — the thresholds live in the lease, and the classifier reads them from there.** The lease
   is **live** when `now - heartbeat_at < stale_after_s`; otherwise it is **stale**. Putting the
   threshold in the artifact is what makes "live or abandoned" a function of what was *written* rather
   than of what the classifier happens to believe — the concern this section closes at the end of the
   subsection, resolved by the artifact instead of by an asserted constant.
-- **The default `stale_after_s` is 30 minutes, not the 5 the timed cadence implied.** Five minutes was
-  five 60-second refresh intervals; with refreshes at lane boundaries, a single delegated lane can
-  outlast it, and a threshold shorter than a lane classifies a *running* pass as abandoned — the one
+- **The default `stale_after_s` is 30 minutes.** With refreshes at lane boundaries, a single
+  delegated lane can outlast a shorter window, and a threshold shorter than a lane classifies a *running* pass as abandoned — the one
   direction that is unsafe, because it lets `--resume` adopt a live run's artifact. Longer only ever
   costs an operator a wait, and the `released` tombstone below removes that cost from every clean
   exit. A run that knows its lanes are short may commit to a shorter threshold via `--stale-after`;
@@ -160,8 +157,8 @@ no reclamation test consults.
   on it.
 - **A run that exits cleanly writes a `released` state into its lease** — a tombstone — rather than
   leaving its last heartbeat to age out. Without it, a run that finished normally while deliberately
-  leaving a lane incomplete (the `/doctor` handoff is exactly this) looks live for the full five
-  minutes after its process is gone, so the operator who does the fastest correct thing — run
+  leaving a lane incomplete (the `/doctor` handoff is exactly this) looks live for the full `stale_after_s`
+  window after its process is gone, so the operator who does the fastest correct thing — run
   `/doctor`, come straight back with `--resume` — is the one refused. The mechanism designed to
   protect an in-flight run would be punishing the intended workflow.
 - **`--resume` therefore distinguishes three lease states, not two**: `released` is resumable
@@ -221,7 +218,7 @@ abandoned" is a classification two readers must reach identically or `--resume` 
 | 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
 | 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
 | 3.8 | A holder whose lease was adopted while it was suspended writes nothing into the adopter's epoch file: any append it still makes lands in its own superseded epoch file, and the adopter's file contains records from exactly one writer per attempt ordinal. It aborts at its next heartbeat refresh, which bounds how long it keeps writing but is not what provides the isolation. |
-| 3.9 | A lease whose `heartbeat_at` is further in the future than one refresh interval is classified stale and is adoptable, with the skew reported — a forward clock jump cannot make an abandoned run permanently unresumable. |
+| 3.9 | A lease whose `heartbeat_at` is further in the future than `skew_grace_s` is classified stale and is adoptable, with the skew reported: a forward clock jump cannot make an abandoned run permanently unresumable. |
 | 3.10 | A run that exits cleanly leaving a lane incomplete writes a `released` lease, and an immediately following `--resume` is accepted rather than refused as live. |
 | 3.11 | A fenced writer's appends land in `findings.partial.<its own epoch>.jsonl` and never in the adopter's; assembly reads only the highest epoch present, and superseded files are retained. |
 | 5.4 | A lane whose delegate reported no catalog version or prompt digest re-runs on every `--resume` rather than being carried forward, and the delegate is named in the report's coverage notes as owing a detection declaration. |
@@ -250,7 +247,7 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   writes to the writer's own file, says `FENCED`, and **exits 3**. The abort is in the exit code, not
   only in the message: a diagnostic reading "this run must stop" while the command exits 0 is a
   control announcing a state it never establishes, since it depends on the caller noticing a
-  substring — the same shape as the rest of §3 before it had a script. Omitting `--epoch` falls back
+  substring. Omitting `--epoch` falls back
   to the lease's current value, correct only for a run whose epoch nothing has moved.
 
   **A record is validated, not merely sniffed.** A malformed row in an append-only artifact is
@@ -268,9 +265,7 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   §7 already requires that `--resume` read the partial "so completion state is derivable from the
   artifact rather than tracked beside it and able to disagree with it" — a manifest written beside the
   partial is exactly the thing that can disagree with it, so there is one artifact and the manifest is
-  a view over it. This also removes the second broken link in the resume path: making the partial real
-  while leaving completion state in a file nothing writes would have moved the defect rather than
-  fixed it.
+  a view over it.
 - **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
   **plus its detection configuration** — the lane's detection version (catalog version and the
   check's prompt digest), the harness version, and every behavior-affecting argument the resumed
@@ -285,14 +280,14 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
 - **What the pass may hash is bounded by what the delegate reports, and the gap is closed by
   re-running rather than by reaching in.** This pass dispatches skills and never reads inside one, so
   a delegate's catalog version and prompt digest are available only if that delegate *emits* them —
-  and today none does: `claude-memory:audit` takes an action verb and returns findings and counts.
+  and none does: `claude-memory:audit` takes an action verb and returns findings and counts.
   Requiring metadata no interface supplies would make the rule unimplementable, and hashing it by
   reading another plugin's files would break the boundary the whole design rests on. So each lane is
   classified by what its own delegate returned:
   - **Detection-qualified** — the invocation reported its catalog version and prompt digest. Both go
     into the input digest, and the lane resumes normally when they are unchanged.
-  - **Detection-unqualified** — the invocation reported neither, the state of every delegated catalog
-    today. The lane is **not resumable**: it re-runs on every `--resume`, and the report's coverage
+  - **Detection-unqualified** — the invocation reported neither, which no delegated catalog
+    declares. The lane is **not resumable**: it re-runs on every `--resume`, and the report's coverage
     notes name that delegate as owing a detection declaration.
 
   Fail-closed, and deliberately the expensive direction: re-running a lane costs tokens, while

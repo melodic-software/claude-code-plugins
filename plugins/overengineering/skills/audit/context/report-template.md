@@ -6,7 +6,7 @@ prerequisite is absent.
 
 | Layer | When | Authority |
 |---|---|---|
-| **Findings artifact** | always, except when no branch identity resolves | **The single source of truth.** Everything that drives the reasoning lives here |
+| **Findings artifact** | always, except where the running lane declines the write | **The single source of truth.** Everything that drives the reasoning lives here |
 | **Inline terminal summary** | always | A *view* of the artifact — never a second record, never a place a fact appears first |
 | **Rendered HTML view** | presence-gated | A rendering of the same artifact; skipped when unavailable |
 
@@ -54,6 +54,14 @@ it.
    artifact is written."* The layers-walked half is unchanged — the walk still happened, and this
    summary is the only record of it. The condition and its reasoning belong to the skill's
    "A detached checkout has no branch identity"; this document owns only how the line reads.
+   **When the run ends up writing no row**, the path resolved but nothing was persisted to it, and
+   the first wording would assert a write that never happened. A lane that can reach that state
+   names the resolved path as the home it *would* have written to, and says the write was declined
+   and why: *"Read-only pass; findings artifact home resolved at `<resolved path>`, nothing written
+   because this run filed no finding."* A pointed lane cannot know at line-one time whether it will
+   file one, so it either defers this line until it does, or emits the conditional form and states
+   the outcome in its closing summary. What it must never do is name a path as written and then not
+   write it.
 2. **Evidence availability, one line per tier**: present / partial / unavailable, with the probe. A
    shallow clone and a missing telemetry sink each get named here explicitly.
 3. **Counts**, per verdict class and per layer. A small table, not prose.
@@ -71,8 +79,12 @@ it.
    and the bundled defaults applied. Name a personal layer explicitly whenever one shaped output.
 8. **The next step**, named but not taken: `overengineering:realign` consumes this artifact and
    executes accepted findings behind an explicit per-item human gate. Do not start it unasked. On a
-   run that wrote no artifact there is nothing for it to consume, so the step named instead is a
-   re-run on a checkout with a resolved branch identity.
+   run that wrote no artifact there is nothing for it to consume, so the step named instead is
+   whatever would produce one, **and that follows from why the write was declined**. Where no branch
+   identity resolved, it is a re-run on a checkout that has one. Where the lane declined because it
+   judged nothing, the branch is fine and a re-run changes nothing: name instead the thing that
+   would give it something to judge, a target to point at, or the lane that owns what was routed
+   away.
 
 A run that found nothing to retire says so plainly. A clean surface is a valid outcome, and
 manufacturing a finding to justify the pass is the failure this whole method is pointed at.

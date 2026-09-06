@@ -45,8 +45,8 @@ anyway. The script instead treats the file as bytes and finds the bundle by cont
 ### 1. Anchor on an export name, not the chunk header
 
 The obvious anchor is the `// @bun` header. It fails: the header appears in several small helper
-chunks, and the *first* occurrence is a few hundred bytes of the wrong one. The first draft of this
-script returned a 454-byte "bundle" and zero commands.
+chunks, and the *first* occurrence is a few hundred bytes of the wrong one, which yields a tiny
+"bundle" and zero commands.
 
 The script anchors on `registerBundledSkill` — a string that occurs only in the CLI bundle — expands
 to the surrounding printable run, and takes the largest candidate, rejecting anything under 1 MB.
@@ -80,9 +80,9 @@ A fixed ±N-character window around `type:"local-jsx"` spans the neighbouring co
 regex, and comment states so a `{` inside a string is not counted — and records every matched pair.
 Each command's fields are then read from its own literal.
 
-This is the single most important correctness property in the script. Two earlier regex-only passes
-over this bundle produced lists that were wrong in different ways: one missed `/artifacts` entirely,
-the other invented `/alias` and `/todos` as commands.
+This is the single most important correctness property in the script. A regex-only pass over this
+bundle goes wrong in one of two ways: it misses `/artifacts` entirely, or it invents `/alias` and
+`/todos` as commands.
 
 ## The three registration paths
 

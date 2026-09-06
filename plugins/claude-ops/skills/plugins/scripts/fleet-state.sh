@@ -1107,7 +1107,7 @@ emit_marketplace() {
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     manifest_base="$FLEET_STATE_CATALOG_DIR/$name"
   else
-    # installLocation is recorded in native form on Windows (C:\Users\...);
+    # installLocation is recorded in native form on Windows (C:\Users\<user>\...);
     # fold to forward slashes so the composed path is one this shell can stat.
     manifest_base="${install_location//\\//}"
   fi

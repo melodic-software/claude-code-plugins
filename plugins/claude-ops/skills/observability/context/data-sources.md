@@ -69,7 +69,7 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 | `mcp__ccusage__monthly` | none | per-month aggregates |
 | `mcp__ccusage__blocks` | none | 5-hour billing windows (current + recent) |
 
-**Fallback path: CLI** when MCP not yet wired.
+**Fallback path: CLI** when the ccusage MCP server is not configured.
 
 ```bash
 if command -v npx >/dev/null 2>&1; then
@@ -169,9 +169,13 @@ jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked")
   | {ts, hook, event, subject}' "${HOOK_FILES[0]}"
 ```
 
-**Rewrote:** what a formatter changed. `changed` is a defined key no producer emits yet
-(formatters send `data.findings` only), so this list is empty until one does; render it as
-`_no data — no producer reports rewrites yet_`, not as "nothing was rewritten".
+**Rewrote:** what a formatter changed. `changed` is the per-row boolean the sink copies from a
+producer's `data.changed`; the eight rewriting formatters (bash, biome, eol-normalizer, go,
+markdown, powershell, ruff, typos) send it on every run that reached the formatter, so a row with
+`changed == true` is a file the hook rewrote. A session whose envelope rows all predate those
+producer versions, or whose formatters all stopped before the formatter ran, has no such rows;
+render that as `_no data — no producer in this session reported a rewrite verdict_` when no row
+carries the key at all, and as `_nothing rewritten_` when rows carry it and every value is false.
 
 ```bash
 jq -sc "$HOOK_NORM"' | .[] | select(.changed == true)
@@ -279,8 +283,6 @@ jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
 ' "${HOOK_FILES[@]}"
 ```
 
-Pattern detection across session JSONL transcripts (`~/.claude/projects/<slug>/*.jsonl`) is deferred — schema undocumented.
-
 ## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
 
 `cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>` — bin in clear (groupable), sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
@@ -334,7 +336,7 @@ grep -oE '`[a-zA-Z0-9_./-]+\.(cs|sh|ts|py|md|json)`' .claude/rules/*.md \
     done
 ```
 
-Out of scope for v1: function/symbol references (needs ctags or Roslyn).
+Function and symbol references are out of scope; the check covers file paths only.
 
 ## 6. Calibration signal — dismissed observations
 

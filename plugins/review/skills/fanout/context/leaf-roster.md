@@ -30,7 +30,7 @@ When the project ships per-concern review criteria documents, each one becomes a
 
 ## Total roster
 
-4 agents + N discovered ownerless slices (N varies by project). Report the resolved roster in the tier-transparency line before dispatch.
+Every agent in the table above + N discovered ownerless slices (N varies by project). Report the resolved roster in the tier-transparency line before dispatch.
 
 ## Deep-scan escalation (not a leaf)
 

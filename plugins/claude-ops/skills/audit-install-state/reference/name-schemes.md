@@ -1,12 +1,11 @@
 # A number in a filename is not reliably a PID
 
-This is the single highest-value rule in the skill, and it was learned from a near-miss.
+This is the single highest-value rule in the skill.
 
-An audit of a real install was one step from deleting `ide/22580.lock` because a process lookup for
-"PID 22580" returned nothing. **22580 is a listening TCP port.** The real PID lived inside the file
-body — `32324`, alive, the running VS Code integration for that very workspace. Deleting the file
-would have broken a live IDE session, and the "evidence" authorising it was a lookup that was never
-a valid question to ask.
+Take `ide/<port>.lock`. A process lookup for that number returns nothing, because **the number is a
+listening TCP port**. The real PID lives inside the file body, alive, running the IDE integration
+for that workspace. Deleting the file on the lookup miss breaks a live IDE session, and the
+"evidence" authorising it was a lookup that was never a valid question to ask.
 
 The failure is structural, not careless. `Get-Process <n>` / `os.kill(<n>, 0)` against a non-PID
 returns a *clean, confident, negative* answer. Nothing about that answer says "you asked the wrong

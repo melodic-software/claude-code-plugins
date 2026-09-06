@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "check-reports-overlay-and-routes-reconfig-natively",
-      "prompt": "re-anchor setup",
+      "prompt": "discipline setup",
       "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure discipline@<marketplace> and never edits settings.json or pluginConfigs. No apply action is offered.",
       "files": [],
       "expectations": [
@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "unexpanded-token-treated-as-unset",
-      "prompt": "re-anchor setup check",
+      "prompt": "discipline setup check",
       "expected_output": "When an option was never configured and its ${user_config.…} token survives literally (a zero-config or headless install), the check treats it as unset — no overlay from that key — and does not parse the literal placeholder as a corrector name. Both an empty value and a surviving literal placeholder read as unset.",
       "files": [],
       "expectations": [
@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "validates-names-against-installed-correctors",
-      "prompt": "re-anchor setup check (batch_exclude = point-dont-copy, notaskill; batch_promote = scrutinize-dont-coast, use-your-skills)",
+      "prompt": "discipline setup check (batch_exclude = point-dont-copy, notaskill; batch_promote = scrutinize-dont-coast, use-your-skills)",
       "expected_output": "The check globs the installed corrector directories and validates each overlaid name. It reports point-dont-copy as a valid exclusion and flags notaskill in batch_exclude as a FAIL (matches no installed corrector), with remediation to fix the value through the plugin configuration prompt. For batch_promote it warns visibly that scrutinize-dont-coast (never) and use-your-skills (core) are not situational and are not promoted. It flags contradictions (a name both excluded and promoted/demoted) and no-op demotes.",
       "files": [],
       "expectations": [

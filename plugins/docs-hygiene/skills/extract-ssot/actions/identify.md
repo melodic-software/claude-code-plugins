@@ -76,7 +76,7 @@ it applies no edits. `batch` accepts the same flags and passes them through.
 
 | Flag | Default | Behavior |
 |------|---------|----------|
-| `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=2` drops the N=1 bucket; `--min-instances=3` is the **regression guard** — it reproduces the pre-bucket behavior exactly, rostering only N≥3 clusters and refusing sub-three candidates outright |
+| `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=2` drops the N=1 bucket; `--min-instances=3` rosters only N≥3 clusters and refuses sub-three candidates outright |
 | `--buckets=<list>` | all | Comma-separated bucket filter applied to the roster, e.g. `--buckets=1,2` for the non-abstracting work only. Composes with `--min-instances`; the narrower of the two wins |
 | `--fix` | off | Apply ONLY the non-abstracting remedies — `trim-to-citation` and `normalize-wording`. It NEVER creates a new artifact and never applies `name-an-owner` / `edit-existing-rule` (those change which file is canonical — a judgment call that stays with the user). Honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing. Implies no edits even if `--fix` is also passed |
@@ -318,7 +318,7 @@ parallel + dependency chains that must run sequentially.
 Mark with ⭐ any cluster where an SSOT already exists but call sites STILL inline
 (highest signal — quick wins).
 
-Time budget: large. Aim thoroughness > speed. Do NOT edit files.
+Do NOT edit files.
 ```
 
 ## Output shape (exhaustive mode)
@@ -400,7 +400,7 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 | When | Check | Evidence |
 |------|-------|----------|
 | Pre-dispatch | No active working-notes candidate roster | Read of the notes |
-| Post-dispatch | Subagent returned ≥10 candidates (an exhaustive survey should be productive) | Count |
+| Post-dispatch | Every returned candidate carries its evidence shape; a small roster on a well-deduplicated corpus is a valid result, not a failed dispatch | Read the roster |
 | Post-dispatch | Each candidate has a Tier 0 grep evidence path | Spot check 3 candidates |
 | Post-dispatch | Every candidate carries a bucket + instance count, and no sub-three candidate carries an artifact-creating suggested output | Scan the roster's bucket column |
 | Pre-handoff | With `--fix`, only `trim-to-citation` / `normalize-wording` edits are staged, and no new file appears in the diff | `git status` / diff review |

@@ -161,6 +161,12 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
+| [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
+| [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
+| [`/code-metrics:audit-duplication`](../plugins/code-metrics/skills/audit-duplication/SKILL.md) | `code-metrics` | Clone groups minus the replication the repo declares, no verdict |
+| [`/code-metrics:audit-size`](../plugins/code-metrics/skills/audit-size/SKILL.md) | `code-metrics` | Lines per file beside a cited reference, no verdict |
+| [`/code-metrics:audit-type-debt`](../plugins/code-metrics/skills/audit-type-debt/SKILL.md) | `code-metrics` | Typed-code percentage per lane, with no standard behind it |
+| [`/code-metrics:principles`](../plugins/code-metrics/skills/principles/SKILL.md) | `code-metrics` | What each code measure can and cannot tell you |
 | [`/code-tidying:audit-dead-code`](../plugins/code-tidying/skills/audit-dead-code/SKILL.md) | `code-tidying` | Whole-repo dead-code hunt across four labelled lanes with adjudicated candidates |
 | [`/code-tidying:tidy`](../plugins/code-tidying/skills/tidy/SKILL.md) | `code-tidying` | Proactively hunt one lane for safe structural tidyings and ship a structure-only PR |
 | [`/codebase-health:audit`](../plugins/codebase-health/skills/audit/SKILL.md) | `codebase-health` | Audit for drift between docs, config, code, and architecture via verified findings |
@@ -205,6 +211,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
+| [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact you point at justify its own existence, on evidence |
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 115 sections |
 | [`/playbooks:fable-5`](../plugins/playbooks/skills/fable-5/SKILL.md) | `playbooks` | Fable 5's operating doctrine loaded as standing session instructions |
 | [`/playbooks:skill-authoring`](../plugins/playbooks/skills/skill-authoring/SKILL.md) | `playbooks` | Anthropic's internal skill-authoring playbook and patterns |

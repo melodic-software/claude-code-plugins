@@ -48,9 +48,9 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-i
 
    Closing now would mark the item done before the work has landed — a failed or abandoned PR would leave it wrongly closed. Close directly (adapter: "Close item" — WRITE via the adapter's identity policy), passing the closing comment and `--reason completed` (or `not planned` for `--not-planned`), ONLY when there is no `--pr` or the named PR has already merged.
 
-   The seam claim is a lease (assignee + lease comment), not a label — closing removes the item from the frontier, so no `status:*` label cleanup is part of this flow (the retired `status:claimed` label is handled by the label-reconciliation migration, not here).
+   The seam claim is a lease (assignee + lease comment), not a label. Closing removes the item from the frontier, so no `status:*` label cleanup is part of this flow.
 
-1. **Belt-and-suspenders: verify PR body keyword presence.** Primary path is the `/source-control:pull-request create` §2.4.2 pre-create gate (covers all 9 closing keywords + opt-out markers). This step fires when `/work-items:track done` is invoked WITHOUT having gone through `/source-control:pull-request create` (rare — manual close path). Only runs when `--pr` is provided.
+1. **Belt-and-suspenders: verify PR body keyword presence.** Primary path is `/source-control:pull-request create`'s pre-create closing-keyword gate (every GitHub closing keyword plus the opt-out markers). This step fires when `/work-items:track done` is invoked WITHOUT having gone through `/source-control:pull-request create` (rare — manual close path). Only runs when `--pr` is provided.
 
    Apply the read-modify-write keyword check + prepend from the adapter "PR closing-keyword mechanics" section, keyed to THIS item's `#<N>`: if the (unmerged) PR body carries neither a closing keyword for `#<N>` (`Closes #<N>`) nor an opt-out marker for it (`Refs #<N>` / `No related issue:`), prepend `Closes #<N>` — a closing keyword targeting a *different* issue does not count. If an opt-out marker for `#<N>` is present, leave the body alone (Step 4's opt-out branch handles it); if merged, the keyword can no longer auto-fire and Step 4's close is the only path.
 

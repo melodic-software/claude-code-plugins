@@ -226,8 +226,8 @@ class SkillContractTests(unittest.TestCase):
     def test_autopilot_merge_tier_ships_disabled_and_fail_closed(self) -> None:
         para = _paragraph_containing(self.skill_text, "config-gated escalation")
         for marker in (
-            "shipped DISABLED",
-            "separate announced steps",
+            "off by default",
+            "active only while the operator sets `babysit_autopilot_merge_tier`",
             "genuine review pass",
             "second bot account",
             "author ≠ approver",
@@ -345,14 +345,14 @@ class SkillContractTests(unittest.TestCase):
             "C2-auto-merge",
             "C3-auto-merge",
             "forgeable",
-            "three-arm resolver",
+            "check-security-binding.mjs",
         ):
             with self.subTest(file="promotion-evidence-resolution.md", marker=marker):
                 self.assertIn(marker, spoke)
 
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
         safety = _reference("safety.md")
-        self.assertIn("ships **DISABLED**", safety)
+        self.assertIn("The tier is off by default", safety)
         self.assertIn("babysit_autopilot_merge_tier", safety)
         for criterion in (
             "issue-linked",
@@ -433,22 +433,27 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn(marker, loop)
 
     def test_lane_script_prerequisite_names_its_actual_evidence(self) -> None:
-        # #787's own repro used a wildcarded-interpreter form auto mode drops by
-        # design, so it does not show the sanctioned bin/-path form being denied.
-        # The section must keep saying so, and keep citing dotfiles#315 -- the
-        # evidence that does hold -- or it reverts to overclaiming a repro.
+        # A denial of a raw wildcarded-interpreter form says nothing about the
+        # sanctioned bin/-path form; the section must keep saying so, and must
+        # keep naming classifyAllShell as the mechanism that actually makes
+        # reachability an operator-configuration property, or it reverts to
+        # overclaiming a repro.
         safety = _reference("safety.md")
 
-        self.assertIn("does **not** demonstrate that the sanctioned", safety)
-        self.assertIn("generalization from other evidence", safety)
-        self.assertIn("melodic-software/dotfiles/issues/315", safety)
+        self.assertIn("says nothing about the sanctioned form", safety)
+        self.assertIn(
+            "Reachability is therefore a property of the operator's configuration",
+            safety,
+        )
         self.assertIn("classifyAllShell", safety)
 
-        # #455 disputes the never-retry rule this section sits beneath and
-        # restates; the open-question note keeps the restatement from reading as
-        # settled confirmation.
-        self.assertIn("claude-code-plugins/issues/455", safety)
-        self.assertIn("treat the retry semantics of a classifier denial", safety)
+        # Classifier denials are an open question the never-retry rule sits
+        # above; the note keeps the reachability restatement from reading as
+        # settled confirmation and keeps the rule itself binding.
+        self.assertIn("**Classifier denials are not settled.**", safety)
+        self.assertIn(
+            "follow the never-retry bullet above for classifier denials too", safety
+        )
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         spoke = _reference("autopilot.md")

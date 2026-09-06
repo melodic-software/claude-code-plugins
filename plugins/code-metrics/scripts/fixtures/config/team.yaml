@@ -1,0 +1,12 @@
+# Fixture: the team layer (.claude/code-metrics.yaml). Overrides the
+# cyclomatic reference the user layer set, leaves size.file_lines to the user
+# layer, and narrows the typescript cyclomatic ladder to lizard alone.
+complexity:
+  cyclomatic:
+    reference: 15
+lanes:
+  typescript:
+    collectors:
+      cyclomatic: [lizard]
+  dotnet:
+    enabled: false

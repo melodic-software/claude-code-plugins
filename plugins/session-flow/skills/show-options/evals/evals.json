@@ -33,13 +33,13 @@
       "id": 3,
       "name": "two-tier-shape-within-budget",
       "prompt": "Show me my options.",
-      "expected_output": "Each bucket renders at most five ranked options in full three-part treatment (invocation name, what it adds to this conversation, when you would skip it), followed by the complete remainder of that bucket as bare invocation names with an explicit count. Total output stays around 60 lines rather than enumerating the whole catalog.",
+      "expected_output": "Each bucket renders at most five ranked options in full three-part treatment (invocation name, what it adds to this conversation, when you would skip it), followed by the complete remainder of that bucket as bare invocation names with an explicit count. Total output keeps the two-tier shape (five in full per bucket, the remainder counted by name) rather than enumerating the whole catalog.",
       "files": [],
       "expectations": [
         "Tier 1 is capped at five per bucket and ranked",
         "Each tier-1 option carries the invocation name, what it adds here, and when to skip it",
         "Tier 2 lists the remaining names with an explicit count, so nothing is off-screen unstated",
-        "Whole output stays near the ~60-line budget rather than rendering every option in full",
+        "Whole output keeps the two-tier shape (five in full per bucket, remainder counted by name) rather than rendering every option in full",
         "The what-it-adds line is grounded in this conversation, not a paste of the generic description"
       ]
     },

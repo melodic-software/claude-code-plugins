@@ -1,7 +1,8 @@
 # Topic-docs placement — where this plugin's artifacts land
 
-How `overengineering:audit`, `overengineering:realign`, and `overengineering:delta` resolve where
-this plugin's artifacts live in a consuming repo. All three skills read this one document; none
+How `overengineering:audit`, `overengineering:justify`, `overengineering:realign`, and
+`overengineering:delta` resolve where
+this plugin's artifacts live in a consuming repo. All four skills read this one document; none
 bakes its own paths.
 
 Implements the topic-docs convention:
@@ -24,7 +25,7 @@ reports do:
 
 | Artifact | Type | Location (default) |
 |---|---|---|
-| Audit findings — written by `overengineering:audit`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
+| Audit findings — written by `overengineering:audit` and `overengineering:justify`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
 | Spine baseline — captured by `overengineering:delta` at the end of a cycle, for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
 
 What the baseline contains — its frontmatter, its body rules, its type — is owned by
@@ -67,9 +68,10 @@ judgments are not kept here.
 **Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
 resolution to the concern file only on the user's explicit confirmation; declining is a valid answer
 that leaves the resolution session-local, and the run proceeds either way. A non-interactive context
-never reaches these rungs (see below). This is the audit's one sanctioned tracked write, and the
-audit SKILL's "Read-only contract" discloses it — the read-only headline is scoped to unasked
-writes, which all stay in the memory tier.
+never reaches these rungs (see below). This is the one sanctioned tracked write of **either
+producer**, `overengineering:audit` and `overengineering:justify` alike, since both run this rung
+order and either can reach it; each skill's "Read-only contract" discloses it, and the read-only
+headline in both is scoped to unasked writes, which all stay in the memory tier.
 
 Only rungs 1 and 5 compose `overengineering/<branch-slug>` themselves. Rungs 2–4 yield whatever
 location the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A
@@ -82,9 +84,10 @@ follows the contract's "Non-interactive / forked mode" section, which is contrac
 here rather than redefined: skip the ask and persist rungs, take the resolved or documented default,
 and surface the assumption in the returned summary.
 
-**No project root.** The contract's fallback applies unchanged. All three skills read the
-repository's own enforcement surface, so a run outside a checkout has nothing to audit and stops
-before any write.
+**No project root.** The contract's fallback applies unchanged. Every skill here reads something
+inside a checkout, the enforcement surface for three of them and whatever artifact the operator
+points at for `justify`, so a run outside a checkout has nothing to judge and stops before any
+write.
 
 ## Branch slug
 
@@ -96,7 +99,7 @@ artifact belongs to a branch is its own `branch:` frontmatter, never the directo
 Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch —
 the directory alone is not evidence.
 
-**When no branch identity resolves, no home is keyed and nothing is written.** All three skills
+**When no branch identity resolves, no home is keyed and nothing is written.** All four skills
 resolve the branch with `git symbolic-ref --quiet --short HEAD`, which fails on a detached checkout
 rather than answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD` does.
 Where that fails and the environment supplies no logical ref naming a branch, there is no
@@ -110,9 +113,9 @@ keys a new home every commit, which never collides but never resumes either, tur
 an unbounded scatter of single-use homes that no consumer ever reads back. A fixed literal such as
 `detached` is `HEAD` under another name.
 
-The consumers state the consequence at their own sites: `overengineering:audit` persists no findings
-artifact, `overengineering:realign` refuses rather than comparing, and `overengineering:delta`
-compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
+The consumers state the consequence at their own sites: `overengineering:audit` and
+`overengineering:justify` each persist no findings artifact, `overengineering:realign` refuses
+rather than comparing, and `overengineering:delta` compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
 run reaching it without an identity has no path to resolve, and asks for none.
 
 `overengineering` is this plugin's concern name under the memory root, alongside the contract's own

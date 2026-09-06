@@ -22,8 +22,7 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced and before the one command
-# substitution below (a fork on Windows Git Bash): a disabled hook must not
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 # The variable is the userConfig key `index_drift_hook_enabled` upper-cased
@@ -34,7 +33,8 @@ set -uo pipefail
 # would notice.
 [[ "${CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED:-true}" == "true" ]] || exit 0
 
-hook_dir="$(dirname "${BASH_SOURCE[0]}")"
+hook_dir="${BASH_SOURCE[0]%/*}"
+[[ "$hook_dir" == "${BASH_SOURCE[0]}" ]] && hook_dir=.
 # shellcheck source=hook-utils.sh
 source "$hook_dir/hook-utils.sh"
 
@@ -59,8 +59,12 @@ esac
 # repo_root resolves from a DIRECTORY; handing it the file path returns the
 # path unchanged with a non-zero status, which an `|| true` would swallow into
 # a silent no-op — the exact shape of failure this hook exists to prevent
-# elsewhere.
-repo_root="$(hook::repo_root "$(dirname "$file_path")" 2>/dev/null || true)"
+# elsewhere. Parameter expansion, not a `$(dirname …)` subshell: same answers
+# as dirname (no slash -> `.`, a root-level `/x` -> `/` rather than empty).
+file_dir="${file_path%/*}"
+[[ "$file_dir" == "$file_path" ]] && file_dir=.
+[[ -n "$file_dir" ]] || file_dir=/
+repo_root="$(hook::repo_root "$file_dir" 2>/dev/null || true)"
 [[ -n "$repo_root" && -d "$repo_root" ]] || exit 0
 
 renderer="$hook_dir/../scripts/render-index.sh"

@@ -147,7 +147,9 @@ emit `data.session_id`; other hooks appear only in the whole-root report.
 
 ## Rewrote
 
-- (or) `_no data — no producer reports rewrites yet_`
+- `<ts>` `<hook>` — `<subject>`
+- (or) `_nothing rewritten_` when rows carry `changed` and every value is false
+- (or) `_no data — no producer in this session reported a rewrite verdict_` when no row carries it
 
 ## Event timeline
 

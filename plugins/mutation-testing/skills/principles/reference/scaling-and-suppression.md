@@ -7,7 +7,7 @@ Sources: Petrović & Ivanković, *State of Mutation Testing at Google* (ICSE-SEI
 <https://dl.acm.org/doi/10.1145/3183519.3183521>); Petrović, Ivanković, Fraser & Just, *Practical
 Mutation Testing at Scale* (<https://arxiv.org/abs/2102.11378>); [Stryker.NET
 configuration](https://stryker-mutator.io/docs/stryker-net/configuration/); [StrykerJS
-incremental](https://stryker-mutator.io/docs/stryker-js/incremental/). Fetched 2026-08-10.
+incremental](https://stryker-mutator.io/docs/stryker-js/incremental/). Fetched 2026-08-10. Recheck when Stryker.NET or StrykerJS changes its `since` / `--incremental` behavior or its threshold options, or at the next fleet audit; the two cited papers, and the per-changelist and productivity figures drawn from them, are fixed.
 
 ## The cost problem, stated honestly
 

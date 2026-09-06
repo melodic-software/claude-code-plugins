@@ -1,5 +1,5 @@
 ---
-description: "Audit the test suite for tests that cannot fail, a deterministic script detects assertion-free test bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, and C#, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists a findings file the review fix pass consumes. Use when: 'audit tests for tautologies', 'find tests that cannot fail', 'assertion-free tests', 'are any of my tests vacuous', 'tautological tests', 'tests pass but prove nothing', 'gate can't-fail tests in CI', 'persist test-audit findings for the fix pass'. Flags: `--check` (exit-code gate), `--strict` (gate mock-only-oracle findings too), `--persist-findings` (write the findings file the review fix pass consumes). Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
+description: "Audit the test suite for tests that cannot fail, a deterministic script detects assertion-free test bodies, self-identical (recomputed-expectation) assertions, and mock-only oracles across JS/TS, Python, and C#, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists a findings file the review fix pass consumes. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a CI gate on can't-fail tests, or the audit's findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (gate mock-only-oracle findings too), `--persist-findings` (write the findings file the review fix pass consumes). Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
 argument-hint: "[--check] [--strict] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -22,7 +22,7 @@ Boundaries, each an incumbent this skill deliberately does not duplicate:
 - **`check-discriminating-test-skips.sh`** (this marketplace repo's own CI gate) owns the fourth
   can't-fail shape, a skip vacating the only discriminating assertion of a case group, for bash
   `*.test.sh`. That rule is deliberately absent here; bash test files are out of scope v1.
-- The **repair queue** is out of scope this cycle: findings propose an assertion (repair, not
+- The **repair queue** is out of scope: findings propose an assertion (repair, not
   pruning: deleting a useless test removes the false claim and the coverage together); applying
   repairs belongs to the remediation lanes.
 
@@ -128,7 +128,7 @@ line above it, or inside the body, the same recorded-decision shape as the repo 
 - **`recomputed-expectation` v1 is the decidable core**. Textually identical actual/expected on one
   line (chains spanning lines are deliberately not matched, and only the first `expect` per line is
   examined). `x = f(a); assert x == f(a)` and C#'s generic `Assert.Equal<T>(a, a)` are the same
-  defect and are not yet detected.
+  defect and are not detected.
 - **The JS regex-literal masker triggers only after an operator or opening delimiter**, never after
   an identifier, so a regex directly after `return` is not masked. Wrongly reading division as a
   regex would mask real code, which is the worse direction. The known cost of that narrow set is a
@@ -140,8 +140,6 @@ line above it, or inside the body, the same recorded-decision shape as the repo 
   run is not judged.
 - **Fixture corpora under `evals/fixtures/` are pruned**, a detector's planted-defect fixtures are
   not the consumer's defects. Point `$CANT_FAIL_SCAN_ROOT` at one explicitly to scan it.
-- **A platform-skipped assertion is unverified on the platform that skips it**, a green local run is
-  not evidence about a case only another platform executes. That is the same defect family this
-  detector hunts, approached from the environment side, and it is out of the detector's reach: a
-  visible skip is not an assertion-free body. The uncovered axis of the dropped skip rule is
-  platform as well as ecosystem.
+- **Platform-conditional skips are outside the detector's reach.** A visible skip is not an
+  assertion-free body, so a case that only another platform executes is neither a finding nor
+  coverage here; a green local run is not evidence about it.

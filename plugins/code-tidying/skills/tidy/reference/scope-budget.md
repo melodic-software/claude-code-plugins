@@ -17,7 +17,7 @@ The **target** is the ideal shape of a tidy PR — small enough to review in und
 
 - **SmartBear "Best Kept Secrets of Peer Code Review" (Cohen et al.)** — the foundational study showing review effectiveness drops sharply above 200 LOC and reviews above 400 LOC are largely ineffective at finding defects. The 200/400 thresholds match this lineage directly
 - **Cisco's code-review study (Bosu, McIntosh, Wagner)** — confirmed SmartBear's findings on a different codebase; ≤60 minutes of review time correlates with ≤200 LOC
-- **CodeScene 2026 agentic refactoring research (Tornhill)** — autonomous AI agents introduce defects ~30% more often in unhealthy code; small, structure-only PRs minimize that defect rate
+- **CodeScene agentic refactoring research (Tornhill)**, autonomous AI agents introduce defects measurably more often in unhealthy code, so small structure-only PRs minimize that defect rate. The published figure is not restated here; read it from the CodeScene publication before quoting one.
 
 If a lane consistently overflows the cap, that's a signal the lane scope is too coarse — split the lane, don't raise the cap.
 
@@ -55,7 +55,7 @@ When the hunt phase produces more candidates than fit in the budget:
 
 ### Greedy vs. optimal selection
 
-Bin-packing-optimal selection isn't worth the complexity. Greedy by priority gets ≥90% of the value; reviewers don't notice whether the PR contained the mathematically-optimal subset.
+Bin-packing-optimal selection is not worth the complexity. Greedy by priority captures nearly all of the value, and reviewers do not notice whether the PR contained the mathematically optimal subset.
 
 ---
 

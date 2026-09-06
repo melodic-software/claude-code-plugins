@@ -1,5 +1,5 @@
 ---
-description: "Babysit your own open GitHub pull requests as a tiered fleet loop. The safe default discovers YOUR PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports, it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when: 'babysit PRs', 'babysit my PRs', 'watch my open PRs', 'keep my PRs moving', 'advance all open PRs', 'babysit worker', 'run the PR queue on autopilot', or pairing with /loop for continuous coverage, not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
+description: "Babysit your own open GitHub pull requests as a tiered fleet loop. The safe default discovers YOUR PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports, it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when asked to babysit, watch, or advance open pull requests as a fleet (the safe tier), to run the worker or autopilot tier by name, or when pairing with /loop for continuous coverage; not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows"
@@ -15,7 +15,7 @@ metadata:
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
 
-Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. They moved out of pre-compute in #1619, the harness composes the block into one shell invocation and a worktree-isolated agent refuses a git-bearing compound command, so run them individually and do not fold them back.
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command.
 
 ## Purpose
 
@@ -141,9 +141,9 @@ addressed, merges through the pinned gate, and escalates the specific PRs that g
 human. What it does per PR, what "every PR" excludes, its draft-PR handling, and which scopes it
 widens are the single home in [reference/autopilot.md](reference/autopilot.md).
 
-## Autopilot merge tier (#476)
+## Autopilot merge tier
 
-A config-gated escalation of autopilot's merge authority, **shipped DISABLED** and active only while the operator sets `babysit_autopilot_merge_tier` (enabling it, and the later gate-off flip, are separate announced steps; without it every merge decision is exactly today's). When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
+A config-gated escalation of autopilot's merge authority, off by default and active only while the operator sets `babysit_autopilot_merge_tier`; with the key unset, every merge decision follows the base path above. When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
 That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate.
 
 ## Guarded mutations: deterministic gates, agent judgment
@@ -359,19 +359,17 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 
 ## Gotchas
 
-Failure patterns observed in real babysit sessions:
-
-- **Survey-without-classifying is the #1 failure.** An audited run classified 16 of ~32 findings
-  while reporting completion. Prose "MANDATORY" alone under-decomposes. That is why finding
-  classification is gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
-- **`READINESS_OK` is not merge-ready.** That gate is blind to branch rules, thread resolution, and required checks; only the merge gate's `ready` field can call a PR MERGE-READY. Reporting off the classification gate alone produced a false MERGE-READY report ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority")
+- **Survey-without-classifying is the primary failure.** A run can report completion having
+  classified only part of the findings; prose emphasis alone does not prevent it. That is why
+  finding classification is gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
+- **`READINESS_OK` is not merge-ready.** That gate is blind to branch rules, thread resolution, and required checks; only the merge gate's `ready` field can call a PR MERGE-READY. Reporting off the classification gate alone produces a false MERGE-READY report ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority")
 - **Multi-finding comments glossed as one work item.** A single comment carrying N severity
-  markers is N work items; ≥3 findings REQUIRE the extractor-subagent dispatch
+  markers is N work items; three or more findings require the extractor-subagent dispatch
   ([review-discipline](../../reference/review-discipline.md) §2)
 - **Model memory across compaction is not state.** "I already replied/pushed" without an API
-  re-query has produced false completion claims. GitHub is the state store
+  re-query is a false completion claim. GitHub is the state store
 - **Exploring the wrong branch produces wrong classifications.** Findings validated off the PR
-  branch have been confidently wrong. Checkout is mandatory before D2
+  branch are confidently wrong. Checkout is mandatory before D2
 - **Own prior replies re-processed as findings.** Classification-table replies from your own
   posting identities must be filtered during rescan or the loop chases its own tail
   ([review-discipline](../../reference/review-discipline.md) §1)
