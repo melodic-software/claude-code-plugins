@@ -26,8 +26,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   Wall clock on this measurable Linux host (spawn floor 0.5 ms, spread 1.78×,
   n=20 after 2 warmup): p50 51.9 → 46.8 ms, p95 53.8 → 48.1 ms. The milliseconds
   are context; the durable figure is the five classifier parses that
-  disappeared. An unprimed payload still loads the library so a PowerShell
+  disappeared.   An unprimed payload still loads the library so a PowerShell
   command whose jq cache missed cannot reach a guard with `ps::` unbound.
+  `block-noncanonical-commit` compares `-m` values against
+  `PS_HERESTRING_PLACEHOLDER` only when the classifier defined it, so a Bash
+  single-line `-m` does not abort under `set -u`.
   What each guard checks is unchanged.
 
 ## [0.32.7]

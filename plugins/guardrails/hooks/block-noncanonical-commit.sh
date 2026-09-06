@@ -889,25 +889,27 @@ check_segment() {
       # as --message. Verified empirically on git 2.55: `git commit --dry-run
       # --mess=x` (and each shorter prefix) parses, while a non-option like
       # --mainline errors — so an abbreviated spelling must hit this gate
-      # exactly as the full one does.
-      [[ "$next" == *$'\n'* || "$next" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      # exactly as the full one does. PS_HERESTRING_PLACEHOLDER is defined by
+      # ps-command.sh; on Bash it is unset, and `set -u` must not abort the
+      # allow path of a single-line `-m`.
+      [[ "$next" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$next" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
       ((k++))
       ;;
     --m=* | --me=* | --mes=* | --mess=* | --messa=* | --messag=* | --message=*) # spellchecker:disable-line
       word="${word#*=}"
-      [[ "$word" == *$'\n'* || "$word" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      [[ "$word" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$word" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
       ;;
     -m*)
       # Attached value (`-m"multi<NL>line"` tokenizes to one -m-prefixed word).
       word="${word#-m}"
-      [[ "$word" == *$'\n'* || "$word" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      [[ "$word" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$word" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
       ;;
     -[!-]*m)
       # Short-option cluster whose LAST letter is m (`-am`, `-sam`): git binds
       # the NEXT word as the message. Which earlier cluster letters themselves
       # take values is per-option knowledge this scan does not model; misreading
       # one costs at most a newline probe of the following word.
-      [[ "$next" == *$'\n'* || "$next" == "$PS_HERESTRING_PLACEHOLDER" ]] && msg_newline=1
+      [[ "$next" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$next" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
       ((k++))
       ;;
     *)
