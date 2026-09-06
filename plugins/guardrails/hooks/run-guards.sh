@@ -81,14 +81,18 @@ esac
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
 GUARDS=()
+LIBS=()
 while (($#)); do
   case "$1" in
   --lib)
-    # A library several guards source (the PowerShell classifier). Its own
-    # double-source guard makes every later `source` a no-op, so the parse is
-    # paid once here instead of once per guard.
-    # shellcheck disable=SC1090
-    source "$PLUGIN_ROOT/$2"
+    # A library several guards source (the PowerShell classifier). Collect
+    # the path now; the parse itself waits until tool_name is known. On a
+    # Bash payload the classifier's first real statement is
+    # `[[ "$tool" == "PowerShell" ]] || return 0`, so loading ~41 KB here
+    # was a pure tax on the common path. The include guard still makes every
+    # later `source` a no-op, so the parse is paid once per PowerShell fire
+    # instead of once per isolation subshell.
+    LIBS+=("$2")
     shift 2
     ;;
   *)
@@ -171,6 +175,22 @@ hook::jq_fields() {
   fi
   hook::jq_fields_uncached "$input" "$@"
 }
+
+# --- PowerShell classifier, once, and only on that tool -----------------------
+# `.tool_name` is PRIME_FILTERS[1]. A Bash payload must not parse ps-command.sh
+# at all; an unprimed payload still loads it so a PowerShell command whose jq
+# cache missed cannot reach a guard with `ps::` unbound.
+_rg_tool=""
+if ((RUN_GUARDS_PRIMED)); then
+  _rg_tool="${RUN_GUARDS_VALUES[1]}"
+fi
+if ((${#LIBS[@]})) && [[ "$_rg_tool" != "Bash" ]]; then
+  for _rg_lib in "${LIBS[@]}"; do
+    # shellcheck disable=SC1090
+    source "$PLUGIN_ROOT/$_rg_lib"
+  done
+fi
+unset _rg_tool
 
 # --- run ----------------------------------------------------------------------
 RC=0

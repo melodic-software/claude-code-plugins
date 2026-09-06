@@ -34,12 +34,19 @@ set -uo pipefail
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
-
+source "$HOOK_DIR/rewrite-guard.sh"
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty — referencing it bare under
@@ -88,7 +95,10 @@ fi
 
 # Resolve repo root early — used to bound the config opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument Ruff runs on from the repo root. A path the prefix strip could
 # not make relative degrades to its basename, which is right for telemetry but
@@ -124,7 +134,7 @@ emit_skipped() {
 
 # Resolve the file's directory in `pwd` form once. Both walks below start here,
 # and it anchors the repo-root-relative path passed to Ruff.
-FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
+FILE_DIR_POSIX="$(cd "$FILE_DIR" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
 root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 
 # Consumer opt-in: a Ruff configuration that governs the edited file. Walk up
@@ -158,7 +168,8 @@ while [[ -n "$dir" ]]; do
   fi
   [[ -n "$CONFIG_FOUND" ]] && break
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
 done
@@ -180,7 +191,8 @@ while [[ -n "$dir" ]]; do
   done
   [[ -n "$RUFF_BIN" ]] && break
   [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
+  parent="${dir%/*}"
+  [[ -n "$parent" ]] || parent=/
   [[ "$parent" == "$dir" ]] && break
   dir="$parent"
 done

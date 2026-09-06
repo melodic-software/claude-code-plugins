@@ -620,4 +620,12 @@ run_pwsh "PS: quoted Path+Value is not a no-verify signal (allowed — #2906 con
 run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 containment)" \
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 0
 
+# --- #2663: PowerShell classifier is sourced only on the PowerShell lane -------
+bash_trace=$(bash -x "$HOOK" <<<"$(command_json 'git status')" 2>&1 >/dev/null) || true
+assert_absent "#2663: Bash lane does not source ps-command.sh" \
+  "$bash_trace" "ps-command.sh"
+pwsh_trace_err=$(bash -x "$HOOK" <<<"$(pwsh_command_json 'git status')" 2>&1 >/dev/null) || true
+assert_contains "#2663: PowerShell lane sources ps-command.sh" \
+  "$pwsh_trace_err" "ps-command.sh"
+
 report

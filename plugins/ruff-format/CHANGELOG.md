@@ -3,6 +3,19 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.38]
+
+### Changed
+
+- **The hook locates its own directory, the edited file's directory, and each
+  parent in a config walk with parameter expansion, not `dirname`.** GNU Bash
+  forks a subshell for every command substitution even when the body is a builtin
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+  fork is a process. `${BASH_SOURCE[0]%/*}` and `${FILE%/*}` equal `dirname`
+  for every shape those paths take; the empty-strip fallback answers `/` at the
+  filesystem root, matching GNU. What the hook formats or lints is unchanged.
+
 ## [0.6.37]
 
 ### Changed
