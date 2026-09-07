@@ -43,8 +43,20 @@ const HLS_FIELDS = [
 // Module-level state
 // ---------------------------------------------------------------------------
 
-/** @type {Map<string, { hlsMasterUrl: string|null, subtitleManifestBody: string|null }>} */
-const capturedData = new Map();
+/**
+ * Captured HLS master URL and subtitle manifest, keyed by Page.
+ *
+ * Keyed by Page rather than by URL: two Pages on the same lesson URL must not
+ * overwrite each other's capture, and `preparePage` must not delete another
+ * Page's entry. A WeakMap lets a closed Page be collected without a
+ * deregistration step.
+ *
+ * @type {WeakMap<import('playwright').Page, {
+ *   hlsMasterUrl: string|null,
+ *   subtitleManifestBody: string|null,
+ * }>}
+ */
+let capturedData = new WeakMap();
 
 /**
  * Pages that already carry this module's request/response listeners.
@@ -58,11 +70,11 @@ const capturedData = new Map();
  */
 let pagesWithInterceptors = new WeakSet();
 
-function getOrCreateEntry(pageUrl) {
-  const existing = capturedData.get(pageUrl);
+function getOrCreateEntry(page) {
+  const existing = capturedData.get(page);
   if (existing) return existing;
   const entry = { hlsMasterUrl: null, subtitleManifestBody: null };
-  capturedData.set(pageUrl, entry);
+  capturedData.set(page, entry);
   return entry;
 }
 
@@ -73,7 +85,7 @@ function findHotmartFrame(page) {
 /** Record `url` as the page's HLS master when it matches the packaged-master pattern. */
 function captureMasterUrl(page, url) {
   if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
-    getOrCreateEntry(page.url()).hlsMasterUrl = url;
+    getOrCreateEntry(page).hlsMasterUrl = url;
   }
 }
 
@@ -305,7 +317,7 @@ async function readHlsDataFromFrame(hotmartFrame, subtitleLang) {
   }
 }
 
-async function storeSubtitleManifest(hotmartFrame, hlsData, currentUrl) {
+async function storeSubtitleManifest(hotmartFrame, hlsData, page) {
   if (!hlsData.subtitlePlaylistUrlFull) return null;
 
   const manifestBody = await hotmartFrame.evaluate(async (url) => {
@@ -319,7 +331,7 @@ async function storeSubtitleManifest(hotmartFrame, hlsData, currentUrl) {
   const segCount = parseSubtitleManifest(manifestBody).length;
   writeStdout(`    ✓ Subtitle manifest fetched: ${segCount} segments`);
 
-  const entry = getOrCreateEntry(currentUrl);
+  const entry = getOrCreateEntry(page);
   entry.hlsMasterUrl = hlsData.masterUrlFull;
   entry.subtitleManifestBody = manifestBody;
 
@@ -358,7 +370,7 @@ export function installInterceptors(page, subtitleLang) {
 
       if (url.includes(`textstream_${subtitleLang}`) && url.includes(".m3u8")) {
         const body = await response.text();
-        getOrCreateEntry(page.url()).subtitleManifestBody = body;
+        getOrCreateEntry(page).subtitleManifestBody = body;
       }
     } catch {
       // Response body may not be available for all intercepted responses
@@ -384,9 +396,7 @@ export async function preparePage(
   _manifestTimeoutMs,
   videoPlayerSelector = DEFAULT_VIDEO_PLAYER_SELECTOR,
 ) {
-  const currentUrl = page.url();
-
-  capturedData.delete(currentUrl);
+  capturedData.delete(page);
 
   const hasHotmart = await hasHotmartPlayer(page, videoPlayerSelector);
 
@@ -428,7 +438,7 @@ export async function preparePage(
     `    HLS data: master=${hlsData.masterUrl ? "found" : "none"}, sub=${hlsData.subtitlePlaylistUrl ? "found" : "none"}, vjs=${hlsData.hasVjs}`,
   );
 
-  const subtitleSegments = await storeSubtitleManifest(hotmartFrame, hlsData, currentUrl);
+  const subtitleSegments = await storeSubtitleManifest(hotmartFrame, hlsData, page);
   if (subtitleSegments !== null) {
     return {
       hasVideo: true,
@@ -439,7 +449,7 @@ export async function preparePage(
   }
 
   if (hlsData.masterUrlFull) {
-    getOrCreateEntry(currentUrl).hlsMasterUrl = hlsData.masterUrlFull;
+    getOrCreateEntry(page).hlsMasterUrl = hlsData.masterUrlFull;
   }
 
   return {
@@ -460,8 +470,7 @@ export async function preparePage(
  * @returns {Promise<string>} — formatted transcript text
  */
 export async function getTranscript(page) {
-  const currentUrl = page.url();
-  const captured = capturedData.get(currentUrl);
+  const captured = capturedData.get(page);
 
   if (!captured?.subtitleManifestBody) {
     throw new Error("No subtitle manifest captured. Ensure preparePage() ran and video played.");
@@ -522,13 +531,13 @@ export async function getTranscript(page) {
 }
 
 /**
- * Get the captured HLS master URL for the current page.
+ * Get the captured HLS master URL for this Page.
  *
  * @param {import('playwright').Page} page
  * @returns {string}
  */
 export function getHlsUrl(page) {
-  const captured = capturedData.get(page.url());
+  const captured = capturedData.get(page);
 
   if (!captured?.hlsMasterUrl) {
     throw new Error("No HLS master URL captured. Ensure preparePage() ran and video played.");
@@ -576,11 +585,11 @@ export async function extractFrames(page, duration, outputDir, options = {}) {
 }
 
 /**
- * Clear captured data for a specific URL.
- * @param {string} url
+ * Clear captured data for a specific Page.
+ * @param {import('playwright').Page} page
  */
-export function clearCapturedData(url) {
-  capturedData.delete(url);
+export function clearCapturedData(page) {
+  capturedData.delete(page);
 }
 
 /**
@@ -615,7 +624,7 @@ export function isInterceptorsInstalled(page) {
   return pagesWithInterceptors.has(page);
 }
 
-/** @returns {Map} */
+/** @returns {WeakMap} */
 export function getCapturedData() {
   return capturedData;
 }
@@ -624,6 +633,6 @@ export function getCapturedData() {
  * Reset module state — for tests only.
  */
 export function resetState() {
-  capturedData.clear();
+  capturedData = new WeakMap();
   pagesWithInterceptors = new WeakSet();
 }

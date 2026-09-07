@@ -18,6 +18,11 @@ only after that version increases.
   second Page in the same process was short-circuited by a module-level flag and captured no HLS
   master URL or subtitle manifest. Repeat installs on one Page remain a no-op. The test helper
   `isInterceptorsInstalled` now takes the Page to check and throws when called without one.
+- **course-digest:** Hotmart captured HLS and subtitle data is keyed to the Page instead of
+  `page.url()`. Two Pages on the same lesson URL each keep their own master URL and subtitle
+  manifest; previously the second Page overwrote (and `preparePage` deleted) the first Page's
+  entry. `getHlsUrl`, `getTranscript`, and `preparePage` look up by Page. The test helper
+  `clearCapturedData` takes the Page to clear.
 
 ## [0.13.46]
 
