@@ -108,6 +108,27 @@ set -uo pipefail
 # processes before a single line of work. The `.` fallback reproduces dirname's
 # own answer for a bare, slash-free invocation; hooks.json always passes an
 # absolute path.
+#
+# REDIRECTION PLACEMENT, and why it is a spawn-count rule rather than a style
+# one. Bash normally elides the extra fork inside `$(...)` and execs the command
+# directly in the substitution's subshell — but only when that command carries
+# no redirection of its own. `2>/dev/null`, `<<<`, and a pipeline each defeat
+# the elision, so every one of them written INSIDE a substitution silently
+# doubles that call site's process cost. Hoisting them onto an enclosing
+# `{ ...; }` group restores the elision: the same stream is redirected, stdout
+# is still captured, and the command's exit status still propagates. Every
+# `$( )` on this hook's path therefore holds a bare simple command, with its
+# redirections on the group.
+#
+# The group move itself is behaviour-neutral. The payload pass below also
+# swapped a `printf | jq` pipe for a `<<<` here-string, and that one is NOT
+# free on large payloads — read the note at that call site before treating this
+# rewrite as pure saving.
+#
+# That distinction is invisible to the xtrace budget test at the bottom of
+# zone-crossing-inject.test.sh, which counts commands in COMMAND POSITION: a
+# fork that never execs never reaches one. The strace-based counterpart there
+# is what holds this rule, and #3520 is the regression it was added for.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
@@ -127,7 +148,13 @@ RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 # snapshot seam — nothing this hook could resolve or say. Chunked reader:
 # PostToolBatch payloads carry every serialized tool result and routinely
 # exceed what a single bounded read survives on Windows pipes.
-INPUT=$(cg::read_payload) || exit 0
+#
+# The `_to` form assigns INPUT in this process. `INPUT=$(cg::read_payload)`
+# forked a subshell to capture output the reader had already assembled in a
+# variable — a whole process, on a host where one costs hundreds of
+# milliseconds, spent moving a string between two copies of the same shell.
+INPUT=""
+cg::read_payload_to INPUT || exit 0
 
 # ONE jq for the whole payload rather than one per field. hook::jq_field spawns
 # a jq per call and this hook needs two fields; the payload is read once and
@@ -140,7 +167,37 @@ INPUT=$(cg::read_payload) || exit 0
 # result, so a pattern for these fields would be matching against tool output
 # rather than against the envelope. post-compact-mark.sh's regex path is safe
 # for its own payload shape; this one keeps jq as the parser.
-FIELDS=$(printf '%s' "$INPUT" | jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")' 2>/dev/null)
+#
+# REDIRECTIONS GO ON THE GROUP, NOT INSIDE THE SUBSTITUTION — see the
+# REDIRECTION PLACEMENT note at the top of this file. `printf '%s' "$INPUT" |
+# jq` cost three process creations to run one jq: the subshell the substitution
+# opens, a child for the pipeline's left-hand side (a `printf` BUILTIN — a whole
+# process to hand over a string this shell already holds), and the child that
+# becomes jq. Hoisting `<<<` and `2>/dev/null` onto the enclosing group leaves
+# jq a bare simple command inside the substitution, and the extraction costs
+# one process instead of three.
+#
+# What jq sees is unchanged: the group's stderr redirect suppresses exactly what
+# jq's own did, the substitution still captures stdout, a nonzero jq status still
+# propagates out of the group, and jq parses JSON, so the newline `<<<` appends
+# changes nothing.
+#
+# ONE THING DOES CHANGE, and it is disclosed rather than buried. `<<<` is not a
+# pipe. Bash 5.1+ delivers a here-string through a pipe only while it fits in
+# the pipe buffer; at or above 64KiB it spills the string to a temp file
+# (`/tmp/sh-thd.*`, measured here: 60,000 bytes stays in the pipe, 65,536 opens
+# the file) and hands jq that fd. The `printf | jq` form this replaced never
+# touched disk at any size. Output is byte-identical either way, but a
+# PostToolBatch payload carrying every serialized tool result routinely clears
+# 64KiB, so a large fire now writes and reads a temp file it did not before.
+# That is a real cost on the very hosts this change is for: #3508's Windows
+# machines run Defender real-time protection, which scans temp-file writes, and
+# the 0.4.8 measurement in the plugin README already attributes 22.0 s on that
+# platform to it. The trade taken is one guaranteed process creation per fire
+# against disk I/O on the fires that exceed the buffer; the README's hook-cost
+# section states it. Feeding the hook's stdin straight to jq would avoid both,
+# but that means giving up payload.sh's bounded drain loop — see the note there.
+{ FIELDS=$(jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")'); } 2>/dev/null <<<"$INPUT"
 # jq writes CRLF line endings on this host, and command substitution strips only
 # the TRAILING one, so with two lines the separator's carriage return survives
 # into the split and would ride along on the event name. The single-field helper
@@ -162,7 +219,11 @@ hook::require_jq "$EVENT" "context-guard" "$INPUT"
 # the state file below.
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
 
-zone=$(bash "$RESOLVER" "$SESSION" 2>/dev/null) || zone="unknown"
+# Stderr redirected on the GROUP, not inside the substitution: the resolver is
+# one process, and `$(bash … 2>/dev/null)` billed two for it. Same suppression
+# (the resolver's zones.json notices stay hidden from this caller, as before),
+# same captured word, and `||` still sees the resolver's status.
+{ zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
 
 # Evidence-degraded marker (reader contract): a compacted session is treated
 # as dumb regardless of the resolved word — including a green post-compaction
