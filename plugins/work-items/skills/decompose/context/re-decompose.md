@@ -38,6 +38,14 @@ edited spec, never hand-patched into meaning something the spec no longer says.
    (`/planning:interview` when installed, else a direct question round) or apply the user's
    directed edits. The edited spec is what legitimizes the reroute, never regenerate slices
    against a spec that still says the old thing.
+
+   **An inlined design artifact is part of the spec, so it is re-edited or removed here.** A
+   container body may carry a fenced design artifact with its provenance note. A reroute that
+   edits the spec around it and leaves it untouched publishes a diagram that describes the old
+   shape, which is worse than no diagram: a reader trusts it precisely because it is rendered.
+   Replace the block when the design session that produced it has been re-run for the new spec,
+   and delete both the block and its provenance note when it has not. Never leave an artifact
+   whose scope no longer matches what the spec now says.
 4. **Regenerate remaining slices.** Run this skill's normal Steps 2–4 against the edited spec:
    draft the replacement slices, present for approval (the gate is mandatory here exactly as for
    a fresh decomposition), then publish via the seam. `create-item` with
