@@ -1157,6 +1157,50 @@ class HygieneTests(unittest.TestCase):
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
 
+    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(
+        self,
+    ) -> None:
+        """Root-children mode emits its own scan-complete, so quiet must reach it.
+
+        A flag that shapes one of the two scan-complete payloads and silently
+        does nothing in the other is a trap for the caller who reaches for it
+        exactly where the frontier is widest.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "builds" / "orphan.tmp").write_text("left", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children", "--root-child", "builds", "--quiet"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertNotIn("children_rollup", payload)
+            # Root-children mode keeps its own quiet note: the coverage
+            # qualification it carries is not recoverable from any other
+            # stdout field, so quieting must not replace it with the ordinary
+            # note the way it does for a full scan.
+            self.assertEqual(hygiene.QUIET_ROOT_CHILDREN_SCAN_NOTE, payload["note"])
+            self.assertNotEqual(hygiene.QUIET_SCAN_NOTE, payload["note"])
+            self.assertIn("never walked", payload["note"])
+            self.assertIn("root_children_skipped", payload["note"])
+            # The documented quiet field set applies to this mode too.
+            self.assertIn("empty_directory_count", payload)
+            self.assertEqual(["builds"], payload["root_children_selected"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ["builds"], [row["name"] for row in snapshot["children_rollup"]]
+            )
+
     def test_root_children_rejects_unadmitted_or_path_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -2732,6 +2776,167 @@ class ChildrenRollupTests(unittest.TestCase):
                 {row["name"] for row in result["children_rollup"]},
                 {"Documents", "empty_child", "full_child", "loose.tmp", "npm-cache"},
             )
+
+
+class ScanOutputVerbosityTests(unittest.TestCase):
+    """``scan --quiet`` shapes stdout only; the snapshot is never shaped.
+
+    The rollup is written to the snapshot on every run, so the stdout copy is
+    duplication for a caller that only needs the frontier. These pin the three
+    ways that trade could go wrong: quiet dropping a field the caller decides
+    on, quiet reaching the snapshot on disk, and the default quietly becoming
+    the quiet mode under an existing caller that parses the full payload.
+    """
+
+    @staticmethod
+    def _fixture(root: Path, children: int) -> None:
+        root.mkdir(parents=True)
+        for index in range(children):
+            child = root / f"child_{index:03d}"
+            (child / "nested").mkdir(parents=True)
+            (child / "nested" / "a.log").write_text("a" * (index + 1), encoding="utf-8")
+        (root / "loose.tmp").write_text("x" * 42, encoding="utf-8")
+
+    def _scan(
+        self, root: Path, data_root: Path, extra: list[str]
+    ) -> tuple[int, dict[str, object], str, dict[str, object]]:
+        output = data_root / "runs" / "snapshot.json"
+        stdout_io = io.StringIO()
+        with redirect_stdout(stdout_io):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                    "--max-depth",
+                    "1",
+                    *extra,
+                ]
+            )
+        raw = stdout_io.getvalue()
+        payload = cast("dict[str, object]", json.loads(raw))
+        snapshot = cast(
+            "dict[str, object]",
+            json.loads(Path(str(payload["snapshot"])).read_text(encoding="utf-8")),
+        )
+        return code, payload, raw, snapshot
+
+    def _both_modes(
+        self, children: int
+    ) -> tuple[tuple[dict[str, object], str, dict[str, object]], ...]:
+        results = []
+        for extra in ([], ["--quiet"]):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "target"
+                self._fixture(root, children)
+                data_root = Path(temporary) / "data"
+                data_root.mkdir()
+                code, payload, raw, snapshot = self._scan(root, data_root, extra)
+                self.assertEqual(0, code, extra)
+                results.append((payload, raw, snapshot))
+        return tuple(results)
+
+    def test_default_scan_still_carries_the_rollup_and_the_explaining_note(
+        self,
+    ) -> None:
+        """Pins the default so a future flip of it cannot pass silently.
+
+        An existing caller parses `children_rollup` off stdout. Making quiet
+        the default would break it, so the default has to be asserted, not
+        assumed.
+        """
+        (default, _, _), _ = self._both_modes(4)
+        self.assertEqual("scan-complete", default["status"])
+        self.assertEqual(
+            {
+                "status",
+                "target",
+                "snapshot",
+                "entries",
+                "hinted_entries",
+                "unhinted_entries",
+                "empty_directory_count",
+                "target_logical_bytes",
+                "target_reclaimable_local_bytes",
+                "truncated_paths",
+                "children_rollup",
+                "errors",
+                "policy_sources",
+                "os_autoclean",
+                "note",
+            },
+            set(default),
+        )
+        rows = cast("list[dict[str, object]]", default["children_rollup"])
+        self.assertEqual(5, len(rows))
+        self.assertNotEqual(hygiene.QUIET_SCAN_NOTE, default["note"])
+        self.assertIn("children_rollup carries one row", str(default["note"]))
+
+    def test_quiet_drops_the_rollup_and_keeps_every_decision_field(self) -> None:
+        (default, _, _), (quiet, _, _) = self._both_modes(4)
+        self.assertNotIn("children_rollup", quiet)
+        self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
+        # Every field the caller decides on survives, with the same value the
+        # default run reported: quiet is a projection, never a recomputation.
+        for field in set(quiet) - {"note", "target", "snapshot"}:
+            self.assertEqual(default[field], quiet[field], field)
+        self.assertEqual(hygiene.QUIET_SCAN_NOTE, quiet["note"])
+        self.assertIn("snapshot", quiet)
+
+    def test_snapshot_on_disk_keeps_the_rollup_in_both_modes(self) -> None:
+        """A quiet run whose snapshot lost the rollup is data loss, not brevity."""
+        (_, _, default_snapshot), (_, _, quiet_snapshot) = self._both_modes(4)
+        for snapshot in (default_snapshot, quiet_snapshot):
+            rows = cast("list[dict[str, object]]", snapshot["children_rollup"])
+            self.assertEqual(5, len(rows))
+            self.assertTrue(all(row["name"] for row in rows))
+        self.assertEqual(
+            [
+                row["name"]
+                for row in cast(
+                    "list[dict[str, object]]", default_snapshot["children_rollup"]
+                )
+            ],
+            [
+                row["name"]
+                for row in cast(
+                    "list[dict[str, object]]", quiet_snapshot["children_rollup"]
+                )
+            ],
+        )
+
+    def test_quiet_stdout_stops_growing_with_the_child_count(self) -> None:
+        """The saving is the whole point, so pin that it scales with the frontier."""
+        (small_default, small_raw, _), (_, small_quiet_raw, _) = self._both_modes(4)
+        (large_default, large_raw, _), (_, large_quiet_raw, _) = self._both_modes(40)
+        self.assertEqual(5, len(cast("list[object]", small_default["children_rollup"])))
+        self.assertEqual(
+            41, len(cast("list[object]", large_default["children_rollup"]))
+        )
+        self.assertLess(len(small_quiet_raw), len(small_raw))
+        self.assertLess(len(large_quiet_raw), len(large_raw))
+        # The default payload grows a whole rollup row per extra child. Quiet
+        # carries no per-child rows, so its only per-child growth is the one
+        # truncated path each depth-cut child adds: an order of magnitude
+        # flatter, which is the saving this flag exists to buy.
+        default_growth = len(large_raw) - len(small_raw)
+        quiet_growth = len(large_quiet_raw) - len(small_quiet_raw)
+        self.assertGreater(default_growth, 5000)
+        self.assertLess(quiet_growth * 10, default_growth)
+        self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
+
+    def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
+        payload = {"status": "scan-complete", "children_rollup": [1], "note": "keep"}
+        self.assertIs(payload, hygiene.scan_stdout_payload(payload, False))
+        trimmed = hygiene.scan_stdout_payload(payload, True)
+        self.assertNotIn("children_rollup", trimmed)
+        # The caller's dict is never mutated in place.
+        self.assertIn("children_rollup", payload)
+        self.assertEqual("keep", payload["note"])
 
 
 class VersionFloorTests(unittest.TestCase):
@@ -6475,6 +6680,42 @@ class GuardTests(unittest.TestCase):
         denied = (
             f"{base} --confirmed-large-scan --confirmed-large-scan",
             f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_scan_accepts_single_quiet_flag(self) -> None:
+        """The verbosity flag has to be reachable from the lane that needs it.
+
+        `--quiet` shapes stdout and nothing else, so admitting it widens no
+        capability. Admitting it once is the whole allowance: a repeat, or a
+        value attached to it, is still a shape the classifier has never seen
+        and still fails closed.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --quiet",
+            f"{base} --quiet --max-depth 1",
+            f"{base} --max-depth 1 --quiet",
+            f"{base} --confirmed-large-scan --quiet",
+            f"{base} --quiet --root-children --root-child builds",
+        )
+        denied = (
+            f"{base} --quiet --quiet",
+            f"{base} --quiet v",
+            f"{base} --quiet=1",
+            f"{base} -q",
         )
         for command in allowed:
             self.assertEqual(

@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# Gate: this repo's own catalog and its own enabled-plugin set must name the
-# same plugins.
+# Gate: every plugin this repo's catalog publishes must be enabled somewhere
+# a cloud session on this repo reads, and its own enabled-plugin set must name
+# only catalogued plugins.
 #
 #   scripts/check-plugin-catalog-enablement.sh   run the gate (no flags)
 #
-# WHY. docs/CLOUD-SESSIONS.md states the property this repo depends on:
-# "`enabledPlugins` turns on the whole catalog, so this repo dogfoods
-# everything it publishes and a regression in any plugin surfaces here first."
-# Nothing enforced it. Three plugins reached main with a catalog entry and no
-# `enabledPlugins` key -- ai-slop (#2892), context-budget (#2932) and
-# improvement (#2985) -- while the plugin PRs on either side of them
-# (coupling #2913, overengineering #2961) remembered the settings entry. The
-# failure is silent by construction: a plugin absent from `enabledPlugins` is
-# simply never installed by .claude/cloud-bootstrap.sh, whose wanted-set is
-# computed from that same file, so the session comes up green with the
-# plugin's skills missing and no line of output naming what is absent. That is
-# the docs/conventions/liveness-assertion/ shape -- a documented guarantee with
-# no gate behind it -- and it costs exactly the dogfooding the directory-source
-# marketplace exists to provide.
+# WHY. docs/CLOUD-SESSIONS.md states the property this repo depends on: this
+# repo dogfoods everything it publishes, so a regression in any plugin
+# surfaces here first. Nothing enforced it. Three plugins reached main with a
+# catalog entry and no `enabledPlugins` key -- ai-slop (#2892), context-budget
+# (#2932) and improvement (#2985) -- while the plugin PRs on either side of
+# them (coupling #2913, overengineering #2961) remembered the settings entry.
+# The failure is silent by construction: a plugin nothing enables is simply
+# never installed by .claude/cloud-bootstrap.sh, so the session comes up green
+# with the plugin's skills missing and no line of output naming what is
+# absent. That is the docs/conventions/liveness-assertion/ shape -- a
+# documented guarantee with no gate behind it -- and it costs exactly the
+# dogfooding the directory-source marketplace exists to provide.
+#
+# WHERE ENABLEMENT LIVES NOW. The fleet cloud plugin list in standards
+# (components/cloud-environment/fleet-plugins.json) is what every cloud
+# snapshot installs, and the bootstrap reads its snapshot copy overlaid with
+# this repo's .claude/settings.json. So a catalogued plugin is covered when
+# the fleet list enables it OR this file carries an explicit key for it, and
+# this file no longer mirrors the whole catalog (that mirror was writing one
+# project-scope install record per plugin per checkout on every local session
+# start). The fleet list is fetched from its published URL at gate time; an
+# unreachable list is a usage error, never a pass.
 #
 # NOT COVERED ELSEWHERE. plugins/claude-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos, but it
@@ -29,10 +38,11 @@
 # no unregistered directory); it says nothing about whether a catalogued
 # plugin is ever enabled.
 #
-# WHAT IS CHECKED (both directions, so the two sets are provably equal):
-#   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry with no
-#      `<name>@<marketplace>` key in .claude/settings.json `enabledPlugins`.
-#      The class that shipped three times.
+# WHAT IS CHECKED (both directions):
+#   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the
+#      fleet list does not enable AND that has no `<name>@<marketplace>` key
+#      in .claude/settings.json `enabledPlugins`. The class that shipped
+#      three times.
 #   2. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
 #      names no catalog entry. What a plugin rename or removal leaves behind;
 #      the id resolves to nothing and the install silently no-ops.
@@ -53,7 +63,11 @@
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
 #   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
+#   PLUGIN_CATALOG_ENABLEMENT_FLEET        -- path to a local fleet list,
+#                                             instead of fetching the URL
 set -euo pipefail
+
+FLEET_URL='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -132,17 +146,47 @@ enabled="$(
   done <<<"$declared_keys" | sort -u
 )"
 
+# The fleet list: a local path from the test seam, else the published file.
+# Fetch failure is fatal (exit 2): a gate that cannot read the list it judges
+# by must not report green.
+fleet_tmp=''
+if [[ -n "${PLUGIN_CATALOG_ENABLEMENT_FLEET:-}" ]]; then
+  FLEET="$PLUGIN_CATALOG_ENABLEMENT_FLEET"
+else
+  fleet_tmp="$(mktemp)"
+  trap 'rm -f "$fleet_tmp"' EXIT
+  if ! curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 3 \
+    "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
+    printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
+    echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
+    exit 2
+  fi
+  FLEET="$fleet_tmp"
+fi
+if ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' "$FLEET" >/dev/null 2>&1; then
+  printf 'check-plugin-catalog-enablement: fleet list %s is not a settings-shaped JSON object\n' "$FLEET" >&2
+  exit 2
+fi
+fleet_enabled="$(
+  jq -r --arg mp "$MARKET" '.enabledPlugins // {} | to_entries[]
+    | select(.value == true) | .key
+    | select(endswith("@" + $mp)) | .[:length - ($mp | length) - 1]' "$FLEET" |
+    tr -d '\r' | sort -u
+)"
+covered="$(printf '%s\n%s\n' "$enabled" "$fleet_enabled" | grep . | sort -u || true)"
+
 errors=0
 
-# 1. FORWARD -- catalogued but never enabled.
+# 1. FORWARD -- catalogued but enabled nowhere.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
-  printf "UNENABLED PLUGIN: %s catalogs '%s', but %s enabledPlugins has no '%s@%s' key.\n" \
-    "$MARKETPLACE" "$name" "$SETTINGS" "$name" "$MARKET" >&2
-  printf "  .claude/cloud-bootstrap.sh computes what it installs from that file, so '%s' never loads in a session here.\n" \
+  printf "UNENABLED PLUGIN: %s catalogs '%s', but the fleet list does not enable '%s@%s' and %s enabledPlugins has no key for it.\n" \
+    "$MARKETPLACE" "$name" "$name" "$MARKET" "$SETTINGS" >&2
+  printf "  .claude/cloud-bootstrap.sh installs the fleet list overlaid with that file, so '%s' never loads in a session here.\n" \
     "$name" >&2
+  printf "  Add it to the fleet list in standards (components/cloud-environment/fleet-plugins.json), or carry an explicit key here.\n" >&2
   errors=$((errors + 1))
-done < <(comm -23 <(printf '%s\n' "$catalog") <(printf '%s\n' "$enabled"))
+done < <(comm -23 <(printf '%s\n' "$catalog") <(printf '%s\n' "$covered"))
 
 # 2. INVERSE -- enabled but no longer catalogued.
 while IFS= read -r name; do
@@ -196,10 +240,10 @@ fi
 if ((errors > 0)); then
   {
     echo
-    echo "Every $MARKETPLACE entry must carry an enabledPlugins key in"
-    echo "$SETTINGS, and every enabledPlugins key for the '$MARKET'"
-    echo "marketplace must name a catalogued plugin. A key set to false is a"
-    echo "recorded decision and passes; an absent key is drift and does not."
+    echo "Every $MARKETPLACE entry must be enabled by the fleet list or carry an"
+    echo "enabledPlugins key in $SETTINGS, and every enabledPlugins key for the"
+    echo "'$MARKET' marketplace must name a catalogued plugin. A key set to false"
+    echo "is a recorded decision and passes; a plugin nothing enables is drift."
     echo "$BOOTSTRAP must name that same marketplace, or what it installs and"
     echo "what this gate checks are two different sets."
   } >&2
@@ -207,4 +251,4 @@ if ((errors > 0)); then
 fi
 
 catalog_count="$(printf '%s\n' "$catalog" | grep -c . || true)"
-echo "Every one of the $catalog_count catalogued plugins carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."
+echo "Every one of the $catalog_count catalogued plugins is enabled by the fleet list or carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."

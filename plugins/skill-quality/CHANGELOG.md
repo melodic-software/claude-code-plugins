@@ -3,6 +3,38 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Changed
+
+- **`check`: check 2b now FAILs a `description` over the spec field maximum, and WARNs on the
+  approach to it (#3845).** The check reported the breach and let the run pass, on the reasoning
+  that no local validator enforces the limit. That left the only detection an audit, run after the
+  edit that caused the breach had already shipped, and it said nothing at all to the author who was
+  one clause away. Three bands now: over 1024 codepoints FAILs; over 992 and at or under 1024 WARNs,
+  naming the skill and how many codepoints are left; below that stays an INFO line.
+
+  The maximum itself is unchanged and is still the spec's: "Maximum 1024 characters"
+  (<https://agentskills.io>, verified 2026-08-31) makes 1024 conforming and 1025 the first breach,
+  so the comparison is `>` and never `>=`. Counting is unchanged too, in codepoints rather than
+  bytes, which is how the spec states the limit and the only reading that agrees with itself on a
+  description carrying non-ASCII.
+
+  The 32-codepoint margin is one added trigger clause of headroom: a phrase in this fleet's
+  descriptions runs roughly 15 to 30 codepoints, so the warning arrives before the next ordinary
+  edit breaches rather than after. The band is WARN-only and never changes an exit code.
+
+### Added
+
+- **`CHECK_SKILL_DESC_FIELD_BASELINE`, a recorded list of pre-existing breaches (#3845).** A file of
+  repo-relative skill paths whose over-cap description predates the FAIL; a listed skill WARNs where
+  an unrecorded breach FAILs. Without it, promoting check 2b to a FAIL would have turned sixteen
+  untouched skills in this marketplace into landmines for whoever edited one next. The list can only
+  SHRINK: a row whose skill is now at or under the maximum FAILs as stale, so a description fixed
+  once cannot be quietly re-licensed by a row left behind. Unset (the default, and every consumer
+  repo) means no downgrades at all, and a path that names a file which is not there is an error
+  rather than a silent "no rows".
+
 ## [0.20.15]
 
 ### Changed

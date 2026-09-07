@@ -1,6 +1,6 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--root-children [--root-child <name>]...] <target-directory>"
+argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
@@ -39,12 +39,17 @@ primary objective; reclaimed bytes are secondary.** Read
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
 `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
+`--quiet`, optional
 `--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
 `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
 subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform, the gated engine lane where the
-platform supports it, the manual handoff elsewhere; it is not approval. `--max-depth <N>` bounds a
+platform supports it, the manual handoff elsewhere; it is not approval. `--quiet` shapes the
+scan's stdout and nothing else: it omits `children_rollup` and shortens the closing note, leaving
+every counter, byte total, coverage gap, error and policy source in place. The snapshot file
+carries the rollup in full in both modes, so read per-child detail there and pass `--quiet`
+whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
@@ -135,7 +140,7 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  [--max-depth <N>] [--confirmed-large-scan] \
+  [--max-depth <N>] [--confirmed-large-scan] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
 
@@ -242,7 +247,9 @@ returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, 
 fanning a deeper scan out over that subtree, report those rows as coverage gaps, never as small or clean.
 `scan-complete` also carries `unhinted_entries`, `entries` minus `hinted_entries`, every inventoried entry no hint
 judged. So quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
-and the measurement: [the safety model](reference/safety-model.md).
+and the measurement: [the safety model](reference/safety-model.md). When a run needs the frontier ranked but not
+the rows themselves in context, add `--quiet`: the rollup stays complete in the snapshot and stops being duplicated
+onto stdout, where one row per immediate child dominates a wide target's payload.
 
 **Relocation is out of scope.** This skill offers exactly two outcomes per finding, keep it, or approve its
 exact path for deletion. There is no relocation lane and no move primitive in the engine, by design: a move

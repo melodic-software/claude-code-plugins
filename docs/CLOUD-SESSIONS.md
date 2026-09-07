@@ -310,15 +310,26 @@ enables; the cloud bootstrap installs (see
   plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
   cloud session; verify in a fresh session and add the same bootstrap-plus-hook setup if the
   catalog does not load.
-- `enabledPlugins` turns on the whole catalog, so this repo dogfoods everything it publishes and a
-  regression in any plugin surfaces here first. The trade is context: every enabled plugin adds
-  per-turn cost, so a *consumer* repo should enable only the plugins it needs rather than copying
-  this set wholesale. The cloud bootstrap provisions every tool the format/lint-on-edit hooks
-  (`markdown-format`, `bash-format`, `biome-format`, `typos-format`, `actionlint`,
-  `eol-normalizer`) shell out to.
-- The `plugin-catalog-enablement-gate` CI lane holds that whole-catalog claim to the file, in both
-  directions: every `.claude-plugin/marketplace.json` entry must carry an `enabledPlugins` key, and
-  every key for this marketplace must name a catalogued plugin. It also checks that
+- The whole catalog is enabled here, so this repo dogfoods everything it publishes and a
+  regression in any plugin surfaces here first. The enabling list is the fleet cloud plugin list
+  in standards
+  ([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json)),
+  which the shared environment fetches at cache build, writes into the snapshot at
+  `/opt/melodic-fleet-plugins.json`, and installs at user scope; `cloud-bootstrap.sh` reads that
+  snapshot copy overlaid with `.claude/settings.json`, so the committed `enabledPlugins` block
+  carries only this repo's deltas (an explicit `false` opts out of a fleet entry; an entry beyond
+  the fleet adds one). The block used to mirror the catalog, and a local session start in every
+  checkout wrote one project-scope install record per mirrored entry into the user's
+  `installed_plugins.json` (#3688); the deltas-only block writes none. The trade is context: every
+  enabled plugin adds per-turn cost, so a *consumer* repo should opt out of what it does not need
+  rather than copying anything wholesale. The cloud bootstrap provisions every tool the
+  format/lint-on-edit hooks (`markdown-format`, `bash-format`, `biome-format`, `typos-format`,
+  `actionlint`, `eol-normalizer`) shell out to.
+- The `plugin-catalog-enablement-gate` CI lane holds that whole-catalog claim to the files, in
+  both directions: every `.claude-plugin/marketplace.json` entry must be enabled by the fleet list
+  (fetched from its published URL at gate time; unreachable is a usage error, not a pass) or carry
+  an explicit `enabledPlugins` key, and every key for this marketplace must name a catalogued
+  plugin. It also checks that
   `cloud-bootstrap.sh`'s hardcoded `marketplace_name` still names the marketplace the settings file
   declares — the bootstrap selects what it installs with `endswith("@" + $n)`, so a rename that
   updated the settings and the catalog but not that constant would leave its install set empty

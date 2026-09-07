@@ -50,8 +50,10 @@
 #      populated)
 #  2b. description alone <= 1024 Unicode codepoints (Agent Skills spec FIELD
 #      maximum — a separate limit at a separate layer from check 2's listing cap;
-#      WARN, since no local validator enforces it and the Skills API rejects it
-#      at upload; counted locale-independently via iconv, as check 22 does)
+#      FAIL over the maximum, WARN inside a 32-codepoint approach margin at or
+#      below it; counted locale-independently via iconv, as check 22 does).
+#      CHECK_SKILL_DESC_FIELD_BASELINE records skills whose breach predates the
+#      FAIL, downgrading those to a WARN; the list can only shrink.
 #   3. Trigger-keyword preservation vs the base ref (ADVISORY, never a FAIL;
 #      skipped for new skills). A phrase moved verbatim to a sibling skill's
 #      listing text, one the sibling did not carry at the base ref, WARNs as a
@@ -235,12 +237,28 @@ DESC_CHAR_CAP=1536
 # Enforced by the Skills API at package/upload; NOT enforced locally — measured
 # 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
 # 1248-char description clean. A breach is therefore latent for filesystem/plugin
-# skills and hard for any skill uploaded through the Skills API, which is why this
-# is a WARN and DESC_CHAR_CAP stays a FAIL. Basis: the Agent Skills spec
-# (https://agentskills.io, "Maximum 1024 characters"); verified 2026-08-31.
-# Recheck trigger: the spec moving the field maximum, or Claude Code starting
-# to enforce it locally, re-derives this constant and the WARN/FAIL split.
+# skills and hard for any skill uploaded through the Skills API. Basis: the Agent
+# Skills spec (https://agentskills.io, "Maximum 1024 characters"); verified
+# 2026-08-31. "Maximum 1024" makes 1024 CONFORMING and 1025 the first breach, so
+# the comparison below is `>` and never `>=`.
+# Recheck trigger: the spec moving the field maximum re-derives this constant.
 DESC_FIELD_CAP=1024
+# Approach margin: a description this close to the field maximum WARNs even though
+# it is still legal. A description is the surface an author edits to add a trigger
+# phrase, and one added phrase in this marketplace's descriptions runs roughly 15
+# to 30 codepoints (`, 'find dead code'` is 19), so 32 is one such clause of
+# headroom — the smallest margin that still speaks up BEFORE the next ordinary
+# edit breaches rather than after. Widening it is cheap; the band is WARN-only and
+# never changes an exit code.
+DESC_FIELD_WARN_MARGIN=32
+# Recorded pre-existing breaches, one skill path per line (`#` comments and blank
+# lines ignored), addressed the way the caller's repo names its skills — the same
+# `plugins/<plugin>/skills/<skill>` form check 3 diffs against. A listed skill's
+# over-cap description downgrades from FAIL to WARN so introducing the FAIL does
+# not strand a fleet that already carries offenders. The list can only SHRINK: a
+# listed skill now at or under the cap is a stale row and FAILs. Unset (the
+# default, and every consumer repo) means no downgrades at all.
+DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
@@ -390,8 +408,17 @@ fi
 # The spec's per-FIELD maximum, distinct from check 2's listing-entry cap: a
 # description can sit under 1536 combined and still breach 1024 on its own. The
 # Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above),
-# so this warns rather than failing — it reports a real spec breach without
-# blocking a fleet that carries pre-existing offenders.
+# so before this gate a breach was only ever found by an audit, after the edit that
+# caused it had shipped. Three bands now:
+#
+#   > cap                       FAIL (spec breach), unless the skill is on the
+#                               recorded baseline, which downgrades it to WARN
+#   > cap - margin, <= cap      WARN: still legal, but the next added clause
+#                               breaches. This is the band the guard exists for
+#   <= cap - margin             note only
+#
+# A baseline row whose skill is no longer over the cap FAILs as stale, so the list
+# is shrink-only and cannot quietly re-license a description that was fixed once.
 #
 # Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
 # a byte count would false-positive on any non-ASCII description under a
@@ -408,8 +435,38 @@ else
     printf '%s' "${#CUR_DESC}"
   )"
 fi
+
+# Is this skill recorded as a pre-existing breach? Keyed by the skill's path
+# relative to the repo root (SKILL_REL), the only identifier that is unique across
+# plugins — skill leaf names repeat (`audit`, `check`) many times over.
+DESC_FIELD_BASELINED=0
+if [[ -n "$DESC_FIELD_BASELINE" ]]; then
+  if [[ ! -f "$DESC_FIELD_BASELINE" ]]; then
+    err "CHECK_SKILL_DESC_FIELD_BASELINE=$DESC_FIELD_BASELINE does not exist — a missing baseline must not silently become a clean run"
+  elif [[ -n "$SKILL_REL" ]]; then
+    while IFS= read -r baseline_row || [[ -n "$baseline_row" ]]; do
+      baseline_row="${baseline_row%%#*}"
+      baseline_row="${baseline_row#"${baseline_row%%[![:space:]]*}"}"
+      baseline_row="${baseline_row%"${baseline_row##*[![:space:]]}"}"
+      [[ -n "$baseline_row" ]] || continue
+      if [[ "$baseline_row" == "$SKILL_REL" ]]; then
+        DESC_FIELD_BASELINED=1
+        break
+      fi
+    done <"$DESC_FIELD_BASELINE"
+  fi
+fi
+
 if ((DESC_CP_LEN > DESC_FIELD_CAP)); then
-  warn "description alone is $DESC_CP_LEN codepoints (Agent Skills spec field maximum $DESC_FIELD_CAP) — accepted locally, rejected on Skills API upload"
+  if ((DESC_FIELD_BASELINED == 1)); then
+    warn "description alone is $DESC_CP_LEN codepoints (Agent Skills spec field maximum $DESC_FIELD_CAP) — recorded as a pre-existing breach in $DESC_FIELD_BASELINE; still rejected on Skills API upload, and the row leaves the baseline once it is brought under the maximum"
+  else
+    err "description alone is $DESC_CP_LEN codepoints (Agent Skills spec field maximum $DESC_FIELD_CAP) — rejected on Skills API upload; shorten the description rather than dropping a trigger phrase"
+  fi
+elif ((DESC_FIELD_BASELINED == 1)); then
+  err "stale baseline row in $DESC_FIELD_BASELINE: $SKILL_REL is now $DESC_CP_LEN/$DESC_FIELD_CAP codepoints and no longer breaches — remove the row"
+elif ((DESC_CP_LEN > DESC_FIELD_CAP - DESC_FIELD_WARN_MARGIN)); then
+  warn "$SKILL_NAME: description is $DESC_CP_LEN codepoints, within $DESC_FIELD_WARN_MARGIN of the Agent Skills spec field maximum $DESC_FIELD_CAP — $((DESC_FIELD_CAP - DESC_CP_LEN)) left, so the next added clause breaches it"
 else
   note "description field $DESC_CP_LEN/$DESC_FIELD_CAP codepoints (spec field maximum)"
 fi
