@@ -391,9 +391,9 @@ blocked multi-line commit path, `$(effective_dir …)` and
 the common path a `!` alias reparse paid one `$(printf '%q')` per trailing
 argument (now `printf -v`) and the PowerShell lane paid `$(cd … && pwd)` for
 the plugin root when `CLAUDE_PLUGIN_ROOT` was unset (now the path itself).
-The one creation left on the common path is the shared parser's
-`< <(printf …)`, `lib/hook-utils.sh` work (#3740, #3838). No verdict
-changed: 136 paired runs against `origin/main` (65 payloads, standalone and
+The shared parser's `< <(printf …)` in `lib/hook-utils.sh`, which held the
+benign figure at one, went in 0.32.13 (#3878); on this guard a benign Bash
+call now creates no process at all. No verdict changed: 136 paired runs against `origin/main` (65 payloads, standalone and
 dispatched, plus six on a `PATH` with no `git`) agree on exit code, stdout
 and stderr, seven telemetry envelopes agree on subject and form, and the
 contract suite passes.
@@ -407,19 +407,22 @@ cannot pass for a removed fork. Three repeats, identical each time. Wall
 clock is p50/p95 of 20 samples after 2 warmup, sides interleaved, on a host
 whose `bash -c :` floor is about 1 ms; the milliseconds are context, the
 durable figure is the process count, and none of this was measured on a
-Windows host.
+Windows host. The "before" column is `main` at `1b681862`, after #3878
+removed the parser fork; against the pre-#3878 `main` every creation count
+below read one higher on both sides. The wall-clock rows were taken against
+that earlier baseline (`c0fba152`) and not re-run.
 
 | Counter | before | after |
 |---|---|---|
-| Guard share, benign `git status --short`: creations / execve | 2 / 0 | 1 / 0 |
-| Guard share, single-line `git commit -m`: creations / execve | 2 / 0 | 1 / 0 |
-| Guard share, blocked multi-line `git commit -m`: creations / execve | 6 / 1 | 3 / 1 |
-| Guard share, non-builtin subcommand (`git wibble`): creations / execve | 7 / 2 | 5 / 2 |
-| Guard share, blocked inline `!` alias: creations / execve | 12 / 3 | 8 / 3 |
-| Guard share, PowerShell `git status`: creations / execve | 15 / 3 | 13 / 3 |
-| Whole Bash dispatcher (eight guards), benign: creations / execve | 27 / 2 | 26 / 2 |
-| Guard alone under the dispatcher, benign, wall p50 / p95 (n=20) | 23.8 / 25.9 ms | 21.2 / 30.9 ms |
-| Guard alone under the dispatcher, blocked, wall p50 / p95 (n=20) | 32.2 / 75.8 ms | 29.9 / 44.7 ms |
+| Guard share, benign `git status --short`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, single-line `git commit -m`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, blocked multi-line `git commit -m`: creations / execve | 5 / 1 | 2 / 1 |
+| Guard share, non-builtin subcommand (`git wibble`): creations / execve | 6 / 2 | 4 / 2 |
+| Guard share, blocked inline `!` alias: creations / execve | 10 / 3 | 6 / 3 |
+| Guard share, PowerShell `git status`: creations / execve | 14 / 3 | 12 / 3 |
+| Whole Bash dispatcher (eight guards), benign: creations / execve | 22 / 2 | 21 / 2 |
+| Guard alone under the dispatcher, benign, wall p50 / p95 (n=20), vs `c0fba152` | 23.8 / 25.9 ms | 21.2 / 30.9 ms |
+| Guard alone under the dispatcher, blocked, wall p50 / p95 (n=20), vs `c0fba152` | 32.2 / 75.8 ms | 29.9 / 44.7 ms |
 
 The execve column does not move, which is what makes this latency rather
 than removed work. The PowerShell lane's remaining creations are in

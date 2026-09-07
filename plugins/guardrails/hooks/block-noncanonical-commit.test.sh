@@ -1393,12 +1393,14 @@ assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 # substitution. A host without a working strace (Windows Git Bash, macOS) skips
 # visibly; the Linux CI lane is where the pins hold.
 #
-# The benign pin is EXACT on purpose. The one creation left is the shared
-# parser's `< <(printf …)` in lib/hook-utils.sh (hook::bash_parse_segments);
-# when that lands this figure drops and the pin moves with it. A count that
-# rises is a fork put back on every Bash call. The other pins are DELTAS against
-# that benign share, so they read the cost of one path (the sequencer probe, a
-# `!` alias reparse and its trailing arguments) rather than the library's total.
+# The benign pin is EXACT on purpose, and it is ZERO: this guard creates no
+# process of its own on a benign Bash call. The shared parser's `< <(printf …)`
+# in lib/hook-utils.sh (hook::bash_parse_segments) used to hold the figure at
+# 1; #3878 replaced it with a `${cmd:i:1}` walk, so nothing is left to remove
+# here. A count that rises is a fork put back on every Bash call. The other
+# pins are DELTAS against that benign share, so they read the cost of one path
+# (the sequencer probe, a `!` alias reparse and its trailing arguments) rather
+# than the library's total.
 # Under -f strace may split a call into `<unfinished ...>` and `<... resumed>`
 # halves, so both spellings of a completed call are counted.
 strace_census() { # <payload> <guard> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
@@ -1428,7 +1430,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   guard_share 'git status --short'
   benign_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: guard's own process creations on a benign Bash call" 1 "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own process creations on a benign Bash call" 0 "$SHARE_CREATIONS"
   assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
 
   # A single-line -m is the common commit shape and takes the same allow path
@@ -1449,8 +1451,10 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
     $((benign_creations + 2)) "$SHARE_CREATIONS"
   assert_eq "strace: a blocked multi-line -m is one execve (git rev-parse)" 1 "$SHARE_EXECVE"
 
-  # A `!` alias reparse re-enters the shared parser once (its `< <(printf …)`,
-  # the library's) and composes the launch directory without a fork.
+  # A `!` alias reparse re-enters the shared parser once (fork-free since
+  # #3878) and composes the launch directory without a fork; what it still
+  # pays is the alias-resolution git probes, counted here as the baseline the
+  # trailing-arguments pin below is measured against.
   guard_share "git -c alias.y='!git status' y"
   alias_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"

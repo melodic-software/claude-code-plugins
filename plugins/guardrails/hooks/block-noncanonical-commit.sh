@@ -1054,6 +1054,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # same as the canonical spelling `$(cd … && pwd)` produced, and that
   # substitution was a fork on every PowerShell fire when CLAUDE_PLUGIN_ROOT
   # was unset (#3514). Nothing reads PLUGIN_ROOT but the `source` below.
+  # Tradeoff: the kernel resolves `..` physically where `cd` resolved it
+  # logically, so a `hooks/` that is itself a symlink out of the plugin root
+  # needs CLAUDE_PLUGIN_ROOT set; spaces and relative invocation are unaffected.
   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}"
   # shellcheck source=../lib/powershell/ps-command.sh
   source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"

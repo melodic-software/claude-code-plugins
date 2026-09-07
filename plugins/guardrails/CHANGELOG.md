@@ -28,19 +28,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   quote-split, ANSI-C, CRLF, U+2028, BOM and zero-width forms, 70 KiB and 20
   KiB commands, plus six runs on a `PATH` with no `git`) agree on exit code,
   stdout and stderr, seven telemetry envelopes captured through a stub sink
-  agree on subject and form, and the contract suite passes. The one creation
-  that remains on the common path is the shared parser's `< <(printf ...)`
-  in `lib/hook-utils.sh` (#3740, #3838), so the "at most two spawns" line in
-  #3514 is met on execve (0) and on this file's own share, and the
-  PowerShell lane's remaining creations live in `lib/powershell/ps-command.sh`.
-  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve`,
-  guard share = dispatched count minus a no-op guard dispatched the same way,
-  this repository as cwd, `HOOK_TELEMETRY_SINK` unset: benign
-  `git status --short` and single-line `-m` creations **2 -> 1**, execve
-  **0 -> 0**; blocked multi-line `-m` **6 -> 3**, execve **1 -> 1**;
-  non-builtin subcommand (persisted-alias probe) **7 -> 5**, execve **2 ->
-  2**; blocked inline `!` alias **12 -> 8**, execve **3 -> 3**; PowerShell
-  `git status` **15 -> 13**, execve **3 -> 3**. The unchanged execve column
+  agree on subject and form, and the contract suite passes. With the shared
+  parser's `< <(printf ...)` gone from `lib/hook-utils.sh` (0.32.13, #3878),
+  a benign Bash call now creates no process at all in this guard, so the "at
+  most two spawns" line in #3514 is met on creations (0) and on execve (0);
+  the PowerShell lane's remaining creations live in
+  `lib/powershell/ps-command.sh`. Kernel census with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve`, guard share =
+  dispatched count minus a no-op guard dispatched the same way, this
+  repository as cwd, `HOOK_TELEMETRY_SINK` unset, against `main` at
+  `1b681862` (after #3878): benign `git status --short` and single-line `-m`
+  creations **1 -> 0**, execve **0 -> 0**; blocked multi-line `-m` **5 ->
+  2**, execve **1 -> 1**; non-builtin subcommand (persisted-alias probe) **6
+  -> 4**, execve **2 -> 2**; blocked inline `!` alias **10 -> 6**, execve
+  **3 -> 3**; PowerShell `git status` **14 -> 12**, execve **3 -> 3**. The
+  same guard measured against the pre-#3878 `main` read one creation higher
+  on each side of every row, the parser's. The unchanged execve column
   is the evidence this is latency, not removed work. The contract suite now
   pins the benign share, the blocked-path delta and the alias reparse by the
   same instrument and skips visibly where strace is absent. Not measured on
