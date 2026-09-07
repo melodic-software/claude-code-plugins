@@ -379,6 +379,57 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.15, forks with no exec in `block-noncanonical-commit`.** 2026-09-06,
+Linux CI host. A PATH shim counts execs, and a fork that never execs is
+invisible to it. On every Bash and PowerShell call this guard created two
+such processes and executed none. One was the guard's own, an eager telemetry
+subject at file scope that the verdict never reads; it is now derived inside
+`emit_tel`, behind the gates that keep the envelope off by default. On the
+blocked multi-line commit path, `$(effective_dir …)` and
+`$(explicit_git_dir …)` each paid a fork for a builtins-only function (now
+`effective_dir_to` and `explicit_git_dir_to`, nameref assignments), and off
+the common path a `!` alias reparse paid one `$(printf '%q')` per trailing
+argument (now `printf -v`) and the PowerShell lane paid `$(cd … && pwd)` for
+the plugin root when `CLAUDE_PLUGIN_ROOT` was unset (now the path itself).
+The shared parser's `< <(printf …)` in `lib/hook-utils.sh`, which held the
+benign figure at one, went in 0.32.13 (#3878); on this guard a benign Bash
+call now creates no process at all. No verdict changed: 136 paired runs against `origin/main` (65 payloads, standalone and
+dispatched, plus six on a `PATH` with no `git`) agree on exit code, stdout
+and stderr, seven telemetry envelopes agree on subject and form, and the
+contract suite passes.
+
+*Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+on the dispatched path (`run-guards.sh block-noncanonical-commit.sh`), this
+repository as cwd, `HOOK_TELEMETRY_SINK` unset, `CLAUDE_PROJECT_DIR` empty.
+The guard's share is the count minus a no-op guard dispatched the same way.
+Creations are clone-family returns; execve is counted separately so an exec
+cannot pass for a removed fork. Three repeats, identical each time. Wall
+clock is p50/p95 of 20 samples after 2 warmup, sides interleaved, on a host
+whose `bash -c :` floor is about 1 ms; the milliseconds are context, the
+durable figure is the process count, and none of this was measured on a
+Windows host. The "before" column is `main` at `1b681862`, after #3878
+removed the parser fork; against the pre-#3878 `main` every creation count
+below read one higher on both sides. The wall-clock rows were taken against
+that earlier baseline (`c0fba152`) and not re-run.
+
+| Counter | before | after |
+|---|---|---|
+| Guard share, benign `git status --short`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, single-line `git commit -m`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, blocked multi-line `git commit -m`: creations / execve | 5 / 1 | 2 / 1 |
+| Guard share, non-builtin subcommand (`git wibble`): creations / execve | 6 / 2 | 4 / 2 |
+| Guard share, blocked inline `!` alias: creations / execve | 10 / 3 | 6 / 3 |
+| Guard share, PowerShell `git status`: creations / execve | 14 / 3 | 12 / 3 |
+| Whole Bash dispatcher (eight guards), benign: creations / execve | 22 / 2 | 21 / 2 |
+| Guard alone under the dispatcher, benign, wall p50 / p95 (n=20), vs `c0fba152` | 23.8 / 25.9 ms | 21.2 / 30.9 ms |
+| Guard alone under the dispatcher, blocked, wall p50 / p95 (n=20), vs `c0fba152` | 32.2 / 75.8 ms | 29.9 / 44.7 ms |
+
+The execve column does not move, which is what makes this latency rather
+than removed work. The PowerShell lane's remaining creations are in
+`lib/powershell/ps-command.sh`, not in this guard. The contract suite pins the
+benign share, the blocked-path delta and the alias reparse by the same
+instrument.
+
 **0.32.14, leftover helper-capture forks on verifiers and PreToolUse
 telemetry.** 2026-09-06, Linux CI host characterised measurable by
 `spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
