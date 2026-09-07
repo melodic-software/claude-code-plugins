@@ -172,9 +172,28 @@ out of scope until such a signal exists.
   repository where guardrails is enabled. Those levers are printed on stderr
   (Claude Code surfaces an exit-2 stderr reason; `systemMessage` is an exit-0
   field and is discarded on a block).
-- **`block-hook-bypass` fails open on its own crash.** An internal script error
-  exits 0 so a defect on this hottest-path hook cannot freeze the session, and
-  emits a dual-channel "guard did not run" notice so the allow is not silent.
+- **Every hook says so when it could not run.** A hook has three outcomes,
+  not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
+  hook and the dispatcher install the shared abort boundary
+  (`hooks/abort-boundary.sh`, #3528) right after their first line. It passes
+  the statuses the hook chooses through untouched and turns any other exit (an
+  unbound variable under `set -u`, a helper that stopped existing, a
+  `hook-utils.sh` that failed to load) into a one-line "guard did not run"
+  notice naming the hook and the status, on stderr and as a
+  `systemMessage` / `additionalContext` document, then exits with the posture
+  the hook declares beside its install. Every hook currently declares
+  **fail-open**: the tool call proceeds exactly as it did before this boundary
+  existed, and the notice is the only change. Before it, such an abort exited
+  with a bare status, usually 1, which Claude Code treats as a non-blocking
+  error with nothing to show; a blocking guard enforced nothing and nobody was
+  told. Flipping a hook to fail-closed (deny the call when the guard could not
+  check it) is the one word `closed` on its install line; the contract test
+  reads the registered set from `hooks.json`, so a hook added without the
+  boundary fails it.
+- **`block-hook-bypass` fails open on its own crash.** The boundary above is
+  the generalization of the handler this guard carried first (#3130 F5): an
+  internal script error exits 0 so a defect on this hottest-path hook cannot
+  freeze the session, with the dual-channel notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
   override: if the process is killed at that bound, the tool call proceeds.
@@ -378,6 +397,20 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.32.16, the abort boundary.** 2026-09-07, Linux CI host. A correctness
+change, not a perf one, recorded here because it touches every registered
+hook's prologue: each now sources `hooks/abort-boundary.sh` and installs an
+EXIT trap (#3528). Kernel census with
+`strace -f -e trace=clone,clone3,fork,vfork,execve` of the whole Bash
+dispatcher (eight guards) on a benign `git status --short`, three repeats each
+side against `origin/main`: creations **23 -> 23**, execve **2 -> 2**. The
+boundary adds no process: the trap is a builtin, the handler is builtins only,
+and under the dispatcher each isolation subshell inherits the loaded library
+and returns on its include guard. Wall clock, p50/p95 of 20 samples after 2
+warmup, interleaved, two rounds: 59.9/65.1 and 61.7/63.3 ms before,
+67.0/92.1 and 63.8/68.5 ms after, so about 2 to 5 ms at p50 on this host from
+eight extra file opens. Not measured on a Windows host.
 
 **0.32.14, leftover helper-capture forks on verifiers and PreToolUse
 telemetry.** 2026-09-06, Linux CI host characterised measurable by

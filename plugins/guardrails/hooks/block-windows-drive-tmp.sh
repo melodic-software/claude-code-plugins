@@ -60,8 +60,15 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. This is the guard the
+# issue recorded exiting 1 with no stderr on a live session; the allow it took
+# then is unchanged, the silence is not.
+guard::abort_boundary block-windows-drive-tmp PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # Non-Windows hosts: /tmp is the real POSIX temp, so this guard can never find a
 # violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
