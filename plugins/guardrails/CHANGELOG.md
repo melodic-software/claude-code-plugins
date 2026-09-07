@@ -3,6 +3,61 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.15]
+
+### Fixed
+
+- **A guard that could not run now says so (#3528).** Every hook in the set
+  declared `set -uo pipefail` and, with one exception, installed no trap, so a
+  hook that died between its first line and its own final `exit` (an unbound
+  variable, a helper that no longer existed, a `source hook-utils.sh` that
+  failed) ended with whatever status the last command had, usually 1, and
+  wrote nothing of its own. Claude Code treats any status other than 0 and 2
+  as a non-blocking error: the tool call proceeds, and the transcript records
+  "exit 1, stderr: (none)". For a PreToolUse blocking guard that is
+  enforcement silently skipped, which is what `claude-ops`' unsurfaced-failure
+  detector recorded for `block-windows-drive-tmp` and `cli-flag-verify`.
+  New `hooks/abort-boundary.sh` is the shared boundary the report asked for,
+  lifted from the handler `block-hook-bypass` already carried (#3130 F5):
+  `guard::abort_boundary <name> <event> <open|closed> <chosen-status>...`
+  installs an EXIT trap that passes the chosen statuses through untouched and
+  turns any other into one stderr line naming the hook and the status plus a
+  `systemMessage` / `additionalContext` document, then exits with the declared
+  posture. The handler clears its own trap first, uses builtins only, and
+  depends on nothing from `hook-utils.sh`, so it still reports the case where
+  that library failed to load (each hook's `source hook-utils.sh` now exits 70
+  on failure instead of falling through into undefined `hook::` calls).
+  Per-hook postures, each written beside its install line: **fail-open** for
+  all fourteen registered hooks and the dispatcher. The blocking guards
+  (`block-convention-violation`, `block-dangerous-git`,
+  `block-exported-msys-pathconv`, `block-hook-bypass`, `block-no-verify`,
+  `block-noncanonical-commit`, `block-windows-drive-tmp`,
+  `hardcoded-path-check`, `secret-pattern-detection`) choose 0 and 2; the
+  advisory hooks (`cli-flag-verify`, `flag-commit-pr-skill-bypass`,
+  `skill-reference-verify`, `stale-path-verify`, `workflow-resilience-check`)
+  choose 0 only. Fail-open is the status quo enforcement on abort for every
+  one of them, so nothing any guard permits or denies changes; the notice is
+  the only delta, and flipping a guard to fail-closed is one word on its
+  install line. `run-guards.sh` installs the same boundary around its own
+  prologue and merge (an abort there skipped every guard of the event), primes
+  `.hook_event_name` in its existing jq call so its notice names the event,
+  and releases the trap before its deliberate aggregated exit, so a non-block
+  status a guard returns still surfaces as before. `block-hook-bypass`'s
+  bespoke handler is replaced by the shared one; its crash test passes
+  against it unchanged in expectation. New `hooks/abort-boundary.test.sh`
+  reads the registered set from `hooks.json`, forces a `set -u` abort in every
+  registered hook on a copy of the plugin and asserts exit 0 plus a notice
+  naming the hook, the status, and an event it is registered for; forces the
+  abort mid-hook through a failing shared helper on one blocking hook (on a
+  payload the shipped guard still denies) and one advisory hook; checks the
+  dispatched path keeps a sibling's deny beside an aborting guard and merges
+  two notices into one document; checks chosen statuses pass through with no
+  output; and checks the handler ends the process once when its own body
+  fails. A/B against a pristine `origin/main` export: every guardrails contract
+  suite produces the same assertion lines on both trees (the injected-crash
+  fixture aside), and the same 68 payloads through the dispatcher and the
+  standalone guards agree on exit code, stdout, and stderr.
+
 ## [0.32.14]
 
 ### Changed
