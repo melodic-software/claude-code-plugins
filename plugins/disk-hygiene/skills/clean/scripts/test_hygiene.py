@@ -7936,8 +7936,10 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in self._hook_argv(hook))
         ]
-        # One registration per tool, both declaring the same timeout.
-        self.assertEqual(2, len(declared), declared)
+        # Bash has one matcher; PowerShell has several (literal engine path
+        # plus variable-based invocations). Every registration that launches
+        # the guard must declare the same timeout the watchdog clamp uses.
+        self.assertGreaterEqual(len(declared), 2, declared)
         self.assertEqual({guard._DECLARED_HOOK_TIMEOUT_SECONDS}, set(declared))
 
         skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
