@@ -34,9 +34,10 @@ run whose scope holds no measurable file carries one row `*/*` with status `not-
 reason `no measurable files in scope`.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
-`audit-coverage` emits when an artifact covers only some of a lane's scope files. It counts as
-having produced rows, so such a run is `partial` rather than `empty`, and it withholds `complete`,
-so a document can never read as complete while one of its own rows says `N of M`.
+`audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it
+left a function unjoined, naming those functions in the reason. It counts as having produced rows,
+so such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
+read as complete while one of its own rows says `N of M`.
 
 ## `measures[]` rows
 
@@ -48,7 +49,7 @@ number or `null`), `collector`, `labels` (strings such as `comment-agnostic`), `
 |---|---|---|
 | `audit-size` | file | none; in `iso-8.2.115` mode one row per function with `start_line`, `end_line` |
 | `audit-complexity` | function (`start_line`, `end_line` when the collector reports them) | none |
-| `audit-coverage` | function | `cov_source` (`artifact-region`, `line-range`, or `statement-ratio`), `hit` (the artifact's function-hit flag or `null`) |
+| `audit-coverage` | function | `cov_source` (`artifact-region`, `line-range`, `statement-ratio`, or `ambiguous`), `hit` (the artifact's function-hit flag or `null`), `reason` (why the join was refused; present only on an `ambiguous` row) |
 | `audit-duplication` | clone group | `instances[]` (`file`, `start_line`, `end_line`) replaces `file` and `function` |
 | `audit-type-debt` | lane | `file` and `function` are `null` |
 
