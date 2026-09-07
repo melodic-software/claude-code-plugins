@@ -220,6 +220,7 @@ done
 TRAP_FIXTURE="$TEST_TMPDIR/trap-fixtures"
 mkdir -p "$TRAP_FIXTURE"
 printf 'if true; then trap cleanup EXIT; fi\n' >"$TRAP_FIXTURE/semicolon-if.sh"
+# shellcheck disable=SC2016  # fixture body must carry a literal $tmp, not expand here
 printf 'trap cleanup EXIT; rm -f "$tmp"\n' >"$TRAP_FIXTURE/semicolon-seq.sh"
 printf 'trap cleanup EXIT&\n' >"$TRAP_FIXTURE/ampersand.sh"
 printf 'trap cleanup EXIT|true\n' >"$TRAP_FIXTURE/pipe.sh"
