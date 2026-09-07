@@ -125,6 +125,25 @@ gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
 rc="$(gitea_run "$S")"
 assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 
+# --- an issue without a numeric number is refused, never walked ---
+# The number is interpolated into the dependencies request path and is the join key of the
+# final envelope pass, so a row whose `number` is not all digits is refused before either:
+# exit 1, no envelope, and no request carrying the bad value. This is a behaviour change
+# from the per-item accumulator, which walked the same row and emitted an envelope whose id
+# read `gitea:acme/webapp#null` with exit 0.
+gitea_reset_routes
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed "/issues?" 200 "[$(gitea_issue_json null open 'no number')]"
+rc="$(gitea_run "$S")"
+assert_eq "an issue with number: null → exit 1" "1" "$rc"
+assert_eq "and no envelope is emitted for the null number" "" "$(gitea_out)"
+assert_contains "and the refusal says why" "$(gitea_err)" "without a numeric number"
+if [[ "$(gitea_requests)" == *"/issues/null/"* ]]; then
+  fail "no request carried the non-numeric number" "no /issues/null/ request" "$(gitea_requests)"
+else
+  pass "no request carried the non-numeric number"
+fi
+
 # --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/issues?" 404 '{"message":"repo not found"}'

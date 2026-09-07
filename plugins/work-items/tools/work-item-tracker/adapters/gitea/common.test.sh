@@ -283,8 +283,11 @@ assert_eq "curl transport failure → exit 8" "8" "$?"
 # --- the ceiling the code enforces IS the manifest's ---
 # Every paginated walk in this adapter stops at WIT_GITEA_LIST_ITEMS_MAX, and callers learn
 # the bound from limits.list_items_max in capabilities.json. common.sh reads the constant
-# from the manifest at load time, so the two cannot drift; this case pins that, and would
-# catch a return to a hardcoded copy.
+# from the manifest at load time, so the two cannot drift. The first assertion pins the
+# shipped pair, but on its own a hardcoded copy that happens to agree with the manifest
+# satisfies it too; the second sources a copy of common.sh beside a manifest declaring a
+# different ceiling and checks the constant followed it. That second assertion, and the
+# null-ceiling case below, are what fail on a return to a hardcoded copy.
 assert_eq "WIT_GITEA_LIST_ITEMS_MAX is limits.list_items_max from capabilities.json" \
   "$(jq -r '.limits.list_items_max' "$SCRIPT_DIR/capabilities.json")" "$WIT_GITEA_LIST_ITEMS_MAX"
 if [[ "$WIT_GITEA_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
@@ -292,6 +295,13 @@ if [[ "$WIT_GITEA_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
 else
   fail "and the ceiling is a positive integer" "positive integer" "$WIT_GITEA_LIST_ITEMS_MAX"
 fi
+ALT_FIX="$FIX/alt-ceiling"
+mkdir -p "$ALT_FIX"
+cp "$SCRIPT_DIR/common.sh" "$ALT_FIX/"
+jq '.limits.list_items_max = 7' "$SCRIPT_DIR/capabilities.json" >"$ALT_FIX/capabilities.json"
+ALT_MAX="$(WIT_SEAM_LIB_DIR="${WIT_SEAM_LIB_DIR:-$SCRIPT_DIR/../../lib}" \
+  bash -c 'source "$1/common.sh"; printf "%s" "$WIT_GITEA_LIST_ITEMS_MAX"' _ "$ALT_FIX" 2>/dev/null)"
+assert_eq "and a manifest declaring 7 loads a ceiling of 7: the constant is read, not copied" "7" "$ALT_MAX"
 
 # A manifest that declares no usable ceiling is a setup error at load, not an unbounded
 # walk: the bound is also what stops a server that keeps answering full pages. Exercised on
