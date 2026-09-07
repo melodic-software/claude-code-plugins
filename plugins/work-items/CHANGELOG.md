@@ -3,6 +3,34 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0]
+
+### Added
+
+- **`decompose`:** the spec container's body inlines the design artifacts the design behind the
+  plan produced. Each is emitted as a fenced block copied verbatim from the artifact, followed by
+  a one-line provenance note naming the producing design scope and the dialect. The container is
+  the join, not a slice: one design session stands one-to-one with one container, whereas a
+  vertical slice crosses layers by construction and carries no scope, so an artifact matched every
+  slice or none. Slice bodies are unchanged and keep only their existing pressure-test carve-out.
+- **`decompose`:** the artifact is matched by frontmatter carrying both `scope` (`data`,
+  `integration`, `system`) and `dialect` (`mermaid`, `dbml`, `openapi-3.1`, `likec4`,
+  `c4-plantuml`), read from the `design/` subdirectory of the same topic slice and tier the source
+  document was read from. Every match is inlined, filename-ordered: an `integration` design labels
+  two artifacts and both are carried. A source with no topic slice (an item number or the
+  conversation) has no lookup. Existence of the artifact is the whole trigger, so no flag, lever,
+  or convention key is added, and a container whose design produced none is unchanged in shape.
+- **`decompose`:** only the artifact's fenced block travels, never its frontmatter and never the
+  prose that follows it. The note names the dialect as the frontmatter spells it rather than the
+  fence tag (`openapi-3.1`, not `yaml`), because only mermaid renders as a diagram in the bundled
+  providers and a reader of the rest needs to know what the fence holds. No file path appears in
+  any emitted body: the contract slice holding the artifact is pruned before merge, so a pointer
+  would dangle by construction.
+- **`decompose`:** `container-lifecycle.md`'s Body bullet now states these blocks as an explicit
+  exception to its own no-inflation rule, alongside the `## Testing decisions` section and the
+  execution-shape line, so the rule enumerates what is admitted rather than contradicting the
+  addition.
+
 ## [0.39.67]
 
 ### Fixed
