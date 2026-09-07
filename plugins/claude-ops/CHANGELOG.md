@@ -18,7 +18,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `major.minor.patch` triple, and a catalog triple lower than the installed one is
   a proven downgrade, withheld from `update-candidates-user` and the new
   `update-candidates-project`. The compare ignores prerelease suffixes, so a
-  numeric tie is not a downgrade, and anything unparseable or unknown stays a
+  numeric tie is not a downgrade, and anything unparsable or unknown stays a
   candidate, the same fail-open posture the existing null handling keeps.
 - **A failed marketplace refresh no longer widens the sweep.** Step 1's fallback
   swept `--ids installed-user` unconditionally when the refresh failed. A failed
@@ -37,7 +37,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   not the sibling scope's, so with a backward-moved catalog that strategy rolled
   the lagging scopes back instead of up. Step 2 now compares
   `catalog_versions[<id>]` to the highest `scopes[].version` and emits the row as
-  BLOCKED, naming both versions and the likely cause; null or unparseable stays
+  BLOCKED, naming both versions and the likely cause; null or unparsable stays
   fail-open. `converge` has no downgrade opt-in: `--allow-downgrade` is a `sync`
   argument only.
 - **The `plugins` skill no longer presents its `sync` run journal as a recovery

@@ -723,7 +723,7 @@ version is lower goes under `Downgraded:`. A pair whose two versions differ as s
 triples tie, `1.2.3` to `1.2.3-beta`, goes under `Updated:` flagged `(direction unknown)` too,
 because the compare cannot rank suffixes. This classification is what makes a backward move
 unprintable as `Updated:` for the ids that still reach the CLI on the guard's fail-open path, the
-ones whose catalog version was null or unparseable and so could never be proven a downgrade in
+ones whose catalog version was null or unparsable and so could never be proven a downgrade in
 advance. The guard withholds what it can prove; this step catches what only the outcome reveals.
 The same classification governs the `In-repo:` count: it counts forward moves only, and an in-repo
 record that moved backward renders under `Downgraded:` with its scope instead of being counted

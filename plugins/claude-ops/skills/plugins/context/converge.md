@@ -60,7 +60,7 @@ installs the CATALOG version, never the sibling scope's, so when the catalog rea
 highest installed version that strategy rolls the lagging scopes backward instead of forward. Read
 the report's `catalog_versions[<id>]` and compare it to the highest `scopes[].version` with the
 same dotted-numeric compare this step already uses. When the catalog version is readable and lower,
-the update strategy is unavailable and the row is emitted as BLOCKED. A `null` or unparseable
+the update strategy is unavailable and the row is emitted as BLOCKED. A `null` or unparsable
 catalog version does not block, the same fail-open rule [sync.md](sync.md)'s downgrade guard
 follows. `--allow-downgrade` is a `sync` argument and `converge` has no equivalent opt-in: a
 rollback across scopes is never a convergence.

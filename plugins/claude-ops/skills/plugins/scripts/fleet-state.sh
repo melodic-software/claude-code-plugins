@@ -446,7 +446,7 @@ fi
 # instead. A sweep that acts on "different" without direction turns a catalog
 # that moved backward, a `directory` source parked on an old branch, a git
 # source force-pushed or re-pointed, into a fleet rollback that the CLI still
-# prints as an update. Withholding needs proof, so anything unparseable or
+# prints as an update. Withholding needs proof, so anything unparsable or
 # unknown stays a candidate: the guard fails open exactly as the equality filter
 # above it does.
 ids_selector_valid() {
@@ -507,7 +507,7 @@ fi
 # parses to a numeric [major, minor, patch] triple or to null; any prerelease or
 # build suffix is ignored, so `1.2.3-beta` and `1.2.3` tie and a tie is not a
 # downgrade. `capture` emits NOTHING on no match, so the `// null` is what keeps
-# an unparseable version failing open instead of dropping its record out of the
+# an unparsable version failing open instead of dropping its record out of the
 # stream entirely. The capture reads the first three numeric components only, so
 # a fourth component is ignored: `1.2.3.4` and `1.2.3` tie, and a fleet versioned
 # that way is invisible to the guard. Extend the capture if such a fleet appears.

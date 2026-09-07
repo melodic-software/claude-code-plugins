@@ -1453,7 +1453,7 @@ ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
 assert_eq "downgrade guard: a null catalog version is not a proven downgrade" "" "$out"
 
-# (d) Catalog version UNPARSEABLE (a branch name, not a version). Same fail-open
+# (d) Catalog version UNPARSABLE (a branch name, not a version). Same fail-open
 # answer: the compare has no triple to order, so it withholds nothing.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1462,11 +1462,11 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "downgrade guard: an unparseable catalog version stays a candidate" \
+assert_eq "downgrade guard: an unparsable catalog version stays a candidate" \
   "alpha@market1" "$out"
 ARGS=(--marketplace market1 --ids downgrade-candidates)
 out=$(run_ids "$case_dir")
-assert_eq "downgrade guard: an unparseable catalog version is not a proven downgrade" "" "$out"
+assert_eq "downgrade guard: an unparsable catalog version is not a proven downgrade" "" "$out"
 
 # (e) A prerelease suffix against the same numeric triple. The suffix is ignored,
 # so the pair TIES, and a tie is not a downgrade: the id stays a candidate on the
