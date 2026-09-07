@@ -9,6 +9,7 @@
 - [Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception](#addendum-2026-07-21-step-3-applied--required-check-live-skip-actor-exception)
 - [Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default](#addendum-2026-08-03-mechanism-correction--the-exception-moved-to-a-reusable-default)
 - [Addendum (2026-08-04): operator decision — Branch A ratified, four actors](#addendum-2026-08-04-operator-decision--branch-a-ratified-four-actors)
+- [Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued](#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued)
 - [Revisit triggers](#revisit-triggers)
 
 - Status: accepted
@@ -307,6 +308,53 @@ Four is now the ratified baseline the `skip-actors` trigger measures additions a
 actor widens a deliberated exception and warrants the same deliberation. Unchanged by this
 decision — the review lane's inherited default stays deferred with its own trigger, and the
 caller-tamper gap recorded above stays open pending ci-workflows#345.
+
+## Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued
+
+Recorded by the ci-perf program (melodic-software/github-iac#378, Phase 9). The decision above is
+unchanged: both lanes stay default-on and advisory, and promotion is still earned. What changed is
+that the lane triggers now match that posture instead of running as if a blocking gate might return.
+Landed in claude-code-plugins#3696 (`31dc91ded6cc51cac47c6cb27c49788ba9cde449`, merged
+2026-09-04), the same change that collapsed `ci.yml` into six jobs.
+
+**The trigger set.** Both callers now run on `opened`, `ready_for_review` and `reopened` only. A
+push to an open pull request no longer re-triggers either lane. `synchronize` bought a duplicate
+advisory report per push: it only ever earned its cost against a gate certifying execution against
+the latest head, and neither lane is one here. A finding on an older head is a finding to
+disposition, which is what advisory already meant.
+
+There are exactly three ways to get a review of a newer head, and the caller comments name them:
+reopen the pull request, flip it to draft and back to ready, or, on the code-review lane,
+`workflow_dispatch` with the pull request's number. Re-running the job is not one of them; a re-run
+replays the original event payload and the reusable workflow's freshness guard retires it as
+superseded. The security caller carries no `workflow_dispatch` re-entry, because its skip-actors job
+reads the ratified list from the pull request's base branch and a dispatch has no base ref to read
+it from.
+
+**The draft filter.** A draft is work in progress and does not spend a review; the
+`ready_for_review` trigger is what delivers one when it is ready. The code-review job's condition is
+`github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false`, and the
+`event_name` clause is load-bearing: a dispatched run has no `github.event.pull_request` at all, so
+a bare draft comparison would never run the review an operator asked for.
+
+**Queued, not cancelled.** The code-review job takes a second, repository-wide concurrency group
+(`claude-review-${{ github.repository }}`) with `queue: max`, so parallel pull requests queue for
+the shared Claude seat instead of contending for it; the security caller queues per pull request
+with `cancel-in-progress: false`. This is a deliberate exception to the cancel-in-progress posture
+`ci.yml` applies to every other pull-request lane, and it is affordable only because these lanes are
+advisory: a queued review blocks no merge. Two mechanics constrain the shape. `queue` and
+`cancel-in-progress` cannot be combined on one group
+(<https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency>),
+so the queue is a job-level group beside the workflow-level cancel group rather than a change to it;
+and the group is deliberately distinct from the reusable workflow's own inner group, which is keyed
+per pull request and head SHA, because a caller group sharing that name would deadlock the call
+against itself. Anthropic's documented behaviour for its own review product is the same: a second
+request while one runs is queued until the in-progress review completes
+(<https://code.claude.com/docs/en/code-review>).
+
+The organization-wide statement of this posture, with its evidence, is in github-iac
+`docs/topics/ci-perf/POSTURE.md` under "Advisory AI review", and the org record that the lanes are
+advisory at all is github-iac ADR 0011.
 
 ## Revisit triggers
 

@@ -75,3 +75,33 @@ obligates a plugin `version` bump, since the version is the update cache key. (`
 `repo-analysis` + `video-digestion`, shared by its `video-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
+
+## Addendum (2026-09-07): one sync lane with N steps, not one lane per library
+
+Recorded by the ci-perf program (melodic-software/github-iac#378, Phase 9). The decision above is
+unchanged: a shared source still has one canonical copy, a `sync-*.sh` script still propagates it,
+and CI still fails a pull request when a copy drifts or when the lib changed without a plugin
+version bump. What changed is where that gate runs.
+
+Each shared source used to get **its own CI job**. Before claude-code-plugins#3696
+(`31dc91ded6cc51cac47c6cb27c49788ba9cde449`, merged 2026-09-04) `ci.yml` carried thirteen
+`*-sync` jobs, one per library: `hook-utils-sync`, `rewrite-guard-sync`,
+`parse-concern-value-sync`, `managed-scope-sync`, `state-key-sync`, `spawn-noise-sync`,
+`check-retirements-sync`, `legacy-statusline-detect-sync`, `unwrap-before-compose-sync`,
+`resolve-convention-home-sync`, `resolve-convention-pattern-sync`, `index-regen-sync` and
+`standards-contract-sync`. Each paid a fresh runner, a fresh checkout and a fresh toolchain install
+to run a few seconds of `--check`, and GitHub bills a job by whole minutes, so the per-job overhead
+dominated the work by an order of magnitude.
+
+**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which is
+where the `--check-bump` steps' base history already lives; `sync-hook-utils.sh` runs in the
+`hook-utils` job beside the hook contract tests it covers. Every step keeps the name it had, so a
+failure still says which library drifted. Adding a fourteenth shared source therefore adds a step to
+an existing job, and adding a job is the thing to justify rather than the default.
+
+Nothing about the invariant moved: byte-drift is still fatal, the `--check-bump` half still fails a
+lib change whose carrying plugin's manifest version did not move, and the intra-plugin `vendor/`
+shape above still replaces the byte-drift gate with delivery-by-version
+(`check-vendor-version-bump.sh`, its own gate). **Recheck trigger:** a sync gate that needs a
+different runner, a different toolchain, or an isolation the consolidated job cannot give it earns
+its own job again; say which of the three when adding one.
