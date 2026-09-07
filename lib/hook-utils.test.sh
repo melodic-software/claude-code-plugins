@@ -3454,7 +3454,7 @@ fi
 bs_cut=""
 bs_cut_err=$(hook::buffer_stdin_to bs_cut '.tool_name' <<<'{"incomplete":' 2>&1)
 bs_cut_rc=$?
-if ((bs_cut_rc == 3)) && [[ "$bs_cut_err" == *"cut short"* ]] && [[ "$bs_cut_err" != *"BLOCKED"* ]]; then
+if ((bs_cut_rc == 3)) && [[ -z "$bs_cut" ]] && [[ "$bs_cut_err" == *"cut short"* ]] && [[ "$bs_cut_err" != *"BLOCKED"* ]]; then
   ok "buffer_stdin_to fused truncated JSON at EOF is cut short"
 else
   fail "buffer_stdin_to fused truncated: rc=$bs_cut_rc err=$(printf %q "$bs_cut_err")"
