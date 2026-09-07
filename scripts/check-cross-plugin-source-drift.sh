@@ -41,29 +41,33 @@ is_skipped() {
   return 1
 }
 
-# rel path within a plugin -> space-separated "plugin:fullpath" entries
+# rel path within a plugin -> newline-delimited "plugin:fullpath" entries
 declare -A cluster_entries
 # rel path -> IDENTICAL | DIFFERS (only set for clusters with 2+ entries)
 declare -A cluster_status
 
-for plugin_dir in plugins/*/; do
-  plugin="${plugin_dir%/}"
-  plugin="${plugin##*/}"
-  while IFS= read -r -d '' full; do
-    base="${full##*/}"
-    # shellcheck disable=SC2310  # is_skipped only compares strings; nothing inside it can fail
-    if is_skipped "$base"; then
-      continue
-    fi
-    rel="${full#"$plugin_dir"}"
-    # NEWLINE-delimited, not space-delimited (#3376). `find -print0` already
-    # hands us paths containing spaces intact; joining the accumulator on a
-    # space would throw that away again the moment load_cluster split it back
-    # apart, turning one entry into two bogus ones and feeding sha256sum a
-    # truncated path. A newline is the one separator no path here can contain.
-    cluster_entries["$rel"]+="${plugin}:${full}"$'\n'
-  done < <(find "$plugin_dir" -type f -print0)
-done
+# One find of plugins/, not one find per plugins/*/ directory. The previous
+# loop paid a find exec per plugin (~76 on this tree) for the same leftover
+# class #3488 removed from the portability sweep. Paths stay plugins/<name>/…
+# so the within-plugin rel and the skip-basename filter are unchanged.
+while IFS= read -r -d '' full; do
+  rest="${full#plugins/}"
+  [[ "$rest" != "$full" ]] || continue
+  plugin="${rest%%/*}"
+  rel="${rest#"$plugin"/}"
+  [[ "$rel" != "$rest" ]] || continue
+  base="${full##*/}"
+  # shellcheck disable=SC2310  # is_skipped only compares strings; nothing inside it can fail
+  if is_skipped "$base"; then
+    continue
+  fi
+  # NEWLINE-delimited, not space-delimited (#3376). `find -print0` already
+  # hands us paths containing spaces intact; joining the accumulator on a
+  # space would throw that away again the moment load_cluster split it back
+  # apart, turning one entry into two bogus ones and feeding sha256sum a
+  # truncated path. A newline is the one separator no path here can contain.
+  cluster_entries["$rel"]+="${plugin}:${full}"$'\n'
+done < <(find plugins -type f -print0)
 
 # load_cluster <rel> -> populate the globals `entries` ("plugin:fullpath" pairs)
 # and `plugins_list` (plugin names only). Globals rather than stdout: the callers
@@ -71,13 +75,56 @@ done
 # the arrays and put a function call where .shellcheckrc's SC2310 warns about
 # set -e suppression.
 load_cluster() {
-  mapfile -t entries < <(printf '%s' "${cluster_entries[$1]}")
+  entries=()
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && entries+=("$line")
+  done <<<"${cluster_entries[$1]}"
   plugins_list=()
   local entry
   for entry in "${entries[@]}"; do
     plugins_list+=("${entry%%:*}")
   done
+  # Lexicographic plugin order matches `plugins/*/` glob order so discover
+  # lines stay comparable to the per-directory find. Insertion sort: a cluster
+  # is a handful of plugin names, and a leftover `sort` exec per load would
+  # put back the class this change removes.
+  if ((${#plugins_list[@]} > 1)); then
+    local -a __pl_sorted=()
+    local __p __i __j
+    for __p in "${plugins_list[@]}"; do
+      __i=${#__pl_sorted[@]}
+      for ((__j = 0; __j < ${#__pl_sorted[@]}; __j++)); do
+        if [[ "$__p" < "${__pl_sorted[__j]}" ]]; then
+          __i=__j
+          break
+        fi
+      done
+      __pl_sorted=("${__pl_sorted[@]:0:__i}" "$__p" "${__pl_sorted[@]:__i}")
+    done
+    plugins_list=("${__pl_sorted[@]}")
+  fi
 }
+
+# Hash every file that participates in a 2+ cluster in ONE sha256sum.
+# The previous loop spawned sha256sum (and a process substitution) per copy
+# (~103 execs on this tree). GNU Bash runs process substitution in a subshell
+# even for builtins (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution).
+declare -A file_hash
+hash_paths=()
+for rel in "${!cluster_entries[@]}"; do
+  load_cluster "$rel"
+  ((${#entries[@]} >= 2)) || continue
+  for entry in "${entries[@]}"; do
+    hash_paths+=("${entry#*:}")
+  done
+done
+if ((${#hash_paths[@]} > 0)); then
+  while read -r h path; do
+    file_hash["$path"]="$h"
+  done < <(sha256sum -- "${hash_paths[@]}")
+fi
 
 for rel in "${!cluster_entries[@]}"; do
   load_cluster "$rel"
@@ -86,7 +133,7 @@ for rel in "${!cluster_entries[@]}"; do
   first_hash=""
   identical=1
   for entry in "${entries[@]}"; do
-    read -r h _ < <(sha256sum "${entry#*:}")
+    h="${file_hash[${entry#*:}]:-}"
     if [[ -z "$first_hash" ]]; then
       first_hash="$h"
     elif [[ "$h" != "$first_hash" ]]; then

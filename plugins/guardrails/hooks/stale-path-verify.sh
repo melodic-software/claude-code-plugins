@@ -133,7 +133,8 @@ esac
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
 # Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
@@ -532,7 +533,8 @@ emit_tel() {
   # comes back as the basename, never an absolute path, which would embed the
   # developer's username.
   local findings_json="[]" file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#MISSING[@]} > 0)); then
     findings_json=$(printf '%s\n' "${MISSING[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi

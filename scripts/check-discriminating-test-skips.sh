@@ -29,8 +29,11 @@ errors=0
 
 mapfile -t test_files < <(find plugins .claude/hooks -type f -name '*.test.sh' 2>/dev/null | sort)
 
-for test_file in "${test_files[@]}"; do
-
+# One awk over every test file. The previous loop paid an awk exec (and a
+# command-substitution subshell) per *.test.sh (~312 on this tree). FNR is
+# per-file so line numbers stay the file:line contract; FNR==1 closes a
+# block left open at the previous file's EOF (mawk has no ENDFILE).
+if ((${#test_files[@]} > 0)); then
   out=$(awk '
     function is_annotated(l) { return l ~ /#[[:space:]]*discriminating-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -47,14 +50,29 @@ for test_file in "${test_files[@]}"; do
     function flag_block() {
       if (block_bad && !block_annotated) {
         if (block_required)
-          printf "%d: discriminating-skip-required branch uses skip_case\n", block_start
+          printf "%s:%d: discriminating-skip-required branch uses skip_case\n", file, block_start
         else
-          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", block_start
+          printf "%s:%d: discriminating skip via skip_case — use fail_discriminating_skip\n", file, block_start
       }
     }
     function same_line_if_fi(l) {
       return l ~ /^[[:space:]]*if[[:space:]]/ &&
         l ~ /(^|[[:space:];])fi([[:space:]]*(#.*)?)?([[:space:];]|$)/
+    }
+    function reset_file() {
+      in_block = 0
+      depth = 0
+      pending_annot = 0
+      pending_req = 0
+      block_bad = 0
+      block_annotated = 0
+      block_required = 0
+      block_start = 0
+    }
+    FNR == 1 {
+      if (NR > 1 && in_block) flag_block()
+      file = FILENAME
+      reset_file()
     }
     {
       line = $0
@@ -87,18 +105,18 @@ for test_file in "${test_files[@]}"; do
 
       if (is_bad_skip(line)) {
         if (!is_annotated(line) && !annotated_above)
-          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", NR
+          printf "%s:%d: discriminating skip via skip_case — use fail_discriminating_skip\n", FILENAME, FNR
       }
 
       if (is_any_skip(line) && (is_required(line) || required_above) &&
           !is_annotated(line) && !annotated_above) {
-        printf "%d: discriminating-skip-required branch uses skip_case\n", NR
+        printf "%s:%d: discriminating-skip-required branch uses skip_case\n", FILENAME, FNR
       }
 
       if (is_required(line) && !is_comment(line)) {
         in_block = 1
         depth = 1
-        block_start = NR
+        block_start = FNR
         block_annotated = is_annotated(line)
         block_required = 1
         block_bad = 0
@@ -109,16 +127,16 @@ for test_file in "${test_files[@]}"; do
         one_annotated = is_annotated(line) || annotated_above
         one_required = is_required(line) || required_above
         if (is_bad_skip(line) && !one_annotated)
-          printf "%d: discriminating skip via skip_case — use fail_discriminating_skip\n", NR
+          printf "%s:%d: discriminating skip via skip_case — use fail_discriminating_skip\n", FILENAME, FNR
         if (one_required && is_any_skip(line) && !is_annotated(line) && !annotated_above)
-          printf "%d: discriminating-skip-required branch uses skip_case\n", NR
+          printf "%s:%d: discriminating-skip-required branch uses skip_case\n", FILENAME, FNR
         next
       }
 
       if (line ~ /^[[:space:]]*if[[:space:]]/) {
         in_block = 1
         depth = 1
-        block_start = NR
+        block_start = FNR
         block_annotated = is_annotated(line) || annotated_above
         block_required = is_required(line) || required_above
         block_bad = 0
@@ -128,15 +146,15 @@ for test_file in "${test_files[@]}"; do
     END {
       if (in_block) flag_block()
     }
-  ' "$test_file")
+  ' "${test_files[@]}")
 
   if [[ -n "$out" ]]; then
     while IFS= read -r v; do
-      echo "DISCRIMINATING TEST SKIP: ${test_file}:${v}" >&2
+      echo "DISCRIMINATING TEST SKIP: ${v}" >&2
       errors=$((errors + 1))
     done <<<"$out"
   fi
-done
+fi
 
 if ((errors > 0)); then
   {

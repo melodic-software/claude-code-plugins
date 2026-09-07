@@ -162,6 +162,14 @@ if raw_notebook_path "$INPUT" >/dev/null; then
 fi
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit/NotebookEdit, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Telemetry-only. Parsed behind the sink opt-in so the unwired default path
 # spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
@@ -185,16 +193,20 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument typos runs on from the repo root. A path the prefix strip could
 # not make relative degrades to its basename, which is right for telemetry but
 # names a DIFFERENT file when resolved against the repo root, so the tool
-# invocation below has to know which of the two it holds. Command substitution
-# runs the helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never
-# reaches this scope; the return status is the channel that survives.
+# invocation below has to know which of the two it holds. `_to` writes
+# FILE_REL and HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture
+# subshell that used to hide the global is gone (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Status
+# remains the distinguishable channel.
 FILE_REL_DEGRADED=0
-FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
+FILE_REL=""
+hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # residual-findings JSON array; optional $2 is the applied-corrections JSON
@@ -233,12 +245,19 @@ emit_skipped() {
   exit 0
 }
 
-root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
+# (and pwd) on every fire to canonicalize a path git already answered as
+# absolute, or a fallback hint that `cd "$RUN_DIR"` already accepts relative.
+root=""
+[[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
 
 # Resolve the typos binary from PATH — never downloaded (typos is a standalone
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
-TYPOS_BIN="$(command -v typos 2>/dev/null)" || TYPOS_BIN=""
+# `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
+# just to learn the path. The later exec looks the name up on PATH itself.
+TYPOS_BIN=""
+command -v typos >/dev/null 2>&1 && TYPOS_BIN=typos
 TYPOS_CONFIG_ARGS=()
 if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
   TYPOS_CONFIG="${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml"
@@ -303,8 +322,8 @@ WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-false}"
 # otherwise rewrite-safe (*.json / *.yaml). A correctable token in package-lock
 # or pnpm-lock must not mutate load-bearing generated data (#2650 review).
 typos_write_lockfile_denied() {
-  local base
-  base="$(basename -- "$1")"
+  local base="${1##*/}"
+  base="${base##*\\}"
   case "$base" in
   package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml | \
     bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock | \
@@ -355,8 +374,7 @@ if [[ "$WRITE_CHANGES" == "true" ]]; then
     WRITE_SKIP_REASON=lockfile
   elif ! typos_write_ext_allowed "$FILE"; then
     WRITE_CHANGES=false
-    base=$(basename -- "$FILE")
-    if [[ "$base" != *.* ]]; then
+    if [[ "$FILE_BASE" != *.* ]]; then
       WRITE_SKIP_REASON=extensionless
     else
       WRITE_SKIP_REASON=extension
@@ -394,7 +412,7 @@ SCAN_RC=$?
 # judgment), the same status as the no-binary path.
 emit_tool_break() {
   hook::ctx_reset
-  hook::ctx_append "typos-format: typos failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+  hook::ctx_append "typos-format: typos failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -572,7 +590,7 @@ if [[ -z "$CLASSIFIED" ]]; then
   # already have been rewritten, and "changed, details unavailable" is a far
   # better answer than nothing.
   hook::ctx_reset
-  hook::ctx_append "typos-format ran on $(basename "$FILE") and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
+  hook::ctx_append "typos-format ran on $FILE_BASE and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
   hook::ctx_flush PostToolUse
   emit_tel "skipped" '[]'
   exit 0
@@ -623,7 +641,7 @@ fi
 # second document unreadable and silently drop half the disclosure.
 CTX=""
 SYSMSG=""
-BASE="$(basename "$FILE")"
+BASE="$FILE_BASE"
 
 if ((APPLIED_COUNT > 0)); then
   CTX+="typos-format REWROTE $APPLIED_COUNT word(s) in $BASE after your edit:"$'\n'

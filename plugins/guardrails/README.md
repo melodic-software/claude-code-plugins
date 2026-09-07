@@ -379,7 +379,7 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
-**0.32.14, forks with no exec in `block-noncanonical-commit`.** 2026-09-06,
+**0.32.15, forks with no exec in `block-noncanonical-commit`.** 2026-09-06,
 Linux CI host. A PATH shim counts execs, and a fork that never execs is
 invisible to it. On every Bash and PowerShell call this guard created two
 such processes and executed none. One was the guard's own, an eager telemetry
@@ -426,6 +426,83 @@ than removed work. The PowerShell lane's remaining creations are in
 `lib/powershell/ps-command.sh`, not in this guard. The contract suite pins the
 benign share, the blocked-path delta and the alias reparse by the same
 instrument.
+
+**0.32.14, leftover helper-capture forks on verifiers and PreToolUse
+telemetry.** 2026-09-06, Linux CI host characterised measurable by
+`spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
+the leftover `$(hook::repo_root)` / `$(hook::repo_relative_path)` /
+`$(hook::normalize_path)` captures the always-on verifiers and
+PreToolUse scanners still paid around helpers that already have `_to`
+forms. Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`:
+
+| Counter | before | after |
+|---|---|---|
+| `skill-reference-verify` Write with no skill refs | 18 clones (8 execs) | 17 clones (8 execs) |
+| `secret-pattern-detection` clean Write | 10 clones (4 execs) | 8 clones (4 execs) |
+
+PATH-visible execs unchanged. Isolation `$(source …)` forks are
+unchanged (#3685). Finding text and redaction are unchanged.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
+**0.32.13, leftover tokenizer and path-helper forks.** 2026-09-06, Linux CI host
+characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+The 0.32.12 PATH-shim and kernel-census tables are unchanged for stdin,
+notice, and json-escape: this drop is the command tokenizer every Bash
+guard runs, plus `_to` forms of `repo_root` / `repo_relative_path`.
+Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve` on the
+library helpers, 5 plain `bash_parse_segments` plus 5 with a `$'…'` word
+after 0 warmup (the subject is a builtin):
+
+| Counter | before | after |
+|---|---|---|
+| `hook::bash_parse_segments` process creations | 15 (1 process-subst clone per parse, plus 1 `$(ansi_c_decode)` per `$'…'`) | 0 |
+
+Slice, notice, and fused stdin `jq` counts are unchanged. Isolation
+`$(source …)` forks are unchanged (#3685). Tokenizer argv is
+byte-identical.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
+**0.32.12, leftover stdin and notice forks.** 2026-09-06, Linux CI host
+characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+The 0.32.11 PATH-shim table is unchanged: those counters fire only on
+`exec`, and the forks this drop never exec. Kernel census
+`strace -f -e trace=clone,clone3,fork,vfork,execve` on the library
+helpers, 20 calls after 0 warmup (the subject is a builtin):
+
+| Counter | before | after |
+|---|---|---|
+| `hook::json_escape` process creations | 60 (20× `tr` exec) | 0 |
+| `hook::emit_channels` process creations | 240 | 0 |
+| `hook::resolve_read_slice_to 2` process creations | 20 | 0 |
+| `hook::notice_once` process creations | 79 | 3 (1 `mkdir` + 1 `find` + harness) |
+| `hook::buffer_stdin_to` (5 fires, fused fields) | 20 | 15 |
+
+Slice acceptance is a Bash 4+ version check (CHANGES bash-4.0-alpha:
+fractional `read -t`); it creates no TMPDIR file. PATH-visible `jq`
+execs on a benign Bash call stay at 1. Notices and skip-notice JSON
+are byte-identical.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.11, fused stdin completeness and field extract.** 2026-09-06,
 Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`

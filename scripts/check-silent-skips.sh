@@ -55,13 +55,25 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 errors=0
 
 scan_hook() {
-  local hook="$1"
   awk '
     function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
         l ~ /hook::notice_once/ || l ~ /hook::require_jq/
+    }
+    function flag_open_block() {
+      if (in_block && block_skips && !block_visible && !block_annotated)
+        printf "%s:%d: silent block skip: unterminated `if ! command -v` block reaches exit/return 0 with no visible notice\n", file, block_start
+    }
+    function reset_file() {
+      in_block = 0; depth = 0; pending_annot = 0
+      block_visible = 0; block_annotated = 0; block_skips = 0; block_start = 0
+    }
+    FNR == 1 {
+      if (NR > 1) flag_open_block()
+      file = FILENAME
+      reset_file()
     }
     {
       line = $0
@@ -76,7 +88,7 @@ scan_hook() {
         if (line ~ /(^|[[:space:]])(exit|return)[[:space:]]+0([[:space:]]|$|;)/) block_skips = 1
         if (depth == 0) {
           if (block_skips && !block_visible && !block_annotated)
-            printf "%d: silent block skip: `if ! command -v ...` reaches exit/return 0 with no visible notice\n", block_start
+            printf "%s:%d: silent block skip: `if ! command -v ...` reaches exit/return 0 with no visible notice\n", FILENAME, block_start
           in_block = 0
         }
         next
@@ -92,7 +104,7 @@ scan_hook() {
       }
 
       if (line ~ /^[[:space:]]*(el)?if[[:space:]]+!.*command -v/) {
-        in_block = 1; depth = 1; block_start = NR
+        in_block = 1; depth = 1; block_start = FNR
         block_visible = is_visible(line)
         block_annotated = is_annotated(line) || annotated_above
         block_skips = 0
@@ -105,21 +117,19 @@ scan_hook() {
           line ~ /\|\|[[:space:]]*return[[:space:]]+0/ ||
           line ~ /\|\|[[:space:]]*[A-Za-z_][A-Za-z0-9_:]*[Ss]kip/)) {
         if (!is_visible(line) && !is_annotated(line) && !annotated_above)
-          printf "%d: silent skip: `command -v ... ||` quiet skip with no visible notice\n", NR
+          printf "%s:%d: silent skip: `command -v ... ||` quiet skip with no visible notice\n", FILENAME, FNR
       }
     }
     END {
-      if (in_block && block_skips && !block_visible && !block_annotated)
-        printf "%d: silent block skip: unterminated `if ! command -v` block reaches exit/return 0 with no visible notice\n", block_start
+      flag_open_block()
     }
-  ' "$hook"
+  ' "$@"
 }
 
 # Shape 3: a self-test that scores a skip as PASS. Message must start with
 # "skip " / 'skip ' (space-delimited) so descriptions like
 # `ok "skip-named-helper ... fails"` are not flagged.
 scan_test_skip_pass() {
-  local test_file="$1"
   awk '
     function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -128,6 +138,7 @@ scan_test_skip_pass() {
       # forms like `if x; then ok "skip ..."; fi` are caught too.
       return l ~ /(^|[^[:alnum:]_])ok[[:space:]]+["'\'']skip[[:space:]]/
     }
+    FNR == 1 { pending_annot = 0 }
     {
       line = $0
       annotated_above = pending_annot
@@ -137,22 +148,22 @@ scan_test_skip_pass() {
         pending_annot = 0
       }
       if (is_skip_ok(line) && !is_annotated(line) && !annotated_above)
-        printf "%d: skip scored as PASS via ok \"skip ...\" — fail closed or annotate with # silent-skip-ok:\n", NR
+        printf "%s:%d: skip scored as PASS via ok \"skip ...\" — fail closed or annotate with # silent-skip-ok:\n", FILENAME, FNR
     }
-  ' "$test_file"
+  ' "$@"
 }
 
 report_hits() {
-  local path="$1"
-  local out="$2"
+  local out="$1"
   if [[ -n "$out" ]]; then
     while IFS= read -r v; do
-      echo "SILENT SKIP: ${path}:${v}" >&2
+      echo "SILENT SKIP: ${v}" >&2
       errors=$((errors + 1))
     done <<<"$out"
   fi
 }
 
+hooks=()
 for hook in plugins/*/hooks/*.sh; do
   base="${hook##*/}"
   case "$base" in
@@ -160,10 +171,14 @@ for hook in plugins/*/hooks/*.sh; do
   *) ;;
   esac
   [[ -f "$hook" ]] || continue
-  report_hits "$hook" "$(scan_hook "$hook")"
+  hooks+=("$hook")
 done
+if ((${#hooks[@]} > 0)); then
+  report_hits "$(scan_hook "${hooks[@]}")"
+fi
 
 shopt -s nullglob
+test_files=()
 for test_file in scripts/*.test.sh; do
   [[ -f "$test_file" ]] || continue
   # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
@@ -172,9 +187,12 @@ for test_file in scripts/*.test.sh; do
   if [[ "$test_file" == "scripts/check-silent-skips.test.sh" ]]; then
     continue
   fi
-  report_hits "$test_file" "$(scan_test_skip_pass "$test_file")"
+  test_files+=("$test_file")
 done
 shopt -u nullglob
+if ((${#test_files[@]} > 0)); then
+  report_hits "$(scan_test_skip_pass "${test_files[@]}")"
+fi
 
 if ((errors > 0)); then
   {

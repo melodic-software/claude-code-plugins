@@ -83,13 +83,22 @@ case "$FILE" in
 *.ps1 | *.psm1 | *.psd1) ;;
 *) exit 0 ;;
 esac
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a PowerShell file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Resolve repo root early — used to bound the settings opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (pwsh is
 # handed the to_pwsh_path form of $FILE), so both are resolved only when a sink
@@ -103,7 +112,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
@@ -132,8 +142,19 @@ emit_skipped() {
 # Resolve the file's directory and walk anchors as physical paths — same
 # representation hook::read_file_path uses for membership — so a symlinked
 # CLAUDE_PROJECT_DIR still matches the file's resolved directory at the ceiling.
-FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$FILE_DIR")")" || FILE_DIR_POSIX=""
-root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
+# `_to` writes in this shell so the caller does not pay a leftover capture
+# around builtins-only normalize_path or around physical_path's print wrapper
+# (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). realpath/readlink inside
+# physical_path_to is the necessary resolver.
+__ps_phys=""
+FILE_DIR_POSIX=""
+hook::physical_path_to __ps_phys "$FILE_DIR" || true
+hook::normalize_path_to FILE_DIR_POSIX "$__ps_phys"
+__ps_phys=""
+root=""
+hook::physical_path_to __ps_phys "$REPO_ROOT" || true
+hook::normalize_path_to root "$__ps_phys"
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
 # there, so the settings ceiling matches the file-membership ceiling that
@@ -144,7 +165,10 @@ root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
 # the fallback when unset.
 CEILING="$root"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  CEILING="$(hook::normalize_path "$(hook::physical_path "$CLAUDE_PROJECT_DIR")")"
+  __ps_phys=""
+  CEILING=""
+  hook::physical_path_to __ps_phys "$CLAUDE_PROJECT_DIR" || true
+  hook::normalize_path_to CEILING "$__ps_phys"
 fi
 
 # Consumer opt-in: a PSScriptAnalyzerSettings.psd1 that governs the edited file.
@@ -218,7 +242,7 @@ fi
 # landed here: the disclosure is TAKEN at each exit arm and composed into that
 # arm's one JSON document, and the guard's EXIT trap releases the snapshot on
 # arms that never take it.
-PS_REWRITE_MESSAGE_TEXT="powershell-format: reformatted $(basename "$FILE") via Invoke-Formatter (structural layout only)."
+PS_REWRITE_MESSAGE_TEXT="powershell-format: reformatted $FILE_BASE via Invoke-Formatter (structural layout only)."
 hook::rewrite_guard_begin "$FILE"
 
 # Single pwsh invocation — probe the module, gate code-loading settings, format
@@ -665,7 +689,7 @@ case $PWSH_EXIT in
   # Findings — advisory context, exit 0. Status "ok": the analyzer RAN and
   # produced a judgment (findings live in data.findings), mirroring the sibling
   # formatter plugins where status reflects whether the tool ran, not clean-ness.
-  PS_CTX="powershell-format: $(basename "$FILE") has PSScriptAnalyzer findings (advisory):"
+  PS_CTX="powershell-format: $FILE_BASE has PSScriptAnalyzer findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -769,7 +793,7 @@ case $PWSH_EXIT in
   # judgment was made. Surface via additionalContext (NOT stderr — an advisory
   # hook's exit-0 stderr can trip a false "Hook Error" label). Record as
   # "skipped" (the analyzer never ran to judgment).
-  PS_CTX="powershell-format: pwsh failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+  PS_CTX="powershell-format: pwsh failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     PS_CTX+=$'\n'"  $line"
