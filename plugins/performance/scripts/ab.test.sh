@@ -79,8 +79,10 @@ assert_contains "the per-arm percentiles are still reported" "n=4" "$RUN_OUT"
 # then carry a code no arm returned, intermittently.
 # discriminating-skip-required: the rc census is the only place a fabricated
 # exit code would surface, so this assertion is the whole proof.
+# The unread arm is `sleep 0.01`, not `exit 0`: ratio.py fail-closes when every
+# comparison-arm sample is 0ms, which `exit 0` records on CI.
 # shellcheck disable=SC2016  # $line belongs to the inner `bash -c`, not to this shell
-run_ab --a 'read -r line; [[ "$line" == "payload" ]]' --b 'exit 0' \
+run_ab --a 'read -r line; [[ "$line" == "payload" ]]' --b 'sleep 0.01' \
   --iterations 4 --warmup 0 --stdin 'payload'
 assert_eq "a run with stdin exits 0" "0" "$RUN_RC"
 assert_contains "the reading arm reports its own exit code" "rc={0: 4}" "$RUN_OUT"

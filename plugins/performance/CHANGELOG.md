@@ -3,6 +3,14 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.5]
+
+### Fixed
+
+- **`ab.test.sh`**: the unread stdin arm is `sleep 0.01` instead of `exit 0`, so a host whose
+  millisecond clock records `exit 0` as 0ms still produces a defined paired ratio. Sleep does
+  not drain stdin, so the 141-fabrication assertion still holds.
+
 ## [0.1.4]
 
 ### Fixed
