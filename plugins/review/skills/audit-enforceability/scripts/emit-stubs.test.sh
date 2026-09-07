@@ -471,6 +471,80 @@ for f in "$OUT20"/-/*.md; do
 done
 assert_eq "case 20: the rollback removed every stub despite the option-shaped path" "0" "$dash_left"
 
+# --- Case 21: a NON-ASCII case-variant spelling ------------------------------
+#
+# A string compare folds ASCII only when no locale is set, while the filesystem
+# folds all of Unicode, so a non-ASCII segment spelled two ways is one directory
+# the string compare calls two. This is the arm case 17 cannot cover.
+UNI="$TEST_TMPDIR/uni"
+if mkdir -p "$UNI/réviews/feat-x" 2>/dev/null && [[ -d "$UNI/réviews/feat-x" ]]; then
+  cp "$FINDINGS" "$UNI/réviews/feat-x/review-findings.md"
+  bash "$EMIT" --findings "$UNI/réviews/feat-x/review-findings.md" --classes "$CLASSES" \
+    --out "$UNI/RÉVIEWS/feat-x/stubs" --scan-dir "$UNI/réviews/feat-x" >/dev/null 2>&1
+  uni_exit=$?
+  uni_landed=0
+  for f in "$UNI/réviews/feat-x/stubs"/*.md; do
+    [[ -f "$f" ]] && uni_landed=$((uni_landed + 1))
+  done
+  if [[ "$uni_landed" -gt 0 ]]; then
+    fail "case 21: a non-ASCII case variant is fenced" "no stub inside --scan-dir" "$uni_landed stubs landed there"
+  elif [[ "$uni_exit" -eq 3 ]]; then
+    pass "case 21: a non-ASCII case variant of --scan-dir is refused"
+  else
+    # On a case-SENSITIVE volume the two spellings are genuinely two
+    # directories, so writing is correct and nothing landed in the scan dir.
+    pass "case 21: the non-ASCII spellings are distinct directories on this volume, and nothing landed in --scan-dir"
+  fi
+else
+  skip_case "case 21: this filesystem does not accept a non-ASCII path segment"
+fi
+
+# --- Case 22: whitespace and bare CR before a forbidden marker ---------------
+#
+# A reader downstream may split on a bare CR and may tolerate leading space, so
+# a check modelling only LF-terminated column-0 markers would pass a stub such a
+# reader still sees as declaring one.
+OUT22="$TEST_TMPDIR/out22"
+printf '1\tstyle\tjudgment\teditorconfig-severity\t branch: evil\n' >"$TEST_TMPDIR/classes-ws.tsv"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT22" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-ws.tsv" >/dev/null 2>&1
+assert_eq "case 22: a marker behind leading whitespace still exits 4" "4" "$?"
+assert_eq "case 22: the whitespace-marker run left no stub" "0" "$(count_files "$OUT22")"
+
+OUT22B="$TEST_TMPDIR/out22b"
+printf '1\tstyle\tjudgment\teditorconfig-severity\tpre\rbranch: evil\n' >"$TEST_TMPDIR/classes-cr.tsv"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT22B" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-cr.tsv" >/dev/null 2>&1
+assert_eq "case 22: a marker after an embedded bare CR still exits 4" "4" "$?"
+assert_eq "case 22: the CR-marker run left no stub" "0" "$(count_files "$OUT22B")"
+
+# --- Case 23: a segment ending in a dot or a space is refused ----------------
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$SCAN_DIR." \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 23: a home whose segment ends in a dot is refused" "3" "$?"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/out23 " \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 23: a home whose segment ends in a space is refused" "3" "$?"
+
+# --- Case 24: the rollback leaves pre-existing state alone -------------------
+OUT24="$TEST_TMPDIR/out24"
+mkdir -p "$OUT24"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT24" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
+assert_eq "case 24: the marker refusal still exits 4" "4" "$?"
+assert_eq "case 24: a home the run did NOT create survives its rollback" "1" \
+  "$([[ -d "$OUT24" ]] && echo 1 || echo 0)"
+assert_eq "case 24: but it holds no stub" "0" "$(count_files "$OUT24")"
+
+# --- Case 25: a row with an empty Rank is stubbed, not lost ------------------
+EMPTY_RANK="$TEST_TMPDIR/input/empty-rank.md"
+awk '/^\| 7 \|/ { sub(/^\| 7 \|/, "|  |") } { print }' "$FINDINGS" >"$EMPTY_RANK"
+OUT25="$TEST_TMPDIR/out25"
+bash "$EMIT" --findings "$EMPTY_RANK" --classes "$CLASSES" --out "$OUT25" \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 25: an empty Rank cell does not fail the run" "0" "$?"
+assert_eq "case 25: the empty-Rank row still produced a stub" "7" "$(count_files "$OUT25")"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"

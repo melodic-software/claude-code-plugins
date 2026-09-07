@@ -255,15 +255,36 @@ canonicalize_dir() {
 # refusal of a genuinely distinct sibling that differs only in case, which the
 # operator sees and can rename around. A visible false refusal is recoverable;
 # a silent write into the fix action's scan directory is not.
+# A string compare cannot settle it alone. `nocasematch` folds ASCII only when
+# no locale is set, which is the common state, while the filesystem folds all of
+# Unicode: `RÉVIEWS` and `réviews` are then one directory that the string
+# compare calls two. So the string compare is the FAST PATH, and a walk that
+# asks the filesystem itself (`-ef`, which compares device and inode rather than
+# spelling) is the authority for the part of the path that exists.
 is_within() {
-  local candidate="$1" ancestor="$2" had_nocase=0 rc=1
+  local candidate="$1" ancestor="$2" had_nocase=0 rc=1 probe prev
   shopt -q nocasematch && had_nocase=1
   shopt -s nocasematch
   if [[ "$candidate" == "$ancestor" || "$candidate" == "${ancestor%/}"/* ]]; then
     rc=0
   fi
   [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
-  return $rc
+  [[ $rc -eq 0 ]] && return 0
+
+  # The filesystem's own answer, for the existing part of the chain. Walks UP
+  # from the candidate, so nothing is created to decide it.
+  [[ -e "$ancestor" ]] || return 1
+  probe="$candidate"
+  while :; do
+    if [[ -e "$probe" ]] && [[ "$probe" -ef "$ancestor" ]]; then
+      return 0
+    fi
+    prev="$probe"
+    probe="${probe%/*}"
+    [[ "$probe" =~ ^[A-Za-z]:$ ]] && probe="$probe/"
+    [[ -n "$probe" ]] || probe="/"
+    [[ "$probe" != "$prev" ]] || return 1
+  done
 }
 
 # has_dotdot_segment <path>: true when the path AS GIVEN carries a `..`
@@ -276,6 +297,23 @@ has_dotdot_segment() {
   # A trailing `.` names the parent as the home. No binding resolves one, and a
   # slug of `.` that survived the charset rule is how it appears.
   [[ "$p" == "." || "$p" == *"/." ]]
+}
+
+# has_unaddressable_segment <dir>: true when a segment ends in a dot or a space.
+# Such a directory exists but Win32 path APIs cannot address it, so a stub home
+# there is invisible to every consumer that is not this shell; it also compares
+# unequal to the same name without the suffix, which is how it slips a fence.
+# Directory arguments only: a file name legitimately ends in `.md`.
+has_unaddressable_segment() {
+  local p="${1//\\//}" seg rest
+  rest="$p"
+  while [[ -n "$rest" ]]; do
+    seg="${rest%%/*}"
+    if [[ "$rest" == */* ]]; then rest="${rest#*/}"; else rest=""; fi
+    [[ -z "$seg" || "$seg" == "." || "$seg" == ".." ]] && continue
+    [[ "$seg" == *[.\ ] ]] && return 0
+  done
+  return 1
 }
 
 # is_unc_path <path>: true for a path whose leading double separator makes it a
@@ -405,6 +443,13 @@ if has_dotdot_segment "$findings"; then
     "$findings" >&2
   exit 3
 fi
+for dir_candidate in "$out" "$scan_dir" ${memory_root:+"$memory_root"}; do
+  if has_unaddressable_segment "$dir_candidate"; then
+    printf 'refusing: %s has a path segment ending in a dot or a space. That directory exists but is unaddressable by ordinary path APIs, so a stub home there is invisible to every consumer, and it compares unequal to the same name without the suffix.\n' \
+      "$dir_candidate" >&2
+    exit 3
+  fi
+done
 for unc_candidate in "$out" "$scan_dir" "$findings" ${memory_root:+"$memory_root"}; do
   if is_unc_path "$unc_candidate"; then
     printf 'refusing: %s is a network-share path. The fence normalizes it to a path that does not exist while the operating system still resolves the raw argument, so the two would not describe the same directory.\n' \
@@ -537,6 +582,7 @@ count=0
 malformed=0
 
 mkdir_done=0
+created_home=0
 
 while IFS= read -r record; do
   [[ -n "$record" ]] || continue
@@ -545,6 +591,11 @@ while IFS= read -r record; do
     continue
   fi
   IFS=$'\002' read -r r_rank r_tier r_conf r_loc r_surf r_find r_act <<<"$record"
+  # An empty Rank cell is a row, not a reason to lose one. It cannot key the
+  # classification map (an empty array subscript is an error that would drop the
+  # row while the summary still counted only what it wrote), so it takes a
+  # placeholder and falls through to the unclassified defaults.
+  [[ -n "$r_rank" ]] || r_rank="unranked"
   table_ranks+=("$r_rank")
   seen_rank["$r_rank"]=1
 
@@ -585,6 +636,7 @@ while IFS= read -r record; do
   fi
 
   if [[ $mkdir_done -eq 0 ]]; then
+    [[ -d "$out" ]] || created_home=1
     if ! mkdir -p "$out"; then
       printf 'refusing: could not create the stub home %s.\n' "$out" >&2
       exit 2
@@ -660,16 +712,27 @@ fi
 # the four markers. Read in-shell rather than with grep: the markers are
 # line-anchored literals, and a spawn per stub is the dominant cost on a
 # spawn-bound host.
+# The line model is deliberately WIDER than this script's own writer uses. A
+# reader downstream may split on a bare CR as well as LF (every
+# universal-newline reader does), and may tolerate leading whitespace before a
+# key. A check that modelled only LF-terminated, column-0 markers would pass a
+# stub that such a reader still sees as declaring one, so CR is treated as a
+# terminator too and leading whitespace is stripped before the compare.
 has_forbidden_marker() {
-  local line
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    case "$line" in
-    'type: review-findings'* | 'type: fix-pass-record'* | 'branch:'* | '## Findings'*)
-      return 0
-      ;;
-    *) ;;
-    esac
+  local chunk line
+  while IFS= read -r chunk || [[ -n "$chunk" ]]; do
+    while [[ -n "$chunk" || -n "${chunk+x}" ]]; do
+      line="${chunk%%$'\r'*}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      case "$line" in
+      'type: review-findings'* | 'type: fix-pass-record'* | 'branch:'* | '## Findings'*)
+        return 0
+        ;;
+      *) ;;
+      esac
+      [[ "$chunk" == *$'\r'* ]] || break
+      chunk="${chunk#*$'\r'}"
+    done
   done <"$1"
   return 1
 }
@@ -687,10 +750,12 @@ if [[ -n "$violation" ]]; then
   # option, `rm` refuses the lot, and the rollback this refusal promises would
   # silently leave the marker-bearing stubs on disk.
   rm -f -- ${written[@]+"${written[@]}"}
-  # A home this run created and then emptied is not left behind as evidence of
-  # a write that was taken back. rmdir refuses a directory that still holds
-  # anything, so a pre-existing home with other files in it survives.
-  rmdir "$out" 2>/dev/null || :
+  # Only a home THIS RUN created is removed. `rmdir` alone would also delete a
+  # pre-existing empty home the caller had prepared, which is state the run did
+  # not create and has no business destroying.
+  if [[ $created_home -eq 1 ]]; then
+    rmdir -- "$out" 2>/dev/null || :
+  fi
   printf 'refusing: %s carried a findings-file marker, which would offer it to the fix pass. Every stub this run wrote has been removed.\n' \
     "$violation" >&2
   exit 4
