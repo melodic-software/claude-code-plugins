@@ -117,7 +117,9 @@ exit 0
 
 What the canonical script does (details and lifecycle in the
 [component README](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/README.md)):
-parallel tracks install `gh` + PowerShell (apt), the fleet's exact .NET SDK pins into
+parallel tracks install `gh` (the pinned, checksum-verified `linux_amd64` release tarball from
+`github.com/cli/cli`, at the same version and SHA-256 the CI runner image and dotfiles' mise pin
+carry — Ubuntu's archive `gh` is years stale) and PowerShell (apt), the fleet's exact .NET SDK pins into
 `/opt/dotnet`, and Node 24.18.0 via the VM's nvm; it then runs the checked-out repo's own
 `.claude/cloud-bootstrap.sh` — baking its results into the snapshot, and, because it runs before
 the session process launches, making the repo's plugins live at turn one. Every step logs with a timestamp to
@@ -225,7 +227,17 @@ session on this repo in the new environment and ask Claude to verify:
    #2654 Blocker 2 failure, where dpkg logs showed the build stopping ~13 s in with PowerShell
    and the baked-in bootstrap never run. Force a rebuild (any trivial script-field edit) before
    debugging anything else; `/var/log/melodic-env-setup.log` shows how far the build got.
-1. `gh --version`, `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
+1. `gh --version` — read the number, don't just confirm the binary exists. Expect **2.98.0 or
+   newer**, the version the CI runner image and dotfiles' mise pin both carry. A `2.45.x` here
+   has two possible causes, and step 0's completion stamp tells them apart before you dig
+   further: if the stamp predates this pin (check its timestamp against when the pinned-tarball
+   change landed in `components/cloud-environment/setup.sh`), the session simply cached an
+   older script version — force a rebuild (any trivial script-field edit) rather than treating
+   this as a failure. Only once the stamp is current does a `2.45.x` reading mean the setup
+   script's pinned-tarball step actually failed (`grep gh /var/log/melodic-env-setup.log` for
+   its `WARN`), leaving scripts that shell out to `gh` running against a CLI 53 minor versions
+   behind the other two lanes.
+   Then `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
    `node --version` (expect the `.node-version` pin), `check-tools` for the VM inventory.
 2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
    `actionlint`), and re-running the bootstrap is a fast no-op.
