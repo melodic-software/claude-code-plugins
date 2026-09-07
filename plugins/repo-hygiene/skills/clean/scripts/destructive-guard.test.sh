@@ -11,21 +11,21 @@ CASE_NUM=0
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
-# guard_exit <command> [tool_name] — omitting the tool defaults to Bash; passing
+# guard_exit <command> [tool_name]. Omitting the tool defaults to Bash; passing
 # an explicit empty string sends an empty tool_name (`${2-…}`, not `${2:-…}`).
 guard_exit() {
   jq -n --arg c "$1" --arg t "${2-Bash}" '{tool_name:$t, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
-# guard_exit_rawtool <json-tool-value> <command> — tool_name as a raw JSON value,
-# so non-string payloads (null, a number) reach the guard as themselves.
+# guard_exit_rawtool <json-tool-value> <command>. tool_name is sent as a raw JSON
+# value, so non-string payloads (null, a number) reach the guard as themselves.
 guard_exit_rawtool() {
   jq -n --argjson t "$1" --arg c "$2" '{tool_name:$t, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
-# guard_exit_notool <command> — payload with no tool_name key at all.
+# guard_exit_notool <command>. Payload with no tool_name key at all.
 guard_exit_notool() {
   jq -n --arg c "$1" '{tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
