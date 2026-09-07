@@ -153,6 +153,70 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         parsed = json.loads(text)
         return parsed.get("systemMessage")
 
+    def decision_records(self, data_root: Path | None = None) -> list[dict]:
+        root = self.data_root if data_root is None else data_root
+        path = monitor.guard_decision_log.log_path(str(root))
+        if not path.is_file():
+            return []
+        return [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    # -- the did-not-run record (#3862) ------------------------------------
+    #
+    # The guard cannot write this state: a hook that failed to launch, or
+    # launched and exited non-zero, records nothing from inside its own
+    # process. Only this detector can.
+
+    def test_a_detected_launch_failure_is_recorded_as_did_not_run(self) -> None:
+        self.write_transcript([_record(exit_code=1, duration_ms=17054, stderr="boom")])
+        self.assertIsNotNone(self.run_monitor(session_id="session-42"))
+        (entry,) = self.decision_records()
+        self.assertEqual("not-run", entry["decision"])
+        self.assertEqual("guard-launch-monitor", entry["hook"])
+        self.assertEqual("hook-non-blocking-error", entry["rule"])
+        self.assertEqual(1, entry["failure_count"])
+        self.assertEqual(1, entry["exit_code"])
+        self.assertEqual(17054, entry["duration_ms"])
+        self.assertEqual("boom", entry["stderr"])
+        self.assertEqual("session-42", entry["session_id"])
+        self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
+
+    def test_the_did_not_run_record_reports_the_most_recent_failure(self) -> None:
+        self.write_transcript(
+            [
+                _record(exit_code=1, duration_ms=100, stderr="first failure"),
+                _record(exit_code=9, duration_ms=200, stderr="second failure"),
+            ]
+        )
+        self.assertIsNotNone(self.run_monitor())
+        (entry,) = self.decision_records()
+        self.assertEqual(2, entry["failure_count"])
+        self.assertEqual(9, entry["exit_code"])
+        self.assertEqual("second failure", entry["stderr"])
+
+    def test_a_clean_transcript_records_nothing(self) -> None:
+        self.write_transcript([_record(command=_OTHER_HOOK_COMMAND)])
+        self.assertIsNone(self.run_monitor())
+        self.assertEqual([], self.decision_records())
+
+    def test_the_did_not_run_record_follows_the_once_per_session_marker(self) -> None:
+        self.write_transcript([_record(exit_code=1, duration_ms=17054)])
+        self.assertIsNotNone(self.run_monitor())
+        self.assertIsNone(self.run_monitor())
+        self.assertEqual(1, len(self.decision_records()))
+
+    def test_a_failing_record_write_still_emits_the_warning(self) -> None:
+        """The detector's own contract wins: over-warning is the safe direction,
+        and an audit write can never suppress a finding."""
+        self.write_transcript([_record(exit_code=1, duration_ms=17054)])
+        with mock.patch.object(
+            monitor.guard_decision_log, "record", side_effect=OSError("full disk")
+        ):
+            self.assertIsNotNone(self.run_monitor())
+
     # -- criterion 3: the #1423 discriminating shape -----------------------
 
     def test_1423_shape_states_exit_code_and_duration_explicitly(self) -> None:
