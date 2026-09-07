@@ -535,10 +535,14 @@ fi
 CRASH_DIR="$TEST_TMPDIR/crash-hook"
 mkdir -p "$CRASH_DIR"
 cp "$HOOK_DIR/hook-utils.sh" "$CRASH_DIR/hook-utils.sh"
+cp "$HOOK_DIR/abort-boundary.sh" "$CRASH_DIR/abort-boundary.sh"
 awk '
   { print }
-  $0 == "trap block_hook_bypass_on_exit EXIT" { print "exit 99" }
+  $0 ~ /^guard::abort_boundary block-hook-bypass / { print "exit 99" }
 ' "$HOOK" >"$CRASH_DIR/block-hook-bypass.sh"
+if ! grep -q '^exit 99$' "$CRASH_DIR/block-hook-bypass.sh"; then
+  bad "crash fixture: the boundary install line was not found, so no crash was injected"
+fi
 crash_out=$(bash "$CRASH_DIR/block-hook-bypass.sh" <<<"$(command_json "cat > foo.txt")" 2>&1)
 crash_rc=$?
 assert_exit "crash path fails open" 0 "$crash_rc"

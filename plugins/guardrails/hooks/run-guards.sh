@@ -71,8 +71,20 @@ set -uo pipefail
 # is kept only for a relative spelling.
 _RG_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_RG_DIR" == "${BASH_SOURCE[0]}" ]] && _RG_DIR=.
+# shellcheck source=abort-boundary.sh
+source "$_RG_DIR/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a visible notice. This covers
+# the dispatcher's own code, before and after the guards: stdin, the jq
+# priming, the classifier load, the merge. An abort here would otherwise skip
+# EVERY guard of the event with a bare status and no line of its own. Each
+# guard installs its own boundary inside its isolation subshell, which does not
+# inherit this one. The event is filled in once the payload is read (it names
+# the additionalContext block; until then the notice is systemMessage only),
+# and the trap is released right before the deliberate aggregated exit, so a
+# non-block status a guard returned still surfaces exactly as it did.
+guard::abort_boundary run-guards "" open 0 2
 # shellcheck source=hook-utils.sh
-source "$_RG_DIR/hook-utils.sh"
+source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 case "$_RG_DIR" in
 /* | ?:[/\\]*) HOOK_DIR="$_RG_DIR" ;;
@@ -128,6 +140,7 @@ PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'
   '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source'
+  '.hook_event_name'
 )
 
 # Fused capture: GNU Bash forks a subshell for INPUT=$(hook::buffer_stdin)
@@ -170,6 +183,9 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   RUN_GUARDS_PRIMED=1
   RUN_GUARDS_FILTERS=("${PRIME_FILTERS[@]}")
   RUN_GUARDS_VALUES=("${HOOK_JQ_FIELDS[@]}")
+  # `.hook_event_name` is the last prime filter. It costs nothing extra (same
+  # jq process) and lets the dispatcher's own abort notice name the event.
+  [[ "${RUN_GUARDS_VALUES[9]}" =~ ^[A-Za-z]+$ ]] && _GAB_EVENT="${RUN_GUARDS_VALUES[9]}"
 fi
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
@@ -297,4 +313,8 @@ elif ((${#OUTS[@]} > 1)); then
   fi
 fi
 
+# The aggregated status is the dispatcher's deliberate answer, whatever number
+# it is (a guard-not-found 1 is already loud on stderr above; a stub's 3 is the
+# contract test's). Release the boundary so it is not reported as an abort.
+guard::abort_boundary_release
 exit "$RC"
