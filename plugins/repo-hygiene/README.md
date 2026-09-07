@@ -105,7 +105,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `clean_destructive_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED` | Session-scoped PreToolUse guard blocking destructive Bash commands while the clean skill is active |
+| `clean_destructive_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED` | Session-scoped PreToolUse guard blocking destructive Bash and PowerShell commands while the clean skill is active |
 
 ### How to set these
 
