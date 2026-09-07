@@ -3,6 +3,21 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.4]
+
+### Changed
+
+- **Three descriptions recovered headroom against the Agent Skills field maximum (#3845).**
+  `audit-complexity` (1016), `audit-coverage` (1007) and `principles` (1004) all sat within twenty
+  codepoints of the spec's 1024-codepoint `description` maximum. A description is the surface an
+  author edits to add a trigger phrase, so each of the three was one ordinary edit away from a
+  breach the Skills API rejects at upload. They now measure 963, 968 and 949: 53, 39 and 55
+  codepoints recovered. The rewrite cut redundancy, not vocabulary. Every single-quoted trigger
+  phrase survives verbatim (7, 7 and 6 phrases), confirmed by check 3 of
+  `plugins/skill-quality/scripts/check-skill.sh` against `origin/main` rather than by reading the
+  diff, because clipping a description is the failure mode that makes a skill undiscoverable.
+  No skill's behavior changed.
+
 ## [0.1.1]
 
 ### Fixed
