@@ -679,15 +679,20 @@ pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
 
 # A7b. The drift check fires on a USER reply, so a round overtaken by non-user output —
 #      a sub-agent return, a background notification, a team report — falls outside it and
-#      goes un-restated (#3923). These four pins are the out-of-band rule's own defense:
-#      the trigger, the superseded-recommendation outcome, the narrow re-presentation, and
-#      the floor. Drop any one and the rule reads as advisory.
+#      goes un-restated. These pins are the out-of-band rule's own defense: the trigger,
+#      relevance vs arrival, the superseded-recommendation outcome, the environment-resolve
+#      outcome, the narrow re-presentation, the hold-refusal, the floor, and the SKILL.md
+#      pointer. Drop any one and the rule reads as advisory.
 pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
   "non-user content reaching the transcript while a round is open"
 pin "loop.md keys the out-of-band check on relevance, not arrival" "$LOOP" \
   "The trigger is RELEVANCE, not arrival"
 pin "loop.md names a contradicted recommendation as superseded" "$LOOP" \
   "naming the superseded recommendation as superseded"
+pin "loop.md resolves an environment-answered open row" "$LOOP" \
+  "Resolve it and STATE the answer"
+pin "loop.md restates only the moved row, never the whole round" "$LOOP" \
+  "**Re-present narrowly.**"
 pin "loop.md refuses to hold the round for a pending dispatch" "$LOOP" \
   "**This does not hold the round.**"
 pin "loop.md floors the out-of-band restate on the next user reply" "$LOOP" \
