@@ -138,6 +138,27 @@ hook::emit_skip_notice() {
   hook::emit_channels "$event" "$msg" "$msg"
 }
 
+# The exit-0 notice for hook::buffer_stdin rc 3 (a JSON payload cut short by
+# the pipe CLOSING mid-document; a pipe that stalls on such a prefix is rc 2
+# and never reaches this). Not once-per-session: each occurrence is one tool
+# call that ran unevaluated, and the user is the one who can act on a starved
+# host. Same text on stderr (next to buffer_stdin's own diagnostic) and on
+# both hook channels. <event> may be empty when the caller does not know the
+# hook event — the dispatcher runs under several — in which case only
+# systemMessage is emitted, since hookSpecificOutput requires the event name.
+# The caller exits 0 right after.
+#   hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
+hook::stdin_cut_short_notice() {
+  local event="$1" label="$2"
+  local msg="$label: hook stdin was cut short (the payload pipe closed mid-document), so this tool call was not evaluated and is allowed through. That is a transport fault on this host, not a property of the command, and it says nothing about what would run. If it recurs the host is starved; see the stdin_read_timeout option and the recorded hook-run durations."
+  echo "$msg" >&2
+  if [[ -n "$event" ]]; then
+    hook::emit_channels "$event" "$msg" "$msg"
+  else
+    hook::emit_channels "" "" "$msg"
+  fi
+}
+
 # Trim a PATH dump to directories that can plausibly hold a host / user /
 # repo-local tool. Other plugins' bin/hooks dirs are the 60+ entry dump that
 # made the first skip notice 10 KB (#3128 / #3134). Cap kept entries; say
@@ -1359,8 +1380,10 @@ hook::repo_relative_path() {
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
 # late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
-# on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the
-# read stalled before a complete JSON payload arrived (caller may block).
+# on success; returns 1 on empty/incomplete stdin (caller skips), 2 when the
+# read stalled before a complete JSON payload arrived or the buffer is not
+# JSON (caller may block), or 3 when a well-formed JSON prefix arrived and
+# the pipe then CLOSED mid-document (a transport fault; caller loud-allows).
 #
 # The bound (stdin_read_timeout userConfig option, in seconds, read via
 # CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2) is an IDLE bound, not a
@@ -1588,7 +1611,8 @@ hook::resolve_read_slice() {
 # empty fields), matching the print form's completeness check.
 #
 # Return codes match hook::buffer_stdin: 0 payload, 1 empty, 2 stalled or
-# malformed. The print form below is the compatibility wrapper.
+# not JSON, 3 cut short at EOF. The print form below is the compatibility
+# wrapper.
 hook::buffer_stdin_to() {
   local __hu_dest="$1"
   shift
@@ -1699,18 +1723,56 @@ hook::buffer_stdin_to() {
   elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1; then
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
-    # a hook payload routinely exceeds it.
+    # a hook payload routinely exceeds it. A direct probe, not a command
+    # substitution: this is the hot path (every closed-pipe payload on POSIX
+    # lands here), and `$(...)` would add a subshell fork to it on every hook
+    # invocation. jq's diagnostic is fetched by a second run below, only once
+    # this probe has failed and the stall and whitespace arms have been
+    # decided, so a valid payload pays for exactly one jq.
     printf '%s' "$__hu_input" | jq -e . >/dev/null 2>&1 || __hu_jq_rc=$?
   fi
   if ((__hu_jq_rc != 0 && __hu_jq_rc != 127)); then
+    # STALLED stays fail-closed, and is decided FIRST — before the
+    # whitespace-only check and before the content split below. A pipe still
+    # open after a whole idle bound without a complete document is rc 2
+    # whatever arrived, whitespace included. A stall is reachable from the
+    # agent's side (a payload past 64 KiB splits the harness write; host load
+    # from earlier tool calls widens the gap) and the dispatcher takes rc 3
+    # before any guard is sourced, so an allow here would let one induced
+    # stall skip every guard on the lane. Some genuine stalls on a starved
+    # host are therefore still denied; that is the accepted trade. Only the
+    # early-EOF arm below is allowed.
     if ((__hu_stalled)); then
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
     # Whitespace-only stdin (e.g. `<<<""` sends a lone newline) is an empty
     # payload, not a malformed one — keep the silent rc=1 path advisory hooks
-    # treat as a no-op.
+    # treat as a no-op. Reached only at EOF, since a stall returned above.
     [[ -n "${__hu_input//[[:space:]]/}" ]] || return 1
+    # CUT SHORT AT EOF versus NOT JSON. jq names a document that ended before
+    # it closed "Unfinished JSON term at EOF" / "Unfinished string at EOF"
+    # (wording stable across jq 1.5 through 1.7; the suite pins it), while
+    # text that is not JSON fails on the offending token. The read reached
+    # here on end-of-file, not on the idle bound, so a well-formed prefix
+    # means every byte that arrived was the harness's payload and the
+    # harness's pipe then closed before the rest came: a transport fault.
+    # The harness serializes that payload and owns the close, so the agent
+    # cannot stage it; the fault says nothing about the command. A blocking
+    # caller therefore must not deny on it: rc 3. Text that never parsed
+    # keeps rc 2. Should jq's wording change, an unrecognized diagnostic
+    # falls through to rc 2 — never a wider allow. The diagnostic is read
+    # here, by a second jq over the same buffer (stdout dropped, stderr
+    # captured), and nowhere earlier: this arm is only reached once the
+    # probe above has failed on a non-stalled, non-blank payload, so the
+    # re-run is a cold-path cost and the stall and whitespace verdicts
+    # above never depend on it.
+    local __hu_jq_err=""
+    __hu_jq_err=$(printf '%s' "$__hu_input" | jq -e . 2>&1 >/dev/null) || true
+    if [[ "$__hu_jq_err" == *Unfinished* ]]; then
+      echo "hook stdin was cut short: ${#__hu_input} characters of a JSON payload arrived, then the pipe closed before the document was complete (a transport fault, not a property of the tool call)." >&2
+      return 3
+    fi
     echo "BLOCKED: hook stdin is not valid JSON." >&2
     return 2
   fi

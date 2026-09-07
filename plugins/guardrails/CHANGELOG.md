@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.18]
+
+### Fixed
+
+- **A hook payload cut short in transit no longer blocks the tool call.** On a
+  starved Windows host `block-hook-bypass` denied a plain read-only command
+  with `BLOCKED: hook stdin is not valid JSON.` The harness pipe had delivered
+  part of the payload and then reported end-of-file, and `hook::buffer_stdin`
+  folded that truncated buffer into the same rc 2 as text that was never JSON.
+  The verdict at end-of-file is now split on what arrived: jq's own parse
+  diagnostic tells a document that ended before it closed ("Unfinished ... at
+  EOF") from text that fails on a token, and only the latter stays rc 2. A
+  well-formed prefix the pipe CLOSED on is a new rc 3: a transport fault the
+  agent cannot stage that says nothing about the command, so no guard denies
+  on it. `run-guards.sh` takes it once as a loud allow (`systemMessage` plus
+  stderr, exit 0, no guard runs); `block-hook-bypass` run alone adds
+  `additionalContext` and a `skipped` telemetry envelope with `data.reason`
+  `stdin-cut-short`. A pipe that stays OPEN and goes quiet past the idle bound
+  on the same prefix is a stall, and a stall stays rc 2 with the unchanged
+  timed-out line, because a stall is reachable from the agent's side and the
+  dispatcher's rc 3 exit precedes every guard. The successful stdin path still
+  probes with a direct `printf | jq` (no stderr-capturing subshell); the
+  diagnostic jq runs only after that probe has failed and after the stall and
+  whitespace arms have returned. `hook::stdin_cut_short_notice` carries the
+  notice. The stdin posture comments in the sibling guards, the README, and
+  the `stdin_read_timeout` option text say the same.
+
 ## [0.32.17]
 
 ### Changed
