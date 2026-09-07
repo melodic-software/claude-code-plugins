@@ -13,12 +13,19 @@
 #   2. pin the tip under refs/repo-hygiene/deleted/<branch> so gc cannot prune
 #      the commits out from under the recorded identifier,
 #   3. append the deletion to the capture's ledger (<capture>.deleted.tsv),
-#   4. only then `git branch -d|-D <branch>`.
+#   4. only then delete, with `git update-ref -d refs/heads/<branch> <tip>`: an
+#      atomic compare-and-delete inside git's ref lock, which refuses when the
+#      tip is no longer <tip>. Step 1 closes the window between the batch check
+#      and the pin; step 4's condition closes the window between the pin and
+#      the delete. Neither window can remove a branch whose current tip nobody
+#      recorded.
 # Any failure in 1 to 3 aborts the batch BEFORE that branch is touched; branches
-# already deleted keep their backup ref and ledger row. The batch-wide
-# precondition check (capture present, every branch captured, every tip
-# unmoved, no protected/worktree/unforced-REVIEW branch) runs before the first
-# deletion, so a refused batch deletes nothing at all.
+# already deleted keep their backup ref and ledger row. A refusal in 4 leaves
+# the branch intact with its pin in place (recoverable, and noted in the
+# ledger). The batch-wide precondition check (capture present, every branch
+# captured, every tip unmoved, no protected/worktree/unforced-REVIEW branch, a
+# SAFE-by-ancestry tip actually merged) runs before the first deletion, so a
+# refused batch deletes nothing at all.
 #
 # Usage:
 #   git-branch-delete.sh --capture PATH [--dry-run] [--force-review] BRANCH...
@@ -150,19 +157,22 @@ if [[ $REFUSED -eq 0 ]]; then
   if [[ "$first" != "# repo-hygiene branch tip capture v1" ]]; then
     refuse "not a branch tip capture (bad header): $CAPTURE ($CAPTURE_HINT)"
   else
+    # A row is recognised by its shape (tab-separated, a commit id in column
+    # 2), never by its first character: `#` is legal at the start of a branch
+    # name, so a comment heuristic would read such a branch as metadata and
+    # refuse it as uncaptured.
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -z "$line" ]] && continue
-      if [[ "$line" == '#'* ]]; then
-        [[ "$line" == '# common_dir: '* ]] && CAP_COMMON="${line#\# common_dir: }"
-        continue
-      fi
       IFS=$'\t' read -r c_branch c_tip c_tier c_pr _rest <<<"$line"
-      [[ -z "$c_branch" || -z "$c_tip" ]] && continue
-      CAP_TIP["$c_branch"]="$c_tip"
-      CAP_TIER["$c_branch"]="${c_tier:-}"
-      CAP_PR["$c_branch"]="${c_pr:-none}"
-      CAP_ROWS=$((CAP_ROWS + 1))
+      if [[ -n "$c_branch" && "$c_tip" =~ ^[0-9a-f]{40,64}$ ]]; then
+        CAP_TIP["$c_branch"]="$c_tip"
+        CAP_TIER["$c_branch"]="${c_tier:-}"
+        CAP_PR["$c_branch"]="${c_pr:-none}"
+        CAP_ROWS=$((CAP_ROWS + 1))
+      elif [[ "$line" == '# common_dir: '* ]]; then
+        CAP_COMMON="${line#\# common_dir: }"
+      fi
     done <"$CAPTURE"
     if [[ $CAP_ROWS -eq 0 ]]; then
       refuse "capture holds no branch rows: $CAPTURE ($CAPTURE_HINT)"
@@ -190,18 +200,33 @@ live_tip() {
   git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$1" 2>/dev/null | tr -d '\r'
 }
 
-# delete_flag <tier> <pr> -> -d or -D. Mirrors §4.7: a PR-merged SAFE branch is
-# squash-merged more often than not, so `-d` would refuse it; ancestry-merged
-# SAFE takes the safe `-d`; LIKELY-SAFE (upstream gone) and forced REVIEW take -D.
-delete_flag() {
+# delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
+# safe delete, admitted only when its tip is merged into MERGE_TARGET (the check
+# `git branch -d` would make); a PR-merged SAFE branch is squash-merged more
+# often than not, so that check would refuse it; LIKELY-SAFE (upstream gone) and
+# forced REVIEW are force deletes. The delete itself is the same atomic
+# compare-and-delete in every mode.
+delete_mode() {
   local tier="$1" pr="$2"
   case "$tier" in
   SAFE)
-    if [[ "$pr" == *MERGED* ]]; then printf -- '-D'; else printf -- '-d'; fi
+    if [[ "$pr" == *MERGED* ]]; then printf 'force'; else printf 'safe'; fi
     ;;
-  *) printf -- '-D' ;;
+  *) printf 'force' ;;
   esac
 }
+
+# What a safe delete must be merged into: origin/<default>, which is what the
+# audit's "merged (git ancestry)" verdict was computed against; then the local
+# default branch, then HEAD, when origin/<default> is not fetched. Empty when
+# none resolves, which fails every safe delete closed.
+MERGE_TARGET=""
+for candidate in "refs/remotes/origin/$DEFAULT_BRANCH" "refs/heads/$DEFAULT_BRANCH" HEAD; do
+  if git -C "$REPO_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+    MERGE_TARGET="$candidate"
+    break
+  fi
+done
 
 declare -A SEEN=()
 PLAN=()
@@ -260,6 +285,15 @@ for branch in "${BRANCHES[@]}"; do
     ;;
   esac
 
+  # A SAFE-by-ancestry row whose tip is not actually merged (a forged or stale
+  # capture) is refused here, before the pin and the ledger row, instead of
+  # being discovered by the delete after both were written.
+  if [[ "$(delete_mode "$tier" "${CAP_PR[$branch]}")" == safe ]] &&
+    ! { [[ -n "$MERGE_TARGET" ]] && git -C "$REPO_ROOT" merge-base --is-ancestor "$tip" "$MERGE_TARGET" 2>/dev/null; }; then
+    refuse "$branch (captured as SAFE by ancestry, but $tip is not merged into ${MERGE_TARGET#refs/remotes/}; the capture does not describe this branch; re-run git-branch-audit.sh)"
+    continue
+  fi
+
   PLAN+=("$branch")
 done
 
@@ -271,8 +305,8 @@ fi
 
 if [[ "$MODE" == "dry-run" ]]; then
   for branch in "${PLAN[@]}"; do
-    printf 'Planned: %s %s (%s, git branch %s)\n' "$branch" "${CAP_TIP[$branch]}" "${CAP_TIER[$branch]}" \
-      "$(delete_flag "${CAP_TIER[$branch]}" "${CAP_PR[$branch]}")"
+    printf 'Planned: %s %s (%s, %s delete)\n' "$branch" "${CAP_TIP[$branch]}" "${CAP_TIER[$branch]}" \
+      "$(delete_mode "${CAP_TIER[$branch]}" "${CAP_PR[$branch]}")"
   done
   printf 'Summary: planned=%s refused=0 deleted=0\n' "${#PLAN[@]}"
   printf 'Restore: git branch <branch> <tip> (tips in %s)\n' "$CAPTURE"
@@ -281,7 +315,30 @@ fi
 
 # ---- Apply -----------------------------------------------------------------------
 
-LEDGER="${CAPTURE%.tsv}.deleted.tsv"
+# resolve_file <path>: the path with every symlink followed and the directory
+# canonicalised, so the ledger is derived from where the capture really is.
+resolve_file() {
+  local path="$1" target dir hops=0
+  while [[ -L "$path" && $hops -lt 40 ]]; do
+    target="$(readlink "$path")" || return 1
+    case "$target" in
+    /* | [A-Za-z]:*) path="$target" ;;
+    *) path="$(dirname "$path")/$target" ;;
+    esac
+    hops=$((hops + 1))
+  done
+  dir="$(cd "$(dirname "$path")" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s' "$dir" "$(basename "$path")"
+}
+
+# The ledger sits beside the capture's real file. Derived from the path as
+# given, a capture reached through a symlink (or a relative path) would put the
+# ledger next to the link, outside the durable sink the capture was written to.
+# A `--capture-file` outside `.git` is honoured as given: it is the documented
+# fallback when the sink is unwritable, and the pin, not the ledger, is what
+# protects the tip.
+CAPTURE_REAL="$(resolve_file "$CAPTURE")" || CAPTURE_REAL="$CAPTURE"
+LEDGER="${CAPTURE_REAL%.tsv}.deleted.tsv"
 BACKUP_NS="refs/repo-hygiene/deleted"
 DELETED=0
 FAILED=0
@@ -291,12 +348,16 @@ ledger_line() {
   printf '%s\n' "$1" >>"$LEDGER" 2>/dev/null
 }
 
-if [[ ! -f "$LEDGER" ]]; then
-  if ! ledger_line "$(printf '# repo-hygiene branch deletion ledger v1\n# capture: %s\n# restore: git branch <branch> <tip>\n# columns: branch\ttip\tdeleted_at\tbackup_ref\ttier' "$CAPTURE")"; then
-    printf 'Aborted: cannot write ledger %s; nothing deleted\n' "$LEDGER"
-    printf 'Summary: planned=%s refused=0 deleted=0 failed=0 aborted=1\n' "${#PLAN[@]}"
-    exit 1
-  fi
+ledger_unwritable=0
+if [[ -d "$LEDGER" ]] || { [[ -e "$LEDGER" && ! -w "$LEDGER" ]]; }; then
+  ledger_unwritable=1
+elif [[ ! -e "$LEDGER" ]]; then
+  ledger_line "$(printf '# repo-hygiene branch deletion ledger v1\n# capture: %s\n# restore: git branch <branch> <tip>\n# columns: branch\ttip\tdeleted_at\tbackup_ref\ttier' "$CAPTURE_REAL")" || ledger_unwritable=1
+fi
+if [[ $ledger_unwritable -eq 1 ]]; then
+  printf 'Aborted: cannot write ledger %s; nothing deleted\n' "$LEDGER"
+  printf 'Summary: planned=%s refused=0 deleted=0 failed=0 aborted=1\n' "${#PLAN[@]}"
+  exit 1
 fi
 
 printf 'Ledger: %s\n' "$LEDGER"
@@ -325,14 +386,24 @@ for branch in "${PLAN[@]}"; do
     break
   fi
 
-  # 4. Delete.
-  flag="$(delete_flag "$tier" "${CAP_PR[$branch]}")"
-  if err="$(git -C "$REPO_ROOT" branch "$flag" "$branch" 2>&1 >/dev/null)"; then
+  # 4. Delete, conditioned on the tip. `update-ref -d <ref> <expected>` is a
+  #    compare-and-delete inside git's ref lock: a tip that moved after step 1
+  #    makes it refuse ("is at X but expected Y") instead of removing a branch
+  #    whose current tip is recorded nowhere. Step 1 alone cannot close that
+  #    window; this does.
+  if err="$(git -C "$REPO_ROOT" update-ref -d "refs/heads/$branch" "$tip" 2>&1 >/dev/null)"; then
     printf 'Deleted: %s %s (was %s) restore: git branch %s %s\n' "$branch" "$tip" "$tier" "$branch" "$tip"
     DELETED=$((DELETED + 1))
   else
+    now_tip="$(live_tip "$branch")"
+    if [[ "$now_tip" != "$tip" ]]; then
+      ledger_line "# not deleted: $branch (tip moved between pin and delete: captured $tip, now ${now_tip:-gone}; branch left intact)"
+      ABORTED="$branch (tip moved between pin and delete: captured $tip, now ${now_tip:-gone}; branch left intact, pin $BACKUP_NS/$branch still records $tip)"
+      break
+    fi
     err="$(printf '%s' "$err" | tr -d '\r' | head -n1)"
-    printf 'Failed: %s (%s)\n' "$branch" "${err:-git branch $flag failed}"
+    ledger_line "# not deleted: $branch (${err:-git update-ref -d failed})"
+    printf 'Failed: %s (%s)\n' "$branch" "${err:-git update-ref -d failed}"
     FAILED=$((FAILED + 1))
   fi
 done

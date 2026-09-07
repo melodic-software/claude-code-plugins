@@ -84,20 +84,20 @@ If SAFE or LIKELY-SAFE branches exist, present options via the [confirmation gat
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-delete.sh --capture <TipCapture path> --dry-run <branch>...
 ```
 
-Show the `Planned:` lines (branch, tip, tier, and whether `-d` or `-D` will be used) in the confirmation. After the user confirms that exact set:
+Show the `Planned:` lines (branch, tip, tier, and whether it is a safe delete, admitted only because the tip is merged into `origin/<default>`, or a force delete) in the confirmation. After the user confirms that exact set:
 
 ```bash
 CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-delete.sh --capture <TipCapture path> --apply <branch>...
 ```
 
-Per branch the script, in this order, re-checks the tip against the capture, pins it under `refs/repo-hygiene/deleted/<branch>` (so a later `gc` cannot prune the commits the record points at), appends the deletion to the ledger `<capture>.deleted.tsv`, and only then deletes: `-d` for SAFE by ancestry, `-D` for SAFE with a merged PR (a squash merge changes the SHA, so `-d` would refuse a branch whose merge `gh pr list` already confirmed) and for LIKELY-SAFE. A failure in any step before the delete aborts the batch there (exit 1): branches already deleted keep their pin and ledger row, the failing branch and everything after it are untouched, and the `Summary:` line counts each. A refusal (a branch whose tip moved since the audit, a branch with no captured tip, a foreign or unreadable capture) stops the batch before the first deletion; re-run the audit for a fresh capture rather than deleting against a stale identifier. REVIEW branches need `--force-review`, and only after the user has confirmed the loss named in their `Unpushed:`/`Reason:` lines; PROTECTED and WORKTREE branches are never deletable here.
+Per branch the script, in this order, re-checks the tip against the capture, pins it under `refs/repo-hygiene/deleted/<branch>` (so a later `gc` cannot prune the commits the record points at), appends the deletion to the ledger `<capture>.deleted.tsv` (beside the capture's real file, symlinks resolved), and only then deletes, with `git update-ref -d refs/heads/<branch> <captured tip>`: an atomic compare-and-delete inside git's ref lock, which refuses when the tip is no longer the captured one. The re-check closes the window between the batch check and the pin; the conditional delete closes the window between the pin and the delete, which a plain `git branch -D` leaves open. A SAFE-by-ancestry branch is a safe delete, admitted at the batch check only when its tip is merged into `origin/<default>` (the check `git branch -d` would have made); SAFE with a merged PR (a squash merge changes the SHA, so that check would refuse a branch whose merge `gh pr list` already confirmed) and LIKELY-SAFE are force deletes. A failure in any step before the delete aborts the batch there (exit 1): branches already deleted keep their pin and ledger row, the failing branch and everything after it are untouched, and the `Summary:` line counts each. A delete refused because the tip moved also aborts the batch: the branch stays at its new tip, its pin stays (harmless; it records the tip the audit saw), and the ledger gains a `# not deleted:` note. A refusal (a branch whose tip moved since the audit, a branch with no captured tip, a SAFE-by-ancestry row whose tip is not merged, a foreign or unreadable capture) stops the batch before the first deletion; re-run the audit for a fresh capture rather than deleting against a stale identifier. REVIEW branches need `--force-review`, and only after the user has confirmed the loss named in their `Unpushed:`/`Reason:` lines; PROTECTED and WORKTREE branches are never deletable here.
 
 The script reports one line per branch:
 
 ```
 Deleted: feat/old-thing <tip> (was SAFE) restore: git branch feat/old-thing <tip>
-Failed: some-branch (error: the branch 'some-branch' is not fully merged)
-Summary: planned=N refused=0 deleted=N failed=M
+Aborted: some-branch (tip moved between pin and delete: captured <tip>, now <sha>; branch left intact, pin refs/repo-hygiene/deleted/some-branch still records <tip>)
+Summary: planned=N refused=0 deleted=N failed=0 aborted=1 untouched=U
 Restore: git branch <branch> <tip> (tips in <capture> and <ledger>; pinned under refs/repo-hygiene/deleted/<branch>)
 ```
 

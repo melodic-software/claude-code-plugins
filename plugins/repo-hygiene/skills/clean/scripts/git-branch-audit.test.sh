@@ -176,8 +176,10 @@ echo t3 >"$NU_REPO/t3"
 git -C "$NU_REPO" add t3
 git -C "$NU_REPO" commit -qm t3
 git -C "$NU_REPO" checkout -q main
+git -C "$NU_REPO" branch '#7-lead' # a legal name that starts like a comment line
 tracked_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/tracked)"
 never_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/never-pushed)"
+lead_tip="$(git -C "$NU_REPO" rev-parse 'refs/heads/#7-lead')"
 tip_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
 assert_contains "Tip line follows Branch line" "$tip_out" "Branch: feat/never-pushed
 Tip: $never_tip
@@ -193,7 +195,10 @@ assert_contains "capture header" "$cap_body" "# repo-hygiene branch tip capture 
 assert_contains "capture names the restore command" "$cap_body" "# restore: git branch <branch> <tip>"
 assert_contains "capture row: never-pushed (no upstream, 1 not on default)" "$cap_body" "feat/never-pushed	$never_tip	REVIEW	none	none	-	-	1	"
 assert_contains "capture row: tracked (ahead 1, behind 1)" "$cap_body" "feat/tracked	$tracked_tip	REVIEW	none	origin/feat/tracked	1	1	"
-rows="$(grep -c -v '^#' "$cap")"
+assert_not_contains "a #-leading branch name does not fail the seal" "$tip_out" "TipCaptureError:"
+assert_contains "capture row: #-leading branch is a row, not a comment" "$cap_body" "#7-lead	$lead_tip	"
+# Rows are counted by shape (nine columns, a commit id second), as the seal does.
+rows="$(awk -F'\t' 'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$cap")"
 heads="$(git -C "$NU_REPO" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
 if [[ "$rows" == "$heads" ]]; then
   pass "capture has one row per local branch ($rows)"
@@ -215,6 +220,19 @@ assert_exit "capture failure keeps exit 0 (audit is read-only)" 0 "$err_rc"
 assert_contains "capture failure reported" "$err_out" "TipCaptureError: cannot create $TEST_TMPDIR/blocker"
 assert_not_contains "capture failure prints no TipCapture path" "$err_out" "TipCapture: "
 assert_contains "capture failure still reports every tip" "$err_out" "Tip: $tracked_tip"
+
+# A `.part` that already exists belongs to another run (a stamp-pid collision
+# or an interrupted audit): it is refused and left alone, never appended to.
+printf 'x\n' >"$TEST_TMPDIR/busy.tsv.part"
+busy_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' --capture-file '$TEST_TMPDIR/busy.tsv'")"
+assert_contains "pre-existing .part is refused" "$busy_out" "TipCaptureError: refusing to reuse existing $TEST_TMPDIR/busy.tsv.part"
+assert_not_contains "pre-existing .part yields no capture path" "$busy_out" "TipCapture: "
+assert_file_absent "pre-existing .part: nothing sealed" "$TEST_TMPDIR/busy.tsv"
+if [[ "$(cat "$TEST_TMPDIR/busy.tsv.part")" == "x" ]]; then
+  pass "pre-existing .part left untouched"
+else
+  fail "pre-existing .part left untouched" "x" "$(cat "$TEST_TMPDIR/busy.tsv.part")"
+fi
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

@@ -13,10 +13,13 @@
 # the path is printed as `TipCapture: <path>`. That file is the precondition
 # git-branch-delete.sh demands before it deletes anything: a deleted branch is
 # restorable only from its tip, and the tip must be recorded BEFORE the delete,
-# not remembered from a transcript. The capture is written to a `.part` file and
-# renamed into place only when every row landed; any failure (no writable
-# location, a short write) yields `TipCaptureError:` instead of a path, so a
-# partial capture can never present itself as a complete one.
+# not remembered from a transcript. The capture is written to a `.part` file
+# (created exclusively, so two runs can never share one) and renamed into place
+# only when every row landed; any failure (no writable location, a short write)
+# yields `TipCaptureError:` instead of a path, so a partial capture can never
+# present itself as a complete one. Rows are recognised by shape (nine
+# tab-separated columns, a commit id in the second), never by a leading `#`,
+# which is a legal first character of a branch name.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,11 +96,22 @@ else
   CAPTURE_ERROR="cannot resolve the git common dir for a default capture location; pass --capture-file PATH"
 fi
 CAPTURE_TMP="${CAPTURE_PATH}.part"
+CAPTURE_TMP_OWNED=0
 if [[ -z "$CAPTURE_ERROR" ]]; then
+  # noclobber makes the create exclusive: a `.part` left by another run (a
+  # <stamp>-<pid> collision across PID namespaces sharing the mount, or an
+  # interrupted audit) is refused rather than appended to, so two runs can
+  # never interleave rows into one file. The other run's file is left alone.
   if ! mkdir -p "$(dirname "$CAPTURE_PATH")" 2>/dev/null; then
     CAPTURE_ERROR="cannot create $(dirname "$CAPTURE_PATH")"
-  elif ! (: >"$CAPTURE_TMP") 2>/dev/null; then
-    CAPTURE_ERROR="cannot write $CAPTURE_TMP"
+  elif ! (set -C && : >"$CAPTURE_TMP") 2>/dev/null; then
+    if [[ -e "$CAPTURE_TMP" ]]; then
+      CAPTURE_ERROR="refusing to reuse existing $CAPTURE_TMP (another audit is writing it, or one was interrupted); remove it or pass --capture-file PATH"
+    else
+      CAPTURE_ERROR="cannot write $CAPTURE_TMP"
+    fi
+  else
+    CAPTURE_TMP_OWNED=1
   fi
 fi
 
@@ -276,9 +290,14 @@ done < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ --format='%(refname:short)
 # Seal the capture: rename the .part into place only after a row count on the
 # written file agrees with the rows this run produced. A short write (disk full,
 # a vanished mount) therefore surfaces as TipCaptureError, never as a capture
-# that silently lacks some of the branches the report above lists.
+# that silently lacks some of the branches the report above lists. A row is
+# counted by shape: nine columns, a commit id in the second, this run's stamp in
+# the last (a truncated row fails that test); a branch name beginning with `#`
+# is a row like any other.
 if [[ -z "$CAPTURE_ERROR" ]]; then
-  written="$(grep -c -v '^#' "$CAPTURE_TMP" 2>/dev/null | tr -d '\r')"
+  written="$(awk -F'\t' -v at="$CAPTURED_AT" \
+    'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 && $9 == at { n++ } END { print n + 0 }' \
+    "$CAPTURE_TMP" 2>/dev/null | tr -d '\r')"
   if [[ "${written:-x}" != "$CAPTURE_ROWS" ]]; then
     CAPTURE_ERROR="short write: expected $CAPTURE_ROWS rows, found ${written:-0} in $CAPTURE_TMP"
   elif ! mv -f "$CAPTURE_TMP" "$CAPTURE_PATH" 2>/dev/null; then
@@ -286,7 +305,7 @@ if [[ -z "$CAPTURE_ERROR" ]]; then
   fi
 fi
 if [[ -n "$CAPTURE_ERROR" ]]; then
-  [[ -n "$CAPTURE_PATH" ]] && rm -f "$CAPTURE_TMP" 2>/dev/null
+  [[ $CAPTURE_TMP_OWNED -eq 1 ]] && rm -f "$CAPTURE_TMP" 2>/dev/null
   printf 'TipCaptureError: %s\n' "$CAPTURE_ERROR"
 else
   printf 'TipCapture: %s\n' "$CAPTURE_PATH"
