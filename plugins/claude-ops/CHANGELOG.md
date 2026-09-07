@@ -3,6 +3,43 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0]
+
+### Fixed
+
+- **The two unkeyed plugin-data artifacts are keyed by project, so one project
+  stops being served another's.** `${CLAUDE_PLUGIN_DATA}` resolves to
+  `~/.claude/plugins/data/{id}/` and carries no project, checkout or worktree
+  segment ([plugins reference](https://code.claude.com/docs/en/plugins-reference),
+  § Persistent data directory), so `reports/claude-observability-<date>.md` and
+  `check-all-output/` were one artifact per MACHINE. Both now sit under
+  `lib/state-key.sh`'s `<repo-identity>/<worktree-discriminator>`, the scheme
+  [`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+  rule 1 defines:
+  - `observability --write` resolves its path by running the new
+    `skills/observability/scripts/report-path.sh`, which prints
+    `reports/<state-key>/claude-observability-<date>.md` and creates the parent.
+    The report's source is the hook event log inside the checkout
+    (`session_event_log_dir`, project-relative), so the key's worktree split is
+    the behavior this artifact needs.
+  - `known-issues check-all` asks `scripts/check-all.sh --print-output-dir` for
+    its scratch directory, now `check-all-output/<state-key>`. The collision
+    here was not merely a lost file: the registry is project-relative whenever
+    the `registry_dir` option is set, and a reproduction on the pre-fix script
+    had project A read project B's registry rows back out of the shared
+    directory and report them as its own.
+  - Both fail closed when the state key cannot be derived. Falling back to the
+    unkeyed path would silently restore the collision.
+- **Migration follows rule 3: nothing reads the old locations.** An artifact
+  written under the unkeyed layout has no project segment, so nothing records
+  which repository produced it and it cannot be adopted into any key without
+  inventing that attribution. Both scripts NAME such leftovers on stderr as
+  files the operator may delete, and neither reads, moves, nor derives from
+  one. Existing reports and scratch files stay where they are.
+- **`check-all.test.sh`'s row-count assertion stopped being vacuous.** It called
+  an `assert_eq` the file never defined, so the case printed
+  `assert_eq: command not found` and passed regardless of the count.
+
 ## [0.42.23]
 
 ### Changed
