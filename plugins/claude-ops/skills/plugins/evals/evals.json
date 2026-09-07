@@ -84,7 +84,7 @@
       "expectations": [
         "The report contains an In-repo row stating the in-repo step was skipped because no project context resolved, rather than omitting the step entirely",
         "The response distinguishes 'no project context resolved' from 'a project with zero project/local installs' — it does not report the skip as a count of 0 updated",
-        "The response branches on fleet-state.sh's top-level project_root field, not on `--ids current-project` being empty, which is empty in both cases",
+        "The response branches on fleet-state.sh's top-level project_root field, not on `--ids update-candidates-project` being empty, which is empty in both cases",
         "No `claude plugin update -s project` or `-s local` call is issued"
       ]
     },
@@ -139,6 +139,21 @@
         "The plugin is still counted as updated, not as unchanged",
         "The response uses the CLI's own reported version, or explicitly `<unknown>`, rather than synthesizing a version from the post-sweep re-read",
         "The response does not treat the stale post-sweep read as evidence the update failed"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "downgrade-guard-withholds-backward-catalog",
+      "prompt": "/claude-ops:plugins sync. For this marketplace fleet-state.sh reports 3 user-scope ids (alpha@market1, beta@market1, gamma@market1) whose catalog_versions read 1.1.0 while the installed versions read 2.0.0, because the marketplace's directory source is parked on an old branch. The other 37 user-scope ids read the same version in both places.",
+      "expected_output": "The downgrade guard withholds a proven downgrade from the sweep by default. No `claude plugin update` runs for alpha, beta, or gamma; they are reported under `Action needed` as a `downgrade withheld:` row naming both versions and the likely cause (a marketplace source that moved backward), with the remediation to fix the source and rerun sync. `Updated:` does not list them. Rerun with --allow-downgrade and the same three ids are acted on and render under `Downgraded:`, never under `Updated:`.",
+      "files": [],
+      "expectations": [
+        "No `claude plugin update` call is issued for alpha@market1, beta@market1, or gamma@market1 on the default run",
+        "The three ids appear under `Action needed` as a `downgrade withheld:` row carrying both the installed and the catalog version",
+        "The row names a marketplace source that moved backward as the likely cause and gives the remediation of fixing the source and rerunning sync",
+        "`Updated:` does not list alpha@market1, beta@market1, or gamma@market1",
+        "With --allow-downgrade the three ids are updated and their outcomes render under `Downgraded:`, never under `Updated:`",
+        "The ids come from `fleet-state.sh --ids downgrade-candidates`, never from a hand-written jq extraction over the JSON"
       ]
     }
   ]
