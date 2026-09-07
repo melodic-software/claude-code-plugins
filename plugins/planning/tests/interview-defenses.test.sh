@@ -484,7 +484,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "05f8679a7750be61c1bec93e0f0313c411602c708b803e8bce8745332bb623af"
+  "8e380055ffa608aa561dabb3de41dd157384d399cce6db4f7425e2acd818bbf1"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
