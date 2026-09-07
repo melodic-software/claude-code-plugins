@@ -187,7 +187,8 @@
         "the shipped doctor skill carries a check titled 'Check 1: unused skills, MCP servers, and plugins' whose prompt groups unused components, labels each group with a benefit estimate ('37 unused skills, saves ~2.2k est. tokens/session'), and applies only the groups the user selects; confirmed by string search of the installed v2.1.252 binary on 2026-08-31",
         "our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill",
         "our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch",
-        "recheck trigger FIRED, 2026-09-04: Claude Code 2.1.261 moved the unused-components check into a dedicated /skill-doctor command ('Added /skill-doctor to show which loaded skills go unused and what they cost in context, so you can prune them'; raw CHANGELOG at https://code.claude.com/docs/en/changelog, entry 2.1.261 line 8, confirmed verbatim by an independent verifier on 2026-09-04). This container runs 2.1.258, so the new surface could not be extracted; a dedicated skill-doctor row awaits an upstream-source pin (the anthropics/claude-code CHANGELOG commit SHA), which this session could not obtain within its repository scope. Until then the description's Not-for clause, the body, and the Scope boundary table name /skill-doctor and /doctor together behind one presence gate, and this row carries the routing for both"
+        "recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces",
+        "this row's routing survives the split: the /doctor row of https://code.claude.com/docs/en/commands.md still credits the bundled doctor skill with finding 'unused skills, MCP servers, and plugins versus their context cost' inside its setup checkup, so the deferral recorded here is to a surface that still does the job (read 2026-09-07)"
       ],
       "observation": {
         "class": "extraction",
@@ -196,7 +197,40 @@
       },
       "recheck": {
         "trigger": "a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch",
-        "verified": "2026-09-04"
+        "verified": "2026-09-07"
+      },
+      "baked": { "description_phrase": true, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "skill-doctor",
+        "class": "builtin-command",
+        "markers": ["gated"]
+      },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "audit-skill-visibility",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "reason": "The sibling doctor row's split, narrowed to the surface that now owns the question. Built-in /skill-doctor is a one-shot report of what each loaded skill costs in context and how often it is used, so unused ones can be turned off. audit-skill-visibility answers why a skill is unseen: it reconciles three usage sources (native ~/.claude.json counters, its own JSONL store, OTEL) under a max-across-sources rule, computes an observed horizon and withholds every verdict the span cannot support, diagnoses reachability causes, and analyses listing-budget starvation. It disables nothing by contract. This row is separate from the doctor row rather than folded into it because the two surfaces carry different gates: /doctor answers to DISABLE_DOCTOR_COMMAND, /skill-doctor to a minimum version and to feature-flag fetching, so a session can resolve either, both, or neither, and each routing line needs its own presence gate.",
+      "evidence": [
+        "upstream commit d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b in anthropics/claude-code (2026-09-04) added the `## 2.1.261` CHANGELOG heading and, under it, `Added /skill-doctor to show which loaded skills go unused and what they cost in context, so you can prune them`; read from the commit diff, not from the rendered changelog page",
+        "https://code.claude.com/docs/en/commands.md carries a /skill-doctor row in the all-commands table, and that row does NOT carry the bold `[Skill](/docs/en/skills#bundled-skills).` prefix the same table puts on /doctor, /run, /run-skill-generator and /simplify; that prefix is how the table marks a bundled skill, so this row is classed builtin-command rather than bundled-skill (read 2026-09-07)",
+        "the same table row and https://code.claude.com/docs/en/skills.md ('Find unused skills') both state that /skill-doctor requires Claude Code v2.1.252 or later and is unavailable in sessions that skip feature-flag fetching, and the skills page adds that it answers `Skill usage reports are not available on this connection.` over Remote Control; that is the gate this row records, and it is not doctor's",
+        "the version the surface was announced in and the version it is documented to require disagree upstream: the CHANGELOG lands it at 2.1.261 while commands.md and skills.md say v2.1.252 or later, so no shipped routing line in this repository states a version for it (read 2026-09-07)",
+        "our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill",
+        "our description's Not-for clause, the Purpose section, and the SKILL.md Scope boundary table each name /skill-doctor behind its own `resolves in your session` gate, separate from the /doctor gate beside it"
+      ],
+      "observation": {
+        "class": "upstream-source",
+        "detail": "d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b, the anthropics/claude-code commit that added the 2.1.261 CHANGELOG entry naming /skill-doctor, plus the commands.md and skills.md pages read the same day. Not an extraction and not a live roster: this container runs 2.1.258, below the release that announced the surface, so nothing here observed the command itself.",
+        "date": "2026-09-07"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release note or docs change removes /skill-doctor, folds its report back into /doctor, gives its all-commands row the bundled-skill marker (which moves this row to the bundled-skill lane and changes which switch disables it), changes its version or feature-flag gate, or gives it a multi-source reconciliation or observation-horizon discipline of its own",
+        "verified": "2026-09-07"
       },
       "baked": { "description_phrase": true, "boundary_section": false },
       "budget_caveat": true

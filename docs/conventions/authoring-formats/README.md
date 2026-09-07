@@ -154,18 +154,22 @@ This doc owns the text; the consuming slices carry the restating work.
 
 ## Consumers
 
-Which skill is expected to read which key, by slash invocation. Every row below is a **declared
-consumer, not a landed integration**: no skill reads either key on `main` today, and the table is
-written ahead of the slices so each one has a stated target to land against.
+Which skill reads which key, by slash invocation. Each skill named below resolves the convention
+home through the resolver its own plugin bundles and restates the ladder in its own body.
 
-| Key | Declared consumer (not yet reading) |
+| Key | Reading skill |
 |---|---|
-| `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria); `/review:quality-gate` close-out (reads the pattern on a retrieved criterion) |
-| `diagram_dialect.data` | `/planning:design` (data-scope artifact); `/work-items:decompose` (inlines the produced artifact) |
-| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set); `/work-items:decompose` (inlines the produced artifact) |
+| `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria) |
+| `diagram_dialect.data` | `/planning:design` (data-scope artifact) |
+| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set) |
 
-A skill appears here once it actually reads the key. None does on `main` today; each consuming
-slice adds its own reading and updates its row in the same change.
+Two skills consume what those readings produce without reading a key of their own, so neither has a
+row above. `/work-items:decompose` inlines a design artifact under a provenance note on the
+artifact's presence alone, and `/review:quality-gate` close-out detects an EARS pattern tag on a
+retrieved criterion by the tag's presence alone. Both say so in their own bodies.
+
+A skill appears here once it actually reads the key; each consuming slice adds its own reading and
+updates its row in the same change.
 
 ## Zero config, including here
 

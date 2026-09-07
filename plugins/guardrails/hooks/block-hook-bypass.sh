@@ -61,25 +61,16 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Crash posture (#3130 F5, now the shared boundary of #3528): fail-open. This
+# guard sits on every Bash/PowerShell call. An internal error must not take the
+# session down, and it must not look like a clean allow. EXIT converts any
+# status other than the two this guard chooses, 0 (allow) and 2 (block), to 0
+# after a dual-channel "guard did not run" notice.
+guard::abort_boundary block-hook-bypass PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
-
-# Crash posture (#3130 F5): fail-open. This guard sits on every Bash/PowerShell
-# call. An internal error must not take the session down, and it must not look
-# like a clean allow. EXIT converts unexpected statuses to 0 after a dual-channel
-# "guard did not run" notice. Block (2) and allow (0) pass through.
-block_hook_bypass_on_exit() {
-  local rc=$?
-  if ((rc == 0 || rc == 2)); then
-    return 0
-  fi
-  trap - EXIT
-  local msg="guardrails block-hook-bypass: guard did not run (internal error, rc=${rc}); fail-open — this Bash/PowerShell call was not evaluated. The hook stays fail-open on crash so a defect here cannot freeze the session's hottest path."
-  echo "$msg" >&2
-  hook::emit_channels PreToolUse "$msg" "$msg" 2>/dev/null || true
-  exit 0
-}
-trap block_hook_bypass_on_exit EXIT
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # Strict-and-loud enable (#3130 F7). hook::check_enabled treats any value other
 # than exact "true" as off, so a typo would silently disable a blocking safety

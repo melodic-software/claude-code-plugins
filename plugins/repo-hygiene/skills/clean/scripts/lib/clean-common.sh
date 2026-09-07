@@ -16,6 +16,25 @@ clean_repo_root() {
   printf '%s' "$root"
 }
 
+# clean_git_common_dir <repo_root> - print the absolute path of the repository's
+# common git directory: the main checkout's `.git` even when <repo_root> is a
+# linked worktree. The branch-tip capture lives under it because it is the one
+# location that outlives the working tree (a `tree` reset never enters `.git`,
+# and removing a linked worktree leaves the common dir untouched) and is
+# findable afterwards by anyone who knows only the repository. Exit 1 when it
+# cannot be resolved; callers treat that as "no durable location", never as
+# permission to skip the capture.
+clean_git_common_dir() {
+  local repo_root="$1" dir
+  dir="$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
+  [[ -n "$dir" ]] || return 1
+  case "$dir" in
+  /* | [A-Za-z]:*) ;;
+  *) dir="$repo_root/$dir" ;;
+  esac
+  (cd "$dir" 2>/dev/null && pwd -P) || return 1
+}
+
 # clean_default_branch <repo_root> [<remote>] — echo the repository's default
 # branch: the remote's HEAD symref (default remote `origin`; the tree tier passes
 # the remote the current branch actually tracks), else gh's view of it, else the
@@ -30,6 +49,83 @@ clean_default_branch() {
     branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
   fi
   printf '%s' "${branch:-main}"
+}
+
+# clean_pr_map <outfile> <json_fields> — fetch the repository's pull-request map
+# ONCE and write it to <outfile> as TSV, one row per PR, columns in the order
+# <json_fields> names them (a comma-separated `gh pr list --json` field list).
+# Status is reported on stdout; the caller relays it as part of its own output
+# contract. Exit 0 always: the map is best-effort evidence, never a hard input.
+#
+# WHY THIS IS NOT ALLOWED TO FAIL QUIETLY. The PR lookup is the documented
+# mitigation for squash merges, which `git branch --merged` structurally cannot
+# see. A map that is short or missing does not merely reduce accuracy, it
+# inverts the verdict: a branch whose work has landed loses the only evidence
+# that it landed, and is then reported as unmerged or as needing review. So a
+# truncated map and an unavailable map each get their own explicit line rather
+# than reading like a repository that genuinely has no pull requests.
+#
+# `gh pr list` has NO unlimited sentinel and rejects `--limit 0`
+# (`invalid value for --limit: 0`), so the cap is a high explicit value and
+# truncation is detected by equality: a returned count equal to the requested
+# limit means rows may have been discarded. Override with CLEAN_PR_LIST_LIMIT.
+#
+# Status lines (exactly one of the first two is always printed):
+#   PRCount: <n>             the map is usable; <n> rows were read
+#   PRDataUnavailable: <why> no map at all; PR-based classification is blind
+#   PRDataTruncated: <why>   follows PRCount when the cap was hit
+#
+# A usable count requires a real file the caller can read. Failure to create
+# or write <outfile> is unavailable data, not an empty repository: emitting
+# PRCount after a failed redirect would look like a complete map while the
+# caller loads no rows. Callers must not read <outfile> unless it exists.
+clean_pr_map() {
+  local outfile="$1" fields="$2"
+  local limit="${CLEAN_PR_LIST_LIMIT:-100000}"
+
+  # Subshell so the redirect's own failure message is captured by 2>/dev/null
+  # (a bare `: >"$outfile" 2>/dev/null` still prints it — the target redirect is
+  # set up before stderr is redirected). Same reason as clean_manifest_path.
+  if ! (: >"$outfile") 2>/dev/null; then
+    printf 'PRDataUnavailable: cannot create the pull-request map file; squash-merged branches cannot be detected\n'
+    return 0
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    printf 'PRDataUnavailable: gh not on PATH; squash-merged branches cannot be detected\n'
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'PRDataUnavailable: jq not on PATH; the pull-request map cannot be parsed\n'
+    return 0
+  fi
+
+  local raw
+  if ! raw="$(gh pr list --state all --json "$fields" --limit "$limit" 2>/dev/null)"; then
+    printf 'PRDataUnavailable: gh pr list failed (unauthenticated, no GitHub remote, or API error)\n'
+    return 0
+  fi
+
+  # Validate the shape before trusting a row count. `gh` can exit 0 with output
+  # that is not a PR array, and a length taken from that would be a fabricated
+  # PRCount standing in for a map that is actually missing.
+  local count
+  if ! count="$(printf '%s' "$raw" |
+    jq -r 'if type == "array" then length else error("not an array") end' 2>/dev/null)"; then
+    printf 'PRDataUnavailable: gh pr list returned output the pull-request map could not parse\n'
+    return 0
+  fi
+
+  if ! (printf '%s' "$raw" | jq -r ".[] | [.${fields//,/,.}] | @tsv" | tr -d '\r' >"$outfile") 2>/dev/null ||
+    [[ ! -f "$outfile" ]]; then
+    printf 'PRDataUnavailable: cannot write the pull-request map file; squash-merged branches cannot be detected\n'
+    return 0
+  fi
+  printf 'PRCount: %s\n' "$count"
+  if [[ "$count" -ge "$limit" ]]; then
+    printf 'PRDataTruncated: %s pull requests returned at the --limit %s cap; the map may be short, and a squash-merged branch missing from it is reported as unmerged\n' \
+      "$count" "$limit"
+  fi
 }
 
 # Normalize a filesystem path to a comparison key: backslashes -> forward

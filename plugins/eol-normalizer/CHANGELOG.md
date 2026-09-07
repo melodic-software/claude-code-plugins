@@ -3,6 +3,19 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.42]
+
+### Changed
+
+- **The README records why the manifest carries no `if` row (#3411).** The
+  sibling formatters filter by extension at the manifest; this hook has no
+  extension filter of its own, because `.gitattributes` decides which files
+  it normalizes, so the set a declarative filter would reproduce is every
+  file and a file-type row would silently stop normalizing whatever it left
+  out. The section also records the kernel census on an already-normalized
+  Write (no `mktemp`, no `cp`; the plan step decides before any snapshot).
+  Documentation only; no hook behavior changes.
+
 ## [0.6.41]
 
 ### Changed

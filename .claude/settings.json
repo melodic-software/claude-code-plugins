@@ -18,7 +18,9 @@
       }
     ]
   },
+  "skillListingBudgetFraction": 0.05,
   "enabledPlugins": {
+    "fleet@melodic-software": true,
     "playgrounds@melodic-software": false
   },
   "extraKnownMarketplaces": {
