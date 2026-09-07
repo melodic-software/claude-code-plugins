@@ -9,7 +9,9 @@ because the point of those cases is a file no well-behaved producer writes.
 
 The multi-root cases set `CODE_METRICS_SCAN_ROOT` to this repository, which is
 the tree the fixture's source roots name, because the parser resolves a class
-filename by probing for it on disk.
+filename by probing for it on disk. Absolute `<source>` roots cannot be
+committed (they name a directory on the machine running the test), so those
+cases write a report into a temporary directory the way the drift cases do.
 """
 
 from __future__ import annotations
@@ -65,6 +67,22 @@ def write(tmp: str, name: str, body: str) -> str:
     return str(path)
 
 
+def _posix(path: str) -> str:
+    return path.replace("\\", "/").rstrip("/")
+
+
+def _multi_root_xml(sources: list[str], filename: str) -> str:
+    source_elems = "".join(f"<source>{_posix(s)}</source>" for s in sources)
+    return (
+        "<coverage><sources>"
+        + source_elems
+        + "</sources><packages><package><classes>"
+        f'<class filename="{filename}"><lines>'
+        '<line number="1" hits="1"/></lines></class>'
+        "</classes></package></packages></coverage>"
+    )
+
+
 class FixtureTests(unittest.TestCase):
     def test_the_source_prefix_is_applied_to_the_class_filename(self) -> None:
         document = parsed(str(FIXTURE))
@@ -87,7 +105,7 @@ class FixtureTests(unittest.TestCase):
 
 
 class MultiRootTests(unittest.TestCase):
-    """The three branches of the source-root resolution rule, plus its probe."""
+    """The four branches of the source-root resolution rule, plus its probe."""
 
     def document(self, scan_root: str) -> dict:
         return parsed(str(MULTI_ROOT), scan_root=scan_root)
@@ -142,6 +160,44 @@ class MultiRootTests(unittest.TestCase):
         self.assertEqual(
             list(json.loads(here.stdout)), ["/workspace/repo/" + BASH_FIXTURE]
         )
+
+    def test_an_absolute_source_root_on_disk_is_probed_without_the_scan_root(
+        self,
+    ) -> None:
+        # An absolute <source> discards scan_root under os.path.join, so the
+        # candidate is the absolute path itself. A later root that exists on
+        # this machine therefore wins even when the scan root is an empty
+        # temporary directory that cannot contribute a relative hit.
+        with (
+            tempfile.TemporaryDirectory() as first,
+            tempfile.TemporaryDirectory() as later,
+            tempfile.TemporaryDirectory() as scan,
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            (Path(later) / "cm-later.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            document = parsed(
+                write(
+                    tmp,
+                    "absolute-root.xml",
+                    _multi_root_xml([first, later], "cm-later.sh"),
+                ),
+                scan_root=scan,
+            )
+        self.assertIn(_posix(later) + "/cm-later.sh", document)
+        self.assertNotIn(_posix(first) + "/cm-later.sh", document)
+
+    def test_absent_absolute_source_roots_fall_back_to_the_first(self) -> None:
+        # The CI shape: absolute roots from the machine that produced the
+        # report, none of which exist here. Every probe misses and rule 4
+        # keys the class under the first root, which is what the parser did
+        # before it read later roots at all.
+        body = _multi_root_xml(["/ci/build/alpha", "/ci/build/beta"], "later.sh")
+        with tempfile.TemporaryDirectory() as scan, tempfile.TemporaryDirectory() as tmp:
+            document = parsed(
+                write(tmp, "absent-absolute-root.xml", body), scan_root=scan
+            )
+        self.assertIn("/ci/build/alpha/later.sh", document)
+        self.assertNotIn("/ci/build/beta/later.sh", document)
 
 
 class DriftTests(unittest.TestCase):
