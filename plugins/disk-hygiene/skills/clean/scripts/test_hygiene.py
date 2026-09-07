@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 import io
 import json
@@ -6930,9 +6931,9 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in cls._hook_argv(hook))
         ]
-        # One registration per tool (``Bash`` with an ``if`` filter, ``PowerShell``
-        # without one), both carrying the same guard argv.
-        assert len(commands) == 2, commands
+        # One Bash registration plus the PowerShell filename filter and the
+        # two variable-invocation filters; every row carries the same guard argv.
+        assert len(commands) == 4, commands
         argvs = {
             tuple(cls._guard_argv_from_hook(hook, "destructive_guard.py"))
             for hook in commands
@@ -6940,27 +6941,170 @@ class GuardTests(unittest.TestCase):
         assert len(argvs) == 1, argvs
         return list(argvs.pop())
 
+    # Glob bodies the engine-gate ``if`` filters carry. Bash uses the filename
+    # glob only. PowerShell adds interpreter-with-variable and call-operator-
+    # with-variable globs so an assignment that holds the engine path still
+    # reaches the guard.
+    _POWERSHELL_ENGINE_GATE_GLOBS = (
+        "*hygiene.py*",
+        "*python*$*",
+        "*& $*",
+    )
+    _POWERSHELL_ASSIGNMENT = re.compile(r"^\s*\$[\w:.]+\s*=")
+
     def test_engine_gate_is_registered_once_per_tool(self) -> None:
         """Lock the per-tool registration shape of the plugin-level engine gate.
 
         An ``if`` filter is scoped to the tool it names: under a single
         ``Bash|PowerShell`` matcher, ``Bash(...)`` filtered every PowerShell call
-        out of this kill-switch guard. The ``Bash`` entry keeps the filter; the
-        ``PowerShell`` entry carries none, because a PowerShell filter must match
-        every subcommand of a compound command and would skip the guard silently
-        on a mixed line.
+        out of this kill-switch guard. Each tool therefore has its own matcher
+        entry. Bash carries the filename glob. PowerShell carries that glob plus
+        the two variable-invocation globs, because the harness evaluates ``if``
+        through the tool's own permission matcher, and the PowerShell tool's
+        parses the command AST and runs the hook when ANY statement, pipeline
+        element or nested command matches (Claude Code 2.1.258, the PowerShell
+        tool's ``preparePermissionMatcher``: ``some`` over every collected
+        command, case-insensitive glob; an unparsable command runs the hook).
+        An assignment is not a collected command, so ``$script = '.../hygiene.py';
+        python $script`` would miss a filename-only filter. The every-subcommand
+        rule belongs to allow decisions, not to ``if``.
         """
         hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
         config = json.loads(hooks_path.read_text(encoding="utf-8"))
-        by_matcher = {
-            entry.get("matcher"): hook
-            for entry in config["hooks"]["PreToolUse"]
-            for hook in entry.get("hooks", [])
-            if any("destructive_guard.py" in token for token in self._hook_argv(hook))
-        }
+        by_matcher: dict[str, list[dict]] = {}
+        for entry in config["hooks"]["PreToolUse"]:
+            matcher = entry.get("matcher")
+            for hook in entry.get("hooks", []):
+                if any("destructive_guard.py" in token for token in self._hook_argv(hook)):
+                    by_matcher.setdefault(matcher, []).append(hook)
         self.assertEqual({"Bash", "PowerShell"}, set(by_matcher))
-        self.assertTrue(by_matcher["Bash"].get("if", "").startswith("Bash("))
-        self.assertNotIn("if", by_matcher["PowerShell"])
+        self.assertEqual(
+            ["Bash(*hygiene.py*)"],
+            [hook.get("if") for hook in by_matcher["Bash"]],
+        )
+        self.assertEqual(
+            [
+                "PowerShell(*hygiene.py*)",
+                "PowerShell(*python*$*)",
+                "PowerShell(*& $*)",
+            ],
+            [hook.get("if") for hook in by_matcher["PowerShell"]],
+        )
+
+    _IF_STATEMENT_SPLIT = re.compile(r"\r?\n|\u2028|\u2029|;|\|\||&&|\|")
+
+    @classmethod
+    def _powershell_if_admits(cls, command: str) -> bool:
+        """Reference of the harness's PowerShell ``if`` across the three globs.
+
+        Mirrors Claude Code 2.1.258: the command is split into statements and
+        pipeline elements, assignment statements are dropped (the real evaluator
+        walks the AST and does not treat ``$script = '...'`` as a command node),
+        each remaining element's text is whitespace-normalised, and each glob is
+        tried against each element; any match runs the hook.
+        """
+        parts = []
+        for part in cls._IF_STATEMENT_SPLIT.split(command):
+            stripped = re.sub(r"[ \t]+", " ", part.strip())
+            if not stripped or cls._POWERSHELL_ASSIGNMENT.match(stripped):
+                continue
+            parts.append(stripped)
+        return any(
+            fnmatch.fnmatch(part.casefold(), glob.casefold())
+            for part in parts
+            for glob in cls._POWERSHELL_ENGINE_GATE_GLOBS
+        )
+
+    def test_powershell_if_filter_skips_only_calls_the_gate_would_defer(
+        self,
+    ) -> None:
+        """A PowerShell call the ``if`` filter skips is one the gate deferred anyway.
+
+        The plugin-level gate acts only on ``_engine_gate_relevant`` commands
+        and defers everything else with no output BEFORE any deletion spelling
+        is consulted, so a filter that admits every relevant command changes no
+        decision. Deletion spellings that never name the engine are the cases
+        that look like a loss and are not: the engine gate never judged them
+        (the skill-scoped belt does, and it carries no filter). The zero-width
+        and split spellings are the marker broken in ways the guard's own token
+        split also does not read as the engine.
+        """
+        skipped = [
+            "Get-ChildItem -Force",
+            "git status --short",
+            "Remove-Item -Recurse -Force C:\\temp\\build",
+            "rm -rf ./node_modules",
+            "Get-Date; Remove-Item .\\x.log",
+            "[System.IO.File]::Delete('C:\\temp\\a.txt')",
+            "python hygiene\u200b.py --scan",
+            "python hygiene .py",
+        ]
+        for command in skipped:
+            with self.subTest(command=command):
+                self.assertFalse(self._powershell_if_admits(command))
+                self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+
+    def test_powershell_if_filter_admits_every_engine_invocation_shape(
+        self,
+    ) -> None:
+        """A PowerShell call that names the engine still reaches the guard and denies.
+
+        Mixed lines are the case the earlier unfiltered registration feared: a
+        statement separator, a pipeline, a PowerShell 7 chain operator, a
+        newline, a CR LF pair, U+2028, the call operator, a nested
+        ``pwsh -Command`` payload, run-together whitespace and an upper-case
+        spelling all keep the marker inside a statement the harness matches,
+        and each still denies on the PowerShell lane.
+        """
+        admitted = [
+            "python hygiene.py --scan",
+            "PYTHON HYGIENE.PY --scan",
+            "Get-Date; python hygiene.py --scan",
+            "python hygiene.py --scan | Out-Null",
+            "Get-Date && python hygiene.py --scan",
+            "Get-Date\r\npython hygiene.py --scan",
+            "Get-Date\npython hygiene.py --scan",
+            "python hygiene.py\u2028Get-Date",
+            "& python .\\hygiene.py --scan",
+            'pwsh -Command "python hygiene.py --scan"',
+            "python   hygiene.py\t--scan",
+        ]
+        for command in admitted:
+            with self.subTest(command=command):
+                self.assertTrue(self._powershell_if_admits(command))
+                self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+                verdict = guard.powershell_decision(command, True)
+                self.assertIsNotNone(verdict)
+                self.assertEqual("deny", verdict[0])
+
+    def test_powershell_if_filter_admits_variable_script_invocations(self) -> None:
+        """A script path held in a variable still reaches the guard.
+
+        The PowerShell matcher evaluates collected command nodes, so
+        ``$script = '.../hygiene.py'; python $script scan`` puts the literal
+        path in the assignment and not in the later ``python $script`` command.
+        The filename glob misses that command node; the interpreter-with-variable
+        and call-operator-with-variable globs keep it on the guard. The unfiltered
+        gate treats the same payload as ``_engine_gate_relevant`` and denies it.
+        """
+        engine = (SCRIPT_DIR / "hygiene.py").as_posix()
+        admitted = [
+            f"$script = '{engine}'; python $script scan",
+            f"$script = '{engine}'; python3 $script scan",
+            f"$script = '{engine}'; & $script scan",
+        ]
+        for command in admitted:
+            with self.subTest(command=command):
+                self.assertTrue(self._powershell_if_admits(command), command)
+                self.assertTrue(
+                    guard._engine_gate_relevant(command, "PowerShell"), command
+                )
+                verdict = guard.powershell_decision(command, True)
+                self.assertIsNotNone(verdict, command)
+                self.assertEqual("deny", verdict[0], command)
+        for command_node in ("python $script scan", "& $script scan"):
+            with self.subTest(command_node=command_node):
+                self.assertTrue(self._powershell_if_admits(command_node), command_node)
 
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
@@ -7792,8 +7936,10 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in self._hook_argv(hook))
         ]
-        # One registration per tool, both declaring the same timeout.
-        self.assertEqual(2, len(declared), declared)
+        # Bash has one matcher; PowerShell has several (literal engine path
+        # plus variable-based invocations). Every registration that launches
+        # the guard must declare the same timeout the watchdog clamp uses.
+        self.assertGreaterEqual(len(declared), 2, declared)
         self.assertEqual({guard._DECLARED_HOOK_TIMEOUT_SECONDS}, set(declared))
 
         skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
