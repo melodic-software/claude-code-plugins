@@ -127,17 +127,22 @@ Retrofit list (existing lanes rendering untrusted-ish content, aligned to the se
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
 `architecture:improve`. Both were retrofitted by #3609: each HTML lane repeats the
 baseline's rules in its own instruction text (a skill runs where this file is not on
-disk) and keeps only additions specific to that surface.
+disk) and keeps only additions specific to that surface. `architecture:improve` also
+carries the third bullet's exception: another repository's files are not rendered to HTML
+until the escape helper ships, the same carve-out `visualization:visualize` has. The first
+two bullets are registered as the `rendered-views-security-baseline` clause in
+`scripts/contract-clause-registry.json`, so `scripts/check-contract-clause-coverage.py`
+holds each inline copy to every one of them.
 
 ## Security baseline (wave-1 skeleton)
 
 Instruction-level discipline, stated honestly: markup linting validates syntax, not
 escaping, so this baseline is authoring discipline until the deterministic helper ships.
 
-- Everything interpolated into a rendered view is untrusted DATA: escape `&`, `<`, `>`,
+- Everything interpolated into a rendered view is untrusted DATA: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
   `"`, and `'` in text and attribute positions; never interpolate unescaped content into
   `<script>` or `<style>`; never build event-handler attributes from input.
-- Views are self-contained: no external requests, no remote scripts, assets inline.
+- Views are self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
 - A lane that renders attacker-controlled input (a PR diff, fetched web content, another
   repo's files) MUST NOT ship on this skeleton alone: it is gated on the checked-in
   deterministic escape helper with a generator-marker a validator can check (tracked as

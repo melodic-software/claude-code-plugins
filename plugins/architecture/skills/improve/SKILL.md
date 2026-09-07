@@ -74,6 +74,7 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 - **Does not review a diff.** Pre-merge review tools do that
 - **Does not write code.** Discovery and design skill only
 - **Does not brainstorm a rough problem.** This skill hunts architecture friction on its own lenses; open-ended "how could we approach X" divergence is a brainstorming concern
+- **Does not render another repository's files to HTML** until the rendered-views escape helper ships. A scan of a repository that is not the user's own delivers the durable candidate artifact and says in one line why no page was produced (`actions/deepening.md`, Phase 2)
 
 ## Composition
 

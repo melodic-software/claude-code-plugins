@@ -179,11 +179,11 @@ Whichever medium, the decision table has numbered rows and these columns:
 - **The rendered-views security baseline governs the artifact and local-file
   media.** The baseline is owned by `docs/conventions/rendered-views/README.md`
   ("Security baseline") in the marketplace repository; its rules are repeated
-  here because this skill runs where that file is not on disk. Everything copied
+  here because this skill runs where that file is not on disk. Everything copied <!-- contract-restatement-begin: rendered-views-security-baseline -->
   into the page is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text
   and attribute positions; never interpolate unescaped content into `<script>`
   or `<style>`; never build an event-handler attribute from input. The page is
-  self-contained: no external requests, no remote scripts, assets inline.
+  self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
   Specific to this skill: operative terms often carry code-like characters
   (`<dialog>`, `A && B`, `--force`), so the escape rule is also what keeps rule
   1's verbatim promise *true in the rendered page*. In terminal markdown, wrap
