@@ -232,7 +232,11 @@ The drift check above fires on a user reply. A round can also be overtaken by ou
 
 **This does not hold the round.** The scoped barrier stays exactly as it is: only questions downstream of a running lookup wait, and the rest of the frontier is asked now. Holding a round until every dispatch drains would trade this failure for a serialized interview.
 
-**The floor is the next user reply.** Whether the harness gives you a turn when out-of-band output lands is not something to build correctness on, so at worst this check runs together with the drift check on the user's next reply and the restate rides with it. Acting the moment the output lands is the improvement, not the requirement. The rule is also surface-agnostic: it reads the register, so it does not care whether the round was asked as inline prose or through `AskUserQuestion`.
+**The floor is the next user reply.** Whether the harness gives you a turn when out-of-band output lands is not something to build correctness on. Acting the moment the output lands is the improvement, not the requirement.
+
+**When a user reply and queued out-of-band output share a turn, process the queued output first.** Apply the three outcomes against the register as it stood before the reply, then apply the reply. If the queued output changed the recommendation under a question the reply just answered, revalidate that answer against the replacement; do not treat the row as settled on the superseded recommendation. Checking the reply first would mark the row `answered`, and the queued contradiction would then touch no open row — outcome 1, and the wrong one.
+
+The rule is also surface-agnostic: it reads the register, so it does not care whether the round was asked as inline prose or through `AskUserQuestion`.
 
 ### Unattended path
 

@@ -17,7 +17,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   recommendation, and a return that answers an open row from the environment resolves it.
   Re-presentation is narrow (a one-line pointer for the untouched rows, the full shape only for
   the row that moved), the round is never held, and the floor is the user's next reply rather than
-  the async wake. `SKILL.md` carries the summary and a pointer.
+  the async wake. When a reply and queued out-of-band output share a turn, the queued output is
+  applied against the pre-reply register first so a contradicting return cannot miss a row the
+  reply just marked answered. `SKILL.md` carries the summary and a pointer.
 
 ## [0.39.3]
 

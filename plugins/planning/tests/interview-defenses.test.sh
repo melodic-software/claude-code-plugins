@@ -508,7 +508,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "a5bfe7ffd6c5c0c28ca8aa0769028556d6ecd4d0945d4f3400423f2cfa1cbab8"
+  "867623e80981e92dfd902759ab398568d68c63b8ea2455cc125fce3ee8a26c72"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -681,8 +681,9 @@ pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
 #      a sub-agent return, a background notification, a team report — falls outside it and
 #      goes un-restated. These pins are the out-of-band rule's own defense: the trigger,
 #      relevance vs arrival, the superseded-recommendation outcome, the environment-resolve
-#      outcome, the narrow re-presentation, the hold-refusal, the floor, and the SKILL.md
-#      pointer. Drop any one and the rule reads as advisory.
+#      outcome, the narrow re-presentation, the hold-refusal, the floor, the same-turn
+#      queued-output-first order, and the SKILL.md pointer. Drop any one and the rule
+#      reads as advisory.
 pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
   "non-user content reaching the transcript while a round is open"
 pin "loop.md keys the out-of-band check on relevance, not arrival" "$LOOP" \
@@ -697,6 +698,8 @@ pin "loop.md refuses to hold the round for a pending dispatch" "$LOOP" \
   "**This does not hold the round.**"
 pin "loop.md floors the out-of-band restate on the next user reply" "$LOOP" \
   "The floor is the next user reply."
+pin "loop.md processes queued out-of-band output before the same-turn reply" "$LOOP" \
+  "When a user reply and queued out-of-band output share a turn, process the queued output first."
 pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
   "**Out-of-band output gets the same check, keyed on relevance.**"
 
