@@ -89,15 +89,28 @@ Each shared source used to get **its own CI job**. Before claude-code-plugins#36
 `parse-concern-value-sync`, `managed-scope-sync`, `state-key-sync`, `spawn-noise-sync`,
 `check-retirements-sync`, `legacy-statusline-detect-sync`, `unwrap-before-compose-sync`,
 `resolve-convention-home-sync`, `resolve-convention-pattern-sync`, `index-regen-sync` and
-`standards-contract-sync`. Each paid a fresh runner, a fresh checkout and a fresh toolchain install
-to run a few seconds of `--check`, and GitHub bills a job by whole minutes, so the per-job overhead
-dominated the work by an order of magnitude.
+`standards-contract-sync`. Each was a runner, a pinned `actions/checkout`, a
+`checkout-with-base` deepen to full history plus a base fetch, and then the `--check` and
+`--check-bump` steps themselves. No toolchain install: these are shell scripts, and the toolchains
+belong to `test-linux`. The overhead was the runner, the checkout and the unshallow, and GitHub
+rounds every job up to a whole minute
+(<https://docs.github.com/en/billing/reference/actions-runner-pricing>), so thirteen jobs bought
+thirteen billed minutes at a floor for work measured in seconds.
 
-**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which is
-where the `--check-bump` steps' base history already lives; `sync-hook-utils.sh` runs in the
-`hook-utils` job beside the hook contract tests it covers. Every step keeps the name it had, so a
-failure still says which library drifted. Adding a fourteenth shared source therefore adds a step to
-an existing job, and adding a job is the thing to justify rather than the default.
+**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
+already performs that same deepen and base fetch for its own `--check-bump` steps;
+`sync-hook-utils.sh` runs in the `hook-utils` job beside the hook contract tests it covers, on the
+shell-only diff that job exists to keep off the heavier lanes. Adding a fourteenth shared source
+therefore adds a step to an existing job, and adding a job is the thing to justify rather than the
+default.
+
+One thing was lost and is worth naming rather than glossing. The old **job** name
+(`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every
+step kept the name it had, but those names were never carrying that load: seven of the twelve drift
+checks name their library and five do not, and none of the `--check-bump` steps do, seven of them
+sharing the string "Verify carrying plugins bumped when canonical changed". So a red bump check now
+needs its log read to say which library it was. That is the price paid for the consolidation, and a
+new sync step should name its library in its step name so the price stops growing.
 
 Nothing about the invariant moved: byte-drift is still fatal, the `--check-bump` half still fails a
 lib change whose carrying plugin's manifest version did not move, and the intra-plugin `vendor/`

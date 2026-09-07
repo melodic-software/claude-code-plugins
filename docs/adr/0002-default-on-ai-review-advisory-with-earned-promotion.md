@@ -347,9 +347,9 @@ other, and two mechanics constrain the code-review shape. `queue: max` and `canc
 true` cannot be combined on one group; that pairing is a workflow validation error
 (<https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency>),
 while `cancel-in-progress: false` beside a `queue` key is legal, which is the shape the security
-lane uses. So the queue is a job-level group beside the workflow-level cancel group rather than a
-change to it;
-and the group is deliberately distinct from the reusable workflow's own inner group, which is keyed
+lane uses. The queue therefore lives in a job-level group; the code-review caller declares no
+workflow-level group of its own, so there is nothing at that level to change. The group is also
+deliberately distinct from the reusable workflow's own inner group, which is keyed
 per pull request and head SHA, because a caller group sharing that name would deadlock the call
 against itself. Anthropic's documented behaviour for its own review product is the same: a second
 request while one runs is queued until the in-progress review completes
