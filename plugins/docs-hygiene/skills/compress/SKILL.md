@@ -3,7 +3,6 @@ description: "Compress (tighten, shorten, trim) markdown files by dropping flavo
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: anytime
   summary: Tighten markdown by dropping flavor while preserving every directive
@@ -24,7 +23,9 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the `source-control` plugin's
+[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 

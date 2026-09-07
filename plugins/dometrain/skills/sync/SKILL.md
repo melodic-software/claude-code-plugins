@@ -3,7 +3,6 @@ description: "Maintainer-only drift check for the grounding skill's vendored ups
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
 
 ## Purpose

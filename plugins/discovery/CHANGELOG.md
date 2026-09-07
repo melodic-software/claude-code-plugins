@@ -1,5 +1,12 @@
 # Changelog — discovery plugin
 
+## [0.19.6]
+
+### Changed
+
+- **blindspot, explore, research, research-deep, trace-intent:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- explore, research, research-deep, trace-intent, blindspot, setup, and the three dispatch agents: six harness claims move to one dated record in reference/parent-contract.md and the sites cite it; the fork-mode default follows the current documented behavior; the gather-block claim points at the worktree skill's record (prompt-audit follow-up F6)
+
 ## [0.19.5]
 
 ### Changed

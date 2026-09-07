@@ -11,8 +11,8 @@ deliberately out of contract.
 Every execution context emits OTLP pinned to the OpenTelemetry CI/CD and VCS semantic
 conventions, release **v1.43.0**. Every contract-authored emission (the writers and adapters
 an adoption wires) declares `schema_url: https://opentelemetry.io/schemas/1.43.0`; a native
-tool's own emission is consumed as-is — its schema declaration is whatever the tool emits
-(empirically, native agent-session output declares none), and the native-surface principle
+tool's own emission is consumed as-is — its schema declaration is whatever the tool emits,
+and the native-surface principle
 forbids rewriting it. A declared schema URL anywhere in a conforming output set must match
 the pin. Attribute vocabulary is cited by that registry reference, never copied into this
 contract or any conforming document — the registry owns the names (illustrative citation
@@ -24,6 +24,15 @@ adopting a newer release (including the graduation-to-Stable rename wave) is a r
 contract migration owned by the contract home — never a silent upgrade. The migration
 trigger is recorded in the capability home's trigger register. Never invent a parallel
 schema for a concept the upstream conventions already name.
+
+**Release Candidate status, dated record.** *Claim:* the CI/CD and VCS convention groups are
+Release Candidate, not Stable. *Basis:* the upstream conventions repository's own status marker
+on the CI/CD document and the Release Candidate badge on every CI/CD and VCS attribute in the
+published attribute registry. *Verified:* 2026-09-06. The pinned release **v1.43.0** exists and
+is a published release; the upstream latest at that date is **v1.44.0**, and both carry the same
+Release Candidate status, so the pin's migration trigger has data but the status claim is
+unchanged. *Recheck trigger:* an upstream release whose changelog records a CI/CD or VCS
+attribute promoted to Stable, or a Stable badge appearing on either registry page.
 
 ## Pillar 2 — the work-item join attribute
 
@@ -66,8 +75,7 @@ W3C `traceparent` context propagates trigger → CI → agent session, forming o
 per triggered chain. This is a headless/CI/runner property carried by contract-authored
 emissions: each chain leg's wrapper emission (the writers and adapters an adoption wires)
 reads inbound trace context from its environment and parents its span accordingly. A native
-agent surface that ignores inbound context — empirically, a default native agent-session
-surface can start a fresh root trace, honoring inbound context only behind an opt-in — does
+agent surface that ignores inbound context does
 not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
 the session's own native emissions attach query-side through the Pillar 2 attribute, which
 both surfaces carry. Where a native surface honors inbound context its spans join the tree

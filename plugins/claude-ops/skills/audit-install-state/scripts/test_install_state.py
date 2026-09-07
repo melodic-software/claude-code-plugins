@@ -623,7 +623,13 @@ class TestCsvFormulaInjection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            hostile = root / "=cmd|' /C calc'!A0"
+            # A DDE-shaped payload with the two characters Windows forbids in a
+            # filename removed: `|` and the `/` of `/C`. Neither assertion below
+            # inspects them -- both read the `=cmd` leader and the quote the
+            # writer prepends -- so dropping them keeps the property under test
+            # intact and lets the case run on every host instead of erroring at
+            # `mkdir` with WinError 123.
+            hostile = root / "=cmd 'C calc'!A0"
             hostile.mkdir(parents=True, exist_ok=True)
             (hostile / "plugin.json").write_text("{}", encoding="utf-8")
             report = engine.scan(

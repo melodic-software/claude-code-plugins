@@ -356,10 +356,16 @@ claude plugin marketplace update "$mp"
 The update call attempts to re-fetch from the marketplace's registered source; this skill never re-clones or
 performs cache surgery by hand. It does not reliably self-heal: the refresh is known to fail against an
 existing non-empty marketplace directory
-([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open —
-reported on macOS, reproduced on Windows), where it reports `Failed to clone marketplace
+([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), reported on
+macOS and reproduced on Windows), where it reports `Failed to clone marketplace
 repository: fatal: destination path '...' already exists and is not an empty directory`. Treat a
 successful refresh as the expected case, not a guarantee.
+
+That issue is closed as not planned, so the failure stands unfixed and this step keeps its manual
+recovery path. Basis: `gh api repos/anthropics/claude-code/issues/76129`. Verified 2026-09-06
+against Claude Code 2.1.263. Recheck when the issue reopens or closes as completed, or when a
+refresh against a non-empty marketplace directory succeeds here; route the recheck through
+`/claude-ops:known-issues check-all`.
 
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
 which is what gives the Run journal's catalog regression check its first interval. It belongs to

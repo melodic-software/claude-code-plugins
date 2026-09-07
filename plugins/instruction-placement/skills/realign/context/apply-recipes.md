@@ -97,6 +97,13 @@ nearest-wins while Claude concatenates the whole ancestor chain, so a subtree fi
 override behaves differently under the two tools. A candidate that only makes sense as an override
 does not belong in this destination — mark the finding `blocked` and say why.
 
+Verified 2026-09-06 against Claude Code 2.1.263 and two sources. The `AGENTS.md` convention states
+that agents read the nearest file in the directory tree, so the closest one takes precedence
+(<https://agents.md/>, the nested-files section). The memory page states that `CLAUDE.md` files in
+the directory hierarchy above the working directory are all loaded at launch, broadest scope first
+(<https://code.claude.com/docs/en/memory>, "Choose where to put CLAUDE.md files"). Recheck when
+either source stops carrying its statement, or when a release note names `CLAUDE.md` load order.
+
 ## Recipe C — promote from ordinary documentation
 
 Content Claude never loads today. No presence to lose, so the only real question is duplication.

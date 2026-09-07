@@ -3,7 +3,7 @@
 How the `improve` skill resolves the destination for its durable per-topic artifact.
 
 Implements the topic-docs convention:
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
 The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
 no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
 deltas.
@@ -34,8 +34,9 @@ file per run because nothing documented reclaims the temp tree — not a delta o
 
 ## Slug derivation
 
-Per the contract's precedence, from this skill's inputs: an explicit scan-focus argument (e.g. a
-named module or path) → the current branch name. Form and collision rules are the contract's.
+Per the contract's precedence, from this skill's inputs: the scan focus the user named, whether in
+the invocation arguments or in the conversation (a module, a subsystem, a path), then the current
+branch name. Form and collision rules are the contract's.
 
 ## Guards
 

@@ -18,8 +18,9 @@ DIRECTIONAL version-delta detection with guided migration, idempotent re-run) li
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind;
 a re-run against a conforming, current-version index proposes no changes.
 
-Action routing per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): no argument or `check` runs
+Action routing per the uniform setup contract
+([`docs/PLUGIN-PHILOSOPHY.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/PLUGIN-PHILOSOPHY.md)
+"Setup is explicit and repeatable"): no argument or `check` runs
 the binding's state-reading procedure read-only and reports index presence and resolved
 standards root, per-row path validation, and the DIRECTIONAL version delta as a PASS/FAIL/INFO
 table with one remediation line per FAIL, writing nothing. `apply` runs `check` first, then the

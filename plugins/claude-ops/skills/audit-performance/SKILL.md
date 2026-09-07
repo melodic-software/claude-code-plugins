@@ -3,7 +3,6 @@ description: "Read-only slowness-diagnostic capture for a Claude Code installati
 argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: operator
   summary: Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet, fan-out

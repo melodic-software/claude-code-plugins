@@ -127,7 +127,10 @@ Why the mode exists and where its boundary sits:
 The gate passing is not the end of the parent's work:
 
 - **Re-surface `open_questions`.** The agent cannot call `AskUserQuestion` — it is filtered out of
-  every non-fork subagent — so the payload is the only route those questions have to a human.
+  every non-fork subagent — so the payload is the only route those questions have to a human. The
+  dated record for that harness behavior is
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "Harness facts the dispatch design rests on".
 - **Dispatch the sibling verifier** against the `index=` path, with the criterion the payload's
   `verification_request` names: each claim's tier is warranted by the sources cited for it, and no
   `Inferred` was promoted. That verifier is a fresh context that has not seen the run, which is the

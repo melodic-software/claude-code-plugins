@@ -3,7 +3,6 @@ description: "Run polyglot linters and format checks across all affected ecosyst
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[ecosystem] [--fix|--code-fix] [--yes] [--dry-run] [--all-files] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint --code-fix --yes, /toolchain:lint all)"
-shell: bash
 metadata:
   workflow-stage: verify
   summary: Polyglot lint and format checks without a full build

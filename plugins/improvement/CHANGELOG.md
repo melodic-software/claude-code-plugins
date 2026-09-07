@@ -3,6 +3,13 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.10]
+
+### Changed
+
+- **find:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- Date the Actions /timing deprecation, replace the community-reported pagination cap with the documented 1,000-result bound, date the --keep-data claim, and point the find gather block at the composition record (prompt-audit follow-up F6)
+
 ## [0.1.9]
 
 ### Changed

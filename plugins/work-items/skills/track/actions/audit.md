@@ -29,7 +29,7 @@ Present each item the verb reports `reclaimed: true` (released — the `reason` 
 
 Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`) — not an error; report zero stale claims for this pass instead of failing the audit.
 
-A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so neither an exit code nor the JSON the presentation step above consumes is produced (CONTRACT.md "Exit codes"). Report the denial once and skip the stale-claim pass — reporting it as skipped, not as zero stale claims, since nothing was checked — then continue the audit's remaining passes. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer").
+A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so neither an exit code nor the JSON the presentation step above consumes is produced (CONTRACT.md "Exit codes"). Report the denial once and skip the stale-claim pass — reporting it as skipped, not as zero stale claims, since nothing was checked — then continue the audit's remaining passes. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer", whose "The dated record for both claims" carries the dated basis for this refusal).
 
 ### 2. Orphaned recurring entries
 

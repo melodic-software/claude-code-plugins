@@ -7,8 +7,13 @@ an operator restart?
 
 ## Empirical answer: no true mid-session hot-reload for a running loop lane
 
-Three independently sufficient facts, each verified against current Claude Code
-docs, block it — any one alone is decisive:
+Three independently sufficient facts block it, and any one alone is decisive.
+This section is the dated record for all three; SKILL.md points here rather than
+restating them. Verified 2026-09-06 against Claude Code 2.1.263 and the three
+pages cited below as fetched that day, each of which still carries the quoted
+span. Recheck when any of those pages drops its quoted sentence, or a release
+note names plugin auto-update, skill content lifecycle, or how a scheduled fire
+handles built-in commands.
 
 1. **A running session keeps its launch-time plugin versions.** Merging to the
    marketplace source does nothing to a live session until the local install is
@@ -69,7 +74,8 @@ lane_launch_commit="$(cat "$data_dir/lanes/$repo_key/<lane>-launch-commit" 2>/de
 `${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
 processes and MCP/LSP server subprocesses; for a plugin's **skill and agent
 content** it instead resolves by inline substitution "anywhere the placeholder
-appears". Both facts cut against resolving it here: this reference file is read
+appears". The dated record for that export claim is SKILL.md, the `--data-dir`
+note under "Action Router". Both facts cut against resolving it here: this reference file is read
 raw rather than rendered as skill content (so a placeholder written here would
 not substitute), and the probe runs through the Bash tool (so the env var is
 unset there). An env-var-with-fallback expression would therefore have silently

@@ -383,9 +383,13 @@ and the residual fail-open → "Hook launch form".
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
-  (`permissionDecision: "ask"`). Official PreToolUse docs say that value prompts the user to
-  confirm and, since v2.1.211, forces the prompt even in auto mode (the classifier can still
-  deny, but cannot silently approve). An explicit `permissions.ask` rule for those deletion
+  (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
+  call, and the permission-modes page says auto mode still shows a prompt a hook forces, so the
+  classifier can still deny but cannot silently approve. Verified 2026-09-06 against Claude Code
+  2.1.263 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` and
+  `https://code.claude.com/docs/en/permission-modes`; recheck when either page stops carrying those
+  statements, or when a release note names hook permission decisions.
+  An explicit `permissions.ask` rule for those deletion
   spellings is what the same docs treat as forcing a prompt in `auto` and `bypassPermissions`;
   in `dontAsk` that rule is denied with no prompt, so leave `dontAsk` first if the per-path
   handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`

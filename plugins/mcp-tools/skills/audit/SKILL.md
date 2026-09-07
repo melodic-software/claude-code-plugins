@@ -15,7 +15,7 @@ authorities, cited (not recapped) so the current text always governs:
 
 - [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). The normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
 - [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents). Engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
-- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and truncation limits.
+- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits. The dated record for the values C17 and C18 turn on is in reference/checklist.md, "Client-behavior record".
 
 Produces a per-tool scorecard with actionable findings. Catches description gaps, missing annotations,
 and naming issues before they degrade LLM tool selection accuracy.

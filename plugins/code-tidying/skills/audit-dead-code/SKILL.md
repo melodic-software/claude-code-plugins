@@ -4,7 +4,6 @@ argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh:*)", "Bash(git grep:*)", "Bash(git log:*)", "Bash(grep:*)"]
-shell: bash
 metadata:
   workflow-stage: anytime
   summary: Whole-repo dead-code hunt across four labelled lanes with adjudicated candidates

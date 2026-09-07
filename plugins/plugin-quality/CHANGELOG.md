@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.11]
+
+### Changed
+
+- The audit context-gate and the setup context-guard probe now run `scripts/context-zone.sh`, a byte-identical synced copy of the context-guard zone resolver, instead of resolving the zone by hand from inlined band tables, a staleness window, a token-shape version floor and a combination rule; the copy and its `context-zone.test.sh` are registered in `scripts/cross-plugin-source-registry.txt` and held byte-identical by the new `scripts/sync-context-zone.sh --check` (prompt-audit follow-up F19).
+- `scripts/zones-inline-drift.test.sh` now asserts the ten floor phrases against the synced resolver and the evidence-degraded marker path against the audit skill body, closing the resolver-versus-contract gap that byte-identity alone does not cover (prompt-audit follow-up F19).
+- audit, auditor: dated records for the two live doc-page titles and the fork and cloud-scoping claims, and a recheck trigger for the six dated stamps that lacked one (prompt-audit follow-up F6)
+
 ## [0.7.10]
 
 ### Added

@@ -67,13 +67,13 @@
       "id": 6,
       "name": "composes-without-double-wrapping",
       "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/context-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh — I configured context-guard first. Both plugins are installed, but I have never run /rate-limit-guard:setup apply.",
-      "expected_output": "Recognizes the existing sibling-shim wrapper, unwraps it to the operator's own renderer before composing, and prints wiring that runs each tee exactly once. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
+      "expected_output": "Runs scripts/compose-statusline-wiring.sh over the current statusLine value rather than peeling the sibling-shim prefix by hand, and reports what it printed. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
       "files": [],
       "expectations": [
-        "Treats ~/.claude/statusline/render.sh as the wrapped command — never re-wraps the full existing command, so the context-guard shim appears exactly once in the printed wiring",
-        "Never prints a combined form naming a shim path that is not installed; gates the combined wiring on the sibling shim existing, or directs the operator to run that plugin's apply first",
+        "Invokes scripts/compose-statusline-wiring.sh with the current statusLine value and one --wrap per shim the wiring should carry, instead of recovering the renderer in prose",
+        "Never prints a combined form naming a shim path that is not installed; gates the combined --wrap list on the context-guard shim existing, or directs the operator to run that plugin's apply first",
         "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh",
-        "Still edits nothing — the wiring is printed for the operator to apply"
+        "Still edits nothing: the wiring the script printed is for the operator to apply"
       ]
     },
     {
@@ -92,52 +92,52 @@
       "id": 8,
       "name": "rerun-does-not-compound-the-sh-c-wrap",
       "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline --flag' — I ran this skill once before and applied what it printed. Both the shim and the plugin are installed.",
-      "expected_output": "Unwraps the shim prefix AND the previously-generated sh -c adapter back to THEME=dark my-statusline --flag, then re-applies the shell-syntax guard to that renderer, printing wiring that carries exactly one sh -c layer — byte-identical to the wiring already in settings.json, so the operator has nothing to apply.",
+      "expected_output": "Invokes scripts/compose-statusline-wiring.sh with --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' and reports its result: the script exits 0 and prints wiring byte-identical to what is already in settings.json, so the operator has nothing to apply.",
       "files": [],
       "expectations": [
-        "Treats the existing `sh -c '...'` as a previously-generated adapter to unwrap, never as the operator's own renderer",
-        "Prints exactly ONE `sh -c` layer and one rate-limit-guard shim invocation — never a nested `sh -c 'sh -c '\\''...'\\'''`",
-        "Recovers `THEME=dark my-statusline --flag` byte-for-byte, unescaping `'\\''` back to `'`",
-        "Reports the wiring as already correct rather than presenting an identical line as a change to apply"
+        "Runs scripts/compose-statusline-wiring.sh rather than peeling the shim prefix and the sh -c adapter in prose",
+        "Reports the script's composed value verbatim, carrying exactly one sh -c layer and one shim invocation",
+        "Reads the script's exit code: a non-zero exit is reported with the one-line reason it printed, never worked around by composing the edit by hand",
+        "Reports the wiring as already correct because the composed value equals the configured one, rather than presenting an identical line as a change to apply"
       ]
     },
     {
       "id": 9,
       "name": "genuine-sh-c-renderer-is-not-peeled",
       "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: sh -c 'ulimit -n' — I wrote that myself because ulimit is a shell builtin and will not run any other way. The plugin is installed.",
-      "expected_output": "Treats sh -c 'ulimit -n' as the operator's OWN renderer, not a generated adapter, because the string it carries has no shell syntax and this skill only ever emits the adapter for a renderer that has some. Wraps it intact: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit -n'.",
+      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the script preserves the operator's own sh -c 'ulimit -n' and prints bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit -n'.",
       "files": [],
       "expectations": [
-        "Does NOT peel the `sh -c` layer — the carried string `ulimit -n` contains no shell syntax, so the adapter cannot have been generated by this skill",
-        "Preserves `sh -c 'ulimit -n'` verbatim as the wrapped command, so the shim never `exec`s a shell builtin with no shell",
-        "Names the provenance test (adapter is emitted only for a renderer carrying shell syntax) rather than peeling any `sh -c` on sight",
-        "Prints exactly one shim invocation and exactly one `sh -c` layer"
+        "Runs scripts/compose-statusline-wiring.sh rather than deciding in prose whether the sh -c layer was generated by an earlier run or written by the operator",
+        "Reports the script's composed value verbatim, with one shim invocation and exactly one sh -c layer",
+        "Attributes the preserved layer to the operator's own renderer, which is how the script treats a single sh -c over a merely-quoted command",
+        "Does not re-derive or second-guess the script's peel decision in prose"
       ]
     },
     {
       "id": 10,
       "name": "bare-quoting-is-not-a-wrap-trigger",
       "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: my-statusline --format 'a | b' — the pipe is part of the format string, not a pipeline. The plugin is installed.",
-      "expected_output": "Prints the PLAIN wrapped form: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-statusline --format 'a | b'. The pipe is sealed inside a quoted argument, so it is one ordinary ARGV word and needs no adapter.",
+      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the plain wrapped form, bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-statusline --format 'a | b', with no sh -c adapter.",
       "files": [],
       "expectations": [
-        "Emits the PLAIN wrapped form with no `sh -c` adapter",
-        "Does NOT treat the `|` as a control operator — the guard tests for syntax that is UNQUOTED and at the TOP LEVEL, and this pipe is neither",
-        "Does not justify a wrap by the presence of quotes — bare quoting is explicitly not a trigger",
-        "Reads `my-statusline` as an ordinary executable, so the not-an-executable trigger does not fire either"
+        "Runs scripts/compose-statusline-wiring.sh rather than testing the pipe for top-level syntax in prose",
+        "Reports the script's composed value verbatim, with no sh -c adapter",
+        "Cites the script's --explain wrap line (plain) as the evidence, not its own reading of the quoting",
+        "Does not add an adapter the script did not select"
       ]
     },
     {
       "id": 11,
       "name": "bare-builtin-renderer-gets-a-shell",
       "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: ulimit '-n' — I wrote it that way myself; the quotes are just habit. The plugin is installed.",
-      "expected_output": "Recognizes that the command word `ulimit` resolves as a shell builtin and not as an executable, so the plain wrapped form would reach `exec ulimit -n` and die with exit 127. Prints the shell-wrapped variant: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit '\\''-n'\\'''.",
+      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the script selects the shell-wrapped variant, bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit '\\''-n'\\''', because the command word resolves as a builtin rather than an executable.",
       "files": [],
       "expectations": [
-        "Emits the SHELL-WRAPPED variant, not the plain wrapped one — `exec` cannot run a builtin, so the plain form would exit 127 on every refresh",
-        "Reaches that decision through the not-an-executable trigger, NOT through the shell-syntax trigger — the renderer carries no unquoted top-level shell syntax at all",
-        "Does not justify the wrap by the presence of quotes — bare quoting is explicitly not a trigger",
-        "Resolves builtin-ness the way the shim will (`type -P` finding nothing while `type -t` reports `builtin`), never by matching a hardcoded list of builtin names"
+        "Runs scripts/compose-statusline-wiring.sh rather than deciding the wrap form in prose",
+        "Reports the script's composed value verbatim, already escaped, with no template quotes left for the operator to fix",
+        "Names the not-an-executable trigger as the reason, which is what the script's --explain wrap line reports",
+        "Does not justify the wrap by the presence of quotes; bare quoting is not a trigger and the script does not treat it as one"
       ]
     }
   ]

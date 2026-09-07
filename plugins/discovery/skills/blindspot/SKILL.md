@@ -3,7 +3,6 @@ description: "Surface the USER's unknown-unknowns before they work in unfamiliar
 argument-hint: "[area-or-domain] (e.g., /discovery:blindspot geofencing, /discovery:blindspot payments module, /discovery:blindspot <domain-vocabulary>)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: explore
   summary: Surface your unknown-unknowns and sharpen the prompt before unfamiliar work
@@ -20,7 +19,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 These values orient this session only; resolve files against the project root while working.
 

@@ -35,7 +35,8 @@ and — the hard part — which change set counts as "what the container shipped
 
 Every other mode in this skill reviews one branch against one base. A container is not a branch.
 Its work landed as many merges over days or weeks, and this repo **squash-merges by default**
-(`source-control/skills/pull-request/SKILL.md`), so there is no merge commit, no second parent, and
+([`source-control/skills/pull-request/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/pull-request/SKILL.md)),
+so there is no merge commit, no second parent, and
 no ancestry linking the shipped squash commits back to the branches that produced them.
 
 **Mode-scoped override:** `close-out` replaces the Review diff base from SKILL.md "Shared inputs"
@@ -101,7 +102,8 @@ From the body, extract the three things the rest of this mode needs:
   "Finding classes"
 - the **`**Execution shape:**` line** — the authoritative shape signal Step 3 reads. Read the shape
   from this line, never inferred from the presence of any other line
-  (`work-items/reference/execution-shape.md` states the rule and owns the values); an absent line
+  ([`work-items/reference/execution-shape.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/reference/execution-shape.md)
+  states the rule and owns the values); an absent line
   means the `per-item PRs` default, applied loudly
 - the **`**Integration branch:**` line**, present or absent — Shape A's required input, which the
   shape line does not imply: the branch is named at the same approval follow-up or backfilled by
@@ -111,7 +113,8 @@ From the body, extract the three things the rest of this mode needs:
 ## Step 3: Resolve the execution shape and derive the basis
 
 The two shapes ship differently, so their bases derive differently
-(`work-items/reference/execution-shape.md` owns the shapes themselves).
+([`work-items/reference/execution-shape.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/reference/execution-shape.md)
+owns the shapes themselves).
 
 ### Shape A — `integration branch → single PR`
 
@@ -259,7 +262,8 @@ keyword**. Two very different things produce that, and they must not be collapse
   comment and produce none by design, and a container's journey routinely contains them.
 - The sub-item shipped code under a PR that referenced it as `Refs #N` rather than `Closes #N`.
   That is a **sanctioned** opt-out, not an oversight: `work-items`' own
-  [`work/SKILL.md`](../../../../work-items/skills/work/SKILL.md) records that "the closing-keyword
+  [`work/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/skills/work/SKILL.md)
+  records that "the closing-keyword
   linkage is the authoritative signal … so an intentional `Refs #N` opt-out does not exclude its
   issue." It is the normal shape whenever one PR advances several items but closes only the
   spin-offs it fully resolves.
@@ -401,8 +405,9 @@ Write the findings artifact to the findings location (SKILL.md "Shared inputs") 
 **And post the verdict to the container.** The findings location lives in the contract slice, which
 is pruned — so the artifact that survives is the one on the tracker item. The close-out verdict
 goes as a comment on the container itself, alongside the shipping-PR links the close ritual
-records. That ritual (`work-items/skills/decompose/SKILL.md`, "Container lifecycle — ship ritual")
-owns the close; this mode produces the verdict it gates on and closes nothing itself.
+records. That ritual
+([`work-items/skills/decompose/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/skills/decompose/SKILL.md),
+"Container lifecycle — ship ritual") owns the close; this mode produces the verdict it gates on and closes nothing itself.
 
 ## Provider degradation — stated, not papered over
 

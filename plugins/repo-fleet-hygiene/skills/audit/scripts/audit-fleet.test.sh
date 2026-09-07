@@ -682,7 +682,16 @@ EOF
 
 output="$TMP/output.txt"
 PLAN_FILE="$TMP/action-plan.json"
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
+# This run asserts the UNCONFIGURED worktree-root path, so it must not see the operator's own
+# source-control worktree_root. The collector reads that key from
+# $CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT, then $CLAUDE_CONFIG_DIR/settings.json, then
+# $HOME/.claude/settings.json; on a machine that has it set the run reports a configured root and
+# the unconfigured placement and header cases fail against a real user setting rather than a defect.
+# The conformance fixtures below already isolate HOME for the same reason.
+mkdir -p "$TMP/unconfigured-home"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/unconfigured-home" \
+  env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
 
 failures=0
 
@@ -710,6 +719,37 @@ assert_not_contains_file() {
 
 assert_contains() { assert_contains_file "$1" "$2" "$output"; }
 assert_not_contains() { assert_not_contains_file "$1" "$2" "$output"; }
+
+# Host capability probes. Under MSYS without winsymlinks `ln -s` COPIES its target instead of
+# linking it, so a case that needs a real symlink asserts against an ordinary directory and
+# reports a product defect that does not exist. Probe the round trip rather than the OS name.
+host_makes_symlinks() {
+  local dir rc=1
+  dir="$TMP/symlink-capability-probe"
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  printf 'x\n' >"$dir/target"
+  if ln -s target "$dir/link" 2>/dev/null &&
+    [[ -L "$dir/link" ]] && [[ "$(readlink "$dir/link" 2>/dev/null)" == "target" ]]; then
+    rc=0
+  fi
+  rm -rf "$dir"
+  return "$rc"
+}
+
+# Same shape for the permission bits: uid 0 traverses a `chmod a-rx` directory regardless, and
+# MSYS maps chmod onto the Windows read-only attribute, which never denies the owner either.
+host_denies_owner_traversal() {
+  local dir rc=1
+  dir="$TMP/permission-capability-probe"
+  rm -rf "$dir"
+  mkdir -p "$dir/inner"
+  chmod a-rx "$dir/inner" 2>/dev/null || true
+  ls "$dir/inner" >/dev/null 2>&1 || rc=0
+  chmod u+rx "$dir/inner" 2>/dev/null || true
+  rm -rf "$dir"
+  return "$rc"
+}
 
 assert_contains "canonical override used" "Canonical: $TMP/canonical-a"
 assert_contains "mixed-case canonical config section honored" "Canonical: $TMP/canonical-c"
@@ -1865,53 +1905,63 @@ else
 fi
 
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).
-symlink_root="$TMP/symlink-root-target"
-mkdir -p "$symlink_root"
-symlink_path="$TMP/symlink-root"
-ln -s "$symlink_root" "$symlink_path"
-symlink_out="$TMP/symlink-root-out.txt"
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$symlink_path" >"$symlink_out" 2>&1; then
-  printf 'FAIL: symlink discovery root unexpectedly succeeded\n' >&2
-  failures=$((failures + 1))
-elif grep -Fq "discovery root is a symlink (refused)" "$symlink_out"; then
-  printf 'PASS: symlink discovery root is refused rather than reporting zero repositories\n'
+if ! host_makes_symlinks; then
+  printf 'SKIP: symlink discovery root — ln -s copies here, so the fixture would be an ordinary directory the collector is right to accept\n'
 else
-  printf 'FAIL: symlink discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$symlink_out")" >&2
-  failures=$((failures + 1))
+  symlink_root="$TMP/symlink-root-target"
+  mkdir -p "$symlink_root"
+  symlink_path="$TMP/symlink-root"
+  ln -s "$symlink_root" "$symlink_path"
+  symlink_out="$TMP/symlink-root-out.txt"
+  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$symlink_path" >"$symlink_out" 2>&1; then
+    printf 'FAIL: symlink discovery root unexpectedly succeeded\n' >&2
+    failures=$((failures + 1))
+  elif grep -Fq "discovery root is a symlink (refused)" "$symlink_out"; then
+    printf 'PASS: symlink discovery root is refused rather than reporting zero repositories\n'
+  else
+    printf 'FAIL: symlink discovery root is refused rather than reporting zero repositories\n%s\n' "$(cat "$symlink_out")" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
 # Intermediate symlink/junction dirs under --root are skipped without descending, but must be
 # disclosed (#2711). Linux symlinks are the portable fixture; Windows junctions take the same
 # -d/-L arm under Git Bash.
-sym_mid_root="$TMP/sym-mid-root"
-sym_mid_hidden="$TMP/sym-mid-hidden"
-mkdir -p "$sym_mid_root/keep" "$sym_mid_hidden/buried-repo/.git"
-ln -s "$sym_mid_hidden" "$sym_mid_root/via-link"
-sym_mid_out="$TMP/sym-mid-out.txt"
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1; then
-  if grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
-    grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
-    grep -Fq "Windows directory junctions" "$sym_mid_out" &&
-    grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
-    grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
-    ! grep -Fq "buried-repo" "$sym_mid_out"; then
-    printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
+if ! host_makes_symlinks; then
+  printf 'SKIP: intermediate symlink under --root — ln -s copies here, so the fixture would be an ordinary directory discovery is right to descend into\n'
+else
+  sym_mid_root="$TMP/sym-mid-root"
+  sym_mid_hidden="$TMP/sym-mid-hidden"
+  mkdir -p "$sym_mid_root/keep" "$sym_mid_hidden/buried-repo/.git"
+  ln -s "$sym_mid_hidden" "$sym_mid_root/via-link"
+  sym_mid_out="$TMP/sym-mid-out.txt"
+  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1; then
+    if grep -Fq "Finding: discovery-symlink-skip" "$sym_mid_out" &&
+      grep -Fq "Target: $sym_mid_root/via-link" "$sym_mid_out" &&
+      grep -Fq "Windows directory junctions" "$sym_mid_out" &&
+      grep -Fq "Discovery skips: 0 non-repository, 0 unreadable, 1 symlink" "$sym_mid_out" &&
+      grep -Fq "Fleet verdict: BLOCKED" "$sym_mid_out" &&
+      ! grep -Fq "buried-repo" "$sym_mid_out"; then
+      printf 'PASS: intermediate symlink under --root is disclosed without descending\n'
+    else
+      printf 'FAIL: intermediate symlink under --root is disclosed without descending\n%s\n' "$(cat "$sym_mid_out")" >&2
+      failures=$((failures + 1))
+    fi
   else
-    printf 'FAIL: intermediate symlink under --root is disclosed without descending\n%s\n' "$(cat "$sym_mid_out")" >&2
+    printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
     failures=$((failures + 1))
   fi
-else
-  printf 'FAIL: intermediate symlink under --root unexpectedly aborted the run\n%s\n' "$(cat "$sym_mid_out")" >&2
-  failures=$((failures + 1))
 fi
 # Unreadable/non-executable roots are the same false-empty class.
-# Root bypasses the permission bits this case depends on: `chmod a-rx` does not stop uid 0 from
-# traversing the directory, so the discovery root stays readable, the run legitimately succeeds, and
+# Two hosts bypass the permission bits this case depends on: `chmod a-rx` does not stop uid 0 from
+# traversing the directory, and MSYS maps chmod onto the Windows read-only attribute, which never
+# denies the owner. Either way the discovery root stays readable, the run legitimately succeeds, and
 # the assertion reports a product defect that does not exist. Containers and CI images commonly run
 # as root, so the case is SKIPPED there with its reason named rather than emitting a false FAIL —
 # a check that silently reports the wrong verdict is what the liveness-assertion convention forbids.
-if [[ "$(id -u)" -eq 0 ]]; then
-  printf 'SKIP: unreadable discovery root — running as uid 0, which bypasses the permission bits this case asserts on\n'
+# The probe asks the filesystem instead of naming a uid or an OS, so both hosts take one arm.
+if ! host_denies_owner_traversal; then
+  printf 'SKIP: unreadable discovery root — this host still traverses a chmod a-rx directory as its owner (uid 0, or MSYS chmod mapping onto the read-only attribute)\n'
 else
   unreadable_root="$TMP/unreadable-root"
   mkdir -p "$unreadable_root"

@@ -26,7 +26,9 @@ unchanged and bind every member.
    `subagent_type: "fork"`, which inherits the full conversation history the
    audit must read. A fresh/typed subagent receives no history, and a
    skill-level `context: fork` also discards it. Neither can audit this
-   conversation. The forks read the live working tree. Do NOT isolate them
+   conversation. The dated record for every fork claim in this pass is
+   [`inheritance-preflight.md`](inheritance-preflight.md), whose stamp opens
+   that file. The forks read the live working tree. Do NOT isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
    usually the thing under audit). Their no-writes rule is trusted, not
    enforced. See Gotchas, and treat a fork that wrote as untrusted output:

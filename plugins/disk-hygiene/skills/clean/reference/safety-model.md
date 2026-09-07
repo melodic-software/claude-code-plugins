@@ -263,7 +263,13 @@ resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginCo
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
 Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or
-local `.claude/settings.json` is ignored — so a hostile repo cannot flip it. The **user** file is located
+local `.claude/settings.json` is ignored — so a hostile repo cannot flip it. That scoping is verified
+2026-09-06 against Claude Code 2.1.263 and the plugins reference at
+`https://code.claude.com/docs/en/plugins-reference`, which states that Claude Code reads all
+`pluginConfigs` values from only user settings, `--settings`, and managed settings, that entries in a
+project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
+were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
+when a release note names `pluginConfigs` scope. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge) and **never**
 from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A marker-less
 install root (a `--plugin-dir` checkout, whose path has no `plugins/cache` segment) yields no trusted
@@ -312,11 +318,15 @@ userConfig `default` is not implemented upstream (#46477 / #39455 / #39827), so 
 unset-but-defaulted token is neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*`, and
 its presence **drops the whole engine-gate hook**: on a default install the gate would never run
 at all. Reading settings directly needs no `default` substitution. **Recheck** the tamper and
-scoping premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
+scoping premises against the dated `pluginConfigs` record under "Kill-switch enforcement" above.
 
-PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool on 2.1.218 (payload
+PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool (payload
 `tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
-firing divergence. Read `tool_name` from the stdin payload, never from an env var — `CLAUDE_TOOL_NAME`
+firing divergence. That firing is verified 2026-09-06 against Claude Code 2.1.263 and the hooks reference
+at `https://code.claude.com/docs/en/hooks`, whose matcher table says a `PreToolUse` matcher filters on
+tool name and whose Windows example uses that exact `Bash|PowerShell` matcher. Recheck when that page
+drops the example, or when a release note names hook matchers. Read `tool_name` from the stdin payload,
+never from an env var — `CLAUDE_TOOL_NAME`
 does not exist. Where both surfaces see the same command their verdicts are idempotent. The gate defers
 instantly (no output) for any command that does not reference the
 engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against

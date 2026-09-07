@@ -6,10 +6,16 @@ Autonomous application testing — start the app, navigate, interact, take scree
 
 Before live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
 
+The Playwright CLI row's version floor was verified 2026-09-06 against the package registry entry
+for `@playwright/cli`, whose latest published version that day is 0.1.19. Two names exist and only
+one is live: the unscoped `playwright-cli` package is deprecated and sits at a different, much
+higher version, so a floor read against that name means nothing. Recheck the floor when the scoped
+package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops resolving to it.
+
 | Requirement | How to check | Required? | Purpose |
 |------------|-------------|-----------|---------|
 | Orchestrator tooling/MCP | per the consuming project's orchestrator convention | YES (when orchestrator configured) | App orchestration, start/stop, health, logs |
-| Playwright CLI | `playwright-cli --version` (expect 0.1.x+) | Recommended | Browser automation, screenshots, form filling — token-efficient |
+| Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`, published at 0.1.19 on 2026-09-06; expect 0.1.x or later) | Recommended | Browser automation, screenshots, form filling — token-efficient |
 | Chrome DevTools MCP | `mcp__chrome-devtools__list_pages` | Optional | Lighthouse audits, performance traces, network inspection |
 | Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | GIF recording, natural language element finding |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |

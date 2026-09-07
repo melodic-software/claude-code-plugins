@@ -524,7 +524,7 @@ only reaches directives that name a *tool-shaped* entity, so an ordinary behavio
 rows: no CamelCase identifier, no backticked capitalized word, nothing to bucket on. That is a common
 and perfectly real Type A conflict.
 
-Widening the entity pattern is not the fix. Precision is already 28% on the tool-shaped rows
+Widening the entity pattern is not the fix. Only a minority of rows survive entity triage
 (measured below); admitting arbitrary verb phrases would bury the queue rather than extend it. **The
 lane therefore reads the surfaces in scope, and treats the scan output as a priority ordering rather
 than as its work list.** Concretely: work the emitted rows first because they are cheap and
@@ -533,10 +533,11 @@ mandate and a prohibition over the same act stated in ordinary prose. **A pass t
 the scanner emitted has not run this check**, and the report says which of the two it did.
 
 **Why it stays advisory rather than becoming a CI gate.** Measured over this repository's own skill
-bodies plus its root `CLAUDE.md`, the scan returns 169 candidate rows in about 2 seconds. 121 of them
-name a CamelCase *proper noun* — `GitHub`, `PowerShell`, `EventStorming`, `GraphQL` — not a directive
-about a tool. Only the `AskUserQuestion` rows survive entity triage. A 28% precision rate is a good
-review queue and a bad gate, so no conflict class in this pass is currently gate-grade: gates 2 and 5
+markdown plus its root `CLAUDE.md` on 2026-09-06, the scan returns 170 candidate rows in a few
+seconds. Most of them name a CamelCase *proper noun*, `GitHub`, `PowerShell`, `EventStorming` and
+the like, not a directive about a tool: `GitHub` alone accounts for 100 rows and `PowerShell` for
+38. A precision rate in that range is a good review queue and a bad gate, so no conflict class in
+this pass is currently gate-grade: gates 2 and 5
 carry the discrimination, and both need a model. Should a class ever reach gate-grade precision, its
 home is a repo-level `scripts/check-*.sh` + `.test.sh` + `ci.yml` lane following the silent-skip
 gate's documented lane shape — not this skill.

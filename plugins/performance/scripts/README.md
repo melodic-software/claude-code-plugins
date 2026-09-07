@@ -49,8 +49,9 @@ Every script carries a co-located `<stem>.test.sh`. Run one with `bash <stem>.te
 
 This is the trap that produced three of the five source-run failures, and it is not symmetric:
 
-- **bash needs the MSYS spelling.** A `D:/...` path handed to bash resolves nowhere. The shell
-  harnesses refuse one outright unless `--allow-windows-paths` is passed.
+- **bash needs the MSYS spelling.** A drive-letter path in backslash form collapses when it is
+  interpolated unquoted into a command string, and the command then exits 127. The shell harnesses
+  refuse any drive-letter path outright unless `--allow-windows-paths` is passed.
 - **A native Windows interpreter needs the native spelling.** The `python3` on this kind of host is
   a native build, so `/d/worktrees/repo/x.py` resolves to `D:\d\worktrees\repo\x.py`, which is
   nowhere. `pathfix.py` resolves that, loudly.

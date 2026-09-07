@@ -3,7 +3,6 @@ description: "Map native Claude Code surfaces (built-in CLI commands, bundled sk
 argument-hint: "[report|apply <plugin>] [--store <path>] [--inventory <path>]. Bare runs the read-only report"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: operator
   summary: Map native Claude Code surfaces against this repo's components and record human-gated verdicts
@@ -284,9 +283,15 @@ Two upstream facts this skill depends on, each with the trigger that obliges re-
 - **A plugin skill never shadows a native one.** Ours are namespaced, so both resolve and the model
   chooses. That is why the routing lives in descriptions rather than in a name.
 - **`plugin_backed` is its own lane.** `security-review` is reported there, not under
-  `builtin_commands`. Read the wrong key and the row looks absent.
+  `builtin_commands`. Read the wrong key and the row looks absent. Verified 2026-09-06 against
+  Claude Code 2.1.263, by running `inventory.py --binary-only` on this machine and reading the
+  `plugin_backed` key, which holds `security-review` and nothing else. Recheck when the extractor's
+  provenance lanes change or a release note moves a bundled surface between them.
 - **A bundled skill can carry aliases.** `code-review` answers to `review`; treating an alias as a
-  separate surface produces a duplicate row for one capability.
+  separate surface produces a duplicate row for one capability. Basis:
+  <https://code.claude.com/docs/en/commands> gives `/code-review` the line "Alias: `/review`".
+  Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when
+  the commands page drops the alias line or a release note renames a bundled skill.
 - **Absent from the binary is not absent from the product.** Session-provided skills exist only in
   a live roster. "Not in the extraction" is a statement about the extraction.
 - **A verdict is not permanent.** The trigger is the load-bearing part of the row; a date alone

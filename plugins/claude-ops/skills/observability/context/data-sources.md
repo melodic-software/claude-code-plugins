@@ -363,7 +363,7 @@ Used to anchor "X commits in Y window" trend lines, not for severity.
 
 ## Performance
 
-All queries run on file sizes ≤ 50MB without issue. Skill caps total runtime ~10s on warm filesystem; ccusage MCP adds 200ms-2s per call (acceptable on-demand, never poll).
+The queries run comfortably on a store of ordinary size, and the skill caps its own total runtime on a warm filesystem. A ccusage MCP call adds noticeably more latency than a local query, so use it on demand and never poll it. Measure the store before assuming a query is cheap rather than reading a threshold from here.
 
 ## Cross-references
 

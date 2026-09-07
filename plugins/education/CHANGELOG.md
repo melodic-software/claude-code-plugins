@@ -3,6 +3,13 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.5]
+
+### Changed
+
+- **teach:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- Give every worktree of one repository the same teach workspace on Git for Windows, where the drive-letter answer from git rev-parse --git-common-dir was read as a relative path and the canonical path had several spellings (prompt-audit follow-up F10)
+
 ## [0.10.4]
 
 ### Changed

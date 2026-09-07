@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I29, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I34, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -60,7 +60,7 @@ concerns its siblings already cover, so route rather than re-answer:
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
 user root Phase A resolves),
-this skill runs only the model-era checks I6–I29. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I34. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single

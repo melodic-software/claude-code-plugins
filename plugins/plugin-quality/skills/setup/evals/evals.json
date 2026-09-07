@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Names the acting gh account explicitly, not just 'authenticated'",
-        "Reports dispatch mode as zone-informed or conservative based on the snapshot probe",
+        "Runs scripts/context-zone.sh for the zone rather than reading the snapshot or the bands by hand, and reports dispatch mode as zone-informed or conservative from the word it prints",
         "Runs lib/resolve-convention-home.sh rather than parsing AGENTS.md or CLAUDE.md by hand",
         "Effective sink is reported with provenance (which source supplied it)",
         "Read-only: no file writes in check"

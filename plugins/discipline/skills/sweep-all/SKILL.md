@@ -138,7 +138,10 @@ never/core/unknown promote warning in that report, never silently drop them.
   subagent's tool access can be narrowed with `tools` / `disallowedTools`; a
   fork's cannot. Forks "skip both filters and receive the main conversation's
   exact tool pool", and a fork's system prompt and tools are "Same as main
-  session" (<https://code.claude.com/docs/en/sub-agents>). So every audit fork
+  session" (<https://code.claude.com/docs/en/sub-agents>; the dated record for
+  every fork claim in this skill is
+  [`reference/inheritance-preflight.md`](reference/inheritance-preflight.md),
+  whose stamp opens that file). So every audit fork
   holds Write, Edit, and Bash and is only *asked* not to use them. Never
   present the audit fan-out's read-only posture as harness-enforced. If you
   want assurance that the fan-out honored it, capture the working tree's state

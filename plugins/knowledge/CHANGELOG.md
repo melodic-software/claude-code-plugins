@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.48]
+
+### Changed
+
+- Fix the docpage-digest fence and snippet gates crashing with a UnicodeEncodeError when the console encoding is not UTF-8, which reported a clean digest as a gate bug (prompt-audit follow-up F10)
+
 ## [0.13.47]
 
 ### Fixed

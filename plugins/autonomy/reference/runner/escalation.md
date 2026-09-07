@@ -155,6 +155,20 @@ The runner binds each class's concrete adapter — and re-verifies its behavior 
 docs. This grounding fixes only which class each leg belongs to and the ladder order between them;
 naming instances is the binding surface's job, not this contract's.
 
+**Both classes shipped, dated record.** *Claim:* each leg's transport class has a first-party
+mechanism available today, so neither waits on a primitive that has to be invented. *Basis:* the
+harness documentation page for hooks, which states that hooks run at fixed lifecycle points for
+deterministic control, offers a direct HTTP hook type that posts the event payload to a
+configured endpoint, and attaches no account-tier or paired-device condition; and the harness
+tools reference, which carries a push-notification tool the agent calls at its own discretion,
+reaching a desktop and a paired personal device. *Verified:* 2026-09-06, against harness version
+2.1.263 and those pages as fetched the same day. *One bound the ladder order already reflects:*
+the push leg's delivery runs through hosted infrastructure that some cloud model-hosting
+platforms do not carry, and it needs an operator opt-in, which is a second reason it never
+substitutes for the channel leg. *Recheck trigger:* the hooks page drops the direct HTTP hook
+type or attaches a tier condition to hooks, the tools reference drops the push-notification row,
+or a release note names either surface.
+
 ### Contract-default severities
 
 Fan-out is fully defined with no `escalation_severity` binding present at all: every event
@@ -206,6 +220,18 @@ or context on real drains; until then, terminal handoff with a resumable session
 escalation surface. First-party pause-and-resume mechanisms exist and are re-verified at build,
 so adopting the interrupt shape later needs no change to this contract.
 
+**Pause and resume, dated record.** *Claim:* first-party mechanisms for both halves exist today.
+*Basis:* the harness documentation page for permission modes, where a manual-mode run stops and
+waits on the operator before most state-changing actions and a permission prompt never
+auto-resolves on idle, which is the pause half; and the harness pages for subagents and for
+sessions, which document resuming a stopped run with its full history rather than starting it
+fresh, which is the resume half. *Verified:* 2026-09-06, against harness version 2.1.263 and
+those pages as fetched the same day. *A distinction the interrupt shape must keep:* only the
+permission-prompt path is a pause awaiting a human mid-run; resuming a completed or stopped run
+is a different mechanism, and the two are not interchangeable. *Recheck trigger:* the permission
+modes page stops carrying the stop-and-ask rule, the resume rule changes on either page, or a
+release note names an await-human-input pause.
+
 ## Escalation telemetry
 
 No standard telemetry signal for "an agent escalated to a human" exists, so escalation events
@@ -214,9 +240,25 @@ work-item join attribute. The exact namespace token is read from the shipped tel
 at build, not pinned here. A standard escalation signal is noted as a candidate upstream
 contribution when the relevant conventions mature.
 
+**Absence, dated record.** *Claim:* no standard signal for an agent escalating to a human exists
+upstream. *Basis:* the published attribute registry of the upstream semantic conventions,
+enumerated at the namespace index and then attribute by attribute in the four groups that would
+carry it: the generative-AI, CI/CD, version-control, and model-context-protocol namespaces. None
+carries an approval, escalation, handoff, or human-review attribute, and the registry publishes
+no events sub-registry to enumerate. The nearest match is a client-side elicitation method name,
+which requests user input rather than recording an escalation. *Verified:* 2026-09-06 against
+release v1.44.0. *Recheck trigger:* an upstream release adds an approval, human-review, or
+human-in-the-loop attribute to the generative-AI or CI/CD group, or an events sub-registry
+appears.
+
 ## Research gaps carried
 
-The following are unresolved at design time and carried openly rather than closed by assumption:
+The following are unresolved at design time and carried openly rather than closed by assumption.
+All four are carried open as of **2026-09-06**, which is the date they were last reviewed rather
+than a date any was closed. Each names an external surface whose vendor specifics this contract
+may not carry, so the bind-at-build instruction on each is where it gets settled. Recheck
+trigger: a build binding closes a gap, or this review date passes six months without one, in
+which case re-review rather than repeat a gap on this stamp's authority.
 
 - CI-action-class failure-reporting specifics — whether a failure surfaces as a comment, a
   check result, or a job failure — are UNVERIFIED; bind the exact reporting surface at build

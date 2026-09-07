@@ -160,7 +160,7 @@ Additional features:
 Caveats that do survive, each verified:
 
 - An `@import` **inside** a path-scoped rule defeats the scoping: the imported content inlines at session start whether or not a matching file is ever read. Per the docs, "Imported files are expanded and loaded into context at launch" — code.claude.com/docs/en/memory.
-- Path-scoped content is invisible to subagents, teammates, and skill-forked contexts. Issue #32906 covers this and is closed NOT_PLANNED — accepted behavior, not a pending fix.
+- Path-scoped content is invisible to subagents, teammates, and skill-forked contexts. Issue #32906 covers this and is closed as not planned, so it is accepted behavior rather than a pending fix. Basis: `gh api repos/anthropics/claude-code/issues/32906`, which returns `state: closed` and `state_reason: not_planned`. Verified 2026-09-06 against Claude Code 2.1.263. Recheck when that issue reopens or closes as completed, or when the memory page's subagent section changes.
 - Writing a NEW file does not trigger the rule. The trigger is a read: "Path-scoped rules trigger when Claude reads files matching the pattern, not on every tool use" — code.claude.com/docs/en/memory.
 - Excluding `project` from `--setting-sources` also excludes on-demand rules, both path-scoped rules and rules in nested `.claude/rules/` directories (code.claude.com/docs/en/memory).
 

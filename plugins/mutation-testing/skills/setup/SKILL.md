@@ -71,22 +71,36 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 8. **Suppression record**. Report presence and entry count of `.claude/mutation-testing-arid.md`
    across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**
    entry against the full contract in
-   [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md), not a subset of it:
-   - **All five required keys present**. `check`, `claim`, `sites` (each with `surface` and an
-     `anchor/v<N>`), `reason`, `date`. Missing any one → FAIL, naming the entry and the key. A
-     partial parse is not offered: an entry with `sites`, `reason`, and `date` but no `check` or
-     `claim` is malformed and must not be reported as usable, because the audit would otherwise
-     suppress a mutant on a location match the contract never authorized.
-   - **Constituents hash to the key**. Re-derive `finding_id` from `(check, claim, sites)` and
-     compare. A mismatch → FAIL. This is the case a hand-edited constituent beside a stale key
-     produces, and it silently stops suppressing if unchecked.
-   - **`claim` is a bound canonical id, not prose**. `arid(kind=<node-kind>)` where `<node-kind>` is
-     a **member of the enumerated table** in
+   [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md), not a subset of it.
+
+   Grade the entries with the lint rather than deriving anything by hand, passing every layer that
+   exists:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" .claude/mutation-testing-arid.md
+   ```
+
+   It prints `record <path>` and then one line per entry, and exits 0 when every entry passes, 1
+   when any entry fails, and 2 when it cannot grade a record at all: no top-level `suppressions:`
+   mapping, an unreadable node-kind table, or no digest tool. An absent record and an empty
+   `suppressions:` mapping are both exit 0. Its three failure verdicts are FAIL conditions here; the
+   two items after them are the probe's own, and the lint decides neither:
+   - **`malformed <id>`**. A required key is missing (`check`, `claim`, `sites` with a `surface` and
+     an `anchor/v<N>`, `reason`, `date`), `date` is present but is not a real calendar day written `YYYY-MM-DD`,
+     or `claim` is not the canonical form. FAIL, naming the entry and the key the lint names. A partial parse is not offered: an entry with `sites`,
+     `reason`, and `date` but no `check` or `claim` is malformed and must not be reported as usable,
+     because the audit would otherwise suppress a mutant on a location match the contract never
+     authorized.
+   - **`mismatch <id>`**. The entry's `(check, claim, sites)` do not hash to the key it is filed
+     under, and the line names the id they do hash to. FAIL. This is the case a hand-edited
+     constituent beside a stale key produces, and it silently stops suppressing if unchecked.
+   - **`unknown-kind <id>`**. `claim` binds `arid(kind=<node-kind>)` with a kind that is not a
+     **member of the enumerated table** in
      `${CLAUDE_PLUGIN_ROOT}/skills/principles/reference/scaling-and-suppression.md`
-     ("The node-kind vocabulary"). Validate by membership in
-     that table, not by shape: a single-word kind that is not in it is indistinguishable from prose
-     that happens to be one word, and passing it would make every suppression self-justifying. Free
-     prose, or a kind outside the table → FAIL, listing the accepted kinds.
+     ("The node-kind vocabulary"), which the lint reads at run time. FAIL, reporting the accepted
+     kinds the lint prints beneath the failing entries. Membership is the test, not shape: a
+     single-word kind that is not in the table is indistinguishable from prose that happens to be
+     one word, and passing it would make every suppression self-justifying.
    - **Personal-only entries**. Any id present in a `.local.md` layer but absent from the team layer
      is reported `personal-only, not applied`, with promotion to the team layer named as the remedy.
      This is INFO, not FAIL: the entry is legal, it simply does not suppress.

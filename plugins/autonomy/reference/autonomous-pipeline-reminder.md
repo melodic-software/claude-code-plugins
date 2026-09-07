@@ -36,7 +36,9 @@ follow-up — all of these are yours to do, and an action being visible outside 
 working tree does not by itself make it one to ask about. Pause only where the work
 genuinely requires the person who launched you: a destructive or irreversible action,
 an outward action the original request did not ask for, a real change of scope, or
-input only they can supply.
+input only they can supply. Before you run a command that changes system state, check
+that the evidence you hold supports that specific action. A signal that looks like a
+known failure may have a different cause.
 
 Asking once and proceeding is fine. Asking again about the same thing is not: if the
 question was already settled, or the pipeline's standing authorization already covers
@@ -63,6 +65,11 @@ These shapes are work orders to act on, never messages to end on:
 End the turn only when the goal is met, or when you are blocked on something only the
 person who launched you can supply. If you are blocked, say what you are blocked on and
 what you already tried — that message is the whole value of the stop.
+
+Recovering is part of the work: retry after an error, and go find the information you
+are missing, rather than ending the turn to report either one. A long session or a long
+context is not a reason to stop. Length says nothing about whether the goal is met; keep
+working until it is, or until a mechanism the pipeline owns tells you to hand off.
 ```
 
 ## Where it applies, and where it does not
@@ -74,13 +81,11 @@ what you already tried — that message is the whole value of the stop.
 my direction" wants the opposite posture, and pasting this block into one converts a working
 human-in-the-loop review into an agent that acts on its own recommendations.
 
-The loop lanes this repository ships are the worked example of that split, and of the gap this file
-closes. Their two autonomous lanes state clauses of their own to this effect, hand-authored inline in
-each launch prompt; the attended lane deliberately states none, because it opens by telling the
-session a human is present. **No lane references this file** — the launch prompts are pasted into a
-terminal that may have no plugin installed, so they stay self-contained by design. That is the point:
-the clauses existed only as prose duplicated across two launch surfaces, reusable by nobody, which is
-why they are stated once here for an adopting org to drop into its own pipeline.
+The loop lanes this repository ships are the worked example of that split. Their two autonomous
+lanes state clauses of their own to this effect, hand-authored inline in each launch prompt; the
+attended lane deliberately states none, because it opens by telling the session a human is present.
+**No lane references this file.** Launch prompts are pasted into a terminal that may have no plugin
+installed, so they stay self-contained by design.
 
 ## Relationship to the lane-stop gate
 

@@ -3,7 +3,6 @@ description: "Manage git worktree lifecycle for parallel-session isolation: crea
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup, /worktree audit)"
-shell: bash
 metadata:
   workflow-stage: session
   summary: Create, inspect, and clean git worktrees for parallel sessions
@@ -25,7 +24,10 @@ entries") bounds nothing: the Bash tool returns the command's complete output in
 there is anything to decide about. Treat a failure (not a repository, git unavailable) as an unknown
 value and carry on. Keep these as separate body calls rather than pre-compute: the harness composes
 a pre-computed block into one shell invocation, and a worktree-isolated agent refuses a git-bearing
-compound command, which would make this skill uninvocable from inside a worktree.
+compound command, which would make this skill uninvocable from inside a worktree. The dated record
+for the composition half is
+[reference/gather-block.md](reference/gather-block.md), "The pre-compute block runs as one shell
+invocation".
 
 That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
 [worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
@@ -73,7 +75,7 @@ On hook registration: use the `args`-array **exec form** here, per <https://code
 
 Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/16600) is the live issue. OPEN, labeled `enhancement` and `memory`, asking that memory traversal respect worktree boundaries. It concerns **memory files**; the same trace found those handled correctly on 2.1.224, so the surface still leaking is path-scoped rules, which no open upstream issue covers. That "handled correctly" is a **null result from this same trace**, not a release-note fact, no 2.1.224 changelog line covers memory, worktree, or rule loading, and that changelog scan is packet-sourced and has not been re-run.
 
-**Verification stamp** ([upstream-drift convention](../../../../docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp:
+**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp:
 
 - **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
 - **Unconditional expiry.** **2.1.244, or 2026-11-07. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.

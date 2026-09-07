@@ -83,7 +83,16 @@ tokens"; they are not reused as probe labels.
    interactively. The deterministic resolver never parses prose, and prose is never runtime
    authority. Platform bound: the host harness reads its primary instruction file, not a
    secondary agent-instruction file — a secondary file reaches a session only through a
-   reference.
+   reference the primary file carries. This contract owns that platform bound; the resolution
+   slice and the setup skill state it in one clause each and point here.
+
+**Platform bound, dated record.** *Claim:* the host harness loads its primary instruction file
+at session start and does not load a secondary agent-instruction file on its own; an import line
+in the primary file is the supported way to make the secondary one reach a session. *Basis:* the
+harness documentation page on project memory, which states the primary file is the one read and
+gives the import form for the secondary. *Verified:* 2026-09-06, against harness version 2.1.263
+and that page as fetched the same day. *Recheck trigger:* that page stops saying the secondary
+file is unread, or a release note names direct loading of secondary agent-instruction files.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
 with no owner (CI-config presence, flag-SDK presence) gain probes owned by this contract;
@@ -112,9 +121,8 @@ declared narrows and fills where no contradicting fact exists; intent never outr
   asserts a prerequisite and the current per-surface probe shows it missing, the identity
   resolves to `unsupported`. A positive verdict never survives the capability's disappearance on
   evidence of intent alone. The contradiction is simultaneously emitted as a **finding** and
-  routed per the
-  [liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) Core contract's
-  two limbs (fail loud, or publish to a channel an agent reads): in a gate context the
+  routed per the marketplace's liveness-assertion convention Core contract's two limbs
+  (fail loud, or publish to a channel an agent reads): in a gate context the
   resolver's non-zero exit is the loud limb; in a report context the divergence finding in the
   emitted resolution is the agent-readable one; the interactive `apply` path additionally
   proposes correcting the declaration.
@@ -137,8 +145,7 @@ axes accept no repo-local value at all (this plugin's ratified cascade deviation
 ## Composition seams
 
 Resolution composes convention-owned consumer surfaces. Every cross-plugin reference is
-presence-gated with a documented fallback per
-[seam phrasing](../../../docs/conventions/seam-phrasing/README.md):
+presence-gated with a documented fallback per the marketplace's seam-phrasing convention:
 
 | Concern | Seam | Fallback when absent |
 |---|---|---|
@@ -168,8 +175,7 @@ classification obligation forbids.
 ## Configured is not working
 
 Presence establishes configured, never health. The verdict vocabulary is non-health-asserting by
-construction. The
-[liveness-assertion](../../../docs/conventions/liveness-assertion/README.md) on-touch obligation
+construction. The marketplace's liveness-assertion convention carries an on-touch obligation that
 still binds every implementing engine surface (the setup `check`, the resolver): each states its
 taxonomy row and how it satisfies fail-loud or agent-readable routing. A consumer that treats
 configured as working is itself the false-green defect. Execution evidence belongs to the
@@ -211,6 +217,3 @@ separate plugin, skill, catalog, or config-file family carries it.
 4. **Loop-lane capability tiers** — model selection (`docs/conventions/loop-lane/`).
 5. **Tracker adapter `capabilities.json`** — declared adapter verb support; a composed input
    here, not a synonym.
-
-The catalog's `DET` / `AGT` judgment verdicts are a sixth nearby collision (not probe labels);
-they are called out under Probe classes above rather than as a sixth "capability" sense.

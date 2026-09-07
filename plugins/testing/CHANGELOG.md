@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.17]
+
+### Changed
+
+- **diagnose, plan, run-e2e, write:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- diagnose, write, and run-e2e: the .NET framework-trap claims are corrected to the current runner behavior and dated, the Playwright CLI version floor names the live package, and the gather-block claim points at the worktree skill's record (prompt-audit follow-up F6)
+
 ## [0.7.16]
 
 ### Changed

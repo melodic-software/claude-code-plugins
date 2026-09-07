@@ -4,6 +4,14 @@ One packet per resolved target, created in step 1 of the workflow in [`../SKILL.
 and read by every later step. It survives compaction, which is the whole reason it exists. Getting
 any of the three specifications below wrong silently corrupts an audit rather than failing it.
 
+**Recheck trigger for every dated stamp in this file:** re-read the cited page and re-date the
+stamp when any of these change. Where the plugins reference says `${CLAUDE_PLUGIN_DATA}` is
+substituted, and the data-directory path it derives. Whether the sub-agents page starts describing
+the report-filename write guardrail. Whether the hooks page still states that `PostToolUse` runs
+after a successful tool call and that its matcher keys on the tool name. The formatter scoping
+carries its own trigger where it is stated. A release note touching plugins, subagents, or hooks is
+the usual way one of these moves. These stamps are page reads with a date, not standing facts.
+
 ## Contents
 
 - [Layout and files](#layout-and-files)

@@ -213,7 +213,8 @@ rule. When a request is about baseline security patterns, deprecated syntax, or 
   {S} settings scope(s) — {per-scope breakdown}; {P} plugin manifest(s)
 - Not read: {W} unopenable path(s); {J} settings file(s) not valid JSON; {X} file(s) excluded
 - Scopes out of this detector's reach: managed policy, enterprise, --settings file,
-  pre-v2.1.211 start-directory copy (see audit-permission-state)
+  pre-v2.1.211 start-directory copy (dated record: audit-permission-state/reference/criteria.md
+  §Scopes)
 - Consumer declarations read: {file(s), and what each changed — or "none"}
 - error: X findings (P2)
 - warning: X findings (P1, P3)

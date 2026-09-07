@@ -5,6 +5,7 @@
 - [The pre-dispatch envelope](#the-pre-dispatch-envelope)
 - [The pre-dispatch baseline](#the-pre-dispatch-baseline)
 - [Scope and topic do not arrive by argument substitution](#scope-and-topic-do-not-arrive-by-argument-substitution)
+- [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on)
 - [Running the acceptance gate](#running-the-acceptance-gate)
 - [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice)
 
@@ -176,6 +177,73 @@ check each dispatched agent's echo against the envelope it was sent, per topic, 
 
 **This caveat expires 2027-02-11.** Re-fetch both pages then. After that date it is an unverified
 claim, not a fact — say so rather than repeating it.
+
+## Harness facts the dispatch design rests on
+
+Six harness behaviors this plugin's dispatch design depends on, each with one dated record here
+instead of an undated restatement at every site that relies on it. A skill, context file, or agent
+definition keeps its own one-sentence operative rule and cites this section by heading; none of
+them repeats a basis. Every record below was verified against Claude Code 2.1.263 with the pages
+named, fetched 2026-09-06.
+
+**One shared recheck trigger covers all six:** any of the named pages stops carrying the quoted
+span, a release note names subagent tool filtering, skill preloading, background execution, or
+subagent spawn permissions, or the CLI major version moves. On any of those, re-fetch the page
+before restating the record, and re-date this section rather than editing a claim in place.
+
+### A preloaded skill that fails to resolve is skipped silently
+
+*Claim.* A subagent's `skills:` preload that cannot resolve does not fail the dispatch; the agent
+runs without the body it was supposed to carry, and the only trace is a debug-log warning.
+*Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents): "If a listed skill
+is missing or disabled, for example by your organization's policy, Claude Code skips it and logs a
+warning to the debug log." The same page's field table gives the mechanism the preload uses: the
+`skills` field injects "The full skill content", not only the description. *Why the plugin cares.*
+A run whose discipline never loaded is indistinguishable from a good one at every other seam,
+which is what the liveness token exists to catch.
+
+### `AskUserQuestion` is removed from every non-fork subagent
+
+*Claim.* A dispatched agent cannot ask the user a question directly; open questions reach a human
+only through its return payload and the parent. *Basis.* the same page's tool-filter list, which
+names `AskUserQuestion` among the tools the first filter "removes these tools, even when listed in
+the `tools` field", and states that forks "skip both filters and receive the main conversation's
+exact tool pool".
+
+### Plan-mode tools are removed from every non-fork subagent
+
+*Claim.* A dispatched run cannot enter plan mode, so a read-only posture there is the agent's own
+instruction rather than a harness boundary. *Basis.* the same tool-filter list: `EnterPlanMode`
+unconditionally, and `ExitPlanMode` "unless the subagent's `permissionMode` is `plan`".
+
+### The `Workflow` tool is absent from every non-fork subagent
+
+*Claim.* Only the main conversation, or a fork of it, can dispatch a workflow engine, which is why
+the deep-research tier ladder runs from main context. *Basis.* the same tool-filter list, which
+names `Workflow`.
+
+### Background is the default execution mode, and it narrows the tool set again
+
+*Claim.* A dispatched agent runs in the background unless one of the documented foreground cases
+applies, and a background subagent keeps only a named subset of built-in tools plus every MCP
+tool. *Basis.* the same page: the second filter "reduces the built-in tool set for subagents that
+run in the background, which is the default", and the fork-mode section states that Claude Code
+"runs the subagents Claude spawns in the background, forks and non-fork subagents alike, apart
+from the cases that stay in the foreground". *Do not restate the tool subset.* It is a list the
+harness owns and revises; a site that needs it names the page rather than copying the members.
+
+### A spawn is permission-checked before it launches, and the depth limit is a different mechanism
+
+*Claim.* A denied spawn is not evidence about nesting depth. The two failures have different
+causes and different error text, so read the error rather than inferring a depth ceiling from it.
+*Basis.* the same page. A deny rule refuses the spawn: subagents are blocked with an
+`Agent(subagent-name)` entry in the settings `deny` array, and denying the `Agent` tool itself
+prevents delegation entirely. The depth limit works the other way: at the limit "Claude Code
+withholds the `Agent` tool from every subagent except a fork", so a subagent at the limit has no
+tool to call rather than a call that comes back denied, while "A fork at the limit keeps `Agent` in
+its inherited tool list, but the tool returns an error instead of spawning." *One bound worth
+carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
+it, but "any type list inside the parentheses is ignored".
 
 ## Running the acceptance gate
 

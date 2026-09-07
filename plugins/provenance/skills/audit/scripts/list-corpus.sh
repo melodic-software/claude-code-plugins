@@ -188,20 +188,47 @@ rel_to_root() {
   # the directory filter as a literal prefix, matched no tracked path, and the
   # run reported an empty corpus with no error — indistinguishable from a
   # repository with nothing to scan.
-  local p="$1" abs
-  if [[ "$p" == /* ]]; then
-    abs="$p"
+  #
+  # Git answers this, rather than string arithmetic against $ROOT, because one
+  # directory has SEVERAL absolute spellings under Git for Windows and they
+  # share no prefix: `rev-parse --show-toplevel` says `C:/Users/<user>/.../repo`,
+  # `$PWD` under a `mktemp -d` says `/tmp/repo`, and `cd` plus `pwd` on that
+  # same place says `/c/Users/<user>/.../repo`. Subtracting a root in one spelling
+  # from a target in another left every prefix unusable, so EVERY target form,
+  # a directory, a file, `.`, and each `--paths-file` entry, silently produced
+  # an empty corpus. `rev-parse --show-prefix` reports the repo-relative
+  # position directly, which has a single spelling on every platform, and
+  # answers the empty string at the root.
+  local p="$1" dir base placed pfx top
+  if [[ -d "$p" ]]; then
+    dir="$p"
+    base=""
   else
-    abs="$PWD/$p"
+    dir="$(dirname -- "$p")"
+    base="$(basename -- "$p")"
   fi
-  while [[ "$abs" == */./* ]]; do abs="${abs//\/.\//\/}"; done
-  abs="${abs%/.}"
-  [[ "$abs" != "/" ]] && abs="${abs%/}"
-  if [[ "$abs" == "$ROOT" ]]; then
-    printf ''
+  # One call for both answers, since a --paths-file run asks this per entry.
+  if ! placed="$(git -C "$dir" rev-parse --show-prefix --show-toplevel 2>/dev/null)"; then
+    # A parent git cannot place has no repo-relative position, so the path goes
+    # back UNCHANGED and the existence check declines it. Returning the bare
+    # basename instead would alias it onto a root-level file: a `--paths-file`
+    # entry `no-such-dir/README.md` would resolve to `README.md`, which exists,
+    # and enter the corpus as a file the caller never named.
+    printf '%s' "$p"
     return 0
   fi
-  printf '%s' "${abs#"$ROOT"/}"
+  pfx="${placed%%$'\n'*}"
+  top="${placed#*$'\n'}"
+  # A nested checkout answers for its OWN repository, where its directory is
+  # the root and the prefix is empty, which would read here as "the whole
+  # corpus". Anything git places outside this run's root goes back unchanged
+  # for the same reason as above. Both spellings come from git on one host, so
+  # comparing them is safe in a way the caller's own path form is not.
+  if [[ "$top" != "$ROOT" ]]; then
+    printf '%s' "$p"
+    return 0
+  fi
+  printf '%s' "$pfx$base"
 }
 
 tracked_markdown() {

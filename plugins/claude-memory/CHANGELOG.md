@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.17]
+
+### Changed
+
+- **audit:** the upstream issue state in the memory guidance reference carries the command that reads it, its verification date and CLI version, and a recheck trigger (prompt-audit follow-up F6).
+
 ## [0.11.16]
 
 ### Changed

@@ -98,7 +98,7 @@
         "Validates owner/repo against the checkout remote when present and refuses on mismatch rather than guessing",
         "Applies --shard 0/2 before admission and exit evaluation so only item numbers where number % 2 == 0 remain in the lane's snapshot",
         "Fills execute cap slots in newest-first order when multiple items are admitted",
-        "Binds --instance worker-a to the telemetry marker and durable-state lane_instance, validating ^[a-z0-9][a-z0-9-]{0,31}$ before use",
+        "Binds --instance worker-a to the durable-state lane_instance and passes it to scripts/lane-telemetry-upsert.sh --instance, which owns the ^[a-z0-9][a-z0-9-]{0,31}$ gate and marker construction, rather than hand-transcribing the upsert",
         "Rejects autopilot and --merge c3-this-run with an explicit message naming the merge lane as the owning surface \u2014 never silently ignores inert merge/tier tokens",
         "Loads reference/mode-standing.md for the default stop mode and does not load reference/mode-drain.md",
         "Reports the effective shard, ordering, instance, and stop_mode and which invocation tokens supplied each"

@@ -370,7 +370,7 @@ After the push:
 2. CI runs against the updated code
 3. **Request re-review from comment-only actors** — if a bot posted findings that were fixed, request a fresh review so the bot can validate the fixes:
    - If the bot's trigger is **"on every push"**: it will re-review automatically — just wait
-   - If the bot's trigger is **manual/smart**: post a comment with its trigger phrase (e.g. `@codex review`) to request a re-review. Don't assume it will re-fire on its own
+   - If the bot's trigger is **manual/smart**: post a comment with the trigger phrase its record in [reviewer-shapes.md](reviewer-shapes.md) states. Don't assume it will re-fire on its own, and don't guess a phrase for a reviewer with no record
 4. Security scans re-run
 5. **Repeat from 3.3.1** if new substantive comments arrive
 6. Continue until no new comments arrive and all readiness gates pass
@@ -385,8 +385,8 @@ After the push:
 - **Don't fix what research says is wrong.** If research disproves a comment, reply with evidence and react with thumbs-down. Don't implement a "fix" for a non-issue just because a bot said so
 - **Verify empirically when possible.** For claims about CLI behavior, API responses, or tool output, run the actual command and check. Empirical evidence > documentation > prior research > intuition
 - **Escalation guard** — after **3 evaluate-fix-push cycles** with the same reviewer posting new comments, STOP. The reviewer may be generating noise, or there may be a fundamental disagreement. Escalate to the user
-- **Codex signals via emoji reactions, not comments.** `chatgpt-codex-connector[bot]` uses emoji reactions on the PR: 👍 = no findings, approved; 👀 = still reviewing. A thumbs-up reaction with no posted comments means Codex reviewed and found nothing — treat as approval. Don't wait for a comment that won't arrive
-- **Codex may not auto-fire on PR creation.** If its commit status stays `PENDING` with no emoji reaction on the PR body after ~3 minutes, it likely didn't trigger. Post a PR comment with `@codex review` to trigger manually; check reactions on that trigger comment specifically
+- **A reviewer's completion signal is a per-reviewer fact — read its record, don't assume one.** Where a round lands (check run, review body, inline comments, an emoji reaction, or some mix), which push a comment belongs to, and how long a round takes differ per reviewer and are recorded in [reviewer-shapes.md](reviewer-shapes.md). A reviewer with no record there gets the flat Gate 5 cooldown: waiting on a signal no record says arrives stalls the loop as surely as declaring readiness too early ends it
+- **A reviewer that did not fire needs its own trigger phrase, not a retry.** Silence from a discovered reviewer is a round that never started as often as it is a round with no findings; its record says which artifacts each state produces, so read the state off those before acting. When the round never started, use the phrase its record names to re-fire it. With no record, report the silence rather than inventing a trigger
 - **NEVER select API surfaces by judgment — use the script.** `gh pr view --json comments,reviews` MISSES inline review comments. Always invoke the bundled `fetch-all-pr-comments.sh`, which deterministically hits all 3 surfaces
 - **Never mark a comment addressed without verifiable evidence on GitHub.** Model memory of "I replied" or "I pushed the fix" is not evidence — compaction can lose that state between iterations. Re-query GitHub to verify: reaction exists, reply exists, commit pushed, follow-up posted, bot-authored thread resolved (inline only; human/own excluded). "Done" = GitHub shows evidence. See [review-discipline.md](../../../reference/review-discipline.md) §3 verification gates
 - **Resolve BOT-authored inline threads once dispositioned; never human or own.** Once EVERY finding in an inline review comment opened by a bot reviewer carries an eligible disposition — a D6 fix pushed and cited by the D7 follow-up, a `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT` with counter-evidence posted — resolve that thread (D7.5, author- and classification-conditional). One dispositioned finding never makes a multi-finding thread eligible: resolving drops its remaining comments from the readiness count, so an unaddressed finding inside it would vanish. A single `UNCERTAIN` escalates and holds the whole thread open. **A `VALID (defer)` never clears the gate for a merge this same session performs:** route it to an independent adjudicating context, or leave the thread unresolved and do not merge (`review-discipline.md`, "Who authorizes a resolution that ships no fix"). Leave HUMAN-authored threads for the human to close; never resolve your own. Detect bot at resolution time via GraphQL `author.__typename == "Bot"` (GraphQL login omits the `[bot]` suffix REST shows). Open bot-thread count is a visible signal to reviewers — leaving bot threads unresolved after fixing undermines the audit trail <!-- contract-restatement: D7.5-thread-eligibility --> <!-- contract-restatement: D7.5-merge-authorization -->
@@ -447,6 +447,12 @@ Watch notifications arrive between turns. If you're mid-response on a complex ta
 - **Full monitoring on state changes** — when a check run completes or a new comment lands, the emitted line wakes the model and the full 3.1-3.4 logic runs
 - **Session-scoped** — the watch terminates when the session exits; no orphaned background processes. It does not restore on `--resume` — §3.0.1's idempotency check re-arms it
 - **Manual cancel** — "stop the PR monitor" or `TaskStop <id>`
+
+The non-restore claim is verified 2026-09-06 against Claude Code 2.1.263 and
+[Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#limitations), which
+states that resuming restores unexpired recurring tasks and pending one-shots, and that
+"Background Bash and monitor tasks are never restored on resume." Recheck when that page stops
+carrying that sentence, or when a release note names Monitor or resume behavior.
 
 **Cloud sessions (`CLAUDE_CODE_REMOTE=true`):** §3.0.0's baseline poll handles event delivery via `gh`; the Monitor tool is not needed — check `CLAUDE_CODE_REMOTE` before arming.
 

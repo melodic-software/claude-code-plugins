@@ -25,13 +25,22 @@ against that contract rather than restating it.
    gate surfaces this same account before any `gh issue create`, a surprise here is a
    cross-pollination incident later, so surface it at setup time too. `gh` absent → INFO, not
    FAIL: the sink ladder ends in the local markdown fallback, so audits still work.
-2. **Context-guard seam**. Probe this session's snapshot
-   (`~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`, staleness and null rules per the
-   context-guard reader contract) and report the dispatch mode the audit will run in:
-   - Fresh, trustworthy snapshot → **zone-informed dispatch** (report the zone too).
-   - Absent / stale / null fields / jq missing / substitution unexpanded → **conservative
-     dispatch** (the audit's unknown row + visible notice). This is a working state, not a
-     defect; recommend the `context-guard` plugin's setup only as an optional upgrade.
+2. **Context-guard seam**. Run the same resolver the audit's context-gate runs, this plugin's own
+   copy, synced byte-identical from the context-guard canonical:
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" "${CLAUDE_SESSION_ID}"`. One argument,
+   the session id; exit code always 0; the one word on stdout is the answer, `smart` /
+   `acceptable` / `dumb` / `unknown`, and anything else is `unknown`. Its stderr carries
+   `zones.json` band-configuration notices only, so it never tells one `unknown` from another.
+   Report the dispatch mode the audit will run in:
+   - `smart` / `acceptable` / `dumb` → **zone-informed dispatch** (report the zone too).
+   - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
+     dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
+     a working state, not a defect and not evidence about the window either way. The
+     structural-versus-broken discriminator is on the writer side, so read `statusLine` from every
+     settings scope that can carry it (user, project, local, managed) per the context-guard reader
+     contract: no `statusLine` in any scope means this environment runs no statusline, and
+     statusline wiring is then the wrong remediation. Recommend the `context-guard` plugin's setup
+     only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
    and report by exit code; the four outcomes are distinct and never collapsed:

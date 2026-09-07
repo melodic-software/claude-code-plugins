@@ -8,9 +8,9 @@
 # and 6, and the five source-run failures the plugin README tabulates.
 #
 # Path handling here is not defensive tidiness. Three of those five failures
-# were a `D:/...` path handed to bash under MSYS, which resolves nowhere: both
-# arms exited 127, the grep found nothing in either, and the harness reported a
-# clean verdict for a check that never ran.
+# came down to Windows path spelling: both arms exited 127, the grep found
+# nothing in either, and the harness reported a clean verdict for a check that
+# never ran. Rule 6 records which spellings break and which do not.
 
 # harness_die <message...>
 #
@@ -59,7 +59,7 @@ harness_require_posix_path() {
   local what="$1" value="$2"
   local drive_letter_re='(^|[^A-Za-z0-9])[A-Za-z]:[/\]'
   if [[ "$value" =~ $drive_letter_re ]]; then
-    harness_die "$what carries a Windows drive-letter path: '$value'. Under MSYS a D:/... path handed to bash resolves nowhere, so both arms of a check fail identically and the harness reports a confident wrong verdict (harness-integrity.md rule 6, source failures 3 and 4). Use the POSIX spelling: /d/... rather than D:/... . Pass --allow-windows-paths only if the subject is a native Windows program that genuinely needs the native form."
+    harness_die "$what carries a Windows drive-letter path: '$value'. Drive-letter paths are a harness hazard on a mixed MSYS host. The backslash form collapses when it is interpolated unquoted into a command string, so the command exits 127 in both arms of a check and the harness reports a confident wrong verdict for a check that never ran. A drive-letter PATH entry separately breaks bash's colon-separated parsing (harness-integrity.md rule 6, source failures 3 and 4). Use the POSIX spelling: /d/... rather than D:/... . Pass --allow-windows-paths only if the subject is a native Windows program that genuinely needs the native form."
   fi
 }
 

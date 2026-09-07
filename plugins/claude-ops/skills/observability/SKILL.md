@@ -21,7 +21,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the `source-control` plugin's
+[gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Pre-computed context
 
@@ -179,10 +181,10 @@ retention in effect" section, the six probe lines verbatim.
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully
-- **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none
+- **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. Hook input carries `session_id` on every event (the common input fields at <https://code.claude.com/docs/en/hooks>), so a row without one comes from a producer that dropped it, never from the harness. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day; recheck when the common input fields drop `session_id`
 - **Per-hook duration per session covers producers that emit `data.session_id`** (the nine claude-ops audit hooks). Other hooks appear in the whole-root tables only
 - **Hooks run in parallel**. Row order within one second is write order, not fire order; group by `prompt_id` or `tool_use_id`, not by adjacency
-- **Stop hook unreliability**. Do not rely on Stop for aggregation
+- **Stop is a per-turn event, not a session boundary**. It fires "When Claude finishes responding", so a session with many turns emits many Stop rows; `SessionEnd` is the row that fires "When a session terminates". Aggregate per session on `SessionEnd`, never on Stop. Basis: the hook lifecycle table at <https://code.claude.com/docs/en/hooks>. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when the lifecycle table changes either row, or a release note names Stop or `SessionEnd`
 - **`cc_spans` / `cc_traces`**. Views skip bind until `cc-traces.json` has content
 
 ## What this skill does NOT do

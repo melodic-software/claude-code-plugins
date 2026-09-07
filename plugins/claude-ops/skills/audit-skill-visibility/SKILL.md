@@ -3,7 +3,6 @@ description: "Audit whether each installed skill is actually VISIBLE to the mode
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: operator
   summary: Which skills the model can actually see, which are starved, and which are unobservable

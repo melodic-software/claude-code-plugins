@@ -17,11 +17,21 @@ routinely conflated; they are distinct:
   locally; it reports correctness bugs plus reuse/simplification/efficiency cleanups. `--fix`
   applies edits to the working tree and `--comment` posts the findings as inline PR comments —
   both mutate.
-- **Managed Code Review GitHub App service** — a separate org-level service (Team/Enterprise,
-  enabled once by an Owner in admin settings) that runs multiple review agents in parallel
+- **Managed Code Review GitHub App service** — a separate org-level service in research preview,
+  available on Team and Enterprise subscriptions and enabled once by an Owner in admin settings,
+  that runs multiple review agents in parallel
   against the PR diff, verifies candidates to filter false positives, and posts the results as
   inline PR comments tagged by severity. It triggers automatically on PR open/push per the
-  repo's configured behavior, or on demand by commenting `@claude review` on the PR.
+  repo's configured behavior, or on demand by commenting `@claude review` on the PR. It is not
+  available to organizations with zero data retention enabled, and its check run always completes
+  with a neutral conclusion, so it never blocks a merge through branch protection on its own.
+
+**Dated record for the three surfaces above.** Verified 2026-09-06 against Claude Code 2.1.263,
+reading <https://code.claude.com/docs/en/code-review> for the managed service's preview status,
+plan availability, Owner-enabled setup, trigger modes, and neutral check run, and
+<https://code.claude.com/docs/en/skills> for the bundled command's status as a bundled skill.
+Recheck when the code-review page drops the research-preview label or changes the plan list, when
+the bundled command leaves the bundled-skill list, or when a release note names either surface.
 
 **Mutation gate — the plugin unconditionally, the bundled command's flags, and the managed service;
 not the bare command:** every `/code-review:code-review` run ends by posting its findings as a PR

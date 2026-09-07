@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.35.6]
+
+### Changed
+
+- **find-handoff, handoff, keep-going, orient, retro:** the `/recap` trigger and the Skill-invocable
+  built-in allowlist, the usage-limit reset surface, the `cleanupPeriodDays` default, and the
+  `/clear` transcript and scheduled-task claims each carry a dated verification record with its
+  basis and a recheck trigger; the reset-surface claim is corrected to the documented surfaces
+  (prompt-audit follow-up F6).
+- Brain fried output style: move the attribution out of the model-facing text and drop two em dashes; the style is inspired by simplified register when cognitively depleted, including a public post by Lydia Hallie at Anthropic (prompt-audit follow-up F2)
+
+## [0.35.5]
+
+### Changed
+
+- **continue-in-background, handoff, orient, retro, running-retro, workflow:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.35.4]
 
 ### Fixed

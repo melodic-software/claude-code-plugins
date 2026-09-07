@@ -3,7 +3,6 @@ description: "Diagnose and fix failing tests. Failure classification, root-cause
 argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: test
   summary: Root-cause failing tests, never retry blindly
@@ -24,7 +23,9 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
@@ -65,5 +66,5 @@ When `/implementation:implement` hits a test failure during its TDD cadence it c
 
 ## Gotchas
 
-- Framework traps. .NET examples: xUnit v3 rejects `--nologo` ("zero tests ran", exit 5); .NET 10 requires `dotnet test --project`; parallel-execution races. Check the consuming project's own gotcha notes before diagnosing
+- Framework traps. .NET examples: under the Microsoft Testing Platform runner, `--nologo` is not a platform option and an unrecognized option exits 5 (an invalid-argument exit, not a zero-test result, which is exit 8 or 9); the banner switch there is `--no-banner`, and the native xUnit v3 spelling is `-noLogo`. In that runner `dotnet test` takes `--project`, `--solution`, or `--test-modules` and no positional path, and `--project` defaults to the current directory rather than being required. The runner is selected by `global.json`, and the classic runner remains the default, so confirm which one the project uses before reading any of this as its behavior. Parallel-execution races are the third trap. Check the consuming project's own gotcha notes before diagnosing. Verified 2026-09-06 against the vendor's testing-platform CLI options, troubleshooting, and `dotnet test` reference pages; recheck when the platform option list gains `--nologo` or the runner-selection default changes
 - Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround

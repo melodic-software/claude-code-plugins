@@ -3,7 +3,6 @@ description: "Stress-test plans and proposals via systematic adversarial review.
 argument-hint: "[incumbent [target]] or [plan text or file path]. An optional leading deep/shallow sets research depth; works from conversation context if no argument given"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: plan
   summary: Stress-test a plan or the incumbent approach adversarially
@@ -20,7 +19,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 

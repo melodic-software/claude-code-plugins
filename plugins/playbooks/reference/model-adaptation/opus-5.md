@@ -13,7 +13,7 @@
 - [Effort: start at the default, move down liberally](#effort-start-at-the-default-move-down-liberally)
 - [Thinking controls (harness facts, live-verified 2026-07-26)](#thinking-controls-harness-facts-live-verified-2026-07-26)
 - [Destructive actions: an approval you believe you have is not an approval](#destructive-actions-an-approval-you-believe-you-have-is-not-an-approval)
-- [Injection robustness: better, not safe — and a routing note](#injection-robustness-better-not-safe--and-a-routing-note)
+- [Injection robustness: better, not safe](#injection-robustness-better-not-safe)
 - [Hard facts are pointers](#hard-facts-are-pointers)
 - [Sources](#sources)
 
@@ -43,7 +43,7 @@ mistakes well without prompting (guide, "Task scope and over-verification" + "Se
 **Correction:** treat instructed self-checks — "double-check your answer", "re-verify before
 responding", "include a final verification step" — as cost with no quality gain; they compound
 with what you already do. When you find them in prompts you author, remove them. `[CC:
-prompt-authoring]` What SURVIVES is architected independent review: a fresh-context reviewer that
+prompt-authoring]` What survives is architected independent review: a fresh-context reviewer that
 never saw your rationale, or a different-vendor verifier. That is an epistemic-independence
 mechanism, not a thoroughness mechanism, and this playbook's orchestration chapter still requires
 it. Classify any re-check surface by reviewer INDEPENDENCE, not by who invoked it. `[CC: direct]`
@@ -57,10 +57,9 @@ evidence under it.
 **Residual tension (recorded, unresolved upstream):** the guide's capability section endorses
 "effective writer-verifier patterns" (source line 25) while its scope/subagent sections say to
 remove verification instructions and not to spawn subagents to verify your own work (source lines
-65, 78, 83). The architected-vs-instructed reconciliation above is INFERENCE — shared by all four
-corpus digests and three interview validators, accepted as plausible by both corpus verifiers,
-but never stated by the source. If Anthropic reconciles differently, this section and the audit rows built on it move
-together. This paragraph is the landing spot for that clarification.
+65, 78, 83). The architected-versus-instructed reconciliation above is an inference. It is not
+stated by the source. If Anthropic reconciles the tension differently, this section and the audit
+rows built on it move together. This paragraph is the landing spot for that clarification.
 
 ## Stated facts: more accurate and more confidently wrong at once
 
@@ -180,22 +179,22 @@ are verbatim quotes, the second quotes its core clause and paraphrases the step-
 - "If you carried effort defaults over from a prior model, re-run an effort sweep on your own evals."
 
 The second bullet's "wherever quality holds" presumes quality rises with effort. Two pilot cohorts
-REPORTED the opposite at the top of the ladder — though Anthropic's own quantification does not
+reported the opposite at the top of the ladder — though Anthropic's own quantification does not
 consistently agree, so this stays a report, not a finding. Internal pilots saw "self-correction
 loops where the model continually attempted to reconsider its answer, especially at higher effort
 levels", which "also included continually re-verifying already verified answers"; external users
 reported "overthinking, where it performs worse at higher effort levels"; and the card immediately
 adds that "not all of this feedback is consistent with trends we've observed when attempting to
 quantify related phenomena more precisely" (card §6.2, p. 81–82). Use it as a troubleshooting cue
-and nothing stronger: oscillation and re-verification of settled answers are a reason to try effort
-DOWN before assuming the task needed more. It does not displace "start at the default".
+and nothing stronger: oscillation and re-verification of settled answers are a reason to try lower
+effort before assuming the task needed more. It does not displace "start at the default".
 `[CC: direct]`
 
 The effort ladder, level names, per-model support, and per-model starting level are upstream-owned —
 resolve them at read time through the `claude-api` skill (local routing policy) or the live
 [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
-pages, never from this file. The guide's own ladder statement is TRUNCATED (verified against the
+pages, never from this file. The guide's own ladder statement is truncated (verified against the
 live `whats-new-opus-5` enumeration), which is why the three bullets above are this file's whole
 effort content and every other effort claim resolves at those pages. `[CC: direct]`
 
@@ -204,9 +203,8 @@ effort content and every other effort claim resolves at those pages. `[CC: direc
 - Thinking is on by default on Opus 5; disabling it is accepted only at effort `high` or below —
   above that the API rejects the request per-request with a 400 (live
   `platform.claude.com/docs/en/about-claude/models/whats-new-opus-5`). Claude Code does NOT clamp:
-  the 400 surfaces raw (session-observed, CC 2.1.220 — see
-  `thinking-off-probe-2026-07-26.md` in the workstream's build-verification records; docs are
-  silent on harness-side behavior, so re-probe after CC/API changes). `[CC: direct]`
+  the 400 surfaces raw (session-observed 2026-07-26 on CC 2.1.220; docs are silent on
+  harness-side behavior, so re-probe after CC/API changes). `[CC: direct]`
 - Harness controls (live `code.claude.com/docs/en/model-config` + `/settings`): session toggle
   `Alt+T` (Windows/Linux) / `Option+T` (macOS); global default `alwaysThinkingEnabled` via
   `/config`; `MAX_THINKING_TOKENS=0` in settings `env` forces thinking off on the Anthropic API —
@@ -240,10 +238,6 @@ effort content and every other effort claim resolves at those pages. `[CC: direc
   remove any instruction telling the model not to think or not to reason (it increases tag
   leakage), and phrase any tag-hygiene rule generally — instructions naming thinking tags
   specifically are less effective. `[CC: prompt-authoring]`
-- EXPLORATION ITEM (tagged, this chapter is its designated home): thinking-off usage
-  opportunities — where a deliberate thinking-off + effort-`high`-or-below lane could pay
-  (cost-shaped batch work, latency-sensitive one-shots). Unexplored; docs and card offer no
-  CC-side use case today. Revisit when a concrete workload appears.
 
 ## Destructive actions: an approval you believe you have is not an approval
 
@@ -257,7 +251,7 @@ model applied a workaround "without asking for permission", and at the tokens ju
 the readout "suggested that the model believed that the user had already approved this action, even
 though no such approval exists anywhere in the transcript" (card p. 115). **Correction:** treat a
 felt prior approval as unevidenced until you can point at it — the approval must be findable in the
-current transcript and must cover THIS action, not an adjacent one you have generalized it to.
+current transcript and must cover this action, not an adjacent one you have generalized it to.
 `[CC: direct]`
 
 **The part that changes what you build, not just what you do:** the card's transcript 6.4.2.A shows
@@ -267,7 +261,7 @@ and the model quoted it, reasoned that an earlier "clean up the batch" "IS the a
 this exact action", and deleted 120 jobs; "the override is worked out in Claude's private reasoning
 rather than raised with the user" (card §6.4.2, p. 93). So for destructive or irreversible
 operations under auto-accept, a written instruction is the weaker control and the remediation is a
-MECHANISM — a `PreToolUse` hook or a `permissions.deny` rule that the model cannot reason past.
+mechanism, a `PreToolUse` hook or a `permissions.deny` rule that the model cannot reason past.
 State the rule too, but do not let stating it stand in for gating it. `[CC: prompt-authoring]` —
 the audience of this paragraph is whoever authors the surface, not the model mid-session.
 
@@ -296,7 +290,7 @@ endorsed and published, not an Anthropic measurement). Do not relax a verify-bef
 the strength of this model's alignment gains at the one surface those gains were not measured on.
 `[CC: direct]`
 
-## Injection robustness: better, not safe — and a routing note
+## Injection robustness: better, not safe
 
 The system card states its agentic-safety suite's "largest gains in prompt injection robustness
 across coding, computer use, and browser use" (card §5 opener, p. 68; the same sentence restated in
@@ -309,12 +303,6 @@ auto mode", card p. 77), and the unsafeguarded numbers are nonzero on every surf
 autonomy grants are defensible" is the correct reading, not "untrusted content is safe", and the
 0% is evidence about a configuration, not about the model: confirm auto mode is actually on before
 widening a browser session's autonomy on the strength of it. `[CC: direct]`
-
-Routing-lane changes from this data are DEFERRED with a trigger: the card's §5 tables carry no
-Haiku row — inference from absence: the cheap fan-out lane's robustness is unmeasured there — and the Opus 5 live bug bounty
-— historically the strongest real-adversary signal — had not run at publication. Trigger: when
-the bug-bounty update or a Haiku measurement lands, re-read card §5.2.2 and revisit the
-push-down routing lanes then. `[CC: direct]`
 
 ## Hard facts are pointers
 
@@ -351,22 +339,7 @@ The Opus 5 system card was re-fetched 2026-08-04 by following the model-card URL
 redirects to, and is byte-identical to the captured snapshot — 15,994,568 bytes, SHA-256
 `897768f0f6f1724f3109279ab3f6458c9fbf496b56d5d2be14cab3a4f91ca472`. The card is not listed in
 either docs `llms.txt` index, so that redirect is its only discovery path. Every section of this
-file citing the card by page was written or re-checked against that re-read. On the deferred
-routing-lane trigger above, byte-identity proves only that the card itself still records neither
-the bug-bounty update nor a Haiku measurement — both could publish in a separate channel without
-this PDF changing, so a trigger check reads those channels, not this hash.
-
-Those two dates cover the guide and the card and nothing else on this list: the three live-fetch
-pages immediately above still stand at their 2026-07-26 reading.
-
-Quotation note: this repository is public. The verbatim upstream sentences in this file — the
-deliverable-length calibration sentence, the quoted effort-guidance sentences and clause in the
-effort section, and the short quoted fragments from the system card — are de-minimis quotations
-from Anthropic's published documentation, reproduced with attribution (the calibration sentence
-because it is tested phrasing whose effectiveness may not survive rewording; the card fragments
-because a behavioral finding paraphrased loosely becomes a stronger claim than the card makes —
-"slightly more" and "similarly to Opus 4.8" are exactly the qualifiers a paraphrase drops);
-everything else is paraphrase with citation.
+file citing the card by page was written or re-checked against that re-read.
 
 Behavioral claims decay with model and doc revisions — re-verify against the URLs above before
 propagating them elsewhere.

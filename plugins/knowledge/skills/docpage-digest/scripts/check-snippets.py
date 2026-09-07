@@ -37,6 +37,7 @@ from digest_fences import (  # noqa: E402
     payload_in_source,
     preview_payload,
     read_text,
+    use_utf8_streams,
 )
 
 PROG = "check-snippets"
@@ -152,6 +153,7 @@ if __name__ == "__main__":
             f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
         )
         sys.exit(2)
+    use_utf8_streams()
     try:
         sys.exit(main())
     except SystemExit:

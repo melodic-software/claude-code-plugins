@@ -510,7 +510,7 @@ emit_tel() {
 
 if ((${#FAILURES[@]} > 0)); then
   hook::ctx_append "cli-flag-verify: ${#FAILURES[@]} unknown flag(s) in $FILE"
-  hook::ctx_append "Possible hallucination — verify against the binary's actual --help output:"
+  hook::ctx_append "The binary's own --help does not list them. Confirm before relying on the flag:"
   for f in "${FAILURES[@]}"; do
     split_candidate_key "$f"
     if [[ -n "$KEY_CHAIN" ]]; then
@@ -525,8 +525,10 @@ if ((${#FAILURES[@]} > 0)); then
     hook::ctx_append "    skip:  add $KEY_BIN to the guardrails cli_flag_verify_skip_bins option"
   done
   hook::ctx_append ""
-  hook::ctx_append "Subagent / training-recall flag claims are unverified — confirm"
-  hook::ctx_append "against the binary's --help before relying on the flag."
+  hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."
+  hook::ctx_append "A flag taken from a subagent's report or from recall has not been checked"
+  hook::ctx_append "against this binary. A flag added upstream more recently than the installed"
+  hook::ctx_append "binary is correct as written."
   hook::ctx_flush PostToolUse
 fi
 

@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.68]
+
+### Changed
+
+- pull-request Gate 5 waits on the reviewer logins discovery found and scopes each wait to the current push by the commit field the surface actually carries, with the vendor-specific shapes moved to the dated `reference/reviewer-shapes.md` (prompt-audit follow-up F7)
+- pull-request reviewer shapes: the no-findings reaction is recorded as an observed end-of-round signal, a reviewer that never ran is a distinct state from one with no findings, and the Gate 5 per-reviewer wait is bounded and reported rather than open-ended (prompt-audit follow-up F7)
+- **babysit-loop, babysit-prs, pull-request, resolve-conflicts, worktree:** the GitHub `mergeStateStatus` precedence and `baseRefOid` staleness claims, the permission-mode and wrapper-strip claims, and the `ScheduleWakeup` ceiling, `/loop` seven-day expiry, Monitor non-restore, and sandboxed-GraphQL claims each carry a dated verification record with its basis and a recheck trigger; the wrapper-strip list and the `acceptEdits` command set are corrected to the permissions page, and `worktree/reference/gather-block.md` becomes the fleet's dated owner record for the pre-compute gather block (prompt-audit follow-up F6).
+
+## [0.55.67]
+
+### Changed
+
+- **pull-request, resolve-conflicts, worktree:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- **babysit-loop, babysit-prs, worktree, config-resolution:** cite sibling-plugin, marketplace `docs/` convention, and marketplace `prompts/` files by raw URL instead of a relative path that resolves only in the marketplace checkout (prompt-audit follow-up F8).
+
 ## [0.55.66]
 
 ### Changed

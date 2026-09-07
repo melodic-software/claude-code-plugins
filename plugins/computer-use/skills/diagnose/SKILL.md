@@ -58,9 +58,11 @@ verified. A macOS user gets the platform-neutral material and no fabricated spec
 
 ## Surfaces differ. Know which one you are on
 
-Computer use is not one thing, and guidance written for one surface is wrong on the other
-(verified 2026-08-10 against [computer use from the
-CLI](https://code.claude.com/docs/en/computer-use)):
+Computer use is not one thing, and guidance written for one surface is wrong on the other. The rows
+below restate the "Differences from the Desktop app" table on [computer use from the
+CLI](https://code.claude.com/docs/en/computer-use), verified 2026-09-06 against Claude Code 2.1.263
+and that page as fetched that day. Recheck when that page drops the differences table, when a row in
+it changes, or when a release note names computer use on either surface.
 
 | | Claude Code CLI | Claude Desktop |
 |---|---|---|

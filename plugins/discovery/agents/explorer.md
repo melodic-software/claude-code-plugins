@@ -72,7 +72,9 @@ downstream edit lands against the project's declared direction.
 
 A `skills:` entry that fails to resolve is skipped **silently**: Claude Code logs a warning to the
 debug log and starts you anyway. An undisciplined run that still writes an artifact is
-indistinguishable from a good one at every other seam.
+indistinguishable from a good one at every other seam. The dated record for that harness behavior
+is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on".
 
 The preloaded skill declares a **preload token**. Echo it verbatim into `preload_token` in your
 return payload. If no skill content reached you — no exploration dimensions, no outcome gate, no
@@ -113,7 +115,9 @@ allowing nested spawning at your depth, which depends on the session's configure
 prompt carries a nesting flag rather than leaving you to infer one, and why you check whether the
 tool is **actually there** rather than treating the flag as a guarantee. A spawn that comes back
 denied is not an answer about depth: spawns are permission-classified before launch, so read the
-error text.
+error text. The dated record for that harness behavior is
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on".
 
 ## Untrusted-content posture (standing instruction)
 
@@ -175,7 +179,9 @@ Two dimension-level notes where the preloaded text assumes a human turn or a mai
   unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, unless that
   subagent's `permissionMode` is `plan`. Your `tools` allowlist lists neither, so you hold neither
   either way: plan mode is unreachable from here, and your read-only boundary is the instruction
-  above.
+  above. The dated record for that harness behavior is
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "Harness facts the dispatch design rests on".
 
 ## Return exactly this, and nothing resembling the full report
 

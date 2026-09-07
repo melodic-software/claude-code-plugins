@@ -2,7 +2,7 @@
 
 The contract this skill audits against, applicable to any repo with `.claude/skills/`. The bundled `scripts/detect.sh` encodes it mechanically; this file is the reasoning source the agent applies when classifying and remediating hits. A consuming repo may layer its own conventions on top, but the surfaces and carve-outs below are what the detector implements.
 
-Upstream anchors (cited by URL, not recapped) — Anthropic publishes no formal public-surface contract for skills; this is a stricter discipline consistent with the documented progressive-disclosure model:
+Upstream anchors, cited by URL and not recapped. Anthropic publishes no formal public-surface contract for skills, so this is a stricter discipline consistent with the documented progressive-disclosure model. Verified 2026-09-06: the skill-authoring best-practices page below carries "Progressive disclosure patterns", "Anti-patterns to avoid", and "Token budgets", and defines no public-versus-private split among a skill's bundled files. Recheck when that page gains a section naming which files inside a skill directory are public, or when the skills specification defines one:
 
 - <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#anti-patterns-to-avoid>
 - <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns>

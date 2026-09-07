@@ -2,6 +2,8 @@
 
 Basis for every row: <https://code.claude.com/docs/en/claude-directory> — read through the raw
 markdown endpoint (`.../claude-directory.md`), not a summarizing fetch. Verified 2026-08-26.
+Recheck trigger: a release note or docs change naming `cleanupPeriodDays`, a swept path, or the
+`claude-directory` page itself.
 
 The distinction this file exists to make: **a path Claude Code already manages is not a cleanup
 candidate, however old its contents look.** Hand-pruning a swept path fights the product's own

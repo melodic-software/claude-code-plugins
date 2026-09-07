@@ -13,10 +13,23 @@ The assistant **cannot self-apply** the remediation, for two independent reasons
 [permission-rule-hygiene convention](../../../docs/conventions/permission-rule-hygiene/README.md)
 documents in full:
 
-- The auto-mode classifier routes any write to `.claude/` settings through itself and refuses an
-  agent that tries to broaden its own `permissions.allow` — self-privilege-escalation is blocked.
+- The auto-mode classifier routes any write to `.claude/` settings through itself, and no
+  `permissions.allow` rule pre-approves that write, so an agent cannot grant itself the widening.
 - A `permissions` block shipped in a plugin's `settings.json` is inert; a plugin `settings.json`
   honors only the `agent` and `subagentStatusLine` keys.
+
+### The dated record for both claims
+
+Both are verified 2026-09-06 against Claude Code 2.1.263. The permission-modes page at
+`https://code.claude.com/docs/en/permission-modes#protected-paths` lists `.claude` as a protected
+path, states that protected-path writes are never auto-approved outside `bypassPermissions`, routes
+them to the classifier in auto mode, and states that `permissions.allow` rules in settings files do
+not pre-approve them. The same page states that the classifier reviews actions before they run, which
+is why a denial can land on the Bash tool call itself and produce no exit code. The plugins reference
+at `https://code.claude.com/docs/en/plugins-reference` states that a plugin's own `settings.json`
+supports only the `agent` and `subagentStatusLine` keys. Recheck when either page stops carrying
+those statements, or when a release note names protected paths, the auto-mode classifier, or plugin
+`settings.json` keys.
 
 So the operative grants live **operator-side**, and the loop-start step only **detects and reports**
 the gap once, up front. It never edits settings, and never retries a permission/classifier denial

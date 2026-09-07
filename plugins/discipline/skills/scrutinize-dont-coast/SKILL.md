@@ -81,6 +81,12 @@ story of how the work was reached, and told to find what is wrong. A fork inheri
 the parent conversation and carries the bias forward, so it does not satisfy this.
 (That is the Agent tool's fork subagent; a *skill's* `context: fork` frontmatter is
 the opposite, isolated, no conversation history, the official docs overload the word.)
+Verified 2026-09-06 against Claude Code 2.1.263 and
+<https://code.claude.com/docs/en/sub-agents> as fetched that day, which states that a
+fork receives the main conversation's exact tool pool and the same system prompt, while
+a skill run in a subagent gets the skill content as its prompt and no conversation
+history. Recheck when that page stops drawing the distinction, or a release note names
+fork mode or `context: fork`.
 
 The findings return to this thread, and remediation proceeds *with* the user (delta
 2): the fresh context supplies the unbiased critique, the user stays in the loop on

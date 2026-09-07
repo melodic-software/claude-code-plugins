@@ -41,6 +41,11 @@ Look up a specific check by ID:
   - [I27: Effort lowered to shorten the response](#i27-effort-lowered-to-shorten-the-response)
   - [I28: Over-aggressive trigger emphasis and blanket tool defaults](#i28-over-aggressive-trigger-emphasis-and-blanket-tool-defaults)
   - [I29: Body prose that restates the always-in-context description, or a sibling section](#i29-body-prose-that-restates-the-always-in-context-description-or-a-sibling-section)
+  - [I30: Dated verification stamp with no recheck trigger](#i30-dated-verification-stamp-with-no-recheck-trigger)
+  - [I31: Migration-relative phrasing in reference and context files](#i31-migration-relative-phrasing-in-reference-and-context-files)
+  - [I32: Routing text that names a skill absent from the marketplace](#i32-routing-text-that-names-a-skill-absent-from-the-marketplace)
+  - [I33: Sibling-file meta-commentary](#i33-sibling-file-meta-commentary)
+  - [I34: Maintainer rationale inside model-facing YAML comments](#i34-maintainer-rationale-inside-model-facing-yaml-comments)
 - [Stopping condition](#stopping-condition)
 - [Output format](#output-format)
 
@@ -1777,6 +1782,88 @@ the defect is session knowledge, not a model-era scar.
   `claude-config/audit-instructions/rule-sibling-restatement` (arm 2) — both `IMPORTANT`.
 - **Body-scoped when it routes to the relay.** The scanner never points at frontmatter. A
   description-level concern is reported to the human, never routed to the apply relay.
+
+---
+
+### I30: Dated verification stamp with no recheck trigger
+
+Tier `mechanical` · Authority `HOUSE` · Severity `warning` · Surfaces: all. Unscoped. Generalizes
+I19 from benchmark figures to every dated claim about a harness, a tool, an upstream page, or a
+measurement.
+
+- **Detect:** a claim carrying an as-of date ("verified 2026-07-13", "as of 2.1.240") but no
+  observable event that would re-open it. The four-part record is claim, basis, as-of date, and
+  recheck trigger; a stamp with three of the four is the finding.
+- **Must NOT flag:** a dated stamp whose trigger lives in a named owner record the site points at
+  ("recheck per `reference/parent-contract.md`"); a CHANGELOG entry or ADR, which are history by
+  design; a date that is data (a release date in a table) rather than a verification stamp.
+- **Remediate:** add the trigger as an observable event (a release note naming the flag, a fetch
+  no longer carrying the quoted span, a version floor moving), or point the site at the dated
+  owner record.
+
+---
+
+### I31: Migration-relative phrasing in reference and context files
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: the `reference/`,
+`context/`, and `references/` spokes a skill loads on invocation. Unscoped. The skill-body row for
+this shape stops at `SKILL.md`; the spokes carry the same phrasing and load into the same context.
+
+- **Detect:** "now works differently", "no longer", "also counts", "instead of the old", "since
+  the change", and the like, describing a diff against a prompt or harness version the reader
+  never saw.
+- **Must NOT flag:** a structural contrast between two current alternatives ("separate body Bash
+  calls rather than pre-compute lines" names two present mechanisms); a CHANGELOG or ADR; a dated
+  four-part record whose trigger legitimately names the prior state.
+- **Remediate:** state the current rule and its reason in the present tense; move the history to
+  the CHANGELOG or an ADR.
+
+---
+
+### I32: Routing text that names a skill absent from the marketplace
+
+Tier `mechanical` · Authority `HOUSE` · Severity `error` · Surfaces: descriptions, `Not for` and
+`Skip when` clauses, Boundary and Sibling sections, and any spoke that says "use
+`/<plugin>:<skill>`".
+
+- **Detect:** a `/<plugin>:<skill>` or `<plugin>:<skill>` reference whose target has no
+  `plugins/<plugin>/skills/<skill>/SKILL.md`, or a routing sentence naming a plugin where a skill
+  is required.
+- **Must NOT flag:** references to bundled Claude Code skills marked as bundled; a capability
+  named by class ("a visualization capability") that deliberately avoids a binding; a reference
+  inside a fenced example.
+- **Remediate:** name the skill that exists, or describe the capability by class per the
+  seam-phrasing convention; never leave a route to nowhere.
+
+---
+
+### I33: Sibling-file meta-commentary
+
+Tier `behavioral` · Authority `HOUSE` · Severity `info` · Surfaces: `context/` and `reference/`
+spokes.
+
+- **Detect:** a spoke that opens by describing its own role and loading ("this file is read by
+  step 3", "loaded when the skill runs in mode X", "the hub links here") rather than stating its
+  content; the model reads a description of the file instead of the file.
+- **Must NOT flag:** a one-line scope note that bounds the file's subject ("Windows only"); the
+  hub's own index table, which is where loading conditions belong; frontmatter.
+- **Remediate:** delete the self-description; keep the loading condition in the hub's index row.
+
+---
+
+### I34: Maintainer rationale inside model-facing YAML comments
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: `SKILL.md` and
+agent frontmatter, and any YAML block the model receives. A `#` comment in those surfaces is
+loaded with the rest of the file, so a history narrative there is the same defect as one in a
+skill body.
+
+- **Detect:** a `#` comment in frontmatter or a model-loaded YAML block that justifies a value to
+  maintainers ("kept at 5 because the old model rambled", "see PR 1234").
+- **Must NOT flag:** a comment that states the current rule the value encodes ("cap is the
+  working-memory budget"); comments in files the model never loads.
+- **Remediate:** move the rationale to the CHANGELOG, an ADR, or a maintainer-facing `AGENTS.md`;
+  leave the value and, at most, a present-tense reason.
 
 ---
 

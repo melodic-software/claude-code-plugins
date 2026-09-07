@@ -3,6 +3,13 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7]
+
+### Changed
+
+- **reduce:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- **reference/topic-docs.md:** the contract pointer is the raw markdown URL again; the blob view with a section anchor is not fetchable at run time (prompt-audit follow-up F2).
+
 ## [0.1.6]
 
 ### Changed

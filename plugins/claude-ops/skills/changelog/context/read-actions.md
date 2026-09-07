@@ -6,11 +6,17 @@ The three read-only actions (`fetch`, `diff`, `status`). SKILL.md keeps the acti
 
 Read-only. Fetch and display changelog content.
 
-WebFetch truncates this document — the raw-markdown and rendered-HTML channels alike — to roughly
-the 32 most recent releases, emitting a `[Content truncated due to length...]` marker. A version
-older than that window will not be in the response no matter which channel is used, so fetch it
-with a range- or anchor-scoped request, or `curl` the `.md` and slice locally. Never report a
-version "absent from the changelog" on a truncated fetch.
+WebFetch truncates this document, the raw-markdown and rendered-HTML channels alike, emitting a
+`[Content truncated due to length...]` marker after a few dozen of the most recent releases. A
+version older than that window will not be in the response no matter which channel is used, so
+fetch it with a range- or anchor-scoped request, or `curl` the `.md` and slice locally. Never
+report a version "absent from the changelog" on a truncated fetch.
+
+Verified 2026-09-06 against Claude Code 2.1.263, by fetching
+`https://code.claude.com/docs/en/changelog.md` with WebFetch: the response ran from 2.1.263 back to
+2.1.238 and ended on the truncation marker. The window is a byte budget, not a release count, so
+treat the number of releases it reaches as varying with entry length. Recheck when a fetch of that
+page returns no truncation marker, or a release note names WebFetch truncation.
 
 **With version arg** (`/claude-ops:changelog fetch v2.1.152`):
 

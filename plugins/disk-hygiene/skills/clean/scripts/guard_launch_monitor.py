@@ -253,8 +253,8 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
         "This means destructive-action review may not have been enforced for "
         "the guarded command(s) in question. This detector covers only "
         f"{_GUARD_DISPLAY_NAME}'s own command string in this session's "
-        "transcript; it does not cover repo-hygiene's guard (verified "
-        "working separately) and does not retroactively scan past sessions."
+        "transcript; it does not cover repo-hygiene's guard and does not "
+        "retroactively scan past sessions."
     )
 
 

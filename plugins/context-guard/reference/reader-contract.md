@@ -28,6 +28,22 @@ staleness value, and the default zone bands. Inlined copies in consumers must st
 **byte-identical** to the values printed here; a consumer lane carries a drift check that
 grep-matches its inlined values against this file.
 
+**Recheck trigger for every dated stamp in this file:** re-read the cited page and re-date the
+stamp when any of these change. The statusline stdin schema, meaning the `context_window` field
+names, the `used_percentage` formula, and the top-level `version` field. The auto-compact trigger,
+meaning whether a default threshold is published as a number, and which models and environments
+compact before the model's context limit. The four surfaces in the tunable table below
+(`autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`,
+`autoCompactEnabled`), including their units, ranges, and precedence. The skills substitution table
+that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
+across its length, which the band rationale cites when it declines a folklore number. The cloud and
+headless finding, meaning whether a configured statusline runs in those environments and which
+fields hook stdin carries. A release note touching the status line, compaction, settings, or skills
+is the usual way one of the first four moves; a prompting-guide revision or a change to the hooks
+page moves the last two. The empirical stamps, the transcript-history check and the cloud and
+headless measurements, are re-run rather than re-read, on the same triggers. These stamps are probe
+results with a date, not standing facts.
+
 ## Operable floor (consumers inline these values verbatim)
 
 - **Snapshot path pattern (fixed):** `~/.claude/context-guard/context/<session_id>.json`
@@ -292,11 +308,11 @@ bands-below-the-trigger rule protects, the way a lowered window does. A *percent
 implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored"
 but is not published as a number. The empirical check (2026-07-24, execution session): no
 auto-compact event exists in the producing machine's entire transcript history; the largest
-session ran to 308k total input tokens uncompacted on a 1M-class window. So the shipped bands are
-**declared judgment defaults** with a declared margin (if compaction triggers at 90% or above, as
-its phrasing implies, the dumb band leads it by 15 points or more), not doc-derived constants. The
-trigger is **model- and environment-dependent**, so no single band set is correct everywhere;
-`zones.json` is the correction path if compaction is ever observed earlier.
+session ran to 308k total input tokens uncompacted on a 1M-class window. So the shipped bands keep
+the provenance stated under "Band provenance" above, with a declared margin: if compaction triggers
+at 90% or above, as its phrasing implies, the dumb band leads it by 15 points or more. The trigger
+is **model- and environment-dependent**, so no single band set is correct everywhere; `zones.json`
+is the correction path if compaction is ever observed earlier.
 
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated" — the value is as-of the last API response, not
@@ -365,8 +381,7 @@ anchor, never an adopted number**, and it comes with its own amendment: that cal
 Opus 4.7-era, and the Opus 5 prompting guide (verified 2026-08-08) states the 1M window's
 instruction following, tool calling, and reasoning "stay consistent throughout the window", which
 removes the degradation premise for that specific figure. A lowered window remains a legitimate
-cost and compaction-timing choice on its own terms. The bands this contract ships stay declared
-judgment defaults; `zones.json` is the tuning path.
+cost and compaction-timing choice on its own terms.
 
 ## Zones (machine-scope tuning, optional)
 
@@ -483,7 +498,8 @@ and managed settings, where `statusLine` is also a valid key.
   when managed settings set `disableAllHooks` or the folder is not trusted, and narrows the source
   to managed settings when `allowManagedHooksOnly` is set — under narrowing it runs a managed value
   if one is deployed and otherwise skips yours *without warning*. This state looks exactly like a
-  broken install unless it is checked first.
+  broken install unless it is checked first. The dated record for both settings keys is
+  `cloud-headless-capture.md`, branch 3 of "Distinguishing structural absence from breakage".
 - **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
   (cloud, headless `claude -p`, other terminal-less) is also structural: the command exists, is
   not policy-disabled, and is still never invoked (the measurement above). Report as "no
@@ -514,6 +530,8 @@ and managed settings, where `statusLine` is also a valid key.
 
 - The plugin's own zone-crossing hooks (first shipped consumer — see "Zone-crossing hooks").
 - The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
-  decisions, conservative on `unknown`). Its inlined floor values are drift-checked against this
-  file by its co-located `zones-inline-drift.test.sh` lane, which runs in the repo's plugin-gate
-  CI job.
+  decisions, conservative on `unknown`). It resolves the zone through a synced byte-identical copy
+  of this plugin's `scripts/context-zone.sh`. Its co-located `zones-inline-drift.test.sh` lane,
+  which runs in the repo's plugin-gate CI job, checks that resolver copy and the evidence-degraded
+  marker path in its skill body against the values this file prints. Byte-identity of the copy
+  against the canonical resolver is a separate gate, `scripts/sync-context-zone.sh --check`.
