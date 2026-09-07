@@ -61,15 +61,36 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 - **`delta` merges its discoveries into the findings artifact before it captures the spine.** A
   `new` finding and a re-derived `changed` line range are its only durable output for `realign`,
   which reads the artifact and never the spine; capturing first leaves a baseline that has moved on
-  from a finding no record carries, so the discovery is lost with no error. It writes records, never
-  a `Status`. All four baseline/artifact combinations are enumerated, including the bootstrap where
-  an artifact exists and no baseline does — the shape a first run in a fresh worktree takes.
+  from a finding no record carries, so the discovery is lost with no error. It writes records, and
+  the only status it ever writes is the `accepted` to `pending` reset below. All four
+  baseline/artifact combinations are enumerated, including the bootstrap where an artifact exists
+  and no baseline does — the shape a first run in a fresh worktree takes.
 - **A `RULE` row in the spine carries its glob-validation verdict.** `broken-glob` is a transition,
   not a state, and a rule whose file and glob text are both unchanged is exactly the case where
   nothing else in the row moves when the code the glob described is renamed elsewhere. Without the
   stored verdict a re-run either re-announces every already-broken glob every cycle or reports none
   of them. It now fires on `valid` to invalid, counts invalid to invalid as still-broken in the
   suppressed total, and stays silent on a glob that started resolving again.
+- **`realign` reads the suppression surface before it presents anything.** This checkout's artifact
+  is whatever the last local `audit` left behind and knows nothing about a decline another checkout
+  committed since; consulting the surface after presenting would ask the operator to re-judge what
+  their team already settled. A suppressed finding is never presented, accepted, or applied.
+- **An `accepted` finding whose source changed resets to `pending`.** An acceptance is scoped to the
+  text the operator read and to the range they were shown, and `realign` excises by that range, so
+  carrying it forward authorizes an edit to content nobody approved. `declined`, `applied`, and
+  `blocked` are carried, for reasons stated per status rather than by symmetry.
+- **A bootstrap cycle captures the detector's own output, not a spine derived from the artifact.**
+  The artifact holds classified candidates and held-back records, not every `SECTION` and `RULE`,
+  so an artifact-derived spine is partial and the next cycle reports every record it never carried
+  as `new`. The bootstrap states its cost instead: no `new` and no `broken-glob` this cycle, and a
+  candidate that arose between the audit and the bootstrap is absorbed unreported, which is the one
+  sanctioned exception to the merge-before-capture rule and routes to a full `audit` when the
+  artifact is old enough for the tree to have moved on.
+- **The `Status` vocabulary gains its one backward arc, and the writer rule is stated per arc.**
+  Every forward move is `realign`'s and records a decision; the `accepted` to `pending` reset is
+  written by whichever skill re-derives the record and withdraws a decision whose subject is gone.
+  A decline the operator gave no reason for has no suppression entry and is durable only within its
+  checkout, which `realign` now says at the moment it records one.
 - **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act on
   another home's artifact is argued from stale line ranges rather than from cross-project collision,
   which is what the branch axis actually protects against.

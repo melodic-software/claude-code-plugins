@@ -97,19 +97,34 @@ in the table above. Do not invent a format here. Four rules bind the write:
 Read the artifact from the home the plugin's topic-docs binding resolves
 ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall
-back to another path or another branch's artifact: findings cite line ranges, and a range derived
-elsewhere points at different text here. Name such a file as a leftover and run a fresh audit
-instead of acting on it.
+If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall back
+to another path or another branch's artifact: findings cite line ranges, and a range derived
+elsewhere points at different text here. Name such a file a leftover and run a fresh audit instead.
 
-Three staleness checks before the first edit, because acting on a stale artifact edits the wrong
-lines:
+Then, **before the first finding is presented**, resolve `.claude/instruction-placement.md` across
+its three layers and drop every finding the merged surface covers, reporting each as suppressed with
+its reason, date, and contributing layer. Match on the `finding_id` the artifact's `Suppression key`
+already carries; **do not derive one here.** This skill has no detector stream, and a second
+derivation is a second heading parse whose disagreement produces a decline nothing ever matches.
 
-1. **Branch match.** The artifact's `branch:` frontmatter against the current branch. On a mismatch,
+The ordering is the point, and the case it protects is ordinary. This checkout's artifact is memory
+tier: whatever the last local `audit` left behind, knowing nothing about a decline another checkout
+recorded and committed since, which arrives here when that commit does. Present first and consult
+the surface later, and the operator is asked to re-judge what their team already settled, which is
+the rubber-stamping this gate exists to prevent. A suppressed finding is never presented, never
+accepted, never applied.
+
+Then four checks before the first edit, because acting on a stale artifact edits the wrong lines:
+
+1. **Suppression sweep.** The step above has run and its suppressed set is reported. A finding that
+   reaches the gate unswept is a question the team already answered.
+2. **Branch match.** The artifact's `branch:` frontmatter against the current branch. On a mismatch,
    stop and re-audit. The directory a file sits in never proves which branch it describes.
-2. **Source drift.** For each finding, that the cited content still exists at the cited location.
-   Content that moved is re-audited, not guessed at.
-3. **Version drift.** The artifact's `claude_code_version` against the running one. On a material
+3. **Source drift.** For each finding, that the cited content still exists at the cited location.
+   Content that moved is re-audited, not guessed at. A finding whose status is `accepted` and whose
+   source changed is **not** applied: the acceptance was for text that is gone, so it returns to
+   `pending` and is presented again.
+4. **Version drift.** The artifact's `claude_code_version` against the running one. On a material
    difference, re-verify the mechanics before trusting destination choices that depend on them.
 
 ## Execution

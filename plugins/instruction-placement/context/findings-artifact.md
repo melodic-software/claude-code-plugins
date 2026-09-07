@@ -1,16 +1,17 @@
 # Findings artifact — the audit → realign contract
 
 One markdown file is the whole seam between this plugin's skills. `audit` writes it and mutates
-nothing else. `realign` is its **only** mutating consumer and the only writer of operator decisions
-into it. `check` never reads it at all — it verifies the repository's state directly, so a stale
-artifact can never make a broken repo look healthy.
+nothing else. `realign` is the **only writer of operator decisions** into it, and the only skill
+that acts on them; `delta` writes records into it too, never a decision, under the one reset the
+status section below fixes. `check` never reads it at all — it verifies the repository's state
+directly, so a stale artifact can never make a broken repo look healthy.
 
 `delta` reads the artifact and writes a second, smaller file — the spine baseline — whose shape this
 document also owns, under "The baseline-capture obligation". Operator decisions have a third home:
 the tracked finding-suppression surface, whose keys are the marketplace's and whose constituents are
 this document's, under "Finding ids and their constituents".
 
-All four skills read this document; none restates it.
+All three skills that touch the artifact read this document; none restates it.
 
 ## Deliberately not `type: review-findings`
 
@@ -114,10 +115,33 @@ divergent parse there produces a well-formed entry whose constituents hash to th
 nothing reports it malformed and `delta` simply never matches it. The decline would vanish with no
 error, which is the one failure mode this record's durability exists to prevent.
 
-`Status` moves `pending` → `accepted` | `declined` | `applied` | `blocked`, written by `realign`
-only. A `declined` finding keeps its record so a later run does not re-propose what the operator
-already rejected — re-proposing a declined move is the fastest way to train an operator to
-rubber-stamp.
+`Status` moves `pending` → `accepted` | `declined` | `applied` | `blocked`, and back along exactly
+one arc, `accepted` → `pending`. **Every forward move is written by `realign` and by nothing else**,
+because every one of them records an operator's decision. The single backward move is the
+source-changed reset below, written by whichever skill re-derives the record — `audit` on a re-run,
+`delta` on its merge — and it is not a decision but the withdrawal of one whose subject is gone.
+A `declined` finding keeps its record so a later run does not re-propose what the operator already
+rejected — re-proposing a declined move is the fastest way to train an operator to rubber-stamp.
+
+**One status is reset rather than carried, and only one: `accepted` on a finding whose source
+changed.** An acceptance is scoped to the text the operator read and to the line range they were
+shown. When that text moves on before the move is applied, carrying the acceptance forward hands
+`realign` an authorization for content nobody approved, and `realign` excises by range, so the
+damage is silent and in a file that steers the agent. The finding returns to `pending` and is
+re-presented, noting that it was re-derived. Re-asking costs one question; not asking costs an
+unreviewed edit.
+
+The other three do not move, for reasons that are not symmetric with that one:
+
+- **`declined` stays `declined`.** A decline is a judgment about content rather than about a range,
+  and where the operator gave a reason its durable form is the suppression entry, whose anchor is
+  deliberately insensitive to a copy-edit. Resetting it would resurrect a decision already made. A
+  decline recorded with no reason has no entry and lives in this artifact alone, so it is durable
+  only within this checkout — `realign` says so at the moment it records one, rather than leaving
+  the operator to discover it from the next worktree.
+- **`applied` stays `applied`.** It is history, not an authorization: the move already happened and
+  the repository's git history is the record. A changed source after the fact is ordinary drift.
+- **`blocked` stays `blocked`.** Nothing about it was authorized in the first place.
 
 ## Held-back section
 
@@ -133,8 +157,9 @@ Nothing in this section is actionable by `realign`. It has no code path that can
 A second `audit` on the same key merges rather than replacing:
 
 - A finding whose source content is unchanged keeps its identifier and its status.
-- A finding whose source content changed is re-classified and reset to `pending`, and the record
-  notes that it was re-derived.
+- A finding whose source content changed is re-classified and, **if its status was `accepted`,
+  reset to `pending`**; the record notes that it was re-derived. `declined`, `applied`, and
+  `blocked` are carried, per the status section above.
 - A finding whose source content no longer exists is marked `stale` and kept for one further run
   before being dropped.
 - A `declined` finding is never resurrected as `pending` by a re-run alone.
@@ -222,9 +247,15 @@ type: instruction-placement-baseline
 schema: 1
 date: <ISO-basic UTC, colon-free: YYYYMMDDTHHMMSSZ>
 branch: <branch at capture time>
-compared: <ISO-basic UTC of the run that last consumed this baseline, or —>
 ---
 ```
+
+**There is deliberately no `compared:` field.** A stamp recording which run last consumed the
+baseline would be written and then immediately overwritten: `delta` consumes the stored spine and
+captures its own over it in the same cycle, so the value would describe a file that no longer
+exists by the end of the run, and nothing reads it in between. `date` already answers the only
+question a reader actually asks of a spine, which is how old it is. A declared field nothing
+maintains is worse than no field, because the next reader trusts it.
 
 One body section, `## Spine`, written as a table so a diff between runs stays aligned: one row per
 detector record, `SECTION` and `RULE` alike, carrying its key, its kind, and a digest of the content
