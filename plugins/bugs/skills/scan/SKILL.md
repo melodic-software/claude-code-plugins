@@ -164,8 +164,8 @@ call; on a shallow clone, print the skip notice and continue unranked.
 Dispatch **one subagent per lens** over the resolved scope, each with the four-part contract:
 objective, output format, tool/source guidance, and task boundaries, spelled out in
 [`context/lenses.md`](context/lenses.md). Size the fan-out to the surface: a single small file may
-warrant one or two lenses; a full lane warrants all four. Whatever the surface suggests, the effort
-row in [Budget](#effort) is the ceiling. Every hunter is read-only, must attach a
+warrant one or two lenses; a full lane warrants all four. Whatever the surface suggests, the
+[Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a
 verbatim evidence quote to every candidate, and is explicitly told that **returning no candidate is a
 valid and expected outcome**.
 
