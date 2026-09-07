@@ -445,8 +445,10 @@ else
   assert_eq "the traced warm launch still runs the target" \
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
   # A creation is a clone/fork line that returned a child id; the `unfinished`
-  # half of a split line is excluded so a creation is counted once.
-  census_creations="$(grep -E '\b(clone3?|v?fork)\b' "$CENSUS_LOG" |
+  # half of a split line is excluded so a creation is counted once. The pattern
+  # is POSIX ERE: strace writes `clone(`, `clone3(`, `fork(`, `vfork(`; a GNU
+  # `\b` word boundary is not needed and is not portable.
+  census_creations="$(grep -E '(clone3?|v?fork)\(' "$CENSUS_LOG" |
     grep -v unfinished | grep -cE '= [1-9][0-9]*$' || true)"
   census_execs="$(grep -E '^[0-9]+ +execve\(' "$CENSUS_LOG" |
     grep -cE '\) = 0$' || true)"
