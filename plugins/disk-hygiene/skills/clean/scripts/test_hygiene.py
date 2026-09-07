@@ -4866,9 +4866,7 @@ class GuardTests(unittest.TestCase):
                 "apply --execute --snapshot s --plan p --confirm-tier high "
                 f"--approval-token {'a' * 24} --report r"
             )
-        return (
-            f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
-        )
+        return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
 
     def _run_guard_belt(
         self, command: str, tool_name: str = "Bash"
