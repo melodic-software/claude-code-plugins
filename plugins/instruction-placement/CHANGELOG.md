@@ -3,6 +3,107 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **`reference/artifact-protocol.md`** — the marketplace's shared lifecycle artifact protocol,
+  byte-identical to the canonical copy. This plugin is now a protocol participant, and
+  `scripts/validate-plugin-contracts.mjs` checks its copy alongside the other five.
+- **`reference/topic-docs.md` — the binding that resolves both memory-tier homes.** Constant slug
+  `instruction-placement`, branch-keyed below it, with the rung order, the child-slice
+  non-predicate, the detached-`HEAD` consequence, and the self-ignore guard all cited from the
+  contract rather than restated. The slice root carries an `INDEX.md` because it holds two artifact
+  families, written at the same first memory-tier write as the guard.
+- **The spine baseline, in the protocol's `baselines/` slot.** `delta` captures
+  `<branch-slug>/baselines/spine-baseline.md` at the end of a cycle that completed its comparison:
+  this run's detector spine and nothing else. Its frontmatter, its one body table, and the four
+  rules binding a capture are owned by `context/findings-artifact.md` under "The baseline-capture
+  obligation"; a baseline whose `branch:` does not match is refused rather than compared.
+- **`reference/consumer-config.md` and the tracked suppression surface
+  `.claude/instruction-placement.md`.** A declined finding is recorded against the marketplace's
+  finding-suppression contract, layered across the three config-cascade layers with per-key merge
+  on `finding_id` and the policy-floor precedence inversion, and registered in the cascade's
+  implementers table. `suppressions` is the surface's only key; the plugin's `userConfig` dials stay
+  personal and are never keys here. One declared deviation, recorded in that document: a scoped run
+  adds a fifth reporting-only disposition, `not evaluated this run`, for entries outside its scope.
+- **`instruction-placement:realign` writes the decline.** Two writes: `declined` into the
+  branch-scoped findings artifact, and an entry on the tracked surface — offered in full, written
+  only on an explicit yes, team layer only, with a required operator-authored reason and the run
+  stating that the file must be committed to reach another checkout.
+- **Finding ids and their constituents**, in `context/findings-artifact.md`: what `check`, `claim`,
+  and `sites` hold for a placement finding, and this plugin's `anchor/v1` — `sha256` of the
+  `US`-joined enclosing heading path, truncated to 8 hex. Deliberately not a digest of the section's
+  bytes, so a copy-edit cannot resurrect an accepted decline; the collision that trade accepts is
+  recorded beside it.
+- **The Finding record carries its `Suppression key` and its ordered heading path**, written by
+  `audit`, which holds the detector stream. `realign` has no detector and carries those values
+  verbatim rather than re-deriving an anchor from its own heading parse — a second parse that
+  disagreed would mint a well-formed entry nothing ever matches, losing the decline with no error.
+
+### Changed
+
+- **Persistence moves from the `${CLAUDE_PLUGIN_DATA}` state key to two homes chosen by what the
+  state is** (#3811). Evidence and the diff spine are memory tier and branch-keyed
+  (`<memory_dir>/instruction-placement/<branch-slug>/`), because both are recomputed by the next run
+  and are worthless outside the checkout that produced them. The operator's judgment is tracked,
+  because git is the only mechanism that reaches another checkout: the topic-docs contract states a
+  memory document is visible only in the checkout that wrote it, marks a sibling worktree
+  `invisible`, and refuses to carry this file class with `.worktreeinclude` ("never baselines or raw
+  scratch"). This is the same split the sibling `overengineering` plugin makes.
+- **The state key is removed rather than re-scoped.** Its second segment was a
+  `<worktree-discriminator>` — a hash of the checkout root, present by design so two worktrees "must
+  not share a report". Correct for a per-checkout report, and exactly wrong for a decline.
+- **`audit` and `delta` read the suppression surface and never write it**, reporting every entry
+  that did and did not suppress with its contributing layer, and excluding the surface and its
+  layers from the candidate set after the detector has run. What `delta` detects, its noise budget,
+  and its report shape are unchanged.
+- **`delta` merges its discoveries into the findings artifact before it captures the spine.** A
+  `new` finding and a re-derived `changed` line range are its only durable output for `realign`,
+  which reads the artifact and never the spine; capturing first leaves a baseline that has moved on
+  from a finding no record carries, so the discovery is lost with no error. It writes records, and
+  the only status it ever writes is the `accepted` to `pending` reset below. All four
+  baseline/artifact combinations are enumerated, including the bootstrap where an artifact exists
+  and no baseline does — the shape a first run in a fresh worktree takes.
+- **A `RULE` row in the spine carries its glob-validation verdict.** `broken-glob` is a transition,
+  not a state, and a rule whose file and glob text are both unchanged is exactly the case where
+  nothing else in the row moves when the code the glob described is renamed elsewhere. Without the
+  stored verdict a re-run either re-announces every already-broken glob every cycle or reports none
+  of them. It now fires on `valid` to invalid, counts invalid to invalid as still-broken in the
+  suppressed total, and stays silent on a glob that started resolving again.
+- **`realign` reads the suppression surface before it presents anything.** This checkout's artifact
+  is whatever the last local `audit` left behind and knows nothing about a decline another checkout
+  committed since; consulting the surface after presenting would ask the operator to re-judge what
+  their team already settled. A suppressed finding is never presented, accepted, or applied.
+- **An `accepted` finding whose source changed resets to `pending`.** An acceptance is scoped to the
+  text the operator read and to the range they were shown, and `realign` excises by that range, so
+  carrying it forward authorizes an edit to content nobody approved. `declined`, `applied`, and
+  `blocked` are carried, for reasons stated per status rather than by symmetry.
+- **A bootstrap cycle captures the detector's own output, not a spine derived from the artifact.**
+  The artifact holds classified candidates and held-back records, not every `SECTION` and `RULE`,
+  so an artifact-derived spine is partial and the next cycle reports every record it never carried
+  as `new`. The bootstrap states its cost instead: no `new` and no `broken-glob` this cycle, and a
+  candidate that arose between the audit and the bootstrap is absorbed unreported, which is the one
+  sanctioned exception to the merge-before-capture rule and routes to a full `audit` when the
+  artifact is old enough for the tree to have moved on.
+- **The `Status` vocabulary gains its one backward arc, and the writer rule is stated per arc.**
+  Every forward move is `realign`'s and records a decision; the `accepted` to `pending` reset is
+  written by whichever skill re-derives the record and withdraws a decision whose subject is gone.
+  A decline the operator gave no reason for has no suppression entry and is durable only within its
+  checkout, which `realign` now says at the moment it records one.
+- **`realign`'s missing-artifact stop names the branch, not the project key.** The refusal to act on
+  another home's artifact is argued from stale line ranges rather than from cross-project collision,
+  which is what the branch axis actually protects against.
+- **`context/findings-artifact.md` is `schema: 2`.** Its location formula changed, which is
+  reader-breaking under that document's own stability rule; the stability section says so, and the
+  state-key language about identifiers being stable "within a key" is replaced by the resolved home
+  plus the cross-checkout `finding_id`.
+
+### Removed
+
+- **`lib/state-key.sh`.** No skill in this plugin resolves a machine-global key any more, and the
+  file is dropped from the `scripts/sync-state-key.sh` carrier list rather than left unreferenced.
+
 ## [0.11.32]
 
 ### Changed
