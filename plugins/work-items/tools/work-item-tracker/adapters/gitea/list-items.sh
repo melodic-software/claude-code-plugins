@@ -136,9 +136,11 @@ done
 # So the per-item cost is the dependency request itself, not that plus three more jq
 # processes to re-read, normalize and re-accumulate the item.
 while IFS= read -r NUMBER; do
-  # The number reaches a request path and is the join key below, so anything but digits
-  # is refused here, before it can be interpolated or mis-joined.
-  [[ "$NUMBER" =~ ^[0-9]+$ ]] || {
+  # The number reaches a request path, is interpolated unquoted into a JSON number
+  # literal in COUNTS, and is the join key below. A JSON number may not have a
+  # leading zero (RFC 8259 §6), so anything but a canonical integer is refused here
+  # before it can be interpolated or mis-joined.
+  [[ "$NUMBER" =~ ^(0|[1-9][0-9]*)$ ]] || {
     printf 'list-items.sh: gitea returned an issue in %s without a numeric number: %s\n' "$REPO" "$NUMBER" >&2
     exit "$EX_INTERNAL"
   }

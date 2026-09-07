@@ -13,9 +13,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   no page-sized or list-sized payload is fed to `jq` as a here-string (the form that hangs Git
   Bash at 65536 bytes). The per-item cost is now the dependency request plus one `jq` (the
   dependency count helper's two `jq` calls are fused into one), down from that request plus five.
-  The envelope is unchanged for every row with a numeric `number`; a row whose `number` is not
-  all digits (the accumulator emitted it with an id ending in `#null`) is now refused before any
-  dependency request, with exit 1 and no envelope. Pinned by its own case in `list-items.test.sh`.
+  The envelope is unchanged for every row with a canonical JSON integer `number`; a row whose
+  `number` is not a canonical integer (not all digits, or a leading-zero digit string such as
+  `"007"`, which is invalid as a JSON number literal) is now refused before any dependency
+  request, with exit 1 and no envelope. Pinned by its own cases in `list-items.test.sh`.
 - **gitea adapter, paging ceiling:** `WIT_GITEA_LIST_ITEMS_MAX` is read from
   `limits.list_items_max` in `capabilities.json` at load time, the way the github, jira and
   local-markdown adapters already read theirs, instead of being a second hardcoded copy of the

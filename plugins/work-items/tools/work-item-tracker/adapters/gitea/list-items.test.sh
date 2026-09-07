@@ -126,11 +126,12 @@ rc="$(gitea_run "$S")"
 assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 
 # --- an issue without a numeric number is refused, never walked ---
-# The number is interpolated into the dependencies request path and is the join key of the
-# final envelope pass, so a row whose `number` is not all digits is refused before either:
-# exit 1, no envelope, and no request carrying the bad value. This is a behaviour change
-# from the per-item accumulator, which walked the same row and emitted an envelope whose id
-# read `gitea:acme/webapp#null` with exit 0.
+# The number is interpolated into the dependencies request path, into an unquoted JSON
+# number literal in COUNTS, and is the join key of the final envelope pass, so a row
+# whose `number` is not a canonical JSON integer is refused before any of those: exit 1,
+# no envelope, and no request carrying the bad value. This is a behaviour change from the
+# per-item accumulator, which walked the same row and emitted an envelope whose id read
+# `gitea:acme/webapp#null` with exit 0.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json null open 'no number')]"
@@ -142,6 +143,23 @@ if [[ "$(gitea_requests)" == *"/issues/null/"* ]]; then
   fail "no request carried the non-numeric number" "no /issues/null/ request" "$(gitea_requests)"
 else
   pass "no request carried the non-numeric number"
+fi
+
+# A leading-zero digit string is all digits, so the old `^[0-9]+$` guard accepted it, then
+# `printf '{"number":%s,...}'` wrote an invalid JSON number literal (RFC 8259 §6) and the
+# final jq pass failed the whole envelope with the generic normalize message. Refuse it
+# here instead, the same way as null.
+gitea_reset_routes
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed "/issues?" 200 "[$(gitea_issue_json 7 open 'padded' | jq -c '.number = "007"')]"
+rc="$(gitea_run "$S")"
+assert_eq "an issue with number: \"007\" → exit 1" "1" "$rc"
+assert_eq "and no envelope is emitted for the padded number" "" "$(gitea_out)"
+assert_contains "and the padded-number refusal says why" "$(gitea_err)" "without a numeric number"
+if [[ "$(gitea_requests)" == *"/issues/007/"* ]]; then
+  fail "no request carried the padded number" "no /issues/007/ request" "$(gitea_requests)"
+else
+  pass "no request carried the padded number"
 fi
 
 # --- HTTP status mapping ---
