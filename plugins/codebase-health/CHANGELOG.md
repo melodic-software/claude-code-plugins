@@ -10,8 +10,8 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 - **`audit`:** an Effort subsection that reads the caller's effort level through the
   `${CLAUDE_EFFORT}` substitution and uses it to select a prefix of the resolved dimension list.
   `low` audits the first dimension only and skips Phase 2 external research, `medium` audits the
-  first two and researches documentation claims only, and `high` and above audit every resolved
-  dimension, so behavior at the default level is unchanged. Effort never adds a dimension the config
+  first two and researches Phase 2's listed claim types among those two, and `high` and above audit
+  every resolved dimension, so behavior at the default level is unchanged. Effort never adds a dimension the config
   removed and never reorders the list. A narrowed run must name the skipped dimensions in the report,
   and skipping external research reuses the existing graceful-degrade path, confidence-tagging the
   externally-unverifiable part `needs-review` rather than dropping the claim.

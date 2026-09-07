@@ -120,6 +120,13 @@ in full at every level:
 | `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor |
 | `high`, `xhigh`, `max` | every presence-gated seam over every finding, the current behavior |
 
+The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
+enters that pass only when its calibrated severity is at or above the floor. An attended run pins
+the floor in the interview, using the auditor's own suggested labels after severity calibration.
+Unattended, the floor defaults to every in-scope finding, because dropping findings from review is
+what needs a human, matching the scope decision. `high` and above ignore the floor and review every
+finding. The floor never re-grades a severity; calibration still owns that.
+
 `skill-quality:check` stays required for a skill target at every level; it is the one seam that
 grades the artifact against its own contract rather than reviewing the write-up. When effort skips
 the breadth pass, say so in the emitted write-up next to the seam list, so an ungraded write-up is
@@ -246,8 +253,9 @@ list lives in the packet's grounded-findings file).
 
 ### Step 4. Contract lock (main thread, interactive)
 
-Interview the user briefly to pin: scope (which findings are in), severity calibration, named
-assumptions, and the target repo for the emit. Write the locked contract into the packet
+Interview the user briefly to pin: scope (which findings are in), severity calibration, severity
+floor (the cutoff the `medium` effort row uses for the breadth pass), named assumptions, and the
+target repo for the emit. Write the locked contract into the packet
 (`contract.md`), then re-seal it. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" record <packet-dir>`, so the contract is
 covered rather than left as an unsealed file a later `verify` can only report as ungraded. This is
 where the human's judgment enters the audit. Do not skip it.
@@ -262,12 +270,13 @@ skipped. What changes is where its answers come from. Resolve each decision by t
   recorded in `contract.md` as auto-resolved, with what it was derived from.
 - **A decision with no safe default is never guessed**. Stop and report it as a named blocker.
 
-Applied to the four contract-lock decisions:
+Applied to the five contract-lock decisions:
 
 | Decision | Unattended resolution |
 |---|---|
 | Scope (which findings are in) | The dispatching item's own acceptance criteria and out-of-scope list bind it when it carries them. Absent that, **every** finding the `auditor` returned is in scope, the conservative answer, since narrowing scope is what needs a human. |
 | Severity calibration | The `auditor`'s returned severities stand as-is, marked uncalibrated. Never re-grade a severity without a human. Findings persisted through step 3's backstop are the exception to "stand as-is": that path rests on a marker-string match with the least verification of any route into the packet, so mark each such finding `backstop-persisted: unverified` in `contract.md` and never let an unattended run treat it as ground truth for anything beyond carrying it forward to a human. |
+| Severity floor | Every in-scope finding clears it. The floor only narrows the `medium` effort breadth pass; dropping findings from review is what needs a human, matching the scope decision. Record the default in `contract.md` as auto-resolved. `high` and above ignore the floor. |
 | Named assumptions | Carry forward the `auditor`'s own stated assumptions and unverified claims verbatim, plus one assumption naming the unattended invocation itself. |
 | Target repo for the emit | Resolve by step 6's ladder rungs 1–2 only (tracked config, then registration inference) and record which one hit. Rung 3 ("ask") has no unattended form, but an unresolved target is **not** a blocker. Step 6 sends every unattended run to rung 4 whether or not 1–2 resolved, and rung 4 names "no repo" as one of its own entry conditions. The resolution recorded here is therefore either "would have targeted `<owner/repo>` via rung N" or "no external target resolved"; the emit lands on rung 4 either way. Blocking would strand precisely the targetless runs rung 4 exists for, a plugin loaded with `--plugin-dir` has no marketplace registration to infer from and no tracked config, which is the case most likely to be audited unattended. |
 
