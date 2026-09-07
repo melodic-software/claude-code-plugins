@@ -126,7 +126,8 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
@@ -482,7 +483,8 @@ emit_tel() {
   # comes back as the basename, never an absolute path (which would embed the
   # developer's username).
   local findings_json="[]" file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#FAILURES[@]} > 0)); then
     local f raw="" disp
     for f in "${FAILURES[@]}"; do

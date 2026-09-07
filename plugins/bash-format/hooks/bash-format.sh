@@ -73,6 +73,14 @@ case "$FILE" in
 *.sh | *.bash) ;;
 *) exit 0 ;;
 esac
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a shell file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Resolve repo root early — used to bound the .editorconfig opt-in walk and to
 # compute the schema-required repo-relative path in data.file.
@@ -81,7 +89,8 @@ esac
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
 # resolved only when a sink is wired: the unwired default path spawns zero
@@ -95,7 +104,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
@@ -143,8 +153,13 @@ shell_editorconfig_opt_in() {
   file_dir="${FILE%/*}"
   [[ "$file_dir" == "$FILE" ]] && file_dir=.
   [[ -n "$file_dir" ]] || file_dir=/
-  dir="$(cd "$file_dir" 2>/dev/null && pwd)" || return 1
-  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+  [[ -d "$file_dir" ]] || return 1
+  dir="$file_dir"
+  # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
+  # (and pwd) on every fire to canonicalize a path git already answered as
+  # absolute. Relative hints still walk from the spelling `cd` would have used.
+  root=""
+  [[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
   while :; do
     cfg="$dir/.editorconfig"
     if [[ -f "$cfg" ]]; then
@@ -245,7 +260,7 @@ if shell_editorconfig_opt_in; then
       # Taken here, EMITTED at the single emission point below: the rewrite
       # disclosure and any lint findings/notice must compose into one JSON
       # document (#3406, #3409).
-      hook::rewrite_take_disclosure "$_fmt_target" "bash-format: reformatted $(basename "$FILE") via shfmt (structural layout only)."
+      hook::rewrite_take_disclosure "$_fmt_target" "bash-format: reformatted $FILE_BASE via shfmt (structural layout only)."
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
@@ -278,7 +293,7 @@ if command -v shellcheck >/dev/null 2>&1; then
       SC_OUTPUT=$(printf '%s\n' "$SC_OUTPUT" | grep -v 'openBinaryFile' || true)
     fi
     if [[ -n "$SC_OUTPUT" ]]; then
-      CTX="bash-format: $(basename "$FILE") has ShellCheck findings:"$'\n'
+      CTX="bash-format: $FILE_BASE has ShellCheck findings:"$'\n'
       findings_raw=""
       while IFS= read -r line; do
         [[ -n "$line" ]] || continue

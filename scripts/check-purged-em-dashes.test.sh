@@ -92,6 +92,12 @@ printf '%s\n' \
 
 write "other/unlisted.md" "Not on the allowlist ${EM} so not this gate's business."
 
+# Nested under surface/ so `surface/*.md` must NOT match it: git `:(glob)`
+# (and this gate's in-process replica) does not let `*` cross `/`. An em dash
+# here would fail the globbed allowlist if the matcher ever went wildmatch.
+mkdir -p "$REPO/surface/deep"
+write "surface/deep/nested.md" "A nested regression ${EM} that surface/*.md must not see."
+
 # Tells that OTHER detector rules would fire on, and no em dash. The gate
 # must stay clean: it judges rule-em-dash only. Combined with the one-rule
 # liveness assertion in the SUT, a passing run of this surface is what pins
@@ -238,6 +244,11 @@ if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
   ok "a glob entry expands to every matching tracked file"
 else
   fail "a glob entry expands to every matching tracked file (rc=$RC): $OUT"
+fi
+if [[ "$OUT" != *"surface/deep/nested.md"* ]]; then
+  ok "a * glob does not match across a directory separator"
+else
+  fail "a * glob does not match across a directory separator: $OUT"
 fi
 
 run "$REPO" "stale.txt"

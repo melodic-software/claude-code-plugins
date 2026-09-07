@@ -91,13 +91,22 @@ case "$FILE" in
 *.go) ;;
 *) exit 0 ;;
 esac
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a Go file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # TOOL and FILE_REL feed the telemetry data object and nothing else (goimports
 # is invoked with the absolute $FILE), so both are resolved only when a sink is
@@ -111,7 +120,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
@@ -201,7 +211,10 @@ done <"$FILE"
 [[ $GENERATED -eq 1 ]] && emit_skipped
 
 # Resolve the goimports binary from PATH — never downloaded.
-GOIMPORTS_BIN="$(command -v goimports 2>/dev/null)" || GOIMPORTS_BIN=""
+# `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
+# just to learn the path. The later exec looks the name up on PATH itself.
+GOIMPORTS_BIN=""
+command -v goimports >/dev/null 2>&1 && GOIMPORTS_BIN=goimports
 
 if [[ -z "$GOIMPORTS_BIN" ]]; then
   if hook::notice_once "go-format-goimports" "$INPUT"; then
@@ -237,7 +250,7 @@ GOIMPORTS_ARGS=(-w -l)
 # only; name the rewrite on the user channel and stay silent on no-op paths.
 # Snapshot lifecycle and single-document composition live in the shared
 # rewrite-guard lib (#3405, #3409).
-GO_REWRITE_MESSAGE="go-format: reformatted $(basename "$FILE") via goimports (imports and layout only)."
+GO_REWRITE_MESSAGE="go-format: reformatted $FILE_BASE via goimports (imports and layout only)."
 hook::rewrite_guard_begin "$FILE"
 # -w writes the fix in place; -l (combined with -w) lists the changed
 # filename on stdout, which this hook doesn't need (a successful autofix
@@ -269,7 +282,7 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   # goimports ran and produced a judgment: the file has a syntax error it
   # cannot parse. This is a finding, not a tool break — mirrors how
   # ruff-format surfaces a mid-edit syntax error as a finding.
-  GO_CTX="go-format: $(basename "$FILE") has a syntax error goimports could not parse (advisory):"
+  GO_CTX="go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -294,7 +307,7 @@ fi
 # code) — no judgment was made. Surface the diagnostic via additionalContext
 # (NOT stderr — an advisory hook's exit-0 stderr can trip a false "Hook
 # Error" label). Record as "skipped" (the tool never ran to judgment).
-GO_CTX="go-format: goimports failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+GO_CTX="go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   GO_CTX+=$'\n'"  $line"

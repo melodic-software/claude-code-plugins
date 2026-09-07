@@ -157,21 +157,72 @@ fi
 # across directory separators, so `plugins/*/README.md` would silently pull in
 # `plugins/a/b/README.md`. An allowlist whose entries claim more surface than
 # they name is a declaration nobody can audit by reading it.
+#
+# One `git ls-files -z -- "${pathspecs[@]}"` expands the union. The previous
+# loop paid one `git ls-files` plus `tr`/`sed`/`wc` per allowlist entry (~94
+# git execs on this tree). Attribution of the union back onto each glob (stale
+# detection and `--list` counts) is in-process and component-wise so `*` cannot
+# include `/` — the same `:(glob)` contract (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's
+# fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide,
+# Process Creation). Live allowlist entries do not use `**`.
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
 
+# glob_matches_path <glob> <path>
+# Return 0 when <path> matches <glob> under `:(glob)` rules: split on `/`,
+# then `[[` pattern-match each component so `*` cannot swallow a slash.
+glob_matches_path() {
+  local glob="$1" path="$2"
+  local -a gparts pparts
+  local i
+  IFS=/ read -ra gparts <<<"$glob"
+  IFS=/ read -ra pparts <<<"$path"
+  ((${#gparts[@]} == ${#pparts[@]})) || return 1
+  for ((i = 0; i < ${#gparts[@]}; i++)); do
+    if [[ -z "${gparts[i]}" ]]; then
+      [[ -z "${pparts[i]}" ]] || return 1
+      continue
+    fi
+    # Unquoted RHS is the glob; quoting would compare literals and let `*`
+    # match across the slash we just split on. SC2053/SC2254 warn about that.
+    # shellcheck disable=SC2053,SC2254
+    [[ "${pparts[i]}" == ${gparts[i]} ]] || return 1
+  done
+  return 0
+}
+
+pathspecs=()
+for glob in "${GLOBS[@]}"; do
+  pathspecs+=(":(glob)$glob")
+done
+if ! git ls-files -z -- "${pathspecs[@]}" >"$TMP/union.z"; then
+  echo "check-purged-em-dashes: git ls-files failed" >&2
+  exit 2
+fi
+declare -a UNION=()
+while IFS= read -r -d '' f; do
+  [[ -n "$f" ]] && UNION+=("$f")
+done <"$TMP/union.z"
+
 FILES="$TMP/files.txt"
 : >"$FILES"
+if ((${#UNION[@]})); then
+  printf '%s\n' "${UNION[@]}" >"$FILES"
+fi
 stale=0
 # Initialized here rather than only where it is computed: the verdict section
 # reads it, this script runs under `set -u`, and a future early return between
 # the two would turn a clean run into an unbound-variable crash.
 excluded=0
+matched=()
 for glob in "${GLOBS[@]}"; do
-  matched="$(git ls-files -z -- ":(glob)$glob" | tr '\0' '\n' | sed '/^$/d')"
-  count=0
-  [[ -n "$matched" ]] && count="$(printf '%s\n' "$matched" | wc -l | tr -d ' ')"
+  matched=()
+  for f in "${UNION[@]}"; do
+    glob_matches_path "$glob" "$f" && matched+=("$f")
+  done
+  count=${#matched[@]}
   if ((count == 0)); then
     echo "check-purged-em-dashes: stale allowlist entry matches no tracked file: $glob" >&2
     stale=1
@@ -179,7 +230,6 @@ for glob in "${GLOBS[@]}"; do
     continue
   fi
   [[ "$MODE" == list ]] && printf 'ok     %s (%s files)\n' "$glob" "$count"
-  printf '%s\n' "$matched" >>"$FILES"
 done
 
 sort -u -o "$FILES" "$FILES"

@@ -860,7 +860,7 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-ski
 # this hook runs on every Write and Edit, and a command substitution is a fork
 # per call on Windows Git Bash. The anchor is still the FILE's directory, which
 # is what this case exists to hold.
-assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$FILE_DIR"'
+assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root_to REPO_ROOT "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
 # The expansion must answer as `dirname` did for every shape. For a root-level

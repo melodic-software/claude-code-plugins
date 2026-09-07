@@ -56,19 +56,34 @@ hook::check_enabled() {
 # (\n \r \t); the remaining C0 bytes JSON forbids raw are dropped — notice text
 # never carries meaningful control bytes beyond line structure. Byte-safe under
 # UTF-8: every escaped byte is ASCII, and UTF-8 continuation bytes are >= 0x80.
+#
+# hook::json_escape_to <var> <string> writes in THIS shell. The print form is
+# the public contract. A `$(hook::json_escape …)` capture is a fork even when
+# the body is only builtins (Command Execution Environment, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution). The previous
+# `printf | tr -d` pipeline added two more process creations and a `tr` exec
+# per notice; Cygwin's fork is a non-copy-on-write Win32 CreateProcess
+# (Cygwin User's Guide, "Process Creation": "fork will almost certainly
+# always be inefficient under Win32"). Residual C0 deletion is the same
+# character class tr used (`\001-\010\013\014\016-\037`); NUL cannot appear
+# in a bash string, so tr's `\000` was already unrepresentable.
+hook::json_escape_to() {
+  local __hu_s="$2"
+  __hu_s="${__hu_s//\\/\\\\}"
+  __hu_s="${__hu_s//\"/\\\"}"
+  __hu_s="${__hu_s//$'\n'/\\n}"
+  __hu_s="${__hu_s//$'\r'/\\r}"
+  __hu_s="${__hu_s//$'\t'/\\t}"
+  if [[ "$__hu_s" == *[[:cntrl:]]* ]]; then
+    __hu_s="${__hu_s//[$'\001'-$'\010'$'\013'$'\014'$'\016'-$'\037']/}"
+  fi
+  printf -v "$1" '%s' "$__hu_s"
+}
+
 hook::json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  # tr drops the residual C0 bytes; if tr itself is unavailable, fall back to
-  # the escaped string as-is — notice text is hook-authored and does not carry
-  # raw control bytes in practice.
-  local out
-  out=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037' 2>/dev/null) || out="$s"
-  printf '%s' "$out"
+  local __hu_e
+  hook::json_escape_to __hu_e "$1"
+  printf '%s' "$__hu_e"
 }
 
 # Emit hook JSON carrying an agent-channel context (additionalContext) and/or a
@@ -80,12 +95,17 @@ hook::json_escape() {
 hook::emit_channels() {
   local event="$1" ctx="$2" sysmsg="$3"
   [[ -n "$ctx" || -n "$sysmsg" ]] || return 0
-  local out="{"
+  local __hu_ee __hu_ec __hu_es out="{"
   if [[ -n "$ctx" ]]; then
-    out+='"hookSpecificOutput":{"hookEventName":"'"$(hook::json_escape "$event")"'","additionalContext":"'"$(hook::json_escape "$ctx")"'"}'
+    hook::json_escape_to __hu_ee "$event"
+    hook::json_escape_to __hu_ec "$ctx"
+    out+='"hookSpecificOutput":{"hookEventName":"'"$__hu_ee"'","additionalContext":"'"$__hu_ec"'"}'
     [[ -n "$sysmsg" ]] && out+=","
   fi
-  [[ -n "$sysmsg" ]] && out+='"systemMessage":"'"$(hook::json_escape "$sysmsg")"'"'
+  if [[ -n "$sysmsg" ]]; then
+    hook::json_escape_to __hu_es "$sysmsg"
+    out+='"systemMessage":"'"$__hu_es"'"'
+  fi
   out+="}"
   printf '%s\n' "$out"
 }
@@ -220,12 +240,27 @@ hook::notice_once() {
   local dir="${CLAUDE_PLUGIN_DATA:-}"
   [[ -n "$dir" ]] || return 0
   dir="$dir/skip-notices"
-  mkdir -p "$dir" 2>/dev/null || return 0
-  find "$dir" -type f -mtime +7 -delete 2>/dev/null
+  # `-d` before `mkdir -p`: the directory exists after the first skip in this
+  # process, and mkdir is an external command. Same placement as other
+  # once-per-process probes in this file.
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir" 2>/dev/null || return 0
+  fi
+  # Prune once per hook process. `find -mtime +7 -delete` on every notice
+  # was one exec per skip; the process is short-lived and the markers are
+  # tiny, so repeating the walk inside one fire cannot find newly-stale
+  # files. `_HOOK_NOTICE_PRUNED` is unset in a fresh hook process.
+  if [[ -z "${_HOOK_NOTICE_PRUNED:-}" ]]; then
+    find "$dir" -type f -mtime +7 -delete 2>/dev/null || true
+    _HOOK_NOTICE_PRUNED=1
+  fi
   local marker="$dir/${key}.${session}.${agent}"
   local count=0
   if [[ -f "$marker" ]]; then
-    count="$(tr -d '[:space:]' <"$marker" 2>/dev/null || true)"
+    # `read`, not `tr -d '[:space:]'`: that substitution was a fork plus a
+    # tr exec to strip whitespace bash can already delete in-process.
+    IFS= read -r count <"$marker" || true
+    count="${count//[[:space:]]/}"
     [[ "$count" =~ ^[0-9]+$ ]] || count=1
   fi
   count=$((count + 1))
@@ -1212,27 +1247,41 @@ hook::read_file_path() {
 # Guards that must fail closed branch on the return code or on
 # HOOK_REPO_ROOT_UNRESOLVED.
 #   ROOT=$(hook::repo_root "$some_path")
+#   hook::repo_root_to ROOT "$some_path"
+# The print form is the public contract. `_to` writes in THIS shell so a
+# caller that was about to capture with `$(hook::repo_root …)` does not pay
+# an extra subshell around the necessary git process (Command Substitution,
+# Bash Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
-hook::repo_root() {
-  local hint="${1:-.}"
-  local root
+hook::repo_root_to() {
+  local __hu_rr_dest="$1"
+  local __hu_rr_hint="${2:-.}"
+  local __hu_rr_val
   HOOK_REPO_ROOT_UNRESOLVED=0
   # CR-stripped in the shell, not `git | tr`: that pipeline paid a `tr` exec
   # on every repo_root call (~80 ms on Windows Git Bash) to delete one byte
   # class bash already rewrites in place. Same bytes as `tr -d '\r'` — the
   # same substitution buffer_stdin already uses for the payload.
-  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null) || root=""
-  root="${root//$'\r'/}"
-  if [[ -n "$root" ]]; then
-    printf '%s' "$root"
+  __hu_rr_val=$(git -C "$__hu_rr_hint" rev-parse --show-toplevel 2>/dev/null) || __hu_rr_val=""
+  __hu_rr_val="${__hu_rr_val//$'\r'/}"
+  if [[ -n "$__hu_rr_val" ]]; then
+    printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
     return 0
   fi
-  root="$hint"
-  root="${root%/.claude}"
-  root="${root%\\.claude}"
+  __hu_rr_val="$__hu_rr_hint"
+  __hu_rr_val="${__hu_rr_val%/.claude}"
+  __hu_rr_val="${__hu_rr_val%\\.claude}"
   HOOK_REPO_ROOT_UNRESOLVED=1
-  printf '%s' "$root"
+  printf -v "$__hu_rr_dest" '%s' "$__hu_rr_val"
   return 1
+}
+
+hook::repo_root() {
+  local __hu_rr
+  hook::repo_root_to __hu_rr "${1:-.}"
+  local __hu_rr_st=$?
+  printf '%s' "$__hu_rr"
+  return "$__hu_rr_st"
 }
 
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
@@ -1255,44 +1304,57 @@ hook::repo_root() {
 # value; a caller that feeds the result to a TOOL must branch on it, because a
 # bare basename resolved against the repo root names a different file.
 #   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
+#   hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 #
 # Callers under `set -e` must not take the status from a bare assignment: a
 # degraded answer returns 1, and `FILE_REL=$(hook::repo_relative_path ...)`
 # would abort the shell. Append `|| <flag>=1` (what every tool-feeding caller
-# here does) or `|| :` to keep the failure handled.
+# here does) or `|| :` to keep the failure handled. The `_to` form writes in
+# THIS shell so a Linux caller (no cygpath) does not pay a leftover capture
+# subshell around builtins-only work (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
-hook::repo_relative_path() {
-  local file="$1" root="$2" rel="$1"
+hook::repo_relative_path_to() {
+  local __hu_rp_dest="$1"
+  local __hu_rp_file="$2" __hu_rp_root="$3" __hu_rp_rel="$2"
   HOOK_REPO_RELATIVE_DEGRADED=0
   # An empty root anchors nothing, and the strip must not run against one:
   # `${file#""/}` merely shaves the leading slash, handing back a path that is
   # still the caller's absolute path but no longer LOOKS absolute to the
   # redaction below, so it would leak with a success status. Skipping the strip
   # leaves rel as the input, which the redaction then degrades correctly.
-  if [[ -n "$root" ]]; then
+  if [[ -n "$__hu_rp_root" ]]; then
     if command -v cygpath >/dev/null 2>&1; then
-      local file_lm root_lm
-      file_lm=$(cygpath -lm "$file" 2>/dev/null)
-      root_lm=$(cygpath -lm "$root" 2>/dev/null)
-      if [[ -n "$file_lm" && -n "$root_lm" ]]; then
-        rel="${file_lm#"$root_lm"/}"
+      local __hu_rp_file_lm __hu_rp_root_lm
+      __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
+      __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
+      if [[ -n "$__hu_rp_file_lm" && -n "$__hu_rp_root_lm" ]]; then
+        __hu_rp_rel="${__hu_rp_file_lm#"$__hu_rp_root_lm"/}"
       fi
     else
-      rel="${file#"$root"/}"
+      __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
     fi
   fi
   # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped
   # path arrives in. Trim on either separator: a mixed-form path carries both.
-  case "$rel" in
+  case "$__hu_rp_rel" in
   /* | [A-Za-z]:* | \\\\*)
-    rel="${rel##*/}"
-    rel="${rel##*\\}"
+    __hu_rp_rel="${__hu_rp_rel##*/}"
+    __hu_rp_rel="${__hu_rp_rel##*\\}"
     HOOK_REPO_RELATIVE_DEGRADED=1
     ;;
   *) ;; # already repo-relative, nothing to redact
   esac
-  printf '%s' "$rel"
+  printf -v "$__hu_rp_dest" '%s' "$__hu_rp_rel"
   ((HOOK_REPO_RELATIVE_DEGRADED == 0))
+}
+
+hook::repo_relative_path() {
+  local __hu_rp
+  hook::repo_relative_path_to __hu_rp "$1" "$2"
+  local __hu_rp_st=$?
+  printf '%s' "$__hu_rp"
+  return "$__hu_rp_st"
 }
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
@@ -1397,16 +1459,24 @@ hook::json_complete() {
 # still: it makes `read` return immediately having consumed nothing, which would
 # spin the loop.
 #
-# Acceptance is settled by PROBING this shell rather than consulting a version
-# table: which spellings `read -t` accepts varies across the Bash releases these
-# hooks support (fractional values are not universally available, and the
-# upstream changelog does not date their introduction), so asking the running
-# shell is exact where a version check would be a guess. Reading /dev/null hits
-# EOF immediately, so a valid timeout produces no stderr at all. The probe is
-# skipped for the default, which is known-good everywhere.
+# Fractional `read -t` landed in bash-4.0-alpha (CHANGES: "The `-t` option to
+# the `read` builtin now supports fractional timeout values"). Integer
+# timeouts are valid on every Bash these hooks support, including 3.2. A
+# live probe that redirected stderr into TMPDIR leaked a file on every
+# `buffer_stdin` (suites that isolate TMPDIR and assert it is empty after
+# the hook exits fail closed on that leftover). The version predicate is
+# the same class as hook::read_supports_nchars: overridable in tests because
+# BASH_VERSINFO is readonly. No file, no `read -t` against /dev/null.
 # Minimum 0.00001 s (10 µs): smaller positive values are a silent disable — the
 # read returns before payload bytes arrive, same class as exact zero (#1883).
 readonly HOOK_STDIN_READ_TIMEOUT_MIN_MICROS=10
+
+# Fractional `read -t` is Bash 4.0+. Split out so a test can force the 3.2
+# fallback the way hook::read_supports_nchars forces the pre-4.1 delimiter
+# read. Not a consumer seam.
+hook::read_supports_fractional_timeout() {
+  ((BASH_VERSINFO[0] >= 4))
+}
 
 # hook::resolve_read_timeout_to <var>
 # Write the resolved timeout into <var> in THIS shell. The print form below
@@ -1419,10 +1489,8 @@ hook::resolve_read_timeout_to() {
   local __hu_dest="$1"
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
   if [[ "$__hu_t" != "2" ]]; then
-    local probe
-    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$__hu_t" discard </dev/null 2>&1)
-    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] ||
+      { [[ "$__hu_t" == *.* ]] && ! hook::read_supports_fractional_timeout; }; then
       __hu_t=2
     elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
       local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
@@ -1455,10 +1523,10 @@ HOOK_STDIN_READ_SLICES=4
 # Resolve the per-read slice for an already-resolved timeout into two caller
 # variables (slice, count). The print form below is the public contract:
 # "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
-# behavior — when this shell's `read -t` will not accept the fractional slice,
-# which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
-# already covers. Probed, not version-tested, for the same reason as
-# hook::resolve_read_timeout. hook::buffer_stdin calls the _to form so the
+# behavior — when this shell cannot accept a fractional `read -t` (Bash 3.2;
+# CHANGES bash-4.0-alpha introduced fractional timeouts). Version-tested via
+# hook::read_supports_fractional_timeout, not probed: a TMPDIR stderr file
+# leaked on every buffer_stdin. hook::buffer_stdin calls the _to form so the
 # resolution does not pay a process-substitution fork (GNU Bash: commands
 # grouped for substitution run in a subshell).
 hook::resolve_read_slice_to() {
@@ -1487,15 +1555,11 @@ hook::resolve_read_slice_to() {
     local milli=$(((micros / HOOK_STDIN_READ_SLICES + 500) / 1000))
     printf -v __hu_slice '%d.%03d' "$((milli / 1000))" "$((milli % 1000))"
   fi
-  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]]; then
-    local probe
-    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
-    probe=$(read -r -t "$__hu_slice" discard </dev/null 2>&1)
-    if [[ -z "$probe" ]]; then
-      printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
-      printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
-      return 0
-    fi
+  if [[ -n "$__hu_slice" && "$__hu_slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$__hu_slice" =~ ^0+\.0+$ ]] &&
+    hook::read_supports_fractional_timeout; then
+    printf -v "$__hu_slice_dest" '%s' "$__hu_slice"
+    printf -v "$__hu_count_dest" '%s' "$HOOK_STDIN_READ_SLICES"
+    return 0
   fi
   printf -v "$__hu_slice_dest" '%s' "$__hu_t"
   printf -v "$__hu_count_dest" '%s' "1"
@@ -1538,9 +1602,9 @@ hook::buffer_stdin_to() {
   local __hu_read_timeout __hu_read_slice __hu_slice_count
   # _to, not $( ) / process substitution: GNU Bash forks a subshell for both,
   # even when the body is builtins only. Those two forks were the documented
-  # buffer_stdin startup cost (lib/hook-utils.test.sh). The slice probe inside
-  # resolve_read_slice_to still uses $(read) — that is the remaining, smaller
-  # fork, paid only when the computed slice needs a live `read -t` probe.
+  # buffer_stdin startup cost (lib/hook-utils.test.sh). Slice acceptance is
+  # hook::read_supports_fractional_timeout (Bash 4+), so it creates no TMPDIR
+  # file and pays no substitution fork.
   hook::resolve_read_timeout_to __hu_read_timeout
   hook::resolve_read_slice_to "$__hu_read_timeout" __hu_read_slice __hu_slice_count
   local -a __hu_read_opts=(-r -t "$__hu_read_slice")
@@ -2208,10 +2272,23 @@ hook::emit_additional_context() {
 # \n, \\, …). %-escaped so the body can never act as a printf format specifier;
 # `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
 # malformed body — the raw text still flows through the caller unchanged).
-hook::ansi_c_decode() {
-  local b="${1//%/%%}"
+#
+# hook::ansi_c_decode_to <var> <body> writes in THIS shell. The print form is
+# the public contract. A `$(hook::ansi_c_decode …)` capture is a fork even
+# though the body is only `printf` (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is
+# a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+# Creation).
+hook::ansi_c_decode_to() {
+  local __hu_acd_b="${2//%/%%}"
   # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
-  printf -- "$b" 2>/dev/null
+  printf -v "$1" -- "$__hu_acd_b" 2>/dev/null || printf -v "$1" '%s' ""
+}
+
+hook::ansi_c_decode() {
+  local __hu_acd
+  hook::ansi_c_decode_to __hu_acd "$1"
+  printf '%s' "$__hu_acd"
 }
 
 # Split a GNU `env -S` operand the way env does: whitespace-separated words
@@ -2758,9 +2835,16 @@ hook::git_alias_expansion() {
 hook::bash_parse_segments() {
   local cmd="$1" cb="$2"
   local -a chars=()
-  local c nx
-  while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$cmd")
-  local n=${#chars[@]} i
+  local c nx n=${#cmd} i __hu_acd
+  # Walk ${cmd:i:1} in-process. The previous `read -N1` from a process
+  # substitution forked a subshell (and a printf) per parse even though both
+  # are builtins (Command Substitution, Bash Reference Manual;
+  # https://mywiki.wooledge.org/CommandSubstitution). Same character walk as
+  # hook::env_s_split. Cygwin's fork is a non-copy-on-write Win32 CreateProcess
+  # (Cygwin User's Guide, Process Creation).
+  for ((i = 0; i < n; i++)); do
+    chars+=("${cmd:i:1}")
+  done
   local word="" have=0 skipnext=0
   local -a seg=()
   # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
@@ -2815,7 +2899,8 @@ hook::bash_parse_segments() {
           body+="${chars[i]}"
           ((i++))
         done
-        word+="$(hook::ansi_c_decode "$body")"
+        hook::ansi_c_decode_to __hu_acd "$body"
+        word+="$__hu_acd"
         have=1
       else
         word+="$c"

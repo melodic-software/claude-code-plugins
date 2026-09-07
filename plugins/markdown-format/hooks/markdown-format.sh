@@ -171,12 +171,13 @@ markdownlint_config_discoverable() {
 #
 # When nothing resolves, the hint stands exactly as before, which is what keeps
 # the out-of-tree bound documented under the membership scope true.
-resolve_repo_root() {
-  local hint="$1" root dir parent
-  root="$(hook::repo_root "$hint")"
+resolve_repo_root_to() {
+  local __md_dest="$1" hint="$2" root dir parent
+  root=""
+  hook::repo_root_to root "$hint"
   if [[ "$root" != "$hint" && "$root" != "${hint%/.claude}" &&
     "$root" != "${hint%\\.claude}" ]]; then
-    printf '%s' "$root"
+    printf -v "$__md_dest" '%s' "$root"
     return 0
   fi
   # Physical, matching CONFIG_ROOT and markdownlint_config_discoverable, which
@@ -185,19 +186,20 @@ resolve_repo_root() {
   if dir="$(cd "$hint" 2>/dev/null && pwd -P)"; then
     while :; do
       if [[ -e "$dir/.git" ]]; then
-        printf '%s' "$dir"
+        printf -v "$__md_dest" '%s' "$dir"
         return 0
       fi
-      parent="$(dirname "$dir")"
-      [[ "$parent" != "$dir" ]] || break
+      parent="${dir%/*}"
+      [[ -n "$parent" ]] || parent=/
+      [[ "$parent" == "$dir" ]] && break
       dir="$parent"
     done
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    printf '%s' "$CLAUDE_PROJECT_DIR"
+    printf -v "$__md_dest" '%s' "$CLAUDE_PROJECT_DIR"
     return 0
   fi
-  printf '%s' "$root"
+  printf -v "$__md_dest" '%s' "$root"
 }
 
 # jq is required to parse Claude Code's hook payload and to emit structured
@@ -220,9 +222,13 @@ if ! command -v jq >/dev/null 2>&1; then
   DECODED_FILE="${RAW_FILE//\\\"/\"}"
   DECODED_FILE="${DECODED_FILE//\\\//\/}"
   DECODED_FILE="${DECODED_FILE//\\\\/\\}"
+  _decoded_dir="${DECODED_FILE%/*}"
+  [[ "$_decoded_dir" == "$DECODED_FILE" ]] && _decoded_dir=.
+  [[ -n "$_decoded_dir" ]] || _decoded_dir=/
+  _decoded_root=""
+  resolve_repo_root_to _decoded_root "$_decoded_dir"
   if [[ -f "$DECODED_FILE" ]] &&
-    ! markdownlint_config_discoverable "$DECODED_FILE" \
-      "$(resolve_repo_root "$(dirname "$DECODED_FILE")")"; then
+    ! markdownlint_config_discoverable "$DECODED_FILE" "$_decoded_root"; then
     # silent-skip-ok: this exit reports the opt-in verdict, not a jq verdict —
     # the repository never enabled this hook, so it is owed no notice about a
     # prerequisite for it. jq's absence stays visible for every repository that
@@ -260,8 +266,11 @@ in_git_working_tree() {
 # containment answer disagree with the filesystem. Fails CLOSED — an
 # undecidable containment answer is not a licence to write.
 physically_inside() {
-  local file_dir root
-  file_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  local file_dir root _d
+  _d="${1%/*}"
+  [[ "$_d" == "$1" ]] && _d=.
+  [[ -n "$_d" ]] || _d=/
+  file_dir="$(cd "$_d" 2>/dev/null && pwd -P)" || return 1
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
   case "$file_dir" in
   "$root" | "$root"/*) return 0 ;;
@@ -337,15 +346,20 @@ physically_inside() {
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(resolve_repo_root "$FILE_DIR")"
+REPO_ROOT=""
+resolve_repo_root_to REPO_ROOT "$FILE_DIR"
 
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  FILE_PHYSICAL="$(hook::physical_path "$FILE")"
+  FILE_PHYSICAL=""
+  hook::physical_path_to FILE_PHYSICAL "$FILE"
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
   if command -v git >/dev/null 2>&1; then
-    if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+    _file_phys_dir="${FILE_PHYSICAL%/*}"
+    [[ "$_file_phys_dir" == "$FILE_PHYSICAL" ]] && _file_phys_dir=.
+    [[ -n "$_file_phys_dir" ]] || _file_phys_dir=/
+    if ! in_git_working_tree "$_file_phys_dir"; then
       exit 0
     fi
   elif [[ "$FILE_PHYSICAL" != "$FILE" ]] &&
@@ -366,7 +380,8 @@ TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  FILE_REL=""
+  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
