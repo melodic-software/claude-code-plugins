@@ -3,6 +3,38 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1]
+
+### Added
+
+- **`/skill-doctor` has its own native-surfaces row, pinned to the upstream commit
+  that added it.** The store recorded the surface inside the `doctor` row with a note
+  saying a dedicated row was owed and blocked on an upstream commit pin. The pin is
+  `d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` in `anthropics/claude-code`, the commit
+  that added the `## 2.1.261` CHANGELOG heading and the `/skill-doctor` bullet under
+  it, read from that commit's own diff rather than from the rendered changelog page.
+  The row lands in the built-in-command lane, not the bundled-skill lane: upstream's
+  all-commands table lists `/skill-doctor` without the `[Skill]` marker it puts on
+  `/doctor`, `/run`, `/run-skill-generator` and `/simplify`. Recording it as an
+  `upstream-source` observation is what puts the commit under the self-check's
+  existing pin rules, which refuse such a row with no commit in its detail and
+  compare every recorded commit against `self-check --upstream-sha`.
+
+### Changed
+
+- **`audit-skill-visibility` gates `/skill-doctor` and `/doctor` separately.** One
+  row standing in for two surfaces meant one presence gate for two surfaces, and the
+  two are not gated by the same thing: `/doctor` answers to `DISABLE_DOCTOR_COMMAND`,
+  `/skill-doctor` to a minimum version and to feature-flag fetching, and upstream
+  documents it as unavailable over Remote Control besides. A session can resolve
+  either, both, or neither, so the description's Not-for clause, the Purpose section
+  and the Scope boundary table now name each surface behind its own gate. The
+  shipped text no longer states a version for `/skill-doctor`: upstream's CHANGELOG
+  announces it at 2.1.261 while `commands.md` and `skills.md` say v2.1.252 or later,
+  and a routing line does not need to settle that. The `doctor` row keeps its own
+  verdict and routing, re-verified against the current `/doctor` docs row, and its
+  debt note is gone.
+
 ## [0.43.0]
 
 ### Fixed
