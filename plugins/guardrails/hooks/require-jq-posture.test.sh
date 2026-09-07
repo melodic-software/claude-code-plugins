@@ -58,7 +58,7 @@ FAIL_OPEN=()
 for f in "$HOOK_DIR"/*.sh; do
   base="${f##*/}"
   case "$base" in
-  hook-utils.sh | guardrails-test-helpers.sh | resolve-convention-pattern.sh | *.test.sh) continue ;;
+  hook-utils.sh | abort-boundary.sh | guardrails-test-helpers.sh | resolve-convention-pattern.sh | *.test.sh) continue ;;
   *) ;;
   esac
   grep -q 'hook::require_jq' "$f" 2>/dev/null || continue

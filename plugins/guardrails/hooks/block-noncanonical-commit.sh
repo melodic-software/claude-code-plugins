@@ -92,8 +92,14 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. Same reasoning as the
+# other per-call Bash guards: visible allow on abort, never a frozen session.
+guard::abort_boundary block-noncanonical-commit PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # git-config (https://git-scm.com/docs/git-config, fetched 2026-09-06):
 # "aliases that hide existing Git commands are ignored except for deprecated
