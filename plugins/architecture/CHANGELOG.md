@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11]
+
+### Changed
+
+- improve: the HTML report points at the rendered-views security baseline (`docs/conventions/rendered-views/README.md`, "Security baseline") and repeats its rules once, in Phase 2 of `actions/deepening.md`, in place of the escaping and no-remote-runtime wording that was spread across `actions/deepening.md` and `research/deepening/html-report.md`. `html-report.md` keeps the two report-specific additions: which strings count as repository-derived (now naming the scaffold's `<title>`), and no `<script>` inside SVG (#3609).
+
 ## [0.6.10]
 
 ### Changed
