@@ -80,6 +80,7 @@ from babysit_classify import (
 )
 from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
+    GraphQLUnavailableError,
     fetch_issue_comments,
     fetch_pull_request_commits,
     fetch_pull_request_review_comments,
@@ -90,6 +91,7 @@ from babysit_gh import (
     normalized_rest_author,
     parse_repo_number,
     resolve_authors,
+    view_pr_fields,
 )
 from babysit_review_trigger import (
     ReviewTriggerConfig,
@@ -99,6 +101,7 @@ from babysit_review_trigger import (
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     configure_stdio,
+    is_json_array,
     is_json_object,
     json_array,
 )
@@ -183,32 +186,38 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
     return {owner.casefold() for owner in parse_csv_set(raw)}
 
 
-def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
+def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None:
     """Unresolved review threads via the single shared paginator.
 
     One comment per thread is enough to attribute the finding; the paginator
     drops resolved threads and fails closed on a malformed connection, so a
     hidden page can never falsely report zero unresolved threads.
+
+    Returns None -- never `[]` -- when the session is not served GraphQL. Thread
+    resolution is GraphQL-only, an empty list is indistinguishable from "zero
+    unresolved threads", and that reading is the false-clean this gate exists to
+    prevent. `evaluate` turns the None into a blocker naming the restriction.
     """
 
     def project(thread: dict[str, Any]) -> dict[str, object]:
         comments = thread.get("comments")
         first = comments[0] if isinstance(comments, list) and comments else {}
-        first_object = cast(dict[str, Any], first) if isinstance(first, dict) else {}
+        first_object = first if is_json_object(first) else {}
         author = first_object.get("author")
-        author_object = cast(dict[str, Any], author) if isinstance(author, dict) else {}
+        author_object = author if is_json_object(author) else {}
         return {
             "author": author_object.get("login"),
             "path": first_object.get("path"),
             "isOutdated": thread.get("isOutdated", False),
         }
 
-    return [
-        cast(dict[str, object], record)
-        for record in fetch_review_threads(
+    try:
+        records = fetch_review_threads(
             repo, number, include_resolved=False, comments_first=1, projection=project
         )
-    ]
+    except GraphQLUnavailableError:
+        return None
+    return [cast(dict[str, object], record) for record in records]
 
 
 def repository_default_branch(repo: str) -> str | None:
@@ -226,7 +235,7 @@ def repository_default_branch(repo: str) -> str | None:
         return None
     if not is_json_object(data):
         return None
-    name = cast(dict[str, Any], data).get("name")
+    name = data.get("name")
     return str(name) if name else None
 
 
@@ -265,23 +274,20 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     required_contexts: set[str] = set()
     required_reviews = 0
     require_thread_resolution = False
-    for rule in cast(list[Any], rules) if isinstance(rules, list) else []:
-        if not isinstance(rule, dict):
+    for rule in rules if is_json_array(rules) else []:
+        if not is_json_object(rule):
             continue
-        rule_object = cast(dict[str, Any], rule)
-        rtype = rule_object.get("type")
-        raw_params = rule_object.get("parameters")
-        params = (
-            cast(dict[str, Any], raw_params) if isinstance(raw_params, dict) else {}
-        )
+        rtype = rule.get("type")
+        raw_params = rule.get("parameters")
+        params = raw_params if is_json_object(raw_params) else {}
         if rtype == "required_status_checks":
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
             # surface downstream as a literal "None" required context.
             required_contexts.update(
-                str(cast(dict[str, Any], c)["context"])
+                str(c["context"])
                 for c in params.get("required_status_checks", [])
-                if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
+                if is_json_object(c) and c.get("context")
             )
         elif rtype == "pull_request":
             # Absence and unreadability are different facts. No key means the
@@ -544,6 +550,11 @@ def evaluate_decision_default_veto(
     blockers: list[str] = []
     held: list[str] = []
     for ref in closing_issues:
+        # Untyped either way: a linked-issue ref arrives as a raw number or as an
+        # object whose "number" key may be absent. The int() below, guarded by
+        # its own except, is the validation -- annotating the declared type here
+        # keeps that the single place the shape is decided.
+        number: Any
         if is_json_object(ref):
             number = ref.get("number")
             issue_repo = _ref_repo(ref) or repo
@@ -756,15 +767,13 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
         return None
     if not is_json_object(data):
         return None
-    commit = cast(dict[str, Any], data).get("commit")
+    commit = data.get("commit")
     if not is_json_object(commit):
         return None
-    committer = cast(dict[str, Any], commit).get("committer")
+    committer = commit.get("committer")
     if not is_json_object(committer):
         return None
-    return parse_github_timestamp(
-        str(cast(dict[str, Any], committer).get("date") or "")
-    )
+    return parse_github_timestamp(str(committer.get("date") or ""))
 
 
 def latest_check_activity(status_rollup: Any) -> datetime | None:
@@ -933,20 +942,29 @@ def evaluate(
     settle: ReviewSettleConfig | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
-    pr_data = gh_json(
-        [
-            "pr",
-            "view",
-            str(number),
-            "-R",
-            repo,
-            "--json",
-            "state,isDraft,mergeable,mergeStateStatus,reviewDecision,"
-            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup,"
-            "closingIssuesReferences",
-        ]
-    )
-    pr = cast(dict[str, Any], pr_data) if isinstance(pr_data, dict) else {}
+    # `closingIssuesReferences` is requested only when the autopilot merge tier
+    # is configured, because only the tier reads it. The field is GraphQL-only,
+    # so asking for it on the default gate path made every run of the base gate
+    # depend on a surface it never consumed.
+    view_fields = [
+        "state",
+        "isDraft",
+        "mergeable",
+        "mergeStateStatus",
+        "reviewDecision",
+        "headRefOid",
+        "baseRefName",
+        "author",
+        "url",
+        "title",
+        "labels",
+        "statusCheckRollup",
+    ]
+    if tier is not None:
+        view_fields.append("closingIssuesReferences")
+    # `run_json=gh_json` keeps this module's own gh seam in the path (the one
+    # every gate test stubs) while the REST re-source lives once, in `babysit_gh`.
+    pr, graphql_available = view_pr_fields(repo, number, view_fields, run_json=gh_json)
     threads = unresolved_threads(repo, number)
     checks = classify_checks(pr.get("statusCheckRollup"))
     failing = checks["failing"]
@@ -973,9 +991,7 @@ def evaluate(
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
     required_context_list = (
-        cast(list[Any], required_contexts)
-        if isinstance(required_contexts, list)
-        else []
+        required_contexts if is_json_array(required_contexts) else []
     )
     required_check_status: list[dict[str, object]] = []
     for raw_context in required_context_list:
@@ -1028,7 +1044,20 @@ def evaluate(
             f"needs {required_reviews} approving review(s); "
             f"reviewDecision={review_decision or 'none'}"
         )
-    if threads:
+    if threads is None:
+        # Readiness is UNPROVEN, not clean: review-thread resolution is served
+        # only over GraphQL, and sandboxed sessions (Claude Code on the web and
+        # remote execution) serve only a pinned set of GraphQL operations,
+        # refusing the rest with HTTP 403. Every other input above was
+        # re-sourced over REST; this one has no REST equivalent, and
+        # `reference/safety.md` forbids substituting a lesser signal for a gate
+        # verdict, so the gate holds instead of approximating one.
+        blockers.append(
+            "unresolved review threads could not be read: GitHub's GraphQL API "
+            "is not served to this session, and thread resolution has no REST "
+            "equivalent -- readiness is UNPROVEN, not clean"
+        )
+    elif threads:
         who = ", ".join(sorted({str(t.get("author")) for t in threads}))
         blockers.append(
             f"{len(threads)} unresolved review thread(s) [{who}] "
@@ -1180,8 +1209,12 @@ def evaluate(
         "effectiveRules": rules,
         "requiredSignatures": signature_result,
         "requiredChecks": required_check_status,
-        "unresolvedThreadCount": len(threads),
+        "graphqlAvailable": graphql_available,
+        # None, never 0, when thread resolution could not be read: a count of
+        # zero is a claim this run cannot make.
+        "unresolvedThreadCount": None if threads is None else len(threads),
         "unresolvedThreads": threads,
+        "threadResolutionProven": threads is not None,
         "failingChecks": failing,
         "pendingChecks": pending,
         "ready": ready,
@@ -1199,7 +1232,7 @@ def allowed_method(repo: str, requested: str | None) -> str:
             "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
         ]
     )
-    data = cast(dict[str, Any], data) if isinstance(data, dict) else {}
+    data = data if is_json_object(data) else {}
     allowed = {
         "squash": bool(data.get("squashMergeAllowed")),
         "merge": bool(data.get("mergeCommitAllowed")),
