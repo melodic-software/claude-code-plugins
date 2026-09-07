@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Session-scoped PreToolUse guard active only while the clean skill is invoked
 # (registered via SKILL.md frontmatter hooks — the on-demand-hook pattern).
-# Blocks destructive Bash commands unless the invocation is acknowledged with
-# the CLEAN_GUARD_ACK=1 prefix, which the skill body adds ONLY after the
-# dry-run -> user-confirmation gate has passed.
+# Blocks destructive Bash and PowerShell commands unless the invocation is
+# acknowledged with a CLEAN_GUARD_ACK=1 assignment at the very start of the
+# command, which the skill body adds ONLY after the dry-run -> user-confirmation
+# gate has passed. The spelling is per tool, because each one has to be a real
+# assignment that takes effect for the command it prefixes:
+#   Bash tool:        CLEAN_GUARD_ACK=1 <command>
+#   PowerShell tool:  $env:CLEAN_GUARD_ACK=1; <command>
 #
 # Usage: destructive-guard.sh [--help]   (normally invoked by the hook runner
 #        with PreToolUse JSON on stdin)
@@ -20,7 +24,7 @@
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 fi
 
@@ -76,17 +80,42 @@ fi
 
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [[ -n "$CMD" ]] || exit 0
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)"
 
-# Acknowledged path: the skill's confirmation gate prefixes the command.
-if [[ "$CMD" == CLEAN_GUARD_ACK=1\ * ]]; then
+# Acknowledged path: the skill's confirmation gate prefixes the command with an
+# assignment. The ack is a deny-to-allow widening, so it is accepted only as
+# the FIRST statement of the command, in the one spelling the executing shell
+# actually evaluates as an assignment. Anywhere else (a comment, a quoted
+# string, after the destructive command, a later pipeline segment) it is inert
+# text and does not count. The other tool's spelling is rejected too: PowerShell
+# cannot run `CLEAN_GUARD_ACK=1 <cmd>` at all, and Bash treats
+# `$env:CLEAN_GUARD_ACK=1;` as a failed command lookup and runs <cmd> anyway.
+is_acknowledged() {
+  local cmd="$1" tool="$2"
+  if [[ "$tool" == "PowerShell" ]]; then
+    # Optional leading whitespace, `$env:CLEAN_GUARD_ACK`, `=`, the value 1
+    # (bare or quoted), then the `;` that ends the statement. Nothing else
+    # may come before it.
+    # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
+    local ps_ack_re='^[[:space:]]*\$env:CLEAN_GUARD_ACK[[:space:]]*=[[:space:]]*(1|'"'"'1'"'"'|"1")[[:space:]]*;'
+    [[ "$cmd" =~ $ps_ack_re ]]
+    return
+  fi
+  [[ "$cmd" == CLEAN_GUARD_ACK=1\ * ]]
+}
+
+if is_acknowledged "$CMD" "$TOOL"; then
   exit 0
 fi
 
 if is_destructive "$CMD"; then
+  ack_form='CLEAN_GUARD_ACK=1 <command>'
+  # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
+  [[ "$TOOL" == "PowerShell" ]] && ack_form='$env:CLEAN_GUARD_ACK=1; <command>'
   {
     echo "BLOCKED by the clean skill's destructive guard (session-scoped skill hook)."
     echo "Destructive commands during a clean run go ONLY through the skill's dry-run -> user-confirmation gate."
-    echo "After the user has explicitly confirmed, re-issue with the acknowledgement prefix: CLEAN_GUARD_ACK=1 <command>"
+    echo "After the user has explicitly confirmed, re-issue with the acknowledgement prefix for this tool: $ack_form"
   } >&2
   exit 2
 fi
