@@ -68,7 +68,7 @@ arrive as a literal placeholder with no error to warn anyone. See
 | Action | Mutates | Description | Detail |
 |---|---|---|---|
 | `sync` (default) | Yes. CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
-| `audit` | No | Same algorithm as `sync`, every mutating step replaced with a prediction; issues zero mutating CLI calls | "Action: audit" below |
+| `audit` | No | Same algorithm as `sync`, every mutating CLI call replaced with a prediction; the reads those calls sit beside still run | "Action: audit" below |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
 Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
@@ -157,9 +157,15 @@ contents (`installed_plugins.json`, `known_marketplaces.json`, committed setting
 an `audit` run, modulo any concurrent session or background `autoUpdate` sweep. Note that caveat in
 the report rather than asserting byte-identical files.
 
-`audit` runs the same steps, which project their id lists with `--from` against a saved report, so
-it does write those reports — to a throwaway `mktemp -d` scratch directory it deletes when the run
-ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
+**A read that sits beside a mutating call is still taken.** Step 1 is the case that matters: its
+pre-refresh `fleet-state.sh` snapshot is a read and `audit` takes it, and only the
+`claude plugin marketplace update` beside it becomes a prediction. That snapshot is the first link in
+the catalog regression check's chain, so an `audit` that skipped it would start the check at `pre`
+and lose the interval that isolates the refresh point. See [context/sync.md](context/sync.md) Step 1.
+
+`audit` runs the same steps, and those steps write reports from Step 1's snapshot onward, so it does
+write them: to a throwaway `mktemp -d` scratch directory, created before Step 1 and deleted when the
+run ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
 for both actions while leaving nothing behind, which is what "mutates nothing" means here. See
 [context/sync.md](context/sync.md)'s "Run journal" section.
 

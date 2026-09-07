@@ -3,6 +3,29 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.3]
+
+### Fixed
+
+- **The `plugins` skill's `audit` action now takes Step 1's pre-refresh snapshot, so
+  its catalog-regression check keeps its first interval
+  ([#3937](https://github.com/melodic-software/claude-code-plugins/issues/3937)).**
+  The regression check added in 0.44.0 diffs consecutive run-journal snapshots and
+  names the first interval in which a catalog moved backward; the earliest snapshot
+  in that chain is `pre-refresh.<mp>.json`, which Step 1 wrote in the same code fence
+  as its `claude plugin marketplace update` call. Because `audit` replaces every
+  mutating call with a prediction, the skill read Step 1 as wholly mutating and said
+  so outright ("Step 1 never runs"), so an `audit` run's check started at `pre` and
+  lost the interval that isolates the refresh point. Step 1 now separates the two:
+  the snapshot is a read taken by both actions, and only the refresh is `sync`-only.
+  The interval's meaning is stated per action: under `sync` a regression across
+  `pre-refresh` to `pre` is that run's own refresh pulling a source that moved
+  backward, under `audit` it is the checkout changing under the run. `audit`'s
+  scratch directory is now created before Step 1 rather than before Step 2. The
+  run journal's `pre-refresh.<mp>.json` row, `SKILL.md`'s action table and "Action:
+  audit" section, and the `audit-issues-zero-mutating-calls` eval read correctly for
+  both actions.
+
 ## [0.44.2]
 
 ### Changed

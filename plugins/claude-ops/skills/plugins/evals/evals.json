@@ -17,11 +17,12 @@
       "id": 2,
       "name": "audit-issues-zero-mutating-calls",
       "prompt": "/claude-ops:plugins audit",
-      "expected_output": "audit runs the same algorithm as sync but every mutating step becomes a prediction — no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "expected_output": "audit runs the same algorithm as sync but every mutating CLI call becomes a prediction: no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The reads those calls sit beside still run. Step 1's pre-refresh fleet-state.sh snapshot is taken (into the run's throwaway scratch directory) so the catalog-regression check keeps its first interval, and only the `claude plugin marketplace update` beside it is replaced by a prediction. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
       "files": [],
       "expectations": [
         "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
         "The response still calls the read-only fleet-state.sh script to compute state",
+        "The response still takes Step 1's pre-refresh fleet-state.sh snapshot before declining the refresh: it does not treat the whole of Step 1 as skipped, and the catalog-regression check still has its pre-refresh to pre interval available",
         "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed",
         "If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file"
       ]
