@@ -241,7 +241,7 @@ enables; the cloud bootstrap installs (see
 
   **The repo did not previously run `0.03` or a 90,000-character budget.**
   `git log -S skillListingBudgetFraction -- .claude/settings.json` returns exactly one commit on
-  this branch, 57db0238, the commit in this change that adds the key, so before it this repo
+  this branch, a5a9503a, the commit in this change that adds the key, so before it this repo
   inherited the harness default `0.01`,
   which is the documented 8,000-character fallback on a 200k window and leaves **177 of 182
   skills starved**. The `0.03` / 90,000-character pair belongs to one contributor's machine in
