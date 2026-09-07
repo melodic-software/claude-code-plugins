@@ -89,7 +89,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   a Windows host: the per-spawn price there is the multiplier on these
   counts, and the counts are what moved.
 
-
 ## [0.32.16]
 
 ### Fixed
