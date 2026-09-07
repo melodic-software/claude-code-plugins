@@ -15,6 +15,9 @@
 # docs/conventions/plugin-data-report-keying/ rule 1 defines. It splits
 # worktrees, which is right here: registry_dir is project-relative, so two
 # worktrees of one repository hold two registries.
+#
+# Omit -e: per-row gh failures are expected (rate-limit, deleted issues) and
+# must not abort the loop — each row records its own FETCH_FAILED transition.
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
