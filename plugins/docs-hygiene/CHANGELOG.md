@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.40]
+
+### Changed
+
+- **`audit-noise`:** `enforceability` joins the reserved first-level memory-root names the
+  `ghost-ref` shape exempts in bare form. The roster is executable code in
+  `scripts/lib/noise-shapes.sh`, so the change lands there, in the comment roster above it, in
+  both prose rosters in `SKILL.md`, and as a bare/child fixture pair in `scripts/detect.test.sh`.
+  Without it, a binding's own `.work/enforceability/<branch-slug>/` citation reads as a
+  false-positive ghost ref. `instruction-placement` is not yet in this roster; adding it belongs
+  to the change that reserves that name, not to this one.
+
 ## [0.21.39]
 
 ### Changed

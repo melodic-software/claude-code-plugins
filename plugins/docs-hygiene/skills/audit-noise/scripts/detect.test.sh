@@ -339,6 +339,24 @@ EOF
 oe_child_out="$(bash "$DETECT" "$OVERENG_CHILD")"
 assert_contains "concrete child under .work/overengineering/ is a ghost ref" "$oe_child_out" "Finding shape: ghost-ref"
 
+ENFORCEABILITY_BARE="$TEST_TMPDIR/enforceability-bare.md"
+cat >"$ENFORCEABILITY_BARE" <<'EOF'
+# Enforceability bare-root fixture
+
+Proposal stubs live under .work/enforceability/ on the reviewing branch.
+EOF
+enf_bare_out="$(bash "$DETECT" "$ENFORCEABILITY_BARE")"
+assert_not_contains "bare .work/enforceability/ is not a ghost ref" "$enf_bare_out" "Finding shape: ghost-ref"
+
+ENFORCEABILITY_CHILD="$TEST_TMPDIR/enforceability-child.md"
+cat >"$ENFORCEABILITY_CHILD" <<'EOF'
+# Enforceability child fixture
+
+See .work/enforceability/feat-x/01-semgrep-rule-src.md for the proposed rung.
+EOF
+enf_child_out="$(bash "$DETECT" "$ENFORCEABILITY_CHILD")"
+assert_contains "concrete child under .work/enforceability/ is a ghost ref" "$enf_child_out" "Finding shape: ghost-ref"
+
 PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
 cat >"$PLACEHOLDER" <<'EOF'
 # Placeholder fixture

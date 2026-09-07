@@ -1,7 +1,8 @@
 # Topic-docs placement — where review findings land
 
-How `/review:quality-gate` and `/review:fanout` resolve where review
-reports land in a consuming repo. Both skills read this one document; neither bakes its own paths.
+How `/review:quality-gate`, `/review:fanout`, and `/review:audit-enforceability` resolve where
+review reports and enforcement-rung proposal stubs land in a consuming repo. All three skills read
+this one document; none bakes its own paths.
 
 Implements the topic-docs convention:
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
@@ -18,6 +19,7 @@ reports sit under the memory root's reserved `reviews/` name rather than inside 
 | `quality-gate` findings | `.work/reviews/<branch-slug>/<UTC-timestamp>-<mode>.md` — never committed |
 | `fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md` — never committed |
 | `fanout` consumption records | `.work/reviews/<branch-slug>/<UTC-timestamp>-fix-pass-applied-<sha256-12>.md` — never committed |
+| `audit-enforceability` proposal stubs | `.work/enforceability/<branch-slug>/<rank>-<rung>-<slug>.md` — never committed |
 
 Reports are process output that nothing outside this plugin enforces against, which is what makes
 them memory-tier by the convention's placement question. One artifact is read back: the `fix`
@@ -44,6 +46,34 @@ the consumer declared, inferred, or chose — **resolve the home, never assume i
 that hardcodes the default's shape reads or writes a directory the other side never touched, and the
 fanout `fix` action's failure mode for that is a clean empty-set STOP indistinguishable from "no
 findings".
+
+## Resolution for the `enforceability` concern (the same five-rung order)
+
+Enforcement-rung proposal stubs sit under their own reserved first-level concern name, resolved
+through the same ladder and the same memory root:
+
+1. `.claude/topic-docs.yaml` present → its `memory_dir`: `<memory_dir>/enforceability/<branch-slug>/`.
+2. A location for enforcement-proposal artifacts declared in the consumer's `CLAUDE.md` /
+   `.claude/rules` → use it, and offer to persist it into the concern file.
+3. An existing conforming layout inferred from the repo → confirm with the user, persist to the
+   concern file.
+4. Ask once, recommended option first; persist the answer to the concern file.
+5. The documented default: `.work/enforceability/<branch-slug>/`.
+
+As with `reviews/`, only rungs 1 and 5 compose `enforceability/<branch-slug>` themselves, and only
+at those two rungs is the stub home literally a sibling of `reviews/`. Rungs 2 to 4 yield whatever
+location the consumer declared, inferred, or chose, and persisting at those rungs is ask-gated;
+a non-interactive context takes the cited non-interactive collapse below rather than asking.
+**Resolve the home, never assume its shape.**
+
+At every rung the stub writer is handed BOTH resolved homes and refuses a stub home that is the
+reviews location or sits under it, and equally a stub home inside the input findings file's own
+directory. That fence is what keeps a stub out of the `fix` action's scan whatever the two ladders
+resolve to, including the rungs where the two homes are not siblings at all.
+
+No other binding in this plugin carries two ladders today. The precedent for a concern claiming
+its own reserved first-level name with its own ladder is the enforcement-surface audit's
+`overengineering/<branch-slug>/`.
 
 **Non-interactive / forked mode.** Rungs 2–4 can require asking the user or persisting config. A
 context that can do neither — a forked subagent, a dispatched worker, a headless run such as

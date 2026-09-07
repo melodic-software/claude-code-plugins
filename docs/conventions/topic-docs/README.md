@@ -61,7 +61,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `INDEX.md`, `EXPLORE.md`, `RESEARCH.md`, `INTENT.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch — and child slices, recursively (see [The slice tree](#the-slice-tree)) |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts) — their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/enforceability/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; enforcement-rung proposal stubs; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts) — their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -633,7 +633,8 @@ cite it rather than redefining it.
   never a bare ordinal.
 - Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
 - Reserved first-level names under the memory root: `handoffs`,
-  `reviews`, `running-retros`, `overengineering`, `exports`, `lanes`
+  `reviews`, `running-retros`, `overengineering`, `enforceability`,
+  `exports`, `lanes`
   (the claude-ops lanes skill's state home — `lanes.json` plus lane
   prompt files — which resolves a literal `.work` root by its own
   stated carve-out, not `memory_dir`). A topic slug that collides with
@@ -762,7 +763,7 @@ relationship to the contract is fully stated by their table row.
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers; suggested destination for user-run `/export` conversation snapshots | memory (`handoffs/`, `running-retros/`, `exports/`) | delta doc |
-| review | review reports | memory (`reviews/`) | delta doc |
+| review | review reports; enforceability stubs | memory (`reviews/`, `enforceability/<branch-slug>/`) | delta doc |
 | overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
