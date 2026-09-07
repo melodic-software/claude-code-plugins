@@ -3,6 +3,42 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **New skill `map-landscape`** (`/architecture:map-landscape`): a C4 System Landscape plus an
+  application-portfolio table over a discovered set of repositories. Nothing here answered "what
+  systems does this organization have, who owns them, what do they run on, and how do they relate":
+  the fleet-hygiene plugin discovers repositories but feeds cleanup, and `improve` works inside one
+  codebase. Discovery is argument-selected. `--repos` charts exactly the listed repositories with no
+  discovery at all; `--root` delegates bounded discovery and canonical-checkout resolution to
+  `/repo-fleet-hygiene:audit --plan-file` when that plugin is installed, filtering the plan's
+  `repositories[]` to the requested roots because that collaborator's configured scope is additive,
+  and otherwise falls back to an announced bundled walk. Neither argument stops and names both
+  forms; the session's working directory is never scanned. Facts come from the tested
+  `scripts/portfolio-facts.sh` (owner from CODEOWNERS then the remote's owner segment, never a
+  commit author; runtime, target framework, dependencies capped at 25, and a local-HEAD
+  `last_touched`), with `unknown` carried through rather than guessed. Relationships are model
+  judgment behind a hard evidence rule: an edge exists only where a fact in the source names the
+  target, and the matched string IS the edge description. Output is `landscape.dsl` with a
+  `systemLandscape` view under the `structurizr` dialect, or `landscape.md` with a `C4Context`
+  block under `mermaid` (mermaid ships no landscape diagram type and marks its C4 syntax
+  experimental, an asymmetry the skill states rather than papers over), plus `portfolio.md`.
+- **New skill `setup`** (`/architecture:setup`): the plugin's consumer-configuration surface, a
+  convention doc at the consumer's convention home under the config-cascade expression doctrine.
+  `check` is read-only and reports PASS/FAIL/INFO with one remediation line per FAIL, covering a
+  missing pointer line, a resolved home with no topic doc, and an unknown key or value. `apply`
+  converges exactly two artifacts, the marked `convention-home` pointer region and
+  `<home>/architecture/README.md`, idempotently, proposing inferred values and waiting when
+  arguments are incomplete, running non-interactively when `home=`, `architecture_dir=` and
+  `landscape_dialect=` are all supplied, and re-reading from disk to report the stored values it
+  observed. `architecture_dir` has no default on purpose: guessing a directory would write two
+  generated files into a tree nobody asked for, so an undeclared and unconfirmed value stops
+  `map-landscape` instead. No retired layers; this surface is new.
+- `lib/resolve-convention-home.sh`, vendored through `scripts/sync-resolve-convention-home.sh`, and
+  `reference/config.md` documenting the two keys.
+
 ## [0.6.10]
 
 ### Changed

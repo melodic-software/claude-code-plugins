@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-06T12:00:00Z",
+  "summary": {
+    "repositories_audited": 3,
+    "fleet_verdict": "clean"
+  },
+  "repositories": [
+    {
+      "discovered": "/srv/code/platform/billing",
+      "canonical": "/srv/code/platform/billing",
+      "remote": "https://example.invalid/acme/billing.git",
+      "verdict": "clean"
+    },
+    {
+      "discovered": "/srv/code/platform/web/.worktrees/feature",
+      "canonical": "/srv/code/platform/web",
+      "remote": "https://example.invalid/acme/web.git",
+      "verdict": "clean"
+    },
+    {
+      "discovered": "/srv/personal/scratchpad",
+      "canonical": "/srv/personal/scratchpad",
+      "remote": "https://example.invalid/operator/scratchpad.git",
+      "verdict": "clean"
+    }
+  ]
+}
