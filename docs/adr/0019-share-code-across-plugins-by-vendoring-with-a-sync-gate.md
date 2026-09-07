@@ -99,10 +99,12 @@ and the unshallow, paid thirteen times over.
 `ubuntu-24.04`, a standard runner, so nothing was billed: what thirteen jobs bought was thirteen
 runner startups and thirteen unshallows on the critical path, and thirteen concurrency slots taken
 from every other lane in the run. In the private repositories the same ci-perf program covers, the
-identical shape does cost money, because GitHub rounds the minutes and partial minutes each job uses
-up to the nearest whole minute
+identical shape spends the metered minute pool instead, because GitHub rounds the minutes and
+partial minutes each job uses up to the nearest whole minute
 (<https://docs.github.com/en/billing/reference/actions-runner-pricing>), so a per-library job floor
-is a per-library billed minute there.
+is a per-library pooled minute there. That organization caps Actions spend at `$0` with
+`prevent_further_usage` (melodic-software/github-iac ADR 0008), so the failure mode is not a line
+item but a hard stop on every private repository's hosted CI once the pool is gone.
 
 **They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
 already performs that same deepen and base fetch for its own `--check-bump` steps;
