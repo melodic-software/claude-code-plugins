@@ -30,7 +30,7 @@ stage_libs() {
 STUB="$(mktemp)"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
-printf 'args=%s root=%s base=%s\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
+printf 'args=%s root=%s base=%s descbaseline=[%s]\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" "${CHECK_SKILL_DESC_FIELD_BASELINE-}" >>"$CHECK_LOG"
 for arg in "$@"; do
   [[ "$arg" == "bad" ]] && exit 1
 done
@@ -361,6 +361,100 @@ if run "$r" "$b" >/dev/null 2>&1; then
   fail "stale evals exemption (skill ships evals) should fail"
 else
   ok "stale evals exemption (skill ships evals) fails"
+fi
+rm -rf "$r"
+
+# --- description field-cap baseline is handed to the checker (#3845) -------
+# The gate owns WHERE the recorded pre-existing breaches live; check-skill.sh owns
+# what a row means. These two cases pin the handoff: present file goes through as
+# an absolute path, absent file goes through EMPTY rather than as a path that is
+# not there — empty means "no downgrades", which is the strict direction.
+r="$(mk_repo)"
+add_skill "$r" p1 alpha
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 alpha SKILL.md
+printf '%s\n' 'plugins/p1/skills/alpha' >"$r/scripts/skill-description-cap-baseline.txt"
+run "$r" "$b" >/dev/null 2>&1
+if grep -q "descbaseline=\[$r/scripts/skill-description-cap-baseline.txt\]" "$r/checklog" 2>/dev/null; then
+  ok "the recorded description-cap baseline is passed to the checker"
+else
+  fail "expected the baseline path in the checker env, got: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
+r="$(mk_repo)"
+add_skill "$r" p1 alpha
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 alpha SKILL.md
+run "$r" "$b" >/dev/null 2>&1
+if grep -q 'descbaseline=\[\]' "$r/checklog" 2>/dev/null; then
+  ok "no baseline file means an empty setting (no downgrades), not a missing path"
+else
+  fail "expected an empty baseline setting, got: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
+# --- integration: an over-cap description fails the gate, baselined passes --
+# End to end through the real checker, because the acceptance this covers is
+# that a breach fails in the repository's NORMAL validation path, not that a
+# constant somewhere reads 1024.
+mk_over_cap_repo() {
+  local repo desc
+  repo="$(mk_repo)"
+  stage_checker "$repo"
+  desc="$(printf 'd%.0s' $(seq 1 1025))"
+  mkdir -p "$repo/plugins/p1/skills/wordy/evals"
+  {
+    printf -- '---\n'
+    printf 'description: "%s"\n' "$desc"
+    printf 'disable-model-invocation: false\n'
+    printf -- '---\n\n## Purpose\n\nFixture: 1025-codepoint description, one over the spec field maximum.\n\n## Gotchas\n\nNone known.\n'
+  } >"$repo/plugins/p1/skills/wordy/SKILL.md"
+  cat >"$repo/plugins/p1/skills/wordy/evals/evals.json" <<'EOF'
+{
+  "skill_name": "wordy",
+  "evals": [
+    {
+      "id": "1",
+      "name": "happy-path",
+      "prompt": "run wordy",
+      "expected_output": "Runs the wordy skill.",
+      "expectations": ["Output routes to the wordy skill"]
+    }
+  ]
+}
+EOF
+  printf '%s' "$repo"
+}
+
+r="$(mk_over_cap_repo)"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf '\n## Notes\n\nTouched.\n' >>"$r/plugins/p1/skills/wordy/SKILL.md"
+if out="$( (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") 2>&1 )"; then
+  fail "an over-cap description should fail the changed-skill gate, got: $out"
+else
+  if grep -q 'description alone is 1025 codepoints' <<<"$out"; then
+    ok "an over-cap description fails the changed-skill gate, naming the count"
+  else
+    fail "gate failed but not on the field cap: $out"
+  fi
+fi
+rm -rf "$r"
+
+r="$(mk_over_cap_repo)"
+printf '%s\n' 'plugins/p1/skills/wordy' >"$r/scripts/skill-description-cap-baseline.txt"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+printf '\n## Notes\n\nTouched.\n' >>"$r/plugins/p1/skills/wordy/SKILL.md"
+if (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1; then
+  ok "a recorded pre-existing breach passes the changed-skill gate"
+else
+  fail "a baselined over-cap description should pass the changed-skill gate"
 fi
 rm -rf "$r"
 

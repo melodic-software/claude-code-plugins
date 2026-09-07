@@ -28,6 +28,16 @@ the reviewer to confirm the description still names that intent, or to restore t
   (<https://code.claude.com/docs/en/skills#frontmatter-reference>,
   <https://code.claude.com/docs/en/settings>; verified 2026-08-31; recheck trigger: either default
   moving re-derives this line and the scripts' encoded constants).
+- `description` alone within the Agent Skills spec's 1024-**codepoint** field maximum
+  (<https://agentskills.io>, "Maximum 1024 characters"; verified 2026-08-31). A separate limit at a
+  separate layer from the listing-entry cap above: a description can sit under 1536 combined and
+  still breach 1024 on its own, which the Skills API rejects at upload. Over the maximum FAILs;
+  within 32 codepoints of it WARNs, naming the skill and how much room is left, so an author sees
+  the ceiling before the next added trigger phrase hits it. Counted in codepoints, not bytes, so a
+  non-ASCII description is measured the way the spec states the limit.
+  `CHECK_SKILL_DESC_FIELD_BASELINE=<file>` records skills whose breach predates the FAIL, one
+  repo-relative skill path per line; those downgrade to a WARN, and a row whose skill no longer
+  breaches FAILs as stale, so the list can only shrink.
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).

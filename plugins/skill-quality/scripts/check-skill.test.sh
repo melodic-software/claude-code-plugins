@@ -3401,10 +3401,25 @@ fi
 # check 2 passes and only check 2b catches. Without that case a single cap could
 # satisfy both assertions, so it is the one that proves the layers are distinct.
 
-# 2b-i. A description one char over the field cap WARNs, and does NOT fail: no
-#       local validator enforces this limit (measured — `claude plugin validate
-#       --strict` 2.1.241 passes an oversized description clean), so failing the
-#       build on it would block a fleet over a breach only the Skills API sees.
+# The three bands are walked at their exact boundaries below — 992/993 for the
+# WARN margin's lower edge, 1024/1025 for the cap itself — because a guard that
+# only fires on a wildly oversized description proves nothing about where it
+# fires. Every case names the count it expects back, so an off-by-one in either
+# direction breaks a specific assertion rather than sliding through.
+
+# run_with_baseline <baseline-path> <skill> — check 2b's recorded-breach seam.
+run_with_baseline() {
+  local baseline="$1"
+  shift
+  (cd "$TMP" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      CHECK_SKILL_DESC_FIELD_BASELINE="$baseline" \
+      bash "$SUT" "$@")
+}
+
+# 2b-i. One codepoint over the field maximum FAILs. The Skills API rejects the
+#       description at upload; nothing local does, so before this was a FAIL the
+#       breach could only be found by an audit, after the edit had shipped.
 desc_1025="$(printf 'd%.0s' $(seq 1 1025))"
 make_skill field-cap-over "---
 name: field-cap-over
@@ -3418,13 +3433,16 @@ field maximum, while the assembled listing entry stays well under 1536.
 "
 out="$(run field-cap-over 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description alone is 1025 codepoints' <<<"$out"; then
-  pass "check 2b warns at 1025 chars without failing the run"
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: description alone is 1025 codepoints' <<<"$out"; then
+  pass "check 2b fails at 1025, one codepoint over the field maximum"
 else
-  fail "check 2b should WARN (not FAIL) at 1025/1024 (rc=$rc): $out"
+  fail "check 2b should FAIL at 1025/1024 (rc=$rc): $out"
 fi
 
-# 2b-ii. Boundary guard: exactly 1024 is legal — the cap is >1024, not >=1024.
+# 2b-ii. Boundary guard: exactly 1024 is legal — the spec says "Maximum 1024
+#        characters", so the FAIL comparison is >1024 and never >=1024. It sits
+#        inside the approach margin, so it WARNs with 0 codepoints left: the
+#        author is told the next clause breaches, and is not blocked today.
 desc_1024="$(printf 'd%.0s' $(seq 1 1024))"
 make_skill field-cap-exact "---
 name: field-cap-exact
@@ -3434,14 +3452,60 @@ description: \"$desc_1024\"
 ## Purpose
 
 Field-cap fixture: description alone is exactly 1024 chars, the spec maximum,
-which is legal.
+which is legal but has no headroom left.
 "
 out="$(run field-cap-exact 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
-  pass "check 2b stays silent at exactly 1024 chars (cap is >1024, not >=)"
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'description alone is' <<<"$out" &&
+  grep -q 'description is 1024 codepoints, within 32 of the Agent Skills spec field maximum 1024 — 0 left' <<<"$out"; then
+  pass "check 2b warns but does not fail at exactly 1024 (the cap is >1024, not >=)"
 else
-  fail "check 2b should not warn at exactly 1024 (rc=$rc): $out"
+  fail "check 2b should WARN with 0 left, not FAIL, at exactly 1024 (rc=$rc): $out"
+fi
+
+# 2b-ii-b. The margin's own lower edge. 993 is the first count inside the band
+#          (>1024-32) and 992 the last one outside it, so this pair pins the
+#          margin exactly rather than asserting "somewhere near the cap".
+desc_993="$(printf 'd%.0s' $(seq 1 993))"
+make_skill field-cap-margin-in "---
+name: field-cap-margin-in
+description: \"$desc_993\"
+---
+
+## Purpose
+
+Margin fixture: 993 codepoints, the first count inside the 32-codepoint
+approach margin below the 1024 field maximum.
+"
+out="$(run field-cap-margin-in 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'field-cap-margin-in: description is 993 codepoints, within 32 of the Agent Skills spec field maximum 1024 — 31 left' <<<"$out"; then
+  pass "check 2b warns at 993, the first count inside the margin, naming the skill and count"
+else
+  fail "check 2b should WARN at 993 naming the skill and 31 left (rc=$rc): $out"
+fi
+
+desc_992="$(printf 'd%.0s' $(seq 1 992))"
+make_skill field-cap-margin-out "---
+name: field-cap-margin-out
+description: \"$desc_992\"
+---
+
+## Purpose
+
+Margin fixture: 992 codepoints, exactly cap minus margin, the last count
+outside the approach band.
+"
+out="$(run field-cap-margin-out 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'within 32 of the Agent Skills spec field maximum' <<<"$out" &&
+  grep -q 'description field 992/1024 codepoints' <<<"$out"; then
+  pass "check 2b stays quiet at 992, exactly cap minus margin"
+else
+  fail "check 2b should not warn at 992 (rc=$rc): $out"
 fi
 
 # 2b-iii. The discriminating case: desc(1100) + joiner(3) + wtu(40) = 1143 —
@@ -3463,8 +3527,8 @@ the description field alone is 1100 (breaches check 2b).
 "
 out="$(run field-cap-independent 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] &&
-  grep -q 'description alone is 1100 codepoints' <<<"$out" &&
+if [[ $rc -eq 1 ]] &&
+  grep -q 'FAIL: description alone is 1100 codepoints' <<<"$out" &&
   ! grep -q 'description+when_to_use is .* chars (cap 1536' <<<"$out"; then
   pass "check 2b fires on a field breach that check 2's listing cap does not see"
 else
@@ -3474,8 +3538,8 @@ fi
 # 2b-iv. Codepoints, not bytes. 600 'é' is 600 characters and 1200 UTF-8 bytes;
 #        the spec's limit is "Maximum 1024 characters", so this must stay silent.
 #        Run under LC_ALL=C, where `${#var}` degrades to byte counting and would
-#        report 1200 — so the assertion fails on the byte-counting form rather
-#        than passing incidentally on a UTF-8 host.
+#        report 1200 — now a hard FAIL rather than a warning, so a byte-counting
+#        implementation cannot slip past this assertion.
 desc_600_multibyte="$(printf 'é%.0s' $(seq 1 600))"
 make_skill field-cap-multibyte "---
 name: field-cap-multibyte
@@ -3485,14 +3549,88 @@ description: \"$desc_600_multibyte\"
 ## Purpose
 
 Multibyte fixture: 600 codepoints, 1200 UTF-8 bytes. Legal against a 1024
-character cap; a byte count would report 1200 and warn.
+character cap; a byte count would report 1200 and fail the run.
 "
 out="$(LC_ALL=C run field-cap-multibyte 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'description alone is' <<<"$out" &&
+  grep -q 'description field 600/1024 codepoints' <<<"$out"; then
   pass "check 2b counts codepoints, not bytes (600 multibyte chars stay silent under LC_ALL=C)"
 else
   fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
+fi
+
+# 2b-iv-b. The unit at the boundary that matters, which 2b-iv does not reach: a
+#          description of exactly 1024 codepoints that is NOT 1024 bytes. 1000
+#          'd' plus 24 'é' is 1024 codepoints and 1048 bytes, so a byte count
+#          reports 1048 and hard-FAILs a description the spec allows. The mix is
+#          deliberate: 1024 'é' would be 2048 bytes and trip check 2's own 1536
+#          listing cap, which would mask what this case is asserting.
+desc_1024_multibyte="$(printf 'd%.0s' $(seq 1 1000))$(printf 'é%.0s' $(seq 1 24))"
+make_skill field-cap-multibyte-exact "---
+name: field-cap-multibyte-exact
+description: \"$desc_1024_multibyte\"
+---
+
+## Purpose
+
+Multibyte boundary fixture: 1024 codepoints, 1048 UTF-8 bytes. Exactly at the
+spec maximum, so legal; a byte count reports 1048 and fails.
+"
+out="$(LC_ALL=C run field-cap-multibyte-exact 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'description alone is' <<<"$out" &&
+  grep -q 'description is 1024 codepoints, within 32 of' <<<"$out"; then
+  pass "check 2b holds the cap in codepoints at the boundary (1024 'é' warns, does not fail)"
+else
+  fail "check 2b must not fail 1024 multibyte codepoints (2048 bytes) (rc=$rc): $out"
+fi
+
+# 2b-v. A recorded pre-existing breach downgrades from FAIL to WARN, so turning
+#       check 2b into a FAIL did not strand the skills that already breached.
+#       The row is addressed by repo-relative skill path, the only identifier
+#       unique across plugins.
+printf '# recorded breach\n.claude/skills/field-cap-over\n' >"$TMP/desc-baseline.txt"
+out="$(run_with_baseline "$TMP/desc-baseline.txt" field-cap-over 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'recorded as a pre-existing breach in' <<<"$out"; then
+  pass "check 2b downgrades a baselined breach to a warning"
+else
+  fail "a baselined breach should WARN, not FAIL (rc=$rc): $out"
+fi
+
+# 2b-vi. Shrink-only: a row whose skill no longer breaches is stale and FAILs,
+#        so a description fixed once cannot be quietly re-licensed by a row left
+#        behind in the baseline.
+printf '.claude/skills/field-cap-exact\n' >"$TMP/desc-baseline-stale.txt"
+out="$(run_with_baseline "$TMP/desc-baseline-stale.txt" field-cap-exact 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'stale baseline row' <<<"$out"; then
+  pass "check 2b fails a stale baseline row (the list can only shrink)"
+else
+  fail "a stale baseline row should FAIL (rc=$rc): $out"
+fi
+
+# 2b-vii. A baseline path naming a file that is not there is a configuration
+#         error, not "no recorded rows" — the quiet reading would turn every
+#         downgrade back into a clean run without saying so.
+out="$(run_with_baseline "$TMP/no-such-baseline.txt" field-cap-over 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'does not exist' <<<"$out"; then
+  pass "check 2b fails when the named baseline file is missing"
+else
+  fail "a missing named baseline should FAIL (rc=$rc): $out"
+fi
+
+# 2b-viii. An unset baseline is the default and the strict case: no downgrades.
+out="$(run_with_baseline "" field-cap-over 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: description alone is 1025 codepoints' <<<"$out"; then
+  pass "check 2b with no baseline set fails every breach"
+else
+  fail "an empty baseline setting must not downgrade anything (rc=$rc): $out"
 fi
 
 # 47. --require-evals honors a recorded warrant skip (#3135).
