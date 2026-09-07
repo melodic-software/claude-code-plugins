@@ -16,6 +16,25 @@ clean_repo_root() {
   printf '%s' "$root"
 }
 
+# clean_git_common_dir <repo_root> - print the absolute path of the repository's
+# common git directory: the main checkout's `.git` even when <repo_root> is a
+# linked worktree. The branch-tip capture lives under it because it is the one
+# location that outlives the working tree (a `tree` reset never enters `.git`,
+# and removing a linked worktree leaves the common dir untouched) and is
+# findable afterwards by anyone who knows only the repository. Exit 1 when it
+# cannot be resolved; callers treat that as "no durable location", never as
+# permission to skip the capture.
+clean_git_common_dir() {
+  local repo_root="$1" dir
+  dir="$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
+  [[ -n "$dir" ]] || return 1
+  case "$dir" in
+  /* | [A-Za-z]:*) ;;
+  *) dir="$repo_root/$dir" ;;
+  esac
+  (cd "$dir" 2>/dev/null && pwd -P) || return 1
+}
+
 # clean_default_branch <repo_root> [<remote>] — echo the repository's default
 # branch: the remote's HEAD symref (default remote `origin`; the tree tier passes
 # the remote the current branch actually tracks), else gh's view of it, else the
