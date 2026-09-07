@@ -15,6 +15,13 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   this, decisions left the process only through `HOOK_TELEMETRY_SINK`, which is inert unless an
   environment variable names an executable, so on an ordinary install every decision was discarded
   as it was made.
+- **Command text is omitted on the catch-alls, and remaining text is secret-scrubbed.** A
+  PowerShell `none` record (belt mode, no flagged spelling) and a Bash deny-by-default
+  (`not-exact-engine-command`) persist `command_chars` rather than the command. Other
+  `command`/`reason` fields are shape-scrubbed (tokens, bearer headers, `SECRET`/`KEY`/`TOKEN`/
+  `PASSWORD` assignments including `$env:...`) before the 400-character clip.
+- **Owner-only files.** The log directory is `0700` and the live file `0600`, reapplied on every
+  write so a leftover world-readable file is tightened.
 - **The record distinguishes allowed, denied, and did-not-run.** `guard_launch_monitor.py` writes
   the third state when it detects a `hook_non_blocking_error` for the guard: a hook that never
   launched cannot record its own absence, so the detector that already finds it now leaves the
@@ -36,9 +43,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - Measured cost on the hook path, per the hook-budget convention: the always-on defer branch (a
   Bash command that does not name the engine) writes nothing and is unchanged. On a branch that
   does reach a decision the process and exec census is identical to before, one `execve` and one
-  thread clone, and the record costs one `openat` plus one `write` on a warm data root, plus one
-  failed `openat` and one `mkdir` on the first write of an install. See the README's trust-surface
-  record for the numbers and the method.
+  thread clone, and the record costs one `openat` plus one `write` plus one `chmod` on a warm data
+  root, plus one failed `openat`, one `mkdir`, and one `chmod` on the first write of an install.
+  See the README's trust-surface record for the numbers and the method.
 
 ## [0.22.0]
 
@@ -64,6 +71,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   for them, so quieting that sentence away would drop a fact rather than a duplicate. The quiet
   root-children note keeps the coverage sentence and drops only the rollup prose, and the field set
   `--quiet` documents now holds in both scan modes rather than in ordinary scans alone.
+
 ## [0.21.9]
 
 ### Changed

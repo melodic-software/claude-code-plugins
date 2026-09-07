@@ -4857,8 +4857,12 @@ class GuardTests(unittest.TestCase):
     # no failure of the record can move a verdict.
 
     def _engine_command(self, subcommand: str, data_root: Path | None = None) -> str:
-        script = SCRIPT_DIR / "hygiene.py"
-        root = self._data_root if data_root is None else data_root
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        # resolve() yields the long-form path: the guard rejects the "~" in
+        # Windows 8.3 short names as a shell-expansion character.
+        root = (
+            (self._data_root if data_root is None else data_root).resolve().as_posix()
+        )
         if subcommand == "scan":
             tail = "scan --target t --output s"
         else:
@@ -4903,7 +4907,7 @@ class GuardTests(unittest.TestCase):
         return json.loads(text) if text else None
 
     def test_denied_engine_command_is_recorded_with_its_rule_and_input(self) -> None:
-        """A denial must explain itself from the record alone."""
+        """A deny-by-default records the rule and reason, not the command text."""
         elsewhere = Path(self._cfg.name) / "elsewhere"
         command = self._engine_command("scan", data_root=elsewhere)
         result = self.run_guard_engine_gate(command)
@@ -4915,7 +4919,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("destructive-guard", entry["hook"])
         self.assertEqual("Bash", entry["tool"])
         self.assertEqual("engine-gate", entry["mode"])
-        self.assertEqual(command, entry["command"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
         # The reason the host was given is the reason the record carries (to
         # the record's bounded length), so the two can never disagree about
         # why this was denied.
@@ -4970,7 +4975,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("belt", entry["mode"])
         self.assertEqual("none", entry["decision"])
         self.assertEqual("powershell-no-flagged-spelling", entry["rule"])
-        self.assertEqual("Get-Process", entry["command"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len("Get-Process"), entry["command_chars"])
 
     def test_powershell_deletion_spelling_verdict_is_recorded(self) -> None:
         result = self._run_guard_belt("Remove-Item -Recurse C:/tmp/x", "PowerShell")
@@ -4981,12 +4987,36 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual("powershell-deletion-spelling", entry["rule"])
 
+    def test_powershell_none_does_not_persist_session_command_secrets(self) -> None:
+        command = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
+        result = self._run_guard_belt(command, "PowerShell")
+        self.assertIsNone(result)
+        (entry,) = self.decision_records()
+        self.assertEqual("none", entry["decision"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
+        log_text = guard.guard_decision_log.log_path(
+            os.fspath(self._data_root)
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("s3cretvalue", log_text)
+
+    def test_powershell_deletion_command_secrets_are_redacted(self) -> None:
+        command = (
+            "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Remove-Item -Recurse C:/tmp/x"
+        )
+        result = self._run_guard_belt(command, "PowerShell")
+        assert result is not None
+        (entry,) = self.decision_records()
+        self.assertEqual("powershell-deletion-spelling", entry["rule"])
+        self.assertNotIn("s3cretvalue", entry["command"])
+        self.assertIn(guard.guard_decision_log.REDACTED, entry["command"])
+
     def test_records_accumulate_across_invocations(self) -> None:
         for _ in range(3):
             self.run_guard_engine_gate(self._engine_command("scan"))
         self.assertEqual(3, len(self.decision_records()))
 
-    def test_an_unparseable_payload_deny_is_recorded(self) -> None:
+    def test_an_unparsable_payload_deny_is_recorded(self) -> None:
         argv = [
             str(SCRIPT_DIR / "destructive_guard.py"),
             "--mode",
@@ -5007,7 +5037,7 @@ class GuardTests(unittest.TestCase):
             json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
         )
         (entry,) = self.decision_records()
-        self.assertEqual("unparseable-payload", entry["rule"])
+        self.assertEqual("unparsable-payload", entry["rule"])
         self.assertEqual("deny", entry["decision"])
 
     def _verdicts_with_recording_broken(

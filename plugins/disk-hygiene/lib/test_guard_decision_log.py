@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,7 +53,7 @@ class GuardDecisionLogTests(unittest.TestCase):
         fields = {
             "hook": "destructive-guard",
             "decision": "deny",
-            "rule": "not-exact-engine-command",
+            "rule": "kill-switch-disabled-apply",
             "tool": "Bash",
             "mode": "engine-gate",
             "command": "rm -rf /tmp/example",
@@ -75,7 +76,7 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.write_one()
         (entry,) = self.read_records()
         self.assertEqual("deny", entry["decision"])
-        self.assertEqual("not-exact-engine-command", entry["rule"])
+        self.assertEqual("kill-switch-disabled-apply", entry["rule"])
         self.assertEqual("rm -rf /tmp/example", entry["command"])
         self.assertEqual("Bash", entry["tool"])
         self.assertEqual("engine-gate", entry["mode"])
@@ -119,6 +120,64 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertEqual(decision_log.MAX_TEXT_CHARS + 3, len(entry["command"]))
         self.assertTrue(entry["command"].endswith("..."))
         self.assertEqual(decision_log.MAX_TEXT_CHARS + 3, len(entry["reason"]))
+
+    def test_secret_shaped_command_and_reason_are_redacted_before_clip(self) -> None:
+        command = (
+            "gh api -H 'Authorization: Bearer ghp_" + ("a" * 36) + "' "
+            "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
+        )
+        reason = "token=supersecretvalue leftover"
+        self.write_one(command=command, reason=reason)
+        (entry,) = self.read_records()
+        self.assertNotIn("ghp_" + ("a" * 36), entry["command"])
+        self.assertNotIn("s3cretvalue", entry["command"])
+        self.assertNotIn("supersecretvalue", entry["reason"])
+        self.assertIn(decision_log.REDACTED, entry["command"])
+        self.assertIn(decision_log.REDACTED, entry["reason"])
+
+    def test_none_and_deny_by_default_persist_length_not_command_text(self) -> None:
+        secret = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
+        self.write_one(
+            decision=decision_log.DECISION_NONE,
+            rule="powershell-no-flagged-spelling",
+            command=secret,
+        )
+        self.write_one(
+            decision="deny",
+            rule="not-exact-engine-command",
+            command=secret,
+        )
+        none_entry, deny_entry = self.read_records()
+        for entry in (none_entry, deny_entry):
+            self.assertNotIn("command", entry)
+            self.assertEqual(len(secret), entry["command_chars"])
+            self.assertNotIn("s3cretvalue", json.dumps(entry))
+
+    def test_new_log_dir_and_file_are_owner_only(self) -> None:
+        if os.name != "posix":
+            self.skipTest("POSIX file modes")
+        self.write_one()
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.stat().st_mode), decision_log.FILE_MODE
+        )
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
+        )
+
+    def test_an_existing_world_readable_log_is_tightened(self) -> None:
+        if os.name != "posix":
+            self.skipTest("POSIX file modes")
+        self.log_file.parent.mkdir(parents=True)
+        self.log_file.parent.chmod(0o755)
+        self.log_file.write_text("", encoding="utf-8")
+        self.log_file.chmod(0o644)
+        self.write_one()
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.stat().st_mode), decision_log.FILE_MODE
+        )
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
+        )
 
     def test_the_log_rotates_at_the_bound_and_keeps_one_generation(self) -> None:
         with mock.patch.object(decision_log, "MAX_BYTES", 2000):
@@ -175,7 +234,7 @@ class GuardDecisionLogTests(unittest.TestCase):
 
     def test_a_failing_write_reports_false_and_does_not_raise(self) -> None:
         with mock.patch.object(
-            decision_log.Path, "open", side_effect=OSError("No space left on device")
+            decision_log.os, "open", side_effect=OSError("No space left on device")
         ):
             self.assertFalse(self.write_one())
 

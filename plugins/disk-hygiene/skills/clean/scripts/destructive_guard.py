@@ -2129,6 +2129,8 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             # no `if` filter, so this branch is the evidence that the guard ran
             # on this call and adjudicated nothing — the distinction the
             # fail-open finding needs and that an absent record cannot make.
+            # Command text is not persisted here: belt mode records every
+            # PowerShell call, including unrelated session commands.
             _record_decision(
                 command,
                 tool_name,
@@ -2276,7 +2278,7 @@ def main() -> int:
                 "blocked",
                 decision_value="deny",
             )
-            _record_decision("", str(tool_name), "deny", "unparseable-payload", reason)
+            _record_decision("", str(tool_name), "deny", "unparsable-payload", reason)
             result = 0
             return result
         result = _decide(command, tool_name, start)

@@ -155,7 +155,7 @@ One JSON object per line, so `tail`, `grep`, and any JSON-aware reader all work 
 purpose-built tool:
 
 ```json
-{"schema_version":"1.0","timestamp":"2026-09-07T18:22:41.907Z","hook":"destructive-guard","decision":"deny","rule":"not-exact-engine-command","tool":"Bash","mode":"engine-gate","command":"python3 <engine> apply --plan p","reason":"Disk-hygiene fails closed: Bash is restricted to..."}
+{"schema_version":"1.0","timestamp":"2026-09-07T18:22:41.907Z","hook":"destructive-guard","decision":"ask","rule":"exact-engine-apply","tool":"Bash","mode":"engine-gate","command":"python3 <engine> apply --execute ...","reason":"disk-hygiene is ready to apply one exact, previewed tier..."}
 ```
 
 `decision` is one of `allow`, `ask`, `deny`, `none` (the guard ran and issued no
@@ -166,7 +166,14 @@ come from the `Stop` detector, which is the only process that can observe a guar
 launched.
 
 - **Bounded.** The live file rotates to `decisions.previous.jsonl` at 1 MiB, so the record holds at
-  most about 2 MiB and never needs pruning. `command` and `reason` are clipped to 400 characters.
+  most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
+  to 400 characters.
+- **Command text is omitted on the catch-alls.** A PowerShell call recorded as `none` (belt mode,
+  no flagged spelling) and a Bash deny-by-default (`not-exact-engine-command`) persist
+  `command_chars` (length only) instead of the command text. Those branches fire on arbitrary
+  session commands.
+- **Owner-only.** The directory is created `0700` and the live file `0600`. Mode is reapplied on
+  every write so a leftover world-readable file is tightened.
 - **Never a factor in a verdict.** An unwritable data root, a full disk, or any other write failure
   records nothing and changes no decision: the verdict is computed and emitted before the record is
   attempted, and the write path raises nothing.
@@ -305,8 +312,9 @@ measurements below carry the conditions they were taken under.
   container against `origin/main` at `6db96637d`, five invocations per arm: the **process and exec
   census is unchanged on both paths**, one `execve` (the guard) and one `clone3` (the watchdog
   thread, `CLONE_THREAD`, not a process), before and after. The record itself costs one `openat`
-  plus one `write` on a warm data root, and one extra failed `openat` plus one `mkdir` on the first
-  write of an install. Wall-clock over 40 invocations per arm, alternated twice, moved inside
+  plus one `write` plus one `chmod` (the live file, `0600`) on a warm data root, and one extra
+  failed `openat` plus one `mkdir` plus one `chmod` (the directory, `0700`) on the first write of
+  an install. Wall-clock over 40 invocations per arm, alternated twice, moved inside
   run-to-run noise on that host (52–58 ms both before and after, the sign of the difference
   changing between repetitions), which is why the syscall census rather than a duration is the
   figure cited here.

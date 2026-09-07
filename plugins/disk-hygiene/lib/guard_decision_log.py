@@ -29,15 +29,25 @@ Design constraints this module is built to, in order:
    `MAX_TEXT_CHARS`, which keeps a record well under the size at which a
    concurrent `O_APPEND` write from a second hook process could interleave, and
    keeps the record a record of the DECISION rather than a copy of the payload.
+5. **No raw secrets.** Command and reason are secret-scrubbed before they are
+   clipped. The PowerShell `none` adjudication and the Bash deny-by-default
+   catch-all persist length only (`command_chars`), not the command text: those
+   branches fire on arbitrary session commands, including credentials.
+6. **Owner-only files.** The log directory is `0700` and the live file is
+   `0600`. Mode is applied on every write so a leftover world-readable file is
+   tightened rather than left. `chmod` is best-effort: a host that cannot set
+   POSIX modes still records, and the verdict still does not change.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TextIO
 
 SCHEMA_VERSION = "1.0"
 
@@ -48,6 +58,9 @@ ROTATED_FILENAME = "decisions.previous.jsonl"
 # Per generation; two generations are kept, so the bound is about 2 MiB.
 MAX_BYTES = 1_048_576
 MAX_TEXT_CHARS = 400
+
+FILE_MODE = 0o600
+DIR_MODE = 0o700
 
 # Opt-out, not opt-in: absent means recording. Recognised off values are exact
 # and lowercase-folded, so a stray value leaves the record ON rather than
@@ -61,9 +74,50 @@ _OFF_VALUES = frozenset({"0", "off", "false", "no"})
 DECISION_NONE = "none"
 DECISION_NOT_RUN = "not-run"
 
+# Branches that fire on arbitrary session commands. Persist length, not text.
+OMIT_COMMAND_RULES = frozenset(
+    {
+        "powershell-no-flagged-spelling",
+        "not-exact-engine-command",
+    }
+)
+
+REDACTED = "<redacted>"
+
+# Shape-based secret scrubbing. Same family as session-flow's ledger redaction
+# (private keys, cloud tokens, bearer/password assignments, connection strings)
+# plus env-var assignments whose names look like credentials, including
+# PowerShell `$env:AZURE_CLIENT_SECRET='...'`.
+_SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+        re.DOTALL,
+    ),
+    re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._+/=-]{8,}"),
+    re.compile(
+        r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
+        r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"
+    ),
+    re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+    re.compile(
+        r"(?i)(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*"
+        r"(?:SECRET|KEY|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL)[A-Za-z0-9_]*"
+        r"\s*[=:]\s*['\"]?[^\s'\"]+"
+    ),
+)
+
 
 def enabled() -> bool:
     return os.environ.get(DISABLE_ENV, "").strip().casefold() not in _OFF_VALUES
+
+
+def omit_command_text(decision: str, rule: str) -> bool:
+    return decision == DECISION_NONE or rule in OMIT_COMMAND_RULES
 
 
 def _timestamp() -> str:
@@ -74,10 +128,17 @@ def _timestamp() -> str:
     )
 
 
+def _redact_secrets(text: str) -> str:
+    for pattern in _SECRET_SHAPES:
+        text = pattern.sub(REDACTED, text)
+    return text
+
+
 def _clip(value: object) -> str | None:
     if value is None:
         return None
     text = value if isinstance(value, str) else str(value)
+    text = _redact_secrets(text)
     if len(text) > MAX_TEXT_CHARS:
         return text[:MAX_TEXT_CHARS] + "..."
     return text
@@ -107,7 +168,10 @@ def build_record(
     if mode is not None:
         record["mode"] = mode
     if command is not None:
-        record["command"] = _clip(command)
+        if omit_command_text(decision, rule):
+            record["command_chars"] = len(command)
+        else:
+            record["command"] = _clip(command)
     if reason is not None:
         record["reason"] = _clip(reason)
     if extra:
@@ -118,6 +182,28 @@ def build_record(
 
 def log_path(data_root: str) -> Path:
     return Path(data_root) / LOG_DIRNAME / LOG_FILENAME
+
+
+def _restrict_mode(path: Path, mode: int) -> None:
+    with contextlib.suppress(OSError, NotImplementedError):
+        os.chmod(path, mode)
+
+
+def _ensure_log_dir(directory: Path) -> None:
+    directory.mkdir(mode=DIR_MODE, parents=True, exist_ok=True)
+    _restrict_mode(directory, DIR_MODE)
+
+
+def _open_append(path: Path) -> TextIO:
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    fd = os.open(path, flags, FILE_MODE)
+    try:
+        return os.fdopen(fd, "a", encoding="utf-8", newline="\n")
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 def _rotate(path: Path) -> None:
@@ -149,16 +235,18 @@ def record(data_root: str | None, **fields: Any) -> bool:
         )
         path = log_path(data_root)
         try:
-            handle = path.open("a", encoding="utf-8", newline="\n")
+            handle = _open_append(path)
         except (FileNotFoundError, NotADirectoryError):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            handle = path.open("a", encoding="utf-8", newline="\n")
+            _ensure_log_dir(path.parent)
+            handle = _open_append(path)
         with handle:
             handle.write(line + "\n")
             handle.flush()
             # Append mode leaves the offset at end-of-file, so the bound is
             # checked from a number the write already produced: no extra stat.
             size = handle.tell()
+        _restrict_mode(path, FILE_MODE)
+        _restrict_mode(path.parent, DIR_MODE)
         if size >= MAX_BYTES:
             _rotate(path)
         return True
