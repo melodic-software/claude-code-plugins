@@ -105,6 +105,7 @@ CSPROJ
 commit_repo "$dotnet_repo"
 out="$(bash "$SCRIPT" "$dotnet_repo")"
 assert_equals "dotnet: name" "$(field "$out" name)" "dotnet-svc"
+assert_contains "dotnet: path is the resolved absolute path" "$(field "$out" path)" "dotnet-svc"
 assert_equals "dotnet: runtime" "$(field "$out" runtime)" "dotnet"
 assert_equals "dotnet: target_framework from the first csproj" "$(field "$out" target_framework)" "net9.0"
 assert_contains "dotnet: PackageReference collected (MediatR)" "$out" '"MediatR"'
@@ -206,6 +207,52 @@ out="$(bash "$SCRIPT" "$remote_repo")"
 assert_equals "owner ladder: scp-style remote owner segment" "$(field "$out" owner)" "fallback-owner"
 assert_contains "owner ladder: evidence names the remote" "$out" 'origin remote URL'
 assert_contains "remote: URL is reported verbatim" "$out" 'fallback-owner/remote-only.git'
+
+# --- Case group 7b: a local-path remote names no owner -----------------------
+# A git remote is often a plain filesystem path, and a path's first segment is a
+# directory, not an owner. Reporting one would be a fabricated fact carrying an
+# "origin remote URL" citation.
+#
+# The remote is RELATIVE on purpose. An MSYS bash rewrites a POSIX-absolute
+# argument into a Windows path before git ever sees it, so an absolute fixture
+# would assert against `C:/Program Files/Git/...` on one platform and the
+# original on another. A relative path is left alone everywhere and exercises
+# the same branch.
+localpath_repo="$(make_repo local-remote)"
+printf 'x\n' >"$localpath_repo/README.md"
+git -C "$localpath_repo" remote add origin "../sibling-upstream"
+commit_repo "$localpath_repo"
+out="$(bash "$SCRIPT" "$localpath_repo")"
+assert_equals "owner ladder: a path remote yields unknown, not its first segment" \
+  "$(field "$out" owner)" "unknown"
+assert_not_contains "owner ladder: no fabricated owner from the path" "$out" '"owner":"sibling-upstream"'
+assert_not_contains "owner ladder: an unknown owner is not cited to the remote" "$out" '"owner":"origin remote URL"'
+assert_contains "owner ladder: the remote itself is still reported" "$out" 'sibling-upstream'
+
+# The same rule through a scheme with an empty authority: no host, no owner.
+fileurl_repo="$(make_repo file-url-remote)"
+printf 'x\n' >"$fileurl_repo/README.md"
+git -C "$fileurl_repo" remote add origin "file:///opt/mirrors/upstream"
+commit_repo "$fileurl_repo"
+out="$(bash "$SCRIPT" "$fileurl_repo")"
+assert_equals "owner ladder: file:// with an empty authority yields unknown" \
+  "$(field "$out" owner)" "unknown"
+assert_not_contains "owner ladder: no fabricated owner from a file URL" "$out" '"owner":"opt"'
+
+# --- Case group 7c: a nested member must not shadow the top-level one --------
+nested_repo="$(make_repo nested-deps)"
+cat >"$nested_repo/package.json" <<'PKG'
+{
+  "name": "nested-deps",
+  "pnpm": { "overrides": { "dependencies": { "ghost-from-nested": "1.0.0" } } },
+  "dependencies": { "real-dep-a": "^1.0.0", "real-dep-b": "^2.0.0" }
+}
+PKG
+commit_repo "$nested_repo"
+out="$(bash "$SCRIPT" "$nested_repo")"
+assert_contains "nested: the top-level dependencies win (a)" "$out" '"real-dep-a"'
+assert_contains "nested: the top-level dependencies win (b)" "$out" '"real-dep-b"'
+assert_not_contains "nested: a same-named nested member does not shadow them" "$out" '"ghost-from-nested"'
 
 # --- Case group 8: the dependency cap ---------------------------------------
 capped_repo="$(make_repo capped)"
