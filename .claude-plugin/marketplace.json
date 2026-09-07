@@ -144,7 +144,7 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "portfolio", "skill"]
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",

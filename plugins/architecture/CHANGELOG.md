@@ -3,6 +3,23 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- `record-decision`: records one architecture decision into whatever ADR convention the consuming
+  repository already has. It discovers the directory, numbering scheme and record shape in use and
+  writes exactly one record that follows them; where no convention exists it names what it searched,
+  offers common shapes, points at the upstream template catalog by URL, and writes nothing until the
+  human chooses. Ships seven eval cases over three fixture trees.
+- `reference/adr-discovery.md`: the plugin's single ADR discovery ladder (declared, then existing
+  directory, then none) plus the numbering and shape inference rules, read by both skills.
+
+### Changed
+
+- improve: `actions/deepening.md` points at `reference/adr-discovery.md` instead of carrying its own
+  inline directory list. The declared-location-first rule is unchanged.
+
 ## [0.7.0]
 
 ### Added
