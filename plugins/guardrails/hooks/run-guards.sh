@@ -183,9 +183,19 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   RUN_GUARDS_PRIMED=1
   RUN_GUARDS_FILTERS=("${PRIME_FILTERS[@]}")
   RUN_GUARDS_VALUES=("${HOOK_JQ_FIELDS[@]}")
-  # `.hook_event_name` is the last prime filter. It costs nothing extra (same
-  # jq process) and lets the dispatcher's own abort notice name the event.
-  [[ "${RUN_GUARDS_VALUES[9]}" =~ ^[A-Za-z]+$ ]] && _GAB_EVENT="${RUN_GUARDS_VALUES[9]}"
+  # `.hook_event_name` rides in the same jq process and lets the dispatcher's
+  # own abort notice name the event. It is found by NAME, never by position:
+  # a filter added ahead of it in PRIME_FILTERS would otherwise put a
+  # neighbouring field's value into every abort notice, and nothing at run
+  # time would say so. abort-boundary.test.sh inserts such a filter on a copy
+  # and checks the event is still named.
+  for _rg_i in "${!RUN_GUARDS_FILTERS[@]}"; do
+    if [[ "${RUN_GUARDS_FILTERS[_rg_i]}" == '.hook_event_name' ]]; then
+      [[ "${RUN_GUARDS_VALUES[_rg_i]}" =~ ^[A-Za-z]+$ ]] && _GAB_EVENT="${RUN_GUARDS_VALUES[_rg_i]}"
+      break
+    fi
+  done
+  unset _rg_i
 fi
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below

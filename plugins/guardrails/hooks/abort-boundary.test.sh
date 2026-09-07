@@ -102,6 +102,10 @@ BASH_FORCE_PUSH=$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x
 # the forced-abort assertions below compare against the notice's hookEventName.
 declare -A EVENTS=()
 REGISTERED=()
+# Libraries a registered hook sources at run time, plugin-relative:
+# hook-utils.sh in every hook, the `--lib` paths in the dispatcher. A trap in
+# one of these replaces the boundary as surely as one in the hook itself.
+SOURCED_LIBS=("hooks/hook-utils.sh")
 set -f
 while IFS=$'\t' read -r ev cmd; do
   # shellcheck disable=SC2206  # the split IS the point; globbing is off
@@ -110,6 +114,7 @@ while IFS=$'\t' read -r ev cmd; do
   for tok in "${toks[@]}"; do
     if ((skip)); then
       skip=0
+      [[ " ${SOURCED_LIBS[*]} " == *" $tok "* ]] || SOURCED_LIBS+=("$tok")
       continue
     fi
     if [[ "$tok" == "--lib" ]]; then
@@ -140,6 +145,24 @@ for name in "${REGISTERED[@]}"; do
   [[ -f "$HOOK_DIR/$name" ]] || bad "registered script missing from hooks/: $name"
 done
 
+# assert_no_exit_trap <label> <file>: bash holds ONE EXIT trap per shell. A
+# hook, or a library it sources, that runs its own `trap ... EXIT` (or
+# `trap - EXIT`) after the install line replaces the boundary, and that hook
+# is back to the silent abort this suite exists to rule out: rc 1, nothing
+# written, no signal at run time. Comment lines are skipped; a `trap` naming
+# only other signals is fine. abort-boundary.sh is the one file allowed to
+# touch it, and its header names the supported way to chain exit-time work.
+assert_no_exit_trap() {
+  local label="$1" file="$2" hits
+  hits=$(grep -nE '^[^#]*(^|[;&|{(]|then|do|else)[[:space:]]*trap[[:space:]]' "$file" |
+    grep -E '(^|[[:space:]])(EXIT|0)([[:space:]]|$)' || true)
+  if [[ -z "$hits" ]]; then
+    ok "$label installs no EXIT trap of its own (the boundary stays in force)"
+  else
+    bad "$label installs its own EXIT trap, which replaces the abort boundary: ${hits//$'\n'/; }"
+  fi
+}
+
 # --- Static: every registered script installs the boundary ------------------
 for name in "${REGISTERED[@]}"; do
   stem="${name%.sh}"
@@ -161,7 +184,21 @@ for name in "${REGISTERED[@]}"; do
   if grep -Fq "$MARKER" "$HOOK_DIR/$name"; then
     bad "shipped $name must not honor $MARKER"
   fi
+  assert_no_exit_trap "$name" "$HOOK_DIR/$name"
 done
+for lib in "${SOURCED_LIBS[@]}"; do
+  assert_no_exit_trap "$lib" "$PLUGIN_DIR/$lib"
+done
+
+# The dispatcher names the event by looking `.hook_event_name` up in its
+# primed filters, so the filter has to be there. (A positional index once put
+# the neighbouring field into every notice when a filter was added ahead of
+# it; the rg-shift case below covers that shape.)
+if awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh" | grep -Fq "'.hook_event_name'"; then
+  ok "run-guards.sh primes .hook_event_name"
+else
+  bad "run-guards.sh no longer primes .hook_event_name; the dispatcher's notice cannot name the event"
+fi
 
 # --- Forced abort in EVERY registered guard, on a copy of the plugin --------
 # The injection is an unbound-variable expansion right after the install line:
@@ -277,6 +314,19 @@ inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}
 run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$RC"
 assert_eq "dispatcher abort after priming names the event from the payload" PreToolUse \
+  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+
+# A prime filter added AHEAD of `.hook_event_name` shifts every later slot. The
+# dispatcher resolves the event by name, so the notice still names it. The
+# positional index this replaced read the neighbouring slot instead (empty for
+# this payload) and the notice lost its hookSpecificOutput block.
+RG_SHIFT="$TEST_TMPDIR/rg-shift"
+cp -R "$PLUGIN_DIR" "$RG_SHIFT"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
+run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
+assert_exit "dispatcher: a prime filter inserted ahead of .hook_event_name still fails open" 0 "$RC"
+assert_eq "dispatcher: a prime filter inserted ahead of .hook_event_name still names the event" PreToolUse \
   "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
 
 printf '#!/usr/bin/env bash\nexit 3\n' >"$TEST_TMPDIR/three.sh"
