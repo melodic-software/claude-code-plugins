@@ -139,7 +139,7 @@ while IFS= read -r NUMBER; do
   # The number reaches a request path, is interpolated unquoted into a JSON number
   # literal in COUNTS, and is the join key below. A JSON number may not have a
   # leading zero (RFC 8259 §6), so anything but a canonical integer is refused here
-  # before it can be interpolated or mis-joined.
+  # before it can be interpolated or joined onto the wrong item.
   [[ "$NUMBER" =~ ^(0|[1-9][0-9]*)$ ]] || {
     printf 'list-items.sh: gitea returned an issue in %s without a numeric number: %s\n' "$REPO" "$NUMBER" >&2
     exit "$EX_INTERNAL"

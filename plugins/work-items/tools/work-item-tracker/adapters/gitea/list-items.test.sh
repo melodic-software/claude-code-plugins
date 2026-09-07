@@ -217,7 +217,7 @@ fi
 
 # --- each item keeps ITS OWN blocker count, in page order ---
 # Counts are joined to items by number in one jq pass at the end rather than paired inside
-# the per-item loop, so a mis-keyed join would hand every item some other item's count
+# the per-item loop, so a join keyed on the wrong number would hand every item some other item's count
 # while every other case in this file (one item, or all counts zero) still passed. Five
 # items across two pages, with counts that differ item to item. Each item's dependency
 # route is seeded BEFORE the page routes: the dependency URLs also contain "page=1".
