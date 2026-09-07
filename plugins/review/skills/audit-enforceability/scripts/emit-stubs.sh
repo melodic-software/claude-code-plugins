@@ -69,6 +69,7 @@ classes=""
 out=""
 scan_dir=""
 memory_root=""
+memory_root_given=0
 dry_run=0
 
 while [[ $# -gt 0 ]]; do
@@ -111,6 +112,7 @@ while [[ $# -gt 0 ]]; do
       exit 2
     }
     memory_root="$2"
+    memory_root_given=1
     shift 2
     ;;
   --dry-run)
@@ -143,6 +145,13 @@ if [[ -z "$scan_dir" ]]; then
 fi
 if [[ ! -f "$findings" ]]; then
   printf 'refusing: --findings %s does not exist or is not a file.\n' "$findings" >&2
+  exit 2
+fi
+# An EMPTY --memory-root is a caller whose root variable did not expand, not a
+# caller who chose not to anchor. Treating it as "not supplied" would turn the
+# anchor off exactly when the composition it guards went wrong.
+if [[ $memory_root_given -eq 1 && -z "$memory_root" ]]; then
+  printf 'refusing: --memory-root was given but is empty. Omit the flag to state that the home was not composed here; an empty value is an unexpanded variable, not a decision.\n' >&2
   exit 2
 fi
 
@@ -192,6 +201,9 @@ normalize_path() {
   done
   joined="${joined%/}"
   NORM="$prefix$joined"
+  # A root path renders as its prefix, never as the empty string: an empty
+  # ancestor turns every diagnostic that names it into a blank.
+  [[ -n "$NORM" ]] || NORM="/"
 }
 
 # canonicalize_dir: fold NORM to the filesystem's own spelling of the deepest
@@ -214,22 +226,44 @@ canonicalize_dir() {
     prev="$p"
     tail="${p##*/}${tail:+/$tail}"
     p="${p%/*}"
+    # A bare drive prefix is not a directory to test; its ROOT is. Without this
+    # a drive-letter path whose whole chain is absent never folds, while its
+    # other spelling does, and the two never compare equal.
+    [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
     [[ -n "$p" ]] || p="/"
     [[ "$p" != "$prev" ]] || return 0
   done
   phys="$(cd -- "$p" 2>/dev/null && pwd -P)" || return 0
   [[ -n "$phys" ]] || return 0
-  NORM="${phys%/}${tail:+/$tail}"
+  if [[ -z "$tail" ]]; then
+    NORM="$phys"
+  else
+    NORM="${phys%/}/$tail"
+  fi
 }
 
 # is_within <candidate> <ancestor>: true when candidate IS ancestor or sits
 # under it. The trailing slash is what keeps `reviews-archive` from reading as a
 # child of `reviews`; stripping it off the ancestor first is what lets the
 # filesystem root be an ancestor at all.
+# is_within <candidate> <ancestor>: comparison is CASE-INSENSITIVE, and that is
+# the fail-closed direction rather than an assumption about the filesystem. On a
+# case-insensitive volume `.../REVIEWS` and `.../reviews` are one directory that
+# a case-sensitive compare calls two, which writes stubs into the very directory
+# the fence protects; `pwd -P` does not fold segment case, so canonicalization
+# cannot close it. On a case-sensitive volume the cost is the opposite error, a
+# refusal of a genuinely distinct sibling that differs only in case, which the
+# operator sees and can rename around. A visible false refusal is recoverable;
+# a silent write into the fix action's scan directory is not.
 is_within() {
-  local candidate="$1" ancestor="$2"
-  [[ "$candidate" == "$ancestor" ]] && return 0
-  [[ "$candidate" == "${ancestor%/}"/* ]]
+  local candidate="$1" ancestor="$2" had_nocase=0 rc=1
+  shopt -q nocasematch && had_nocase=1
+  shopt -s nocasematch
+  if [[ "$candidate" == "$ancestor" || "$candidate" == "${ancestor%/}"/* ]]; then
+    rc=0
+  fi
+  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
+  return $rc
 }
 
 # has_dotdot_segment <path>: true when the path AS GIVEN carries a `..`
@@ -238,7 +272,20 @@ is_within() {
 # was pasted in raw, which is how an unsanitized slug escapes a tree.
 has_dotdot_segment() {
   local p="${1//\\//}"
-  [[ "$p" == ".." || "$p" == "../"* || "$p" == *"/.." || "$p" == *"/../"* ]]
+  [[ "$p" == ".." || "$p" == "../"* || "$p" == *"/.." || "$p" == *"/../"* ]] && return 0
+  # A trailing `.` names the parent as the home. No binding resolves one, and a
+  # slug of `.` that survived the charset rule is how it appears.
+  [[ "$p" == "." || "$p" == *"/." ]]
+}
+
+# is_unc_path <path>: true for a path whose leading double separator makes it a
+# network share. The lexical normalizer collapses the empty segment, so the
+# fence would compare a path that does not exist while the OS still resolves the
+# RAW argument back to a real directory, possibly inside a fenced one. Refused
+# rather than reasoned about: no binding resolves a share this way.
+is_unc_path() {
+  local p="${1//\\//}"
+  [[ "$p" == //* ]]
 }
 
 # --- Findings-file admission, first half: the frontmatter marker --------------
@@ -349,6 +396,22 @@ if has_dotdot_segment "$scan_dir"; then
     "$scan_dir" >&2
   exit 3
 fi
+# The input path is fenced for the same reason, and it is the subtler case: a
+# `..` after a symlinked segment resolves one way for the OS and another way
+# for the lexical normalizer, so the directory this script fences against would
+# not be the directory the file actually sits in.
+if has_dotdot_segment "$findings"; then
+  printf 'refusing: the findings path %s carries a ".." or "." segment, so the directory fenced against would not be the one the file sits in. Name the file by a path with neither in it.\n' \
+    "$findings" >&2
+  exit 3
+fi
+for unc_candidate in "$out" "$scan_dir" "$findings" ${memory_root:+"$memory_root"}; do
+  if is_unc_path "$unc_candidate"; then
+    printf 'refusing: %s is a network-share path. The fence normalizes it to a path that does not exist while the operating system still resolves the raw argument, so the two would not describe the same directory.\n' \
+      "$unc_candidate" >&2
+    exit 3
+  fi
+done
 
 normalize_path "$out"
 canonicalize_dir
@@ -360,6 +423,9 @@ normalize_path "$findings"
 findings_abs="$NORM"
 findings_dir_abs="${findings_abs%/*}"
 [[ -n "$findings_dir_abs" ]] || findings_dir_abs="/"
+# A file directly under a drive root leaves a bare drive prefix, which names no
+# directory; its root does.
+[[ "$findings_dir_abs" =~ ^[A-Za-z]:$ ]] && findings_dir_abs="$findings_dir_abs/"
 NORM="$findings_dir_abs"
 canonicalize_dir
 findings_dir_abs="$NORM"
@@ -386,8 +452,8 @@ if [[ -n "$memory_root" ]]; then
   normalize_path "$memory_root"
   canonicalize_dir
   root_abs="$NORM"
-  if [[ "$out_abs" == "$root_abs" ]]; then
-    printf 'refusing: the stub home %s IS the memory root; a concern directory sits under the root, never at it.\n' \
+  if is_within "$root_abs" "$out_abs"; then
+    printf 'refusing: the stub home %s IS the memory root, or holds it; a concern directory sits under the root, never at or above it.\n' \
       "$out_abs" >&2
     exit 3
   fi
@@ -526,9 +592,12 @@ while IFS= read -r record; do
     mkdir_done=1
   fi
 
-  # A write that fails part way leaves a truncated stub the self-check below
-  # would read as clean, so the status is checked rather than assumed.
-  if ! {
+  # A write that fails part way leaves a truncated or absent stub the
+  # self-check below would read as clean, so the status is checked rather than
+  # assumed. The status is captured on its own line: `if ! { ...; } >FILE`
+  # returns 0 when it is the REDIRECTION that failed, so the negated form reads
+  # a failed write as a success.
+  {
     printf -- '---\n'
     printf 'type: enforceability-stub\n'
     printf 'date: %s\n' "$now_utc"
@@ -557,9 +626,12 @@ while IFS= read -r record; do
     printf '%s\n' "$f_owner"
     printf '\n## Not done here\n\n'
     printf 'This stub proposes. Nothing was implemented.\n'
-  } >"$target"; then
-    rm -f "$target" ${written[@]+"${written[@]}"}
-    printf 'refusing: writing %s failed part way; every stub this run wrote has been removed.\n' "$target" >&2
+  } >"$target"
+  write_status=$?
+  if [[ $write_status -ne 0 ]]; then
+    rm -f -- "$target" ${written[@]+"${written[@]}"}
+    printf 'refusing: writing %s failed (status %d); every stub this run wrote has been removed.\n' \
+      "$target" "$write_status" >&2
     exit 2
   fi
 
@@ -611,7 +683,14 @@ for path in ${written[@]+"${written[@]}"}; do
 done
 
 if [[ -n "$violation" ]]; then
-  rm -f ${written[@]+"${written[@]}"}
+  # `--` is load-bearing: a stub home starting with `-` makes every path an
+  # option, `rm` refuses the lot, and the rollback this refusal promises would
+  # silently leave the marker-bearing stubs on disk.
+  rm -f -- ${written[@]+"${written[@]}"}
+  # A home this run created and then emptied is not left behind as evidence of
+  # a write that was taken back. rmdir refuses a directory that still holds
+  # anything, so a pre-existing home with other files in it survives.
+  rmdir "$out" 2>/dev/null || :
   printf 'refusing: %s carried a findings-file marker, which would offer it to the fix pass. Every stub this run wrote has been removed.\n' \
     "$violation" >&2
   exit 4
