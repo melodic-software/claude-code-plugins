@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for report-path.sh — the keyed `--write` report path.
+# Regression tests for report-path.sh, the keyed `--write` report path.
 #
 # Coverage:
 #   - two repositories, same date -> distinct report paths (the collision fixed)
@@ -32,7 +32,7 @@ DATA="$TEST_TMPDIR/plugindata"
 mkdir -p "$DATA"
 DATE="2026-09-07"
 
-# Inline test helpers — self-contained, no external test lib (ships with the plugin).
+# Inline test helpers, self-contained with no external test lib (ships with the plugin).
 FAILED=0
 CASE_NUM=0
 pass() {
@@ -41,7 +41,7 @@ pass() {
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
+  printf 'FAIL: [%d] %s: expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
   FAILED=$((FAILED + 1))
 }
 assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }

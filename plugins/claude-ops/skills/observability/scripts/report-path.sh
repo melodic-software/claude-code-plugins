@@ -7,9 +7,9 @@
 # written to `reports/claude-observability-<date>.md`, which is one file per
 # MACHINE per day: every project the operator ran the skill in on that date
 # wrote the same path, and the last run silently replaced the others. The
-# report is project-local by construction — its source is the hook event log
+# report is project-local by construction: its source is the hook event log
 # under the project-relative `session_event_log_dir` (default
-# `.observability/claude`) — so the path has to carry project identity.
+# `.observability/claude`), so the path has to carry project identity.
 #
 # The key is lib/state-key.sh, the scheme defined by
 # docs/conventions/plugin-data-report-keying/ rule 1:
@@ -21,7 +21,7 @@
 # checkout, so two worktrees of one repository produce two different reports
 # and must not share a path.
 #
-# Rule 3 — a report written under the old unkeyed layout has no project
+# Rule 3: a report written under the old unkeyed layout has no project
 # segment, so nothing records which repository produced it. This script names
 # such a leftover on stderr and never reads, moves, or derives from it.
 #
@@ -43,7 +43,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-report-path.sh — resolve the keyed `--write` report path for /claude-ops:observability.
+report-path.sh: resolve the keyed `--write` report path for /claude-ops:observability.
 
 Prints ${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md
 
@@ -130,7 +130,7 @@ DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/claude-ops}"
 COMPONENT_DIR="$DATA_DIR/reports"
 REPORT_DIR="$COMPONENT_DIR/$STATE_KEY"
 
-# Rule 3 — name the unattributable leftovers, read none of them.
+# Rule 3: name the unattributable leftovers, read none of them.
 if [[ -d "$COMPONENT_DIR" ]]; then
   for legacy in "$COMPONENT_DIR"/claude-observability-*.md; do
     [[ -f "$legacy" ]] || continue

@@ -78,7 +78,7 @@ else
   done
 fi
 
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" || exit 2
 
 if [[ $PRINT_ONLY -eq 1 ]]; then
   printf '%s\n' "$OUT_DIR"

@@ -245,5 +245,15 @@ assert_not_contains "an underivable state key prints no unkeyed path" "$FAKE_OUT
 RC=$?
 assert_exit "an unknown argument exits 2" 2 "$RC"
 
+# mkdir failure is checked, not swallowed. Point CLAUDE_PLUGIN_DATA at a
+# regular file, so the resolved output directory cannot be created: mkdir -p
+# fails, and --print-output-dir must not print a directory it never made.
+BLOCKED_FILE="$TEST_TMPDIR/plugin-data-is-a-file"
+: >"$BLOCKED_FILE"
+BLOCKED_OUT=$(cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$BLOCKED_FILE" bash "$SCRIPT" --print-output-dir 2>/dev/null)
+RC=$?
+assert_exit "an uncreatable output directory exits 2" 2 "$RC"
+assert_eq "an uncreatable output directory prints no path" "" "$BLOCKED_OUT"
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."
