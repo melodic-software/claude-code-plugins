@@ -3,6 +3,27 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2]
+
+### Fixed
+
+- **`audit-enforceability`:** the stub-home fence refuses a non-ASCII case variant of a fenced
+  directory that does not exist yet. The device-and-inode walk added in `0.27.1` is gated on the
+  ancestor existing, so with the scan directory absent an ASCII-only string fold decided alone and
+  `RÉVIEWS` against `réviews` was one directory it called two, at exit 0. The fences now compare a
+  spelling fold that is deliberately coarser than any filesystem's (ASCII letters fold to upper
+  case, every non-ASCII run folds to one placeholder) for the unresolved tail, after the inode
+  walk has settled the part of the chain that exists. Distinct inodes are not folded together, so
+  two existing siblings that only collide under that placeholder (`révu` and `rêvu`) stay two
+  directories. Nothing is created to decide a refusal. The `--memory-root` containment check keeps
+  the strict predicate and keeps failing closed when the root is absent.
+- **`audit-enforceability`:** the exit-4 rollback removes every directory level the run created,
+  not only the innermost, so a home `mkdir -p` created two levels deep no longer leaves an empty
+  parent behind. A level that already existed is still never removed.
+- **`audit-enforceability`:** the writer's own header names `type: enforceability-stub` as the
+  load-bearing exclusion. The absent `branch:` key is not: an unanchored `branch:` search matches
+  every stub through the `source-branch:` key each one carries.
+
 ## [0.27.1]
 
 ### Fixed
