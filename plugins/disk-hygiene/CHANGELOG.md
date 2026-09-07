@@ -3,6 +3,38 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- **The PowerShell engine-gate entry carries `if` filters, matching the Bash entry's
+  `Bash(*hygiene.py*)`.** Every PowerShell tool call in every session was still launching the
+  guard to be told it was irrelevant: on a warm interpreter cache that is four `execve` calls
+  (`bash -c`, the launcher through its `env` shebang, bash, the interpreter) and a 106 KB module
+  import, counted with `strace -f`. The harness now evaluates the filters before spawning
+  anything, so a PowerShell call that does not name the engine and does not invoke an interpreter
+  or call-operator through a variable costs this plugin no process. The 0.21.4 note that a
+  PowerShell filter "must match every subcommand of a compound command" described allow rules,
+  not `if`: the harness evaluates `if` through the tool's own permission matcher, and the
+  PowerShell tool's parses the command AST and runs the hook when any statement, pipeline
+  element or nested command matches (verified in Claude Code 2.1.258's
+  `preparePermissionMatcher`: `some` over every collected command, case-insensitive glob; an
+  unparsable command runs the hook). A mixed line such as `Get-Date; python hygiene.py`
+  therefore still reaches the guard and is still denied on the PowerShell lane, as are the `|`,
+  `&&`, newline, CR LF and U+2028 forms. The assignment
+  `$script = '.../hygiene.py'; python $script scan` is the shape a single
+  `PowerShell(*hygiene.py*)` filter misses: the matcher evaluates collected command nodes, so
+  the literal path lives in the assignment and is not part of the later `python $script`
+  command. Sibling filters `PowerShell(*python*$*)` and `PowerShell(*& $*)` keep that
+  invocation, and the call-operator form `& $script`, on the guard. No allow/deny decision
+  changes for a call that reaches the guard. Residuals the filters still cannot see: an engine
+  reached without its file name in any command node and without an interpreter or call-operator
+  variable (a symlink or hard link under another name, a Win32 8.3 short name), which the Bash
+  lane has accepted since 0.21.4; text the PowerShell parser assigns to no command (a comment
+  naming the engine). The launcher's contract suite gains a kernel-level spawn census
+  (`strace -f`, skipped where unavailable). The README's hook-budget accounting records the
+  before and after census.
+
 ## [0.23.0]
 
 ### Added
