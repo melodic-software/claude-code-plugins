@@ -25,7 +25,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/report-path.sh"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -119,7 +118,7 @@ assert_contains "a non-repository keys on the nonrepo rung" "$PATH_PD" "/reports
 mkdir -p "$DATA/reports"
 LEGACY="$DATA/reports/claude-observability-$DATE.md"
 printf 'stale report from an unknown project\n' >"$LEGACY"
-STDERR_OUT=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "$DATE" >/dev/null) 2>&1 )
+STDERR_OUT=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "$DATE" >/dev/null) 2>&1)
 assert_contains "an unkeyed leftover is named on stderr" "$STDERR_OUT" "$LEGACY"
 PATH_A_WITH_LEGACY=$(resolve "$TEST_TMPDIR/repo-a")
 assert_eq "the leftover does not become the resolved path" "$PATH_A" "$PATH_A_WITH_LEGACY"
@@ -139,13 +138,13 @@ FAKE="$TEST_TMPDIR/fake-plugin"
 mkdir -p "$FAKE/lib" "$FAKE/skills/observability/scripts"
 cp "$SCRIPT" "$FAKE/skills/observability/scripts/report-path.sh"
 printf '#!/usr/bin/env bash\necho "ERROR: no hash tool" >&2\nexit 2\n' >"$FAKE/lib/state-key.sh"
-OUT_F=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$FAKE/skills/observability/scripts/report-path.sh" --date "$DATE") 2>&1 )
+OUT_F=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$FAKE/skills/observability/scripts/report-path.sh" --date "$DATE") 2>&1)
 RC=$?
 assert_exit "an underivable state key exits 2" 2 "$RC"
 assert_not_contains "an underivable state key prints no unkeyed path" "$OUT_F" "$DATA/reports/claude-observability"
 
 # --- Case group 9: --date is validated as a filename component ---
-OUT_D=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "../../../etc/passwd") 2>&1 )
+OUT_D=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "../../../etc/passwd") 2>&1)
 RC=$?
 assert_exit "a traversal --date is refused" 2 "$RC"
 assert_contains "the refusal names the offending value" "$OUT_D" "YYYY-MM-DD"

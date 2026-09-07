@@ -222,7 +222,7 @@ assert_eq "repo-a is served its own registry rows, not repo-b's" "111 " "$A_ROWS
 # An unkeyed leftover from the older layout is NAMED and never read.
 LEGACY_DIR="$KEY_DATA/check-all-output"
 printf '999\texample/legacy\topen\n' >"$LEGACY_DIR/registry-snapshot.tsv"
-LEGACY_ERR=$( (cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$KEY_DATA" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" >/dev/null) 2>&1 )
+LEGACY_ERR=$( (cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$KEY_DATA" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" >/dev/null) 2>&1)
 assert_contains "an unkeyed leftover is named on stderr" "$LEGACY_ERR" "$LEGACY_DIR/registry-snapshot.tsv"
 A_ROWS_AFTER=$(tail -n +2 "$DIR_A/check-all-results.tsv" | cut -f1 | tr '\n' ' ')
 assert_eq "the unkeyed leftover is not read" "111 " "$A_ROWS_AFTER"
@@ -235,7 +235,7 @@ FAKE="$TEST_TMPDIR/fake-plugin"
 mkdir -p "$FAKE/lib" "$FAKE/skills/known-issues/scripts"
 cp "$SCRIPT" "$FAKE/skills/known-issues/scripts/check-all.sh"
 printf '#!/usr/bin/env bash\necho "ERROR: no hash tool" >&2\nexit 2\n' >"$FAKE/lib/state-key.sh"
-FAKE_OUT=$( (cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$KEY_DATA" bash "$FAKE/skills/known-issues/scripts/check-all.sh" --print-output-dir) 2>&1 )
+FAKE_OUT=$( (cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$KEY_DATA" bash "$FAKE/skills/known-issues/scripts/check-all.sh" --print-output-dir) 2>&1)
 RC=$?
 assert_exit "an underivable state key exits 2" 2 "$RC"
 assert_not_contains "an underivable state key prints no unkeyed path" "$FAKE_OUT" "$LEGACY_DIR"
