@@ -48,7 +48,7 @@ Usage:
     scripts/check-code-metrics-config-reference.py --defaults FILE --doc FILE
 
 Exit codes: 0 clean, 1 the two surfaces disagree, 2 the gate could not run
-(fail closed: a missing file, unparseable JSON, or no table under `## Keys`).
+(fail closed: a missing file, unparsable JSON, or no table under `## Keys`).
 """
 
 from __future__ import annotations

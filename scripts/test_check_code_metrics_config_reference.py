@@ -147,7 +147,7 @@ class MarkdownSignificantValueTests(GateHarness):
     """A default carrying `|`, a backtick, or a newline.
 
     A pipe ends a table cell even inside a code span, so a gate that compared
-    a naively written cell would either mis-read the row or clear a document
+    a naively written cell would either misread the row or clear a document
     that renders broken. Each case is pinned here.
     """
 
