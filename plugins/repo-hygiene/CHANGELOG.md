@@ -3,6 +3,44 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.36]
+
+### Added
+
+- `clean`: a `LOSSY` verdict tier, "deletable, and deleting it loses work", distinct from both
+  SAFE/LIKELY-SAFE and REVIEW. `git-branch-audit.sh` reports a `Loss:` line per branch, the
+  commits reachable from no remote-tracking ref and no tag (`git rev-list <branch> --not
+  --remotes --tags`; another local branch is deliberately not a place the work persists), and
+  refines a REVIEW verdict into LOSSY only when the tip resolved, `origin/<default>` is present,
+  the count succeeded and is positive, and the PR state is neither MERGED (a squash makes the
+  count overstate the loss) nor OPEN (an active claim on the branch). Every missing or failed
+  signal yields `Loss: undetermined (<why>)` and REVIEW; SAFE and LIKELY-SAFE are computed
+  exactly as before and carry `Loss: not assessed`, so the tier can only widen what an operator
+  must confirm. The audit prints the LOSSY set again as its own block, `LossBlock:` through
+  `LossBlockEnd:`, one `LossBranch:` per branch with the `LossCommit:` lines it would lose
+  (capped at `CLEAN_LOSS_COMMITS_SHOWN`, default 10, the remainder counted), and the `Summary:`
+  line gains `lossy=`. The skill presents that block as its own section immediately before the
+  deletion confirmation, never only as a column, and takes a separate affirmative answer for it.
+- `clean`: `git-branch-delete.sh --accept-loss` admits LOSSY branches; without it a batch that
+  carries one is refused whole, deleting nothing, so a "yes" to the SAFE set cannot carry a lossy
+  branch through. `--force-review` does not admit LOSSY and `--accept-loss` does not admit
+  REVIEW. A LOSSY branch's `Planned:` line restates the live loss count. The delete path also
+  recomputes live remote/tag reachability for every captured non-LOSSY row: a prune or a
+  deleted tag can make a REVIEW-with-Loss-none or LIKELY-SAFE branch lose work without moving
+  its tip, and that batch is refused until a fresh audit names LOSSY (OPEN and MERGED PR rows
+  stay REVIEW, matching the audit). The tests reproduce the recorded near-miss (a never-pushed
+  branch offered beside a SAFE one on the SAFE confirmation is refused with the SAFE sibling
+  untouched) and delete a LOSSY branch end to end through the script: pinned, ledgered with its
+  tier, restored from the capture after `gc --prune=now` with its content intact. Refs #3854,
+  the second half of #3346 gap G1.
+
+### Changed
+
+- `clean`: never-pushed and upstream-gone branches that carry commits present nowhere else, and
+  branches ahead of a live upstream or behind a closed PR, now classify LOSSY instead of REVIEW;
+  their `Reason:` text is unchanged. The `Tier:` value reaches the tip capture, so a capture
+  taken by this version names LOSSY rows the delete script gates on `--accept-loss`.
+
 ## [0.10.35]
 
 ### Added
