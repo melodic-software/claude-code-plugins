@@ -4533,6 +4533,34 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertEqual("contested", container_verdict["verdict"])
             self.assertIn("consumer-protected-path", container_verdict["reasons"])
 
+    def test_container_survives_the_verify_one_delete_one_sequence(self) -> None:
+        # The manual lane deletes one approved path at a time, so a later
+        # re-verify sees the container already missing an earlier one. That is
+        # progress toward emptiness, not drift — and the container is held to
+        # object identity, not stat identity, because every child removal
+        # changes its mtime and size.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "first.tmp").write_text("stale", encoding="utf-8")
+            (container / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (container / "first.tmp").unlink()  # manual-lane deletion
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/first.tmp", "outer/second.tmp"]
+                )
+            self.assertEqual(
+                ["gone", "clear"],
+                [item["verdict"] for item in result["verdicts"]],
+            )
+            self.assertEqual(
+                [{"path": "outer", "verdict": "clear", "reasons": []}],
+                result["emptied_containers"],
+            )
+
     def test_container_order_is_the_apply_lane_removal_order(self) -> None:
         # Both lanes must derive container order from the same rule: the apply
         # lane's bottom-up removal order, restricted to directories, is exactly

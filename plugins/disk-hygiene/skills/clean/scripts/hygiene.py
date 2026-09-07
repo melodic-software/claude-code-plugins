@@ -2981,9 +2981,15 @@ def verify_emptied_container(
         except (OSError, HygieneError):
             contested.add("filesystem-state-unverified")
         else:
-            if current_paths != expected_paths:
+            if current_paths - expected_paths:
                 # Anything live that the snapshot did not record survives the
                 # approved removals, so this container does not become empty.
+                # Only the surplus matters, not exact equality: the manual lane
+                # deletes one approved path at a time, so by the time a later
+                # path is verified the container is legitimately missing the
+                # earlier ones. An inventoried child that was replaced rather
+                # than removed is caught by that child's own approved-path
+                # verdict, which then keeps it out of the settled set.
                 drifted.add("changed-since-scan")
         try:
             vcs = tracked_blocker(path, target)
