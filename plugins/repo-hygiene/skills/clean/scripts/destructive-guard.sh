@@ -8,6 +8,10 @@
 # assignment that takes effect for the command it prefixes:
 #   Bash tool:        CLEAN_GUARD_ACK=1 <command>
 #   PowerShell tool:  $env:CLEAN_GUARD_ACK=1; <command>
+# Each spelling is accepted only on the tool that runs it, and only that tool.
+# Any other `tool_name`, including a missing one, gets no acknowledgement path:
+# the guard still blocks, it just offers nothing to unblock with. A third shell
+# tool has to be added to the dispatch deliberately before it gets an ack.
 #
 # Usage: destructive-guard.sh [--help]   (normally invoked by the hook runner
 #        with PreToolUse JSON on stdin)
@@ -24,7 +28,7 @@
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 fi
 
@@ -90,18 +94,29 @@ TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)"
 # text and does not count. The other tool's spelling is rejected too: PowerShell
 # cannot run `CLEAN_GUARD_ACK=1 <cmd>` at all, and Bash treats
 # `$env:CLEAN_GUARD_ACK=1;` as a failed command lookup and runs <cmd> anyway.
+#
+# The dispatch is default-deny on `tool_name`: each spelling is bound to the one
+# tool whose shell evaluates it, and an unrecognized, empty, or absent tool falls
+# through to no ack at all. Matching on "not PowerShell" instead would hand the
+# Bash spelling to every future tool by default, which is a grant nobody chose.
 is_acknowledged() {
   local cmd="$1" tool="$2"
-  if [[ "$tool" == "PowerShell" ]]; then
+  case "$tool" in
+  Bash)
+    [[ "$cmd" == CLEAN_GUARD_ACK=1\ * ]]
+    ;;
+  PowerShell)
     # Optional leading whitespace, `$env:CLEAN_GUARD_ACK`, `=`, the value 1
     # (bare or quoted), then the `;` that ends the statement. Nothing else
     # may come before it.
     # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
     local ps_ack_re='^[[:space:]]*\$env:CLEAN_GUARD_ACK[[:space:]]*=[[:space:]]*(1|'"'"'1'"'"'|"1")[[:space:]]*;'
     [[ "$cmd" =~ $ps_ack_re ]]
-    return
-  fi
-  [[ "$cmd" == CLEAN_GUARD_ACK=1\ * ]]
+    ;;
+  *)
+    return 1
+    ;;
+  esac
 }
 
 if is_acknowledged "$CMD" "$TOOL"; then
@@ -109,13 +124,20 @@ if is_acknowledged "$CMD" "$TOOL"; then
 fi
 
 if is_destructive "$CMD"; then
-  ack_form='CLEAN_GUARD_ACK=1 <command>'
   # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
-  [[ "$TOOL" == "PowerShell" ]] && ack_form='$env:CLEAN_GUARD_ACK=1; <command>'
+  case "$TOOL" in
+  Bash) ack_form='CLEAN_GUARD_ACK=1 <command>' ;;
+  PowerShell) ack_form='$env:CLEAN_GUARD_ACK=1; <command>' ;;
+  *) ack_form='' ;;
+  esac
   {
     echo "BLOCKED by the clean skill's destructive guard (session-scoped skill hook)."
     echo "Destructive commands during a clean run go ONLY through the skill's dry-run -> user-confirmation gate."
-    echo "After the user has explicitly confirmed, re-issue with the acknowledgement prefix for this tool: $ack_form"
+    if [[ -n "$ack_form" ]]; then
+      echo "After the user has explicitly confirmed, re-issue with the acknowledgement prefix for this tool: $ack_form"
+    else
+      echo "This tool has no acknowledgement path, so there is nothing to re-issue with here. Run the confirmed command through the Bash or PowerShell tool instead."
+    fi
   } >&2
   exit 2
 fi

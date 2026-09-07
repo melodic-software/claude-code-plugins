@@ -20,6 +20,18 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   short of the kill switch. Each spelling counts only on its own tool and only as the leading
   statement with the literal value `1`: the token inside a comment or a quoted string, after the
   destructive command, in a later pipeline segment, or with any other value does not unblock.
+  The tool dispatch is default-deny: the Bash prefix is accepted only when `tool_name` is exactly
+  `Bash`, the `$env:` spelling only when it is exactly `PowerShell`, and any other or missing
+  `tool_name` gets no acknowledgement path at all. Blocking is unchanged for every tool, so this
+  closes no live bypass. It removes a grant nobody chose: written as "anything that is not
+  PowerShell", the dispatch would hand the Bash prefix to a third shell tool added later, before
+  anyone decided that tool should have an unblock. The block reason for such a tool now says
+  there is no acknowledgement path instead of naming a spelling the tool cannot honour.
+- The `clean` skill's documented PowerShell stash drop quotes the `stash@{n}` selector. Bare, pwsh
+  reads `@{…}` as splatting syntax and git receives a mangled argument, reporting
+  ``unknown switch `e'`` and dropping nothing, so the documented example did not do what it said.
+  The acknowledgement itself always propagated correctly; only the selector needed quoting, and
+  only on the PowerShell lane. Bash is unchanged.
 - Both audit scripts stop truncating the pull-request lookup at 200 and stop swallowing its
   failures. `git-branch-audit.sh` and `git-stash-audit.sh` now share one `clean_pr_map` helper
   that raises the cap, detects truncation by comparing the returned count against the requested
