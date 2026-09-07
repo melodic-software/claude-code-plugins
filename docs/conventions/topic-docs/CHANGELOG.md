@@ -1,6 +1,6 @@
 # Changelog — topic-docs convention
 
-## 3.2.0 — 2026-09-06
+## 3.2.0 — 2026-09-07
 
 Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,
 the slug spec is unchanged, and no visibility guarantee an implementer may rely on changes. One
