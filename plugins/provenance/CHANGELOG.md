@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.7]
+
+### Fixed
+
+- **`audit`:** the skill published one spelling of the neutral tier and described another.
+  `SKILL.md`'s frontmatter listed the tier as `source-not-identified`; the rubric, the
+  dispositions and source-fetch references, `context/persist-findings.md`, the plugin README and
+  the script's own prose all say `not-found`. `SKILL.md` now says `not-found` too, so one name is
+  published. `emit-findings.sh` still recognizes both spellings, deliberately and permanently: a
+  sidecar is model-authored against whatever description was in context, and recognizing one name
+  too many can only withhold a record, while one too few walks a judgment verdict onto a relay
+  row. The comments beside the two predicates and the tests that exercise both spellings now say
+  the tolerance covers a retired name rather than a currently published one.
+- **`audit`:** the comment introducing the stamp-rule relay exception in `emit-findings.sh`
+  claimed "ONE exception" where the code has two. `withheld_verdict` is evaluated before any rule
+  id is read, so `{"rule": "rule-stamp-expired", "verdict": "not-found"}` is withheld on the
+  judgment-verdict check and never reaches the unreadable-`tier` predicate the comment described.
+  The comment now names both conditions and states which runs first;
+  `context/persist-findings.md` gets the same correction, since it framed the same claim as a
+  single exception. No behavior changed: the classification chain is untouched, and the case the
+  comment miscounted was already correct, withholding a record that declared a judgment verdict.
+  `emit-findings.test.sh` gains a case pinning it, asserting zero relay rows, the withheld count
+  rather than the not-relay-eligible count, and no payload leak.
+
+### Changed
+
+- **`audit`:** `context/persist-findings.md` states the normalization mechanism before the motive
+  it approximates, rather than framing rendering-equivalence as a goal and then carving out the
+  homoglyph exception. The limit is unchanged and still stated.
+
 ## [0.5.6]
 
 ### Changed

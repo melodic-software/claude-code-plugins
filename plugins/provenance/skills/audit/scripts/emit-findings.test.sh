@@ -883,13 +883,15 @@ for gs in verdict-searched verdict-cased-searched tier-object-searched \
     "$(cat "$GO")" "1 judgment"
 done
 
-# --- The neutral outcome under the name SKILL.md publishes ------------------------
+# --- The neutral outcome under the retired spelling -------------------------------
 #
-# `SKILL.md` publishes the neutral tier as `source-not-identified` while this file
-# elsewhere calls it `not-found`. The sidecar is model-authored against that
-# description, so a reader that knows one spelling relays the other. Recognizing one
-# name too many can only withhold a record; one too few walks a judgment verdict
-# onto a relay row.
+# Every prose surface of this skill, `SKILL.md` included, now publishes the neutral
+# tier as `not-found`. `source-not-identified` is the name `SKILL.md` published before
+# that reconciliation, and the reader still recognizes it: a sidecar is model-authored
+# against whatever description was in context, so a reader that knows one spelling
+# relays the other. Recognizing one name too many can only withhold a record; one too
+# few walks a judgment verdict onto a relay row. These cases pin the tolerance, which
+# is permanent and must not be narrowed to a single name.
 write_report neutral-published-name.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "sn.md",
@@ -1455,6 +1457,30 @@ assert_eq "a stamp rule with a benign verdict still relays" \
   "$(grep -c '^| [0-9]' "$SBV")" "1"
 assert_not_contains "and is not counted as ineligible" \
   "$(cat "$SBV")" "Not relay-eligible"
+
+# The OTHER condition that stops a stamp record short of the relay, and the one
+# evaluated FIRST. A stamp record with no `tier` field at all, whose `verdict` names a
+# judgment verdict, is withheld on the judgment-verdict check before the unreadable-
+# tier predicate is ever consulted. It is counted as WITHHELD, not as not-relay-
+# eligible, which is how the two conditions are told apart from the outside. The
+# behavior is correct and load-bearing: the record declared a judgment verdict.
+write_report stamp-verdict-names-judgment.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "svj.md",
+                "line": 1, "verdict": "not-found", "excerpt": "SVJCANARY",
+                "stamp_date": "2020-01-01", "window_days": 90, "days_over": 5,
+                "searched": ["https://svj.example/u"]}]
+}'
+SVJ="$OUTDIR/stamp-verdict-names-judgment.md"
+run --report "$REPORTS/stamp-verdict-names-judgment.json" --out "$SVJ" >/dev/null 2>&1
+SVJ_BODY="$(cat "$SVJ")"
+assert_eq "a stamp rule whose verdict names a judgment verdict emits no relay row" \
+  "$(grep -c '^| [0-9]' "$SVJ")" "0"
+assert_contains "and it is counted as withheld, not as ineligible" \
+  "$SVJ_BODY" "Withheld from the relay: 1 judgment"
+assert_not_contains "and it takes the withheld path, not the unreadable-tier path" \
+  "$SVJ_BODY" "Not relay-eligible"
+assert_not_contains "and it leaks no payload" "$SVJ_BODY" "SVJCANARY"
 
 # A stamp rule declaring no tier at all is the common case and relays.
 write_report stamp-no-tier.json '{

@@ -249,11 +249,13 @@ def norm:
 # `## Unparsed`. "Every string anywhere inside" has to mean every string.
 def names_in:
   [ .[] | .. | (strings, (objects | keys[])) | norm ];
-# `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
-# this file elsewhere calls `not-found`. Both are recognized, because the sidecar is
-# written against that description and a name this reader does not know is a verdict
-# that walks into the relay. Recognizing one name too many can only withhold a
-# record; recognizing one too few relays a judgment verdict.
+# `not-found` is the one spelling every prose surface of this skill now publishes for
+# the neutral outcome, SKILL.md included. `source-not-identified` is the spelling
+# SKILL.md published before that reconciliation, and it stays recognized here: a
+# sidecar is model-authored against whatever description was in context, and a name
+# this reader does not know is a verdict that walks into the relay. Recognizing one
+# name too many can only withhold a record; recognizing one too few relays a judgment
+# verdict. Do not narrow this to one name.
 def is_verdict_name:
   . == "source-fetched-similar" or . == "llm-suspected"
   or . == "not-found" or . == "source-not-identified";
@@ -280,17 +282,27 @@ def declares_not_found:
 def declares_confirmed:
   declares("fingerprint-confirmed");
 # A stamp rule fires on a date arithmetic that owes the tier nothing, so it relays
-# whatever the record does or does not declare — with ONE exception. When the record
-# declares a tier in its OWN `tier` field and that field names no tier this reader
-# knows, the declaration is uninterpretable, and relaying on it hands the apply relay
-# a record whose own verdict this producer cannot read. `"tier": "nоt-found"` with a
-# Cyrillic o is the case that matters: a homoglyph past the dash class, which the
-# stated limit says takes the ordinary path rather than the relay.
+# whatever the record does or does not declare — with TWO exceptions, and the one
+# below is the second of them to be evaluated.
 #
-# Scoped to the `tier` field, NOT to the verdict fallback. A stamp finding carrying
-# `"verdict": {"reviewed_by": "alice"}` has declared no tier and must still relay;
-# withholding it would be this fix committing the over-capture the whole boundary
-# exists to avoid.
+# FIRST, in the classification chain: `withheld_verdict` is tested before any rule id
+# is looked at, so a stamp record that declares a judgment verdict is withheld there
+# and never reaches this predicate. `{"rule": "rule-stamp-expired", "verdict":
+# "not-found"}` declares no `tier` at all, yet the verdict fallback reads that name
+# and withholds the record. That is the boundary doing its job, not a hole: the record
+# declared a judgment verdict.
+#
+# SECOND, here. When the record declares a tier in its OWN `tier` field and that field
+# names no tier this reader knows, the declaration is uninterpretable, and relaying on
+# it hands the apply relay a record whose own verdict this producer cannot read.
+# `"tier": "nоt-found"` with a Cyrillic o is the case that matters: a homoglyph past
+# the dash class, which the stated limit says takes the ordinary path rather than the
+# relay.
+#
+# This second exception is scoped to the `tier` field, NOT to the verdict fallback. A
+# stamp finding carrying `"verdict": {"reviewed_by": "alice"}` names no verdict and
+# declares no tier, so it passes both exceptions and must still relay; withholding it
+# would be this fix committing the over-capture the whole boundary exists to avoid.
 def own_tier_unreadable:
   ([ tier_slot ] | names_in) as $own
   | ($own | length) > 0 and ($own | any(is_tier_name) | not);
