@@ -145,21 +145,44 @@ for name in "${REGISTERED[@]}"; do
   [[ -f "$HOOK_DIR/$name" ]] || bad "registered script missing from hooks/: $name"
 done
 
+# exit_trap_hits <file>: lines that install an EXIT trap (or signal 0). First
+# stage finds a `trap` statement; second stage requires the EXIT/0 token to be
+# bounded on the right by whitespace, end-of-line, or a statement terminator
+# (`;`, `&`, `|`, `)`). The terminator class is required: a one-liner such as
+# `if cond; then trap cleanup EXIT; fi` has EXIT immediately followed by `;`,
+# and a trailing-space-or-EOL-only boundary would drop that line from hits.
+# Comment lines are skipped; a `trap` naming only other signals is not a hit.
+exit_trap_hits() {
+  grep -nE '^[^#]*(^|[;&|{(]|then|do|else)[[:space:]]*trap[[:space:]]' "$1" |
+    grep -E '(^|[[:space:]])(EXIT|0)([[:space:];&|)]|$)' || true
+}
+
 # assert_no_exit_trap <label> <file>: bash holds ONE EXIT trap per shell. A
 # hook, or a library it sources, that runs its own `trap ... EXIT` (or
 # `trap - EXIT`) after the install line replaces the boundary, and that hook
 # is back to the silent abort this suite exists to rule out: rc 1, nothing
-# written, no signal at run time. Comment lines are skipped; a `trap` naming
-# only other signals is fine. abort-boundary.sh is the one file allowed to
+# written, no signal at run time. abort-boundary.sh is the one file allowed to
 # touch it, and its header names the supported way to chain exit-time work.
 assert_no_exit_trap() {
   local label="$1" file="$2" hits
-  hits=$(grep -nE '^[^#]*(^|[;&|{(]|then|do|else)[[:space:]]*trap[[:space:]]' "$file" |
-    grep -E '(^|[[:space:]])(EXIT|0)([[:space:]]|$)' || true)
+  hits=$(exit_trap_hits "$file")
   if [[ -z "$hits" ]]; then
     ok "$label installs no EXIT trap of its own (the boundary stays in force)"
   else
     bad "$label installs its own EXIT trap, which replaces the abort boundary: ${hits//$'\n'/; }"
+  fi
+}
+
+# assert_exit_trap_detected <label> <file>: the detector must flag this file.
+# Used on fixtures, not on shipped hooks: a miss here is the silent-exclusion
+# hole (a competing trap that this suite would have called a pass).
+assert_exit_trap_detected() {
+  local label="$1" file="$2" hits
+  hits=$(exit_trap_hits "$file")
+  if [[ -n "$hits" ]]; then
+    ok "$label is detected as an EXIT trap"
+  else
+    bad "$label was not detected as an EXIT trap"
   fi
 }
 
@@ -189,6 +212,30 @@ done
 for lib in "${SOURCED_LIBS[@]}"; do
   assert_no_exit_trap "$lib" "$PLUGIN_DIR/$lib"
 done
+
+# Fixtures: the detector flags a competing EXIT trap terminated by `;` (and
+# the other statement terminators in the trailing-boundary class). A miss on
+# the then-fi one-liner is the hole: first-stage matches `then trap`, second
+# stage used to demand whitespace or EOL after EXIT and dropped the line.
+TRAP_FIXTURE="$TEST_TMPDIR/trap-fixtures"
+mkdir -p "$TRAP_FIXTURE"
+printf 'if true; then trap cleanup EXIT; fi\n' >"$TRAP_FIXTURE/semicolon-if.sh"
+printf 'trap cleanup EXIT; rm -f "$tmp"\n' >"$TRAP_FIXTURE/semicolon-seq.sh"
+printf 'trap cleanup EXIT&\n' >"$TRAP_FIXTURE/ampersand.sh"
+printf 'trap cleanup EXIT|true\n' >"$TRAP_FIXTURE/pipe.sh"
+printf '(trap cleanup EXIT)\n' >"$TRAP_FIXTURE/paren.sh"
+printf 'trap cleanup INT\n' >"$TRAP_FIXTURE/other-signal.sh"
+assert_exit_trap_detected "semicolon-terminated trap in then-fi" \
+  "$TRAP_FIXTURE/semicolon-if.sh"
+assert_exit_trap_detected "semicolon-terminated trap before next command" \
+  "$TRAP_FIXTURE/semicolon-seq.sh"
+assert_exit_trap_detected "ampersand-terminated EXIT trap" \
+  "$TRAP_FIXTURE/ampersand.sh"
+assert_exit_trap_detected "pipe-terminated EXIT trap" \
+  "$TRAP_FIXTURE/pipe.sh"
+assert_exit_trap_detected "paren-terminated EXIT trap" \
+  "$TRAP_FIXTURE/paren.sh"
+assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 
 # The dispatcher names the event by looking `.hook_event_name` up in its
 # primed filters, so the filter has to be there. (A positional index once put
