@@ -1,5 +1,13 @@
 # Preflight: proving the fan-out inherits
 
+**Every harness claim in this file was verified 2026-09-06 against Claude Code 2.1.263**, reading
+<https://code.claude.com/docs/en/sub-agents> and <https://code.claude.com/docs/en/env-vars> as
+fetched that day. Recheck trigger: either page stops carrying a quoted span below, either page
+states a different fork-mode default, or a release note names fork mode, subagent tool filtering,
+or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork claims in
+[`../SKILL.md`](../SKILL.md) and [`batched-pass.md`](batched-pass.md), which cite it rather than
+repeating it.
+
 What [`../SKILL.md`](../SKILL.md) runs before step 1 of a full-batch pass, to establish rather than
 assume that its subagents inherit this conversation. A batched pass whose members inherited nothing
 has nothing to audit, and some share of them will invent a ledger instead of saying so. Session-start
@@ -25,12 +33,15 @@ branch is conclusive in either direction. It explains what stage 2 finds; it
 never replaces stage 2 and never aborts on its own.
 
 **Stage 1b. Explicit fork-off short-circuit (zero dispatch).** When
-`CLAUDE_CODE_FORK_SUBAGENT` is explicitly `0`, fork-spawning is documented as
-disabled "overriding any server-side rollout"
+`CLAUDE_CODE_FORK_SUBAGENT` is explicitly `0`, fork mode is documented as off
+"in every kind of session"
 (<https://code.claude.com/docs/en/env-vars>). Do not dispatch the canary or any
-member. Take the degrade path immediately (below). When the variable is unset
-or explicitly `1`, fork mode may still be off at runtime (staged rollout,
-harness version, or dispatch error); stage 2 is the authoritative test.
+member. Take the degrade path immediately (below). When the variable is unset,
+the documented default is on in interactive sessions and off in non-interactive
+mode and the Agent SDK, and the interactive default needs Claude Code v2.1.232
+or later. A default is not a runtime guarantee, and neither is an explicit `1`,
+so in every case but the explicit `0` above stage 2 remains the authoritative
+test.
 
 **Stage 2, an inheritance-proof canary. The decider, and it costs one fork.**
 Dispatch ONE fork alone, ahead of the first wave, that answers the proof

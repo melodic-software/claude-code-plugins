@@ -3,7 +3,6 @@ description: "Run diff-scoped mutation analysis and report surviving mutants, th
 argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: test
   summary: Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged
@@ -127,12 +126,19 @@ cannot be run, and a check that cannot run is not a check.
    line reports "no coverage", which the coverage report already said more cheaply.
 3. Apply the arid-node suppression record per
    [`context/suppression.md`](context/suppression.md), which owns this plugin's read of the
-   finding-suppression contract. Three things that are easy to get wrong and are not optional:
-   an entry suppresses only when **all five** required keys are present and its stored constituents
-   hash to its own key; a **personal-layer entry the team layer does not carry does not suppress**
-   (this surface inverts the cascade default), and is reported `personal-only, not applied`; and
-   matching is by derived `finding_id`, never by bare file:line. Under `--no-suppress` nothing is
-   dropped and every entry that would have applied is marked as such.
+   finding-suppression contract. Grade every layer that exists before applying anything, with
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" <record> [<record> ...]`: it prints
+   `ok <finding_id>` or one of `malformed`, `mismatch`, `unknown-kind` per entry with what failed,
+   and exits 0 when every entry passes, 1 when any fails, and 2 when a record cannot be graded at
+   all. **Only an entry the lint reports `ok` suppresses.** Every other one carries the lint's own
+   line into Phase 5's did-not-apply section, which is where the malformed and stale-key entries
+   become visible rather than silently stopping suppressing. Three more things that are easy to get
+   wrong and are not optional: a **personal-layer entry the team layer does not carry does not
+   suppress** (this surface inverts the cascade default), and is reported
+   `personal-only, not applied`; matching is by derived `finding_id`, never by bare file:line; and a
+   layer the lint cannot grade is reported unreadable and the read continues, never failing whole.
+   Under `--no-suppress` nothing is dropped and every entry that would have applied is marked as
+   such.
 
    Entries are dispositioned **only when their anchored node is one this run generated a mutant
    for**. Inside the changed-line set from step 1, after the coverage drop in step 2. Anything else
@@ -200,14 +206,20 @@ either from inspection alone is exactly where this technique manufactures false 
 
 - **Equivalent** requires the demonstration: what was run, what was identical, and under which inputs.
 - **Arid** requires a complete proposed suppression entry, all five keys, id derived from them,
-  whose `claim` is `arid(kind=<node-kind>)` with `<node-kind>` drawn from the vocabulary enumerated in
-  the `principles` skill's
-  [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind
-  vocabulary", and whose `reason` names the behavior the suite deliberately
-  does not assert on. That same section owns the rule that **a survivor fitting no node kind is not arid**. "Killing this would not improve the suite" is a conclusion, not the evidence
-  for one. Aridity is the easier label to reach for, because its bar is otherwise a judgment about
-  value rather than about observable behavior, the node-kind membership test is what makes it
-  checkable rather than rhetorical.
+  whose `claim` is `arid(kind=<node-kind>)` and whose `reason` names the behavior the suite
+  deliberately does not assert on. **This context runs the lint over the proposal the subagent
+  returned**, piping it in so nothing is written:
+  `printf '%s\n' '<the proposed entry under a suppressions: mapping>' | bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" -`.
+  The check stays here rather than going out with the judgment because it is mechanical, the same
+  exemption [Phase 3](#phase-3--execute) states: there is no independence to buy from a derivation
+  that has one answer. The verdict is arid only when the lint reports `ok`; `malformed`, `mismatch`,
+  or `unknown-kind` makes it *unclassified*. The lint reads the kind vocabulary at run time from the `principles`
+  skill's [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The
+  node-kind vocabulary", which owns the rule that **a survivor fitting no node kind is not arid**.
+  "Killing this would not improve the suite" is a conclusion, not the evidence for one. Aridity is
+  the easier label to reach for, because its bar is otherwise a judgment about value rather than
+  about observable behavior, the node-kind membership test is what makes it checkable rather than
+  rhetorical, and running it is what makes it checked.
 
 **This bar lives here, at classification, rather than at persist time, so one survivor has ONE
 disposition.** Phase 5 reports and Phase 6 persists from the same classification, so an operator
@@ -299,7 +311,8 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 - **Record accepted arid mutants**. Append to `.claude/mutation-testing-arid.md` per
   [`context/suppression.md`](context/suppression.md). A complete entry carries all five required keys
   (`check`, `claim`, `sites`, `reason`, `date`) with the `finding_id` derived from the constituents,
-  never hand-written. The user accepts each entry; this skill proposes and never writes suppressions
+  never hand-written: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" <record>` over the
+  record the user accepted reports the derived id for any entry whose key is wrong. The user accepts each entry; this skill proposes and never writes suppressions
   unprompted, and writes only the **team** layer, a personal-layer entry would not suppress anything.
   An **equivalent** mutant is never recorded here; the convention's record is not for a finding that
   is simply wrong.

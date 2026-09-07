@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.8]
+
+### Changed
+
+- **boris:** the Model row is qualified as of the 2026-07-24 sync, with a re-sync trigger for Fable 5.1 tips (prompt-audit follow-up F13).
+- **model-adaptation/opus-5:** drop the citation to a probe record that exists nowhere in the repository, keeping the thinking-disable claim on the chapter's own dated session observation (prompt-audit follow-up F8).
+- Opus 5 chapter: dropped the parked exploration item and the deferred routing-lane decision, both maintainer work with no behavior for the reading model, and dropped the Sources bookkeeping sentence the live-fetch heading already carries (prompt-audit follow-up F2)
+- Model-adaptation chapters: the public-repo quotation rule now lives once in a nested AGENTS.md for the whole directory instead of a per-chapter note in the Opus 5 and Sonnet 5 files (prompt-audit follow-up F2)
+- Opus 5 and Opus 4.8 chapters: the residual-tension paragraph and the Opus 4.8 Sources stamp state the current rule and the last-confirmed date instead of narrating the authoring pipeline and its reading sessions (prompt-audit follow-up F2)
+- Opus 5 chapter: six ordinary words no longer set in full caps, so emphasis is not the register a reading model carries into its own output (prompt-audit follow-up F2)
+- fable-5: the cache-pricing stamp in context/orchestration.md is re-verified and gains a recheck trigger (prompt-audit follow-up F6)
+
 ## [0.9.7]
 
 ### Changed

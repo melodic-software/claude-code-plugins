@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.3]
+
+### Changed
+
+- Hook prompt text: drop the undated sibling-guard verification claim from the guard-launch-monitor warning (prompt-audit follow-up F2)
+- Dated the four harness-version claims in the clean skill and its safety model with a basis, a verification date, and a recheck trigger (prompt-audit follow-up F6)
+- Give the guard-launch-monitor telemetry-sink tests a sink Windows can execute, so the two cases exercise dispatch instead of timing out (prompt-audit follow-up F10)
+- Hold the os-managed root-children preview case to the same platform-gate mock its siblings use, and compare the stash duplicate at its resolved spelling, so both pass off Linux (prompt-audit follow-up F10)
+
 ## [0.23.2]
 
 ### Added

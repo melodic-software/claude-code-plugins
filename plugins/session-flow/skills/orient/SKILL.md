@@ -2,7 +2,6 @@
 description: "Read-only session orientation from durable + off-thread state, synthesize where we stand, what we are doing, and why, from the ledger files, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work-items, and git state, not just the conversation. Complements the built-in /recap (conversation-only, auto-fires) by adding the durable state recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Read-only: writes nothing, ends nothing, and does not verify freshness, recover off-thread work, or prescribe the next stage; it points at the sibling that does."
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: session
   summary: Read-only situation report from durable and off-thread state
@@ -34,6 +33,18 @@ not Skill-invocable). So this skill synthesizes the conversation summary
 inline *and* adds the durable + off-thread layer `/recap` cannot see. Reach
 for it when "what did the last session decide, and what is in flight right
 now" matters, not just "what did we just say."
+
+Both halves of that boundary are verified 2026-09-06 against Claude Code
+2.1.263. The auto-fire trigger comes from
+[Session recap](https://code.claude.com/docs/en/interactive-mode#session-recap),
+which states that Claude Code shows the recap when you return to the terminal
+after stepping away and generates it once at least three minutes have passed
+since the last completed turn. The allowlist comes from
+[Extend Claude with skills](https://code.claude.com/docs/en/skills), which
+names `/init` and `/security-review` as built-in commands reachable through
+the Skill tool and `/compact` as one Claude cannot invoke that way. `/recap`
+is on neither list. Recheck when either page stops carrying those statements,
+or when a release note names `/recap` or the Skill-invocable command set.
 
 ## What it reads (all read-only)
 

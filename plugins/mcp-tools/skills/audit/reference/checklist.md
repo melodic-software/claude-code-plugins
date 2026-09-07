@@ -5,7 +5,19 @@ recap them here, read them at the source:
 
 - [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 - [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
-- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — Claude-Code-specific client behavior: `_meta` annotations and truncation limits
+- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — Claude-Code-specific client behavior: `_meta` annotations and result-size limits
+
+**Client-behavior record.** The values C17 and C18 turn on are quoted from that Claude Code page,
+verified 2026-09-06 against Claude Code 2.1.263 and the page as fetched that day. It states that
+`anthropic/maxResultSizeChars` raises a tool's persist-to-disk threshold "up to a hard ceiling of
+500,000 characters" and applies "independently of `MAX_MCP_OUTPUT_TOKENS` for text content", with
+image-returning tools still subject to the token limit. It states that a tool declaring
+`anthropic/requiresUserInteraction` prompts "on every call, even in `acceptEdits`, `auto`, and
+`bypassPermissions`" modes, offers no "don't ask again" option, is not skipped by matching allow
+rules, and is denied outright in `dontAsk` mode. That page documents no size limit on a tool
+description or on a server `instructions` field, so C4's budget is this skill's own judgment rather
+than a client limit. Recheck when the page moves either value, when it gains a description-size
+limit, or when a release note names MCP `_meta` annotations.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -33,7 +45,7 @@ Severity levels:
 | C1 | **Has "what"** — the description states what the tool does | ANTHROPIC | FAIL | First sentence should clearly describe the action. Missing or generic ("handles X") fails |
 | C2 | **Has "when"** — the description states when to use the tool | ANTHROPIC | WARN | Look for usage context: "Use this when...", "Call this before...", "Useful for...". Absent = warn |
 | C3 | **Has "returns"** — the description states what the tool returns | ANTHROPIC | WARN | Look for return documentation: "Returns the board id and...", "Returns a list of...". Absent = warn |
-| C4 | **Within size budget** — Claude Code truncates tool descriptions and server instructions at 2KB each | OPINION | FAIL | Estimate the byte size — per tool description, and once per server for the server `instructions` field. Over 2KB risks truncation; because the budget is measured in bytes, each non-ASCII UTF-8 character spends more than one. Critical details belong near the start. This is a client limit, not a spec rule |
+| C4 | **Within size budget** — a tool description, and a server `instructions` field, stays under this skill's 2KB budget | OPINION | FAIL | Estimate the byte size, per tool description and once per server for the server `instructions` field. Over 2KB fails: a long description crowds the tool listing and buries the parts that drive selection. Because the budget is measured in bytes, each non-ASCII UTF-8 character spends more than one. Critical details belong near the start. This budget is this skill's own judgment, not a documented client limit and not a spec rule |
 | C5 | **No implementation-detail leak** — no database types, API names, partition keys, or internal structure | ANTHROPIC | WARN | Prefer semantic names over technical identifiers. Scan for terms that belong to the implementation, not the domain |
 
 ## 2. Parameter quality (C6-C8)

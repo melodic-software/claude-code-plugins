@@ -3,6 +3,36 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9]
+
+### Fixed
+
+- `scripts/compose-statusline-wiring.sh` wraps a renderer whose first word is a shell keyword
+  (`! false`, `[[ -f file ]]`) in `sh -c`, matching builtins. Both keyword renderers are also
+  covered by the idempotency table, so a re-run cannot stack a second adapter. Synced from
+  context-guard.
+
+## [0.8.8]
+
+### Fixed
+
+- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced from context-guard.
+
+## [0.8.7]
+
+### Changed
+
+- Dated the experimental-Monitors claim in the reader contract against the plugins reference (prompt-audit follow-up F6)
+
+## [0.8.6]
+
+### Changed
+
+- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with context-guard and registered in the cross-plugin source registry (prompt-audit follow-up F15)
+- setup: `reference/unwrap-before-compose.md` shrinks to that script's argument and exit-code contract, its invocation, and the three judgments it leaves to the skill; step 6 of `check` calls it instead of escaping and round-tripping the command by hand (prompt-audit follow-up F15)
+- setup evals: the five cases that checked the peel and wrap arithmetic now check that the skill invokes the script and reports its result, keeping their ids and names (prompt-audit follow-up F15)
+- reference/reader-contract.md: repairs the tee-file paragraph, where a stray list break split "temp file + rename" across a paragraph boundary and left the sentence unclosed (prompt-audit follow-up F2)
+
 ## [0.8.5]
 
 ### Changed

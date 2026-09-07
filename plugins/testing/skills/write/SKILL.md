@@ -3,7 +3,6 @@ description: "Write and place tests across all ecosystems. TDD cadence (Red→Gr
 argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /testing:write organize)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: test
   summary: Write and place tests with TDD cadence across ecosystems
@@ -24,7 +23,9 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
@@ -71,5 +72,5 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 
 ## Gotchas
 
-- Framework traps. `.NET`: xUnit v3 rejects `--nologo`/`-v q` (zero tests ran, exit 5); .NET 10 requires `dotnet test --project`; `Microsoft.NET.Sdk.Web` recursively compiles child directories (never nest a test project inside a Web SDK app). Check the consuming project's own gotcha notes before writing tests
+- Framework traps. `.NET`: under the Microsoft Testing Platform runner, `--nologo` is not a platform option and an unrecognized option exits 5, an invalid-argument code rather than a zero-test result; the banner switch there is `--no-banner` and the native xUnit v3 spelling is `-noLogo`, while `-v q` is an accepted `dotnet test` verbosity value. In that runner `dotnet test` takes `--project`, `--solution`, or `--test-modules` and no positional path, with `--project` defaulting to the current directory. The runner is selected by `global.json` and the classic runner is still the default, so confirm which one the project uses. Nesting a test project inside another project's directory is a real trap, but the cause is the base SDK's recursive `**/*.cs` compile glob rather than anything specific to the Web SDK, so it applies to any SDK-style project. Check the consuming project's own gotcha notes before writing tests. Verified 2026-09-06 against the vendor's testing-platform CLI options, `dotnet test` reference, and project-SDK overview pages; recheck when the platform option list gains `--nologo`, the runner-selection default changes, or the default compile glob changes
 - Shared-state workarounds (collection fixtures, process-global singletons) are repo-specific. Consult the consuming project's testing conventions before writing or moving tests in affected areas

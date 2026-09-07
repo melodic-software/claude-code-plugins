@@ -181,8 +181,8 @@ else
 fi
 
 # --- 3. both arms exiting 127 report HARNESS BROKEN, not a verdict ---
-# This is source failures 3 and 4 verbatim: a path that resolved nowhere made
-# both arms exit 127, and the harness reported a confident "NOT DISCRIMINATING".
+# This is source failures 3 and 4 verbatim: a Windows path spelling left both
+# arms at 127, and the harness reported a confident "NOT DISCRIMINATING".
 # discriminating-skip-required: without this case nothing proves the harness
 # distinguishes "the check never ran" from "the check does not discriminate".
 mkdir -p "$WORK/dead127"

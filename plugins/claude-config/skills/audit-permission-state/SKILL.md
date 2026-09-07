@@ -261,7 +261,8 @@ collapse it in the report:
 Five, and the two easy to get wrong: `local` resolves **through worktrees to the main checkout**, so
 a reader anchored on the worktree root looks where the file is not; `startdir-local` is a
 pre-v2.1.211 copy that is **not** a fallback, since permission rules from both files stay in effect.
-`managed` is four surfaces per OS, not one file. `reference/criteria.md` §Scopes has the full table.
+`managed` is four surfaces per OS, not one file. `reference/criteria.md` §Scopes has the full table
+and the dated record for the `pre-v2.1.211` boundary.
 
 ## Prerequisites
 
@@ -300,4 +301,5 @@ Failure modes that produce a confidently wrong answer:
   own pipeline around these scripts, check the status rather than the output.
 - **Two live copies of `settings.local.json` are normal, not a bug.** When a pre-v2.1.211 copy sits in
   the start directory, the repository-root copy wins on a shared key but permission rules from both
-  stay in effect. Reporting only one of them under-reports what is live.
+  stay in effect. Reporting only one of them under-reports what is live. The dated record for the
+  boundary is `reference/criteria.md` §Scopes.

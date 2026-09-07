@@ -3,7 +3,6 @@ description: "Execute approved plans, fix bugs, and make code changes inline wit
 argument-hint: "[task or mode] (e.g., /implementation:implement, /implementation:implement feature, /implementation:implement fix login-bug, /implementation:implement refactor)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: implement
   summary: Execute approved plans with TDD, incremental validation, and green commits

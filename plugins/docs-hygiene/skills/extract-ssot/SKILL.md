@@ -24,7 +24,7 @@ Typical markdown extraction shapes the workflow handles:
 - A constraint or guardrail repeated across multiple skills (e.g. "always run X before Y"). Promoted to a single always-loaded rule
 - A workflow primitive appearing across several skills. Extracted to a shared primitive doc that skills cite by name
 
-Extraction is dangerous: ~19% failure rate even on curated skills (SkillsBench, n=84 tasks), ~50% on practitioner-authored skills (40-skill failure analysis). This skill encodes the guardrails (Rule of Three, categorical-shape test, ≤500-line bound, one-level-deep mandate, Metz unwind procedure) so each invocation is reversible and reviewable.
+Extraction is dangerous: on SkillsBench, 16 of 84 tasks come out worse with a curated skill than without one, about 19 percent. The dated record for that figure is in context/decision-framework.md. This skill encodes the guardrails (Rule of Three, categorical-shape test, ≤500-line bound, one-level-deep mandate, Metz unwind procedure) so each invocation is reversible and reviewable.
 
 **Code / config escape-hatch.** Repeated string literals, magic constants, helper functions in source code, or repeated CI / settings / MCP stanzas in config files are also extractable in principle (Rule of Three applies). This skill flags such clusters during `identify` but does NOT ship a citation contract for them, the caller uses the language-idiomatic form (`import` / `using` / `source`, YAML anchor, JSON `$ref`, build-tool include) and language-aware refactoring tools (IDE rename, Roslyn / ts-morph). Markdown is the only file class with no language-level rename safety net. That is where the contract here adds value.
 

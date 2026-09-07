@@ -31,10 +31,12 @@ frontmatter). The human in the loop decides what to port.
   for an issue or PR against this plugin's marketplace repository — not something to patch in
   the installed copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
-  (using the `--plugin-dir` local development loop), then refresh the baseline there:
+  (using the `--plugin-dir` local development loop), then refresh the baseline there, from the
+  clone root and by the clone-relative path (`${CLAUDE_PLUGIN_ROOT}` resolves to the installed
+  plugin cache in a normal session, which is exactly where this must not run):
 
   ```bash
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh" --refresh-baseline
+  bash plugins/dometrain/skills/sync/scripts/update.sh --refresh-baseline
   ```
 
   **`UPSTREAM_URL` tracks `master`, not a pinned commit.** A pinned URL makes `check` compare the

@@ -54,9 +54,8 @@ Measured **2026-08-21** inside a live Claude Code on the web container
 | Does a **configured** `statusLine` run in a headless session? | the identical `statusLine` in a scratch `HOME`, exercised with `claude -p '…' --output-format json` | **same** — the probe was never invoked, and `~/.claude/context-guard/` was never created under that `HOME` |
 | Does the resolver accept an occupancy-only snapshot with no window size? | synthetic snapshots under a scratch `HOME` | **no.** With `cli_version`, `current_usage` and both token totals present but `context_window_size` absent and `used_percentage` null → `unknown`; adding a `context_window_size` to the otherwise identical file → `acceptable`. A snapshot with no `current_usage` is rejected by the trust gate outright, whatever else it carries |
 
-The central claim is **confirmed with one correction**: `~/.claude/context-guard/` *does* exist in
-a cloud container, but only because a hook created it. The **snapshot** the reader needs is absent,
-and the resolver prints `unknown`.
+`~/.claude/context-guard/` *does* exist in a cloud container, but only because a hook created it.
+The **snapshot** the reader needs is absent, and the resolver prints `unknown`.
 
 **The reader side is healthy; only the writer channel is missing.** In the same container, feeding
 the resolver one synthetic statusline payload under a scratch `HOME` — 120000 input + 3000 output
@@ -65,22 +64,20 @@ while the real session id resolved `unknown` moments earlier. Nothing about `con
 `statusline-tee.sh`, `jq`, or the contract path is broken here. There is simply nothing calling the
 tee, because nothing calls a statusline.
 
-**The cloud row is a measurement, not an inference.** The earlier version of this file established
-only that no `statusLine` *is* configured in cloud and inferred the rest. The row above closes that
-gap from the other side: one *was* configured, in the user scope of a live cloud session, and it
-never ran. The write was live rather than pending a restart — Claude Code "watches your settings
-files and reloads them when they change", the reload "covers user, project, local, and managed
-settings", and `statusLine` is not among the few keys documented as read once at session start
-(<https://code.claude.com/docs/en/settings>, read 2026-08-21). The headless half was measured the
-same day by the same method: the identical `statusLine` written into a scratch `HOME`, exercised
-with `claude -p '…' --output-format json`, again never invoked the probe and never created
-`~/.claude/context-guard/` at all.
+**The cloud row is a measurement, not an inference.** A `statusLine` *was* configured, in the user
+scope of a live cloud session, and it never ran. The write was live rather than pending a restart.
+Claude Code "watches your settings files and reloads them when they change", the reload "covers
+user, project, local, and managed settings", and `statusLine` is not among the few keys documented
+as read once at session start (<https://code.claude.com/docs/en/settings>, read 2026-08-21). The
+headless half was measured the same day by the same method: the identical `statusLine` written into
+a scratch `HOME`, exercised with `claude -p '…' --output-format json`, again never invoked the
+probe and never created `~/.claude/context-guard/` at all.
 
-The correction matters. The `.compacted` marker in that directory was written by
-`hooks/post-compact-mark.sh` during an auto-compaction of that session, which proves **plugin hooks
-do run in this environment**. The status line is the only context-guard writer that is silent in
-cloud — the hook layer is alive. That is why hook stdin was the first channel checked, and why its
-field set is the decisive negative result rather than an assumption.
+The `.compacted` marker in that directory was written by `hooks/post-compact-mark.sh` during an
+auto-compaction of that session, which proves **plugin hooks do run in this environment**. The
+status line is the only context-guard writer that is silent in cloud. The hook layer is alive. That
+is why hook stdin was the first channel checked, and why its field set is the decisive negative
+result rather than an assumption.
 
 ## Channels checked
 
@@ -212,10 +209,15 @@ that runs it (<https://code.claude.com/docs/en/statusline>,
    remediation is policy or trust rather than wiring. Claude Code turns the feature off entirely
    when managed settings set `disableAllHooks`, or when the folder is not trusted under the same
    workspace-trust rule that gates hooks in settings files; and it narrows the source to managed
-   settings when `allowManagedHooksOnly` is set. Under narrowing, "Claude Code runs a managed value
-   if one is deployed; otherwise it skips your value without warning, the status line is disabled".
-   A configured `statusLine` that never runs looks exactly like a broken install unless this branch
-   is checked first.
+   settings when `allowManagedHooksOnly` is set, when `disableAllHooks` is set outside managed
+   settings, or when the session starts with `--safe-mode`. Under narrowing, Claude Code "runs a
+   managed value if one is deployed. Otherwise it skips your value without warning: the status line
+   is disabled". A configured `statusLine` that never runs looks exactly like a broken install
+   unless this branch is checked first. This is the plugin's record for the two settings keys:
+   verified 2026-09-06 against Claude Code 2.1.263 and the settings reference
+   (<https://code.claude.com/docs/en/settings-reference>, "Status line and file suggestion gates"),
+   which carries the off-entirely and narrowed branches in that order. Recheck when that section
+   stops naming both keys, or when a release note names the status line gates.
 4. **A `statusLine` is configured, the status line is not disabled, and the environment is
    terminal-less** → also structural. The command exists and is not policy-disabled, and is
    still never invoked. This is the measured cloud case: a `statusLine` written into a live

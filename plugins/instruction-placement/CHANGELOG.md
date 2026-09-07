@@ -3,6 +3,15 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2]
+
+### Changed
+
+- realign: a dated record for the AGENTS.md nearest-wins and CLAUDE.md ancestor-chain claims (prompt-audit follow-up F6)
+- **verify-load:** an expected surface is matched on a separator-normalized path, so a rule Claude Code reports with backslashes is no longer called MISSING after the probe watched it load (prompt-audit follow-up F10)
+- **verify-load:** each InstructionsLoaded hook invocation writes its own record file instead of appending to one shared log that concurrent hook processes clobber (prompt-audit follow-up F10)
+- **verify-load:** the probe prompt names the Read call as the measurement itself, so the session makes the call instead of answering from context (prompt-audit follow-up F10)
+
 ## [0.12.1]
 
 ### Changed

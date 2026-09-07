@@ -187,6 +187,14 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       "$fleet_list" >/dev/null 2>&1; then
     fleet_list=.claude/settings.json
   fi
+  # Every `jq -r` here and below is piped through `tr -d '\r'`. The cloud VM
+  # this script provisions runs a jq that ends its lines with LF, but the
+  # Windows build ends them with CRLF, and a plugin id carrying a trailing CR
+  # compares unequal to the same id read from anywhere else: the accounting
+  # below then calls every healthy plugin "not installed at user scope". That
+  # is only reachable when the suite in .claude/hooks/ drives this block on a
+  # developer's Windows checkout, and the strip costs nothing where jq already
+  # answers in LF.
   mapfile -t wanted < <(
     jq -r --arg n "$marketplace_name" --slurpfile f "$fleet_list" \
       '(($f[0].enabledPlugins // {}) + (.enabledPlugins // {})) | to_entries[]
@@ -217,7 +225,7 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     [[ -n "$head_sha" && -f "$plugins_registry" ]] || return 1
     recorded="$(jq -r --arg id "$id" \
       '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
-      "$plugins_registry" 2>/dev/null)"
+      "$plugins_registry" 2>/dev/null | tr -d '\r')"
     [[ -n "$recorded" && "$recorded" != "$head_sha" ]] || return 1
     # A commit this clone doesn't have (shallow fetch, force-push): refresh
     # rather than guess that the snapshot is current.
@@ -252,7 +260,7 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     fi
     recorded="$(jq -r --arg id "$id" \
       '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
-      "$plugins_registry" 2>/dev/null)"
+      "$plugins_registry" 2>/dev/null | tr -d '\r')"
     if [[ -z "$recorded" || "$recorded" == "null" ]]; then
       printf 'cannot verify snapshot: no user-scope gitCommitSha recorded in %s' \
         "$plugins_registry"

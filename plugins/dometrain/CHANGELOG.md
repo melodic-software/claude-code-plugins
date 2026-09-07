@@ -3,6 +3,13 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.11]
+
+### Changed
+
+- **sync:** the maintainer note gives `--refresh-baseline` as a clone-relative command, since `${CLAUDE_PLUGIN_ROOT}` resolves to the installed cache (prompt-audit follow-up F23).
+- **sync:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.2.10]
 
 ### Changed

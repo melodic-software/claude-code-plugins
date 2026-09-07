@@ -94,7 +94,11 @@ conditions.
 
 Do not describe this as "paired statistics, per benchstat". `benchstat` recommends interleaved
 *collection* and then analyzes with the **Mann-Whitney U test**, which is an independent two-sample
-test. Its `-delta-test` flag no longer exists.
+test. It documents no `-delta-test` flag. Verified 2026-09-06 against
+`https://pkg.go.dev/golang.org/x/perf/cmd/benchstat` at module version
+`v0.0.0-20260819171926-ebcb4798430d`, which documents `-filter`, `-table`, `-row`, `-col`, and
+`-ignore`, and states that benchstat uses the Mann-Whitney U-test for A/B comparisons. Recheck when
+that page lists a `-delta-test` flag again, or names a test other than Mann-Whitney U.
 
 ### Simultaneous duet (for a genuinely shared machine)
 

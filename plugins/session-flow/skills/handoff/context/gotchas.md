@@ -66,4 +66,10 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   itself begins with `/loop`, since a command is recognized only at a message's start. `/loop` re-runs the
   prompt it was given on every iteration, and a save-point is an immutable record of one moment, so
   wrapping the directive would have every later tick re-read that frozen file and replay a
-  remainder already done, instead of doing the loop's actual recurring job.
+  remainder already done, instead of doing the loop's actual recurring job. The clearing behavior is
+  verified 2026-09-06 against Claude Code 2.1.263 and
+  [Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#limitations), which
+  states that starting a fresh conversation clears all session-scoped tasks and that `--resume` or
+  `--continue` restores only unexpired recurring tasks and one-shots whose time has not passed.
+  Recheck when that page stops carrying that statement, or when a release note names session-scoped
+  scheduled tasks.

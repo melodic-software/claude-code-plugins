@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.3]
+
+### Changed
+
+- plan and interview: the agent-teams experimental default-off status carries a dated record, the session-config advisory framing is corrected because effort is readable while advisor state is not, and the gather-block claim points at the worktree skill's record (prompt-audit follow-up F6)
+- **interview:** the defense suite hashes jq's output with the CR a Windows jq appends stripped, so the eight eval-case digests and the roster digest grade the same on either host (prompt-audit follow-up F10)
+- **interview:** the defense suite's SKILL.md frontmatter digest is re-pinned for follow-up F12's removal of the inert `shell: bash` key, which selected the shell for an injection this file does not have (prompt-audit follow-up F10)
+
+## [0.39.2]
+
+### Changed
+
+- **wayfind:** the pre-compute reports a non-string `config.container_label` as an ERROR line instead of silently defaulting to `work-map` (prompt-audit follow-up F9).
+- **audit-answers, design, design-handoff, devils-advocate, interview, plan, prd:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.39.1]
 
 ### Fixed

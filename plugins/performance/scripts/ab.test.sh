@@ -41,7 +41,9 @@ run_ab() {
   RUN_RC=$?
 }
 
-NOOP="printf ok"
+# Measurable no-op: `printf` often records 0ms on CI, and ratio.py fail-closes
+# when every comparison-arm sample is zero milliseconds.
+NOOP="sleep 0.01"
 
 # --- 1. a serial run reports both arms and the paired ratio ---
 run_ab --a "$NOOP" --b "$NOOP" --iterations 4 --warmup 1 --min-pairs 4 \
@@ -182,7 +184,7 @@ assert_eq "a missing --a is refused" "2" "$RUN_RC"
 
 run_ab --a "bash D:/repo/hook.sh" --b "$NOOP" --iterations 2
 assert_eq "a drive-letter path inside an arm command is refused" "2" "$RUN_RC"
-assert_contains "the refusal names the MSYS trap" "resolves nowhere" "$RUN_OUT"
+assert_contains "the refusal names the 127 shape" "exits 127 in both arms" "$RUN_OUT"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ab interleaving and refusals"

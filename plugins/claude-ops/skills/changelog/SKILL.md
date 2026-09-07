@@ -161,7 +161,7 @@ If user approves:
 
 The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
 
-- **`fetch`**. WebFetch + display a version (or latest, or a `v.X..v.Y` range) of `code.claude.com/docs/en/changelog.md` (raw markdown, the smaller, chrome-free channel; WebFetch truncates it and the rendered page alike, so a deep version needs a range-scoped fetch or `curl`). No edits
+- **`fetch`**. WebFetch + display a version (or latest, or a `v.X..v.Y` range) of `code.claude.com/docs/en/changelog.md` (raw markdown, the smaller, chrome-free channel; WebFetch truncates it and the rendered page alike, so a deep version needs a range-scoped fetch or `curl`, dated record in [context/read-actions.md](context/read-actions.md)). No edits
 - **`diff`**. Dry run of `apply`: Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research), stops before interview. Emits the triage table only. Answers "is this release worth an `apply`?"
 - **`status`**. Applied versions (`git log --grep`), open routine-pipeline issues (`gh issue list`), current `claude --version`, and the gap if installed > last-applied
 

@@ -277,8 +277,8 @@ LC_ALL=C awk \
   # An unclosed leading `---` fences the whole file, the fail-safe direction.
   # Delimiter test deliberately IDENTICAL to this repo authoritative extractor
   # skill_frontmatter::extract (plugins/skill-quality/scripts/skill-frontmatter.sh),
-  # which is what check-skill.sh -- the hard-FAIL gate this fence exists to
-  # satisfy -- parses frontmatter with. Exact equality against "---" would be
+  # which is what check-skill.sh -- the gate this fence exists to satisfy --
+  # parses frontmatter with. Exact equality against "---" would be
   # STRICTER than that parser, and the mismatch direction is the dangerous one:
   # a delimiter carrying trailing whitespace or a CR is real frontmatter to the
   # gate but invisible here, so the block would be treated as body and the

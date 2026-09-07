@@ -54,6 +54,26 @@ class Claim(NamedTuple):
     unfenced_inline_code: bool
 
 
+def use_utf8_streams() -> None:
+    """Re-encode stdout and stderr as UTF-8 before a gate writes anything.
+
+    Both gates echo source bytes back through ``preview_payload`` and both
+    print a non-ASCII character in their own summary line, so a console whose
+    default encoding is not UTF-8 (cp1252 on a stock Windows terminal) raises
+    ``UnicodeEncodeError`` and the run reports itself as a gate bug even when
+    the digest is clean. ``backslashreplace`` keeps one unrenderable byte from
+    aborting a run. A stream with no ``reconfigure`` is left alone.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            pass
+
+
 def fail(prog: str, code: int, message: str) -> NoReturn:
     sys.stderr.write(f"{prog}: ERROR: {message}\n")
     raise SystemExit(code)

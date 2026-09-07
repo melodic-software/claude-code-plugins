@@ -10,8 +10,7 @@ paths:
 A skill body is read by the model on every invocation. Its authority is the behavior it
 prescribes, not the incident that motivated it, so the body carries the rule and the reason and
 nothing about how the rule got there. This follows the bundled `/claude-api prompt-audit` guide
-(Group 2, "Brittle skill files"), applied fleet-wide in the 2026-09 audit recorded in
-[`docs/specs/prompt-audit-skills-2026-09.md`](../../docs/specs/prompt-audit-skills-2026-09.md).
+(Group 2, "Brittle skill files").
 
 Keep out of a skill or agent body:
 

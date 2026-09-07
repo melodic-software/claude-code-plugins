@@ -3,6 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.4]
+
+### Fixed
+
+- Restored `/review:audit-enforceability` in the plugin description so the catalog names a skill
+  this plugin still ships.
+
+## [0.27.3]
+
+### Changed
+
+- Cite marketplace `docs/` conventions and sibling-plugin files by raw URL across the ecosystem-specialist agent, the fanout fix pass, and the quality-gate spec, close-out, downstream, self, and setup surfaces, replacing repo-relative paths that resolve only in the marketplace checkout (prompt-audit follow-up F8).
+- **topic-docs binding:** cite the topic-docs convention through a run-time-fetchable raw URL with no anchor, replacing a `blob` URL that a fetch cannot read (prompt-audit follow-up F2).
+- quality-gate and security-review: the bundled command, managed service, and CI security-review claims carry dated records with recheck triggers, and the gather-block claim points at the worktree skill's record (prompt-audit follow-up F6)
+
 ## [0.27.2]
 
 ### Fixed

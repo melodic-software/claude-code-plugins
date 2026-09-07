@@ -3,6 +3,30 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.20]
+
+### Fixed
+
+- `scripts/suppression-lint.sh` rejects ISO-shaped dates that are not real calendar days
+  (`2026-02-31`, April 31, non-leap February 29), not only field ranges. The leap rule is pinned
+  on the century clause too: `1900-02-29` is malformed and `2000-02-29` is a real day.
+
+## [0.3.19]
+
+### Fixed
+
+- `scripts/suppression-lint.sh` grades `date` as a calendar ISO-8601 `YYYY-MM-DD`. A nonempty non-date such as `yesterday` is `malformed`, not `ok`, so the audit skill cannot apply it.
+- `scripts/suppression-lint.sh` holds the `date` month and day to their calendar ranges, so an ISO-shaped impossibility such as `2026-13-45` is `malformed` rather than `ok`, and `--help` prints the whole header through its closing FAIL CLOSED sentence instead of stopping mid-sentence.
+
+## [0.3.18]
+
+### Changed
+
+- **audit:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- **setup:** probe 8 runs the new `scripts/suppression-lint.sh` over each suppression layer instead of having the model re-derive an entry's `finding_id` and check node-kind membership by hand; the probe's three FAIL conditions are the lint's three failure verdicts, and its exit codes are the probe's outcome (prompt-audit follow-up F21).
+- **audit:** Phase 1 applies only entries the lint reports `ok`, Phase 4's arid bar is the lint's verdict over the proposed entry piped in on stdin so nothing is written, and the remediation section names the lint as what reports a key the constituents do not hash to (prompt-audit follow-up F21).
+- `scripts/suppression-lint.sh` is new: it re-derives `finding_id` from `(check, claim, sites)` with the convention's recipe, validates `claim` against the node-kind table it reads at run time, reports the five required keys, accepts a record on stdin, and exits 0, 1, or 2 for clean, failing, and ungradeable (prompt-audit follow-up F21).
+
 ## [0.3.17]
 
 ### Added

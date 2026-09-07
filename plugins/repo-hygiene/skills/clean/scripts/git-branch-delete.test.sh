@@ -11,7 +11,13 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 AUDIT="$SCRIPT_DIR/git-branch-audit.sh"
 DELETE="$SCRIPT_DIR/git-branch-delete.sh"
-TEST_TMPDIR="$(mktemp -d)"
+# The capture and ledger paths the scripts report end in `cd` plus `pwd -P`
+# (`clean_git_common_dir`, and the capture's real-location walk). The fixture
+# root is resolved the same way so the two spellings of one directory are
+# comparable: `mktemp -d` can hand back a path that is not the physical one
+# (under MSYS `/tmp` is a mount of the Windows temp directory). Identity
+# wherever the temp root is already physical.
+TEST_TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
@@ -438,13 +444,21 @@ assert_branch "unwritable ledger: feat/ok2 untouched" present feat/ok2
 # ---- Ledger follows the capture's real location -----------------------------
 mkdir -p "$TEST_TMPDIR/real" "$TEST_TMPDIR/lnk"
 CAP_SYM="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/real/cap-sym.tsv" | sed -n 's/^TipCapture: //p')"
-ln -s "$CAP_SYM" "$TEST_TMPDIR/lnk/cap-sym.tsv"
-out="$(run_delete --capture "$TEST_TMPDIR/lnk/cap-sym.tsv" --apply feat/sym 2>&1)"
-rc=$?
-assert_exit "symlinked capture applies" 0 "$rc"
-assert_contains "ledger is derived from the real capture, not the symlink" "$out" "Ledger: $TEST_TMPDIR/real/cap-sym.deleted.tsv"
-assert_file_exists "ledger written beside the real capture" "$TEST_TMPDIR/real/cap-sym.deleted.tsv"
-assert_file_absent "no ledger beside the symlink" "$TEST_TMPDIR/lnk/cap-sym.deleted.tsv"
+# `MSYS=winsymlinks:nativestrict` asks MSYS for a real symlink instead of the
+# silent copy its default makes; the prefix is inert on POSIX, where `ln -s`
+# already links. The `-L` gate keeps a host that still cannot link (no Windows
+# Developer Mode) from grading a copy as if it were a link.
+if MSYS=winsymlinks:nativestrict ln -s "$CAP_SYM" "$TEST_TMPDIR/lnk/cap-sym.tsv" 2>/dev/null &&
+  [[ -L "$TEST_TMPDIR/lnk/cap-sym.tsv" ]]; then
+  out="$(run_delete --capture "$TEST_TMPDIR/lnk/cap-sym.tsv" --apply feat/sym 2>&1)"
+  rc=$?
+  assert_exit "symlinked capture applies" 0 "$rc"
+  assert_contains "ledger is derived from the real capture, not the symlink" "$out" "Ledger: $TEST_TMPDIR/real/cap-sym.deleted.tsv"
+  assert_file_exists "ledger written beside the real capture" "$TEST_TMPDIR/real/cap-sym.deleted.tsv"
+  assert_file_absent "no ledger beside the symlink" "$TEST_TMPDIR/lnk/cap-sym.deleted.tsv"
+else
+  skip_case "symlinked-capture cases: this host has no native symlink creation (ln -s copied the target)"
+fi
 
 # ---- The two tip-move windows, opened deterministically ---------------------
 # A FIFO at the ledger path parks the script, with no reader present, at the

@@ -3,7 +3,6 @@ description: "Take an in-flight retrospective checkpoint mid-session: a subagent
 argument-hint: "[topic | arm] (e.g., /running-retro, /running-retro phase-3, /running-retro arm)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: retro
   summary: In-flight retro checkpoint appended to a running ledger

@@ -20,7 +20,7 @@ suppress** — it is reported as malformed, never silently partially parsed.
 | `claim` | The canonical claim id plus bound parameters, **never free prose**: `arid(kind=<node-kind>)`. The `<node-kind>` vocabulary is enumerated in full in the `principles` skill's [`scaling-and-suppression.md`](../../principles/reference/scaling-and-suppression.md) ("The node-kind vocabulary") — that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed. Validation is membership in that table, not "looks like an identifier". |
 | `sites` | One `{surface, anchor/v1}` for an ordinary mutation finding. `surface` is the repo-relative source path. Anchor derivation below. |
 | `reason` | Why killing this mutant would not improve the suite. Non-empty, and a sentence a reviewer a year from now can judge — not "arid" restated. |
-| `date` | ISO-8601, when it was accepted. |
+| `date` | Calendar ISO-8601 `YYYY-MM-DD` that names a real day, when it was accepted. A nonempty non-date such as `yesterday`, and an ISO-shaped impossibility such as `2026-02-31`, are malformed and do not suppress. |
 
 `reason` and `date` alone are **not** a valid entry: an entry carrying only those two is missing
 `check`, `claim`, and `sites`, and is malformed.

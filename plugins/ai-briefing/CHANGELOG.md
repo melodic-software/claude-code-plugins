@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.27]
+
+### Changed
+
+- **setup:** eval 3 prompts the contract form `apply install-build-deps` instead of a flag the skill does not accept (prompt-audit follow-up F22).
+
 ## [0.7.26]
 
 ### Changed

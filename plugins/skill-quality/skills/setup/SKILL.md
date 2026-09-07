@@ -13,11 +13,14 @@ writable artifact, so `check` resolves and verifies the skills root and prints t
 guidance below, and no `apply` is offered because there is nothing it could conformingly write.
 `skills_root` is a personal `userConfig` scalar owned by Claude Code's native configuration
 surface. Claude Code prompts for it when the plugin is enabled, stores non-sensitive options in
-user settings, and ignores project/local `pluginConfigs` entries on current releases (≥ 2.1.207).
+user settings, and ignores `pluginConfigs` entries in a project's `.claude/settings.json` or
+`.claude/settings.local.json`. Releases before 2.1.207 read those entries.
 This skill never writes it.
 
-Official contract (verified 2026-07-18):
-<https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract, verified 2026-09-06 against Claude Code 2.1.263:
+<https://code.claude.com/docs/en/plugins-reference#user-configuration>. Recheck when that page
+stops naming the three settings sources it reads `pluginConfigs` from, or when a release note
+names `pluginConfigs` scope.
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 

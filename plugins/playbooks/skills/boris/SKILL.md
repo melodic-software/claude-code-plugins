@@ -48,7 +48,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical) |
+| Model | Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync, which predates Fable 5.1; re-sync through `/playbooks:update` once upstream publishes Fable 5.1 tips |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Update after every correction |
 | Skills | Create for repeated workflows |

@@ -7,7 +7,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 AUDIT="$SCRIPT_DIR/git-branch-audit.sh"
-TEST_TMPDIR="$(mktemp -d)"
+# The capture path the script reports comes from `clean_git_common_dir`, which
+# ends in `cd` plus `pwd -P`. The fixture root is resolved the same way so the
+# two spellings of one directory are comparable: `mktemp -d` can hand back a
+# path that is not the physical one (under MSYS `/tmp` is a mount of the
+# Windows temp directory). Identity wherever the temp root is already physical.
+TEST_TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 

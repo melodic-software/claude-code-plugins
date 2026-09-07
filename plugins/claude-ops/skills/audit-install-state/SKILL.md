@@ -3,7 +3,6 @@ description: "Read-only audit of a Claude Code INSTALLATION directory, the machi
 argument-hint: "[root]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: operator
   summary: Audit a Claude Code install directory. What is there, what the product manages, what is stale
@@ -50,7 +49,12 @@ routinely conflated:
   installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
   updates, permissions. It also estimates what the skill listing costs in context. It is the one
   bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
-  `skillOverrides` entry hides it instead.
+  `skillOverrides` entry hides it instead. Basis for all four: the `/doctor` row on
+  <https://code.claude.com/docs/en/commands> names the `/checkup` alias and the fix-in-place
+  behavior, and <https://code.claude.com/docs/en/skills> carries the `disableBundledSkills`
+  exemption and both hiding mechanisms. Verified 2026-09-06 against Claude Code 2.1.263 and those
+  two pages as fetched that day. Recheck when either page stops carrying the row, or a release note
+  names bundled-skill gating or the `doctor` surface.
 - **This skill (marketplace plugin)**, the deep read-only inventory of the install tree: every
   file classified, product-managed retention separated from genuinely unmanaged state, filename
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
@@ -221,8 +225,8 @@ Upstream-claim verification: see [reference/evidence-discipline.md](reference/ev
   live in each plugin's own manifest, direct-path invocations from `settings.json` bypass the plugin
   system, and enablement is read at session start. This skill emits `recent_writers` as behavioural
   evidence and tell the user to run `/claude-ops:plugins audit` for the verdict.
-- **`backups/` cannot be pruned meaningfully.** It is a rotating buffer, retained at 5 and refilling
-  in about 90 seconds. Any per-file finding about it is stale before it is written.
+- **`backups/` cannot be pruned meaningfully.** It is a small rotating buffer that the product
+  refills on its own. Any per-file finding about it is stale before it is written.
 - **An empty directory may be deliberate.** An empty `skills/` can be an experiment's independent
   variable, not decay. Phase 1 exists for this.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence

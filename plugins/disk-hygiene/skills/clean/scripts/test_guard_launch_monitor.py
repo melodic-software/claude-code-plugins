@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import os
+import sys
 import tempfile
 import time
 import unittest
@@ -502,9 +503,25 @@ class GuardLaunchMonitorTests(unittest.TestCase):
 
     def _make_telemetry_sink(self) -> tuple[Path, str]:
         out_file = Path(self.tmp.name) / f"telemetry-{id(self)}.json"
-        sink = Path(self.tmp.name) / f"sink-{id(self)}.sh"
-        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
-        sink.chmod(0o755)
+        # Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
+        # runs a sibling .py keeps quoting simple and inherits stdin. Same
+        # shape as the guard-telemetry sinks in test_hygiene.py.
+        if os.name == "nt":
+            sink_py = Path(self.tmp.name) / f"sink-{id(self)}.py"
+            sink_py.write_text(
+                "import sys\n"
+                "from pathlib import Path\n"
+                f"Path(r'{out_file}').write_text("
+                "sys.stdin.read(), encoding='utf-8')\n",
+                encoding="utf-8",
+            )
+            sink = Path(self.tmp.name) / f"sink-{id(self)}.cmd"
+            py = os.fspath(Path(sys.executable).resolve())
+            sink.write_text(f'@echo off\r\n"{py}" "{sink_py}"\r\n', encoding="utf-8")
+        else:
+            sink = Path(self.tmp.name) / f"sink-{id(self)}.sh"
+            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
+            sink.chmod(0o755)
         return out_file, str(sink)
 
     def _wait_for_file(self, path: Path, timeout: float = 5.0) -> None:

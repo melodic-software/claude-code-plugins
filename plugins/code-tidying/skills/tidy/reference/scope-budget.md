@@ -17,7 +17,7 @@ The **target** is the ideal shape of a tidy PR — small enough to review in und
 
 - **SmartBear "Best Kept Secrets of Peer Code Review" (Cohen et al.)** — the foundational study showing review effectiveness drops sharply above 200 LOC and reviews above 400 LOC are largely ineffective at finding defects. The 200/400 thresholds match this lineage directly
 - **Cisco's code-review study (Bosu, McIntosh, Wagner)** — confirmed SmartBear's findings on a different codebase; ≤60 minutes of review time correlates with ≤200 LOC
-- **CodeScene agentic refactoring research (Tornhill)**, autonomous AI agents introduce defects measurably more often in unhealthy code, so small structure-only PRs minimize that defect rate. The published figure is not restated here; read it from the CodeScene publication before quoting one.
+- **CodeScene code-health research (Borg, Hagatulah, Tornhill, and Söderberg)**, AI tooling handles unhealthy code measurably worse than healthy code, so small structure-only PRs keep changes inside the range where an agent is lower risk. The publication is [Code for Machines, Not Just Humans: Quantifying AI-Friendliness with Code Health Metrics](https://arxiv.org/abs/2601.02200), read 2026-09-06; it analyses 5,000 Python files and reports that human-friendly code is also more compatible with AI tooling. No percentage is restated here, so read the figure from the paper before quoting one. Recheck when a revision moves the finding, or when a study measures agentic refactoring defect rates directly.
 
 If a lane consistently overflows the cap, that's a signal the lane scope is too coarse — split the lane, don't raise the cap.
 

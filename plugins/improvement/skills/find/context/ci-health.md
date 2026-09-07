@@ -31,15 +31,24 @@ Derive `<owner>/<repo>` from the first configured remote URL (`git remote` /
 
 ## Never use the `/timing` endpoint
 
-`GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing` carries an official deprecation notice
-("in the process of closing down") — do not build anything on it. Every duration number below
-comes from run timestamps instead.
+`GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing` carries an official deprecation notice, so
+do not build anything on it. Every duration number below comes from run timestamps instead. Basis:
+the GitHub REST reference for
+[workflow runs](https://docs.github.com/en/rest/actions/workflow-runs), whose "Get workflow run
+usage" entry reads "This endpoint is in the process of closing down." Verified 2026-09-06 against
+that page as fetched that day. Recheck when the entry loses that notice, or when the endpoint is
+removed and the call starts returning 404.
 
 ## Iterate by `created` date windows — never deep pagination
 
-Deep page-walking of `/actions/runs` has a community-reported cap at roughly 1,000 runs
-(~10 pages × 100); pages beyond it silently return nothing. The safe iteration pattern — and the
-natural shape for trend buckets — is the documented `created` date filter:
+The cap is documented, not folklore. "List workflow runs for a repository" returns up to 1,000
+results for each search that uses `actor`, `branch`, `check_suite_id`, `created`, `event`,
+`head_sha`, or `status`, and page-walking past that returns nothing rather than an error. The bound
+is per search, so splitting the period into `created` windows gives each window its own budget,
+which is also the natural shape for trend buckets. Basis: the GitHub REST reference for
+[workflow runs](https://docs.github.com/en/rest/actions/workflow-runs), verified 2026-09-06 against
+that page as fetched that day. Recheck when that page moves the 1,000-result bound or changes which
+parameters it applies to. Use the documented `created` date filter:
 
 - Split the analysis period (default: last 28 days, in 7-day buckets) into windows and query
   each window separately with `created=<start>..<end>`.

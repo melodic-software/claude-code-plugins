@@ -12,7 +12,10 @@
 
 Claude Code substitutes `${CLAUDE_SKILL_DIR}` in two places, the skill's markdown content and Bash
 rules in `allowed-tools`
-([skills docs](https://code.claude.com/docs/en/skills#available-string-substitutions)). The five
+([skills docs](https://code.claude.com/docs/en/skills#available-string-substitutions)), verified
+2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when that page
+names a third place, drops the two-place wording, or when a release note names string substitution
+in skills. The five
 read-only grants (`resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`,
 `git-stash-audit.sh`) are fully paired through this surface.
 
@@ -28,8 +31,8 @@ Files: `context/action-router.md`, `context/clean-batch.md`, `context/git-branch
 `context/git-tree-reset.md`, `context/git-tree-reset-batch.md`, `context/preflight.md`.
 
 They load on demand when `SKILL.md` routes into a step. Whether `${CLAUDE_SKILL_DIR}` substitution
-reaches them is unverified: the skills page scopes substitution to "the skill's markdown content"
-without saying whether bundled context files loaded later count, and
+reaches them is still unverified as of 2026-09-06: the skills page scopes substitution to "the
+skill's markdown content" without saying whether bundled context files loaded later count, and
 `docs/conventions/permission-rule-hygiene/README.md` states the same scope without carving them
 out. `${CLAUDE_PLUGIN_ROOT}` is documented more broadly (plugins reference: "Skill and agent
 content | Anywhere the placeholder appears"), so it is the safe token for a copy-paste example the

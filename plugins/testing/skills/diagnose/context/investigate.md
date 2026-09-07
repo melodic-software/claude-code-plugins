@@ -13,7 +13,7 @@ When tests fail, investigate — never dismiss, never retry blindly. Activates w
    | Assertion mismatch (expected vs actual) | Logic bug or stale expectation | Compare expected/actual, trace the code path |
    | NullReferenceException in test | Missing setup or DI registration | Check Arrange section, verify DI container |
    | Process-global singleton "frozen" / "already initialized" error | Multiple WebApplicationFactory (or equivalent) instances | Check the consuming project's fixture conventions — apply the named fixture/collection pattern; avoid ad-hoc workarounds |
-   | "Unknown option" from test runner | Bad CLI flags (e.g. `--nologo` against xUnit v3 MTP) | Strip the offending flag; confirm the runner version the project uses |
+   | "Unknown option" from test runner | Bad CLI flags (e.g. `--nologo` against a Microsoft Testing Platform run, where the banner switch is `--no-banner`) | Strip the offending flag; confirm which runner and version the project uses. An unrecognized option exits 5, an invalid-argument code, not a zero-test result |
    | Timeout / hung test | Async deadlock, missing cancellation | Check for sync-over-async (`.Result` / `.Wait()`) |
    | Intermittent pass/fail | Shared static state, race condition | Check for process-global singletons, parallel execution |
    | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build by invoking `/toolchain:check` via the Skill tool first; verify project references |

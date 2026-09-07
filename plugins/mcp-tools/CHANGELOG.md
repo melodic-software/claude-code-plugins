@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- Date the C17 and C18 client-behavior values, and drop the undocumented 2KB description-truncation claim so C4 states its own budget (prompt-audit follow-up F6)
+
 ## [0.3.3]
 
 ### Changed

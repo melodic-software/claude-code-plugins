@@ -25,6 +25,13 @@ notify is UNVERIFIED; the channel-agent surfaces this class relies on are alpha/
 targets; one major chat platform has no first-party trigger (UNVERIFIED-absence — re-verify
 at wire time).
 
+All three gaps are carried open as of **2026-09-06**, which is the date they were last
+reviewed rather than a date any of them was closed. None is settleable from this contract:
+each names an external channel surface whose vendor specifics this contract may not carry,
+so the binding surface resolves them at wire time from live vendor documentation. Recheck
+trigger: a wire-time binding closes a gap, or this review date passes six months without one,
+in which case re-review rather than repeat the gap on this stamp's authority.
+
 ## Recorded signal attributes
 
 Two attributes are recorded on every queued signal:

@@ -3,7 +3,7 @@
 How the `reduce` skill resolves the destination for its coupling ledger.
 
 Implements the topic-docs convention:
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
 The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime
 guards, no-project-root fallback, non-interactive/forked mode. This document records only
 this plugin's deltas.

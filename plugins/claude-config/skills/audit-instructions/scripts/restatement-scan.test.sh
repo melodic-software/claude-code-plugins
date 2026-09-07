@@ -4,7 +4,20 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/restatement-scan.py"
-FIXTURES="$(cd "$SCRIPT_DIR/../evals/fixtures" && pwd)"
+
+# Two host differences separate the path this suite passes in from the one the
+# scanner prints back. Git Bash rewrites a POSIX argument to the host's native
+# spelling before a native Python sees it (`/d/worktrees/...` arrives as
+# `D:/worktrees/...`), and the scanner then prints that path through `pathlib`,
+# which re-spells it with the interpreter's own separator (`D:\worktrees\...`).
+# emit-findings.sh documents and re-anchors that second shape downstream, so it
+# is the scanner's contract, not a defect. `host_path` settles the first
+# difference up front; `slashes` settles the second at the comparison, leaving
+# the row's file, line and check id fully pinned. Both are the identity on a
+# host that needs neither rewrite.
+host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
+slashes() { printf '%s' "${1//\\//}"; }
+FIXTURES="$(host_path "$(cd "$SCRIPT_DIR/../evals/fixtures" && pwd)")"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -63,14 +76,14 @@ DESC="$FIXTURES/description-restatement.md"
 rc=0
 OUT=$(scan "$DESC") || rc=$?
 assert_exit "description-restatement scan exits 0" 0 "$rc"
-assert_contains "Purpose that restates the description is I29-a" "$OUT" "$DESC:7:I29-a"
+assert_contains "Purpose that restates the description is I29-a" "$(slashes "$OUT")" "$DESC:7:I29-a"
 assert_not_contains "Usage with unique content is not flagged" "$OUT" ":11:I29"
 assert_eq "exactly one candidate on the description fixture" "1" "$(scan --count "$DESC")"
 
 # --- sibling-section-restatement (I29-b) ------------------------------------
 SIB="$FIXTURES/sibling-restatement.md"
 OUT=$(scan "$SIB")
-assert_contains "NOT-do that restates Cross-references is I29-b" "$OUT" "$SIB:13:I29-b"
+assert_contains "NOT-do that restates Cross-references is I29-b" "$(slashes "$OUT")" "$SIB:13:I29-b"
 assert_not_contains "Cross-references itself is never a finding" "$OUT" ":5:I29"
 assert_eq "exactly one candidate on the sibling fixture" "1" "$(scan --count "$SIB")"
 

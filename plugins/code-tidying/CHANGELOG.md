@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.3]
+
+### Changed
+
+- **audit-dead-code, batch-simplify:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- Give the CodeScene lineage entry a resolvable publication and a read date, and point four gather blocks at the composition record (prompt-audit follow-up F6)
+
 ## [0.16.2]
 
 ### Changed

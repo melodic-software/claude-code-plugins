@@ -3,6 +3,24 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.6]
+
+### Changed
+
+- **audit-install-state, audit-skill-visibility:** the CSV formula-injection fixture uses a directory name legal on every host, and the skill-visibility wrapper embeds its throwaway marketplace paths in the host's native spelling, so both suites run on Windows as well as Linux; neither shipped script changed (prompt-audit follow-up F10).
+
+## [0.44.5]
+
+### Changed
+
+- **audit-install-state, audit-native-overlap, inventory, changelog, lanes, observability, plugins:** nine undated harness and upstream-issue claims carry a four-part record naming the claim, its basis, the date and CLI version it was verified against, and a recheck trigger; the `CLAUDE_PLUGIN_DATA` export claim, the three no-hot-reload facts, and the WebFetch truncation window each become one owner record with the restatements pointing at it; four measured figures with no producing script are dropped and the rules around them kept; the `lanes` and `observability` pre-compute notes cite the cross-plugin gather-block record (prompt-audit follow-up F6).
+
+## [0.44.4]
+
+### Changed
+
+- **audit-install-state, audit-native-overlap, audit-performance, audit-skill-visibility, inventory:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.44.3]
 
 ### Fixed

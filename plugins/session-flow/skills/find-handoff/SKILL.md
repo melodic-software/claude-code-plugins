@@ -224,7 +224,15 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 
 - **`/clear` writes a NEW transcript file** in the **same** project directory. The pre-clear
   content is in a sibling `.jsonl`; searching only the current session's file finds nothing. Always
-  exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings.
+  exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings. Verified 2026-09-06 against
+  Claude Code 2.1.263, on two bases:
+  [Commands](https://code.claude.com/docs/en/commands), where `/clear` starts a new conversation
+  with empty context, and
+  [Data usage](https://code.claude.com/docs/en/data-usage#data-retention), where transcripts are
+  stored per project under `~/.claude/projects/`. A listing of one project directory
+  (`ls ~/.claude/projects/<project>/*.jsonl`) shows the sibling files that scan reads. Recheck when
+  either page stops carrying those statements, or when a listing of a project directory no longer
+  returns one `.jsonl` per conversation.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`
   appears verbatim in any transcript that read `save-point.md` into context. Discard matches
   containing the template's placeholder tokens; keep only concrete resolved paths. The prompt-only

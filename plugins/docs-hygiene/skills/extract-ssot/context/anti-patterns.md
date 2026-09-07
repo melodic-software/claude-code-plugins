@@ -126,7 +126,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 ## 8. Self-generated SSOT
 
-**Pattern.** The model authors a skill or rule that the model itself cannot reliably consume. SkillsBench negative finding: self-generated skills provide NO benefit on average; human curation is the only reliable path.
+**Pattern.** The model authors a skill or rule that the model itself cannot reliably consume. SkillsBench negative finding: self-generated skills provide NO benefit on average; human curation is the only reliable path. The dated record for that finding is `context/decision-framework.md`, "The SkillsBench record".
 
 **Symptom.** The SSOT was written end-to-end by an agent without human review at any phase boundary. Eval cases (if any) were also model-authored. Failure rate higher than ad-hoc inline.
 

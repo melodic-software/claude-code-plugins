@@ -55,7 +55,16 @@ EOF
 fi
 
 canonicalize() {
-  realpath "$1" 2>/dev/null || readlink -f "$1" 2>/dev/null || printf '%s' "$1"
+  # `cd` plus `pwd -P` leads because it is the one spelling a host collapses every
+  # alias of a directory into. Git for Windows hands the same directory out in at
+  # least three forms — `C:/repo` from `git rev-parse`, `/tmp/x` through a mount
+  # alias, `/c/repo` from the shell — and `realpath` passes each straight through,
+  # so the same repository would hash to a different slug per caller. On Linux
+  # `pwd -P` and `realpath` agree: both report the symlink-free physical path. The
+  # tail keeps the derivation total for a path that cannot be entered.
+  (cd "$1" 2>/dev/null && pwd -P) ||
+    realpath "$1" 2>/dev/null || readlink -f "$1" 2>/dev/null ||
+    printf '%s' "$1"
 }
 
 if [[ "${1:-}" == "--default-root" ]]; then
@@ -116,7 +125,13 @@ legacy_canonical=""
 if command -v git >/dev/null 2>&1; then
   common="$(git -C "$canonical_path" rev-parse --git-common-dir 2>/dev/null)" || common=""
   if [[ -n "$common" ]]; then
-    [[ "$common" == /* ]] || common="$canonical_path/$common"
+    # `--git-common-dir` answers relative to the worktree OR absolute, and on Git
+    # for Windows an absolute answer is drive-letter form (`C:/repo/.git`), which
+    # a `/*` test alone reads as relative and joins onto the worktree path — a
+    # path that exists nowhere, whose basename is still `.git`, so the hoist would
+    # "succeed" into nonsense and every worktree of a repo would get its own slug.
+    [[ "$common" == /* || "$common" == [A-Za-z]:[/\\]* ]] ||
+      common="$canonical_path/$common"
     common="$(canonicalize "$common")"
     if [[ "$(basename "$common")" == ".git" ]]; then
       main_dir="$(dirname "$common")"

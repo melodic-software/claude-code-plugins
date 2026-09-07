@@ -3,7 +3,6 @@ description: "Enumerate the complete Claude Code ECOSYSTEM this machine can invo
 argument-hint: "[--builtin|--plugins|--bundled|--agents|--hooks] [--marketplace <name>] [--diff <file>], or just ask in words"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: operator
   summary: Enumerate every command, skill, agent, and plugin component this machine can invoke
@@ -154,7 +153,7 @@ Two upstream facts this skill depends on, each with the trigger that obliges re-
 
 | Claim | Basis | Recheck trigger | Verified |
 |---|---|---|---|
-| The docs publish no built-in slash-command list | `docs/en/slash-commands.md` and `docs/en/skills.md` return byte-identical content | Those two stop being identical, or either grows a command table | 2026-08-11 |
+| The docs now publish a partial built-in command table, so the docs are a cross-check and the binary stays the source. `docs/en/commands` carries rows for commands and some aliases; it is not the whole set the binary registers | `docs/en/commands`, read for the `/doctor` and `/cost` rows, against a `--binary-only` run on this machine | The commands page drops its table, or the binary registers a command the page also lists with different aliases | 2026-09-06, Claude Code 2.1.263 |
 | The plugin component set is skills, commands, agents, workflows, output-styles, themes, monitors, hooks, bin, settings.json, .mcp.json, .lsp.json, dependencies | `docs/en/plugins-reference.md` manifest schema and standard plugin layout | The manifest schema gains or drops a component key | 2026-08-11 |
 
 The changelog at `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md` is the
@@ -207,11 +206,19 @@ the stale-but-honest report is the one a consumer can act on.
 
 ## Gotchas
 
-- **A name in the build is not always a command.** Verified cases: `alias` is a sandboxed-shell
-  builtin beside `nohup` and `timeout`; `todos` is a session-cleanup hook. Both match a naive
-  `name:"…"` search. The brace-depth reader plus the `type:` requirement is what excludes them.
+- **A name in the build is not always a command.** Strings such as `alias` and `todos` match a
+  naive `name:"…"` search and are not commands. The brace-depth reader plus the `type:` requirement
+  is what excludes them. Verified 2026-09-06 against Claude Code 2.1.263, by running
+  `inventory.py --binary-only` on this machine: neither name appears under `builtin_commands`.
+  Recheck when the extractor's `type:` requirement changes or a release adds a command by either
+  name.
 - **An alias is not a separate command.** `/cost` and `/stats` are aliases of `/usage`, not three
   commands. Count commands once and list aliases beside them, or your total will drift from `/help`.
+  Basis: <https://code.claude.com/docs/en/commands> carries the row "`/cost` | Alias for `/usage`",
+  and a run of `inventory.py --binary-only` on this machine reports `usage` with aliases `cost` and
+  `stats`. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day.
+  Recheck when the commands page changes the `/cost` row or the extraction reports a different
+  alias set for `usage`.
 - **A bundled skill can also appear as a command object.** When a name registers as both, the skill
   registration wins; the script drops the duplicate so one capability is not counted twice.
 - **An npm install has no embedded bundle.** The launcher script is small and loads its bundle

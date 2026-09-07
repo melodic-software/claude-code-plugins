@@ -34,9 +34,12 @@ Two rules govern everything this skill says, per the plugin's
 
 ## Scope boundary (route out)
 
-- Unused skills/plugins/MCP servers by usage history → the bundled `/doctor` (it is
-  `disableModelInvocation: true`, so tell the operator to run it themselves; never reimplement
-  its checks).
+- Unused skills/plugins/MCP servers by usage history → the bundled `/doctor`, which finds unused
+  skills, MCP servers, and plugins against their context cost and asks for confirmation before
+  changing anything. Tell the operator to run it themselves; never reimplement its checks.
+  Verified 2026-09-06 against Claude Code 2.1.263 and the commands reference
+  (<https://code.claude.com/docs/en/commands>, the `/doctor` row). Recheck when that row stops
+  naming the unused-component check, or when a release note names `/doctor`.
 - Per-skill / per-agent / per-MCP-tool attribution → `/context` natively.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `claude-config` plugin, if installed.
@@ -93,7 +96,7 @@ stop. Never substitute an estimate.
 Candidates come from the **live tool list in the baseline record** (`tools`), never from a
 memorised inventory. Ask the operator (or take from arguments) which to measure:
 
-- A **chosen set** (fast; one ~5–60 s run per tool):
+- A **chosen set** (one run per tool):
 
   ```shell
   node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" attribute \
@@ -227,10 +230,17 @@ Write posture splits by scope, and the split is not negotiable:
   lever at a time, after the operator approves the exact diff shown in advance. The plugin's
   PreToolUse checkpoint returns `permissionDecision: "ask"` for any settings-surface write, so
   even in auto mode the write prompts rather than sliding through. **A checkpoint, not a
-  guarantee**: a `PermissionRequest` hook can still allow it and `disableAllHooks` removes
-  non-managed hooks. Measured at v2.1.232 in headless mode, the `ask` fires and blocks even
-  under `bypassPermissions` (surfacing as a tool error carrying the reason); interactive
-  `bypassPermissions` behavior is unmeasured. Say so when describing the protection.
+  guarantee**: a `PermissionRequest` hook can still answer the prompt, and `disableAllHooks` set
+  outside managed settings turns off user, project, local, and plugin hooks. The checkpoint
+  survives `bypassPermissions`, because hooks are evaluated before the mode check and can still
+  block a tool there; in a headless run that skips permissions, a call that would still prompt is
+  denied instead. Verified 2026-09-06 against Claude Code 2.1.263 and three pages: the settings
+  reference (<https://code.claude.com/docs/en/settings-reference>, `disableAllHooks`), the
+  permission-modes page (<https://code.claude.com/docs/en/permission-modes>, the unattended `-p`
+  row and the `PermissionRequest` sentence), and the Agent SDK permissions page
+  (<https://code.claude.com/docs/en/agent-sdk/permissions>, "Bypass permissions mode"). Recheck
+  when any of the three stops carrying its statement, or when a release note names hook evaluation
+  order or `disableAllHooks`. Say so when describing the protection.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
   human-confirmation guarantee. In auto mode a write there routes to the classifier, which can

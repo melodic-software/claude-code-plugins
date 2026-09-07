@@ -37,6 +37,16 @@ Sources, both fetched 2026-08-11: <https://code.claude.com/docs/en/settings> §H
 | `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout** — anchoring on the worktree root looks where the file is not. Three documented exceptions keep it in the start directory: outside a git repository, when the repository root is the home directory, and in Agent SDK sessions |
 | `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
 
+This table is the dated owner record for the `pre-v2.1.211` boundary. Every other site in this
+plugin that names the boundary points here rather than restating it. The settings page states it
+directly: "Before v2.1.211, Claude Code kept the file in the starting directory. It still reads a
+file an earlier version left there alongside the root file; where both set the same key, the root's
+value applies, and permission rules from both files apply. The Agent SDK's `resolveSettings()`
+helper always reads the file from the starting directory." Basis:
+<https://code.claude.com/docs/en/settings>. Verified 2026-09-06 against Claude Code 2.1.263 and
+that page as fetched that day. Recheck when the settings page names a different version, drops the
+sentence, or a release note names where `settings.local.json` is read from.
+
 The managed scope is four surfaces. Two are the **portable core**, read on every OS: the per-OS
 `managed-settings.json` and its `managed-settings.d/` drop-in directory. Their merge order is
 documented rather than guessed, so the reader implements it instead of reporting an inventory:

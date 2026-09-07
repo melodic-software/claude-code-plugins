@@ -38,18 +38,18 @@ it does.
 
 ## Tee file shape
 
-One JSON object, rewritten atomically on a **drain cadence** rather than on every refresh (temp file
-
-- rename — a reader never sees torn JSON; the file is **last-writer-wins** across all sessions on the
-  machine). Each refresh records its observation to a private per-session spool file with no external
-  process at all, and one elected refresh per cadence flushes the batch into this file, so a
-  **changed** payload reaches the snapshot within the drain cadence (30 seconds by default). A
-  payload that has **not changed** since the last real write, `captured_at` aside, is skipped: the
-  file and its `captured_at` may stay untouched for up to the no-change floor, **300 seconds by
-  default** (`RLG_TEE_NOCHANGE_FLOOR`), after which an identical payload is written again. The floor
-  is half the 10-minute staleness budget below, so a fresh-but-unmoving snapshot never approaches
-  stale, and the operable floor values are unchanged. `captured_at` is the **observation time of the
-  record the drain chose** — when those windows were seen — not the time the file was written:
+One JSON object, rewritten atomically on a **drain cadence** rather than on every refresh (temp
+file + rename, so a reader never sees torn JSON; the file is **last-writer-wins** across all
+sessions on the machine). Each refresh records its observation to a private per-session spool file
+with no external process at all, and one elected refresh per cadence flushes the batch into this
+file, so a **changed** payload reaches the snapshot within the drain cadence (30 seconds by
+default). A payload that has **not changed** since the last real write, `captured_at` aside, is
+skipped: the file and its `captured_at` may stay untouched for up to the no-change floor, **300
+seconds by default** (`RLG_TEE_NOCHANGE_FLOOR`), after which an identical payload is written
+again. The floor is half the 10-minute staleness budget below, so a fresh-but-unmoving snapshot
+never approaches stale, and the operable floor values are unchanged. `captured_at` is the
+**observation time of the record the drain chose**, meaning when those windows were seen, not the
+time the file was written:
 
 ```json
 {
@@ -249,7 +249,10 @@ sweeping the directory expects them:
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on
-  one until it stabilizes.
+  one until it stabilizes. Verified 2026-09-06 against Claude Code 2.1.263 and the plugins reference
+  at `https://code.claude.com/docs/en/plugins-reference`, which calls monitors an experimental
+  component and names `experimental.monitors` in `plugin.json` as the declaration key. Recheck when
+  that page stops calling monitors experimental, or when a release note names the monitors component.
 - **Fixed constants.** The tee path and the 90% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
   silently split writer and readers. The only `userConfig` is the hook kill switch.

@@ -20,7 +20,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the `source-control` plugin's
+[gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Pre-computed context
 
@@ -102,6 +104,16 @@ env var, so leaving `--data-dir` off here would silently fall through to
 the marketplace-qualified directory Claude Code actually resolves. `$ARGUMENTS`
 comes after `--data-dir`, so an explicit `--data-dir` the caller passes in
 `$ARGUMENTS` still wins (last flag wins in `lane-launcher.sh`'s parser).
+
+This is the dated record for the export claim; the two restatements below and in
+`context/refresh.md` point here. The page says of `${CLAUDE_PLUGIN_ROOT}`,
+`${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}` that "All three are exported
+as environment variables to hook processes and to MCP and LSP server
+subprocesses", and its component table gives skill and agent content inline
+placeholder substitution only. Verified 2026-09-06 against Claude Code 2.1.263
+and that page as fetched that day. Recheck when the page's environment-variable
+section stops naming those three process kinds, or a release note names plugin
+environment variables.
 
 ## Action Router
 
@@ -186,9 +198,11 @@ committed directory. The launcher resolves the prompt dir in exactly one place
 
 A **running** lane keeps the skill versions it loaded at launch: a fix merged to a
 plugin the lane runs does **not** reach that lane mid-session. This is not a missing
-feature to build around. It is verified Claude Code behavior (a live session keeps
+feature to build around. It is documented Claude Code behavior (a live session keeps
 its launch-time plugin versions, `/loop` never re-reads a skill's body on later
-cycles, and a loop can't self-trigger `/reload-plugins`). Restart is the honest
+cycles, and a loop can't self-trigger `/reload-plugins`); the dated record with
+all three citations is [context/refresh.md](context/refresh.md), "Empirical
+answer: no true mid-session hot-reload for a running loop lane". Restart is the honest
 refresh mechanism, the same `restart` that clears context bloat. Detect an
 unconsumed self-fix with a read-only git probe against the repo's default branch,
 then restart that lane at its next cycle boundary. The probe reads the launch
@@ -214,14 +228,19 @@ the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback, inside
 `context/refresh.md` would not work: that file is read raw, and per
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
 `CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real
-environment variable, never a script the Bash tool runs. The probe would then
+environment variable, never a script the Bash tool runs (the dated record for
+that claim is the `--data-dir` note above). The probe would then
 read the unqualified `~/.claude/plugins/data/claude-ops` guess, find no marker,
 and skip the staleness check silently.
 
 ## Verified CLI surface
 
-The launcher shells out only to primitives confirmed on this machine's `claude`
-(`--help` / real invocation): `claude --bg -n <name> [--model M] [--effort E]
+The launcher shells out only to primitives this machine's `claude` reports.
+Verified 2026-09-06 against Claude Code 2.1.263, by reading `claude --help`,
+`claude agents --help`, and `claude plugin marketplace --help`. Recheck when the
+CLI's major or minor version moves, or a release note names background sessions,
+the `agents` command, or `plugin marketplace`. The primitives:
+`claude --bg -n <name> [--model M] [--effort E]
 [--settings JSON] "<prompt>"` (launch a named background session, return
 immediately; `--settings` accepts inline JSON and applies session-only, per the
 CLI reference),

@@ -1707,6 +1707,20 @@ jobs:
           fi
           scripts/sync-unwrap-before-compose.sh --check-bump "origin/$BASE_REF"
 
+      - name: Verify context-zone cluster matches canonical
+        if: needs.changes.outputs.run_tests == 'true'
+        run: scripts/sync-context-zone.sh --check
+      - name: Verify carrying plugins bumped when canonical changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
+
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-resolve-convention-home.sh --check

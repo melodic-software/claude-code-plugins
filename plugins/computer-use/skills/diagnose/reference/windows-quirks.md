@@ -2,8 +2,11 @@
 
 # Windows quirks
 
-Our content — not from upstream. Empirically verified 2026-08-10 on Windows 11 with the Claude
-Desktop computer-use surface.
+Our content, not from upstream. Empirically verified 2026-08-10 on Windows 11 with the Claude
+Desktop computer-use surface. That date is the observation date and has not moved: the behavior is
+reproducible only on the Desktop surface, so no CLI session can re-run it. Recheck when a Claude
+Desktop release note names context-menu handling or synthesized input, when the CLI gains the
+Desktop surface, or when a run on Windows 11 stops reproducing a behavior below.
 
 ## Shell-owned context menus ignore a synthesized Escape
 

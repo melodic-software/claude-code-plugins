@@ -3,6 +3,12 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.5]
+
+### Changed
+
+- Date the diagnose surface table and the Windows quirks basis, each with a recheck trigger (prompt-audit follow-up F6)
+
 ## [0.1.4]
 
 ### Changed

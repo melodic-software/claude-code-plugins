@@ -98,14 +98,27 @@ model names and pairings could not be verified live (cite the URL) so they confi
 against `/model` and `/advisor` themselves. This is a visible degrade, not a silent
 one, and never a guessed-from-memory model name.
 
-## Advisory framing — you cannot read the current config
+## Advisory framing — effort is readable, advisor state is not
 
-The skill knows its own main model (stated in the system prompt) but cannot reliably
-read the current effort level or whether an advisor is already set. Frame the
-recommendation as a delta the user applies, not a fact about their current state:
-"if you are not already on X, consider it," plus how to apply it — `/model` for the
-model, the effort setting for effort, `/advisor` for the advisor. Do not instruct a
-capability (reading the live effort/advisor state) that does not exist.
+The skill knows its own main model, stated in the system prompt. Effort is readable too:
+`${CLAUDE_EFFORT}` substitutes the current level into a skill body, and `CLAUDE_EFFORT` is set in
+Bash tool subprocesses and hook commands to the level in effect when the subprocess starts. Both
+report `low`, `medium`, `high`, `xhigh`, or `max`, and both are set only when the current model
+supports the effort parameter, so an absent value means unsupported rather than unset. Whether an
+advisor is configured has no such surface: the documentation gives commands and settings for
+choosing one and an environment variable for disabling the tool, and none for reading the current
+selection back.
+
+So split the framing. Where effort is readable, say what it is and recommend from there. Where
+advisor state is not, frame the recommendation as a delta the user applies rather than a fact about
+their current state: "if you are not already on X, consider it," plus how to apply it, `/model` for
+the model, the effort setting for effort, `/advisor` for the advisor. Do not instruct a capability
+that does not exist, and do not carry the old blanket claim that neither is readable.
+
+Verified 2026-09-06 against Claude Code 2.1.263 and the skills, environment-variables, and advisor
+documentation pages as fetched that day. Recheck when the skills page drops the `${CLAUDE_EFFORT}`
+substitution row, when a surface for reading the configured advisor appears on the advisor or
+environment-variables page, or when a release note names either.
 
 ## Both domains
 

@@ -3,7 +3,16 @@ description: "Verify the context-guard plugin's wiring on this machine — jq, t
 argument-hint: "check | apply [defaults]"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+Three of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
+
+`jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
+Installed shim (first path) against the shipped source (second path), with both `# shim-revision:` markers; a `No such file` line names the side that is missing: !`{ grep -H "^# shim-revision:" "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" 2>&1; cmp -s "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" && echo "cmp: identical" || echo "cmp: not identical, or a file is absent"; }`
+`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`{ if [ -e "$HOME/.claude/context-guard/zones.json" ]; then cat "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi; } | head -40`
 
 ## Purpose
 
@@ -36,14 +45,18 @@ zone bands, zones.json shape) are owned by
 
 ## `check` (read-only)
 
-1. **`jq`**. `command -v jq`. FAIL if absent: without it the wrapper cannot tee (it stays
-   transparent and shows a visible notice), the standalone statusline degrades, and the zone
-   resolver prints `unknown`. Remediation: install jq (<https://jqlang.org/download/>).
-2. **Installed shim state**, the shim is the wiring target, so check it before the wiring. Compare
-   `~/.claude/context-guard/bin/statusline-shim.sh` (the durable shim copy) against
-   `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and classify per
+1. **`jq`**. Read the pre-computed `jq` value. FAIL when it is `absent`: without jq the wrapper
+   cannot tee (it stays transparent and shows a visible notice), the standalone statusline
+   degrades, and the zone resolver prints `unknown`. Remediation: install jq
+   (<https://jqlang.org/download/>).
+2. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
+   pre-computed shim value compares `~/.claude/context-guard/bin/statusline-shim.sh` (the durable
+   shim copy) against `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and
+   carries the `# shim-revision:` marker of each file that exists. Classify it per
    [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Installed shim
-   state", shared with the sibling guard plugin and synced byte-identical.
+   state", shared with the sibling guard plugin and synced byte-identical. An absent shipped
+   source takes that reference's own branch and ends the comparison; never read `cmp: not
+   identical` as drift when the shipped path is the missing one.
 3. **Statusline wiring state**. Read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`, and managed settings, where `statusLine` is also a valid key)
@@ -90,11 +103,14 @@ zone bands, zones.json shape) are owned by
      section of `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` carries the consumer rule.
    - **The status line is turned off with a `statusLine` still configured.** Claude Code
      disables it entirely when managed settings set `disableAllHooks` or the folder is not
-     trusted, and narrows the source to managed settings when `allowManagedHooksOnly` is set; under narrowing it runs a managed value if one is deployed and otherwise "skips your value
-     without warning, the status line is disabled". Report that state as **INFO: the status
+     trusted, and narrows the source to managed settings when `allowManagedHooksOnly` is set;
+     under narrowing it runs a managed value if one is deployed and otherwise skips your value
+     without warning, leaving the status line disabled. Report that state as **INFO: the status
      line is disabled by policy or workspace trust**, name which of the three conditions
      applies, and route the operator to policy or trust. It is not a wiring defect, and
-     printing wiring will not fix it.
+     printing wiring will not fix it. The dated record for both settings keys is
+     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md`, branch 3 of "Distinguishing
+     structural absence from breakage".
 4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. Probe
    `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
    - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
@@ -121,12 +137,16 @@ zone bands, zones.json shape) are owned by
      exactly this. The file updates only while this session is interactive.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path; probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
-5. **zones.json state**, read-only report: absent (shipped defaults in effect, percentage 50/75
-   plus the window-class token bands; valid zero-config state, not a defect), present and valid
+5. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
+   (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
+   zero-config state, not a defect), present and valid
    (report the bands in effect, both shapes), or present with a malformed shape (report per shape
    — the resolver validates percentage keys and `token_bands` independently and falls back per
    shape with a stderr notice; a percentage-only file without `token_bands` is valid, with
-   shipped token bands silently in effect; remediation: `apply`). Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
+   shipped token bands silently in effect; remediation: `apply`). A `(present but unreadable)`
+   token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
+   cannot be read, which is a defect the absent branch would hide. Report the read error and route
+   the operator to the file's permissions, not to `apply`. Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
 6. **Hook registration vs hook activation**. Three separate facts, never collapsed into one
    status. A registered hook set that every hook exits out of immediately is the exact state an
    operator is diagnosing when injections or gating are missing, and reporting "active" because the
@@ -156,12 +176,21 @@ zone bands, zones.json shape) are owned by
    status line disabled by policy or trust, or found the effective command owned by managed
    settings. Those branches already forbade printing wiring the operator cannot make run. When
    this step does print, the wiring target is the shim's fixed path, never
-   `${CLAUDE_PLUGIN_ROOT}`. Read
-   [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) for the peel
-   rules and the shell-syntax guard (shared with rate-limit-guard), then
-   [`reference/statusline-edit.md`](reference/statusline-edit.md) for this plugin's JSON
-   edit blocks and the Windows note. Composing without those rules double-wraps a sibling tee
-   and stacks another `sh -c` layer on every re-run.
+   `${CLAUDE_PLUGIN_ROOT}`. Compose the value by running
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh"` over the effective
+   `statusLine` value from step 3, never by peeling and wrapping the string yourself:
+
+   ```bash
+   jq '.statusLine' <the settings file that owns the effective command> |
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+       --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' --block --explain
+   ```
+
+   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) for that
+   script's argument and exit-code contract and the judgments it leaves to you (shared with
+   rate-limit-guard), then [`reference/statusline-edit.md`](reference/statusline-edit.md) for this
+   plugin's JSON edit blocks, the combined sibling-shim invocation, and the Windows note. Composing
+   by hand double-wraps a sibling tee and stacks another `sh -c` layer on every re-run.
 8. **Dotfiles tracking proposal**, the printed edit changes a durable user-scope file the operator
    maintains. When the operator's home directory is managed by a dotfiles system (chezmoi, yadm, a
    bare-repo setup, ...), surface the reminder to capture the `settings.json` change through that

@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.20]
+
+### Changed
+
+- Isolate the collector suite's main fleet run from the operator's own source-control worktree_root, and skip the symlink and unreadable-root cases on a host whose ln -s copies and whose chmod does not deny the owner (prompt-audit follow-up F10)
+
 ## [0.23.19]
 
 ### Changed

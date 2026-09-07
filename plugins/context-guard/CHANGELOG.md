@@ -5,6 +5,42 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.54]
+
+### Fixed
+
+- `scripts/compose-statusline-wiring.sh` wraps a renderer whose first word is a shell keyword
+  (`! false`, `[[ -f file ]]`) in `sh -c`, matching builtins. Both keyword renderers are also
+  covered by the idempotency table, so a re-run cannot stack a second adapter. Synced to
+  rate-limit-guard.
+
+## [0.7.53]
+
+### Fixed
+
+- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced to rate-limit-guard.
+
+## [0.7.52]
+
+### Changed
+
+- reference, setup: dated records for the statusline disable gates and the Windows PowerShell routing note, with the two copies pointing at the record (prompt-audit follow-up F6)
+
+## [0.7.51]
+
+### Changed
+
+- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with rate-limit-guard and registered in the cross-plugin source registry (prompt-audit follow-up F15)
+- setup: `reference/unwrap-before-compose.md` shrinks to that script's argument and exit-code contract, its invocation, and the three judgments it leaves to the skill; `reference/statusline-edit.md` and step 7 of `check` call it instead of composing the edit by hand (prompt-audit follow-up F15)
+- setup evals: the seven cases that checked the peel and wrap arithmetic now check that the skill invokes the script and reports its result, keeping their ids and names (prompt-audit follow-up F15)
+- setup: the `check` action's jq, installed-shim-versus-shipped-source, and `zones.json` probes move into a `## Pre-computed context` block that runs them at load time; the body reads those values instead of issuing three Bash calls, and eval 1 asserts that (prompt-audit follow-up F17)
+- setup: `shell: bash` is declared in the frontmatter, so the injected probes never fall through to the PowerShell tool on a host without Git Bash (prompt-audit follow-up F17)
+- reader-contract: the Consumers entry for `plugin-quality` states what its `zones-inline-drift.test.sh` lane checks today, the synced `context-zone.sh` copy and the skill body's evidence-degraded marker path against this contract, with byte-identity of the copy named as the separate `sync-context-zone.sh --check` gate (prompt-audit follow-up F19)
+- reference/reader-contract.md: adds a recheck trigger governing every dated stamp in the file, naming the statusline stdin schema, the auto-compact trigger, the four tunable surfaces, and the skills substitution table (prompt-audit follow-up F2)
+- reference/cloud-headless-capture.md: states the cloud and headless statusline measurements as current fact instead of narrating them as a correction to an earlier revision of the file (prompt-audit follow-up F2)
+- reference/reader-contract.md: drops two restatements of the bands' declared-judgment-default status, which the "Band provenance" section already owns (prompt-audit follow-up F2)
+- reference/reader-contract.md: widens that recheck trigger to the two remaining claim classes, the published 1M-window behavior statements and the cloud and headless finding, so every dated stamp in the file is named by one (prompt-audit follow-up F2)
+
 ## [0.7.50]
 
 ### Changed

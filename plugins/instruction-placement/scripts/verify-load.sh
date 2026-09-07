@@ -130,11 +130,21 @@ command -v jq >/dev/null 2>&1 ||
 
 WORK="$(mktemp -d)" || unknown "cannot create a temporary directory"
 trap 'rm -rf "$WORK"' EXIT
+RECORDS="$WORK/records"
+mkdir -p "$RECORDS" || unknown "cannot create the record directory"
 LOG="$WORK/loaded.log"
 SETTINGS="$WORK/settings.json"
 
 # The hook writes OUTSIDE the repository under test, so a probe never leaves a
 # trace in the tree it is measuring.
+#
+# One file per hook PROCESS, not one shared log. Claude Code fires this hook once per
+# instruction file and the invocations overlap, and an append from two concurrent
+# processes is not atomic on every host: on Windows they clobber each other, which both
+# LOSES records and leaves a half-written line that stops jq mid-file. A probe that
+# under-reports what loaded reports a surface MISSING that it watched load, so the
+# records are kept apart and concatenated below. `>>` inside one file because two
+# invocations that did share a PID would otherwise lose the first record.
 cat >"$SETTINGS" <<JSON
 {
   "hooks": {
@@ -143,7 +153,7 @@ cat >"$SETTINGS" <<JSON
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c 'del(.session_id,.transcript_path,.cwd,.prompt_id)' >> '$LOG'"
+            "command": "jq -c 'del(.session_id,.transcript_path,.cwd,.prompt_id)' >> '$RECORDS/rec-'\$\$'.json'"
           }
         ]
       }
@@ -152,7 +162,14 @@ cat >"$SETTINGS" <<JSON
 }
 JSON
 
-PROMPT="Use the Read tool on ${TRIGGER}. Then reply with exactly the word DONE and nothing else."
+# The Read call IS the measurement: nothing fires an InstructionsLoaded record for a
+# path-scoped rule unless the trigger file is actually read. A bare "use the Read tool"
+# is a suggestion the model may satisfy from the file it already sees in context, or
+# hand to a subagent, or skip entirely — which reports every path-scoped surface MISSING
+# on a probe that never measured anything. Operator-scope instructions load into this
+# session too (a user CLAUDE.md that says delegate, an output style that says do less),
+# so the instruction has to be strong enough to survive them.
+PROMPT="Call the Read tool on the file ${TRIGGER}. This is a measurement probe: the Read call itself is the whole point, so make it yourself before you reply, do not delegate it, and do not answer from memory. After the Read returns, reply with exactly the word DONE and nothing else."
 
 if ! timeout "$PROBE_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
   --settings "$SETTINGS" --allowedTools Read >"$WORK/out.txt" 2>"$WORK/err.txt"; then
@@ -163,6 +180,8 @@ if ! timeout "$PROBE_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
   unknown "the CLI exited $rc: $(head -c 200 "$WORK/err.txt" | tr '\n' ' ')"
 fi
 
+cat "$RECORDS"/rec-*.json >"$LOG" 2>/dev/null
+
 [[ -s "$LOG" ]] ||
   unknown "the InstructionsLoaded hook produced no records; the CLI may not support it here"
 
@@ -172,21 +191,33 @@ jq -r '[
     (.load_reason // "?"),
     (.trigger_file_path // "-"),
     ((.globs // ["-"]) | join(","))
-  ] | @tsv' "$LOG" 2>/dev/null | LC_ALL=C sort -u | sed 's|^|LOADED\t|'
+  ] | @tsv' "$LOG" 2>/dev/null | tr -d '\r' | LC_ALL=C sort -u | sed 's|^|LOADED\t|'
 
 MISSING=0
 if ((${#EXPECT[@]} > 0)); then
-  loaded_files="$(jq -r '.file_path // empty' "$LOG" 2>/dev/null)"
+  # `tr -d '\r'`: a Windows jq writes its output through a text-mode stdout, so every
+  # record it prints ends CRLF. Command substitution drops only the trailing one, which
+  # would leave every path but the last carrying a CR and matching nothing.
+  loaded_files="$(jq -r '.file_path // empty' "$LOG" 2>/dev/null | tr -d '\r')"
   for want in "${EXPECT[@]}"; do
     # Match the WHOLE path or a complete path-component suffix — never a bare
     # substring. A plain `grep -F` marks `rules/rule.md` as MET when the only
     # loaded path is `/repo/old-rules/rule.md`, which lets a verification tool
     # report PASS for a surface that never loaded. For a tool whose entire job is
     # not lying about what loaded, that is the worst possible defect.
+    #
+    # The boundary is a SEPARATOR, not a forward slash. Claude Code reports
+    # `file_path` in the host's own spelling, so on Windows every loaded path arrives
+    # backslash-separated and a `/`-anchored suffix matches nothing — the tool then
+    # reports a surface MISSING that it watched load. Fold both sides to `/` and the
+    # component boundary is preserved on either host: `old-rules/csharp.md` still
+    # fails to match a loaded `.../rules/csharp.md`.
     want_norm="${want#./}"
+    want_norm="${want_norm//\\//}"
     matched=0
     while IFS= read -r loaded; do
       [[ -n "$loaded" ]] || continue
+      loaded="${loaded//\\//}"
       if [[ "$loaded" == "$want_norm" || "$loaded" == */"$want_norm" ]]; then
         matched=1
         break

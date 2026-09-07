@@ -30,11 +30,11 @@
     {
       "id": 3,
       "name": "build-dependencies-are-explicit-transactional-and-validated",
-      "prompt": "/ai-briefing:setup --with-build-deps",
+      "prompt": "/ai-briefing:setup apply install-build-deps",
       "expected_output": "Stages the locked build tree in a temporary directory, uses npm ci, installs the Playwright headless Chromium shell and Linux system dependencies where supported, validates a browser launch, and only then swaps the runtime with rollback protection.",
       "files": [],
       "expectations": [
-        "Does not install build dependencies without --with-build-deps",
+        "Does not install build dependencies unless the subaction is apply install-build-deps",
         "Uses npm ci and the committed lockfile in a temporary stage",
         "Uses Playwright --with-deps on Linux and validates chromium.launch before replacement",
         "Preserves the existing runtime if staging, installation, launch, or replacement fails"
