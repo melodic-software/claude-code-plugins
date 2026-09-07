@@ -4568,6 +4568,75 @@ class HandoffVerifyTests(unittest.TestCase):
                 result["emptied_containers"],
             )
 
+    def test_approved_path_replaced_during_container_probes_is_not_emitted_clear(
+        self,
+    ) -> None:
+        # Container work runs after the first clear. A same-name replacement
+        # during that window must fail the emitted approved-path verdict.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            leaf = container / "junk.tmp"
+            leaf.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            original = hygiene.verify_emptied_container
+
+            def replace_then_verify(*args: object, **kwargs: object):
+                leaf.write_text("replaced-under-the-same-name", encoding="utf-8")
+                return original(*args, **kwargs)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene, "verify_emptied_container", side_effect=replace_then_verify
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("drifted", result["verdicts"][0]["verdict"])
+            self.assertIn("changed-since-scan", result["verdicts"][0]["reasons"])
+            self.assertEqual([], result["emptied_containers"])
+            self.assertEqual(0, result["clear"])
+
+    def test_emptied_container_handle_probe_skips_already_removed_descendants(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "first.tmp").write_text("stale", encoding="utf-8")
+            (container / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (container / "first.tmp").unlink()
+            seen: list[set[str]] = []
+            original = hygiene.candidate_handle_state
+
+            def record_paths(
+                target: Path, path: Path, expected_paths: set[str]
+            ) -> tuple[str, str | None]:
+                seen.append(set(expected_paths))
+                return original(target, path, expected_paths)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene, "candidate_handle_state", side_effect=record_paths
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/first.tmp", "outer/second.tmp"]
+                )
+            container_probes = [paths for paths in seen if "outer" in paths]
+            self.assertTrue(container_probes)
+            self.assertNotIn("outer/first.tmp", container_probes[0])
+            self.assertIn("outer/second.tmp", container_probes[0])
+            self.assertEqual("clear", result["emptied_containers"][0]["verdict"])
+
     def test_container_order_is_the_apply_lane_removal_order(self) -> None:
         # Both lanes must derive container order from the same rule: the apply
         # lane's bottom-up removal order, restricted to directories, is exactly

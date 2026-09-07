@@ -2974,6 +2974,7 @@ def verify_emptied_container(
     if any(glob_matches(relative, pattern) for pattern in globs):
         contested.add("consumer-protected-path")
     expected_paths = subtree_names(relative, entries)
+    current_paths: set[str] | None = None
     if overlaps_truncated(relative, truncated_paths):
         # Same rationale as preview's short-circuit: a truncated container can
         # never clear, so skip the unbounded live walk and probes.
@@ -3002,8 +3003,13 @@ def verify_emptied_container(
             vcs = "vcs-state-unverified"
         if vcs:
             contested.add(vcs)
+        # Probe only descendants that still exist. After verify-one-delete-one,
+        # expected_paths still names settled missing children; CreateFileW
+        # OPEN_EXISTING on those returns ERROR_FILE_NOT_FOUND (2) and would
+        # make an emptied container handle-state-unverified.
+        handle_paths = current_paths if current_paths is not None else expected_paths
         try:
-            state, detail = candidate_handle_state(target, path, expected_paths)
+            state, detail = candidate_handle_state(target, path, handle_paths)
         except (OSError, subprocess.SubprocessError):
             state, detail = "unverified", "handle-probe-failed"
         if state == "open":
@@ -3043,227 +3049,243 @@ def handoff_verify(
     }
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
-    for relative in approved:
-        path = target.joinpath(*PurePosixPath(relative).parts)
-        drifted: set[str] = set()
-        contested: set[str] = set()
-        evidence_result: dict[str, Any] | None = None
-        candidate_pure = PurePosixPath(relative)
-        candidate_evidence = {
-            repository: config
-            for repository, config in (vcs_evidence or {}).items()
-            if (
-                (repository_pure := PurePosixPath(repository)) == candidate_pure
-                or candidate_pure in repository_pure.parents
-            )
-        }
-        try:
-            path.lstat()
-        except FileNotFoundError:
-            verdicts.append(
-                {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
-            )
-            continue
-        except PermissionError:
-            verdicts.append(
-                {
-                    "path": relative,
-                    "verdict": "contested",
-                    "reasons": ["needs-elevation"],
-                }
-            )
-            continue
-        except OSError:
-            verdicts.append(
-                {
-                    "path": relative,
-                    "verdict": "contested",
-                    "reasons": ["filesystem-state-unverified"],
-                }
-            )
-            continue
-        candidate_protections = hard_protection(path, target, exact_names, known_mounts)
-        truncated = overlaps_truncated(relative, truncated_paths)
-        overlapping_truncations = {
-            name
-            for name in truncated_paths
-            if name == relative
-            or name.startswith(relative + "/")
-            or relative.startswith(name + "/")
-        }
-        configured_git_truncations = {
-            (PurePosixPath(repository) / GIT_METADATA_NAME).as_posix()
-            for repository in candidate_evidence
-        }
-        evidence_inventory_eligible = bool(candidate_evidence) and not (
-            overlapping_truncations - configured_git_truncations
-        )
-        expected_paths = subtree_names(relative, entries)
-        if truncated and not evidence_inventory_eligible:
-            # A truncated path has no captured descendant set, so no live walk
-            # can prove anything about it — never clear (same rationale as the
-            # preview short-circuit).
-            contested.add("truncated-not-inventoried")
-            current_paths = expected_paths
-        else:
-            try:
-                current_paths = current_descendants(
-                    target,
-                    path,
-                    opaque_git_metadata=bool(candidate_evidence),
+    containers: list[dict[str, Any]] = []
+    # Two passes when container probes run: those walks and handle checks can
+    # outlast a concurrent same-name replacement of an approved path, and the
+    # container surplus-name check does not see that replacement. Revalidate
+    # the approved paths after the container work and recompute containers
+    # from the post-revalidation settled set.
+    for _ in range(2):
+        verdicts = []
+        for relative in approved:
+            path = target.joinpath(*PurePosixPath(relative).parts)
+            drifted: set[str] = set()
+            contested: set[str] = set()
+            evidence_result: dict[str, Any] | None = None
+            candidate_pure = PurePosixPath(relative)
+            candidate_evidence = {
+                repository: config
+                for repository, config in (vcs_evidence or {}).items()
+                if (
+                    (repository_pure := PurePosixPath(repository)) == candidate_pure
+                    or candidate_pure in repository_pure.parents
                 )
-            # On failure, treat the live set as unknown rather than empty
-            # (preview's choice): an unreadable subtree is contested, not
-            # provably drifted — "changed" cannot be claimed without a read.
+            }
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                verdicts.append(
+                    {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+                )
+                continue
             except PermissionError:
-                current_paths = expected_paths
-                contested.add("needs-elevation")
-            except (OSError, HygieneError):
-                current_paths = expected_paths
-                contested.add("filesystem-state-unverified")
-        if candidate_evidence and evidence_inventory_eligible:
-            try:
-                evidence_result = verify_vcs_checkout_evidence(
-                    target,
-                    path,
-                    current_paths,
-                    candidate_evidence,
-                    approved,
+                verdicts.append(
+                    {
+                        "path": relative,
+                        "verdict": "contested",
+                        "reasons": ["needs-elevation"],
+                    }
                 )
-            except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                continue
+            except OSError:
+                verdicts.append(
+                    {
+                        "path": relative,
+                        "verdict": "contested",
+                        "reasons": ["filesystem-state-unverified"],
+                    }
+                )
+                continue
+            candidate_protections = hard_protection(path, target, exact_names, known_mounts)
+            truncated = overlaps_truncated(relative, truncated_paths)
+            overlapping_truncations = {
+                name
+                for name in truncated_paths
+                if name == relative
+                or name.startswith(relative + "/")
+                or relative.startswith(name + "/")
+            }
+            configured_git_truncations = {
+                (PurePosixPath(repository) / GIT_METADATA_NAME).as_posix()
+                for repository in candidate_evidence
+            }
+            evidence_inventory_eligible = bool(candidate_evidence) and not (
+                overlapping_truncations - configured_git_truncations
+            )
+            expected_paths = subtree_names(relative, entries)
+            if truncated and not evidence_inventory_eligible:
+                # A truncated path has no captured descendant set, so no live walk
+                # can prove anything about it — never clear (same rationale as the
+                # preview short-circuit).
+                contested.add("truncated-not-inventoried")
+                current_paths = expected_paths
+            else:
+                try:
+                    current_paths = current_descendants(
+                        target,
+                        path,
+                        opaque_git_metadata=bool(candidate_evidence),
+                    )
+                # On failure, treat the live set as unknown rather than empty
+                # (preview's choice): an unreadable subtree is contested, not
+                # provably drifted — "changed" cannot be claimed without a read.
+                except PermissionError:
+                    current_paths = expected_paths
+                    contested.add("needs-elevation")
+                except (OSError, HygieneError):
+                    current_paths = expected_paths
+                    contested.add("filesystem-state-unverified")
+            if candidate_evidence and evidence_inventory_eligible:
+                try:
+                    evidence_result = verify_vcs_checkout_evidence(
+                        target,
+                        path,
+                        current_paths,
+                        candidate_evidence,
+                        approved,
+                    )
+                except (OSError, subprocess.SubprocessError, HygieneError) as exc:
+                    evidence_result = {
+                        "status": "failed",
+                        "gates": {
+                            name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                        },
+                        "blockers": ["vcs-evidence-state-unverified"],
+                        "error": str(exc),
+                    }
+                contested.update(evidence_result["blockers"])
+            elif candidate_evidence:
                 evidence_result = {
                     "status": "failed",
                     "gates": {
                         name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
                     },
-                    "blockers": ["vcs-evidence-state-unverified"],
-                    "error": str(exc),
+                    "blockers": ["vcs-evidence-non-git-truncation"],
                 }
-            contested.update(evidence_result["blockers"])
-        elif candidate_evidence:
-            evidence_result = {
-                "status": "failed",
-                "gates": {
-                    name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
-                },
-                "blockers": ["vcs-evidence-non-git-truncation"],
-            }
-            contested.update(evidence_result["blockers"])
-        evidence_verified = (
-            evidence_result is not None and evidence_result["status"] == "verified"
-        )
-        repository_paths = [
-            target.joinpath(*PurePosixPath(value).parts)
-            for value in (evidence_result or {}).get("repositories", [])
-        ]
-        if evidence_verified:
-            candidate_protections = evidence_adjusted_protections(
-                candidate_protections,
-                path,
-                target,
-                repository_paths,
-                exact_names,
+                contested.update(evidence_result["blockers"])
+            evidence_verified = (
+                evidence_result is not None and evidence_result["status"] == "verified"
             )
-            git_metadata_truncations = {
-                (repo / GIT_METADATA_NAME).relative_to(target).as_posix()
-                for repo in repository_paths
-            }
-            truncated = bool(overlapping_truncations - git_metadata_truncations)
-        if truncated:
-            contested.add("truncated-not-inventoried")
-        contested.update(candidate_protections)
-        if current_paths != expected_paths:
-            drifted.add("changed-since-scan")
-        for name in expected_paths:
-            entry = entries[name]
-            current = target.joinpath(*PurePosixPath(name).parts)
-            # Distinguish unverifiable descendant state from real drift:
-            # same_identity's blanket OSError->False would report a denied
-            # lstat as changed-since-scan, telling the lane to rescan when
-            # the actual remedy is resolving access (review finding).
-            try:
-                info = current.lstat()
-            except FileNotFoundError:
-                drifted.add("changed-since-scan")
-            except PermissionError:
-                contested.add("needs-elevation")
-            except OSError:
-                contested.add("filesystem-state-unverified")
-            else:
-                metadata_entry = any(
-                    current == repo / GIT_METADATA_NAME for repo in repository_paths
-                )
-                identity_matches = (
-                    same_object_identity(info, entry)
-                    if candidate_evidence
-                    and metadata_entry
-                    and entry.get("kind") == "directory"
-                    else same_stat_identity(info, entry)
-                )
-                if not identity_matches:
-                    drifted.add("changed-since-scan")
-            current_protections = hard_protection(
-                current, target, exact_names, known_mounts
-            )
+            repository_paths = [
+                target.joinpath(*PurePosixPath(value).parts)
+                for value in (evidence_result or {}).get("repositories", [])
+            ]
             if evidence_verified:
-                current_protections = evidence_adjusted_protections(
-                    current_protections,
-                    current,
+                candidate_protections = evidence_adjusted_protections(
+                    candidate_protections,
+                    path,
                     target,
                     repository_paths,
                     exact_names,
                 )
-            contested.update(current_protections)
-            relative_current = current.relative_to(target).as_posix()
-            if any(glob_matches(relative_current, pattern) for pattern in globs):
-                contested.add("consumer-protected-path")
-        if not truncated or evidence_inventory_eligible:
-            # A hung git (TimeoutExpired) must degrade to this one path's
-            # contested verdict, not abort the whole run with no verdicts —
-            # the subcommand promises a verdict per approved path.
-            try:
-                vcs = tracked_blocker(path, target)
-            except (OSError, subprocess.SubprocessError):
-                vcs = "vcs-state-unverified"
-            if vcs and not (evidence_verified and vcs == "vcs-tracked-content"):
-                contested.add(vcs)
-            # Same degradation rule as the VCS probe: a probe that fails to
-            # LAUNCH (lsof vanishing after which(), a ctypes load error) is
-            # this path's contested verdict, not a whole-run abort.
-            try:
-                state, detail = candidate_handle_state(target, path, expected_paths)
-            except (OSError, subprocess.SubprocessError):
-                state, detail = "unverified", "handle-probe-failed"
-            if state == "open":
-                contested.add("live-handle" + (f": {detail}" if detail else ""))
-            elif state == "needs_elevation":
-                contested.add("needs-elevation")
-            elif state != "clear":
-                contested.add(
-                    "handle-state-unverified" + (f": {detail}" if detail else "")
+                git_metadata_truncations = {
+                    (repo / GIT_METADATA_NAME).relative_to(target).as_posix()
+                    for repo in repository_paths
+                }
+                truncated = bool(overlapping_truncations - git_metadata_truncations)
+            if truncated:
+                contested.add("truncated-not-inventoried")
+            contested.update(candidate_protections)
+            if current_paths != expected_paths:
+                drifted.add("changed-since-scan")
+            for name in expected_paths:
+                entry = entries[name]
+                current = target.joinpath(*PurePosixPath(name).parts)
+                # Distinguish unverifiable descendant state from real drift:
+                # same_identity's blanket OSError->False would report a denied
+                # lstat as changed-since-scan, telling the lane to rescan when
+                # the actual remedy is resolving access (review finding).
+                try:
+                    info = current.lstat()
+                except FileNotFoundError:
+                    drifted.add("changed-since-scan")
+                except PermissionError:
+                    contested.add("needs-elevation")
+                except OSError:
+                    contested.add("filesystem-state-unverified")
+                else:
+                    metadata_entry = any(
+                        current == repo / GIT_METADATA_NAME for repo in repository_paths
+                    )
+                    identity_matches = (
+                        same_object_identity(info, entry)
+                        if candidate_evidence
+                        and metadata_entry
+                        and entry.get("kind") == "directory"
+                        else same_stat_identity(info, entry)
+                    )
+                    if not identity_matches:
+                        drifted.add("changed-since-scan")
+                current_protections = hard_protection(
+                    current, target, exact_names, known_mounts
                 )
-        verdict = "drifted" if drifted else "contested" if contested else "clear"
-        item = {
-            "path": relative,
-            "verdict": verdict,
-            "reasons": sorted(drifted) + sorted(contested),
-        }
-        if evidence_result is not None:
-            item["vcs_evidence"] = evidence_result
-        verdicts.append(item)
+                if evidence_verified:
+                    current_protections = evidence_adjusted_protections(
+                        current_protections,
+                        current,
+                        target,
+                        repository_paths,
+                        exact_names,
+                    )
+                contested.update(current_protections)
+                relative_current = current.relative_to(target).as_posix()
+                if any(glob_matches(relative_current, pattern) for pattern in globs):
+                    contested.add("consumer-protected-path")
+            if not truncated or evidence_inventory_eligible:
+                # A hung git (TimeoutExpired) must degrade to this one path's
+                # contested verdict, not abort the whole run with no verdicts —
+                # the subcommand promises a verdict per approved path.
+                try:
+                    vcs = tracked_blocker(path, target)
+                except (OSError, subprocess.SubprocessError):
+                    vcs = "vcs-state-unverified"
+                if vcs and not (evidence_verified and vcs == "vcs-tracked-content"):
+                    contested.add(vcs)
+                # Same degradation rule as the VCS probe: a probe that fails to
+                # LAUNCH (lsof vanishing after which(), a ctypes load error) is
+                # this path's contested verdict, not a whole-run abort.
+                try:
+                    state, detail = candidate_handle_state(target, path, expected_paths)
+                except (OSError, subprocess.SubprocessError):
+                    state, detail = "unverified", "handle-probe-failed"
+                if state == "open":
+                    contested.add("live-handle" + (f": {detail}" if detail else ""))
+                elif state == "needs_elevation":
+                    contested.add("needs-elevation")
+                elif state != "clear":
+                    contested.add(
+                        "handle-state-unverified" + (f": {detail}" if detail else "")
+                    )
+            verdict = "drifted" if drifted else "contested" if contested else "clear"
+            item = {
+                "path": relative,
+                "verdict": verdict,
+                "reasons": sorted(drifted) + sorted(contested),
+            }
+            if evidence_result is not None:
+                item["vcs_evidence"] = evidence_result
+            verdicts.append(item)
+        # Only paths that are actually going away can empty a container. A contested
+        # or drifted approved path stays on disk, so a container that depends on it
+        # must not be named removable.
+        settled = [
+            item["path"] for item in verdicts if item["verdict"] in {"clear", "gone"}
+        ]
+        containers = [
+            verify_emptied_container(
+                target,
+                relative,
+                entries,
+                exact_names,
+                known_mounts,
+                globs,
+                truncated_paths,
+            )
+            for relative in emptied_container_order(settled, entries)
+        ]
+        if not containers:
+            break
     clear = sum(1 for item in verdicts if item["verdict"] == "clear")
-    # Only paths that are actually going away can empty a container. A contested
-    # or drifted approved path stays on disk, so a container that depends on it
-    # must not be named removable.
-    settled = [
-        item["path"] for item in verdicts if item["verdict"] in {"clear", "gone"}
-    ]
-    containers = [
-        verify_emptied_container(
-            target, relative, entries, exact_names, known_mounts, globs, truncated_paths
-        )
-        for relative in emptied_container_order(settled, entries)
-    ]
     return {
         "status": "handoff-verify-complete",
         "target": str(target),

@@ -23,6 +23,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   compares only the surplus (live children the snapshot did not record). Missing inventoried
   children are the settled removals progressing; a replaced inventoried child fails its own
   approved-path verdict and stays out of the settled set, so it cannot empty the container.
+- **Approved paths are revalidated after container probes.** Container walks and handle
+  checks can outlast a concurrent same-name replacement of an approved path, and the
+  container surplus-name check does not see that replacement. When any emptied container is
+  named, `handoff-verify` reruns the approved-path checks and recomputes containers from
+  the post-revalidation settled set, so a stale `clear` is not emitted.
+- **Windows handle probes skip descendants that are already gone.** After verify-one-delete-one,
+  `expected_paths` still names settled missing children; `CreateFileW(..., OPEN_EXISTING)`
+  on those returns ERROR_FILE_NOT_FOUND and would make the emptied container
+  `handle-state-unverified`. The container probe now walks the live descendant set.
 
 ## [0.23.1]
 
