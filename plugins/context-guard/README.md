@@ -135,7 +135,7 @@ reported as 3 was creating **8** processes. Each of the three call sites carried
 inside the substitution and so cost double, and the payload pass cost triple because it was fed by
 a `printf | jq` pipeline. Moving every redirection onto an enclosing `{ ...; }` group, and reading
 the payload into a variable in-process rather than through a command substitution, brings the real
-count to 3 — the figure this section always claimed:
+count to 3, the figure this section always claimed:
 
 | Steady PostToolBatch fire | Process creations | Program launches (`execve`) |
 |---|---|---|
