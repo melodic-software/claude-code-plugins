@@ -3,6 +3,81 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.0]
+
+### Fixed
+
+- **The `plugins` skill's `sync` no longer rolls the fleet back when a marketplace
+  catalog reads lower than what is installed ([#3930](https://github.com/melodic-software/claude-code-plugins/issues/3930)).**
+  Steps 2 and 3 selected update candidates on string INEQUALITY and then called
+  `claude plugin update` for each unconditionally, so a `directory`-source
+  marketplace whose checkout was parked on an old branch turned the whole sweep
+  into a downgrade, which the CLI printed as `updated from X to Y` and the report
+  template, having only an `Updated:` row, presented as a successful update.
+  `fleet-state.sh` now compares direction: both versions are parsed to a numeric
+  `major.minor.patch` triple, and a catalog triple lower than the installed one is
+  a proven downgrade, withheld from `update-candidates-user` and the new
+  `update-candidates-project`. The compare ignores prerelease suffixes, so a
+  numeric tie is not a downgrade, and anything unparseable or unknown stays a
+  candidate, the same fail-open posture the existing null handling keeps.
+- **A failed marketplace refresh no longer widens the sweep.** Step 1's fallback
+  swept `--ids installed-user` unconditionally when the refresh failed. A failed
+  refresh means the checkout is untrusted, and acting unconditionally on an
+  untrusted catalog is the rollback path, so Step 3 keeps the guarded selector and
+  reports the ids it withheld as already-current as a lower bound that may still be
+  behind upstream. `installed-user` stays available in the script for a caller that
+  wants the whole set; it is no longer part of the sync algorithm.
+- **A backward move is unprintable as `Updated:`.** Step 6 classifies every
+  `<old> -> <new>` pair by the same triple compare: forward or unreadable renders
+  under `Updated:` (unreadable flagged `(direction unknown)`), backward under
+  `Downgraded:`. That covers the fail-open ids whose catalog version could not be
+  read and which therefore reached the CLI unguarded.
+- **`converge` blocks the update-to-highest strategy when the catalog is below the
+  highest installed scope.** `claude plugin update` installs the catalog version,
+  not the sibling scope's, so with a backward-moved catalog that strategy rolled
+  the lagging scopes back instead of up. Step 2 now compares
+  `catalog_versions[<id>]` to the highest `scopes[].version` and emits the row as
+  BLOCKED, naming both versions and the likely cause; null or unparseable stays
+  fail-open. `converge` has no downgrade opt-in: `--allow-downgrade` is a `sync`
+  argument only.
+- **The `plugins` skill no longer presents its `sync` run journal as a recovery
+  source that survives `claude plugin marketplace remove`
+  ([#3931](https://github.com/melodic-software/claude-code-plugins/issues/3931)).**
+  The journal is written under `${CLAUDE_PLUGIN_DATA}`, and removing a marketplace
+  from its last remaining scope while plugins from it are still installed deletes
+  every install record keyed to that marketplace at every scope, deletes each
+  plugin's persistent data directory and the journal with it, and clears the
+  marketplace's `enabledPlugins` and `pluginConfigs` entries. Nothing in the skill
+  said so, and unlike `plugin uninstall` this subcommand has no `--keep-data`
+  option to preserve the data directory. `gotchas.md` now carries the effect list,
+  the rule that `marketplace remove` is never a remediation for a bad `sync`, the
+  copy-the-journal-out and per-plugin `uninstall --keep-data` alternatives, and a
+  four-part verification record; `sync.md`'s "Run journal" states the durability
+  boundary; `scope-semantics.md` separates its post-`uninstall` observation from
+  the still-installed case. The CR-safe loop illustration in `gotchas.md` now
+  feeds `update-candidates-user`, matching the guarded selector Step 3 sweeps.
+
+### Added
+
+- **`fleet-state.sh` gains two selectors.** `update-candidates-project` is the
+  guarded form of `current-project` that Step 2 now sweeps, emitting `id\tscope`;
+  `downgrade-candidates` names the withheld set across user scope and the current
+  project, emitting `id\tscope\t<installed>\t<catalog>`. `current-project` is
+  unchanged: it names a set, and keeping it unguarded keeps that meaning.
+- **`sync` gains `--allow-downgrade`, a position-independent flag.** Without it, a
+  proven downgrade is reported under `Action needed` with both versions and the
+  likely cause (a marketplace source that moved backward), and the remediation
+  named is to fix the source and rerun, not to accept the rollback. With it, those
+  ids are swept with `-s <scope>` from the selector's own line and reported under
+  `Downgraded:`. `audit` ignores the flag and predicts
+  `Would withhold: <N> downgrade(s)` beside `Would update`.
+- **A `pre-refresh.<mp>.json` run-journal snapshot and a catalog regression check.**
+  Step 1 saves it for each marketplace before that marketplace's refresh, so Step 6 can diff `catalog_versions` across
+  every consecutive saved snapshot (`pre-refresh`, `pre`, `mid`, `post`) and report
+  the FIRST interval in which any id's catalog version moved backward, which is the
+  signal that names the cause. The diff is report-only and never feeds an id to the
+  CLI.
+
 ## [0.43.1]
 
 ### Added

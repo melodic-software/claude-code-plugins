@@ -406,6 +406,13 @@ marketplace is inferred from the documented rule, not yet observed. **Recheck tr
 Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
 the cache layout.
 
+**That observation was taken after an `uninstall`, with no install record left for the removal to
+find.** With plugins from the marketplace still installed, the same command deletes their records at
+every scope, their persistent data directories and their settings entries, and writes the
+`.orphaned_at` marker itself rather than inheriting one from an earlier `uninstall`; see
+[gotchas.md](gotchas.md), "`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal". The
+cache-tree residue rule holds in both cases.
+
 Two consequences for this skill: a `cache/<marketplace>/` directory whose marketplace is absent from
 `known_marketplaces.json` is expected residue, not a finding on its own, for about two weeks after a
 removal while some other plugin stays installed, and indefinitely on a machine with no plugin

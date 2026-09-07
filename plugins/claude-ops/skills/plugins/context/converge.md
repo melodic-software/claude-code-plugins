@@ -55,6 +55,23 @@ Then decide the consolidation strategy:
   strategy is to bring every lagging scope, `user` scope included, up to that version:
   `claude plugin update <id> -s <that scope>` for each scope below the highest.
 
+**Before proposing the update strategy, check the catalog's direction.** `claude plugin update`
+installs the CATALOG version, never the sibling scope's, so when the catalog reads below the
+highest installed version that strategy rolls the lagging scopes backward instead of forward. Read
+the report's `catalog_versions[<id>]` and compare it to the highest `scopes[].version` with the
+same dotted-numeric compare this step already uses. When the catalog version is readable and lower,
+the update strategy is unavailable and the row is emitted as BLOCKED. A `null` or unparseable
+catalog version does not block, the same fail-open rule [sync.md](sync.md)'s downgrade guard
+follows. `--allow-downgrade` is a `sync` argument and `converge` has no equivalent opt-in: a
+rollback across scopes is never a convergence.
+
+```text
+- <id>@<marketplace>: BLOCKED: the catalog reads <catalog> and the highest installed scope holds
+  <highest>. `claude plugin update` installs the catalog version, so it would roll every lagging
+  scope back. Likely cause: a marketplace source that moved backward. Fix the source and rerun
+  `sync`.
+```
+
 **Every `project`/`local`-scope command targets its row's own `scopes[].projectPath`, never the
 current working directory.** `-s project`/`-s local` have no path/target flag — the CLI always
 operates on the *current directory's* `.claude/settings*.json`. A divergence row can legitimately

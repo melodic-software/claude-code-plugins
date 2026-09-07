@@ -69,17 +69,35 @@
 #   the first field is always the fully-qualified `<name>@<marketplace>` id, so
 #   `while IFS=$'\t' read -r id …` reads every selector. Selectors, each naming
 #   the `sync` step that consumes it:
-#     installed-user        installed[] at user scope           (Step 3 update)
+#     installed-user        installed[] at user scope           (not used by sync)
+#                             Every user-scope id, unfiltered, for a caller that
+#                             deliberately wants the whole set. `sync` sweeps
+#                             update-candidates-user instead, in every case.
 #                             fields: id
 #     update-candidates-user  installed[] at user scope whose   (Step 3 update)
 #                             catalog version is UNKNOWN or differs from the
-#                             installed one — a SUPERSET of what actually needs
-#                             updating, never an authoritative "these are stale"
-#                             list. Prefer it over installed-user for the Step 3
-#                             sweep; it degrades to exactly installed-user when
-#                             no catalog version resolves.
+#                             installed one, minus any proven downgrade: a
+#                             SUPERSET of what actually needs updating, never an
+#                             authoritative "these are stale" list. It degrades
+#                             to exactly installed-user when no catalog version
+#                             resolves.
 #                             fields: id
-#     current-project       installed[] with currentProject     (Step 2 update)
+#     update-candidates-project  installed[] with currentProject  (Step 2 update)
+#                             true, minus any proven downgrade. The Step 2 sweep
+#                             set: no catalog equality filter, because an in-repo
+#                             pin is often a deliberate local build the catalog
+#                             does not carry.
+#                             fields: id, scope
+#     downgrade-candidates  installed[] at user scope or with   (Step 3 report)
+#                             currentProject true whose catalog version is a
+#                             PROVEN downgrade, the set every sweep selector
+#                             withholds. Acting on it needs the operator's
+#                             explicit opt-in.
+#                             fields: id, scope, installed version, catalog
+#                             version
+#     current-project       installed[] with currentProject     (report only)
+#                             Names the set; carries no downgrade guard, so it
+#                             is not what a sweep loops.
 #                             fields: id, scope — scope is carried because one
 #                             plugin can hold both a project- and a local-scope
 #                             record for the same repo, so the id alone would
@@ -404,12 +422,13 @@ fi
 # rejection below and the projection inside the block jq can never drift. The
 # projection itself is a branch on $selector in that jq program.
 #
-# `current-project` carries a SECOND tab-separated field, the record's scope,
-# because Step 2 picks `-s project` vs `-s local` per record. It cannot be
-# derived from the id afterwards: one plugin can hold BOTH a project- and a
-# local-scope record for the same repo (the multi-scope case divergences[]
-# exists to track), so an id-only projection would emit that id twice with
-# nothing to tell the two lines apart.
+# The three selectors that carry a scope field (`current-project`,
+# `update-candidates-project`, `downgrade-candidates`) carry it because a sweep
+# picks `-s project` vs `-s local` per record. Scope cannot be derived from the
+# id afterwards: one plugin can hold BOTH a project- and a local-scope record
+# for the same repo (the multi-scope case divergences[] exists to track), so an
+# id-only projection would emit that id twice with nothing to tell the two lines
+# apart.
 #
 # `update-candidates-user` is the pre-filtered form of `installed-user`, and its
 # name says CANDIDATE on purpose: it emits a SUPERSET of the ids that actually
@@ -419,19 +438,26 @@ fi
 # version. `== null` rather than `// null`: jq's alternative operator also
 # swallows `false`, and reaching for it here is how a lookup miss and a real
 # value get conflated.
-# Plain string inequality, deliberately not a semver ORDERING compare: an
-# installed version merely DIFFERENT from the catalog's (a local dev build
-# ahead of it, say) stays a candidate, exactly as it is today when Step 3 calls
-# update for every id unconditionally. An ordering compare would start
-# withholding ids on a judgement this script has no business making.
+#
+# Candidacy is decided by string INEQUALITY, which has no direction: an
+# installed version merely different from the catalog's is a candidate. Direction
+# is decided separately, once, by `proven_downgrade`, and a proven downgrade is
+# withheld from every sweep selector and surfaced by `downgrade-candidates`
+# instead. A sweep that acts on "different" without direction turns a catalog
+# that moved backward, a `directory` source parked on an old branch, a git
+# source force-pushed or re-pointed, into a fleet rollback that the CLI still
+# prints as an update. Withholding needs proof, so anything unparseable or
+# unknown stays a candidate: the guard fails open exactly as the equality filter
+# above it does.
 ids_selector_valid() {
   case "$1" in
-  installed-user | update-candidates-user | current-project | missing-user-install | missing-enabled | user-scope-orphans)
+  installed-user | update-candidates-user | update-candidates-project | downgrade-candidates | current-project | missing-user-install | missing-enabled | user-scope-orphans)
     return 0
     ;;
   *)
     echo "ERROR: unknown --ids selector: $1" >&2
     echo "  expected one of: installed-user, update-candidates-user," >&2
+    echo "                   update-candidates-project, downgrade-candidates," >&2
     echo "                   current-project, missing-user-install," >&2
     echo "                   missing-enabled, user-scope-orphans" >&2
     return 1
@@ -453,7 +479,9 @@ ids_selector_valid() {
 ids_selector_required_fields() {
   case "$1" in
   installed-user | current-project) echo 'installed:array' ;;
-  update-candidates-user) echo 'installed:array catalog_versions:object' ;;
+  update-candidates-user | update-candidates-project | downgrade-candidates)
+    echo 'installed:array catalog_versions:object'
+    ;;
   missing-user-install) echo 'missing_from_user_install:array' ;;
   missing-enabled) echo 'missing_from_enabled:array' ;;
   user-scope-orphans) echo 'user_scope_orphans:array' ;;
@@ -474,12 +502,38 @@ fi
 # contract cannot drift between the two modes — the whole reason `--ids` exists
 # instead of a hand-written jq at each call site.
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+#
+# `version_triple` and `proven_downgrade` are the direction compare. A version
+# parses to a numeric [major, minor, patch] triple or to null; any prerelease or
+# build suffix is ignored, so `1.2.3-beta` and `1.2.3` tie and a tie is not a
+# downgrade. `capture` emits NOTHING on no match, so the `// null` is what keeps
+# an unparseable version failing open instead of dropping its record out of the
+# stream entirely. The capture reads the first three numeric components only, so
+# a fourth component is ignored: `1.2.3.4` and `1.2.3` tie, and a fleet versioned
+# that way is invisible to the guard. Extend the capture if such a fleet appears.
 PROJECTION_PROGRAM='
+  def version_triple:
+    if type == "string" then
+      ((capture("^v?(?<maj>[0-9]+)[.](?<min>[0-9]+)[.](?<pat>[0-9]+)") // null)
+       | if . == null then null else [.maj, .min, .pat] | map(tonumber) end)
+    else null end;
+  def proven_downgrade($iv; $cv):
+    ($iv | version_triple) as $i | ($cv | version_triple) as $c
+    | ($i != null and $c != null and $c < $i);
   if $selector == "" then $block
     elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
     elif $selector == "update-candidates-user" then
       ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
-       | select(($cvs[.id]) == null or ($cvs[.id]) != .version) | .id)
+       | select((($cvs[.id]) == null or ($cvs[.id]) != .version)
+                and (proven_downgrade(.version; $cvs[.id]) | not)) | .id)
+    elif $selector == "update-candidates-project" then
+      ($block.catalog_versions as $cvs | $block.installed[]? | select(.currentProject == true)
+       | select(proven_downgrade(.version; $cvs[.id]) | not) | "\(.id)\t\(.scope)")
+    elif $selector == "downgrade-candidates" then
+      ($block.catalog_versions as $cvs | $block.installed[]?
+       | select(.scope == "user" or .currentProject == true)
+       | select(proven_downgrade(.version; $cvs[.id]))
+       | "\(.id)\t\(.scope)\t\(.version)\t\($cvs[.id])")
     elif $selector == "current-project" then ($block.installed[]? | select(.currentProject == true) | "\(.id)\t\(.scope)")
     elif $selector == "missing-user-install" then $block.missing_from_user_install[]?
     elif $selector == "missing-enabled" then $block.missing_from_enabled[]?

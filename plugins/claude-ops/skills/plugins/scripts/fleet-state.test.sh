@@ -1400,9 +1400,16 @@ out=$(run_ids "$case_dir")
 assert_eq "update-candidates-user: emits an id behind the catalog version" \
   "alpha@market1" "$out"
 
-# Emitted: installed version is AHEAD of the catalog (a local build). Plain
-# inequality, deliberately not an ordering compare — an ahead id stays a
-# candidate exactly as it is when no pre-filter runs at all.
+# ============================================================================
+# The downgrade guard. A catalog that reads LOWER than the installed version is
+# withheld from every sweep selector and surfaced by downgrade-candidates
+# instead, because a sweep that acts on "different" without direction rolls the
+# fleet back. Withholding needs PROOF, so every version pair the compare cannot
+# read stays a candidate.
+# ============================================================================
+
+# (a) Catalog BEHIND the installed version: withheld from the sweep, named by
+# downgrade-candidates with both versions on the line.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 seed_catalog_versions_case "$case_dir" alpha=0.1.0
@@ -1410,8 +1417,71 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"9.9.9"}]}}'
 ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
-assert_eq "update-candidates-user: an id AHEAD of the catalog stays a candidate" \
+assert_eq "downgrade guard: a proven downgrade is withheld from update-candidates-user" \
+  "" "$out"
+ARGS=(--marketplace market1 --ids downgrade-candidates)
+out=$(run_ids "$case_dir")
+rc=$?
+assert_exit "downgrade guard: downgrade-candidates exit 0" 0 "$rc"
+assert_eq "downgrade guard: downgrade-candidates carries id, scope, installed, catalog" \
+  "$(printf 'alpha@market1\tuser\t9.9.9\t0.1.0')" "$out"
+
+# (b) Catalog AHEAD: an ordinary update, and not a downgrade.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a forward move stays a candidate" "alpha@market1" "$out"
+ARGS=(--marketplace market1 --ids downgrade-candidates)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a forward move is not a downgrade" "" "$out"
+
+# (c) Catalog version UNKNOWN (a manifest with no version key). Fails open as a
+# candidate, and proves nothing about direction.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a null catalog version stays a candidate" "alpha@market1" "$out"
+ARGS=(--marketplace market1 --ids downgrade-candidates)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a null catalog version is not a proven downgrade" "" "$out"
+
+# (d) Catalog version UNPARSEABLE (a branch name, not a version). Same fail-open
+# answer: the compare has no triple to order, so it withholds nothing.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=main
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: an unparseable catalog version stays a candidate" \
   "alpha@market1" "$out"
+ARGS=(--marketplace market1 --ids downgrade-candidates)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: an unparseable catalog version is not a proven downgrade" "" "$out"
+
+# (e) A prerelease suffix against the same numeric triple. The suffix is ignored,
+# so the pair TIES, and a tie is not a downgrade: the id stays a candidate on the
+# string inequality that decides candidacy.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=1.2.3
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"1.2.3-beta"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a prerelease tie stays a candidate" "alpha@market1" "$out"
+ARGS=(--marketplace market1 --ids downgrade-candidates)
+out=$(run_ids "$case_dir")
+assert_eq "downgrade guard: a prerelease tie is not a proven downgrade" "" "$out"
 
 # Never narrows past user scope: a project-scope record is not this selector's
 # business even when its version differs.
@@ -1928,6 +1998,8 @@ ARGS=(--marketplace market1 --ids no-such-selector)
 out=$(run_state "$case_dir")
 assert_contains "--ids help text names installed-user" "$out" "installed-user"
 assert_contains "--ids help text names update-candidates-user" "$out" "update-candidates-user"
+assert_contains "--ids help text names update-candidates-project" "$out" "update-candidates-project"
+assert_contains "--ids help text names downgrade-candidates" "$out" "downgrade-candidates"
 assert_contains "--ids help text names current-project" "$out" "current-project"
 assert_contains "--ids help text names missing-user-install" "$out" "missing-user-install"
 assert_contains "--ids help text names missing-enabled" "$out" "missing-enabled"
@@ -2051,7 +2123,8 @@ rc=$?
 assert_exit "--from: the saved report itself is produced" 0 "$rc"
 write "$case_dir/report.json" "$report"
 
-for sel in installed-user update-candidates-user current-project \
+for sel in installed-user update-candidates-user update-candidates-project \
+  downgrade-candidates current-project \
   missing-user-install missing-enabled user-scope-orphans; do
   ARGS=(--marketplace market1 --ids "$sel")
   live=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$case_dir/sample-repo")
@@ -2090,6 +2163,46 @@ write "$case_dir/current-project-report.json" '{
 ARGS=(--ids current-project --from "$case_dir/current-project-report.json")
 assert_eq "--from: current-project keeps its second TAB field, one line per scope record" \
   "$(printf 'alpha@market1\tproject\nalpha@market1\tlocal')" "$(run_state "$case_dir")"
+
+# update-candidates-project is the guarded form Step 2 sweeps: the same records,
+# minus a proven downgrade, in the same id/scope shape. The report above is its
+# control: the catalog matches the installed version, and an equal pair is not a
+# downgrade, so both scope records survive.
+ARGS=(--ids update-candidates-project --from "$case_dir/current-project-report.json")
+assert_eq "--from: update-candidates-project keeps every in-repo record the catalog does not move backward" \
+  "$(printf 'alpha@market1\tproject\nalpha@market1\tlocal')" "$(run_state "$case_dir")"
+ARGS=(--ids downgrade-candidates --from "$case_dir/current-project-report.json")
+assert_eq "--from: an equal catalog version yields no downgrade candidate" \
+  "" "$(run_state "$case_dir")"
+
+# The same shape with the catalog BEHIND one in-repo record: that record leaves
+# the sweep and appears as a downgrade candidate with its two versions; the
+# sibling whose catalog version is unknown stays in the sweep, fail-open.
+write "$case_dir/project-downgrade-report.json" '{
+  "marketplace": {"name": "market1", "autoUpdate": false, "lastUpdated": "2026-01-01T00:00:00Z"},
+  "project_root": "/p/sample-repo",
+  "catalog": ["alpha", "beta"],
+  "catalog_versions": {"alpha@market1": "0.0.9", "beta@market1": null},
+  "installed": [
+    {"id": "alpha@market1", "scope": "project", "version": "0.1.0", "currentProject": true},
+    {"id": "beta@market1", "scope": "local", "version": "0.2.0", "currentProject": true}
+  ],
+  "enabled": {},
+  "missing_from_install": [],
+  "missing_from_user_install": [],
+  "missing_from_enabled": [],
+  "user_scope_orphans": [],
+  "divergences": []
+}'
+ARGS=(--ids update-candidates-project --from "$case_dir/project-downgrade-report.json")
+assert_eq "--from: update-candidates-project withholds the in-repo record the catalog moves backward" \
+  "$(printf 'beta@market1\tlocal')" "$(run_state "$case_dir")"
+ARGS=(--ids downgrade-candidates --from "$case_dir/project-downgrade-report.json")
+assert_eq "--from: downgrade-candidates names that in-repo record with its scope and both versions" \
+  "$(printf 'alpha@market1\tproject\t0.1.0\t0.0.9')" "$(run_state "$case_dir")"
+ARGS=(--ids current-project --from "$case_dir/project-downgrade-report.json")
+assert_eq "--from: current-project is unguarded and still names the whole set" \
+  "$(printf 'alpha@market1\tproject\nbeta@market1\tlocal')" "$(run_state "$case_dir")"
 
 # ============================================================================
 # Case: every --from rejection is exit 2 with EMPTY stdout. The documented
@@ -2203,15 +2316,19 @@ rc=$?
 assert_exit "--from: a report with no .installed is exit 2 even for a selector that ignores it" 2 "$rc"
 assert_eq "--from: that rejection leaves stdout empty" "" "$out"
 
-# update-candidates-user is the one selector that also reads catalog_versions,
-# so its required-field list is the one that has to be per-selector rather than
-# a single shared list.
+# The three version-comparing selectors also read catalog_versions, so their
+# required-field list is the one that has to be per-selector rather than a single
+# shared list. A report lacking the field is refused for each of them, never
+# projected to a silently-empty list.
 write "$case_dir/no-catalog-versions.json" '{"marketplace":{"name":"m"},"installed":[]}'
-out=$(run_from_stdout_only "$case_dir" --ids update-candidates-user --from "$case_dir/no-catalog-versions.json" 2>/dev/null)
-rc=$?
-assert_exit "--from: update-candidates-user without .catalog_versions is exit 2" 2 "$rc"
-err=$(run_from_stdout_only "$case_dir" --ids update-candidates-user --from "$case_dir/no-catalog-versions.json" 2>&1 >/dev/null)
-assert_contains "--from: that error names .catalog_versions" "$err" ".catalog_versions"
+for sel in update-candidates-user update-candidates-project downgrade-candidates; do
+  out=$(run_from_stdout_only "$case_dir" --ids "$sel" --from "$case_dir/no-catalog-versions.json" 2>/dev/null)
+  rc=$?
+  assert_exit "--from: $sel without .catalog_versions is exit 2" 2 "$rc"
+  assert_eq "--from: $sel leaves stdout empty on that rejection" "" "$out"
+  err=$(run_from_stdout_only "$case_dir" --ids "$sel" --from "$case_dir/no-catalog-versions.json" 2>&1 >/dev/null)
+  assert_contains "--from: the $sel error names .catalog_versions" "$err" ".catalog_versions"
+done
 # ...and the same fixture is fine for a selector that does not read it.
 out=$(run_from_stdout_only "$case_dir" --ids installed-user --from "$case_dir/no-catalog-versions.json" 2>/dev/null)
 rc=$?

@@ -1,6 +1,6 @@
 ---
-description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
-argument-hint: "[action] [<marketplace>|all]. Actions: sync (default), audit, converge"
+description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
+argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default), audit, converge"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -46,6 +46,13 @@ which CLI calls write that file.
 
 Parse `$ARGUMENTS` for the action (first token) and an optional marketplace target (second token:
 a marketplace name, or `all`).
+
+`--allow-downgrade` is position-independent: remove it from `$ARGUMENTS` first, then apply the
+first-token / second-token parse to what remains, so it reads the same before, between, or after the
+other two. It applies to `sync` only, and it opts that run into moving an install backward when the
+marketplace catalog reads lower than what is installed. `audit` ignores the flag and says so in its
+report: a read-only run issues no update either way, and its prediction already names the withheld
+downgrades. See [context/sync.md](context/sync.md)'s "Downgrade guard".
 
 This table is an index, not a substitute: read the linked detail file before executing any action.
 Each Description names the territory an action covers, never its algorithm, the steps, their
@@ -156,6 +163,10 @@ ends, never to the durable run journal under this plugin's data directory. That 
 for both actions while leaving nothing behind, which is what "mutates nothing" means here. See
 [context/sync.md](context/sync.md)'s "Run journal" section.
 
+`audit` ignores `--allow-downgrade` and says so when the flag is passed: it issues no update in
+either case, and it predicts `Would withhold: <N> downgrade(s)` beside `Would update` regardless.
+See [context/sync.md](context/sync.md) Step 3.
+
 Because `audit` issues no `marketplace update`, its Step 3 prediction is computed against an
 **unrefreshed** catalog and is therefore a lower bound on what `sync` would update. Report it as one,
 carrying the catalog's `lastUpdated`. See [context/sync.md](context/sync.md) Step 3. An `audit`
@@ -170,9 +181,18 @@ action.
 Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
   (repeat this line per marketplace in `all` mode — Steps 2–5 run once per marketplace)
 In-repo: <N> project/local install(s) updated in <project_root>
+  (N counts FORWARD moves only; an in-repo record moved backward, only possible under
+   --allow-downgrade or for an id whose catalog version could not be read, renders under
+   `Downgraded:` with its scope and is not counted here)
   | 0 — <project_root> has no project/local installs
   | skipped — no project context resolved from <cwd>
 Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
+  (FORWARD moves only, plus any pair whose direction is unreadable, flagged `(direction unknown)`)
+Downgraded: <N> plugin(s), <id>@<marketplace>: <old> → <new>
+  (only when N > 0; only possible with --allow-downgrade, or for an id whose catalog version
+   fleet-state.sh could not read and which therefore reached the CLI unguarded)
+Catalog regression: <first interval>, <id>: <before> → <after> (only when the snapshot diff finds
+  one; names the cause behind the withheld downgrades)
 Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; per install_new policy)
   (when the policy is `all`, append: policy install_new: all — these reinstall on every sync
    unless you also disable them)
@@ -189,7 +209,16 @@ Cache content: <N> install(s) whose cache files disagree with their recorded git
 Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
   enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
   run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
-  enabledPlugins map that is unsorted> (omit section entirely when empty)
+  enabledPlugins map that is unsorted, withheld downgrades> (omit section entirely when empty)
+```
+
+The withheld-downgrade row carries both versions and the cause, so acting on it is a decision rather
+than a lookup:
+
+```text
+- downgrade withheld: <N> plugin(s), <id>@<marketplace>: <installed> → <catalog>; likely cause:
+  marketplace source moved backward (<source>); rerun with --allow-downgrade only if the rollback
+  is intended
 ```
 
 **The `In-repo:` row is fixed. It appears whether or not the step did anything.** Step 2 calls
