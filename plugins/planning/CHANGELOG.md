@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.4]
+
+### Fixed
+
+- **`interview`:** a question round overtaken by non-user output is now checked and re-presented.
+  The skill dispatches slow lookups without blocking the round, but its only re-surfacing rule
+  fired on a user reply, so a sub-agent return, background task notification, team report, or
+  Monitor firing that landed before the user answered left the round displaced and could leave a
+  recommendation standing that the return had just contradicted. `context/loop.md` gains an
+  "Out-of-band drift" rule keyed on relevance rather than arrival: a return touching no open row
+  gets one line, a return contradicting an asked question forces a restate naming the superseded
+  recommendation, and a return that answers an open row from the environment resolves it.
+  Re-presentation is narrow (a one-line pointer for the untouched rows, the full shape only for
+  the row that moved), the round is never held, and the floor is the user's next reply rather than
+  the async wake. `SKILL.md` carries the summary and a pointer.
+
 ## [0.39.3]
 
 ### Changed

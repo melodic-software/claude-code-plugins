@@ -498,7 +498,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2afe32087a435f200b95034560139624e537b3031d261fe7d269219a26c24d81"
+  "e85557db3e8b58ec0ec60a0604e648e3e6bf4f6e89566fe0bfefc9a4e4cf72c0"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -508,7 +508,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "c57ced20ba0776a394244dfe81dd6535ea1fae428d3bd16bb23e5375c82e8e44"
+  "a5bfe7ffd6c5c0c28ca8aa0769028556d6ecd4d0945d4f3400423f2cfa1cbab8"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -676,6 +676,24 @@ pin "the register carve-out stays scoped to the absence of questions" "$SKILL" \
   "The carve-out is about the absence of questions, never about which action produced it"
 pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
   "a gap surfaced mid-synthesis is registered \`open\` when it goes to the user"
+
+# A7b. The drift check fires on a USER reply, so a round overtaken by non-user output —
+#      a sub-agent return, a background notification, a team report — falls outside it and
+#      goes un-restated (#3923). These four pins are the out-of-band rule's own defense:
+#      the trigger, the superseded-recommendation outcome, the narrow re-presentation, and
+#      the floor. Drop any one and the rule reads as advisory.
+pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
+  "non-user content reaching the transcript while a round is open"
+pin "loop.md keys the out-of-band check on relevance, not arrival" "$LOOP" \
+  "The trigger is RELEVANCE, not arrival"
+pin "loop.md names a contradicted recommendation as superseded" "$LOOP" \
+  "naming the superseded recommendation as superseded"
+pin "loop.md refuses to hold the round for a pending dispatch" "$LOOP" \
+  "**This does not hold the round.**"
+pin "loop.md floors the out-of-band restate on the next user reply" "$LOOP" \
+  "The floor is the next user reply."
+pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
+  "**Out-of-band output gets the same check, keyed on relevance.**"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
