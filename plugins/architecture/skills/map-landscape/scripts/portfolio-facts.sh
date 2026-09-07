@@ -42,7 +42,11 @@ DEP_CAP=25
 PROBE_DEPTH=3
 
 usage() {
-  sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Print the header comment block only. Selecting by comment marker rather
+  # than a hardcoded last line keeps --help correct when the header grows or
+  # shrinks; a fixed range silently leaks `set -uo pipefail` the moment the
+  # block changes length.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
