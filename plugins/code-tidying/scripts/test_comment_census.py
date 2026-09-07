@@ -313,6 +313,46 @@ class Degradation(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    def test_empty_scope_with_no_layer_exits_3(self):
+        """The other half of the empty-vs-unavailable split: no layer is still a stop."""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            repo = tmp / "repo"
+            repo.mkdir()
+            env = {
+                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
+            }
+            env.update(
+                {
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@x",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@x",
+                    "PATH": str(tmp),
+                    "PYTHONPATH": str(tmp),
+                }
+            )
+            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+            (repo / "README.md").write_text("# no code file here\n")
+            subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
+                check=True,
+                env=env,
+            )
+            p = subprocess.run(
+                [sys.executable, "-S", str(SCRIPT), ".", "--json"],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(repo),
+                env=env,
+            )
+            self.assertEqual(p.returncode, 3, p.stderr)
+            self.assertIn("UNAVAILABLE", p.stderr)
+        finally:
+            shutil.rmtree(tmp)
+
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
         # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
