@@ -142,6 +142,15 @@ hook::require_jq "PreToolUse" "source-control-pr-body-linkage-gate" "$INPUT"
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
+# hook::jq_fields CR-strips but does not chomp trailing newlines. The per-field
+# reader this replaced was `$(jq … | tr -d '\r')`, which stripped them via
+# command substitution. A cwd that still carries a trailing newline fails
+# `git -C` in hook::repo_root, the gate file is never found, and a relative
+# `--body-file` joins onto a path that does not exist — both fail-open. Same
+# in-shell chomp the MCP sibling applies to HOOK_CWD (and its other exact-match
+# fields). The validator is sourced after the applicability pre-filter, so the
+# loop is inline rather than `linkage::chomp_to`.
+while [[ "$HOOK_CWD" == *$'\n' ]]; do HOOK_CWD="${HOOK_CWD%$'\n'}"; done
 [[ -n "$COMMAND" ]] || exit 0
 # Applicability pre-filter before any repo I/O or parsing. `gh` must appear as
 # its own word (or a path's last segment) so `npm run lighthouse-prod` does not

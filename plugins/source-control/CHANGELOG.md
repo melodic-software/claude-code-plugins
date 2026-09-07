@@ -29,8 +29,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - **The validator's helpers write into a caller-named variable instead of stdout.**
     `strip_html_comments`, `mask_markdown_code`, `section_content` and `trim` were each read
     through `$(…)` over a `< <(printf …)` line reader: 12 forks and zero extra `execve` per
-    judged body, which is pure latency. They now use `printf -v` and an in-shell line split, and
-    `linkage::chomp_to` reproduces the trailing-newline strip command substitution performed.
+    judged body, which is pure latency. They now use `printf -v` and an in-shell line split that
+    walks a start offset (not a copied remainder per line, which is quadratic in the line
+    count), and `linkage::chomp_to` reproduces the trailing-newline strip command substitution
+    performed. `pr-body-linkage-gate.sh` chomps `HOOK_CWD` the same way: `hook::jq_fields`
+    strips CR only, and a trailing newline on `cwd` would miss the gate file and fail-open.
   - **`$(<file)` for the `--body-file` read, `printf -v` for `%q` quoting, and
     `hook::json_str_object_to` for the telemetry envelope**, each replacing a `cat`, a `printf`
     substitution, and a `jq -n` that bash can do itself.

@@ -79,14 +79,24 @@ linkage::chomp_to() {
 # empty element. No process substitution, so no fork; also no here-string, which
 # deadlocks at >=64KiB (see hardcoded-path-patterns.sh) — the reason the read
 # loop existed in the first place.
+#
+# Walks a start offset rather than copying the unmatched suffix each line.
+# `${rest#*$'\n'}` rebuilds every surviving byte on every iteration, so a body
+# of many short lines is quadratic in the line count; `linkage::problems`
+# invokes this six times per validation, and 16k two-character lines exceeded
+# the 15s hooks.json timeout. `${text:offset:length}` copies each line once.
 linkage::split_lines() {
-  local __plv_rest="$1"
+  local __plv_text="$1"
+  local __plv_len=${#__plv_text}
+  local __plv_start=0 i
   LINKAGE_LINES=()
-  while [[ "$__plv_rest" == *$'\n'* ]]; do
-    LINKAGE_LINES+=("${__plv_rest%%$'\n'*}")
-    __plv_rest="${__plv_rest#*$'\n'}"
+  for ((i = 0; i < __plv_len; i++)); do
+    if [[ "${__plv_text:i:1}" == $'\n' ]]; then
+      LINKAGE_LINES+=("${__plv_text:__plv_start:i - __plv_start}")
+      __plv_start=$((i + 1))
+    fi
   done
-  LINKAGE_LINES+=("$__plv_rest")
+  LINKAGE_LINES+=("${__plv_text:__plv_start}")
 }
 
 # Remove HTML comments the way the validator does — every terminated `<!-- … -->`

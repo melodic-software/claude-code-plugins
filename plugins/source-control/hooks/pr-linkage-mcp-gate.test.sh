@@ -132,6 +132,7 @@ done
 run 2 "owner with a trailing newline still names this repo" "$(payload "$GATED" $CREATE "$OWNER"$'\n' $REPO "$NO_RELATED")"
 run 2 "repo with a trailing newline still names this repo" "$(payload "$GATED" $CREATE $OWNER "$REPO"$'\n' "$NO_RELATED")"
 run 2 "tool name with a trailing newline still matches" "$(payload "$GATED" "$CREATE"$'\n' $OWNER $REPO "$NO_RELATED")"
+run 2 "cwd with a trailing newline still finds the gate file" "$(payload "$GATED"$'\n' $CREATE $OWNER $REPO "$NO_RELATED")"
 run 2 "owner with a carriage return is gated (accepted stricter case)" "$(payload "$GATED" $CREATE "$OWNER"$'\r' $REPO "$NO_RELATED")"
 run 0 "tool_input that is not an object allows (undeterminable target)" \
   "$(jq -cn --arg d "$GATED" --arg t $CREATE '{session_id:"test", cwd:$d, tool_name:$t, tool_input:"x"}')"
