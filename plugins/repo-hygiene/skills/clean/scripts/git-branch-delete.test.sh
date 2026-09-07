@@ -553,6 +553,36 @@ else
   skip_case "tip-move window cases need mkfifo and timeout"
 fi
 
+# ---- Live reachability can change after capture without moving the tip ------
+# A tag (or a remote-tracking ref) that made a REVIEW row Loss: none can
+# disappear after the audit. The captured tier would still admit --force-review;
+# the delete path must refuse until a fresh audit names LOSSY.
+git -C "$REPO" checkout -q -b feat/tagged
+echo tg >"$REPO/tg"
+git -C "$REPO" add tg
+git -C "$REPO" commit -qm tagged
+git -C "$REPO" tag keep/tagged
+git -C "$REPO" checkout -q main
+CAP_LIVE="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/cap-live.tsv" | sed -n 's/^TipCapture: //p')"
+out="$(run_delete --capture "$CAP_LIVE" --force-review feat/tagged 2>&1)"
+rc=$?
+assert_exit "tagged REVIEW with Loss none plans under --force-review" 0 "$rc"
+assert_contains "tagged REVIEW plan names REVIEW" "$out" "(REVIEW, force delete)"
+git -C "$REPO" tag -d keep/tagged >/dev/null
+out="$(run_delete --capture "$CAP_LIVE" --force-review feat/tagged 2>&1)"
+rc=$?
+assert_exit "REVIEW whose tag was deleted after capture exits 3" 3 "$rc"
+assert_contains "deleted-tag REVIEW names live loss" "$out" "Refused: feat/tagged (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as REVIEW; re-run git-branch-audit.sh before deleting)"
+assert_not_contains "deleted-tag REVIEW deletes nothing" "$out" "Deleted:"
+assert_branch "deleted-tag REVIEW: feat/tagged intact" present feat/tagged
+
+git -C "$REPO" update-ref -d refs/remotes/origin/feat/review
+out="$(run_delete --capture "$CAP" --force-review feat/review 2>&1)"
+rc=$?
+assert_exit "REVIEW whose remote-tracking ref was pruned after capture exits 3" 3 "$rc"
+assert_contains "pruned REVIEW names live loss" "$out" "Refused: feat/review (live reachability now loses 1 commits that exist on no remote ref and no tag; captured as REVIEW; re-run git-branch-audit.sh before deleting)"
+assert_branch "pruned REVIEW: feat/review intact" present feat/review
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

@@ -24,7 +24,8 @@
 # the branch intact with its pin in place (recoverable, and noted in the
 # ledger). The batch-wide precondition check (capture present, every branch
 # captured, every tip unmoved, no protected/worktree/unforced-LOSSY/unforced-REVIEW branch, a
-# SAFE-by-ancestry tip actually merged) runs before the first deletion, so a
+# SAFE-by-ancestry tip actually merged, and no captured non-LOSSY row whose
+# commits now exist on no remote ref and no tag) runs before the first deletion, so a
 # refused batch deletes nothing at all.
 #
 # Tier gate. SAFE and LIKELY-SAFE need no flag. LOSSY (deletable, but its
@@ -34,7 +35,12 @@
 # LOSSY set as its own block, and the operator confirms it as its own decision,
 # so a batch that was confirmed only as "the safe ones" cannot carry a LOSSY
 # branch through on the same acknowledgement. Neither flag admits the other's
-# tier.
+# tier. The captured tier is not enough on its own: a prune or a deleted tag
+# can make a REVIEW-with-Loss-none or LIKELY-SAFE row lose work without moving
+# the local tip, so the delete path recomputes live remote/tag reachability and
+# refuses when that count is now positive and the capture is not already LOSSY
+# (OPEN and MERGED PR rows stay REVIEW, matching the audit's refinement). Re-run
+# the audit for a capture that names the new acknowledgement.
 #
 # Usage:
 #   git-branch-delete.sh --capture PATH [--dry-run] [--accept-loss] [--force-review] BRANCH...
@@ -228,6 +234,18 @@ live_tip() {
   git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$1" 2>/dev/null | tr -d '\r'
 }
 
+# live_loss_count <branch> -> prints the number of commits on refs/heads/<branch>
+# reachable from no remote-tracking ref and no tag; exit non-zero when git could
+# not count. Same idiom as git-branch-audit.sh: `--not --remotes --tags` so
+# another local branch is not a place the work is considered to persist.
+live_loss_count() {
+  local n
+  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || return 1
+  n="${n%$'\r'}"
+  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$n"
+}
+
 # delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
 # safe delete, admitted only when its tip is merged into MERGE_TARGET (the check
 # `git branch -d` would make); a PR-merged SAFE branch is squash-merged more
@@ -334,6 +352,26 @@ for branch in "${BRANCHES[@]}"; do
     continue
   fi
 
+  # A prune or a deleted tag can turn a captured REVIEW-with-Loss-none or
+  # LIKELY-SAFE row into LOSSY without moving the local tip. OPEN and MERGED PR
+  # rows stay REVIEW under a positive count, matching the audit.
+  if [[ "$tier" != "LOSSY" ]]; then
+    live_lost=""
+    if ! live_lost="$(live_loss_count "$branch")"; then
+      refuse "$branch (could not count commits absent from every remote ref and tag; re-run git-branch-audit.sh before deleting)"
+      continue
+    fi
+    if [[ "$live_lost" -gt 0 ]]; then
+      pr="${CAP_PR[$branch]:-none}"
+      pr_open_re='^#[0-9]+ OPEN$'
+      pr_merged_re='^#[0-9]+ MERGED( \(tip drift\))?$'
+      if [[ ! "$pr" =~ $pr_open_re && ! "$pr" =~ $pr_merged_re ]]; then
+        refuse "$branch (live reachability now loses $live_lost commits that exist on no remote ref and no tag; captured as $tier; re-run git-branch-audit.sh before deleting)"
+        continue
+      fi
+    fi
+  fi
+
   PLAN+=("$branch")
 done
 
@@ -348,8 +386,7 @@ fi
 # rather than pointing back at the audit. Empty for every other tier.
 loss_note() {
   local n
-  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || n=""
-  n="${n%$'\r'}"
+  n="$(live_loss_count "$1")" || n=""
   if [[ "$n" =~ ^[0-9]+$ ]]; then
     printf ', loses %s commits only on this branch' "$n"
   else

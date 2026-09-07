@@ -24,11 +24,15 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - `clean`: `git-branch-delete.sh --accept-loss` admits LOSSY branches; without it a batch that
   carries one is refused whole, deleting nothing, so a "yes" to the SAFE set cannot carry a lossy
   branch through. `--force-review` does not admit LOSSY and `--accept-loss` does not admit
-  REVIEW. A LOSSY branch's `Planned:` line restates the live loss count. The tests reproduce the
-  recorded near-miss (a never-pushed branch offered beside a SAFE one on the SAFE confirmation is
-  refused with the SAFE sibling untouched) and delete a LOSSY branch end to end through the
-  script: pinned, ledgered with its tier, restored from the capture after `gc --prune=now` with
-  its content intact. Refs #3854, the second half of #3346 gap G1.
+  REVIEW. A LOSSY branch's `Planned:` line restates the live loss count. The delete path also
+  recomputes live remote/tag reachability for every captured non-LOSSY row: a prune or a
+  deleted tag can make a REVIEW-with-Loss-none or LIKELY-SAFE branch lose work without moving
+  its tip, and that batch is refused until a fresh audit names LOSSY (OPEN and MERGED PR rows
+  stay REVIEW, matching the audit). The tests reproduce the recorded near-miss (a never-pushed
+  branch offered beside a SAFE one on the SAFE confirmation is refused with the SAFE sibling
+  untouched) and delete a LOSSY branch end to end through the script: pinned, ledgered with its
+  tier, restored from the capture after `gc --prune=now` with its content intact. Refs #3854,
+  the second half of #3346 gap G1.
 
 ### Changed
 
