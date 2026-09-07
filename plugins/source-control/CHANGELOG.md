@@ -89,7 +89,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   regression the ceilings cannot see because it lowers the count. It skips as a suite where
   `strace` is absent or cannot ptrace, rather than asserting on empty trace output.
 
-
 ## [0.55.62]
 
 ### Changed
