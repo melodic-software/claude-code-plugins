@@ -1362,15 +1362,15 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 cont
 # subject through a substitution. A host without a working strace (Windows Git
 # Bash, macOS) skips visibly; the Linux CI lane is where the pins hold.
 #
-# The benign pin is EXACT on purpose. The two creations left are
-# `$(hook::buffer_stdin)` and the shared parser's `< <(printf …)`, both in
-# lib/hook-utils.sh (#3740, #3838); when those land this figure drops and the
-# pin moves with it. A count that rises is a fork put back on every Bash call.
-# The other pins are DELTAS against that benign share, so they read the cost of
-# one path (a `!` alias reparse, its trailing arguments, the hash-width probe)
-# rather than the library's total. Under -f strace may split a call into
-# `<unfinished ...>` and `<... resumed>` halves, so both spellings of a completed
-# call are counted.
+# The benign pin is EXACT on purpose. The two creations that used to remain
+# were `$(hook::buffer_stdin)` and the shared parser's `< <(printf …)`, both
+# in lib/hook-utils.sh; those landed in #3740/#3838, so the guard's own share
+# on a benign Bash call is now zero. A count that rises is a fork put back on
+# every Bash call. The other pins are DELTAS against that benign share, so they
+# read the cost of one path (a `!` alias reparse, its trailing arguments, the
+# hash-width probe) rather than the library's total. Under -f strace may split
+# a call into `<unfinished ...>` and `<... resumed>` halves, so both spellings
+# of a completed call are counted.
 strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
@@ -1398,7 +1398,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   guard_share 'git status --short'
   benign_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: guard's own process creations on a benign Bash call" 2 "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own process creations on a benign Bash call" 0 "$SHARE_CREATIONS"
   assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
 
   # The verdict path costs nothing the benign path did not: the eager telemetry
@@ -1409,14 +1409,15 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_eq "strace: a blocked force-push creates no more processes than a benign call" \
     "$benign_creations" "$SHARE_CREATIONS"
 
-  # A `!` alias reparse re-enters the shared parser once (its `< <(printf …)`,
-  # the library's) and composes the relocated base without a fork
-  # (effective_dir_to, not `$(effective_dir …)`).
+  # A `!` alias reparse composes the relocated base without a fork
+  # (effective_dir_to, not `$(effective_dir …)`). The shared parser's
+  # `< <(printf …)` re-entry is gone with #3838, so the reparse adds nothing
+  # over the benign share.
   guard_share "git -c alias.y='!git status' y"
   alias_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: a ! alias reparse is one creation over benign (the parser's re-entry only)" \
-    $((benign_creations + 1)) "$SHARE_CREATIONS"
+  assert_eq "strace: a ! alias reparse adds no process creations over benign" \
+    "$benign_creations" "$SHARE_CREATIONS"
 
   # Trailing arguments are shell-quoted with `printf -v`, so three of them add
   # nothing to the reparse's count.

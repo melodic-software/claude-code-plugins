@@ -33,20 +33,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   quotes now reads `exec: git: not found` where it read
   `git: command not found`. The status is still 127, the same `*` branch
   runs, and the push is still blocked; the wording of that quoted error is
-  the only thing that changes. The 479-case contract suite passes. The two
-  creations that remain on the common path are
-  `$(hook::buffer_stdin)` and the shared parser's `< <(printf ...)`; both
-  belong to `lib/hook-utils.sh` (#3740, #3838), so the "at most two spawns"
-  line in #3529 is not closed from inside this file, and the PowerShell
-  lane's own fourteen creations live in `lib/powershell/ps-command.sh`.
+  the only thing that changes.   The 479-case contract suite passes. The two
+  creations that used to remain on the common path,
+  `$(hook::buffer_stdin)` and the shared parser's `< <(printf ...)`, both
+  belong to `lib/hook-utils.sh` and already landed (#3740, #3838), so the
+  guard's own share on a benign Bash call is now zero processes. The
+  PowerShell lane's remaining creations live in `lib/powershell/ps-command.sh`.
   Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve`,
   guard share = dispatched count minus a no-op guard dispatched the same way,
   this repository as cwd, `HOOK_TELEMETRY_SINK` unset: benign
   `git status --short` and blocked `git push --force origin main` creations
-  **3 -> 2**, execve **0 -> 0**; lease with a full-width object id
-  **5 -> 3**, execve **1 -> 1**; `!` alias with three trailing arguments
-  **8 -> 3**, execve **0 -> 0**; whole Bash dispatcher on the benign payload
-  **35 -> 34**, execve **3 -> 3**. The unchanged execve column is the
+  **3 -> 0**, execve **0 -> 0**; lease with a full-width object id
+  **5 -> 1**, execve **1 -> 1**; `!` alias with three trailing arguments
+  **8 -> 0**, execve **0 -> 0**. The unchanged execve column is the
   evidence this is latency, not removed work. The contract suite now pins
   each of these by the same instrument and skips visibly where strace is
   absent.
