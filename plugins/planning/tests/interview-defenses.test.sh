@@ -484,7 +484,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "8e380055ffa608aa561dabb3de41dd157384d399cce6db4f7425e2acd818bbf1"
+  "c57ced20ba0776a394244dfe81dd6535ea1fae428d3bd16bb23e5375c82e8e44"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -524,7 +524,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "9d602acaa121982d9534b0e98823edb5ca75ddac82a0c7f84cdfe3e64102c254"
+  "59b80d51cb4fc560cf7f44c6a050787755c392fe3a8afdc208fa18229b40d20e"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
