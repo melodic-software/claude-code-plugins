@@ -224,6 +224,36 @@
         "In NEITHER outcome does a disposition reach `### Captured assumptions`, get resolved to the recommendation on the user's behalf, or vanish from the output — the silent capture is the disqualifying result",
         "The four survey-closed decisions ARE synthesized without questions — the guard narrows what may be synthesized, it does not block synthesis, so a run that asks about the header name or the sweep window has over-applied it"
       ]
+    },
+    {
+      "id": 17,
+      "name": "adr-offer-routes-to-architecture-when-installed",
+      "prompt": "/planning:interview The `architecture` plugin is installed in this session. During the interview we settled that the exports service will write artifact keys to a dedicated `export_artifacts` table rather than reusing the existing `blobs` table: the two have different retention rules, sharing the table would mean a retention column every reader has to honour, and splitting it is a migration we cannot cheaply undo once clients read the new table. Propose whatever interview outputs this earns.",
+      "expected_output": "Applies the ADR admission test and finds all three parts met: hard to reverse (clients read the new table after the migration), surprising without context (a future reader sees two tables where one would do), and the result of a real trade-off (reuse `blobs` with a retention column, versus a split). Because the `architecture` plugin is installed, the ADR output is produced by invoking `/architecture:record-decision` via the Skill tool, passing the decision and its rationale. The interview itself picks no directory, no numbering scheme, and no section set, and states that convention discovery, the no-convention offer-and-defer, and the write belong to that skill.",
+      "files": [],
+      "expectations": [
+        "The ADR is proposed, with all three admission parts named against this decision rather than asserted",
+        "`/architecture:record-decision` is invoked via the Skill tool, and the decision plus its rationale are passed in the invocation",
+        "The interview does NOT name a target directory (`docs/adr/` or otherwise), a numbering scheme, or a section set: choosing those is the invoked skill's job",
+        "The interview does not itself write an ADR file alongside the invocation",
+        "The Brief is still produced; the ADR is an additional first-class output, not a substitute for it"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "adr-offer-unchanged-when-architecture-absent",
+      "prompt": "/planning:interview The `architecture` plugin is NOT installed in this session. During the interview we settled that the exports service will write artifact keys to a dedicated `export_artifacts` table rather than reusing the existing `blobs` table: the two have different retention rules, sharing the table would mean a retention column every reader has to honour, and splitting it is a migration we cannot cheaply undo once clients read the new table. Treat evals/fixtures/lock-stop-on-gap/codebase-survey.md as the Step 1 survey result (relative to the skill directory). Propose whatever interview outputs this earns.",
+      "expected_output": "The admission test lands the same way, so the ADR is still proposed. With no `architecture` plugin to route to, the interview falls back to today's behaviour: it writes to the shape the survey already declares (`docs/adr/`, four existing records, so the shape is read from them), or offers and defers when the human would rather decide the placement. `/architecture:record-decision` is never invoked, named as available, or waited on, because it is not installed.",
+      "files": [
+        "evals/fixtures/lock-stop-on-gap/codebase-survey.md"
+      ],
+      "expectations": [
+        "The ADR is proposed on the same three-part admission test, so the offer does not depend on the `architecture` plugin being present",
+        "The fallback path is taken: the declared `docs/adr/` shape the survey reports is used, or the ADR is offered and deferred to the human",
+        "The four existing records in `docs/adr/` are treated as the source of the shape, rather than a format being prescribed",
+        "`/architecture:record-decision` is NOT invoked and is not presented as something this session can call",
+        "The run does not stall or report itself blocked on a missing plugin: absence degrades to the hand-written path"
+      ]
     }
   ]
 }

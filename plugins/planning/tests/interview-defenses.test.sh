@@ -474,7 +474,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "cab0c89255cdd2a360d00fbcbd2fb6a5ed939b655667f9b6aaef552f2f2eb8c6"
+  "103534de9d1f10083f495ccc6b5be4a4452ca4cbf362251b804ea88ba515b70f"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -543,13 +543,13 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Composition with other skills" \
-  "9848cf1843d88ec777ee30fa0f7f3eee2b8506206d49284dffaa1f85bbe2e994"
+  "00e72b234f92a8005db0c3073cff73fea5cfddaa6dfcbc3c4d73ed70f8247efa"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
   "dea5a9d5a6f66d93954ad3bc715d2910ea8c2237c9b085fc58107969d66eca68"
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "e24be3f3078e1e3f675d41a7118bc87e3c1aa3bcb59e0952bcec4bbdc8a13bfa"
+  "fdbb142efd47995f1a517ed50ec99e25d7f9cfcb3f70688352680b3f893ab36d"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

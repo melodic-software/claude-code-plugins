@@ -3,7 +3,9 @@
 A Claude Code plugin that scans an existing codebase for **module-level
 architecture friction** and proposes concrete improvements. It is proactive
 discovery, distinct from reviewing a diff or planning new work: it hunts for
-shallow modules, seam leaks, and locality gaps in code that already exists.
+shallow modules, seam leaks, and locality gaps in code that already exists. A
+companion skill, `record-decision`, writes one architecture decision record into
+whatever ADR convention the repository already has.
 
 The first (and default) lens implements John Ousterhout's **deep-module**
 concept from *A Philosophy of Software Design*. A module is *shallow* when its
@@ -49,11 +51,24 @@ is installed and falling back to an announced bundled walk when it is not.
 Neither argument stops and names both forms; the session's working directory is
 never scanned.
 
+## Record a decision
+
+`/architecture:record-decision` discovers the ADR convention the repository
+already uses (the directory, the numbering scheme, and the record shape) and
+writes one record that follows it, reporting what it found before it writes.
+Where nothing is declared and nothing exists, it names the rungs it searched,
+offers two or three common shapes, and writes nothing at all until you pick one:
+this plugin never prescribes a convention to a repository that has none. The
+upstream template catalog is cited by URL for you to read, under its own
+CC BY-NC-SA 4.0 licence; no template prose is copied into this plugin or into
+your records.
+
 ## Invoke
 
 ```shell
 /architecture:improve            # defaults to the deepening lens
 /architecture:improve deepening  # explicit
+/architecture:record-decision    # record one decision into the repo's convention
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
