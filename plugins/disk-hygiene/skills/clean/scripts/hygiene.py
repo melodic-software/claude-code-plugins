@@ -2866,6 +2866,151 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def removal_sort_key(relative: str) -> tuple[int, str]:
+    """The apply lane's bottom-up ordering key: deeper paths sort later.
+
+    Used with ``reverse=True`` so the deepest path comes first. The apply lane
+    needs it because ``anchored_remove`` only ever calls ``os.rmdir`` on a
+    directory it has just proven empty, so a container must be visited after
+    every one of its children. ``emptied_container_order`` reuses the same key
+    for the same structural reason — a parent is decided after its children —
+    without inheriting the mutation the apply lane performs.
+    """
+    return (len(PurePosixPath(relative).parts), relative)
+
+
+def emptied_container_order(
+    settled: Iterable[str], entries: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Inventoried directories the settled removals leave empty, deepest first.
+
+    ``settled`` is the set of paths that are being removed (or are already
+    gone). A snapshot directory qualifies when it is not itself part of that
+    removal, the scan actually walked it, and every one of its inventoried
+    immediate children is either removed or itself qualifies — the cascade.
+
+    Decision is one pass over the inventory in decreasing depth. Every parent is
+    strictly shallower than its children, so the pass reaches a container only
+    after each of its children has already been decided; no fixed-point loop is
+    involved and none needs a bound, which is what makes a cascade of any depth
+    resolve in a single round.
+
+    This names containers. It never removes one: the ordering is the part shared
+    with the apply lane, the mutation is not.
+    """
+    removed: set[str] = set()
+    for relative in settled:
+        removed |= subtree_names(relative, entries)
+    children: dict[str, set[str]] = {}
+    for name in entries:
+        parent = name.rsplit("/", 1)[0] if "/" in name else ""
+        if parent:
+            # A top-level entry's parent is the scan target itself, which is
+            # never a candidate for removal — hard_protection calls it
+            # target-root — so it is deliberately absent from this map.
+            children.setdefault(parent, set()).add(name)
+    emptied: set[str] = set()
+    ordered: list[str] = []
+    for name in sorted(children, key=removal_sort_key, reverse=True):
+        entry = entries.get(name)
+        if entry is None or entry.get("kind") != "directory" or name in removed:
+            continue
+        if "not-walked" in (entry.get("size_qualifiers") or []):
+            # The scan never enumerated this directory, so its inventoried
+            # children are not known to be all of its children. A coverage gap
+            # is not emptiness (the rule entry_is_empty_directory already
+            # applies to the scan's own tidiness count).
+            continue
+        if all(child in removed or child in emptied for child in children[name]):
+            emptied.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def verify_emptied_container(
+    target: Path,
+    relative: str,
+    entries: dict[str, dict[str, Any]],
+    exact_names: set[str],
+    known_mounts: set[Path],
+    globs: list[str],
+    truncated_paths: set[str],
+) -> dict[str, Any]:
+    """Verdict for one container the approved removals would empty, read-only.
+
+    The categorical checks only. The VCS-evidence exception deliberately has no
+    counterpart here: ``validate_vcs_evidence`` admits repositories at or under
+    an approved path, and a container is always a strict ancestor of one, so
+    evidence never covers the container itself and tracked content keeps it
+    contested.
+    """
+    path = target.joinpath(*PurePosixPath(relative).parts)
+    drifted: set[str] = set()
+    contested: set[str] = set()
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+    except PermissionError:
+        return {"path": relative, "verdict": "contested", "reasons": ["needs-elevation"]}
+    except OSError:
+        return {
+            "path": relative,
+            "verdict": "contested",
+            "reasons": ["filesystem-state-unverified"],
+        }
+    # Object identity, not stat identity: a directory's mtime and size change
+    # every time a child is added or removed, and removing this container's
+    # children is the whole premise. same_stat_identity would report the
+    # container drifted for the very removals that empty it.
+    if not same_object_identity(info, entries[relative]):
+        drifted.add("changed-since-scan")
+    contested.update(hard_protection(path, target, exact_names, known_mounts))
+    if any(glob_matches(relative, pattern) for pattern in globs):
+        contested.add("consumer-protected-path")
+    expected_paths = subtree_names(relative, entries)
+    if overlaps_truncated(relative, truncated_paths):
+        # Same rationale as preview's short-circuit: a truncated container can
+        # never clear, so skip the unbounded live walk and probes.
+        contested.add("truncated-not-inventoried")
+    else:
+        try:
+            current_paths = current_descendants(target, path)
+        except PermissionError:
+            contested.add("needs-elevation")
+        except (OSError, HygieneError):
+            contested.add("filesystem-state-unverified")
+        else:
+            if current_paths != expected_paths:
+                # Anything live that the snapshot did not record survives the
+                # approved removals, so this container does not become empty.
+                drifted.add("changed-since-scan")
+        try:
+            vcs = tracked_blocker(path, target)
+        except (OSError, subprocess.SubprocessError):
+            vcs = "vcs-state-unverified"
+        if vcs:
+            contested.add(vcs)
+        try:
+            state, detail = candidate_handle_state(target, path, expected_paths)
+        except (OSError, subprocess.SubprocessError):
+            state, detail = "unverified", "handle-probe-failed"
+        if state == "open":
+            contested.add("live-handle" + (f": {detail}" if detail else ""))
+        elif state == "needs_elevation":
+            contested.add("needs-elevation")
+        elif state != "clear":
+            contested.add(
+                "handle-state-unverified" + (f": {detail}" if detail else "")
+            )
+    verdict = "drifted" if drifted else "contested" if contested else "clear"
+    return {
+        "path": relative,
+        "verdict": verdict,
+        "reasons": sorted(drifted) + sorted(contested),
+    }
+
+
 def handoff_verify(
     snapshot: dict[str, Any],
     approved: list[str],
@@ -3098,29 +3243,47 @@ def handoff_verify(
             item["vcs_evidence"] = evidence_result
         verdicts.append(item)
     clear = sum(1 for item in verdicts if item["verdict"] == "clear")
+    # Only paths that are actually going away can empty a container. A contested
+    # or drifted approved path stays on disk, so a container that depends on it
+    # must not be named removable.
+    settled = [
+        item["path"] for item in verdicts if item["verdict"] in {"clear", "gone"}
+    ]
+    containers = [
+        verify_emptied_container(
+            target, relative, entries, exact_names, known_mounts, globs, truncated_paths
+        )
+        for relative in emptied_container_order(settled, entries)
+    ]
     return {
         "status": "handoff-verify-complete",
         "target": str(target),
         "verdicts": verdicts,
         "clear": clear,
         "not_clear": len(verdicts) - clear,
+        "emptied_containers": containers,
+        "removable_emptied_containers": sum(
+            1 for item in containers if item["verdict"] == "clear"
+        ),
         "note": (
             "Read-only revalidation for the manual handoff lane; this "
             "subcommand has no deletion capability. A clear verdict is valid "
             "only at emission time — in a multi-path run the earliest checks "
             "age while later paths are still probed, so verify ONE path per "
             "deletion (verify one, delete that one, then the next) and "
-            "re-verify after any delay. The multi-path form is for reporting."
+            "re-verify after any delay. The multi-path form is for reporting. "
+            "emptied_containers names the inventoried directories the approved "
+            "removals leave empty, deepest first, with the same categorical "
+            "checks applied; they are NOT in the approved list, so removing one "
+            "needs its own approval, and each is removable only AFTER every "
+            "path beneath it is gone. clear/not_clear count the approved paths "
+            "only."
         ),
     }
 
 
 def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[str]:
-    return sorted(
-        subtree_names(relative, entries),
-        key=lambda value: (len(PurePosixPath(value).parts), value),
-        reverse=True,
-    )
+    return sorted(subtree_names(relative, entries), key=removal_sort_key, reverse=True)
 
 
 def open_anchored_parent(
