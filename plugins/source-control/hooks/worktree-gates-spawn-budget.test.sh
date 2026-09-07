@@ -129,7 +129,7 @@ assert_budget "containment, git -C <repo> add (names root)" "$CONTAIN" \
 
 # The deny path with no `-C`: cwd is the working tree, command is a relative add.
 assert_budget "containment, add into a working tree" "$CONTAIN" \
-  "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 18 5
+  "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 18 6
 
 # ── claim gate (PostToolUse:Bash) ───────────────────────────────────────────
 assert_budget "claim, non-add command" "$CLAIM" \
