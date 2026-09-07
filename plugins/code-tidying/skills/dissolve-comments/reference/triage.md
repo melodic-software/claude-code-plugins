@@ -71,11 +71,16 @@ A comment survives only if **all three** hold:
    `balanced` reports an over-budget comment instead of rewriting it; `conservative` proposes the
    rewrite.
 
-**When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**,
-behind the same COMMENT-ONLY token proof class A uses, with its narrative staged first per
-[safety.md](safety.md). It is not reclassified as class A — class A is redundancy with code that
-is present, and this comment is not redundant — and it is not kept for want of a branch. Criterion
-3 has its own treatment, the rewrite above; only criterion 2 sends a comment to deletion.
+**When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
+under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
+first per [safety.md](safety.md). It is not reclassified as class A — class A is redundancy with
+code that is present, and this comment is not redundant — and it is not kept for want of a branch.
+Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a comment to deletion.
+
+Under `safe` mode and posture `conservative` this deletion is **proposed, never applied**. Those
+modes apply class-A deletions only, and a comment that reached this branch is class C whatever its
+test returned — the mode ladder narrows what is applied, and it does not get to be widened by a
+verdict reached inside it.
 
 A rewrite is an edit with a gate: the comment's replacement text is checked by
 `change-shape.py` like any deletion (COMMENT-ONLY, since only comment tokens changed), and the

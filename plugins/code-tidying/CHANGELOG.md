@@ -28,10 +28,19 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   baseline that was never measured. Layer availability is probed directly now. `unread=True` was
   written and never read; unread files are counted and reported.
 - **`dissolve-comments`, `audit-comment-residue`:** both injected a `${CLAUDE_PLUGIN_ROOT}` script
-  that no `allowed-tools` rule can match, since that token is never substituted there — under
-  default permissions the injection aborts. Both now go through a skill-local exec wrapper with a
-  live `${CLAUDE_SKILL_DIR}` grant, and `allowed-tools-pairing.test.sh` gained a body-side check
-  for the class plus coverage of `dissolve-comments`, which it had never checked.
+  that no grant this repo permits can cover, so under default permissions the injection aborts
+  before the skill is reached. Both now go through a skill-local exec wrapper with a live
+  `${CLAUDE_SKILL_DIR}` grant, and `allowed-tools-pairing.test.sh` gained a body-side check for the
+  class plus coverage of `dissolve-comments`, which it had never checked.
+- **`allowed-tools-pairing.test.sh`:** its header taught that `${CLAUDE_PLUGIN_ROOT}` is never
+  substituted in `allowed-tools` and a grant naming it is inert. That is stale — the token does
+  substitute in a plugin skill's `allowed-tools` Bash rules
+  (<https://code.claude.com/docs/en/skills>, fetched 2026-09-07). The gate's requirement stands on
+  its real reason instead: the docs establish substitution, not runtime matching on every host, and
+  this repo does not ship a grant on docs alone.
+- **`dissolve-comments`:** the new class-C deletion branch contradicted `safe` mode and posture
+  `conservative`, which promise that only class-A deletions are applied. It is now proposed, never
+  applied, in both — a verdict reached inside a narrowed mode does not widen it.
 - **`dissolve-comments`:** `description` sat at 1024/1024 against the Agent Skills spec field
   maximum with zero headroom; trimmed to 978, all trigger phrases preserved.
 

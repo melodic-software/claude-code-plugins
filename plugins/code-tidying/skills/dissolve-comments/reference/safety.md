@@ -11,8 +11,13 @@ behavior, while a token comparison is exhaustive over the file.
 
 | Mode | Class A | Class B | Class C |
 |---|---|---|---|
-| **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; narrative staging |
-| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage; deletions of pure narrative still apply, with staging |
+| **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
+| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
+
+`conservative` is `safe` as a standing default, so it reads the `safe` row. The class-C column is
+the one to get right: the triage still runs in every mode and still returns a verdict, but a
+verdict is not an application. `safe` narrowing class C to proposals is what makes "only class-A
+deletions are applied" in the action router true rather than approximately true.
 
 In **no mode** does the skill: apply an edit whose tier gate did not pass, touch an exempt surface
 or excluded path, or delete text without a landing place (staging rule below).

@@ -58,7 +58,7 @@ line budget, and worked examples: [reference/triage.md](reference/triage.md).
 | **A, zero/negative information** | Restates adjacent code, obsolete, commented-out code | Delete outright, certified by the token proof |
 | **B, information code could carry** | The comment compensates for a naming/structure deficiency | Refactor until the comment is superfluous, then delete, never delete first |
 | **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget, rewritten terser when over it, narrative staged |
-| **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted**, certified by the same token proof class A uses, narrative staged before the deletion is final. The negative branch of the class-C test, not a fourth class |
+| **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted** under `strict`, certified by the same token proof class A uses, narrative staged before the deletion is final; **proposed** under `safe` and `conservative`, which apply class-A deletions only. The negative branch of the class-C test, not a fourth class |
 
 The two class-C rows are one class and one test — three criteria that must **all** hold — named on
 each side, so a comment that fails it has somewhere to go. A criterion-1 failure is not this branch:
@@ -170,8 +170,10 @@ from them.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
    `change-shape.py` on before and after; anything but COMMENT-ONLY (exit 0) restores the comment.
    Class B: apply the named move, run the tier's gate, then delete the comment. Class C that
-   **failed** the earn-its-keep test: stage the narrative, then delete behind the same
-   COMMENT-ONLY proof class A uses. Class C over budget: rewrite to the budget under `strict`,
+   **failed** the earn-its-keep test: under `strict`, stage the narrative then delete behind the
+   same COMMENT-ONLY proof class A uses; under `safe` or `conservative`, propose it instead — those
+   modes apply class-A deletions only, and a rationale comment is not class A however its test
+   resolved. Class C over budget: rewrite to the budget under `strict`,
    stage the narrative; report only under `balanced`. A failed gate reverts, restores, and demotes
    to a proposal quoting the verdict. Done when every item is either applied with its verdict or
    listed as a proposal with its reason.
