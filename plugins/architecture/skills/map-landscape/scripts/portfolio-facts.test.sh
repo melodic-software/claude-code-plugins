@@ -208,6 +208,26 @@ assert_equals "owner ladder: scp-style remote owner segment" "$(field "$out" own
 assert_contains "owner ladder: evidence names the remote" "$out" 'origin remote URL'
 assert_contains "remote: URL is reported verbatim" "$out" 'fallback-owner/remote-only.git'
 
+# --- Case group 7a: a port in the authority is not an owner ------------------
+# With a scheme, a colon in the authority is a PORT. An unconditional scp-style
+# conversion promotes it to a path segment, so `https://host:8080/acme/repo`
+# resolves to owner `8080` — the same fabricated-fact-with-a-citation the
+# host-required guard exists to stop, arriving by a different route.
+port_repo="$(make_repo ported-remote)"
+printf 'x\n' >"$port_repo/README.md"
+git -C "$port_repo" remote add origin "https://example.invalid:8080/ported-owner/ported-remote.git"
+commit_repo "$port_repo"
+out="$(bash "$SCRIPT" "$port_repo")"
+assert_equals "owner ladder: a scheme URL with a port keeps its real owner" "$(field "$out" owner)" "ported-owner"
+assert_not_contains "owner ladder: the port never becomes the owner" "$out" '"owner":"8080"'
+
+ssh_port_repo="$(make_repo ssh-ported)"
+printf 'x\n' >"$ssh_port_repo/README.md"
+git -C "$ssh_port_repo" remote add origin "ssh://git@example.invalid:22/ssh-owner/ssh-ported.git"
+commit_repo "$ssh_port_repo"
+out="$(bash "$SCRIPT" "$ssh_port_repo")"
+assert_equals "owner ladder: ssh URL with a port keeps its real owner" "$(field "$out" owner)" "ssh-owner"
+
 # --- Case group 7b: a local-path remote names no owner -----------------------
 # A git remote is often a plain filesystem path, and a path's first segment is a
 # directory, not an owner. Reporting one would be a fabricated fact carrying an

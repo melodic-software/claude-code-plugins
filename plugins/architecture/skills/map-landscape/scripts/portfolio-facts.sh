@@ -161,10 +161,11 @@ find_all() {
 # `opt`. Both were emitted with `evidence.owner: "origin remote URL"`, so a
 # fabricated fact carried a citation. `unknown` is the correct answer here.
 remote_owner() {
-  local url="$1" rest owner
+  local url="$1" rest owner had_scheme=0
   url="${url%.git}"
   case "$url" in
   *://*)
+    had_scheme=1
     url="${url#*://}"
     # An empty authority (`file:///path`) leaves a leading slash: no host.
     case "$url" in
@@ -195,11 +196,28 @@ remote_owner() {
     ;;
   *) ;;
   esac
-  # scp-style `host:owner/repo` becomes `host/owner/repo`.
-  case "$url" in
-  *:*) url="${url%%:*}/${url#*:}" ;;
-  *) ;;
-  esac
+  # scp-style `host:owner/repo` becomes `host/owner/repo`. ONLY when there was
+  # no scheme: with one, a colon in the authority is a PORT, and converting it
+  # promotes the port number to a path segment, so `https://example.com:8080/acme/repo`
+  # would resolve to owner `8080`. That is the same fabricated-fact-with-a-citation
+  # this guard exists to stop, arriving by a different route. With a scheme, strip
+  # the port from the authority instead.
+  if [[ "$had_scheme" -eq 1 ]]; then
+    case "$url" in
+    *:*)
+      case "${url%%/*}" in
+      *:*) url="${url%%:*}/${url#*/}" ;;
+      *) ;;
+      esac
+      ;;
+    *) ;;
+    esac
+  else
+    case "$url" in
+    *:*) url="${url%%:*}/${url#*:}" ;;
+    *) ;;
+    esac
+  fi
   case "$url" in
   */*) rest="${url#*/}" ;;
   *) return 1 ;;
