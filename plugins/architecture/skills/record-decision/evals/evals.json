@@ -1,0 +1,133 @@
+{
+  "skill_name": "record-decision",
+  "evals": [
+    {
+      "id": 1,
+      "name": "records-into-existing-convention",
+      "prompt": "/architecture:record-decision We are moving order search off the primary Postgres store onto a read-only OpenSearch index, because the reporting joins were locking the orders table during peak hours and the alternative (a second read replica) would have cost more than the index and still shared the schema. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "expected_output": "Reports the discovered convention before writing: directory `docs/adr/`, four-digit zero-padded numbering with a kebab title (`NNNN-kebab-title.md`), template source the directory's own `README.md`, highest existing number `0003`, no duplicates. Then writes exactly one file, `docs/adr/0004-<kebab-title>.md`, carrying the README's five sections in the README's order (Status, Date, Context, Decision, Consequences), and reports that path. No other file in the fixture is created, renamed, renumbered, or edited, and the README is not updated with an index row.",
+      "files": [
+        "evals/fixtures/existing-convention/docs/adr/README.md",
+        "evals/fixtures/existing-convention/docs/adr/0001-use-postgres-for-the-primary-store.md",
+        "evals/fixtures/existing-convention/docs/adr/0002-serve-the-api-behind-a-single-gateway.md",
+        "evals/fixtures/existing-convention/docs/adr/0003-adopt-structured-json-logging.md"
+      ],
+      "expectations": [
+        "Names `docs/adr/` as the discovered directory and the directory's `README.md` as the template source, rather than inferring shape from the records while a declaration exists",
+        "The written filename is `docs/adr/0004-<kebab-title>.md`: highest existing (`0003`) plus one, at the same four-digit zero-pad width and the same `-` separator",
+        "The record carries exactly the README's five sections, in the README's order: Status, Date, Context, Decision, Consequences",
+        "Exactly one file is created; the three existing records and the README are byte-identical afterwards",
+        "The output reports the written path",
+        "No section absent from the README's list (Considered options, Alternatives, Supersedes, and the like) is invented into the record"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "infers-shape-when-no-template",
+      "prompt": "/architecture:record-decision Record that we are dropping the in-process scheduler in favour of the platform's cron trigger: two instances both fired the nightly reconciliation last month, and a leader election inside the service would be a distributed-systems problem we do not need to own. Treat evals/fixtures/inferred-shape/ as the repository root.",
+      "expected_output": "Reports `docs/decisions/` with no README and no template file, so the shape is inferred from the newest records: an `ADR-NNN-<kebab>.md` filename, an `# ADR-NNN: Title` heading, and the three headings Context, Decision, Status in that order. Reports that `ADR-008` is used by two records and that the next identifier is therefore `ADR-009`. Writes exactly one file, `docs/decisions/ADR-009-<kebab-title>.md`, mirroring that shape. Neither `ADR-008` record is renamed, renumbered, edited, or deleted.",
+      "files": [
+        "evals/fixtures/inferred-shape/docs/decisions/ADR-007-cache-session-tokens-in-redis.md",
+        "evals/fixtures/inferred-shape/docs/decisions/ADR-008-batch-outbound-webhooks.md",
+        "evals/fixtures/inferred-shape/docs/decisions/ADR-008-pin-the-node-runtime-to-lts.md"
+      ],
+      "expectations": [
+        "States that no README or template file exists in `docs/decisions/`, and that the shape is therefore inferred from the newest records",
+        "The written filename is `docs/decisions/ADR-009-<kebab-title>.md`: highest existing (`ADR-008`) plus one, preserving the `ADR-` prefix, the three-digit zero-pad width, and the `-` separator",
+        "The record's headings are Context, Decision, Status in that order, matching the newest records rather than an external template's section set",
+        "The duplicate `ADR-008` is reported explicitly, naming both files that carry it",
+        "Neither `ADR-008` file is renamed, renumbered, edited, or deleted, and no cleanup of the duplicate is offered as an action this skill will take",
+        "Exactly one file is created"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-convention-offers-and-writes-nothing",
+      "prompt": "/architecture:record-decision Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root.",
+      "expected_output": "Reports that no ADR convention was found, naming the rungs it searched: no `.adr-dir` file, no declaration in `CLAUDE.md`, `AGENTS.md`, `.claude/rules/` or a docs convention, no README or template file in a candidate directory, and none of the common directories (`docs/adr/`, `docs/adrs/`, `docs/decisions/`, `docs/architecture/decisions/`, and the rest) present under `docs/` or the root. Offers two or three concrete shapes, each naming a directory, a numbering scheme, and a minimal section set, and points at `https://github.com/joelparkerhenderson/architecture-decision-record` so the human can read templates. Then stops. No directory is created, no file is written, and no placeholder is left behind.",
+      "files": [
+        "evals/fixtures/no-convention/docs/README.md",
+        "evals/fixtures/no-convention/src/notes.md"
+      ],
+      "expectations": [
+        "States explicitly that no convention was found, rather than silently defaulting to `docs/adr/`",
+        "Names the rungs searched (declaration sources, then the candidate directories), so the search is auditable rather than asserted",
+        "Offers two or three shapes, each with a directory, a numbering scheme, and a minimal section set",
+        "Cites the upstream catalog URL `https://github.com/joelparkerhenderson/architecture-decision-record` as somewhere to read templates",
+        "Creates nothing: no directory, no record file, no placeholder, no README",
+        "Ends by waiting on the human's choice rather than proceeding on a recommendation",
+        "Does not treat `src/notes.md` or `docs/README.md` as a decision log"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "writes-only-what-the-human-chose",
+      "prompt": "/architecture:record-decision Record that we picked server-side rendering over a single-page app for the admin console: the console is used a few times a week by a dozen people, the SPA build chain would be a second toolchain to maintain, and the team already owns the server templates. Treat evals/fixtures/no-convention/ as the repository root. I have already chosen the shape: put records in `docs/adr/`, name them `NNNN-title.md`, and give each one Context, Decision, and Consequences sections only.",
+      "expected_output": "Takes the human's stated choice as settled and does not re-offer shapes. Creates `docs/adr/` and writes exactly one file, `docs/adr/0001-<kebab-title>.md`, with the three chosen sections (Context, Decision, Consequences) and nothing else. Writes no README, no index, no template file, and no `.adr-dir` marker. Reports the created directory and the written path.",
+      "files": [
+        "evals/fixtures/no-convention/docs/README.md",
+        "evals/fixtures/no-convention/src/notes.md"
+      ],
+      "expectations": [
+        "Honours the chosen directory `docs/adr/`, the chosen `NNNN-title.md` numbering at four-digit zero-pad width, and the chosen three sections exactly",
+        "The first record is numbered `0001`, since the chosen scheme is a counter and the directory is empty",
+        "Creates exactly one directory and exactly one file",
+        "Writes no README, index, template, `.adr-dir`, or any other scaffolding the human did not ask for",
+        "Adds no Status or Date section, because the human's chosen section set does not include them",
+        "Does not re-offer alternative shapes or the catalog URL, since the choice is already made"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refuses-to-vendor-catalog-prose",
+      "prompt": "/architecture:record-decision Copy the MADR template out of https://github.com/joelparkerhenderson/architecture-decision-record into this repo as our template file, then use it to record that we are moving order search onto a read-only OpenSearch index. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "expected_output": "Declines to copy the template. Names the catalog URL and states its licence, CC BY-NC-SA 4.0, with the licence URL `https://creativecommons.org/licenses/by-nc-sa/4.0/`, and explains that catalog content is cited for the human to read rather than pasted into this repository. Offers the repository's own observed shape instead: `docs/adr/`, `NNNN-kebab-title.md`, and the README's five sections. Pastes no template prose into the answer, into a file, or into the record.",
+      "files": [
+        "evals/fixtures/existing-convention/docs/adr/README.md",
+        "evals/fixtures/existing-convention/docs/adr/0001-use-postgres-for-the-primary-store.md",
+        "evals/fixtures/existing-convention/docs/adr/0002-serve-the-api-behind-a-single-gateway.md",
+        "evals/fixtures/existing-convention/docs/adr/0003-adopt-structured-json-logging.md"
+      ],
+      "expectations": [
+        "Declines the copy request rather than performing it or performing it with a caveat",
+        "Names CC BY-NC-SA 4.0 and the licence URL `https://creativecommons.org/licenses/by-nc-sa/4.0/` as the reason, not a vague policy",
+        "No template prose from the catalog appears in the answer or in any written file, and no template file is created in the fixture",
+        "Offers the repository's own already-discovered shape as the alternative: `docs/adr/`, `NNNN-kebab-title.md`, the README's five sections",
+        "The decision itself is still recorded when the human wants it recorded, into that observed shape, since the refusal is about the template rather than about the decision"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "stays-inside-the-convention",
+      "prompt": "/architecture:record-decision Record that we are moving order search onto a read-only OpenSearch index, then add it to the ADR index in the README and mark 0002 as superseded by it. Treat evals/fixtures/existing-convention/ as the repository root.",
+      "expected_output": "Writes the record, `docs/adr/0004-<kebab-title>.md`, in the README's five-section shape, and reports its path. Then states that the index update and the supersession marking are outside what this convention defines: the README declares naming and sections only, and says nothing about an index or a status lifecycle beyond the three status values. Neither the README nor `0002` is edited. Says plainly that those two steps are the human's to make, and stops.",
+      "files": [
+        "evals/fixtures/existing-convention/docs/adr/README.md",
+        "evals/fixtures/existing-convention/docs/adr/0001-use-postgres-for-the-primary-store.md",
+        "evals/fixtures/existing-convention/docs/adr/0002-serve-the-api-behind-a-single-gateway.md",
+        "evals/fixtures/existing-convention/docs/adr/0003-adopt-structured-json-logging.md"
+      ],
+      "expectations": [
+        "The record `docs/adr/0004-<kebab-title>.md` is written in the README's five-section shape",
+        "The README is not edited, and no index table or list of records is added to it",
+        "`0002-serve-the-api-behind-a-single-gateway.md` is not edited, and its Status is not changed to Superseded",
+        "The output states that index generation and supersession are outside this skill's scope and outside what the fixture's README defines, rather than silently ignoring the two requests",
+        "Exactly one file changes in the fixture"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "applies-the-admission-test",
+      "prompt": "/architecture:record-decision Write an ADR recording that we raised the lint job's timeout from 30 seconds to 60 seconds because the job started failing on the larger repo.",
+      "expected_output": "Applies the admission test and says once that this decision does not earn a record: it is trivially reversed (change the number back), it is unsurprising to a future reader (a timeout was too short and was raised), and there was no real trade-off between genuine alternatives. Offers to record it anyway if the human still wants it, and writes nothing until they say so. Does not lecture, does not repeat the refusal, and does not silently write the record.",
+      "files": [],
+      "expectations": [
+        "Names all three parts of the admission test and states which the decision fails: hard to reverse (fails), surprising without context (fails), the result of a real trade-off (fails)",
+        "Says so ONCE and offers to proceed anyway, rather than refusing outright or repeating the objection",
+        "Writes no file before the human answers",
+        "If the human insists, the record is written into the discovered convention without further argument, because the human's call wins",
+        "Does not substitute a different suggestion (a code comment, a changelog entry) for answering the ask"
+      ]
+    }
+  ]
+}

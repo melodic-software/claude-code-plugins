@@ -198,6 +198,32 @@
       ]
     },
     {
+      "identity": "drift-delta-sweep",
+      "class": "drift-delta-sweep",
+      "posture": null,
+      "leaf": "reference/routines/drift-delta-sweep.md",
+      "access_class": "repo",
+      "isolation_floor": "L2",
+      "connector_entitlements": [],
+      "connector_entitlement_rung": null,
+      "executor_class_merge_cap": "security-binding",
+      "needs": [
+        {
+          "id": "documentation_corpus",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "source_tree",
+          "probe_class": "repo-file"
+        },
+        {
+          "id": "tracker",
+          "probe_class": "repo-file",
+          "seam": "work-item-tracker"
+        }
+      ]
+    },
+    {
       "identity": "duplicate-detection-sweep",
       "class": "duplicate-detection-sweep",
       "posture": null,

@@ -3,6 +3,77 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **`map-landscape` no longer fabricates an `owner` from a local-path remote.** A git remote is
+  often a plain filesystem path, and `portfolio-facts.sh` stripped its first segment as if it were a
+  hosting account: `/srv/code/platform/billing` reported owner `srv`, and `file:///opt/mirror/repo`
+  reported `opt`. Both were emitted with `evidence.owner: "origin remote URL"`, so a fabricated
+  fact carried a citation, which is worse than the wrong value alone. `remote_owner` now requires a
+  host (a `scheme://host/...` authority, or the scp-style `host:owner/repo`) and returns `unknown`
+  for every path form. The contract's rule is `unknown` for anything underivable, never a guess.
+- **`map-landscape` reads the top-level `dependencies` even when a nested member shares its name.**
+  The package.json reader sought the first literal `"dependencies"` in the byte stream, so a
+  `pnpm.overrides.dependencies` block appearing earlier in the file shadowed the real one and the
+  portfolio listed the override's pins as the project's dependencies. The reader now locates the
+  member by position with a container stack rather than by text search.
+- Regression cases for both, plus assertions for `path` and for the absent-owner citation.
+
+## [0.8.0]
+
+### Added
+
+- `record-decision`: records one architecture decision into whatever ADR convention the consuming
+  repository already has. It discovers the directory, numbering scheme and record shape in use and
+  writes exactly one record that follows them; where no convention exists it names what it searched,
+  offers common shapes, points at the upstream template catalog by URL, and writes nothing until the
+  human chooses. Ships seven eval cases over three fixture trees.
+- `reference/adr-discovery.md`: the plugin's single ADR discovery ladder (declared, then existing
+  directory, then none) plus the numbering and shape inference rules, read by both skills.
+
+### Changed
+
+- improve: `actions/deepening.md` points at `reference/adr-discovery.md` instead of carrying its own
+  inline directory list. The declared-location-first rule is unchanged.
+
+## [0.7.0]
+
+### Added
+
+- **New skill `map-landscape`** (`/architecture:map-landscape`): a C4 System Landscape plus an
+  application-portfolio table over a discovered set of repositories. Nothing here answered "what
+  systems does this organization have, who owns them, what do they run on, and how do they relate":
+  the fleet-hygiene plugin discovers repositories but feeds cleanup, and `improve` works inside one
+  codebase. Discovery is argument-selected. `--repos` charts exactly the listed repositories with no
+  discovery at all; `--root` delegates bounded discovery and canonical-checkout resolution to
+  `/repo-fleet-hygiene:audit --plan-file` when that plugin is installed, filtering the plan's
+  `repositories[]` to the requested roots because that collaborator's configured scope is additive,
+  and otherwise falls back to an announced bundled walk. Neither argument stops and names both
+  forms; the session's working directory is never scanned. Facts come from the tested
+  `scripts/portfolio-facts.sh` (owner from CODEOWNERS then the remote's owner segment, never a
+  commit author; runtime, target framework, dependencies capped at 25, and a local-HEAD
+  `last_touched`), with `unknown` carried through rather than guessed. Relationships are model
+  judgment behind a hard evidence rule: an edge exists only where a fact in the source names the
+  target, and the matched string IS the edge description. Output is `landscape.dsl` with a
+  `systemLandscape` view under the `structurizr` dialect, or `landscape.md` with a `C4Context`
+  block under `mermaid` (mermaid ships no landscape diagram type and marks its C4 syntax
+  experimental, an asymmetry the skill states rather than papers over), plus `portfolio.md`.
+- **New skill `setup`** (`/architecture:setup`): the plugin's consumer-configuration surface, a
+  convention doc at the consumer's convention home under the config-cascade expression doctrine.
+  `check` is read-only and reports PASS/FAIL/INFO with one remediation line per FAIL, covering a
+  missing pointer line, a resolved home with no topic doc, and an unknown key or value. `apply`
+  converges exactly two artifacts, the marked `convention-home` pointer region and
+  `<home>/architecture/README.md`, idempotently, proposing inferred values and waiting when
+  arguments are incomplete, running non-interactively when `home=`, `architecture_dir=` and
+  `landscape_dialect=` are all supplied, and re-reading from disk to report the stored values it
+  observed. `architecture_dir` has no default on purpose: guessing a directory would write two
+  generated files into a tree nobody asked for, so an undeclared and unconfirmed value stops
+  `map-landscape` instead. No retired layers; this surface is new.
+- `lib/resolve-convention-home.sh`, vendored through `scripts/sync-resolve-convention-home.sh`, and
+  `reference/config.md` documenting the two keys.
+
 ## [0.6.10]
 
 ### Changed

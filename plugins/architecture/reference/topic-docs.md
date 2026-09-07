@@ -14,6 +14,13 @@ deltas.
 |---|---|---|
 | `deepening-candidates-<YYYYMMDDTHHMMSSZ>.md` (`/architecture:improve deepening`) | Memory | `.work/<topic-slug>/` — never committed |
 | Deepening HTML report (`/architecture:improve deepening`) | Ephemeral | One file per run, created through the platform's temp API; handed back as a path and never deleted before returning |
+| `fleet-plan.json` (`/architecture:map-landscape --root`) | Memory | `.work/<topic-slug>/` — never committed |
+
+`fleet-plan.json` is the `repo-fleet-hygiene` collaborator's action plan, written there by that
+plugin's audit when `map-landscape` invokes it with `--plan-file`. It is a temp artifact of one run:
+`map-landscape` reads `schema_version` and `repositories[]` out of it and nothing downstream reads it
+again, so the memory root's self-ignore guard is what keeps a plan naming every repository on the
+operator's disk out of git history. It is never copied into the declared `architecture_dir`.
 
 The candidate list is a cross-stage handoff: a planning step consumes its `agreed-shape` entry
 (see the deepening playbook's Handoff section). It stays in the memory tier because nothing

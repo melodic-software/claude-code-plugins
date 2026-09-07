@@ -1299,6 +1299,117 @@
         "contents": "read",
         "security-events": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "pr-number", "timeout-minutes"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths-file", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/checks.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "filters",
+        "timeout-minutes",
+        "typos",
+        "gitleaks",
+        "editorconfig",
+        "markdown",
+        "shellcheck",
+        "actionlint",
+        "exec-bit",
+        "machine-specific-paths",
+        "eol-renormalize",
+        "comment-hygiene",
+        "lychee-offline",
+        "check-jsonschema",
+        "check-jsonschema-files",
+        "check-jsonschema-builtin-schema",
+        "machine-specific-paths-exclude",
+        "comment-hygiene-exclude"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "args",
+        "issue-title",
+        "issue-labels",
+        "issue-type",
+        "auto-close"
+      ],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "security-events": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@5776760254f8b63cba44e896f51604cb755350d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {

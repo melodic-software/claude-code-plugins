@@ -3,6 +3,41 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1]
+
+### Changed
+
+- **`interview`:** the ADR bullet and the interview-outputs line route to
+  `/architecture:record-decision` when the `architecture` plugin is installed, and keep today's
+  write-to-the-declared-convention sentence as the fallback. New Composition row; two eval cases
+  covering both branches.
+- **`design-handoff`:** the handoff summary gains an "ADR candidates" bullet. Each resolved decision
+  meeting the three-part admission test is offered to `/architecture:record-decision` when that
+  plugin is installed, and listed for the human to record by hand otherwise. The offer never blocks
+  the handoff.
+- **`plan`:** close-out step 2 names `/architecture:record-decision` as the presence-gated way to
+  write an ADR the moment a decision crystallizes. The ADR admission test is unchanged.
+
+## [0.38.0]
+
+### Added
+
+- **`design-handoff`:** a `Coverage report (advisory)` section between the binary gate and the
+  handoff summary. After the verdict sentence, and on a FAIL after the routing sentence too, the
+  gate emits one table with columns `Dimension | Covered by | Status` and one row per dimension a
+  design answers: what, how, where, who, when, why. A row is covered when a thread whose status is
+  RESOLVED or directional records a decision about that dimension, and the row names that thread and
+  its status; a TAGGED-DEFERRED thread never covers a row; an uncovered row reads `none`. The
+  artifact carries no dimension field, so the reading rule per dimension is stated as the example
+  table's own second column. On a `design-resolution.md` early exit the table is read over that
+  file. The handoff summary gains an `Uncovered dimensions` bullet and the resume prompt carries
+  them, so `/planning:plan` can hold them as open questions.
+- **`design-handoff`:** three eval cases over three new fixtures, covering an all-six-covered read,
+  a gapped read that still PASSes, and a read over the early-exit artifact; the existing FAIL case
+  asserts that the verdict and routing are unchanged and that any coverage table follows them.
+- The pass/fail determination and the routing are untouched by this release. The coverage report
+  never blocks, no flag makes it block, and the table is never written to disk.
+
 ## [0.37.0]
 
 ### Added

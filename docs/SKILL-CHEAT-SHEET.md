@@ -40,6 +40,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart discovered repositories as a C4 system landscape plus an application-portfolio table |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
@@ -148,6 +149,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown prose |
+| [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/claude-config:audit`](../plugins/claude-config/skills/audit/SKILL.md) | `claude-config` | Audit settings, hooks, permissions, and MCP config for drift against current official docs |
 | [`/claude-config:audit-automation-gaps`](../plugins/claude-config/skills/audit-automation-gaps/SKILL.md) | `claude-config` | Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding |
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies |
