@@ -434,7 +434,7 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf '\n## Notes\n\nTouched.\n' >>"$r/plugins/p1/skills/wordy/SKILL.md"
 if out="$( (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
-  bash scripts/check-changed-skills.sh "$b") 2>&1 )"; then
+  bash scripts/check-changed-skills.sh "$b") 2>&1)"; then
   fail "an over-cap description should fail the changed-skill gate, got: $out"
 else
   if grep -q 'description alone is 1025 codepoints' <<<"$out"; then
