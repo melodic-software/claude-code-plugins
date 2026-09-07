@@ -22,6 +22,17 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
+
+# skip_case <reason> — skip one optional case without exiting. Named to match
+# the house helper so scripts/check-discriminating-test-skips.sh can see the
+# branch. It never vacates the only discriminating coverage: both home fences
+# are asserted unconditionally in case 4; case 12 adds the second-spelling arm
+# on filesystems that can express one.
+skip_case() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP: %s\n' "$1" >&2
+}
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -253,6 +264,41 @@ assert_eq "case 11: a forbidden marker reaching a stub exits 4" "4" "$?"
 assert_eq "case 11: every stub the run wrote was removed" "0" "$(count_files "$OUT11")"
 assert_contains "case 11: the refusal names the fix pass" "$poison_err" "fix pass"
 
+# --- Case 12 (guard): a second spelling of the same fenced directory ---------
+#
+# Comparing two spellings of ONE directory as strings reports "not within" and
+# writes the stubs into the directory the fence protects. A symlink is the
+# portable way to produce a second spelling; a host whose filesystem cannot
+# express one skips this arm, and case 4 still asserts both fences.
+CANON="$TEST_TMPDIR/canon"
+mkdir -p "$CANON/reviews"
+if ln -s "$CANON/reviews" "$CANON/link" 2>/dev/null && [[ -L "$CANON/link" ]]; then
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CANON/link/stubs" \
+    --scan-dir "$CANON/reviews" >/dev/null 2>&1
+  assert_eq "case 12: a second spelling of --scan-dir is still fenced" "3" "$?"
+  assert_eq "case 12: the second spelling wrote nothing into the scan directory" "0" \
+    "$(count_files "$CANON/reviews")"
+  assert_eq "case 12: the second spelling created no stub directory" "0" \
+    "$([[ -e "$CANON/reviews/stubs" ]] && echo 1 || echo 0)"
+else
+  skip_case "case 12: this filesystem does not create symlinks, so a second spelling of one directory is not expressible here"
+fi
+
+# --- Case 13 (guard): a row an unescaped pipe shifted is reported ------------
+#
+# Such a row cannot be stubbed, and a success line whose count silently
+# excludes it is the quiet-drop failure this reports instead.
+SHIFTED="$TEST_TMPDIR/input/shifted.md"
+awk '
+  /^\| 7 \|/ && !done { sub(/hard to follow/, "hard | to follow"); done = 1 }
+  { print }
+' "$FINDINGS" >"$SHIFTED"
+OUT13="$TEST_TMPDIR/out13"
+shifted_err="$(bash "$EMIT" --findings "$SHIFTED" --classes "$CLASSES" --out "$OUT13" \
+  --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
+assert_eq "case 13: a shifted row does not fail the run" "0" "$?"
+assert_contains "case 13: the shifted row is reported, not dropped in silence" "$shifted_err" "unescaped pipe"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"
@@ -264,8 +310,8 @@ assert_contains "dry run: printed a planned filename" "$dry_out" "01-editorconfi
 # --- Final report --------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
+  printf '\nAll %d checks passed (%d skipped).\n' "$CASE_NUM" "$SKIPPED"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+printf '\n%d/%d checks failed (%d skipped).\n' "$FAILED" "$CASE_NUM" "$SKIPPED" >&2
 exit 1
