@@ -90,12 +90,19 @@ Each shared source used to get **its own CI job**. Before claude-code-plugins#36
 `check-retirements-sync`, `legacy-statusline-detect-sync`, `unwrap-before-compose-sync`,
 `resolve-convention-home-sync`, `resolve-convention-pattern-sync`, `index-regen-sync` and
 `standards-contract-sync`. Each was a runner, a pinned `actions/checkout`, a
-`checkout-with-base` deepen to full history plus a base fetch, and then the `--check` and
-`--check-bump` steps themselves. No toolchain install: these are shell scripts, and the toolchains
-belong to `test-linux`. The overhead was the runner, the checkout and the unshallow, and GitHub
-rounds every job up to a whole minute
-(<https://docs.github.com/en/billing/reference/actions-runner-pricing>), so thirteen jobs bought
-thirteen billed minutes at a floor for work measured in seconds.
+`checkout-with-base` deepen to full history plus a base fetch, the `--check` and `--check-bump`
+steps, and in eleven of the thirteen a per-library test step as well. No toolchain install: these
+are shell scripts, and the toolchains belong to `test-linux`. The cost was the runner, the checkout
+and the unshallow, paid thirteen times over.
+
+**The cost is latency here and money on the fleet.** This repository is public and the jobs ran on
+`ubuntu-24.04`, a standard runner, so nothing was billed: what thirteen jobs bought was thirteen
+runner startups and thirteen unshallows on the critical path, and thirteen concurrency slots taken
+from every other lane in the run. In the private repositories the same ci-perf program covers, the
+identical shape does cost money, because GitHub rounds the minutes and partial minutes each job uses
+up to the nearest whole minute
+(<https://docs.github.com/en/billing/reference/actions-runner-pricing>), so a per-library job floor
+is a per-library billed minute there.
 
 **They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
 already performs that same deepen and base fetch for its own `--check-bump` steps;
