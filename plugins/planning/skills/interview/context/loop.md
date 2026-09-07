@@ -184,6 +184,8 @@ A question that was asked, went unanswered across a reply about something else, 
 
 The register tracks the *asking*; the Brief draft tracks the answers, on the schedule Step 2 item 5 sets per mode.
 
+**One thing asked is not a question here: the acceptance-criteria coverage prompt.** It carries no decision, so it gets no row at ask-time and does not by itself make the register exist — including when it rides along inside a round. That is the whole exception. Every real question in the same round is written at `open` exactly as this rule requires, and nothing about the coverage prompt changes when a round is registered or what the gate then demands.
+
 Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
 
 **A run that asks nothing writes no register — but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
