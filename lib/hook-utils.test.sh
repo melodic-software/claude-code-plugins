@@ -3448,10 +3448,21 @@ else
   fail "buffer_stdin_to fused: rc=$bs_fused_rc dest=$(printf %q "$bs_fused") fields=(${HOOK_JQ_FIELDS[*]-}) nul=$HOOK_JQ_FIELDS_NUL"
 fi
 
+# The fused fields path shares the fail block with the completeness probe, so
+# the cut-short / not-JSON split applies there too: a well-formed prefix the
+# pipe closed on is rc 3, text that never parsed is rc 2.
+bs_cut=""
+bs_cut_err=$(hook::buffer_stdin_to bs_cut '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_cut_rc=$?
+if ((bs_cut_rc == 3)) && [[ "$bs_cut_err" == *"cut short"* ]] && [[ "$bs_cut_err" != *"BLOCKED"* ]]; then
+  ok "buffer_stdin_to fused truncated JSON at EOF is cut short"
+else
+  fail "buffer_stdin_to fused truncated: rc=$bs_cut_rc err=$(printf %q "$bs_cut_err")"
+fi
 bs_bad=""
-bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'not json' 2>&1)
 bs_bad_rc=$?
-if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]]; then
+if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]] && [[ "$bs_bad_err" != *"cut short"* ]]; then
   ok "buffer_stdin_to fused malformed JSON fails closed"
 else
   fail "buffer_stdin_to fused malformed: rc=$bs_bad_rc err=$(printf %q "$bs_bad_err")"
