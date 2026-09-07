@@ -299,6 +299,50 @@ shifted_err="$(bash "$EMIT" --findings "$SHIFTED" --classes "$CLASSES" --out "$O
 assert_eq "case 13: a shifted row does not fail the run" "0" "$?"
 assert_contains "case 13: the shifted row is reported, not dropped in silence" "$shifted_err" "unescaped pipe"
 
+# --- Case 14: a home that escapes the tree it was composed from --------------
+#
+# The branch slug the caller composes into the home comes from the findings
+# file's own frontmatter, which nothing authenticates. A slug that reached the
+# path unsanitized steers it out of the tree, and neither sibling fence sees
+# that: the escaped path collides with nothing.
+MEM_ROOT="$TEST_TMPDIR/memory"
+ESCAPED="$MEM_ROOT/enforceability/../../../escape"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ESCAPED" \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 14: a home carrying a .. segment is refused" "3" "$?"
+assert_eq "case 14: the escape target was never created" "0" \
+  "$([[ -e "$TEST_TMPDIR/../../../escape" || -e "$TEST_TMPDIR/escape" ]] && echo 1 || echo 0)"
+
+escape_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ESCAPED" \
+  --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
+assert_contains "case 14: the refusal is visible, not silent" "$escape_err" "refusing:"
+assert_contains "case 14: the refusal names the slug as the way a .. segment appears" "$escape_err" "branch slug"
+
+# A home that escapes WITHOUT a `..` segment is caught by the anchor instead.
+OUTSIDE="$TEST_TMPDIR/outside/enforceability/fixture"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUTSIDE" \
+  --scan-dir "$SCAN_DIR" --memory-root "$MEM_ROOT" >/dev/null 2>&1
+assert_eq "case 14: a home outside --memory-root is refused" "3" "$?"
+assert_eq "case 14: the outside home was never created" "0" \
+  "$([[ -e "$OUTSIDE" ]] && echo 1 || echo 0)"
+
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$MEM_ROOT" \
+  --scan-dir "$SCAN_DIR" --memory-root "$MEM_ROOT" >/dev/null 2>&1
+assert_eq "case 14: a home that IS the memory root is refused" "3" "$?"
+
+# The anchor must not over-fence the home the caller actually composes.
+ANCHORED="$MEM_ROOT/enforceability/anchored"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ANCHORED" \
+  --scan-dir "$SCAN_DIR" --memory-root "$MEM_ROOT" >/dev/null 2>&1
+assert_eq "case 14: the composed home under --memory-root still writes" "0" "$?"
+assert_eq "case 14: the composed home got its seven stubs" "7" "$(count_files "$ANCHORED")"
+
+# The anchor accepts a second spelling of the same root.
+ROOT_ALT="$MEM_ROOT/./enforceability/.."
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ANCHORED" \
+  --scan-dir "$SCAN_DIR" --memory-root "$ROOT_ALT" >/dev/null 2>&1
+assert_eq "case 14: a .. segment in --memory-root is refused too" "3" "$?"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"
