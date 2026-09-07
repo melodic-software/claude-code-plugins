@@ -320,8 +320,20 @@ Landed in claude-code-plugins#3696 (`31dc91ded6cc51cac47c6cb27c49788ba9cde449`, 
 **The trigger set.** Both callers now run on `opened`, `ready_for_review` and `reopened` only. A
 push to an open pull request no longer re-triggers either lane. `synchronize` bought a duplicate
 advisory report per push: it only ever earned its cost against a gate certifying execution against
-the latest head, and neither lane is one here. A finding on an older head is a finding to
-disposition, which is what advisory already meant.
+the latest head. A finding on an older head is a finding to disposition, which is what advisory
+already meant.
+
+**This retires the 2026-07-21 required-execution ruling for this repository, and says so rather
+than leaving the two records to contradict each other.** That addendum promoted execution evidence
+to a required status check on the protected base, and the security caller's own header still warns
+that without the push trigger the required check can certify a head the branch has since moved past.
+That warning is written against a base where the evidence check is required. Here it no longer is:
+the ci-perf required-check contract (Phase 3, melodic-software/github-iac#378) made `ci-status` the
+single required context, and `gh api repos/melodic-software/claude-code-plugins/rules/branches/main`
+read on 2026-09-07 returns exactly `[{"context": "ci-status", "integration_id": 15368}]`. No
+security-evidence context is required, so dropping `synchronize` gives up no certification the
+ruleset asks for. Reinstating a required execution check is a new decision, and it would have to
+restore the push trigger with it; the revisit triggers below already say so.
 
 There are exactly three ways to get a review of a newer head, and the caller comments name them:
 reopen the pull request, flip it to draft and back to ready, or, on the code-review lane,
@@ -348,8 +360,13 @@ true` cannot be combined on one group; that pairing is a workflow validation err
 (<https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency>).
 The queue therefore lives in a job-level group; the code-review caller declares no workflow-level
 group of its own, so there is nothing at that level to change. The security lane needs no `queue`
-key at all: it groups per pull request with `cancel-in-progress: false`, so its reviews neither
-cancel nor contend. The code-review group is also
+key: it groups per pull request with `cancel-in-progress: false`, which keeps the running review
+alive rather than cancelling it when a second event arrives. That is weaker than a queue and the
+difference is worth knowing. Without `queue`, a group holds one pending run, so a third
+review-triggering event on the same pull request evicts the pending second one rather than lining up
+behind it. On an advisory lane running once per pull request that is an acceptable loss; on the
+repository-wide code-review group, where several pull requests contend for one seat, it is not,
+which is what `queue: max` is there for. The code-review group is also
 deliberately distinct from the reusable workflow's own inner group, which is keyed
 per pull request and head SHA, because a caller group sharing that name would deadlock the call
 against itself. Anthropic's documented behaviour for its own review product is the same: a second
