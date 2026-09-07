@@ -12,10 +12,14 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   `if` rows are what keep a Write of any other file from spawning the hook
   (Claude Code drops a non-matching handler at match time, before a spawn);
   the script's `case` filter stays as defense in depth, and the new case
-  reads every arm of that filter's whole `case` block, requires every
-  handler in the manifest, under any event, to carry one of the derived
-  rows, and fails on drift in either direction, since an extension the
-  script handles with no `if` row is a silent regression. The README's
+  reads every arm of that filter's whole `case` block (each of bash's arm
+  terminators, `;;`, `;&` and `;;&`, ends an arm, and the `case "$FILE"`
+  re-check must yield the same set), requires every handler in the
+  manifest, under any event, to carry one of the derived rows and to sit in
+  a PostToolUse group whose matcher is exactly Write and Edit and whose
+  command is the plugin's own script, and fails on drift in either
+  direction, since an extension the script handles with no `if` row is a
+  silent regression, and so is a matcher narrowed to one tool. The README's
   "Hook budget accounting" section carries a Linux-host measurement and
   kernel census per hook-budget rule 1; no hook behavior changes.
 

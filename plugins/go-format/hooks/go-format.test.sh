@@ -518,25 +518,44 @@ fi
 #
 # The expected set is every pattern of every arm in the script's whole
 # `case "$RAW_FILE" ... esac` block except the bare `*` catch-all, so an arm
-# added anywhere in the block counts, and an alternation wrapped across lines
-# (a backslash continuation, or `;;` on its own line) reads the same as one
-# line. On the manifest side every handler under every event and matcher
-# group is read, not only the `Write|Edit` group: the if values across all of
-# them must be exactly the derived set, one row each, so a handler with no if,
-# an if outside the set, a `Write(...)` rule, a duplicate row, an unfiltered
-# group under any event, or a command pointing elsewhere fails here. What
-# this does not reach is a registration outside hooks/hooks.json.
+# added anywhere in the block counts. The block is read the way bash reads it:
+# a backslash continuation joins lines with nothing in between (so `;\` and a
+# following `;` is one `;;`), a comment after `in` or on any arm is dropped, a
+# one-line `case ... esac` is one block, `in` on the line after the `case`
+# word opens the block all the same, and every arm terminator bash has
+# (`;;`, the `;&` fall-through and the `;;&` continue-matching form) ends an
+# arm, so the patterns of an arm reached only by fall-through count too. What
+# the parser does not read is an arm's body, so a pattern in any arm, even one
+# after `*)` that can never match, counts as handled and must have its row.
+# The script's `case "$FILE"` re-check after path normalization (the duplicate
+# #3408 owns folding) is read the same way, and every such gate must yield the
+# same set, so an exclusion added to either gate fails here instead of sitting
+# unread; a script with one gate left passes as it is.
+#
+# On the manifest side every handler under every event and matcher group is
+# read. Two things are pinned separately, since they answer different
+# questions. The `if` rows, which paths a handler applies to: the values
+# across every handler must be exactly the derived set, one row each, so a
+# handler with no if, an if outside the set, a `Write(...)` rule, a duplicate
+# row or an unfiltered group under any event fails. The group, which tools
+# invoke the handler at all: every group must be PostToolUse with a matcher
+# whose alternation is exactly Write and Edit in either order, the two tools
+# whose payload carries a file this script formats (the rule validator folds
+# Write and NotebookEdit into an Edit(...) rule, but the matcher is the tool
+# name regex the harness consults first, and a matcher narrowed to one tool
+# is the hook silently never running for the other, which no if row can show).
+# The command must be the plugin's own script by either quoting placement,
+# with no prefix, suffix or argument. What this does not reach is a
+# registration outside hooks/hooks.json.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
-SCRIPT_EXTS="$(awk '
-  /^case "[$]RAW_FILE" in[[:space:]]*$/ { inblock = 1; next }
-  inblock && /^esac([[:space:]]|$)/ { exit }
-  inblock {
-    sub(/#.*/, "")
-    sub(/\\$/, " ")
-    block = block " " $0
-  }
-  END {
-    n = split(block, arms, ";;")
+SCRIPT_GATES="$(awk '
+  function flush(   n, i, m, j, p, pats, arms, alts) {
+    inblock = 0
+    print nblocks "\t"
+    gsub(/;;&/, "\n", block)
+    gsub(/;;/, "\n", block)
+    gsub(/;&/, "\n", block)
+    n = split(block, arms, "\n")
     for (i = 1; i <= n; i++) {
       if (index(arms[i], ")") == 0) continue
       pats = substr(arms[i], 1, index(arms[i], ")") - 1)
@@ -545,27 +564,73 @@ SCRIPT_EXTS="$(awk '
       for (j = 1; j <= m; j++) {
         p = alts[j]
         gsub(/[[:space:]]+/, "", p)
-        if (p != "" && p != "*") print p
+        if (p != "" && p != "*") print nblocks "\t" p
       }
     }
-  }' "$HOOK" | LC_ALL=C sort -u)"
+  }
+  !inblock && !pending && $0 ~ /^case "[$](RAW_FILE|FILE)"[[:space:]]*(#.*)?$/ {
+    pending = 1
+    next
+  }
+  pending && match($0, /^[[:space:]]*in([[:space:]]|$)/) {
+    pending = 0
+    inblock = 1
+    nblocks++
+    block = ""
+    sep = ""
+    $0 = substr($0, RLENGTH + 1)
+  }
+  !inblock && match($0, /^case "[$](RAW_FILE|FILE)" in([[:space:]]|$)/) {
+    inblock = 1
+    nblocks++
+    block = ""
+    sep = ""
+    $0 = substr($0, RLENGTH + 1)
+  }
+  inblock {
+    sub(/#.*/, "")
+    if ($0 ~ /^[[:space:]]*esac([[:space:]]|$)/) {
+      flush()
+      next
+    }
+    if (match($0, /[[:space:]]esac([[:space:]]|$)/)) {
+      block = block sep substr($0, 1, RSTART - 1)
+      flush()
+      next
+    }
+    if (sub(/\\$/, "")) {
+      block = block sep $0
+      sep = ""
+    } else {
+      block = block sep $0
+      sep = " "
+    }
+  }' "$HOOK")"
+CASE_BLOCKS="$(printf '%s\n' "$SCRIPT_GATES" | cut -f1 | LC_ALL=C sort -u | grep -c .)"
+SCRIPT_EXTS="$(printf '%s\n' "$SCRIPT_GATES" | awk -F'\t' '$1 == 1 && $2 != "" { print $2 }' | LC_ALL=C sort -u)"
+GATES_OFF=""
+for ((g = 2; g <= CASE_BLOCKS; g++)); do
+  GATE_EXTS="$(printf '%s\n' "$SCRIPT_GATES" | awk -F'\t' -v g="$g" '$1 == g && $2 != "" { print $2 }' | LC_ALL=C sort -u)"
+  [[ "$GATE_EXTS" == "$SCRIPT_EXTS" ]] || GATES_OFF+=" gate$g=(${GATE_EXTS//$'\n'/ })"
+done
 EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')"
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
-if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$EXPECTED_COUNT" -gt 0 ]]; then
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$CASE_BLOCKS" -ge 1 && -z "$GATES_OFF" && "$EXPECTED_COUNT" -gt 0 ]]; then
   HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
+  GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OK="$(jq '[.[] | select((.command | contains("\"${CLAUDE_PLUGIN_ROOT}\"")) and (.command | contains("go-format.sh")))] | length' <<<"$HANDLERS")"
-  if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && "$CMD_OK" == "$EXPECTED_COUNT" ]]; then
-    ok "hooks.json: every handler ($HANDLER_GROUPS) carries an if row, and the rows are exactly $EXPECTED_IF, the script's own extension set"
+  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^(\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/go-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/go-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
+    ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own extension set ($CASE_BLOCKS case gates agree)"
   else
-    fail "hooks.json launch gate: handlers=$HANDLER_COUNT/$EXPECTED_COUNT groups=$HANDLER_GROUPS if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd=$CMD_OK"
+    fail "hooks.json launch gate: handlers=$HANDLER_COUNT/$EXPECTED_COUNT groups=$HANDLER_GROUPS groups_off='$GROUPS_OFF' if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd_off='$CMD_OFF'"
   fi
 else
-  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and the script's case \"\$RAW_FILE\" pre-filter"
+  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and agreeing case \"\$RAW_FILE\" / \"\$FILE\" gates in the script (gates=$CASE_BLOCKS gate1=(${SCRIPT_EXTS//$'\n'/ }) disagreeing:${GATES_OFF:- none})"
 fi
 
 echo
