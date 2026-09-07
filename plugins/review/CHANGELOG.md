@@ -3,6 +3,27 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1]
+
+### Fixed
+
+- **`audit-enforceability`:** the stub-home fence asks the filesystem rather than the string.
+  Comparing spellings folds ASCII only when no locale is set, while the filesystem folds all of
+  Unicode, so a non-ASCII case variant of a fenced path (`RÉVIEWS` against `réviews`) was one
+  directory the comparison called two, and stubs landed inside the fix action's scan directory at
+  exit 0. The string compare is now the fast path; when it does not match, a walk up the
+  candidate's chain compares device and inode for the part of the path that exists.
+- **`audit-enforceability`:** the post-write marker check treats a bare CR as a line terminator and
+  strips leading whitespace, so a marker that any universal-newline reader would see cannot reach a
+  stub behind one space or one CR.
+- **`audit-enforceability`:** the exit-4 rollback removes the stub home only when the run created
+  it, instead of deleting a pre-existing empty home the caller had prepared.
+- **`audit-enforceability`:** a path segment ending in a dot or a space is refused. Such a
+  directory exists but ordinary path APIs cannot address it, so a stub home there is invisible to
+  every consumer and compares unequal to the same name without the suffix.
+- **`audit-enforceability`:** a row whose `Rank` cell is empty is stubbed under a placeholder
+  rather than dropped by an invalid array subscript while the summary counted only what it wrote.
+
 ## [0.27.0]
 
 ### Added
