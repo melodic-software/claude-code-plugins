@@ -512,8 +512,8 @@ assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t 
 #
 # A suffix-copy line split is quadratic in the line count: 16k two-character
 # lines (well under GitHub's body-size limit) exceeded 20 s and fail-opened,
-# against 2.4 s with the parent validator. The offset walk must stay inside
-# the same 8 s bound the 1000-line case uses.
+# against 2.4 s with the parent validator. The scratch-file `readarray` split
+# must stay inside the same 8 s bound the 1000-line case uses.
 
 {
   printf 'Closes #5\n\n'
