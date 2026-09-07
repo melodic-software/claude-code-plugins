@@ -3,6 +3,22 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.8]
+
+### Changed
+
+- **clarify:** the decision table's HTML media point at the rendered-views security baseline
+  (`docs/conventions/rendered-views/README.md`, "Security baseline") and repeat its rules in
+  place of the skill's own escaping wording: escape `&`, `<`, `>`, `"`, and `'` in text and
+  attribute positions, no unescaped interpolation into `<script>` or `<style>`, no
+  event-handler attributes from input, self-containment. Kept as skill-specific: escaping is
+  what keeps the verbatim promise true in the rendered page, and terminal markdown wraps
+  code-like terms in backticks (#3609).
+- **clarify:** the repeated baseline passage carries a `contract-restatement` marker for the
+  `rendered-views-security-baseline` clause, so `scripts/check-contract-clause-coverage.py`
+  fails when the copy drifts from the convention's five escape characters, the
+  `<script>`/`<style>` rule, the event-handler rule, or self-containment (#3609).
+
 ## [0.4.7]
 
 ### Changed

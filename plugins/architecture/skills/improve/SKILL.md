@@ -63,7 +63,7 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 | [research/deepening/scan-briefing.md](research/deepening/scan-briefing.md) | Before briefing the Phase 1 scan subagents. It is the canonical prompt (vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, per-candidate return schema), so scan quality does not vary run-to-run |
 | [research/deepening/vocabulary.md](research/deepening/vocabulary.md) | Applying the deletion test, or naming anything in a candidate, report, or interview turn. The terms are used exactly, not paraphrased |
 | [research/deepening/dependencies.md](research/deepening/dependencies.md) | Classifying a candidate's dependencies, where the category chooses the testing strategy |
-| [research/deepening/html-report.md](research/deepening/html-report.md) | Writing the HTML report: scaffold, diagram patterns, and the escaping and no-remote-runtime rules it must hold to |
+| [research/deepening/html-report.md](research/deepening/html-report.md) | Writing the HTML report: scaffold, diagram patterns, and the report's two additions to the rendered-views security baseline (which strings are repository-derived, no script inside SVG) |
 | [research/deepening/interface-design.md](research/deepening/interface-design.md) | Entering the Design-It-Twice branch, or a single proposed shape is not converging in the interview loop |
 
 ## What this skill does NOT do
@@ -74,6 +74,7 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 - **Does not review a diff.** Pre-merge review tools do that
 - **Does not write code.** Discovery and design skill only
 - **Does not brainstorm a rough problem.** This skill hunts architecture friction on its own lenses; open-ended "how could we approach X" divergence is a brainstorming concern
+- **Does not render another repository's files to HTML** until the rendered-views escape helper ships. A scan of a repository that is not the user's own delivers the durable candidate artifact and says in one line why no page was produced (`actions/deepening.md`, Phase 2)
 
 ## Composition
 
