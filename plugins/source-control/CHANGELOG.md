@@ -3,6 +3,137 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.63]
+
+### Changed
+
+- **The three worktree gates spawn fewer processes per hook payload, with the payload still fed
+  the way `lib/hook-utils.sh` prescribes.** `worktree-add-containment-gate.sh`,
+  `worktree-add-claim-gate.sh` and `worktree-create-gate.sh` each read a payload field through
+  `$(printf '%s' "$INPUT" | jq … 2>/dev/null | tr -d '\r')`. The `printf '%s' "$INPUT" | jq`
+  feed stays: a here-string is a pipe bash fills itself, and a payload at or above the pipe
+  capacity (65536 bytes, traced on Git Bash in #1587) blocks the shell before `jq` is exec'd,
+  which on a hook is the timeout and on a containment gate a fail-open as well. What changes is
+  everything behind the feed. The `| tr -d '\r'` stage is a parameter expansion, one process
+  fewer per field. The create gate's two-level `json_field` wrapper became a `_to` form that runs
+  each rung's pipeline directly, keeping its jq program text byte-for-byte so a non-string
+  `.name` still falls through to the string-shaped fallback rung and is still refused.
+  `git_unlocated`'s `2>/dev/null` moved onto its subshell, so bash execs `git` there instead of
+  forking for it. The block message's `git config --get-all | tail -n 1 | tr -d '\r'` root
+  lookup collapsed to one `git`, with a sentinel captured inside the substitution so a
+  blank last `melodic.worktreeroot` value stays empty (command substitution would
+  otherwise strip it and recommend the preceding path while `worktree-create.sh`'s
+  `tail -n 1` falls through). The claim gate's write-only stderr temp file (a `mktemp` and an
+  `rm` whose contents were never read) became `2>/dev/null`, which also removes the
+  `|| continue` that silently skipped a claim whenever `TMPDIR` was unwritable.
+
+  Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`, process creations then
+  `execve`, before → after:
+
+  | Path | creations | `execve` |
+  | --- | --- | --- |
+  | containment, a `worktree` command that is not an `add` | 8 → 7 | 3 → 2 |
+  | containment, an `add` outside every repository | 22 → 18 | 7 → 5 |
+  | containment, an `add` into a working tree (blocks) | 21 → 18 | 7 → 5 |
+  | containment, an `add` into a `.git` directory (blocks) | 27 → 22 | 9 → 7 |
+  | containment, `git -C <repo> worktree add` (blocks, names the configured root) | 26 → 20 | 10 → 6 |
+  | claim, a `worktree` command that is not an `add` | 8 → 7 | 3 → 2 |
+  | claim, a parsed `add` target | 28 → 22 | 11 → 6 |
+  | create, a payload carrying no `.name` | 19 → 13 | 6 → 4 |
+
+  The `execve` drops are named removals, not removed work: `tr -d '\r'` (a parameter expansion
+  now), `tail -n 1` (a sentinel plus a last-line expansion, so an empty last record
+  stays empty), `head -n 1` (a `${v%%$'\n'*}` expansion), and
+  the claim gate's `mktemp`/`rm` pair. Every remaining `jq`, `git` and `sed` call is the same
+  call with the same arguments. Four of the seven creations left on the hot path belong to
+  `lib/hook-utils.sh` (the `hook::buffer_stdin` substitution and `hook::json_complete`'s
+  `printf | jq -e .`), which is synced across 17 plugin copies and out of scope here; the gate's
+  own share is the one `printf | jq` field read, 3 creations and 1 `execve`.
+
+### Added
+
+- **`hooks/worktree-gates-spawn-budget.test.sh`** holds those counts as ceilings, measured with
+  `strace` because part of the cost is a fork that never execs and neither `set -x` nor a `PATH`
+  shim can see one. Upper bounds, not equalities, so a later library change that removes more
+  work does not fail it. Proven non-vacuous against seven mutants, one per change. It also fails
+  when any of the three gates feeds `$INPUT` or `$payload` to a reader by here-string, the one
+  regression the ceilings cannot see because it lowers the count. It skips as a suite where
+  `strace` is absent or cannot ptrace, rather than asserting on empty trace output.
+
+## [0.55.62]
+
+### Changed
+
+- **The two pr-issue-linkage gates and their shared validator stop paying for processes they
+  never needed (#3509).** `pr-body-linkage-gate.sh` timed out on every recorded run in the
+  measurement window (423 timeouts against a 15 s ceiling), so it was killed before rendering a
+  verdict and protected nothing. The cost is process creation, not script logic: on the affected
+  host a spawn runs 0.3-0.9 s.
+
+  Four shapes were removed, each measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` rather than an xtrace command count, which
+  reads source positions and not kernel spawns:
+
+  - **Per-field `jq` batched into one process.** Both gates read their payload fields through
+    `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'`, once per field — 4 clones and 2
+    execs each, five times over on the MCP surface, all asking about one buffered string.
+    `hook::jq_fields` answers every field in one process, and CR-strips exactly as the `tr` did.
+  - **Redirection hoisted out of a command substitution.** Bash execs in the substitution's own
+    subshell only when the command carries no redirection of its own, so
+    `$(git … 2>/dev/null || true)` forked twice for one program;
+    `{ ORIGIN=$(git …) || ORIGIN=""; } 2>/dev/null` forks once. The group holds exactly one
+    command, so nothing beyond that call is silenced.
+  - **The validator's helpers write into a caller-named variable instead of stdout.**
+    `strip_html_comments`, `mask_markdown_code`, `section_content` and `trim` were each read
+    through `$(…)` over a `< <(printf …)` line reader: 12 forks and zero extra `execve` per
+    judged body, which is pure latency. They now use `printf -v` and a fork-free line split
+    (`printf` into a process-private scratch file, then `readarray`): copying the unmatched
+    suffix each line is quadratic in the line count and a bash offset walk is too many
+    iterations, so 16k two-character lines exceeded the 15s hook timeout. `linkage::chomp_to`
+    reproduces the trailing-newline strip command substitution performed.
+    `pr-body-linkage-gate.sh` chomps `HOOK_CWD` the same way: `hook::jq_fields` strips CR
+    only, and a trailing newline on `cwd` would miss the gate file and fail-open.
+  - **`$(<file)` for the `--body-file` read, `printf -v` for `%q` quoting, and
+    `hook::json_str_object_to` for the telemetry envelope**, each replacing a `cat`, a `printf`
+    substitution, and a `jq -n` that bash can do itself.
+
+  Measured per invocation, telemetry sink off, clone-family calls / `execve`:
+  `gh pr create` with a body 28/6 to 11/3; a non-PR `gh` call 8/3 to 7/2; an MCP create 37/9 to
+  11/4. What survives is the floor `lib/hook-utils.sh` owns (one `jq -e .` payload validation,
+  one `git rev-parse`) plus one batched `jq`, and — on the MCP surface only — the
+  `git remote get-url` its scope guard needs. That library is a synced shared file and is not
+  touched here.
+
+  **Verdicts, checked differentially rather than asserted.** A harness ran the merge-base gates
+  and these gates over 154 payloads (85 Bash, 69 MCP) and compared exit code, stdout and stderr
+  byte-for-byte: every body-flag spelling, heredoc and `--body-file` form, `env -S` and wrapper
+  shapes, `--repo` and `cd` escapes, CRLF and mid-line-CR bodies, NUL bytes, Unicode whitespace,
+  non-string bodies, and trailing newlines or carriage returns inside `owner`, `repo`,
+  `tool_name` and `cwd`. The Bash gate is verdict-identical on all 85. The MCP gate is
+  verdict-identical on 67 of 69 and STRICTER on the other two: a carriage return inside `owner`
+  or `tool_name` used to leave the value unmatched and the call allowed, and now matches and is
+  judged, because `hook::jq_fields` strips the CR the per-field reader left in place. Three
+  things hold the batched reader to the per-field reader's verdicts: the CR probe is
+  `tostring`ed first, so a non-string body (`5`, `true`, an object) is judged as text instead of
+  erroring the whole batch; a batch that still fails falls back to the per-field reads rather
+  than allowing outright; and trailing newlines on `tool_name`, `owner`, `repo`, `cwd` and the
+  body are chomped in-shell, as `$( )` chomped them. A second harness ran the validator against
+  425 bodies including a seeded fuzz corpus.
+  The MCP body is deliberately kept out of the batch when it carries a carriage return, because
+  `hook::jq_fields` CR-strips and stripping is the permissive direction: `## Sum<CR>mary` would
+  become a section that was previously missing, turning a block into an allow.
+
+### Added
+
+- **`pr-linkage-spawn-budget.test.sh` — a strace-based spawn budget for both gates.** Ceilings
+  are the measured steady-state counts with no headroom, per `hook-budget.md` rule 2. The suite
+  refuses to report a pass it has not earned: a self-check first proves the harness can tell
+  `$(cmd 2>/dev/null)` from `{ … ; } 2>/dev/null` and skips if it cannot, and three mutants —
+  a redirect moved back inside a substitution, one field split back out of the batch, and a
+  validator helper re-forking — must each raise the count above the ceiling or the suite fails
+  itself. It also asserts both gates still exit 2 on a failing body, so a budget of zero spawns
+  cannot pass as a no-op.
+
 ## [0.55.61]
 
 ### Changed

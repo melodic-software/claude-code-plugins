@@ -114,6 +114,13 @@ figure for a live session.
   complexity; those rows report `unavailable` with the validation date rather than a number.
 - C# is counted and its duplication measured, but its complexity lane is deferred to a native
   collector and its type debt is reported as not applicable.
+- The skill bodies restate some default values in prose, and those copies are not bound to
+  `scripts/config-defaults.json`. The setup template and the `reference/config.md` key table both
+  are, by a test and by `scripts/check-code-metrics-config-reference.py`; what remains unbound is
+  the number written into a sentence or a small illustrative table, currently `coverage.reference`
+  in `audit-coverage`, `duplication.min_tokens` and `duplication.min_lines` in `audit-duplication`,
+  `type_debt.reference` in `audit-type-debt`, and the cyclomatic reference in `setup`. Those drift
+  silently until someone reads them.
 
 ## License
 

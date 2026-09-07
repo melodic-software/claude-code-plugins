@@ -3,6 +3,48 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7]
+
+### Changed
+
+- **The configuration reference's key table can no longer disagree with the bundled defaults.**
+  `reference/config.md` restated every key from `scripts/config-defaults.json` as hand-maintained
+  prose, and nothing checked the two against each other, so a key added, removed, or given a
+  different default left a stale reference that reads exactly like a current one. A repository gate
+  (`scripts/check-code-metrics-config-reference.py`, run on every change) now pins the table's key
+  column and default column to that file: every non-reserved defaults leaf must be documented by
+  exactly one row, every row must document a key that exists (or be marked `absent`), and each
+  row's default must equal the canonical rendering of the value, pipes escaped and backtick fences
+  widened so a value carrying markdown-significant characters cannot produce a broken table that
+  still passes. The third column stays hand written; the document's prose is unchanged apart from
+  a paragraph saying what the gate covers. The prose copies of default values in the skill bodies
+  remain unbound and are now recorded in the README's known gaps.
+
+## [0.1.6]
+
+### Fixed
+
+- **A Cobertura class is no longer keyed under the wrong source root.** A multi-root build declares
+  several `<source>` roots and each class filename is relative to one of them, but the parser
+  collected all the roots and then applied the first one to every filename. A class belonging to a
+  later root was keyed under a path that does not exist, so its coverage never joined against the
+  measured file and the file read as uncovered or dropped out of the join. A relative filename now
+  takes the first declared root under which that path exists in the scanned tree, which the calling
+  skill passes as `CODE_METRICS_SCAN_ROOT` rather than leaving the parser to probe whatever
+  directory the session happens to sit in. With no candidate on disk the first root still applies,
+  a report declaring one root is resolved without reading the filesystem at all and is unchanged,
+  and absolute and drive-qualified filenames keep taking no prefix. The on-disk probe can only tell
+  the roots apart when they are relative, or absolute and present on the machine running the audit;
+  a report whose absolute roots name the machine that produced it (a CI build) misses every
+  candidate and still takes the first root, because rewriting a root from another machine onto the
+  local tree needs a mapping the report does not carry.
+
+### Added
+
+- A source root skipped for a reason other than the file being absent, an unreadable directory
+  above all, now prints one line to stderr per distinct reason instead of being silently
+  indistinguishable from a miss. stdout stays the parsed document alone.
+
 ## [0.1.5]
 
 ### Fixed

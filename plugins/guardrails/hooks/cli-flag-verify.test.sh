@@ -331,6 +331,7 @@ noverif_root="$TEST_TMPDIR/no-verifier-root"
 mkdir -p "$noverif_root/hooks"
 cp "$HOOK" "$noverif_root/hooks/cli-flag-verify.sh"
 cp "$HOOK_DIR/hook-utils.sh" "$noverif_root/hooks/hook-utils.sh"
+cp "$HOOK_DIR/abort-boundary.sh" "$noverif_root/hooks/abort-boundary.sh"
 noverif_data="$TEST_TMPDIR/no-verifier-data"
 mkdir -p "$noverif_data"
 noverif_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')

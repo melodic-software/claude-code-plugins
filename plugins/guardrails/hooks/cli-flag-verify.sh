@@ -44,8 +44,15 @@ start=${EPOCHREALTIME:-}
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
+# enforced here, so the loss on an abort is the advisory itself; the notice
+# says it was not produced.
+guard::abort_boundary cli-flag-verify PostToolUse open 0
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 hook::ctx_reset
 

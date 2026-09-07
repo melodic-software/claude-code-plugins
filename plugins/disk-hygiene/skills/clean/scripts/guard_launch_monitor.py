@@ -91,6 +91,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import guard_decision_log  # noqa: E402  (path set above; bounded local record)
 import hook_telemetry  # noqa: E402  (path set above; stdlib-only telemetry emitter)
 
 _MAX_TAIL_BYTES = 2_000_000
@@ -257,10 +258,50 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
     )
 
 
+def _audit_fields(failures: list[tuple[dict, dict]], session_id: str) -> dict:
+    """Structured detail for the local decision record.
+
+    Deliberately separate from ``telemetry_data``: the telemetry envelope's
+    contents are a published contract for a configured sink, and the local
+    record is a different consumer with a different need (enough to explain one
+    failure without the session's transcript), so neither shapes the other.
+    """
+    _, latest = failures[-1]
+    return {
+        "failure_count": len(failures),
+        "session_id": session_id,
+        "exit_code": latest.get("exitCode"),
+        "duration_ms": latest.get("durationMs"),
+        "stderr": _format_stderr(latest.get("stderr")),
+    }
+
+
+def _record_not_run(data_root: str | None, audit_fields: dict) -> None:
+    """Record that the guard produced no decision at all for this session.
+
+    The third state the guard itself structurally cannot write: a hook that
+    failed to launch, or launched and exited non-zero, records nothing from
+    inside its own process. Written once per session, at the same moment the
+    warning is emitted and before the suppression marker lands, so the record
+    follows the warning's own once-per-session cadence.
+    """
+    try:
+        guard_decision_log.record(
+            data_root,
+            hook="guard-launch-monitor",
+            decision=guard_decision_log.DECISION_NOT_RUN,
+            rule="hook-non-blocking-error",
+            tool="",
+            extra=audit_fields,
+        )
+    except BaseException:  # noqa: BLE001 - a detector must never fail loudly
+        pass
+
+
 def _run(
     hook_input: dict, data_root: str | None
-) -> tuple[str | None, list[Path] | None, str | None, dict[str, object]]:
-    """Return warning text, marker paths, telemetry status, and telemetry data.
+) -> tuple[str | None, list[Path] | None, str | None, dict[str, object], dict]:
+    """Return warning text, marker paths, telemetry status, telemetry data, audit.
 
     ``telemetry_status`` is ``None`` when no envelope should be emitted (a
     pre-evaluation short-circuit). Recording the marker is the caller's job,
@@ -271,18 +312,19 @@ def _run(
     session_id = hook_input.get("session_id") or "unknown-session"
     marker_paths = _marker_path_candidates(data_root, str(session_id))
     if _already_warned(marker_paths):
-        return None, None, None, {}
+        return None, None, None, {}, {}
     if not transcript_path or not isinstance(transcript_path, str):
-        return None, None, None, {}
+        return None, None, None, {}, {}
     transcript_text = _read_tail(transcript_path)
     failures = list(_iter_guard_failures(transcript_text))
     if not failures:
-        return None, None, "ok", {}
+        return None, None, "ok", {}, {}
     return (
         _build_message(failures),
         marker_paths,
         "error",
         {"failure_count": len(failures)},
+        _audit_fields(failures, str(session_id)),
     )
 
 
@@ -295,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         hook_input = json.loads(raw_input) if raw_input.strip() else {}
         if not isinstance(hook_input, dict):
             return 0
-        message, marker_paths, telemetry_status, telemetry_data = _run(
+        message, marker_paths, telemetry_status, telemetry_data, audit_fields = _run(
             hook_input, data_root
         )
         if telemetry_status is not None:
@@ -310,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         if message:
             print(json.dumps({"systemMessage": message}))
             sys.stdout.flush()
+            _record_not_run(data_root, audit_fields)
             if marker_paths is not None:
                 _write_marker(marker_paths)
         return 0
