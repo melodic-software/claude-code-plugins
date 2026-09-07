@@ -40,6 +40,28 @@ your `PATH`.
   with a visible once-per-session notice. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit` of a `.yml` or `.yaml` file under
+`.github/workflows/` (the two `if` rows in `hooks/hooks.json` keep every other file from
+spawning it, and the suite pins those rows to the script's own workflow filter), so its cost on
+a clean workflow is the figure that counts. Measured on Linux x86_64 under bash 5.2 in a
+container, twelve interleaved trials against an interleaved `bash -c :` floor S of about 2 ms,
+with a kernel census from `strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07,
+0.8.43):
+
+| Event | Fires | Wall | Spawn-equivalents | Kernel census |
+| --- | --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.github/workflows/*.yml` | 1 | 32 ms | 14.3 | 14 process creations, 5 execs: `actionlint`, `git`, two `jq`, the hook's own `bash` |
+| PostToolUse `Write`, any other file | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
+
+At a 2 ms floor the spawn-equivalent column mostly measures actionlint's own run time rather
+than spawns, so the census column is the number that transfers to the Windows 11 Git Bash
+reference host the convention calls binding; that host's figure for this plugin has not been
+taken. The residual is actionlint itself plus the payload parse (`jq`) and the root resolver
+(`git`).
+
 ## Install
 
 ```shell

@@ -3,6 +3,21 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.43]
+
+### Added
+
+- **The suite pins the manifest's `if` rows to the script's own workflow
+  filter, and the README states the hook's measured budget share (#3411).**
+  The `if` rows are what keep a Write of any other file from spawning the
+  hook (Claude Code drops a non-matching handler at match time, before a
+  spawn); the script's `case` filter stays as defense in depth, and the new
+  case reads that filter's extension list and fails on drift in either
+  direction, since an extension the script lints with no `if` row is a
+  silent regression. The README's "Hook budget accounting" section carries a
+  Linux-host measurement and kernel census per hook-budget rule 1; no hook
+  behavior changes.
+
 ## [0.8.42]
 
 ### Changed

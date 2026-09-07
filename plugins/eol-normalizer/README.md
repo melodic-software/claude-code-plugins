@@ -63,6 +63,17 @@ vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope). 0.6.41
 `$(hook::repo_root)` / `$(hook::repo_relative_path)` capture subshells around those helpers'
 `_to` forms; the git check-attr probe is unchanged.
 
+`hooks/hooks.json` carries no `if` row, and that is deliberate (#3411). The sibling formatters
+filter by extension at the manifest so a Write of any other file spawns nothing, but this hook
+has no extension filter of its own: which files it normalizes is decided by the consuming
+repository's `.gitattributes` through `git check-attr eol text`, not by file type, so the set a
+declarative filter would have to reproduce is every file, and a file-type row would silently
+stop normalizing whatever it left out. What the manifest cannot filter the script keeps cheap:
+a file that already carries its `eol=` ending is decided by the plan step before any snapshot,
+so the kernel census (`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64,
+2026-09-07, 0.6.42) on such a `Write` is 12 process creations and 5 execs (`git` twice, `jq`,
+`realpath`, the hook's own `bash`) with no `mktemp` or `cp`.
+
 ## Install
 
 ```shell

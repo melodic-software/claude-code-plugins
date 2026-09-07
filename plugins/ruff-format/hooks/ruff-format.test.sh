@@ -551,6 +551,37 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
+# --- hooks.json: the if rows equal the script's own extension set (#3411) ----
+# The if rows are what keep a Write or Edit of any other file from spawning
+# this hook: Claude Code evaluates a handler's `if` at match time and drops the
+# handler without a spawn (hooks reference, `if`, re-fetched 2026-09-07; the
+# installed CLI logs "Skipping hook due to if condition ... not matching"), and
+# an Edit(...) rule is the one consulted for Write and NotebookEdit as well.
+# The script's own case filter stays as defense in depth, so the two sets must
+# be IDENTICAL: an if row the script does not handle spawns a process that
+# exits at the case, and an extension the script handles with no if row is a
+# silent regression, since the hook then never runs for it. The expected set is
+# read from the script's pre-filter line, so drift on either side fails here.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+SCRIPT_EXTS="$(sed -n '/^case "\$RAW_FILE" in$/{n;p;q;}' "$HOOK" | tr -d ' );' | tr '|' '\n' | LC_ALL=C sort)"
+EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')"
+EXPECTED_IF="${EXPECTED_IF% }"
+EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$EXPECTED_COUNT" -gt 0 ]]; then
+  HANDLERS="$(jq -c '[.hooks.PostToolUse[]? | select(.matcher == "Write|Edit") | .hooks[]?]' "$HOOKS_JSON")"
+  HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
+  IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
+  WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
+  CMD_OK="$(jq '[.[] | select((.command | contains("\"${CLAUDE_PLUGIN_ROOT}\"")) and (.command | contains("ruff-format.sh")))] | length' <<<"$HANDLERS")"
+  if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && "$CMD_OK" == "$EXPECTED_COUNT" ]]; then
+    ok "hooks.json launches only for $EXPECTED_IF, the script's own extension set"
+  else
+    fail "hooks.json launch gate: count=$HANDLER_COUNT/$EXPECTED_COUNT if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd=$CMD_OK"
+  fi
+else
+  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and the script's case \"\$RAW_FILE\" pre-filter"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -87,6 +87,29 @@ The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
 linting still run.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit` of a `.ps1`, `.psm1` or `.psd1` file (the
+three `if` rows in `hooks/hooks.json` keep every other extension from spawning it, and the
+suite pins those rows to the script's own extension set), so its cost on a clean PowerShell
+file is the figure that counts. Measured on Linux x86_64 under bash 5.2 in a container, twelve
+interleaved trials against an interleaved `bash -c :` floor S of about 2 ms, with a kernel
+census from `strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.7.45):
+
+| Event | Fires | Wall | Spawn-equivalents | Kernel census |
+| --- | --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.ps1`, no `PSScriptAnalyzerSettings.psd1` (opt-in absent) | 1 | 37 ms | 16.7 | 16 process creations, 7 execs: four `realpath`, `git`, `jq`, the hook's own `bash` |
+| PostToolUse `Write`, clean `.ps1`, settings file present | 1 | 845 ms | 351 | 46 process creations, 12 execs: the row above plus one `pwsh` and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
+| PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
+
+The opted-in row is one `pwsh` start-up plus PSScriptAnalyzer's module load, so at a 2 ms
+floor the spawn-equivalent column measures that run time rather than spawns; the census column
+is the number that transfers to the Windows 11 Git Bash reference host the convention calls
+binding, and that host's figure for this plugin has not been taken. The residual is `pwsh` and
+PSScriptAnalyzer themselves plus the shared library's payload reader (`jq`), root resolver
+(`git`, `realpath`) and the disclosure snapshot.
+
 ## Install
 
 ```shell
