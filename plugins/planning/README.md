@@ -74,9 +74,9 @@ choice. `/planning:interview` and `/planning:prd` read
 file. `ears` tags every emitted criterion with one of five bracketed patterns
 (`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`,
 `optional-feature`); `free-text` is the default and emits prose criteria untagged,
-exactly as before. Every failure to resolve — no pointer line, no such document, no
-such key, an unrecognized value — degrades to `free-text` with the cause named, so a
-repo that declares nothing sees no change in output.
+exactly as before. Every failure to resolve degrades to `free-text` with the cause
+named, whether that is no pointer line, no such document, no such key, or an
+unrecognized value, so a repo that declares nothing sees no change in output.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
