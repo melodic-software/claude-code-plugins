@@ -330,4 +330,85 @@ else
   bad "no envelope written when sink wired"
 fi
 
+# --- Spawn budget on the common path (strace, not xtrace) --------------------
+# This hook runs on EVERY Stop, and `docs/conventions/hook-budget/README.md`
+# gives the whole always-on per-turn set 500 ms of parallel wall. On the host in
+# #3508 one process creation costs 180-2,841 ms, so the budget here is a PROCESS
+# COUNT, not a duration: durations on that host are not comparable across time,
+# and wall clock on a Linux runner says nothing about the Windows spawn tax.
+#
+# Counted with strace, NOT with `bash -x`. Shard #3520 established that xtrace
+# undercounts badly — it reads command POSITIONS, and bash forks a subshell for
+# a command substitution ON TOP OF the exec inside it whenever the substituted
+# command carries a redirection of its own. Those forks are invisible to xtrace
+# and are the whole cost this budget guards.
+#
+# `-ff` writes one file per pid, so no syscall line is ever split across an
+# <unfinished>/<resumed> pair where a naive grep would silently undercount.
+#
+# The common path is a turn with NO hook failure recorded, under the tail cap.
+# Budget:
+#   1 wc    the file size the tail-cap decision needs
+#   1 grep  the pre-filter, reading the transcript directly
+#   2 jq    both inside hook-utils.sh (buffer_stdin's validation probe, and the
+#           single hook::jq_fields payload read) — a synced library this plugin
+#           does not own
+#   0 cat   the removed process: `cat -- file | grep` handed grep bytes it can
+#           open itself, through a `read_window` function call that was a
+#           second subshell on top of the substitution's own
+#
+# MUTATION-CHECKED: moving a silenced redirect back inside its substitution —
+# `SIZE=$(wc -c <"$TRANSCRIPT" 2>/dev/null)`, or
+# `RECORDS=$(grep -F … -- "$TRANSCRIPT" 2>/dev/null)` — adds a fork with NO new
+# exec, leaves every behavioural assertion above green, and trips the creation
+# ceiling below. That is what the creation count is for; execve alone is blind
+# to it.
+TRACE_OK=1
+command -v strace >/dev/null 2>&1 || TRACE_OK=0
+if ((TRACE_OK)); then
+  strace -ff -qq -e trace=execve -o "$TEST_TMPDIR/probe" true >/dev/null 2>&1 || TRACE_OK=0
+fi
+if ((TRACE_OK == 0)); then
+  echo "skip: strace unavailable or not permitted here — spawn budget not measured"
+else
+  TB="$TEST_TMPDIR/budget.jsonl"
+  printf '{"type":"assistant","message":{"content":[{"type":"text","text":"all fine"}]},"uuid":"c","session_id":"s"}\n' >"$TB"
+  TRACE_PREFIX="$TEST_TMPDIR/budget-trace"
+  env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-budget" HOOK_TELEMETRY_SINK="" \
+    strace -ff -qq -s 400 -e trace=clone,clone3,fork,vfork,execve -o "$TRACE_PREFIX" \
+    bash "$HOOK" <<<"{\"session_id\":\"budget\",\"transcript_path\":\"$TB\",\"hook_event_name\":\"Stop\"}" \
+    >/dev/null 2>&1
+  TRACE_ALL="$TEST_TMPDIR/budget-trace.all"
+  cat "$TRACE_PREFIX".* >"$TRACE_ALL" 2>/dev/null
+  if [[ -s "$TRACE_ALL" ]]; then
+    ok "budget: the common path was traced"
+  else
+    bad "budget: no usable strace output captured"
+  fi
+  # Every process creation the kernel saw, subshell forks included.
+  CREATIONS=$(grep -cE '^(clone|clone3|fork|vfork)\(' "$TRACE_ALL")
+  # Successful execs only: a PATH search emits failing execve calls that spawn
+  # nothing. The `bash <hook>` exec at the top is strace's own, not a cost of
+  # the hook, and is excluded by matching the hook path in its argv — which is
+  # why the trace runs with `-s 400`: at strace's 32-byte default that path is
+  # abbreviated and the exclusion silently matches nothing.
+  EXECS=$(grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -c -v -e "$HOOK")
+  PROGS=$(grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -v -e "$HOOK" |
+    grep -oE '^execve\("[^"]+"' | sed 's|.*/||; s|"||' | sort | uniq -c | tr -s ' \n' ' ')
+  prog_count() { grep -cE "^execve\\(\"[^\"]*/$1\"" "$TRACE_ALL"; }
+  if ((CREATIONS <= 9)); then
+    ok "budget: common path creates $CREATIONS processes (ceiling 9)"
+  else
+    bad "budget: common path creates $CREATIONS processes, ceiling is 9 —$PROGS"
+  fi
+  if ((EXECS <= 4)); then
+    ok "budget: common path execs $EXECS programs (ceiling 4)"
+  else
+    bad "budget: common path execs $EXECS programs, ceiling is 4 —$PROGS"
+  fi
+  assert_eq "budget: one grep pre-filter, reading the transcript directly" 1 "$(prog_count grep)"
+  assert_eq "budget: no cat feeding the pre-filter" 0 "$(prog_count cat)"
+  assert_eq "budget: one wc for the tail-cap decision" 1 "$(prog_count wc)"
+fi
+
 report
