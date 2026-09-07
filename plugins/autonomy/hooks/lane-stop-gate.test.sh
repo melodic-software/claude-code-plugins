@@ -902,6 +902,314 @@ if [[ $PROBE_RC -eq 0 ]]; then ok "armed fd-bound session: exit 0"; else fail "a
 if [[ -z "$PROBE_LEFT" ]]; then ok "armed session drains stdin (the buffered read still runs when the gate is armed)"; else fail "armed session left ${#PROBE_LEFT} bytes unread — the payload never reached the gate"; fi
 if is_block "$PROBE_OUT"; then ok "armed session still blocks an unsignaled stop (payload reads intact below the buffer)"; else fail "armed session did not block — the reorder changed armed-lane behavior: $PROBE_OUT"; fi
 
+# ============================================================================
+# #3515 — one jq per settings file for every key, same per-key verdicts.
+# ============================================================================
+
+# --- Case 49: gate_settings_options_to answers three keys from one pass -----
+# Sourced from the staged lib like case 39. The multi-key reader must give the
+# verdict the single-key reader gave for each key: a boolean as true/false, a
+# string as-is with trailing newlines chomped (what the old `$(jq -r …)`
+# capture did), no verdict for an absent key, and no verdict for any key when
+# the entry's `options` is not an object (the one jq error the filter raises,
+# which is key-independent).
+OPTS_STUB="$WORK/opts-stub.json"
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_resolve_install "$STAGED_DIR/.." || exit 1
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_sentinel":"X\\n\\n"}}}}\n' >"$OPTS_STUB"
+  gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker || exit 1
+  [[ "${GATE_FILE_OPT_HAVE[*]}" == "1 1 0" ]] || exit 1
+  [[ "${GATE_FILE_OPT_VALUE[0]}" == "true" && "${GATE_FILE_OPT_VALUE[1]}" == "X" && -z "${GATE_FILE_OPT_VALUE[2]}" ]] || exit 1
+  # The single-key print form still agrees with the batch, key by key.
+  [[ "$(gate_settings_option "$OPTS_STUB" lane_stop_gate_sentinel)" == "X" ]] || exit 1
+  gate_settings_option "$OPTS_STUB" lane_stop_gate_marker >/dev/null 2>&1 && exit 1
+  # `options` holding a string: no verdict for any key, return 1.
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":"lane_stop_gate_enabled"}}}\n' >"$OPTS_STUB"
+  gate_settings_options_to "$OPTS_STUB" lane_stop_gate_enabled lane_stop_gate_sentinel && exit 1
+  [[ "${GATE_FILE_OPT_HAVE[*]}" == "0 0" ]] || exit 1
+  exit 0
+); then
+  ok "one settings pass answers every key with the single-key verdicts"
+else
+  fail "gate_settings_options_to disagrees with the per-key reader (#3515)"
+fi
+
+# --- Case 50: a sentinel that holds a newline matches only as a whole block --
+# The shell's regex match replaced `grep -qE` over a here-string. grep read a
+# newline inside the configured token as a PATTERN SEPARATOR and authorized a
+# stop on a line matching either half; the regex treats the token as one
+# pattern, so only the whole token standing alone matches — the thing the block
+# reason asks for. Pinned so the disclosed divergence (0.23.1 changelog) is a
+# decision this suite owns, not drift.
+OUT="$(run "$(build_input Stop "A" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
+if is_block "$OUT"; then ok "newline-bearing sentinel: half the token does not authorize"; else fail "newline-bearing sentinel: half the token authorized a stop: $OUT"; fi
+OUT="$(run "$(build_input Stop $'done\nA\nB' false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
+if is_block "$OUT"; then fail "newline-bearing sentinel: the whole token on its own lines was not honored: $OUT"; else ok "newline-bearing sentinel: the whole token on its own lines authorizes"; fi
+
+# --- Case 51: an UNREADABLE settings file is silent, as the grep scan was ----
+# The pre-filter's settings scan is a builtin read (`done 2>/dev/null <"$f"`)
+# where it was `grep -q … 2>/dev/null`. Bash applies a command's redirections
+# left to right, so writing the input redirection first would attempt the open
+# BEFORE stderr is silenced and print "Permission denied" for a settings file
+# that exists but this hook may not read — per-turn noise from a hook that runs
+# on every Stop. The verdict (no verdict, gate off, exit 0) is the same either
+# way, so only stderr discriminates: assert it is EMPTY, and that the stop is
+# still allowed silently on stdout.
+UNREADABLE_ERR="$WORK/unreadable.err"
+write_settings true
+chmod 000 "$SETTINGS" 2>/dev/null || true
+if [[ -r "$SETTINGS" ]]; then
+  # Running as root (or on a filesystem without POSIX modes): chmod 000 denies
+  # nothing, so there is no unreadable file to assert on. Visible, and the
+  # ordering is still pinned by the CI lanes that run as a normal user.
+  ok "SKIP: chmod 000 does not deny for this user — unreadable-source stderr not asserted here"
+else
+  OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
+    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+      -u CLAUDE_PLUGIN_DATA \
+      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+      bash "$HOOK" 2>"$UNREADABLE_ERR")"
+  RC=$?
+  UNREADABLE_STDERR="$(<"$UNREADABLE_ERR")"
+  if [[ -z "$UNREADABLE_STDERR" ]]; then
+    ok "an unreadable settings file produces no stderr (redirection order holds)"
+  else
+    fail "an unreadable settings file leaked to stderr — silence stderr BEFORE the input redirection: $UNREADABLE_STDERR"
+  fi
+  if [[ $RC -eq 0 ]] && ! is_block "$OUT"; then ok "an unreadable settings file contributes no verdict (stop allowed)"; else fail "unreadable settings file changed the verdict (rc=$RC out=$OUT)"; fi
+fi
+chmod 600 "$SETTINGS" 2>/dev/null || true
+rm -f "$SETTINGS"
+
+# --- Case 52: an embedded CR in the completion token does not authorize ------
+# last_assistant_message was `jq -r` with no `tr`; hook::jq_fields strips every
+# CR, so LANE-STOP\r-OK would become LANE-STOP-OK and authorize. The payload
+# pass leaves LAST intact, so this must still block. A real token whose only CR
+# is a line-ending (whitespace the match already accepts) still authorizes.
+OUT="$(run "$(build_input Stop $'LANE-STOP\r-OK' false)")"
+if is_block "$OUT"; then ok "embedded CR in the completion token does not authorize"; else fail "LANE-STOP\\r-OK authorized — LAST must preserve CR: $OUT"; fi
+OUT="$(run "$(build_input Stop $'LANE-STOP-OK\r' false)")"
+if is_block "$OUT"; then fail "CRLF-terminated sentinel was not honored: $OUT"; else ok "CRLF-terminated sentinel still authorizes (CR as line-ending whitespace)"; fi
+
+# --- Case 53: on Bash < 5.0, inherited EPOCHSECONDS is not the TTL clock -----
+# BASH_VERSINFO is readonly, so the pre-5.0 path is reached by overriding
+# gate_epochseconds_is_clock after sourcing, the same seam hook::read_supports_nchars
+# uses for the pre-4.1 read. An inherited EPOCHSECONDS=1 must not become `now`.
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_epochseconds_is_clock() { return 1; }
+  # The spoof is confined to this subshell; the Bash 5+ case below is a
+  # separate subshell and still sees the parent clock (SC2030/SC2031).
+  # shellcheck disable=SC2030
+  EPOCHSECONDS=1
+  export EPOCHSECONDS
+  got=""
+  gate_epoch_seconds_to got
+  [[ "$got" =~ ^[0-9]+$ ]] || exit 1
+  [[ "$got" != "1" ]] || exit 1
+  # Fallback is date +%s; it must be a plausible wall clock, not the spoof.
+  ((got > 1)) || exit 1
+  exit 0
+); then
+  ok "pre-5.0 path ignores inherited EPOCHSECONDS (date fallback)"
+else
+  fail "pre-5.0 path trusted inherited EPOCHSECONDS=1"
+fi
+# This host's real clock path (Bash 5+) still reads EPOCHSECONDS when provided.
+if ((BASH_VERSINFO[0] >= 5)); then
+  if (
+    # shellcheck source=lane-stop-gate-lib.sh
+    source "$STAGED_DIR/lane-stop-gate-lib.sh"
+    got=""
+    gate_epoch_seconds_to got
+    [[ "$got" =~ ^[0-9]+$ ]] || exit 1
+    # shellcheck disable=SC2031  # independent subshell; parent clock is the contract
+    [[ "$got" == "$EPOCHSECONDS" ]] || exit 1
+    exit 0
+  ); then
+    ok "Bash 5+ path uses EPOCHSECONDS as the clock"
+  else
+    fail "Bash 5+ path did not use EPOCHSECONDS"
+  fi
+fi
+
+# --- Case 54: unreadable file reads stay silent at every remaining site ------
+# Case 51 pins gate_file_mentions. The same left-to-right redirection bug lived
+# on gate_resolve_plugin_name, gate_settings_options_to, and the arm-record
+# load. Verdicts are fail-open either way; only stderr discriminates.
+UNREAD_PLUGIN="$WORK/unreadable-plugin"
+mkdir -p "$UNREAD_PLUGIN/.claude-plugin"
+printf '{"name":"autonomy"}\n' >"$UNREAD_PLUGIN/.claude-plugin/plugin.json"
+UNREAD_OPTS="$WORK/unreadable-opts.json"
+printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$UNREAD_OPTS"
+chmod 000 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null || true
+if [[ -r "$UNREAD_PLUGIN/.claude-plugin/plugin.json" || -r "$UNREAD_OPTS" ]]; then
+  ok "SKIP: chmod 000 does not deny for this user — remaining unreadable-source stderr not asserted here"
+else
+  UNREAD_LIB_ERR="$WORK/unreadable-lib.err"
+  if (
+    # shellcheck source=lane-stop-gate-lib.sh
+    source "$STAGED_DIR/lane-stop-gate-lib.sh"
+    gate_resolve_install "$STAGED_DIR/.." || exit 1
+    gate_resolve_plugin_name "$UNREAD_PLUGIN"
+    gate_settings_options_to "$UNREAD_OPTS" lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker || true
+    exit 0
+  ) 2>"$UNREAD_LIB_ERR"; then
+    UNREAD_LIB_STDERR="$(<"$UNREAD_LIB_ERR")"
+    if [[ -z "$UNREAD_LIB_STDERR" ]]; then
+      ok "unreadable manifest and settings file produce no stderr (lib redirection order holds)"
+    else
+      fail "unreadable lib file leaked to stderr — silence stderr BEFORE the input redirection: $UNREAD_LIB_STDERR"
+    fi
+  else
+    fail "unreadable lib file reads aborted the sourced helpers"
+  fi
+  ARM_ID_UNREAD="unreadarm0123456"
+  bash "$ARM" --id "$ARM_ID_UNREAD" --cwd "$WORK" 2>/dev/null
+  REC_UNREAD="$DATA_DIR/lane-arms/$ARM_ID_UNREAD"
+  chmod 000 "$REC_UNREAD" 2>/dev/null || true
+  if [[ -r "$REC_UNREAD" ]]; then
+    ok "SKIP: chmod 000 does not deny the arm record for this user"
+  else
+    UNREAD_ARM_ERR="$WORK/unreadable-arm.err"
+    rm -f "$SETTINGS"
+    OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+        CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_UNREAD" \
+        bash "$HOOK" 2>"$UNREAD_ARM_ERR")"
+    RC=$?
+    UNREAD_ARM_STDERR="$(<"$UNREAD_ARM_ERR")"
+    if [[ -z "$UNREAD_ARM_STDERR" ]]; then
+      ok "unreadable arm record produces no stderr (redirection order holds)"
+    else
+      fail "unreadable arm record leaked to stderr — silence stderr BEFORE the input redirection: $UNREAD_ARM_STDERR"
+    fi
+    if [[ $RC -eq 0 ]] && ! is_block "$OUT"; then
+      ok "unreadable arm record contributes no verdict (stop allowed)"
+    else
+      fail "unreadable arm record changed the verdict (rc=$RC out=$OUT)"
+    fi
+  fi
+  chmod 600 "$REC_UNREAD" 2>/dev/null || true
+  rm -f "$REC_UNREAD" "$REC_UNREAD.claim"
+fi
+chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null || true
+rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
+
+# ============================================================================
+# #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
+# ============================================================================
+# This hook fires on EVERY Stop of every session, gated or not, so its cost on
+# the interactive default path is paid per turn fleet-wide against the 500 ms
+# per-turn ceiling in docs/conventions/hook-budget/README.md. Reading the code
+# cannot prove the count: bash execs a bare `$(cmd)` in the substitution's own
+# subshell only when the command carries no redirection of its own; a
+# `2>/dev/null`, a `<<<` or a pipeline written INSIDE the substitution forks
+# twice for one program, and a fork that never execs is invisible to an xtrace
+# command count. On the #3508 hosts a process creation is the unit of cost
+# (180-2,841 ms each), so the count that binds is this one.
+#
+# Two paths are traced from the staged install:
+#   default (no gate footprint anywhere): EXACTLY 1 creation and 1 launch, the
+#     `uname -s` the managed-settings platform selection rests on (its trust
+#     primitive; $OSTYPE is a variable a repo env block can set). Everything
+#     else this path paid was the hook's own: a subshell per path helper and a
+#     grep per settings file.
+#   enabled (user settings, first stop, no signal → block): a CEILING of 10
+#     creations and 5 launches. This hook's own share is 6 creations: the
+#     payload jq pass (3: process substitution, printf writer, jq),
+#     uname, the one settings jq, the block-decision jq. The remainder is
+#     hook::buffer_stdin_to in the synced shared library (its capture, its
+#     read-slice probe, its `printf | jq -e` validation pass), which this plugin
+#     does not own. A shared-library saving lowers the count without failing
+#     here; a regression in this plugin's own files raises it and does.
+# The named-program check pins what the reduction removed: no dirname, tr, sed,
+# grep, cksum or date on either path. Skipped where strace is unavailable (it
+# needs ptrace, which containers and macOS commonly withhold); CI keeps a Linux
+# lane that does not skip.
+if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
+  # trace_hook <input> → TRACE_CREATIONS, TRACE_LAUNCHES, TRACE_PROGS, TRACE_OUT.
+  # Same hermetic env as run/run_bare; the settings file is whatever the case
+  # left in place.
+  trace_hook() {
+    local input="$1" log="$WORK/gate-strace.log"
+    TRACE_OUT=$(cd "$UNRELATED" && printf '%s' "$input" |
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
+        strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$log" bash "$HOOK" 2>/dev/null)
+    TRACE_CREATIONS=$(grep -cE '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null | tr -cd '0-9')
+    # Programs launched after the harness's own `bash "$HOOK"`; a failed execve
+    # attempt (a PATH miss, reported with ENOENT) launched nothing.
+    TRACE_PROGS=$(grep -E '^[0-9]+ +execve\(' "$log" 2>/dev/null | grep -v 'ENOENT' |
+      sed -E 's/^[0-9]+ +execve\("([^"]*)".*/\1/; s|.*/||' | tail -n +2 | tr '\n' ' ')
+    TRACE_LAUNCHES=$(printf '%s' "$TRACE_PROGS" | wc -w | tr -cd '0-9')
+    [[ -s "$log" ]]
+  }
+  replaced_helper_back() { # <progs> — true when a helper this change removed is back
+    case " $1" in
+    *' dirname '* | *' tr '* | *' sed '* | *' grep '* | *' cksum '* | *' date '*) return 0 ;;
+    *) return 1 ;;
+    esac
+  }
+
+  rm -f "$SETTINGS"
+  if trace_hook "$(build_input Stop "no token" false)"; then
+    ok "strace: the interactive default path was traced"
+    if [[ -z "$TRACE_OUT" ]]; then ok "strace: the traced default path stayed silent (it is the real default path)"; else fail "strace: the traced default path emitted output: $TRACE_OUT"; fi
+    if [[ "$TRACE_CREATIONS" == "1" ]]; then
+      ok "strace: the default path creates exactly 1 process"
+    else
+      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 1 (launches: $TRACE_PROGS)"
+    fi
+    if [[ "$TRACE_PROGS" == "uname " ]]; then
+      ok "strace: the default path launches only uname"
+    else
+      fail "strace: default path launched '$TRACE_PROGS', expected only uname"
+    fi
+  else
+    fail "strace: no usable trace captured for the default path"
+  fi
+
+  write_settings true
+  if trace_hook "$(build_input Stop "no token" false)"; then
+    ok "strace: the enabled block path was traced"
+    if is_block "$TRACE_OUT"; then ok "strace: the traced enabled path is the real block path"; else fail "strace: the traced enabled path did not block: $TRACE_OUT"; fi
+    if [[ -n "$TRACE_CREATIONS" && "$TRACE_CREATIONS" -le 10 ]]; then
+      ok "strace: the enabled block path creates $TRACE_CREATIONS processes (ceiling 10)"
+    else
+      fail "strace: enabled block path creates $TRACE_CREATIONS processes, ceiling is 10 (launches: $TRACE_PROGS)"
+    fi
+    if [[ -n "$TRACE_LAUNCHES" && "$TRACE_LAUNCHES" -le 5 ]]; then
+      ok "strace: the enabled block path launches $TRACE_LAUNCHES programs (ceiling 5)"
+    else
+      fail "strace: enabled block path launches $TRACE_LAUNCHES programs, ceiling is 5: $TRACE_PROGS"
+    fi
+    if replaced_helper_back "$TRACE_PROGS"; then
+      fail "strace: a helper process this change replaced is back on the enabled path: $TRACE_PROGS"
+    else
+      ok "strace: no dirname, tr, sed, grep, cksum or date on the enabled path"
+    fi
+  else
+    fail "strace: no usable trace captured for the enabled path"
+  fi
+else
+  ok "SKIP: strace unavailable — process-creation budget not asserted here"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
