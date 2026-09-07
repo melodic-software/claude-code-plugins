@@ -46,11 +46,12 @@
 # it. Each path is normalized lexically and then folded to the filesystem's own
 # spelling of its deepest EXISTING ancestor, so two spellings of one directory
 # compare equal. Nothing is created to decide a refusal: a refused run leaves
-# the tree exactly as it found it. Neither directory need exist, but existence
-# decides WHO answers. For the part of a chain that exists the filesystem
-# answers, by device and inode. For the part that does not, a spelling fold
-# answers, and that fold is deliberately coarser than any filesystem's, so the
-# absent case is refused wherever it might be one directory.
+# the tree exactly as it found it. Neither directory need exist, and the fence
+# does not ask whether they do. It compares the whole of both paths under a
+# spelling fold coarser than any filesystem's, which refuses whatever MIGHT be
+# one directory; the filesystem is then asked, by device and inode, about the
+# part of the chain that exists, which ADDS the refusals a fold cannot see
+# (a drive mapping, a symlink) and never takes one away.
 #
 # THE BRANCH SLUG IS NOT A PATH HERE. The findings file's `branch:` value is
 # operator-supplied text: this script records it as `source-branch:` in the
@@ -320,9 +321,12 @@ is_within() {
 # of them. `réviews` and `RÉVIEWS` fold alike, which is the point; so do
 # `révu` and `rêvu`, which is the cost. That cost is a VISIBLE refusal of two
 # genuinely distinct non-ASCII siblings, recoverable by renaming one, and it is
-# paid only where the filesystem could not be asked. The opposite error, a
-# silent write into the fix action's scan directory, is not recoverable, and it
-# is the error the ASCII-only compare actually made.
+# paid UNCONDITIONALLY: the fence folds before it asks the filesystem anything,
+# so a volume that would have called the two distinct is refused all the same.
+# That is the trade the ASCII fast path already made, and the one case 17
+# asserts on both kinds of volume. The opposite error, a silent write into the
+# fix action's scan directory, is not recoverable, and it is the error the
+# ASCII-only compare actually made.
 FOLDED=""
 fold_path() {
   local rest="$1" ch head out=""
