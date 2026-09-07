@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLessonUrl, defaults, deriveLandingUrl } from "./teachable.js";
+import {
+  buildLessonUrl,
+  defaults,
+  deriveLandingUrl,
+  detectResources,
+  preflight,
+  resolveVideoPlayerSelector,
+} from "./teachable.js";
+
+/**
+ * Page stand-in whose `evaluate` rebuilds the callback from source, so the
+ * callback can only see the argument that crossed the serialization boundary,
+ * and answers `querySelector` from a fixed set of present selectors.
+ */
+function makeDomPage(presentSelectors) {
+  const present = new Set(presentSelectors);
+  return {
+    lastArg: undefined,
+    async evaluate(fn, arg) {
+      this.lastArg = arg;
+      const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
+      const document = {
+        querySelector: (s) => (present.has(s) ? { tag: "div", textContent: "" } : null),
+        querySelectorAll: () => [],
+      };
+      return detached(document, structuredClone(arg));
+    },
+  };
+}
 
 describe("defaults", () => {
   it("should have hotmart video player selector", () => {
@@ -102,5 +130,76 @@ describe("buildLessonUrl", () => {
     expect(buildLessonUrl(courseWithSlug, lesson, platformCfg)).toBe(
       "https://www.courses.example.com/courses/modular-monolith/lectures/456",
     );
+  });
+});
+
+describe("resolveVideoPlayerSelector", () => {
+  it("should return the adapter default when platformConfig omits it", () => {
+    expect(resolveVideoPlayerSelector({})).toBe(defaults.videoPlayerSelector);
+  });
+
+  it("should return the configured override", () => {
+    expect(resolveVideoPlayerSelector({ videoPlayerSelector: ".skin-v2-player" })).toBe(
+      ".skin-v2-player",
+    );
+  });
+});
+
+describe("detectResources video-player selector", () => {
+  it("should report a video when the default selector matches", async () => {
+    const page = makeDomPage([defaults.videoPlayerSelector]);
+
+    const result = await detectResources(page, {});
+
+    expect(result.success).toBe(true);
+    expect(result.data.hasVideo).toBe(true);
+  });
+
+  it("should query the configured selector in the browser context", async () => {
+    const page = makeDomPage([".skin-v2-player"]);
+
+    const result = await detectResources(page, { videoPlayerSelector: ".skin-v2-player" });
+
+    expect(result.success).toBe(true);
+    expect(result.data.hasVideo).toBe(true);
+    expect(page.lastArg.videoSel).toBe(".skin-v2-player");
+  });
+
+  it("should not match the hardcoded literal when an override is configured", async () => {
+    const page = makeDomPage([defaults.videoPlayerSelector]);
+
+    const result = await detectResources(page, { videoPlayerSelector: ".skin-v2-player" });
+
+    expect(result.success).toBe(true);
+    expect(result.data.hasVideo).toBe(false);
+  });
+});
+
+describe("preflight video-player selector", () => {
+  it("should pass when the configured selector and lecture content are present", async () => {
+    const page = makeDomPage([".skin-v2-player", ".lecture-content"]);
+
+    const result = await preflight(page, { videoPlayerSelector: ".skin-v2-player" });
+
+    expect(result.success).toBe(true);
+    expect(result.data.hotmart).toBe(true);
+    expect(page.lastArg).toBe(".skin-v2-player");
+  });
+
+  it("should fail when only the default selector is present and an override is set", async () => {
+    const page = makeDomPage([defaults.videoPlayerSelector, ".lecture-content"]);
+
+    const result = await preflight(page, { videoPlayerSelector: ".skin-v2-player" });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("hotmart");
+  });
+
+  it("should pass with the default selector when no override is configured", async () => {
+    const page = makeDomPage([defaults.videoPlayerSelector, ".lecture-content"]);
+
+    const result = await preflight(page, {});
+
+    expect(result.success).toBe(true);
   });
 });
