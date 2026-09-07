@@ -218,7 +218,7 @@ live_tip() {
 #
 # Both tier and pr come from the capture TSV, which is untrusted input. A SAFE
 # row is a force delete only when pr matches the audit's exact merged-PR format
-# (`#<n> MERGED`, optionally ` (tip drift)`). A substring containing MERGED is
+# (`#<n> MERGED` or `#<n> MERGED (tip drift)`). A substring containing MERGED is
 # not enough: that would skip the ancestry check on a forged or edited capture.
 delete_mode() {
   local tier="$1" pr="$2"

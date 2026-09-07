@@ -43,7 +43,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Fixed
 
 - `git-branch-delete.sh` treats a SAFE row as a force delete only when the captured `pr` matches
-  the audit's exact merged-PR format (`#<n> MERGED`, optionally ` (tip drift)`). A substring
+  the audit's exact merged-PR format (`#<n> MERGED` or `#<n> MERGED (tip drift)`). A substring
   containing MERGED is not enough: both `tier` and `pr` are untrusted capture text, and a bare
   substring skipped the ancestry check that is the last verification for SAFE-by-ancestry deletes.
 - An unresolved capture `common_dir` (missing, empty, or the literal `unknown`) is a refusal, not
