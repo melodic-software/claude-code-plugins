@@ -328,7 +328,7 @@ class Degradation(unittest.TestCase):
                     "GIT_AUTHOR_EMAIL": "t@x",
                     "GIT_COMMITTER_NAME": "t",
                     "GIT_COMMITTER_EMAIL": "t@x",
-                    "PATH": str(tmp),
+                    "PATH": f"{tmp}{os.pathsep}{Path(shutil.which('git')).parent}",
                     "PYTHONPATH": str(tmp),
                 }
             )
