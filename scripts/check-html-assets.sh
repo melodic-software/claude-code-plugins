@@ -44,6 +44,7 @@ if [[ -n "${HTML_ASSETS_MANIFEST:-}" ]]; then
 else
   assets=(
     plugins/visualization/reference/html-chrome.html
+    plugins/visualization/reference/html-loop-closure.html
   )
 fi
 
