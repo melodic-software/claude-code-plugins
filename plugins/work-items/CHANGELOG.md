@@ -85,7 +85,6 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   carrying the pair; `tools/work-item-tracker/CONTRACT.md` records the new
   `list-frontier` filter term.
 
-
 ## [0.40.0]
 
 ### Added
