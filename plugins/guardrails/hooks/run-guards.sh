@@ -159,6 +159,18 @@ RUN_GUARDS_STDIN_RC=0
 hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN_RC=$?
 # Nothing arrived: every guard would take its empty-stdin skip. Take it once.
 ((RUN_GUARDS_STDIN_RC == 1)) && exit 0
+# The payload was cut short at EOF (rc 3): a transport fault, so every guard
+# would skip with the same notice. Say it once and stop. The event name is
+# not known here (this dispatcher is wired under PreToolUse and PostToolUse
+# alike), so the notice goes out on systemMessage and stderr only; a guard
+# run alone adds the agent channel itself. This exit precedes every guard,
+# which is why the lib keeps rc 3 to the early-EOF arm only: a stall on the
+# same prefix is rc 2, falls through here, and every blocking guard denies
+# on it.
+if ((RUN_GUARDS_STDIN_RC == 3)); then
+  hook::stdin_cut_short_notice "" "guardrails"
+  exit 0
+fi
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::buffer_stdin() {

@@ -139,9 +139,11 @@ git_subcommand_ignores_alias() {
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
-# (empty stdin) skips; rc 2 (read timed out before a complete payload) FAILS
-# CLOSED — the guard cannot evaluate the tool call, and a silent skip would pass
-# exactly the traffic this guard exists to stop. Buffering does not require jq
+# (empty stdin) skips; rc 2 (text that is not JSON) FAILS CLOSED — the guard
+# cannot evaluate the tool call, and a silent skip would pass exactly the
+# traffic this guard exists to stop; rc 3 (a JSON payload cut short by the
+# pipe, a transport fault) is a loud skip the dispatcher takes once.
+# Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it runs
 # before the jq gate below — hook::require_jq needs the buffered input for its
 # once-per-session notice scoping.

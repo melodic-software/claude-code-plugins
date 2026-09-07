@@ -1497,6 +1497,93 @@ else
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
 
+# --- Test 18h: the cut-short / not-JSON split at EOF ---
+# bash reports an early EOF and a pipe read error with the same rc 1, so on a
+# starved Windows host a payload the harness had not finished writing reached
+# the verdict as a truncated buffer at "EOF" and was returned as rc 2 "not
+# valid JSON" — a block, and a message that blamed the command. At EOF the
+# verdict is content-based: a well-formed prefix is rc 3, text that never
+# parsed is rc 2, and a complete document is rc 0. The stall arm is NOT part
+# of that split — see the paired case after the table.
+bs_case() { # bs_case <label> <stdin> <want rc> <stderr has | -> <stderr lacks | ->
+  local label="$1" stdin="$2" want="$3" has="$4" hasnt="$5" rc=0 err
+  err=$(printf '%s' "$stdin" | hook::buffer_stdin 2>&1 >/dev/null) || rc=$?
+  if [[ "$rc" == "$want" ]] &&
+    { [[ "$has" == "-" ]] || [[ "$err" == *"$has"* ]]; } &&
+    { [[ "$hasnt" == "-" ]] || [[ "$err" != *"$hasnt"* ]]; }; then
+    ok "buffer_stdin: $label → rc $rc"
+  else
+    fail "buffer_stdin: $label: rc=$rc (want $want) err=$err"
+  fi
+}
+bs_case "truncated object at EOF is cut short" '{"tool_name":"Bash","tool_input":{"command":"ls' 3 'cut short' 'BLOCKED'
+bs_case "cut-short diagnostic says the pipe closed, not stalled" '{"tool_input":{"command":' 3 'pipe closed' 'went quiet'
+bs_case "truncated right after a nested close brace is still cut short" '{"tool_input":{"command":"x"}' 3 'cut short' '-'
+bs_case "truncated inside a string value is cut short" '{"tool_input":{"command":"cat > f' 3 'cut short' '-'
+bs_case "a lone opening brace is cut short" '{' 3 'cut short' '-'
+bs_case "text that is not JSON still fails closed" 'not json' 2 'not valid JSON' 'cut short'
+bs_case "a complete document plus trailing junk is not JSON" '{"a":1} x' 2 'not valid JSON' 'cut short'
+bs_case "structurally wrong JSON is not JSON" '{"a" 1}' 2 'not valid JSON' 'cut short'
+bs_case "an over-closed document is not JSON" '{"a":1}}' 2 'not valid JSON' 'cut short'
+bs_case "whitespace-only stdin is empty" $' \n' 1 '-' 'cut short'
+bs_case "a complete payload still parses" '{"tool_input":{"command":"ls"}}' 0 '-' '-'
+# THE SAME BYTES as the first row, with the pipe HELD OPEN past the idle bound
+# instead of closed: rc 2, `BLOCKED: ... timed out`, and no "cut short". A
+# stall is reachable from the agent's side (a payload past 64 KiB splits the
+# harness write; host load from earlier tool calls widens the gap), and the
+# dispatcher takes rc 3 before any guard is sourced, so an allow on it would
+# skip every guard on the lane at once. The hold is the release handshake,
+# so the read cannot reach EOF first and quietly pass as the other arm.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"ls'
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+# portability-ok: grep -q quiet match, not grep -P
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file" && ! grep -q 'cut short' "$bs_err_file"; then
+  ok "buffer_stdin: the truncated-object prefix with the pipe held open past the bound → rc 2 timed out (a stall is not cut short)"
+else
+  fail "buffer_stdin stall-vs-EOF discriminator: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
+# The whitespace-only row above, with the pipe HELD OPEN past the idle bound
+# instead of closed: still rc 2 `BLOCKED: ... timed out`. The stall check
+# must come BEFORE the whitespace-only check inside the verdict.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{
+  printf ' \n'
+  bs_hold_open
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+  bs_release
+}
+bs_rc=$(cat "$bs_rc_file")
+# portability-ok: grep -q quiet match, not grep -P
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED: hook stdin timed out before a complete JSON payload arrived' "$bs_err_file"; then
+  ok "buffer_stdin: whitespace-only stdin with the pipe held open past the bound → rc 2 timed out (a stall is decided before the empty-payload check)"
+else
+  fail "buffer_stdin whitespace-only stall: rc=$bs_rc (want 2) err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
+# The split leans on jq's own wording for a document that ended early. Pin it,
+# so a jq release that renames the diagnostic fails HERE rather than showing
+# up as a return to blocking on truncated payloads (the fallback for an
+# unrecognized diagnostic is rc 2).
+bs_jq_err=$(printf '{"a":' | jq -e . 2>&1 >/dev/null) || true # jq exits 5 here by design; the wording is the subject
+if [[ "$bs_jq_err" == *Unfinished* ]]; then
+  ok "jq names a document that ended early 'Unfinished' (the cut-short oracle holds on this jq)"
+else
+  fail "jq no longer says 'Unfinished' for a truncated document: $bs_jq_err"
+fi
+
 # --- Test 18b: hook::buffer_stdin — stall AFTER a complete payload succeeds ---
 # The Win32-pipe late-EOF case the bounded read exists for: the producer emits a
 # COMPLETE JSON payload and then holds the pipe open past the read timeout. The
@@ -3361,10 +3448,21 @@ else
   fail "buffer_stdin_to fused: rc=$bs_fused_rc dest=$(printf %q "$bs_fused") fields=(${HOOK_JQ_FIELDS[*]-}) nul=$HOOK_JQ_FIELDS_NUL"
 fi
 
+# The fused fields path shares the fail block with the completeness probe, so
+# the cut-short / not-JSON split applies there too: a well-formed prefix the
+# pipe closed on is rc 3, text that never parsed is rc 2.
+bs_cut=""
+bs_cut_err=$(hook::buffer_stdin_to bs_cut '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_cut_rc=$?
+if ((bs_cut_rc == 3)) && [[ -z "$bs_cut" ]] && [[ "$bs_cut_err" == *"cut short"* ]] && [[ "$bs_cut_err" != *"BLOCKED"* ]]; then
+  ok "buffer_stdin_to fused truncated JSON at EOF is cut short"
+else
+  fail "buffer_stdin_to fused truncated: rc=$bs_cut_rc err=$(printf %q "$bs_cut_err")"
+fi
 bs_bad=""
-bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'{"incomplete":' 2>&1)
+bs_bad_err=$(hook::buffer_stdin_to bs_bad '.tool_name' <<<'not json' 2>&1)
 bs_bad_rc=$?
-if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]]; then
+if ((bs_bad_rc == 2)) && [[ "$bs_bad_err" == *"not valid JSON"* ]] && [[ "$bs_bad_err" != *"cut short"* ]]; then
   ok "buffer_stdin_to fused malformed JSON fails closed"
 else
   fail "buffer_stdin_to fused malformed: rc=$bs_bad_rc err=$(printf %q "$bs_bad_err")"

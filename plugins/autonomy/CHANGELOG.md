@@ -3,6 +3,25 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` tells a hook payload cut short at EOF from
+  stdin that is not JSON.** `hook::buffer_stdin` returns a new rc 3 when
+  what arrived is a well-formed JSON prefix and the pipe then closed (jq's
+  own "Unfinished" parse verdict on an end-of-file read), and rc 2 as before
+  for text that never parsed and for a pipe that stayed open past the idle
+  bound with an incomplete document (the "timed out before a complete JSON
+  payload" line is unchanged; a stall stays fail-closed). New
+  `hook::stdin_cut_short_notice` emits the exit-0 notice for callers that
+  block on rc 2. The successful stdin path still probes with a direct
+  `printf | jq` (no stderr-capturing subshell); the diagnostic jq runs only
+  after that probe has failed. None of this plugin's hooks branches on which
+  non-zero status the read returned, so their behavior is unchanged; the
+  copy is bumped because `scripts/sync-hook-utils.sh` keeps every carrying
+  plugin byte-identical.
+
 ## [0.23.1]
 
 ### Changed
