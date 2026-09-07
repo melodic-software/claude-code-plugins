@@ -3,6 +3,22 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Added
+
+- **Loop-closure and export snippet reference**, `reference/html-loop-closure.html`, the
+  second shared rendered-view piece this plugin carries beside the chrome reference. It
+  holds four shared helpers (`esc` for the convention's escape set in text and attribute
+  positions; `copyText`, the clipboard write-fallback-flash boilerplate every interactive
+  page otherwise duplicates; `safeHref` for URL position, which refuses `javascript:`,
+  `data:`, and relative URLs; `safeFilename` for a `download` attribute) plus
+  `downloadText`, which exports through a `Blob` and an object URL rather than a `data:`
+  URL. Five runnable demos cover the escalating loop-closure payload shapes: numbered
+  resonate tokens, chip-assembled replies, generated follow-up prompts,
+  accept-and-correct sign-off, and live-state export. The page is reference material and
+  owns no page shape; `visualize` itself is unchanged and adopts nothing here.
+
 ## [0.5.1]
 
 ### Changed
