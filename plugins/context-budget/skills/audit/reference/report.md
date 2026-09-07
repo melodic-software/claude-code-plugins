@@ -27,7 +27,8 @@ mode; the displayed fraction in cli-parse mode).
 4. **Ranked per-tool attribution.** From the attribution record: one row per measured tool —
    `savedTokens`, split into `prefixDelta` / `deferredDelta`, with the `comparable` flag. Rows
    the engine marked incomparable appear with their reason instead of their numbers. If the
-   additivity check ran, state its verdict in one line. Unmeasured tools (candidates this run
+   additivity check ran, state its verdict per bucket, one line each, and report a null verdict as
+   not measurable rather than as not additive. Unmeasured tools (candidates this run
    that were not priced) are listed as unmeasured, not omitted — silence reads as "measured
    zero". Tools that exist only in an interactive session — Artifact, SendUserFile,
    AskUserQuestion, plan-mode tools, interactive-only MCP servers — are listed as
