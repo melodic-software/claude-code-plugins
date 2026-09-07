@@ -883,16 +883,20 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             or not _argument(tokens[6])
         ):
             return None
-        # --confirmed-large-scan and --root-children are the valueless scan
-        # flags; strip at most one of each so the remainder is the pure
+        # --confirmed-large-scan, --quiet and --root-children are the valueless
+        # scan flags; strip at most one of each so the remainder is the pure
         # flag/value-pair grammar every other optional follows. --root-child
         # is repeatable (one basename per occurrence) and is stripped next.
+        # --quiet only shapes the engine's stdout, so admitting it widens no
+        # capability: it cannot reach a path the same invocation without it
+        # could not already reach.
         optionals = list(tokens[7:])
-        confirmed = optionals.count("--confirmed-large-scan")
-        if confirmed > 1:
-            return None
-        if confirmed:
-            optionals.remove("--confirmed-large-scan")
+        for valueless in ("--confirmed-large-scan", "--quiet"):
+            occurrences = optionals.count(valueless)
+            if occurrences > 1:
+                return None
+            if occurrences:
+                optionals.remove(valueless)
         root_children = optionals.count("--root-children")
         if root_children > 1:
             return None
