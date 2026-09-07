@@ -128,23 +128,27 @@ into it, which is the human path from a phone or the web.
 
 ## Boundary
 
-| Neighbour | Owns |
-|---|---|
-| Built-in Remote Control | Interactive use of a target's session from a phone, the web, or another device, under THAT machine's account. Not agent-to-agent under split accounts |
-| Built-in `ListAgents` / `SendMessage` | Sessions this session's own account can see; same machine, or same account through Remote Control |
-| `session-flow:continue-in-background` | A detached session on THIS machine. Same host, no SSH |
-| `session-flow:orchestrate` | Delegation inside one session, to subagents. Same host, same account |
-| `repo-fleet-hygiene` | Fleets of REPOSITORIES. Same word, different subject |
+| Neighbour                             | Owns                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Built-in Remote Control               | Interactive use of a target's session from a phone, the web, or another device, under THAT machine's account. Not agent-to-agent under split accounts |
+| Built-in `ListAgents` / `SendMessage` | Sessions this session's own account can see; same machine, or same account through Remote Control                                                     |
+| `session-flow:continue-in-background` | A detached session on THIS machine. Same host, no SSH                                                                                                 |
+| `session-flow:orchestrate`            | Delegation inside one session, to subagents. Same host, same account                                                                                  |
+| `repo-fleet-hygiene`                  | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
 
 ## Gotchas
 
-- **Use the Windows OpenSSH client.** `C:\Windows\System32\OpenSSH\ssh.exe` is agent-backed and is
+- **Use the Windows OpenSSH client.** `C:/Windows/System32/OpenSSH/ssh.exe` is agent-backed and is
   what `~/.ssh/config` is wired to. Git Bash's MSYS `ssh` reaches no agent and fails with
   `Permission denied (publickey)`, which reads like a key problem and is not one.
 - **Redirect stdin, always.** `claude -p` reads stdin, so without `< /dev/null` inside the remote
   command (or `ssh -n` on the client) it waits several seconds before answering every turn.
 - **Two shells, two quoting rules.** Single-quote the remote command and double-quote the prompt
   inside it. Port 2222 is bash; port 22 is pwsh, where that quoting does not carry over.
+- **Escape apostrophes in `<prompt>`.** The remote command is single-quoted on the LOCAL shell, so
+  a `'` inside the prompt text ("what's", "don't") closes that quote early, before `ssh` ever
+  runs, and the rest is re-parsed as separate words. Replace each `'` in the prompt with `'\''`
+  before substituting it, e.g. `claude -p "what'\''s the disk usage?" < /dev/null`.
 - **Parse the JSON, not the stream.** A relay turn's `SessionEnd` hooks print `Hook cancelled` on
   stdout. Take the JSON object out of the output before reading it, for example
   `grep '^{' | jq -r .session_id`, rather than piping the whole stream to `jq`.

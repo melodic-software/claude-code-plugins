@@ -32,15 +32,20 @@ Three parts, each load-bearing:
   repository that defines the fleet's accounts, firewall scope or tailnet policy.
 - **`< /dev/null`.** Same reason as every other headless turn: `claude -p` reads stdin.
 
+`<prompt>` is double-quoted inside a command that is itself single-quoted on the LOCAL shell, same
+as the hub's one-shot and multi-turn recipes: an apostrophe in the prompt text closes that outer
+quote early, before `ssh` runs. Escape it the same way: replace each `'` with `'\''` before
+substituting (see SKILL.md's Gotchas).
+
 `~/.config/fleet/FLEET.md` renders this with the target's real profile path substituted, so prefer
 copying it from there over expanding `<user>` by hand.
 
 ## Verbs
 
-| Ask | Prompt to give the relay turn |
-|---|---|
-| List | `List the sessions you can reach` |
-| Send | `Send <text> to the session named <name>` |
+| Ask              | Prompt to give the relay turn                                 |
+| ---------------- | ------------------------------------------------------------- |
+| List             | `List the sessions you can reach`                             |
+| Send             | `Send <text> to the session named <name>`                     |
 | Wait for a reply | Ask the turn to wait for the peer to go idle before returning |
 
 Session names are the target's, not yours. List first, then send to a name from that list rather

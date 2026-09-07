@@ -19,6 +19,7 @@
     ]
   },
   "enabledPlugins": {
+    "fleet@melodic-software": true,
     "playgrounds@melodic-software": false
   },
   "extraKnownMarketplaces": {
