@@ -140,9 +140,20 @@ escaping, so this baseline is authoring discipline until the deterministic helpe
   repo's files) MUST NOT ship on this skeleton alone: it is gated on the checked-in
   deterministic escape helper with a generator-marker a validator can check (tracked as
   the wave-2 issue; the review-plugin PR explainer is the first gated lane).
+- Escaping reaches text and quoted-attribute positions and nothing else. A value that
+  lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
+  checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
+  carry none of the escaped characters, so they pass through escaping unchanged and
+  still execute. An export builds a `Blob` and an object URL rather than concatenating
+  content into a `data:` URL, and reduces any filename it puts in a `download`
+  attribute to an allowlisted character set. Working helpers for all three positions
+  are in the loop-closure snippet reference below.
 
 Checked-in `.html` assets are validated by `scripts/check-html-assets.sh` (registration
-manifest plus pinned htmlhint), wired into CI.
+manifest plus pinned htmlhint), wired into CI. Markup linting still validates syntax
+rather than escaping, so an asset whose job is to carry copied helpers also carries a
+behavioral suite: `scripts/check-loop-closure-helpers.test.sh` executes the shipped
+helpers of the loop-closure reference and fails on a dropped case that lints clean.
 
 ## Accessibility floor
 
@@ -151,6 +162,49 @@ keyboard reach) lives in the shared chrome reference and is provisional until th
 design-system vertical revisits it cross-genre. Accessibility is a named, sanctioned
 reason to prefer markdown over a rendered view: when a reader's tooling or needs make the
 markdown record the better deliverable, flipping back is conformant, not a deviation.
+
+## Loop closure and the export obligation
+
+A rendered view that only shows things is a dead end: the reader has to retype what they
+picked. Loop closure is the family of patterns that hands the reader a terse payload to
+give back; export is the pattern that gets live page state off the page.
+
+**When a view owes an export.** A custom editor always ends with one: a view that lets a
+person change state and then offers no way to get that state out has thrown the work
+away. A view that asks the reader to choose, rank, accept, or correct owes a loop-closure
+payload for the same reason. A view that only presents owes neither.
+
+**Where the family belongs.** Editors, explorations and option spreads, and
+unknowns-lifecycle pages. It is excluded from the writeup and report genre by design,
+which is a decision the corpus already made, not an omission: a report is read, not
+answered, and a lane that bolts a resonate token onto a post-mortem is contradicting the
+genre rather than improving it. A dual-audience report whose markdown record is the
+deliverable stays on that record.
+
+**Why the payloads stay terse.** The artifact is still on screen while the reader
+answers, so the agent re-anchors by number or token rather than by a restated body. A
+payload that repeats the page's content back is not a richer loop closure, it is the
+pattern broken.
+
+The five escalating payload shapes, cheapest first: numbered resonate tokens;
+chip-assembled replies; generated follow-up prompts; accept-and-correct sign-off tokens;
+live-state exports. A view may carry more than one, and adding a rung the reader did not
+need is overproduction: this section names an obligation, not a floor to hit on every
+page.
+
+## The loop-closure and export snippet reference
+
+Canonical copy: `plugins/visualization/reference/html-loop-closure.html`, carried and
+shared on the same terms as the chrome reference below (byte-identical copy at
+`reference/html-loop-closure.html` in a second adopting plugin, registered in
+`scripts/cross-plugin-source-registry.txt` in that same change; unregistered while only
+one plugin carries it). It holds the four shared helpers every pattern is built from,
+including the clipboard boilerplate each interactive page otherwise duplicates, and one
+runnable demo per payload shape.
+
+It is reference material, not a skill: it owns no page shape, and each adopting lane
+keeps its own layout, vocabulary, and genre. Adopting it is a per-lane change, and this
+convention's instruction-size budget applies to the lines a lane adds for it.
 
 ## The shared chrome reference
 

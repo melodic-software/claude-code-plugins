@@ -1470,6 +1470,13 @@ jobs:
       - name: Check rendered-view HTML assets
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/check-html-assets.sh
+      # The loop-closure snippet reference is copied verbatim by every adopting
+      # lane, so its shared helpers get a behavioral suite on top of the markup
+      # lint above: markup linting cannot tell whether esc still escapes the
+      # single quote or whether safeHref still refuses a javascript: URL.
+      - name: Test the loop-closure snippet helpers
+        if: needs.changes.outputs.run_tests == 'true'
+        run: bash scripts/check-loop-closure-helpers.test.sh
       # scripts/lib/changed-files.sh is the base-ref and changed-file resolver
       # the checker gates share. Its NUL-safety cases are the invariant four of
       # those gates had diverged on (#2914), and no caller suite exercises a
