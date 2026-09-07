@@ -218,6 +218,26 @@ The register, not the transcript, is the authority here. After a compaction the 
 
 Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open — your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
 
+### Out-of-band drift — a return that lands before the reply
+
+The drift check above fires on a user reply. A round can also be overtaken by output the user did not write: a dispatched sub-agent's return, a background task notification, an agent-team member's report, a Monitor firing, a permission prompt raised by a sub-agent. The list is open — the test is *non-user content reaching the transcript while a round is open*, not membership of a named set. This is the ordinary consequence of the non-blocking dispatch rule ("Codebase gate per frontier question" above, and "Branch out to ground a recommendation"), so it is expected traffic, never an anomaly.
+
+**When such output lands, check it against the register's `open` rows before continuing.** The trigger is RELEVANCE, not arrival. Three outcomes, and most returns take the first:
+
+1. **It touches no open row.** Say so in one line and leave the round alone. The questions stand as asked.
+2. **It contradicts a recommendation under a question already asked.** Restate that question, naming the superseded recommendation as superseded and giving the replacement its own basis. A recommendation the session has since disproved is worse than no recommendation, because the user is answering against it.
+3. **It answers an open row from the environment.** Resolve it and STATE the answer; do not leave it standing as a question. "Facts are yours; decisions are the user's" does not stop applying because the fact arrived late.
+
+**Re-present narrowly.** One line carrying the untouched questions (*"Still open: Q5, Q6, Q8 — unchanged"*), and the full question shape ONLY for the row that actually moved. Never re-print the whole round: with several lookups in flight that is several full re-prints under one open set, which buries the round it is trying to surface. The user answers by `Q<N>` against a block they can scroll to; restoring visibility is not worth the noise, and the changed recommendation is the part they cannot recover by scrolling.
+
+**This does not hold the round.** The scoped barrier stays exactly as it is: only questions downstream of a running lookup wait, and the rest of the frontier is asked now. Holding a round until every dispatch drains would trade this failure for a serialized interview.
+
+**The floor is the next user reply.** Whether the harness gives you a turn when out-of-band output lands is not something to build correctness on. Acting the moment the output lands is the improvement, not the requirement.
+
+**When a user reply and queued out-of-band output share a turn, process the queued output first.** Apply the three outcomes against the register as it stood before the reply, then apply the reply. If the queued output changed the recommendation under a question the reply just answered, revalidate that answer against the replacement; do not treat the row as settled on the superseded recommendation. Checking the reply first would mark the row `answered`, and the queued contradiction would then touch no open row — outcome 1, and the wrong one.
+
+The rule is also surface-agnostic: it reads the register, so it does not care whether the round was asked as inline prose or through `AskUserQuestion`.
+
 ### Unattended path
 
 `/planning:interview` can be reached with no human to answer — from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (as of 2026-09-02, `https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator; recheck when either page gains one), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
