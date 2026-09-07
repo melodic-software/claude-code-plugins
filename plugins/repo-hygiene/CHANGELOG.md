@@ -12,7 +12,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   (recursive `Remove-Item`), but a `Bash`-only matcher can never hand it a PowerShell tool call,
   so that pattern was unreachable and on a host whose primary shell is PowerShell the guard was
   absent rather than merely partial. A PowerShell tool call carries its command in the same
-  `.tool_input.command` field, so the guard script itself needed no change.
+  `.tool_input.command` field.
+- The guard accepts a PowerShell acknowledgement, `$env:CLEAN_GUARD_ACK=1; <command>`, on the
+  PowerShell tool. The only documented ack was the Bash prefix `CLEAN_GUARD_ACK=1 <command>`,
+  which PowerShell cannot execute, so once the guard reached the PowerShell tool a confirmed
+  `Remove-Item -Recurse`, `git reset --hard`, or `git stash drop` had no acknowledgement path
+  short of the kill switch. Each spelling counts only on its own tool and only as the leading
+  statement with the literal value `1`: the token inside a comment or a quoted string, after the
+  destructive command, in a later pipeline segment, or with any other value does not unblock.
 - Both audit scripts stop truncating the pull-request lookup at 200 and stop swallowing its
   failures. `git-branch-audit.sh` and `git-stash-audit.sh` now share one `clean_pr_map` helper
   that raises the cap, detects truncation by comparing the returned count against the requested

@@ -72,8 +72,64 @@ for cmd in \
 done
 
 assert_exit "allows benign PowerShell tool call" 0 "$(guard_exit "Get-ChildItem -Recurse" PowerShell)"
-assert_exit "ack prefix works on the PowerShell tool too" 0 \
-  "$(guard_exit "CLEAN_GUARD_ACK=1 Remove-Item -Recurse -Force obj" PowerShell)"
+
+# --- 2c. PowerShell acknowledgement: a spelling PowerShell can actually run ------
+# `CLEAN_GUARD_ACK=1 <cmd>` is Bash syntax; pwsh rejects it ("term
+# 'CLEAN_GUARD_ACK=1' is not recognized"), so accepting it on the PowerShell
+# tool would assert an ack path that does not exist. The accepted spelling is
+# the `$env:` assignment as the FIRST statement, terminated by `;`. When pwsh is
+# on PATH, the spelling is executed for real to keep this case honest.
+
+# shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
+ps_ack='$env:CLEAN_GUARD_ACK=1;'
+for cmd in \
+  "$ps_ack Remove-Item -Recurse -Force obj" \
+  "$ps_ack git stash drop stash@{0}" \
+  "$ps_ack git reset --hard origin/main" \
+  "\$env:CLEAN_GUARD_ACK=\"1\"; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK = '1' ; Remove-Item -Recurse -Force obj"; do
+  assert_exit "PowerShell ack allows: $cmd" 0 "$(guard_exit "$cmd" PowerShell)"
+done
+
+if command -v pwsh >/dev/null 2>&1; then
+  ps_seen="$(pwsh -NoProfile -NonInteractive -Command "$ps_ack Write-Output \"ack=\$env:CLEAN_GUARD_ACK\"" 2>/dev/null)"
+  assert_contains "pwsh executes the accepted ack spelling and the value reaches the command" "$ps_seen" "ack=1"
+  pwsh -NoProfile -NonInteractive -Command 'CLEAN_GUARD_ACK=1 Write-Output hi' >/dev/null 2>&1
+  assert_exit "pwsh cannot execute the Bash ack spelling" 1 $?
+else
+  skip_case "pwsh not on PATH: live execution of the PowerShell ack spelling not verified"
+fi
+
+# The ack is a deny-to-allow widening: it counts only as the leading statement
+# with a truthy literal value. None of these may unblock a destructive command.
+for cmd in \
+  "Remove-Item -Recurse -Force obj # $ps_ack" \
+  "# $ps_ack Remove-Item -Recurse -Force obj" \
+  "Write-Host \"$ps_ack\"; Remove-Item -Recurse -Force obj" \
+  "'$ps_ack'; Remove-Item -Recurse -Force obj" \
+  "Remove-Item -Recurse -Force obj; \$env:CLEAN_GUARD_ACK=1" \
+  "Get-ChildItem | ForEach-Object { \$env:CLEAN_GUARD_ACK=1 }; Remove-Item -Recurse -Force obj" \
+  "Get-Location; $ps_ack Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=0; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=''; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=\$null; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=10; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=1 Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=1 | Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACKX=1; Remove-Item -Recurse -Force obj" \
+  "\$env:CLEAN_GUARD_ACK=\"1; Remove-Item -Recurse -Force obj\"" \
+  "CLEAN_GUARD_ACK=1 Remove-Item -Recurse -Force obj"; do
+  assert_exit "PowerShell ack does not bypass: $cmd" 2 "$(guard_exit "$cmd" PowerShell)"
+done
+
+# The PowerShell spelling is not an assignment in Bash (`$env` expands empty,
+# `:CLEAN_GUARD_ACK=1` is a failed command lookup, and the command still runs).
+assert_exit "PowerShell ack spelling is not an ack on the Bash tool" 2 "$(guard_exit "$ps_ack git stash drop" Bash)"
+assert_exit "Bash ack is not accepted inside a comment" 2 "$(guard_exit "git stash drop # CLEAN_GUARD_ACK=1" Bash)"
+assert_exit "Bash ack is not accepted after the command" 2 "$(guard_exit "git stash drop stash@{0}; CLEAN_GUARD_ACK=1" Bash)"
+
+ps_reason=$(jq -n '{tool_name:"PowerShell",tool_input:{command:"Remove-Item -Recurse -Force obj"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
+assert_contains "PowerShell block reason names the PowerShell ack spelling" "$ps_reason" "$ps_ack"
 
 # --- 3. Block reason reaches stderr ----------------------------------------------
 
@@ -130,6 +186,7 @@ if [[ "$(PATH="$NOJQ_DIR" "$NOJQ_DIR/bash" -c 'command -v jq >/dev/null 2>&1 && 
   assert_exit "no jq: blocks rm -rf payload" 2 "$(nojq_exit "rm -rf build/")"
   assert_exit "no jq: benign payload passes" 0 "$(nojq_exit "git status")"
   assert_exit "no jq: ack prefix does NOT bypass (unverifiable)" 2 "$(nojq_exit "CLEAN_GUARD_ACK=1 git clean -fdx")"
+  assert_exit "no jq: PowerShell ack does NOT bypass (unverifiable)" 2 "$(nojq_exit "$ps_ack Remove-Item -Recurse -Force obj")"
   reason=$(printf '{"tool_input":{"command":"git clean -fdx"}}' | PATH="$NOJQ_DIR" "$NOJQ_DIR/bash" "$SCRIPT" 2>&1 >/dev/null)
   assert_contains "no jq: block reason names degraded mode" "$reason" "degraded mode: jq not found"
 else
