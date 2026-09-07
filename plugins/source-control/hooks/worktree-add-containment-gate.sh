@@ -248,10 +248,16 @@ repo_enclosing() {
 configured_root() {
   local hint="$1" r=""
   if [[ -n "$hint" ]] && git -C "$hint" rev-parse --git-dir >/dev/null 2>&1; then
-    # Single-command group again: `tail -n 1` is the last line of the captured
-    # value and `tr -d '\r'` is a parameter expansion, so the whole read is one
-    # git process (5 creations / 3 execve before, 1 / 1 after).
-    { r=$(git -C "$hint" config --get-all --type=path melodic.worktreeroot); } 2>/dev/null
+    # Last-wins without `tail`: a sentinel is captured inside the substitution
+    # so command substitution cannot strip a blank final record (an empty last
+    # `melodic.worktreeroot` value must stay empty, matching
+    # `scripts/worktree-create.sh`'s `tail -n 1`, which then falls through to
+    # the plugin option). Strip the sentinel, then one trailing newline (the
+    # last record's terminator), then take the last line. CR strip stays a
+    # parameter expansion.
+    { r=$(git -C "$hint" config --get-all --type=path melodic.worktreeroot; printf x); } 2>/dev/null
+    r="${r%x}"
+    r="${r%$'\n'}"
     r="${r##*$'\n'}"
     r="${r//$'\r'/}"
   fi

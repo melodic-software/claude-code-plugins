@@ -20,7 +20,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `.name` still falls through to the string-shaped fallback rung and is still refused.
   `git_unlocated`'s `2>/dev/null` moved onto its subshell, so bash execs `git` there instead of
   forking for it. The block message's `git config --get-all | tail -n 1 | tr -d '\r'` root
-  lookup collapsed to one `git`. The claim gate's write-only stderr temp file (a `mktemp` and an
+  lookup collapsed to one `git`, with a sentinel captured inside the substitution so a
+  blank last `melodic.worktreeroot` value stays empty (command substitution would
+  otherwise strip it and recommend the preceding path while `worktree-create.sh`'s
+  `tail -n 1` falls through). The claim gate's write-only stderr temp file (a `mktemp` and an
   `rm` whose contents were never read) became `2>/dev/null`, which also removes the
   `|| continue` that silently skipped a claim whenever `TMPDIR` was unwritable.
 
@@ -39,7 +42,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   | create, a payload carrying no `.name` | 19 → 13 | 6 → 4 |
 
   The `execve` drops are named removals, not removed work: `tr -d '\r'` (a parameter expansion
-  now), `tail -n 1` (a `${r##*$'\n'}` expansion), `head -n 1` (a `${v%%$'\n'*}` expansion), and
+  now), `tail -n 1` (a sentinel plus a last-line expansion, so an empty last record
+  stays empty), `head -n 1` (a `${v%%$'\n'*}` expansion), and
   the claim gate's `mktemp`/`rm` pair. Every remaining `jq`, `git` and `sed` call is the same
   call with the same arguments. Four of the seven creations left on the hot path belong to
   `lib/hook-utils.sh` (the `hook::buffer_stdin` substitution and `hook::json_complete`'s
@@ -55,6 +59,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   when any of the three gates feeds `$INPUT` or `$payload` to a reader by here-string, the one
   regression the ceilings cannot see because it lowers the count. It skips as a suite where
   `strace` is absent or cannot ptrace, rather than asserting on empty trace output.
+
 ## [0.55.62]
 
 ### Changed

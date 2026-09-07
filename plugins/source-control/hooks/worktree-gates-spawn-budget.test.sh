@@ -121,9 +121,15 @@ assert_budget "containment, non-add command" "$CONTAIN" \
 assert_budget "containment, add outside a repo" "$CONTAIN" \
   "$(payload "$OUTSIDE" "git worktree add $OUTSIDE/wt-ok -b b1" PreToolUse)" 18 5
 
-# The deny path, including the block message's configured-root lookup.
-assert_budget "containment, add into a working tree" "$CONTAIN" \
+# The deny path that names the configured root via `git -C` (the command
+# locates the repo; cwd is outside it). Distinct from a plain add whose cwd
+# is already the working tree.
+assert_budget "containment, git -C <repo> add (names root)" "$CONTAIN" \
   "$(payload "$OUTSIDE" "git -C $REPO worktree add sub/nested" PreToolUse)" 20 6
+
+# The deny path with no `-C`: cwd is the working tree, command is a relative add.
+assert_budget "containment, add into a working tree" "$CONTAIN" \
+  "$(payload "$REPO" "git worktree add sub/nested" PreToolUse)" 18 5
 
 # ── claim gate (PostToolUse:Bash) ───────────────────────────────────────────
 assert_budget "claim, non-add command" "$CLAIM" \
