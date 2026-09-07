@@ -342,10 +342,13 @@ a bare draft comparison would never run the review an operator asked for.
 the shared Claude seat instead of contending for it; the security caller queues per pull request
 with `cancel-in-progress: false`. This is a deliberate exception to the cancel-in-progress posture
 `ci.yml` applies to every other pull-request lane, and it is affordable only because these lanes are
-advisory: a queued review blocks no merge. Two mechanics constrain the shape. `queue` and
-`cancel-in-progress` cannot be combined on one group
+advisory: a queued review blocks no merge. The two lanes are deliberately not normalized to each
+other, and two mechanics constrain the code-review shape. `queue: max` and `cancel-in-progress:
+true` cannot be combined on one group; that pairing is a workflow validation error
 (<https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency>),
-so the queue is a job-level group beside the workflow-level cancel group rather than a change to it;
+while `cancel-in-progress: false` beside a `queue` key is legal, which is the shape the security
+lane uses. So the queue is a job-level group beside the workflow-level cancel group rather than a
+change to it;
 and the group is deliberately distinct from the reusable workflow's own inner group, which is keyed
 per pull request and head SHA, because a caller group sharing that name would deadlock the call
 against itself. Anthropic's documented behaviour for its own review product is the same: a second
