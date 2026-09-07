@@ -5,6 +5,7 @@ import {
   DEFAULT_VIDEO_PLAYER_SELECTOR,
   getCapturedData,
   getHlsUrl,
+  getTranscript,
   hasHotmartPlayer,
   installInterceptors,
   isInterceptorsInstalled,
@@ -29,6 +30,8 @@ function makeMockPage(url = "https://example.com") {
         await l.handler(payload);
       }
     },
+    evaluate: async () => false,
+    frames: () => [],
   };
 }
 
@@ -38,20 +41,36 @@ describe("hotmart player module", () => {
   });
 
   describe("clearCapturedData", () => {
-    it("should remove entry for a specific URL", () => {
+    it("should remove entry for a specific Page", () => {
+      const page = makeMockPage("https://example.com/lesson/1");
       const data = getCapturedData();
-      data.set("https://example.com/lesson/1", {
+      data.set(page, {
         hlsMasterUrl: "https://cdn.hotmart.com/master.m3u8",
         subtitleManifestBody: null,
       });
-      expect(data.has("https://example.com/lesson/1")).toBe(true);
+      expect(data.has(page)).toBe(true);
 
-      clearCapturedData("https://example.com/lesson/1");
-      expect(data.has("https://example.com/lesson/1")).toBe(false);
+      clearCapturedData(page);
+      expect(data.has(page)).toBe(false);
     });
 
-    it("should not throw when URL does not exist", () => {
-      expect(() => clearCapturedData("https://nonexistent.com")).not.toThrow();
+    it("should not throw when the Page has no entry", () => {
+      expect(() => clearCapturedData(makeMockPage("https://nonexistent.com"))).not.toThrow();
+    });
+
+    it("should not clear another Page on the same URL", () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const secondPage = makeMockPage(lessonUrl);
+      const data = getCapturedData();
+      data.set(firstPage, { hlsMasterUrl: "first", subtitleManifestBody: null });
+      data.set(secondPage, { hlsMasterUrl: "second", subtitleManifestBody: null });
+
+      clearCapturedData(secondPage);
+
+      expect(data.has(firstPage)).toBe(true);
+      expect(data.has(secondPage)).toBe(false);
+      expect(getHlsUrl(firstPage)).toBe("first");
     });
   });
 
@@ -106,46 +125,112 @@ describe("hotmart player module", () => {
 
       expect(getHlsUrl(secondPage)).toBe(masterUrl);
     });
+
+    it("should keep each Page's HLS capture when both sit on the same URL", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const secondPage = makeMockPage(lessonUrl);
+      const firstMaster = "https://cdn.hotmart.com/master-pkg-t-first.m3u8";
+      const secondMaster = "https://cdn.hotmart.com/master-pkg-t-second.m3u8";
+
+      installInterceptors(firstPage, "eng");
+      installInterceptors(secondPage, "eng");
+
+      await firstPage.emit("request", { url: () => firstMaster });
+      await secondPage.emit("request", { url: () => secondMaster });
+
+      expect(getHlsUrl(firstPage)).toBe(firstMaster);
+      expect(getHlsUrl(secondPage)).toBe(secondMaster);
+    });
+
+    it("should not let a same-URL Page read another Page's HLS capture", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const secondPage = makeMockPage(lessonUrl);
+      const firstMaster = "https://cdn.hotmart.com/master-pkg-t-first.m3u8";
+
+      installInterceptors(firstPage, "eng");
+      installInterceptors(secondPage, "eng");
+
+      await firstPage.emit("request", { url: () => firstMaster });
+
+      expect(getHlsUrl(firstPage)).toBe(firstMaster);
+      expect(() => getHlsUrl(secondPage)).toThrow("No HLS master URL captured");
+    });
+
+    it("should keep each Page's subtitle capture when both sit on the same URL", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const secondPage = makeMockPage(lessonUrl);
+
+      installInterceptors(firstPage, "eng");
+      installInterceptors(secondPage, "eng");
+
+      await firstPage.emit("response", {
+        url: () => "https://cdn.hotmart.com/textstream_eng.m3u8",
+        status: () => 200,
+        text: async () => "manifest-first",
+      });
+      await secondPage.emit("response", {
+        url: () => "https://cdn.hotmart.com/textstream_eng.m3u8",
+        status: () => 200,
+        text: async () => "manifest-second",
+      });
+
+      expect(getCapturedData().get(firstPage).subtitleManifestBody).toBe("manifest-first");
+      expect(getCapturedData().get(secondPage).subtitleManifestBody).toBe("manifest-second");
+    });
   });
 
   describe("resetState", () => {
     it("should clear captured data and forget installed pages", () => {
-      const data = getCapturedData();
-      data.set("url1", { hlsMasterUrl: "x", subtitleManifestBody: null });
-
       const mockPage = makeMockPage("");
+      getCapturedData().set(mockPage, { hlsMasterUrl: "x", subtitleManifestBody: null });
       installInterceptors(mockPage, "eng");
 
-      expect(data.size).toBe(1);
+      expect(getCapturedData().has(mockPage)).toBe(true);
       expect(isInterceptorsInstalled(mockPage)).toBe(true);
 
       resetState();
 
-      expect(data.size).toBe(0);
+      expect(getCapturedData().has(mockPage)).toBe(false);
       expect(isInterceptorsInstalled(mockPage)).toBe(false);
     });
   });
 
   describe("getHlsUrl", () => {
     it("should return the captured HLS master URL", () => {
-      const data = getCapturedData();
       const testUrl = "https://example.com/lesson/1";
       const cdnBase = "https://cdn.hotmart.com/";
       const masterPath = "master-pkg-t-xyz.m3u8";
       const tokenQuery = "?token=abc";
       const hlsMasterUrl = `${cdnBase}${masterPath}${tokenQuery}`;
-      data.set(testUrl, {
+      const mockPage = { url: () => testUrl };
+      getCapturedData().set(mockPage, {
         hlsMasterUrl,
         subtitleManifestBody: null,
       });
 
-      const mockPage = { url: () => testUrl };
       expect(getHlsUrl(mockPage)).toBe(hlsMasterUrl);
     });
 
     it("should throw when no HLS URL captured", () => {
       const mockPage = { url: () => "https://example.com/no-data" };
       expect(() => getHlsUrl(mockPage)).toThrow("No HLS master URL captured");
+    });
+  });
+
+  describe("getTranscript", () => {
+    it("should not let a same-URL Page read another Page's subtitle capture", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const secondPage = makeMockPage(lessonUrl);
+      getCapturedData().set(firstPage, {
+        hlsMasterUrl: "https://cdn.hotmart.com/master-pkg-t-first.m3u8",
+        subtitleManifestBody: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello",
+      });
+
+      await expect(getTranscript(secondPage)).rejects.toThrow("No subtitle manifest captured");
     });
   });
 
@@ -215,9 +300,9 @@ describe("hotmart player module", () => {
   });
 
   describe("preparePage selector threading", () => {
-    function makeDetectionPage(presentSelector) {
+    function makeDetectionPage(presentSelector, url = "https://example.com/lesson/1") {
       return {
-        url: () => "https://example.com/lesson/1",
+        url: () => url,
         evaluate: async (fn, arg) => {
           const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
           const document = {
@@ -246,6 +331,39 @@ describe("hotmart player module", () => {
       await expect(preparePage(page, "eng", 15000, ".skin-v2-player")).rejects.toThrow(
         "iframe not accessible",
       );
+    });
+
+    it("should not clear another Page's capture when preparing a same-URL Page", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const firstPage = makeMockPage(lessonUrl);
+      const firstMaster = "https://cdn.hotmart.com/master-pkg-t-first.m3u8";
+      installInterceptors(firstPage, "eng");
+      await firstPage.emit("request", { url: () => firstMaster });
+
+      const secondPage = makeDetectionPage(DEFAULT_VIDEO_PLAYER_SELECTOR, lessonUrl);
+      const result = await preparePage(secondPage, "eng", 15000, ".skin-v2-player");
+
+      expect(result).toEqual({ hasVideo: false, hotmartFrame: null });
+      expect(getHlsUrl(firstPage)).toBe(firstMaster);
+    });
+
+    it("should clear only this Page's capture at the start of preparePage", async () => {
+      const lessonUrl = "https://example.com/lesson/1";
+      const page = makeMockPage(lessonUrl);
+      const otherPage = makeMockPage(lessonUrl);
+      const pageMaster = "https://cdn.hotmart.com/master-pkg-t-page.m3u8";
+      const otherMaster = "https://cdn.hotmart.com/master-pkg-t-other.m3u8";
+
+      installInterceptors(page, "eng");
+      installInterceptors(otherPage, "eng");
+      await page.emit("request", { url: () => pageMaster });
+      await otherPage.emit("request", { url: () => otherMaster });
+
+      const result = await preparePage(page, "eng", 15000, ".skin-v2-player");
+
+      expect(result).toEqual({ hasVideo: false, hotmartFrame: null });
+      expect(() => getHlsUrl(page)).toThrow("No HLS master URL captured");
+      expect(getHlsUrl(otherPage)).toBe(otherMaster);
     });
   });
 });
