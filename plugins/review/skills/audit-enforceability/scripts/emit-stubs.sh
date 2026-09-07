@@ -36,14 +36,21 @@
 # THE HOME FENCE. A stub must never be admitted by the fix action's merge set.
 # That action scans the binding's resolved reviews location for `*.md` files
 # whose frontmatter declares `type: review-findings`. A stub declares
-# `type: enforceability-stub` and carries no `branch:` key, which is the
-# load-bearing exclusion; the refusals below are defense in depth. This
-# script refuses, writing nothing, when --out is --scan-dir or sits under it,
-# and when --out is the findings file's own directory or sits under it. Each
-# path is normalized lexically and then folded to the filesystem's own spelling
-# of its deepest EXISTING ancestor, so two spellings of one directory compare
-# equal. Neither directory need exist, and nothing is created to decide a
-# refusal: a refused run leaves the tree exactly as it found it.
+# `type: enforceability-stub`, and THAT marker is the load-bearing exclusion:
+# the merge set is keyed on `type:`, so a stub is excluded by declaring the
+# wrong one. The absent `branch:` key is the weaker clause and is not what
+# excludes: an unanchored `branch:` search matches every stub anyway, through
+# the `source-branch:` key each one carries. The refusals below are defense in
+# depth. This script refuses, writing nothing, when --out is --scan-dir or sits
+# under it, and when --out is the findings file's own directory or sits under
+# it. Each path is normalized lexically and then folded to the filesystem's own
+# spelling of its deepest EXISTING ancestor, so two spellings of one directory
+# compare equal. Nothing is created to decide a refusal: a refused run leaves
+# the tree exactly as it found it. Neither directory need exist, but existence
+# decides WHO answers. For the part of a chain that exists the filesystem
+# answers, by device and inode. For the part that does not, a spelling fold
+# answers, and that fold is deliberately coarser than any filesystem's, so the
+# absent case is refused wherever it might be one directory.
 #
 # THE BRANCH SLUG IS NOT A PATH HERE. The findings file's `branch:` value is
 # operator-supplied text: this script records it as `source-branch:` in the
@@ -264,6 +271,14 @@ canonicalize_dir() {
 # compare calls two. So the string compare is the FAST PATH, and a walk that
 # asks the filesystem itself (`-ef`, which compares device and inode rather than
 # spelling) is the authority for the part of the path that exists.
+#
+# THIS PREDICATE IS THE STRICT ONE, and it stays strict. It answers "not within"
+# whenever the filesystem cannot settle the question, which is the fail-closed
+# direction for the two --memory-root checks, its only remaining callers: a
+# composed home whose root is absent must not be admitted on a spelling match
+# alone. The two home
+# fences want the opposite default, since for them a positive answer is a
+# refusal, and they call may_be_within below instead.
 is_within() {
   local candidate="$1" ancestor="$2" had_nocase=0 rc=1 probe prev
   shopt -q nocasematch && had_nocase=1
@@ -283,6 +298,129 @@ is_within() {
       return 0
     fi
     prev="$probe"
+    probe="${probe%/*}"
+    [[ "$probe" =~ ^[A-Za-z]:$ ]] && probe="$probe/"
+    [[ -n "$probe" ]] || probe="/"
+    [[ "$probe" != "$prev" ]] || return 1
+  done
+}
+
+# fold_path <path>: the spelling-insensitive rendering the fences compare when
+# the filesystem cannot answer. ASCII letters fold to upper case; every other
+# ASCII character stands; a RUN of anything else folds to one placeholder.
+# Result in FOLDED rather than on stdout: same spawn-avoidance as
+# normalize_path.
+#
+# The fold is deliberately COARSER than any filesystem's, and that is the whole
+# design. A fold that tried to match NTFS character for character would need
+# NTFS's upcase table; a fold that used `nocasematch` or `${p,,}` would inherit
+# whatever the ambient locale happens to be, which is the hole this closes. So
+# instead of asking which non-ASCII characters a filesystem folds together, this
+# treats every one of them as indistinguishable from every other, and from a run
+# of them. `réviews` and `RÉVIEWS` fold alike, which is the point; so do
+# `révu` and `rêvu`, which is the cost. That cost is a VISIBLE refusal of two
+# genuinely distinct non-ASCII siblings, recoverable by renaming one, and it is
+# paid only where the filesystem could not be asked. The opposite error, a
+# silent write into the fix action's scan directory, is not recoverable, and it
+# is the error the ASCII-only compare actually made.
+FOLDED=""
+fold_path() {
+  local rest="$1" ch head out=""
+  local lower='abcdefghijklmnopqrstuvwxyz'
+  local upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  # Every ASCII character that stands as itself. Anything absent from both this
+  # and the lower-case set is what the placeholder covers, control characters
+  # included: they are unaddressable in a path and folding them together is the
+  # same fail-closed direction.
+  local kept='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !"#$%&'"'"'()*+,-./:;<=>?@[\]^_`{|}~'
+  while [[ -n "$rest" ]]; do
+    ch="${rest:0:1}"
+    rest="${rest:1}"
+    head="${lower%%"$ch"*}"
+    if [[ "$head" != "$lower" ]]; then
+      out="$out${upper:${#head}:1}"
+      continue
+    fi
+    head="${kept%%"$ch"*}"
+    if [[ "$head" != "$kept" ]]; then
+      out="$out$ch"
+      continue
+    fi
+    # Collapsing a RUN rather than emitting one placeholder per character is
+    # what makes this independent of how the shell slices the string: a UTF-8
+    # locale yields one character where the C locale yields two bytes, and both
+    # land on the same placeholder.
+    [[ "$out" == *$'\001' ]] || out="$out"$'\001'
+  done
+  FOLDED="$out"
+}
+
+# split_existing <path>: SPLIT_BASE gets the deepest ancestor of <path> that
+# exists (the path itself when it does), SPLIT_TAIL the segments below it.
+# Walks UP only, so nothing is created to decide it.
+SPLIT_BASE=""
+SPLIT_TAIL=""
+split_existing() {
+  local p="$1" tail="" prev
+  while [[ ! -e "$p" ]]; do
+    prev="$p"
+    tail="${p##*/}${tail:+/$tail}"
+    p="${p%/*}"
+    [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
+    [[ -n "$p" ]] || p="/"
+    if [[ "$p" == "$prev" ]]; then
+      SPLIT_BASE=""
+      SPLIT_TAIL=""
+      return 1
+    fi
+  done
+  SPLIT_BASE="$p"
+  SPLIT_TAIL="$tail"
+}
+
+# may_be_within <candidate> <ancestor>: the FENCE predicate. True when the
+# candidate is the ancestor, sits under it, or might be either. Where is_within
+# answers "no" on anything the filesystem cannot settle, this answers "yes",
+# because here a positive answer is a refusal and the unsettled case is exactly
+# the one that must not be written into.
+#
+# Two arms, both fail-closed, neither creating anything:
+#
+#   1. The folded spellings. Subsumes the exact and `nocasematch` compares
+#      is_within uses, and unlike them it folds a non-ASCII case variant.
+#   2. The filesystem, generalized past the "ancestor exists" gate is_within
+#      stops at. The ancestor is split at its deepest EXISTING ancestor; the
+#      candidate is walked up to a prefix that IS that directory by device and
+#      inode; and what is left of each path, which by construction exists on
+#      neither side, is settled by the fold. When the ancestor exists whole,
+#      its tail is empty and this reduces to the walk is_within already does.
+may_be_within() {
+  local candidate="$1" ancestor="$2" tail="" probe prev
+  local c_folded a_folded a_base a_tail
+  fold_path "$candidate"
+  c_folded="$FOLDED"
+  fold_path "$ancestor"
+  a_folded="$FOLDED"
+  if [[ "$c_folded" == "$a_folded" || "$c_folded" == "${a_folded%/}/"* ]]; then
+    return 0
+  fi
+
+  split_existing "$ancestor" || return 1
+  a_base="$SPLIT_BASE"
+  a_tail="$SPLIT_TAIL"
+  fold_path "$a_tail"
+  a_folded="$FOLDED"
+  probe="$candidate"
+  while :; do
+    if [[ -e "$probe" ]] && [[ "$probe" -ef "$a_base" ]]; then
+      [[ -n "$a_tail" ]] || return 0
+      fold_path "$tail"
+      c_folded="$FOLDED"
+      [[ "$c_folded" == "$a_folded" || "$c_folded" == "${a_folded%/}/"* ]]
+      return $?
+    fi
+    prev="$probe"
+    tail="${probe##*/}${tail:+/$tail}"
     probe="${probe%/*}"
     [[ "$probe" =~ ^[A-Za-z]:$ ]] && probe="$probe/"
     [[ -n "$probe" ]] || probe="/"
@@ -500,12 +638,12 @@ NORM="$findings_dir_abs"
 canonicalize_dir
 findings_dir_abs="$NORM"
 
-if is_within "$out_abs" "$scan_abs"; then
+if may_be_within "$out_abs" "$scan_abs"; then
   printf 'refusing: the stub home %s is the fix action scan directory %s or sits under it; a stub written there is offered to the fix pass.\n' \
     "$out_abs" "$scan_abs" >&2
   exit 3
 fi
-if is_within "$out_abs" "$findings_dir_abs"; then
+if may_be_within "$out_abs" "$findings_dir_abs"; then
   printf 'refusing: the stub home %s is the findings file directory %s or sits under it; that directory is a findings home, not a stub home.\n' \
     "$out_abs" "$findings_dir_abs" >&2
   exit 3
@@ -619,7 +757,10 @@ count=0
 malformed=0
 
 mkdir_done=0
-created_home=0
+# Every directory level `mkdir -p` will create, deepest first, and only those:
+# the rollback below removes exactly this list. A level that already existed is
+# never recorded, so a home the caller had prepared survives a refusal.
+declare -a created_dirs=()
 
 while IFS= read -r record; do
   [[ -n "$record" ]] || continue
@@ -673,7 +814,18 @@ while IFS= read -r record; do
   fi
 
   if [[ $mkdir_done -eq 0 ]]; then
-    [[ -d "$out" ]] || created_home=1
+    # `mkdir -p` creates every absent level, not just the innermost, so every
+    # absent level is recorded. Separators are folded first, or a Windows-style
+    # --out reads as one segment and the levels above the last one are missed.
+    mk_probe="${out//\\//}"
+    while [[ ! -d "$mk_probe" ]]; do
+      created_dirs+=("$mk_probe")
+      mk_prev="$mk_probe"
+      mk_probe="${mk_probe%/*}"
+      [[ "$mk_probe" =~ ^[A-Za-z]:$ ]] && mk_probe="$mk_probe/"
+      [[ -n "$mk_probe" ]] || mk_probe="/"
+      [[ "$mk_probe" != "$mk_prev" ]] || break
+    done
     if ! mkdir -p "$out"; then
       printf 'refusing: could not create the stub home %s.\n' "$out" >&2
       exit 2
@@ -787,12 +939,17 @@ if [[ -n "$violation" ]]; then
   # option, `rm` refuses the lot, and the rollback this refusal promises would
   # silently leave the marker-bearing stubs on disk.
   rm -f -- ${written[@]+"${written[@]}"}
-  # Only a home THIS RUN created is removed. `rmdir` alone would also delete a
-  # pre-existing empty home the caller had prepared, which is state the run did
-  # not create and has no business destroying.
-  if [[ $created_home -eq 1 ]]; then
-    rmdir -- "$out" 2>/dev/null || :
-  fi
+  # Only the levels THIS RUN created are removed, deepest first, and `rmdir`
+  # refuses a non-empty one. Both halves are load-bearing: `rmdir` on the whole
+  # chain would delete a pre-existing empty home the caller had prepared, which
+  # is state the run did not create; removing only the innermost level would
+  # leave the empty parents behind when `mkdir -p` created more than one, so a
+  # refused run would not leave the tree as it found it after all. The first
+  # level that will not go stops the walk, since every level above it is that
+  # level's parent and cannot be empty either.
+  for created_dir in ${created_dirs[@]+"${created_dirs[@]}"}; do
+    rmdir -- "$created_dir" 2>/dev/null || break
+  done
   printf 'refusing: %s carried a findings-file marker, which would offer it to the fix pass. Every stub this run wrote has been removed.\n' \
     "$violation" >&2
   exit 4

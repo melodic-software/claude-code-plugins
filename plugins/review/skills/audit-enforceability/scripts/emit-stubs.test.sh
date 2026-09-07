@@ -510,6 +510,10 @@ assert_eq "case 21: the charset-ok home got its seven stubs" "7" "$(count_files 
 # A string compare folds ASCII only when no locale is set, while the filesystem
 # folds all of Unicode, so a non-ASCII segment spelled two ways is one directory
 # the string compare calls two. This is the arm case 17 cannot cover.
+#
+# This case PRE-CREATES the scan directory, so it exercises only the arm where
+# the filesystem has an inode to compare. Case 27 is its sibling for the arm
+# where neither spelling exists yet, which is decided by the fold alone.
 UNI="$TEST_TMPDIR/uni"
 if mkdir -p "$UNI/réviews/feat-x" 2>/dev/null && [[ -d "$UNI/réviews/feat-x" ]]; then
   cp "$FINDINGS" "$UNI/réviews/feat-x/review-findings.md"
@@ -578,6 +582,92 @@ bash "$EMIT" --findings "$EMPTY_RANK" --classes "$CLASSES" --out "$OUT25" \
   --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 26: an empty Rank cell does not fail the run" "0" "$?"
 assert_eq "case 26: the empty-Rank row still produced a stub" "7" "$(count_files "$OUT25")"
+
+# --- Case 27: a non-ASCII case variant of an ABSENT --scan-dir ---------------
+#
+# The arm case 22 cannot reach. With the scan directory pre-created there is an
+# inode to compare and the walk settles it; with NEITHER spelling present there
+# is nothing to ask the filesystem, and an ASCII-only fold reads `RÉVIEWS` and
+# `réviews` as two directories that a folding volume resolves to one. The
+# refusal must be the same exit 3 the pre-created arm gives, and it is asserted
+# on both kinds of volume: refusing a genuinely distinct sibling that differs
+# only in case is the documented cost of the fence, exactly as case 17 asserts
+# it for the ASCII spelling.
+UNI_OK=0
+if mkdir -p "$TEST_TMPDIR/uni-probe/réviews" 2>/dev/null && [[ -d "$TEST_TMPDIR/uni-probe/réviews" ]]; then
+  UNI_OK=1
+  rm -rf "$TEST_TMPDIR/uni-probe"
+fi
+
+if [[ "$UNI_OK" -eq 1 ]]; then
+  ABSENT="$TEST_TMPDIR/absent-uni"
+  mkdir -p "$ABSENT"
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+    --out "$ABSENT/réviews/feat-x" --scan-dir "$ABSENT/RÉVIEWS/feat-x" \
+    --memory-root "$ABSENT" >/dev/null 2>&1
+  assert_eq "case 27: an absent non-ASCII case variant of --scan-dir is refused" "3" "$?"
+  assert_eq "case 27: the stub home was never created" "0" \
+    "$([[ -e "$ABSENT/réviews/feat-x" ]] && echo 1 || echo 0)"
+  assert_eq "case 27: the scan directory was never created either" "0" \
+    "$([[ -e "$ABSENT/RÉVIEWS/feat-x" ]] && echo 1 || echo 0)"
+  absent_left=0
+  for f in "$ABSENT"/*; do
+    [[ -e "$f" ]] && absent_left=$((absent_left + 1))
+  done
+  assert_eq "case 27: the refused run created nothing at all under the root" "0" "$absent_left"
+else
+  skip_case "case 27: this filesystem does not accept a non-ASCII path segment"
+fi
+
+# --- Case 28: a non-ASCII case variant of the findings directory -------------
+#
+# The second anchor. Its ancestor cannot be absent: --findings must name a file
+# that exists, which pins its directory into existence, so a folding volume
+# settles this pair by inode. A volume that does NOT fold has two distinct
+# directories and no inode to share, and the fold is then the only thing that
+# refuses. One case, both volumes, the same exit 3.
+if [[ "$UNI_OK" -eq 1 ]]; then
+  UNIF="$TEST_TMPDIR/uni-findings"
+  mkdir -p "$UNIF/réviews/feat-x"
+  cp "$FINDINGS" "$UNIF/réviews/feat-x/review-findings.md"
+  bash "$EMIT" --findings "$UNIF/réviews/feat-x/review-findings.md" --classes "$CLASSES" \
+    --out "$UNIF/RÉVIEWS/feat-x/stubs" --scan-dir "$TEST_TMPDIR/elsewhere28" >/dev/null 2>&1
+  assert_eq "case 28: a non-ASCII case variant of the findings directory is refused" "3" "$?"
+  assert_eq "case 28: the case-variant stub home was never created" "0" \
+    "$([[ -e "$UNIF/RÉVIEWS/feat-x/stubs" ]] && echo 1 || echo 0)"
+  assert_eq "case 28: the findings directory still holds only its own file" "1" \
+    "$(count_files "$UNIF/réviews/feat-x")"
+else
+  skip_case "case 28: this filesystem does not accept a non-ASCII path segment"
+fi
+
+# --- Case 29: the rollback removes every level the run created ---------------
+#
+# `mkdir -p` creates every absent level of the home, so a rollback that removed
+# only the innermost one left an empty parent behind and the refused run did not
+# leave the tree as it found it. Both halves are asserted: every created level
+# goes, and no level that was already there does.
+RB="$TEST_TMPDIR/rollback"
+mkdir -p "$RB"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB/a/b" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
+assert_eq "case 29: a two-level home still exits 4 on a forbidden marker" "4" "$?"
+assert_eq "case 29: the innermost created level is gone" "0" \
+  "$([[ -e "$RB/a/b" ]] && echo 1 || echo 0)"
+assert_eq "case 29: the parent level the same mkdir created is gone too" "0" \
+  "$([[ -e "$RB/a" ]] && echo 1 || echo 0)"
+assert_eq "case 29: the level the run did not create survives" "1" \
+  "$([[ -d "$RB" ]] && echo 1 || echo 0)"
+
+RB2="$TEST_TMPDIR/rollback2/kept"
+mkdir -p "$RB2"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB2/made" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
+assert_eq "case 29: a home whose parent already existed still exits 4" "4" "$?"
+assert_eq "case 29: the one level this run created is gone" "0" \
+  "$([[ -e "$RB2/made" ]] && echo 1 || echo 0)"
+assert_eq "case 29: the prepared parent survives the rollback" "1" \
+  "$([[ -d "$RB2" ]] && echo 1 || echo 0)"
 
 # --- Dry run ------------------------------------------------------------------
 
