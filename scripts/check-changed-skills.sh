@@ -52,6 +52,19 @@ if [[ ! -f "$CHECKER" ]]; then
   exit 2
 fi
 
+# Recorded pre-existing `description` field-cap breaches, handed to the checker's
+# check 2b so those skills WARN where an unrecorded breach FAILs (#3845).
+#
+# Absent = passed empty, which means NO downgrades: the checker then FAILs every
+# breach. That is the safe direction for a file that has gone missing (the gate
+# gets stricter and says so, loudly, on the next changed skill), and it is what
+# lets the fixture repos in the test suite run the real checker without carrying
+# this repo's baseline. SKILL_DESC_CAP_BASELINE overrides the path for tests.
+DESC_CAP_BASELINE="${SKILL_DESC_CAP_BASELINE-}"
+if [[ -z "${SKILL_DESC_CAP_BASELINE+set}" && -f "$PWD/scripts/skill-description-cap-baseline.txt" ]]; then
+  DESC_CAP_BASELINE="$PWD/scripts/skill-description-cap-baseline.txt"
+fi
+
 # Recorded evals-warrant skips. Missing file = no skips (tests, other repos).
 # A stale row is a gate failure so the list can only shrink.
 EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
@@ -149,6 +162,7 @@ for skill_dir in ${changed[@]+"${changed[@]}"}; do
   if ! CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
     CHECK_SKILL_BASE_REF="$BASE" \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    CHECK_SKILL_DESC_FIELD_BASELINE="$DESC_CAP_BASELINE" \
     bash "$CHECKER" ${require_evals_args[@]+"${require_evals_args[@]}"} "$skill_name"; then
     failed=$((failed + 1))
   fi
