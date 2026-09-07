@@ -193,8 +193,17 @@ run_case() {
   local fx="$TMP/$name"
   mkdir -p "$fx/.claude" "$fx/node_modules/.bin" "$fx/plugins/alpha" "$fx/plugins/beta" "$fx/cfg/plugins"
 
-  printf '{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}\n' \
-    >"$fx/.claude/settings.json"
+  local default_settings='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}'
+  printf '%s\n' "${CASE_SETTINGS:-$default_settings}" >"$fx/.claude/settings.json"
+  # A fleet list for the case, handed to the block through its test seam. The
+  # default points at a path that does not exist, so the settings file stays
+  # the only source, as on a machine outside the managed environment, and no
+  # case ever reads a real /opt or /tmp list from the host.
+  local fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/no-fleet-list.json")
+  if [[ -n "${CASE_FLEET:-}" ]]; then
+    printf '%s\n' "$CASE_FLEET" >"$fx/fleet.json"
+    fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/fleet.json")
+  fi
   printf 'a\n' >"$fx/plugins/alpha/f.txt"
   printf 'b\n' >"$fx/plugins/beta/f.txt"
 
@@ -247,7 +256,7 @@ STUB
   chmod +x "$fx/node_modules/.bin/claude"
 
   set +e
-  OUT="$(CLAUDE_CONFIG_DIR="$fx/cfg" bash "$BLOCK" "$fx" 2>&1)"
+  OUT="$(env "${fleet_env[@]}" CLAUDE_CONFIG_DIR="$fx/cfg" bash "$BLOCK" "$fx" 2>&1)"
   RC=$?
   set -e
 
@@ -354,6 +363,49 @@ expect "with one warning for the batch" \
   "could not read \`claude plugin list --json\`; no plugin could be verified"
 refute "and no per-plugin flood" \
   "failed verification after"
+
+# --- the fleet list baked into the snapshot is a source too -------------------
+# The shared environment writes the fleet plugin list into the snapshot; a
+# settings block reduced to deltas must still enable the fleet's entries for
+# this marketplace, a settings false must opt out of a fleet entry, and other
+# marketplaces' fleet entries are out of scope here.
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true,"gamma@elsewhere":true}}' \
+  run_case fleet_union "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a fleet entry beyond the settings block counts as enabled" \
+  "plugins 2 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":false}}' \
+  CASE_FLEET='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}' \
+  run_case fleet_opt_out "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a settings false opts out of a fleet entry" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  run_case fleet_absent "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "without a fleet list the settings block is the only source" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='not json at all' \
+  run_case fleet_malformed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a malformed fleet list degrades to the settings block, not to an empty set" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+# Valid JSON of the wrong shape (an error body, an array where the object
+# should be) would break the merge the same way a parse failure does.
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='{"enabledPlugins":["alpha@melodic-software"]}' \
+  run_case fleet_wrong_shape "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a wrong-shaped fleet list degrades to the settings block, not to an empty set" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='[]' \
+  run_case fleet_array "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a fleet list that is a bare array degrades to the settings block" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
 
 # --- report -------------------------------------------------------------------
 echo
