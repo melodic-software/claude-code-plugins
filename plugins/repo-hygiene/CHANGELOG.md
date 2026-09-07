@@ -12,17 +12,27 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   a timestamp to a durable capture under the main checkout's `.git/repo-hygiene/branch-tips/`,
   printing its path as `TipCapture:`. The file is written to a `.part` and sealed only when the
   row count matches; any failure prints `TipCaptureError:` and no path, so a partial capture can
-  never pass for a complete one. `--capture-file PATH` overrides the location.
+  never pass for a complete one. `--capture-file PATH` overrides the location. The `.part` is
+  created exclusively (`noclobber`), so a stamp-pid collision or an interrupted run is refused
+  rather than interleaved into one file, and rows are recognised by shape (nine columns, a commit
+  id second), so a branch whose name begins with `#` is a row, never a miscounted comment that
+  fails the seal.
 - `clean`: `git-branch-delete.sh`, the only sanctioned branch-deletion path for the git tier. It
   takes the audit's capture and refuses the whole batch, deleting nothing, when the capture is
   missing, a branch has no captured tip, a captured tip no longer matches the branch, or a branch
   is PROTECTED, WORKTREE, or an unforced REVIEW. In `--apply` it re-verifies the tip, pins it under
   `refs/repo-hygiene/deleted/<branch>` so `gc` cannot prune the commits the record points at,
-  appends the deletion to `<capture>.deleted.tsv`, and only then deletes; a failure in any of
-  those steps aborts the batch before that branch is touched. Every `Deleted:` line and the
+  appends the deletion to `<capture>.deleted.tsv` (beside the capture's real file, symlinks
+  resolved), and only then deletes with `git update-ref -d refs/heads/<branch> <tip>`, an atomic
+  compare-and-delete that refuses a tip that moved after the re-check, the window between the pin
+  and the delete that a plain `git branch -D` leaves open; a failure in any earlier step aborts the
+  batch before that branch is touched, and a refused delete leaves the branch and its pin in place
+  with a `# not deleted:` note in the ledger. A SAFE-by-ancestry row is admitted only when its tip
+  is merged into `origin/<default>`, and refused up front otherwise. Every `Deleted:` line and the
   closing `Restore:` line carry the restore command. The test deletes branches through the script,
-  runs `gc --prune=now`, and restores them from the capture alone. Closes #3853, the first half of
-  #3346 gap G1.
+  runs `gc --prune=now`, restores them from the capture alone, and opens both tip-move windows
+  deterministically (a FIFO at the ledger path parks the script between pin and delete) to show
+  that neither can remove a moved tip. Closes #3853, the first half of #3346 gap G1.
 
 ### Changed
 

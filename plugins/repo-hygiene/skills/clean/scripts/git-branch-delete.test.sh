@@ -36,6 +36,9 @@ assert_exit "--help exits 0" 0 "$rc"
 #   feat/review             unmerged local work             -> REVIEW
 #   feat/parked             checked out in a linked worktree -> WORKTREE
 #   release/1               protected pattern
+#   #42-hash                merged; a legal name that starts like a comment
+#   feat/sym                merged; deleted through a symlinked capture
+#   feat/win-b, feat/win-a1, feat/win-a2  merged; the two tip-move windows
 REPO="$TEST_TMPDIR/repo"
 git init -q --bare "$TEST_TMPDIR/origin.git"
 git init -q -b main "$REPO"
@@ -61,6 +64,11 @@ merged_branch feat/moved mv
 merged_branch feat/ok1 o1
 merged_branch feat/blocked bl
 merged_branch feat/ok2 o2
+merged_branch '#42-hash' hh
+merged_branch feat/sym sy
+merged_branch feat/win-b wb
+merged_branch feat/win-a1 wa1
+merged_branch feat/win-a2 wa2
 git -C "$REPO" push -q -u origin main
 git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 
@@ -134,14 +142,23 @@ Tier: SAFE"
 assert_contains "audit reports feat/likely tip with its verdict" "$audit_out" "Branch: feat/likely
 Tip: $likely_tip
 Tier: SAFE"
+# A branch name may begin with `#`. The capture must not mistake its row for a
+# comment: the seal would then count one row short and fail the whole audit.
+hash_tip="$(git -C "$REPO" rev-parse 'refs/heads/#42-hash')"
+assert_not_contains "a #-leading branch does not break the seal" "$audit_out" "TipCaptureError:"
+assert_contains "audit classifies #42-hash SAFE" "$audit_out" "Branch: #42-hash
+Tip: $hash_tip
+Tier: SAFE"
+assert_contains "capture row for #42-hash" "$(cat "$CAP")" "#42-hash	$hash_tip	SAFE	"
 
 # ---- Dry-run plans, deletes nothing ------------------------------------------
-out="$(run_delete --capture "$CAP" feat/safe1 feat/safe2 feat/likely 2>&1)"
+out="$(run_delete --capture "$CAP" feat/safe1 feat/safe2 feat/likely '#42-hash' 2>&1)"
 rc=$?
 assert_exit "dry-run exits 0" 0 "$rc"
-assert_contains "dry-run plans safe1 with its tip" "$out" "Planned: feat/safe1 $safe1_tip (SAFE, git branch -d)"
-assert_contains "dry-run plans likely (gone upstream, merged) with -d" "$out" "Planned: feat/likely $likely_tip (SAFE, git branch -d)"
-assert_contains "dry-run summary" "$out" "Summary: planned=3 refused=0 deleted=0"
+assert_contains "dry-run plans safe1 with its tip" "$out" "Planned: feat/safe1 $safe1_tip (SAFE, safe delete)"
+assert_contains "dry-run plans likely (gone upstream, merged) as a safe delete" "$out" "Planned: feat/likely $likely_tip (SAFE, safe delete)"
+assert_contains "dry-run plans the #-leading branch from its captured row" "$out" "Planned: #42-hash $hash_tip (SAFE, safe delete)"
+assert_contains "dry-run summary" "$out" "Summary: planned=4 refused=0 deleted=0"
 assert_contains "dry-run tells how to restore" "$out" "Restore: git branch <branch> <tip>"
 assert_not_contains "dry-run deletes nothing" "$out" "Deleted:"
 assert_branch "dry-run: feat/safe1 intact" present feat/safe1
@@ -156,7 +173,20 @@ assert_contains "REVIEW refused names the flag" "$out" "Refused: feat/review (ti
 out="$(run_delete --capture "$CAP" --force-review feat/review 2>&1)"
 rc=$?
 assert_exit "REVIEW with --force-review plans" 0 "$rc"
-assert_contains "forced REVIEW uses -D" "$out" "(REVIEW, git branch -D)"
+assert_contains "forced REVIEW is a force delete" "$out" "(REVIEW, force delete)"
+
+# A SAFE-by-ancestry row whose tip is not merged (a forged or wrong capture) is
+# refused up front: previously `git branch -d` discovered it only after the pin
+# and a ledger row claiming deletion had been written.
+awk -F'\t' -v OFS='\t' '$1 == "feat/review" { $3 = "SAFE" } 1' "$CAP" >"$TEST_TMPDIR/forged.tsv"
+out="$(run_delete --capture "$TEST_TMPDIR/forged.tsv" --apply feat/review 2>&1)"
+rc=$?
+assert_exit "forged SAFE row exits 3" 3 "$rc"
+assert_contains "forged SAFE row refused as unmerged" "$out" "Refused: feat/review (captured as SAFE by ancestry, but $(git -C "$REPO" rev-parse refs/heads/feat/review) is not merged into origin/main"
+assert_not_contains "forged SAFE row: nothing deleted" "$out" "Deleted:"
+assert_branch "forged SAFE row: feat/review untouched" present feat/review
+assert_file_absent "forged SAFE row: no ledger written" "$TEST_TMPDIR/forged.deleted.tsv"
+assert_eq "forged SAFE row: no pin written" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/review || echo none)"
 
 out="$(run_delete --capture "$CAP" --force-review release/1 main feat/parked 2>&1)"
 rc=$?
@@ -212,15 +242,17 @@ assert_exit "foreign capture exits 3" 3 "$rc"
 assert_contains "foreign capture refused" "$out" "different repository"
 
 # ---- Apply: capture before delete, ledger, backup ref, restore --------------
-out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/safe2 feat/likely 2>&1)"
+out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/safe2 feat/likely '#42-hash' 2>&1)"
 rc=$?
 assert_exit "apply exits 0" 0 "$rc"
 assert_contains "apply reports safe1 with restore command" "$out" "Deleted: feat/safe1 $safe1_tip (was SAFE) restore: git branch feat/safe1 $safe1_tip"
 assert_contains "apply reports likely" "$out" "Deleted: feat/likely $likely_tip (was SAFE)"
-assert_contains "apply summary" "$out" "Summary: planned=3 refused=0 deleted=3 failed=0"
+assert_contains "apply reports the #-leading branch" "$out" "Deleted: #42-hash $hash_tip (was SAFE)"
+assert_contains "apply summary" "$out" "Summary: planned=4 refused=0 deleted=4 failed=0"
 assert_contains "apply names the ledger" "$out" "Ledger: ${CAP%.tsv}.deleted.tsv"
 assert_branch "apply: feat/safe1 deleted" absent feat/safe1
 assert_branch "apply: feat/likely deleted" absent feat/likely
+assert_branch "apply: #42-hash deleted" absent '#42-hash'
 LEDGER="${CAP%.tsv}.deleted.tsv"
 assert_file_exists "ledger written" "$LEDGER"
 assert_contains "ledger row for safe1" "$(cat "$LEDGER")" "feat/safe1	$safe1_tip	"
@@ -232,8 +264,8 @@ assert_eq "backup ref pins safe1 tip" "$safe1_tip" "${backup:-none}"
 # tip out, `git branch <name> <tip>`. gc --prune=now first, so the restore also
 # proves the pinned tip survived the prune the git tier runs after a deletion.
 git -C "$REPO" gc -q --prune=now 2>/dev/null
-for b in feat/safe1 feat/safe2 feat/likely; do
-  tip="$(awk -F'\t' -v b="$b" '!/^#/ && $1==b {print $2}' "$CAP")"
+for b in feat/safe1 feat/safe2 feat/likely '#42-hash'; do
+  tip="$(awk -F'\t' -v b="$b" '$1 == b { print $2 }' "$CAP")"
   if [[ -n "$tip" ]] && git -C "$REPO" branch "$b" "$tip" 2>/dev/null &&
     [[ "$(git -C "$REPO" rev-parse "refs/heads/$b")" == "$tip" ]]; then
     pass "restored $b from the capture alone"
@@ -242,6 +274,7 @@ for b in feat/safe1 feat/safe2 feat/likely; do
   fi
 done
 assert_eq "restored safe1 carries its content" "s1" "$(git -C "$REPO" show feat/safe1:s1 2>/dev/null || echo missing)"
+assert_eq "restored #42-hash carries its content" "hh" "$(git -C "$REPO" show '#42-hash:hh' 2>/dev/null || echo missing)"
 
 # Control for the pin: the same deletion without the backup ref loses the commit
 # to the same prune, which is why step 2 precedes the delete.
@@ -289,6 +322,124 @@ assert_exit "unwritable ledger exits 1" 1 "$rc"
 assert_contains "unwritable ledger aborts" "$out" "Aborted: cannot write ledger"
 assert_not_contains "unwritable ledger deletes nothing" "$out" "Deleted:"
 assert_branch "unwritable ledger: feat/ok2 untouched" present feat/ok2
+
+# ---- Ledger follows the capture's real location -----------------------------
+mkdir -p "$TEST_TMPDIR/real" "$TEST_TMPDIR/lnk"
+CAP_SYM="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/real/cap-sym.tsv" | sed -n 's/^TipCapture: //p')"
+ln -s "$CAP_SYM" "$TEST_TMPDIR/lnk/cap-sym.tsv"
+out="$(run_delete --capture "$TEST_TMPDIR/lnk/cap-sym.tsv" --apply feat/sym 2>&1)"
+rc=$?
+assert_exit "symlinked capture applies" 0 "$rc"
+assert_contains "ledger is derived from the real capture, not the symlink" "$out" "Ledger: $TEST_TMPDIR/real/cap-sym.deleted.tsv"
+assert_file_exists "ledger written beside the real capture" "$TEST_TMPDIR/real/cap-sym.deleted.tsv"
+assert_file_absent "no ledger beside the symlink" "$TEST_TMPDIR/lnk/cap-sym.deleted.tsv"
+
+# ---- The two tip-move windows, opened deterministically ---------------------
+# A FIFO at the ledger path parks the script, with no reader present, at the
+# moment it opens the ledger to append a branch's row: after that branch's pin
+# (step 2) and before its delete (step 4). The pin appearing is the signal that
+# it is parked there. Window B moves the parked branch's own tip, so the move
+# lands between pin and delete and only an atomic compare-and-delete can refuse
+# it. Window A parks on a first branch and moves the SECOND branch's tip, so the
+# move lands after the batch check and before that branch's per-branch re-check
+# (step 1), which must then stop before writing a pin or a ledger row.
+new_commit_on() { # <branch>: a commit on top of the branch's tip, referenced by nothing
+  git -C "$REPO" commit-tree -p "refs/heads/$1" -m "moved $1" "refs/heads/$1^{tree}"
+}
+wait_for_ref() { # <ref>: poll (up to ~10s) until the ref exists
+  local i
+  for ((i = 0; i < 200; i++)); do
+    git -C "$REPO" rev-parse --verify --quiet "$1" >/dev/null 2>&1 && return 0
+    sleep 0.05
+  done
+  return 1
+}
+wait_pid() { # <pid>: reap it, killing it after ~30s so a regression cannot hang the suite
+  local i
+  for ((i = 0; i < 300; i++)); do
+    kill -0 "$1" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -0 "$1" 2>/dev/null && kill "$1" 2>/dev/null
+  wait "$1"
+}
+drain_fd3() { # whatever the script appended after the FIFO reader left
+  local line
+  while IFS= read -r -t 1 line <&3; do printf '%s\n' "$line"; done
+}
+pin_of() { git -C "$REPO" rev-parse --verify --quiet "refs/repo-hygiene/deleted/$1" || echo none; }
+
+if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+  # Window B: the tip moves between the pin and the delete.
+  CAP_B="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/race-b.tsv" | sed -n 's/^TipCapture: //p')"
+  FIFO_B="$TEST_TMPDIR/race-b.deleted.tsv"
+  mkfifo "$FIFO_B"
+  winb_tip="$(git -C "$REPO" rev-parse refs/heads/feat/win-b)"
+  (cd "$REPO" && exec bash "$DELETE" --capture "$CAP_B" --apply feat/win-b) >"$TEST_TMPDIR/race-b.out" 2>&1 &
+  pid=$!
+  if wait_for_ref refs/repo-hygiene/deleted/feat/win-b; then
+    winb_moved="$(new_commit_on feat/win-b)"
+    git -C "$REPO" update-ref refs/heads/feat/win-b "$winb_moved" "$winb_tip"
+    timeout 30 cat "$FIFO_B" >"$TEST_TMPDIR/race-b.row" # releases the parked row write
+    exec 3<>"$FIFO_B"                                   # later appends never block
+    wait_pid "$pid"
+    rc=$?
+    ledger_b="$(cat "$TEST_TMPDIR/race-b.row" && drain_fd3)"
+    exec 3<&-
+    out="$(cat "$TEST_TMPDIR/race-b.out")"
+    assert_exit "window B: tip moved between pin and delete exits 1" 1 "$rc"
+    assert_contains "window B: the delete itself refuses the moved tip" "$out" "Aborted: feat/win-b (tip moved between pin and delete: captured $winb_tip, now $winb_moved"
+    assert_not_contains "window B: nothing reported deleted" "$out" "Deleted:"
+    assert_branch "window B: feat/win-b intact" present feat/win-b
+    assert_eq "window B: feat/win-b still at the moved tip" "$winb_moved" "$(git -C "$REPO" rev-parse refs/heads/feat/win-b)"
+    assert_eq "window B: pin records the captured tip" "$winb_tip" "$(pin_of feat/win-b)"
+    assert_contains "window B: ledger notes the branch was not deleted" "$ledger_b" "# not deleted: feat/win-b (tip moved between pin and delete"
+    git -C "$REPO" reflog expire --expire=now --all
+    git -C "$REPO" gc -q --prune=now 2>/dev/null
+    moved_state="pruned"
+    if git -C "$REPO" cat-file -e "$winb_moved" 2>/dev/null; then moved_state="present"; fi
+    assert_eq "window B: the moved commit survives gc --prune=now" "present" "$moved_state"
+  else
+    kill "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    fail "window B: script pins feat/win-b before opening the ledger" "pin present" "no pin within 10s: $(cat "$TEST_TMPDIR/race-b.out")"
+  fi
+
+  # Window A: the tip moves after the batch check and before the per-branch re-check.
+  CAP_A="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/race-a.tsv" | sed -n 's/^TipCapture: //p')"
+  FIFO_A="$TEST_TMPDIR/race-a.deleted.tsv"
+  mkfifo "$FIFO_A"
+  wina1_tip="$(git -C "$REPO" rev-parse refs/heads/feat/win-a1)"
+  wina2_tip="$(git -C "$REPO" rev-parse refs/heads/feat/win-a2)"
+  (cd "$REPO" && exec bash "$DELETE" --capture "$CAP_A" --apply feat/win-a1 feat/win-a2) >"$TEST_TMPDIR/race-a.out" 2>&1 &
+  pid=$!
+  if wait_for_ref refs/repo-hygiene/deleted/feat/win-a1; then
+    wina2_moved="$(new_commit_on feat/win-a2)"
+    git -C "$REPO" update-ref refs/heads/feat/win-a2 "$wina2_moved" "$wina2_tip"
+    timeout 30 cat "$FIFO_A" >"$TEST_TMPDIR/race-a.row"
+    exec 3<>"$FIFO_A"
+    wait_pid "$pid"
+    rc=$?
+    ledger_a="$(cat "$TEST_TMPDIR/race-a.row" && drain_fd3)"
+    exec 3<&-
+    out="$(cat "$TEST_TMPDIR/race-a.out")"
+    assert_exit "window A: tip moved before the re-check exits 1" 1 "$rc"
+    assert_contains "window A: the parked branch was deleted" "$out" "Deleted: feat/win-a1 $wina1_tip"
+    assert_contains "window A: the re-check stops the moved branch before the pin" "$out" "Aborted: feat/win-a2 (tip moved between check and delete: captured $wina2_tip, now $wina2_moved"
+    assert_contains "window A: summary" "$out" "deleted=1 failed=0 aborted=1 untouched=1"
+    assert_branch "window A: feat/win-a2 intact" present feat/win-a2
+    assert_eq "window A: feat/win-a2 still at the moved tip" "$wina2_moved" "$(git -C "$REPO" rev-parse refs/heads/feat/win-a2)"
+    assert_eq "window A: no pin written for the moved branch" "none" "$(pin_of feat/win-a2)"
+    assert_contains "window A: ledger row for the deleted branch" "$ledger_a" "feat/win-a1	$wina1_tip	"
+    assert_not_contains "window A: no ledger row for the moved branch" "$ledger_a" "feat/win-a2	"
+  else
+    kill "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    fail "window A: script pins feat/win-a1 before opening the ledger" "pin present" "no pin within 10s: $(cat "$TEST_TMPDIR/race-a.out")"
+  fi
+else
+  skip_case "tip-move window cases need mkfifo and timeout"
+fi
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
