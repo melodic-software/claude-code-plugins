@@ -3,6 +3,28 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **`drift-delta-sweep`, an eleventh `v1` routine class, with its own definition leaf
+  (#3819).** The catalog gains a sibling row under Code quality / knowledge
+  (`AGT | R + WI | repo | C1 | v1`) and the leaf
+  `reference/routines/drift-delta-sweep.md` carries its instruction content: a cadence pass
+  that runs the repository's installed drift lanes and reports what moved, fanning out to the
+  instruction-placement delta lane, the enforcement-surface delta lane (two layers rotating on
+  the ISO week), and the repository drift audit lane (one dimension rotating on the same week,
+  never with `--fix`). Each invocation is presence-gated on its owning plugin and states its
+  fallback; a missing lane is recorded as not run rather than silently skipped. The row is a
+  sibling of `doc-freshness-sweep`, not an extension of it: `doc-freshness-sweep/advisory` is
+  a ratified admission identity on org security bindings, and broadening its substance would
+  change what a ratified entry authorizes without an org re-reviewing it. A class parameter
+  records the one dimension the two classes overlap on, and that the class's substantive
+  prerequisites (three optional sibling plugins, plus a run resolving a branch identity whose
+  memory-tier home persists across cycles) are not representable in the generated prerequisite
+  emission, so a `supported` verdict for this identity over-reports. The generated
+  `generated/identity-prerequisites.json` goes from thirteen identities to fourteen.
+
 ## [0.22.32]
 
 ### Changed
