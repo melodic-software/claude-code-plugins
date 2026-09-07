@@ -126,7 +126,11 @@ protected-path and stable device/inode/type root-identity checks preview and app
 own mtime and size flip whenever any direct child is added or removed, so they are not identity; a
 replaced root still refuses. It then reruns the per-path
 identity/reparse/protection/descendant/VCS/handle checks against live state and emits one
-machine-readable verdict per path. It deliberately does not apply platform execution blockers —
+machine-readable verdict per path. When those settled removals (`clear` or `gone`) would empty
+inventoried directories, the same round reports them under `emptied_containers`, deepest first,
+using the apply lane's bottom-up ordering key. They are not in the approved list: each still
+needs its own approval and is removable only after every path beneath it is gone. Verification
+still mutates nothing. It deliberately does not apply platform execution blockers —
 it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
 per item, under the hook-issued `ask` the PowerShell guard returns. Add a `permissions.ask`

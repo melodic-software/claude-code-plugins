@@ -838,6 +838,7 @@ def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
         if (value := entry_reclaimable_local_bytes(entry)) is not None
     )
 
+
 def entry_is_empty_directory(
     entry: dict[str, Any],
     inventory: dict[str, dict[str, Any]]
@@ -2952,7 +2953,11 @@ def verify_emptied_container(
     except FileNotFoundError:
         return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
     except PermissionError:
-        return {"path": relative, "verdict": "contested", "reasons": ["needs-elevation"]}
+        return {
+            "path": relative,
+            "verdict": "contested",
+            "reasons": ["needs-elevation"],
+        }
     except OSError:
         return {
             "path": relative,
@@ -3006,9 +3011,7 @@ def verify_emptied_container(
         elif state == "needs_elevation":
             contested.add("needs-elevation")
         elif state != "clear":
-            contested.add(
-                "handle-state-unverified" + (f": {detail}" if detail else "")
-            )
+            contested.add("handle-state-unverified" + (f": {detail}" if detail else ""))
     verdict = "drifted" if drifted else "contested" if contested else "clear"
     return {
         "path": relative,
@@ -3752,9 +3755,7 @@ def main(argv: list[str] | None = None) -> int:
                             "entries": len(snapshot["entries"]),
                             "hinted_entries": hinted,
                             "unhinted_entries": len(snapshot["entries"]) - hinted,
-                            "empty_directory_count": snapshot[
-                                "empty_directory_count"
-                            ],
+                            "empty_directory_count": snapshot["empty_directory_count"],
                             "target_logical_bytes": snapshot["target_logical_bytes"],
                             "target_reclaimable_local_bytes": snapshot[
                                 "target_reclaimable_local_bytes"

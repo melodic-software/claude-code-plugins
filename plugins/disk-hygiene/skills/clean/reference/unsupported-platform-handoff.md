@@ -95,6 +95,15 @@ engine plan:
    deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
    next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
+
+   When settled removals empty inventoried directories, `handoff-verify` names those containers
+   in the same round under `emptied_containers`, deepest first. They are not in the approved
+   list, so each still needs its own approval and is removable only after every path beneath it
+   is gone. A later re-verify that sees a container missing an earlier deleted child is
+   progress toward emptiness, not drift: the live check compares only surplus children the
+   snapshot did not record, which is the same emptiness question apply asks before `rmdir`
+   (whether anything unexpected still occupies the directory). An inventoried child that was
+   replaced rather than removed fails its own path verdict and stays out of the settled set.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation

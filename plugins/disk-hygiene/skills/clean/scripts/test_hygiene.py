@@ -2414,7 +2414,9 @@ class HygieneTests(unittest.TestCase):
         # samefile raises when a path is missing; a home that cannot be stat'd
         # must be no match, never a crash.
         with (
-            mock.patch.object(hygiene, "user_home", return_value=Path("/home") / "missing"),
+            mock.patch.object(
+                hygiene, "user_home", return_value=Path("/home") / "missing"
+            ),
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home") / "target"))
@@ -4425,9 +4427,9 @@ class HandoffVerifyTests(unittest.TestCase):
         return leaf
 
     def test_emptied_container_cascade_is_reported_in_one_round(self) -> None:
-        # #3859: removing the single leaf empties three nested containers. The
-        # whole cascade must be named in this round, deepest first, without a
-        # second scan and without touching the tree.
+        # Removing the single leaf empties three nested containers. The whole
+        # cascade must be named in this round, deepest first, without a second
+        # scan and without touching the tree.
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             root.mkdir()
@@ -4509,9 +4511,13 @@ class HandoffVerifyTests(unittest.TestCase):
                 result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
             self.assertEqual("clear", result["verdicts"][0]["verdict"])
             self.assertEqual(
-                [{"path": "outer", "verdict": "drifted", "reasons": [
-                    "changed-since-scan"
-                ]}],
+                [
+                    {
+                        "path": "outer",
+                        "verdict": "drifted",
+                        "reasons": ["changed-since-scan"],
+                    }
+                ],
                 result["emptied_containers"],
             )
             self.assertEqual(0, result["removable_emptied_containers"])
@@ -4536,7 +4542,7 @@ class HandoffVerifyTests(unittest.TestCase):
     def test_container_survives_the_verify_one_delete_one_sequence(self) -> None:
         # The manual lane deletes one approved path at a time, so a later
         # re-verify sees the container already missing an earlier one. That is
-        # progress toward emptiness, not drift — and the container is held to
+        # progress toward emptiness, not drift, and the container is held to
         # object identity, not stat identity, because every child removal
         # changes its mtime and size.
         with tempfile.TemporaryDirectory() as temporary:
