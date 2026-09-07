@@ -3,6 +3,33 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.35]
+
+### Added
+
+- `clean`: `git-branch-audit.sh` reports each branch's tip commit as a `Tip:` field, for every
+  branch regardless of verdict, and writes the tips with tier, PR state, upstream, ahead/behind and
+  a timestamp to a durable capture under the main checkout's `.git/repo-hygiene/branch-tips/`,
+  printing its path as `TipCapture:`. The file is written to a `.part` and sealed only when the
+  row count matches; any failure prints `TipCaptureError:` and no path, so a partial capture can
+  never pass for a complete one. `--capture-file PATH` overrides the location.
+- `clean`: `git-branch-delete.sh`, the only sanctioned branch-deletion path for the git tier. It
+  takes the audit's capture and refuses the whole batch, deleting nothing, when the capture is
+  missing, a branch has no captured tip, a captured tip no longer matches the branch, or a branch
+  is PROTECTED, WORKTREE, or an unforced REVIEW. In `--apply` it re-verifies the tip, pins it under
+  `refs/repo-hygiene/deleted/<branch>` so `gc` cannot prune the commits the record points at,
+  appends the deletion to `<capture>.deleted.tsv`, and only then deletes; a failure in any of
+  those steps aborts the batch before that branch is touched. Every `Deleted:` line and the
+  closing `Restore:` line carry the restore command. The test deletes branches through the script,
+  runs `gc --prune=now`, and restores them from the capture alone. Closes #3853, the first half of
+  #3346 gap G1.
+
+### Changed
+
+- `clean`: §4.7 of `context/git-branch-cleanup.md` routes deletion through the script instead of
+  a bare `git branch -d`/`-D`, documents the capture path convention and the ledger, and gains a
+  §4.8 with the recovery steps; SKILL.md §4.2 states the precondition.
+
 ## [0.10.33]
 
 ### Changed

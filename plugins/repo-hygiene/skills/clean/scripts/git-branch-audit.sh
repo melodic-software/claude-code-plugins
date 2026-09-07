@@ -2,9 +2,21 @@
 # shellcheck disable=SC2154
 # Branch audit facts for the clean git branch cleanup. No deletion.
 #
-# Output: Branch, Tier, Age days, PR, Unpushed, Reason; Summary line.
-# Exit: 0.
-# Omit -e/-o pipefail: script always exits 0; sub-commands are best-effort (gh may be absent).
+# Output: Branch, Tip, Tier, Age days, PR, Unpushed, Reason; then TipCapture (or
+# TipCaptureError); Summary line.
+# Exit: 0 (2 on a usage error).
+# Omit -e/-o pipefail: sub-commands are best-effort (gh may be absent).
+#
+# TIP CAPTURE. Every branch's tip commit is written, together with its verdict,
+# upstream and ahead/behind counts, to a durable TSV under the repository's
+# common git dir (`.git/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv`), and
+# the path is printed as `TipCapture: <path>`. That file is the precondition
+# git-branch-delete.sh demands before it deletes anything: a deleted branch is
+# restorable only from its tip, and the tip must be recorded BEFORE the delete,
+# not remembered from a transcript. The capture is written to a `.part` file and
+# renamed into place only when every row landed; any failure (no writable
+# location, a short write) yields `TipCaptureError:` instead of a path, so a
+# partial capture can never present itself as a complete one.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,23 +25,46 @@ source "$SCRIPT_DIR/lib/clean-common.sh"
 
 usage() {
   cat <<'EOF'
-git-branch-audit.sh — emit branch audit facts for the clean git tier.
+git-branch-audit.sh - emit branch audit facts for the clean git tier.
 
 Usage:
-  git-branch-audit.sh
+  git-branch-audit.sh [--capture-file PATH]
   git-branch-audit.sh --help
 
-Does NOT delete branches. Exit: 0.
+  --capture-file PATH  write the branch-tip capture to PATH instead of the
+                       default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
+
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Reason.
+Then `TipCapture: <path>` (the durable tip record git-branch-delete.sh requires)
+or `TipCaptureError: <why>` when it could not be written completely.
+Restore a branch from a captured tip: git branch <branch> <tip>
+
+Does NOT delete branches. Exit: 0 (2 on a usage error).
 EOF
 }
 
-case "${1:-}" in
--h | --help)
-  usage
-  exit 0
-  ;;
-*) ;;
-esac
+CAPTURE_ARG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --capture-file)
+    if [[ -z "${2:-}" ]]; then
+      echo "git-branch-audit.sh: --capture-file requires a value" >&2
+      exit 2
+    fi
+    CAPTURE_ARG="$2"
+    shift 2
+    ;;
+  *)
+    echo "git-branch-audit.sh: unknown arg '$1'" >&2
+    usage >&2
+    exit 2
+    ;;
+  esac
+done
 
 REPO_ROOT="$(clean_repo_root)"
 if [[ -z "$REPO_ROOT" ]]; then
@@ -40,6 +75,46 @@ fi
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
+
+# Tip capture setup. The capture is opened before the first branch is classified
+# and every row is appended as its branch is reported, so the file mirrors the
+# output exactly. CAPTURE_ERROR, once set, is sticky: nothing after it can turn a
+# failed capture back into a reported path.
+CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+COMMON_DIR="$(clean_git_common_dir "$REPO_ROOT")" || COMMON_DIR=""
+CAPTURE_ERROR=""
+CAPTURE_ROWS=0
+if [[ -n "$CAPTURE_ARG" ]]; then
+  CAPTURE_PATH="$CAPTURE_ARG"
+elif [[ -n "$COMMON_DIR" ]]; then
+  CAPTURE_PATH="$COMMON_DIR/repo-hygiene/branch-tips/$(date -u +%Y%m%dT%H%M%SZ)-$$.tsv"
+else
+  CAPTURE_PATH=""
+  CAPTURE_ERROR="cannot resolve the git common dir for a default capture location; pass --capture-file PATH"
+fi
+CAPTURE_TMP="${CAPTURE_PATH}.part"
+if [[ -z "$CAPTURE_ERROR" ]]; then
+  if ! mkdir -p "$(dirname "$CAPTURE_PATH")" 2>/dev/null; then
+    CAPTURE_ERROR="cannot create $(dirname "$CAPTURE_PATH")"
+  elif ! (: >"$CAPTURE_TMP") 2>/dev/null; then
+    CAPTURE_ERROR="cannot write $CAPTURE_TMP"
+  fi
+fi
+
+capture_line() {
+  [[ -n "$CAPTURE_ERROR" ]] && return 0
+  if ! printf '%s\n' "$1" >>"$CAPTURE_TMP" 2>/dev/null; then
+    CAPTURE_ERROR="write failed: $CAPTURE_TMP"
+  fi
+}
+
+capture_line "# repo-hygiene branch tip capture v1"
+capture_line "# repo: $REPO_ROOT"
+capture_line "# common_dir: ${COMMON_DIR:-unknown}"
+capture_line "# default_branch: $DEFAULT_BRANCH"
+capture_line "# captured_at: $CAPTURED_AT"
+capture_line "# restore: git branch <branch> <tip>"
+capture_line "$(printf '# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tcaptured_at')"
 
 declare -A PR_STATE=()
 declare -A PR_NUM=()
@@ -63,7 +138,14 @@ NOW=$(date +%s)
 
 classify_branch() {
   local branch="$1" age_days="$2" tier reason pr_line="none" local_tip
-  local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up
+  local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up behind_up=""
+
+  # The tip is the one fact that makes a deleted branch restorable, so it is
+  # resolved first and reported for every branch regardless of verdict: a
+  # verdict can be wrong in either direction, and the tip is what recovers from
+  # that. An unresolvable tip is reported as such and gets no capture row, which
+  # makes the branch undeletable through git-branch-delete.sh.
+  local_tip="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
 
   # No-upstream branches are invisible to `@{upstream}`-based ahead/behind
   # reporting (it yields nothing), so never-pushed local work goes unseen. Detect
@@ -101,7 +183,6 @@ classify_branch() {
     tier="WORKTREE"
     reason="checked out in worktree — clean up the worktree first"
   elif [[ "${PR_STATE[$branch]:-}" == "MERGED" ]]; then
-    local_tip="$(git -C "$REPO_ROOT" rev-parse "refs/heads/$branch" 2>/dev/null | tr -d '\r')"
     if [[ -n "${PR_REFOID[$branch]:-}" && -n "$local_tip" && "$local_tip" != "${PR_REFOID[$branch]}" ]]; then
       tier="REVIEW"
       reason="PR merged but branch has commits since merge"
@@ -164,15 +245,24 @@ classify_branch() {
     fi
   else
     ahead_up="$(git -C "$REPO_ROOT" rev-list --count "${branch}@{upstream}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
+    behind_up="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/${branch}..${branch}@{upstream}" 2>/dev/null | tr -d '\r')"
     unpushed_line="${ahead_up:-0} ahead of ${upstream}"
   fi
 
   printf 'Branch: %s\n' "$branch"
+  printf 'Tip: %s\n' "${local_tip:-unresolved}"
   printf 'Tier: %s\n' "$tier"
   printf 'Age days: %s\n' "$age_days"
   printf 'PR: %s\n' "$pr_line"
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Reason: %s\n' "$reason"
+
+  if [[ -n "$local_tip" ]]; then
+    capture_line "$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+      "$branch" "$local_tip" "$tier" "$pr_line" "${upstream:-none}" \
+      "${ahead_up:--}" "${behind_up:--}" "${ahead_default:--}" "$CAPTURED_AT")"
+    CAPTURE_ROWS=$((CAPTURE_ROWS + 1))
+  fi
 }
 
 while IFS= read -r line; do
@@ -182,6 +272,25 @@ while IFS= read -r line; do
   age_days=$(((NOW - ts) / 86400))
   classify_branch "$branch" "$age_days"
 done < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ --format='%(refname:short) %(committerdate:unix)' 2>/dev/null | tr -d '\r')
+
+# Seal the capture: rename the .part into place only after a row count on the
+# written file agrees with the rows this run produced. A short write (disk full,
+# a vanished mount) therefore surfaces as TipCaptureError, never as a capture
+# that silently lacks some of the branches the report above lists.
+if [[ -z "$CAPTURE_ERROR" ]]; then
+  written="$(grep -c -v '^#' "$CAPTURE_TMP" 2>/dev/null | tr -d '\r')"
+  if [[ "${written:-x}" != "$CAPTURE_ROWS" ]]; then
+    CAPTURE_ERROR="short write: expected $CAPTURE_ROWS rows, found ${written:-0} in $CAPTURE_TMP"
+  elif ! mv -f "$CAPTURE_TMP" "$CAPTURE_PATH" 2>/dev/null; then
+    CAPTURE_ERROR="cannot rename $CAPTURE_TMP into place"
+  fi
+fi
+if [[ -n "$CAPTURE_ERROR" ]]; then
+  [[ -n "$CAPTURE_PATH" ]] && rm -f "$CAPTURE_TMP" 2>/dev/null
+  printf 'TipCaptureError: %s\n' "$CAPTURE_ERROR"
+else
+  printf 'TipCapture: %s\n' "$CAPTURE_PATH"
+fi
 
 printf 'Summary: protected=%s worktree=%s safe=%s likely-safe=%s review=%s\n' "$prot" "$wt" "$safe" "$likely" "$review"
 exit 0
