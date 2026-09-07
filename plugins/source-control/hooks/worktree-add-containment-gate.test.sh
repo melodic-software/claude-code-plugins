@@ -178,6 +178,20 @@ assert_contains "the key outranks the plugin option in the message" "$ERR" \
 assert_not_contains "the outranked option root is not the named remedy" "$ERR" \
   "$TEST_TMPDIR/option-root"
 
+# An empty last value is still the last-wins record. Command substitution would
+# strip it and leave the preceding path; the creation helper's `tail -n 1` keeps
+# it empty and falls through. The block message must name the same fallback.
+EMPTYLAST="$(mkrepo)"
+git -C "$EMPTYLAST" config --add melodic.worktreeroot "$TEST_TMPDIR/first-root"
+git -C "$EMPTYLAST" config --add melodic.worktreeroot ""
+run "$EMPTYLAST" "git worktree add $EMPTYLAST/wt-empty-last" \
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TEST_TMPDIR/option-root"
+assert_exit "an empty last worktreeroot value still blocks the nested target" 2 "$RC"
+assert_not_contains "an empty last worktreeroot value is not the preceding path" \
+  "$ERR" "$TEST_TMPDIR/first-root"
+assert_contains "an empty last worktreeroot value falls through to the plugin option" \
+  "$ERR" "$TEST_TMPDIR/option-root"
+
 # An unexpanded placeholder is an unset value, not a root to recommend.
 # shellcheck disable=SC2016
 run "$REPO" "git worktree add $REPO/wt-token" \

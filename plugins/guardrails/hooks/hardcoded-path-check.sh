@@ -38,8 +38,15 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. This guard runs on every
+# Write/Edit: a defect in it must not stop the session writing files, and the
+# allow it always inherited on an abort is now visible instead of silent.
+guard::abort_boundary hardcoded-path-check PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # Bundled pattern lib — resolved under the plugin root (CC sets
 # CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working

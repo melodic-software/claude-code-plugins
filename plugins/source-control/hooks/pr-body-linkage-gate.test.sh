@@ -239,6 +239,11 @@ assert_block "a Related heading with trailing text is not the section" "$GATED" 
 
 printf '%s\n' "$NO_RELATED" >"$GATED/body.md"
 assert_block "--body-file reads the file" "$GATED" "gh pr create -t T --body-file body.md"
+# hook::jq_fields keeps a trailing newline that `$(jq)` chomped. Unchomped, a
+# relative --body-file joins onto `$cwd\n/body.md`, the file is unreadable, and
+# the hook fail-opens. Chomp restores the per-field verdict.
+assert_block "cwd with a trailing newline still reads a relative --body-file" \
+  "$GATED"$'\n' "gh pr create -t T --body-file body.md"
 printf '%s\n' "$GOOD" >"$GATED/good.md"
 assert_allow "--body-file with a compliant file allowed" "$GATED" "gh pr create -t T -F good.md"
 assert_allow "--body-file naming a missing file allowed" "$GATED" "gh pr create -t T -F absent.md"
@@ -504,6 +509,64 @@ assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t 
 # One fork per body line put a 1000-line body past the 15 s hooks.json timeout,
 # where a cancelled hook silently stops gating. The bound below is deliberately
 # loose so a slow CI runner does not flake; the defect it guards was 18 s.
+#
+# A suffix-copy line split is quadratic in the line count: 16k two-character
+# lines (well under GitHub's body-size limit) exceeded 20 s and fail-opened,
+# against 2.4 s with the parent validator. The scratch-file `readarray` split
+# must stay inside the same 8 s bound the 1000-line case uses.
+
+{
+  printf 'Closes #5\n\n'
+  dense_i=0
+  while ((dense_i < 16000)); do
+    printf 'aa\n'
+    dense_i=$((dense_i + 1))
+  done
+  printf '\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n'
+} >"$GATED/dense.md"
+dense_start=${EPOCHREALTIME:-}
+run "$GATED" "gh pr create -t T --body-file dense.md"
+dense_end=${EPOCHREALTIME:-}
+if ((RC != 2)); then
+  fail "16000 two-char-line body missing Related should block, got rc=$RC"
+elif [[ -z "$dense_start" || -z "$dense_end" ]]; then
+  echo "SKIP: EPOCHREALTIME unavailable -- dense-body timing not measured"
+else
+  dense_ms=$(awk -v s="${dense_start/,/.}" -v e="${dense_end/,/.}" 'BEGIN{printf "%d", (e-s)*1000}')
+  if ((dense_ms < 8000)); then
+    ok "16000 two-char-line body judged in ${dense_ms}ms (hooks.json timeout is 15s)"
+  else
+    fail "16000 two-char-line body took ${dense_ms}ms -- exceeds the 15s hook timeout"
+  fi
+fi
+
+# linkage::split_lines matches the `printf '%s\n'` + read contract: one more
+# element than the number of newlines, empty text is one empty element.
+export LC_ALL=C
+# shellcheck source=pr-linkage-validator.sh
+source "$HOOK_DIR/pr-linkage-validator.sh"
+expect_split() {
+  local name="$1" text="$2"
+  shift 2
+  linkage::split_lines "$text"
+  if ((${#LINKAGE_LINES[@]} != $#)); then
+    fail "$name: expected $# elements, got ${#LINKAGE_LINES[@]}"
+    return
+  fi
+  local i=0
+  for want in "$@"; do
+    if [[ "${LINKAGE_LINES[i]}" != "$want" ]]; then
+      fail "$name: element $i mismatch"
+      return
+    fi
+    i=$((i + 1))
+  done
+  ok "$name"
+}
+expect_split "empty text is one empty element" "" ""
+expect_split "no trailing newline still yields the last line" $'a\nb' a b
+expect_split "trailing newline yields a final empty element" $'a\nb\n' a b ""
+expect_split "only a newline is two empty elements" $'\n' "" ""
 
 {
   printf 'Closes #5\n\n'
