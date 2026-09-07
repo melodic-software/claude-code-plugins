@@ -195,7 +195,11 @@ assert_contains "capture row: never-pushed (no upstream, 1 not on default)" "$ca
 assert_contains "capture row: tracked (ahead 1, behind 1)" "$cap_body" "feat/tracked	$tracked_tip	REVIEW	none	origin/feat/tracked	1	1	"
 rows="$(grep -c -v '^#' "$cap")"
 heads="$(git -C "$NU_REPO" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
-[[ "$rows" == "$heads" ]] && pass "capture has one row per local branch ($rows)" || fail "capture has one row per local branch" "$heads" "$rows"
+if [[ "$rows" == "$heads" ]]; then
+  pass "capture has one row per local branch ($rows)"
+else
+  fail "capture has one row per local branch" "$heads" "$rows"
+fi
 
 # Explicit capture path honoured.
 explicit_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' --capture-file '$TEST_TMPDIR/explicit.tsv'")"

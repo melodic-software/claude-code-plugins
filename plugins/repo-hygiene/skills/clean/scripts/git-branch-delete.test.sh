@@ -88,6 +88,18 @@ git -C "$REPO" branch release/1
 branch_exists() { git -C "$REPO" rev-parse --verify --quiet "refs/heads/$1" >/dev/null 2>&1; }
 run_delete() { (cd "$REPO" && bash "$DELETE" "$@"); }
 
+# assert_branch <label> <present|absent> <branch>
+assert_branch() {
+  local label="$1" want="$2" branch="$3" got="absent"
+  if branch_exists "$branch"; then got="present"; fi
+  if [[ "$got" == "$want" ]]; then pass "$label"; else fail "$label" "$want" "$got"; fi
+}
+
+# assert_eq <label> <expected> <actual>
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
+}
+
 # ---- No capture: refused, nothing deleted -----------------------------------
 out="$(run_delete feat/safe1 2>&1)"
 rc=$?
@@ -95,7 +107,7 @@ assert_exit "no --capture exits 3" 3 "$rc"
 assert_contains "no --capture names what is missing" "$out" "Refused: no --capture given"
 assert_contains "no --capture says how to produce it" "$out" "run git-branch-audit.sh and pass its TipCapture: path"
 assert_not_contains "no --capture deletes nothing" "$out" "Deleted:"
-branch_exists feat/safe1 && pass "no --capture: feat/safe1 still exists" || fail "no --capture: feat/safe1 still exists" "exists" "gone"
+assert_branch "no --capture: feat/safe1 still exists" present feat/safe1
 
 out="$(run_delete --capture "$TEST_TMPDIR/does-not-exist.tsv" feat/safe1 2>&1)"
 rc=$?
@@ -132,7 +144,8 @@ assert_contains "dry-run plans likely (gone upstream, merged) with -d" "$out" "P
 assert_contains "dry-run summary" "$out" "Summary: planned=3 refused=0 deleted=0"
 assert_contains "dry-run tells how to restore" "$out" "Restore: git branch <branch> <tip>"
 assert_not_contains "dry-run deletes nothing" "$out" "Deleted:"
-branch_exists feat/safe1 && branch_exists feat/likely && pass "dry-run: branches intact" || fail "dry-run: branches intact" "intact" "deleted"
+assert_branch "dry-run: feat/safe1 intact" present feat/safe1
+assert_branch "dry-run: feat/likely intact" present feat/likely
 assert_file_absent "dry-run writes no ledger" "${CAP%.tsv}.deleted.tsv"
 
 # ---- Tier gates ---------------------------------------------------------------
@@ -157,7 +170,7 @@ out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/review 2>&1)"
 rc=$?
 assert_exit "mixed batch exits 3" 3 "$rc"
 assert_not_contains "mixed batch deletes nothing" "$out" "Deleted:"
-branch_exists feat/safe1 && pass "mixed batch: deletable feat/safe1 untouched" || fail "mixed batch: deletable feat/safe1 untouched" "exists" "gone"
+assert_branch "mixed batch: deletable feat/safe1 untouched" present feat/safe1
 
 # ---- Tip moved between capture and delete: batch stops ----------------------
 git -C "$REPO" checkout -q feat/moved
@@ -172,8 +185,8 @@ assert_exit "moved tip exits 3" 3 "$rc"
 assert_contains "moved tip refused names both shas" "$out" "Refused: feat/moved (tip moved since capture: captured"
 assert_contains "moved tip refused names current sha" "$out" "now $moved_tip_now"
 assert_not_contains "moved tip: nothing deleted" "$out" "Deleted:"
-branch_exists feat/still && pass "moved tip: unmoved sibling feat/still untouched" || fail "moved tip: unmoved sibling feat/still untouched" "exists" "gone"
-branch_exists feat/moved && pass "moved tip: feat/moved untouched" || fail "moved tip: feat/moved untouched" "exists" "gone"
+assert_branch "moved tip: unmoved sibling feat/still untouched" present feat/still
+assert_branch "moved tip: feat/moved untouched" present feat/moved
 
 # ---- Branch absent from the capture: refused --------------------------------
 grep -v $'^feat/still\t' "$CAP" >"$TEST_TMPDIR/short.tsv"
@@ -181,7 +194,7 @@ out="$(run_delete --capture "$TEST_TMPDIR/short.tsv" --apply feat/still 2>&1)"
 rc=$?
 assert_exit "missing row exits 3" 3 "$rc"
 assert_contains "missing row refused" "$out" "Refused: feat/still (no captured tip in"
-branch_exists feat/still && pass "missing row: feat/still untouched" || fail "missing row: feat/still untouched" "exists" "gone"
+assert_branch "missing row: feat/still untouched" present feat/still
 
 # ---- Capture from another repository: refused -------------------------------
 OTHER="$TEST_TMPDIR/other"
@@ -206,14 +219,14 @@ assert_contains "apply reports safe1 with restore command" "$out" "Deleted: feat
 assert_contains "apply reports likely" "$out" "Deleted: feat/likely $likely_tip (was SAFE)"
 assert_contains "apply summary" "$out" "Summary: planned=3 refused=0 deleted=3 failed=0"
 assert_contains "apply names the ledger" "$out" "Ledger: ${CAP%.tsv}.deleted.tsv"
-branch_exists feat/safe1 && fail "apply: feat/safe1 deleted" "gone" "exists" || pass "apply: feat/safe1 deleted"
-branch_exists feat/likely && fail "apply: feat/likely deleted" "gone" "exists" || pass "apply: feat/likely deleted"
+assert_branch "apply: feat/safe1 deleted" absent feat/safe1
+assert_branch "apply: feat/likely deleted" absent feat/likely
 LEDGER="${CAP%.tsv}.deleted.tsv"
 assert_file_exists "ledger written" "$LEDGER"
 assert_contains "ledger row for safe1" "$(cat "$LEDGER")" "feat/safe1	$safe1_tip	"
 assert_contains "ledger row for safe2" "$(cat "$LEDGER")" "feat/safe2	$safe2_tip	"
 backup="$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/safe1)"
-[[ "$backup" == "$safe1_tip" ]] && pass "backup ref pins safe1 tip" || fail "backup ref pins safe1 tip" "$safe1_tip" "${backup:-none}"
+assert_eq "backup ref pins safe1 tip" "$safe1_tip" "${backup:-none}"
 
 # The end-to-end property. Only the capture file is consulted: branch name in,
 # tip out, `git branch <name> <tip>`. gc --prune=now first, so the restore also
@@ -228,7 +241,7 @@ for b in feat/safe1 feat/safe2 feat/likely; do
     fail "restored $b from the capture alone" "$tip" "$(git -C "$REPO" rev-parse --verify --quiet "refs/heads/$b" || echo none)"
   fi
 done
-[[ "$(git -C "$REPO" show feat/safe1:s1 2>/dev/null)" == "s1" ]] && pass "restored safe1 carries its content" || fail "restored safe1 carries its content" "s1" "missing"
+assert_eq "restored safe1 carries its content" "s1" "$(git -C "$REPO" show feat/safe1:s1 2>/dev/null || echo missing)"
 
 # Control for the pin: the same deletion without the backup ref loses the commit
 # to the same prune, which is why step 2 precedes the delete.
@@ -248,7 +261,9 @@ git -C "$CTRL" checkout -q main
 git -C "$CTRL" branch -D feat/unpinned >/dev/null
 git -C "$CTRL" reflog expire --expire=now --all
 git -C "$CTRL" gc -q --prune=now 2>/dev/null
-git -C "$CTRL" cat-file -e "$unpinned_tip" 2>/dev/null && fail "control: unpinned tip pruned" "pruned" "present" || pass "control: unpinned tip pruned by gc --prune=now"
+unpinned_state="pruned"
+if git -C "$CTRL" cat-file -e "$unpinned_tip" 2>/dev/null; then unpinned_state="present"; fi
+assert_eq "control: unpinned tip pruned by gc --prune=now" "pruned" "$unpinned_state"
 
 # ---- Apply aborts mid-batch, before touching the blocked branch -------------
 # A ref nested under the backup name makes update-ref fail for feat/blocked
@@ -261,8 +276,8 @@ assert_exit "backup-ref failure exits 1" 1 "$rc"
 assert_contains "ok1 deleted before the abort" "$out" "Deleted: feat/ok1 "
 assert_contains "abort names the backup ref" "$out" "Aborted: feat/blocked (could not write backup ref"
 assert_contains "abort summary counts untouched (blocked + ok2)" "$out" "deleted=1 failed=0 aborted=1 untouched=2"
-branch_exists feat/blocked && pass "abort: feat/blocked untouched" || fail "abort: feat/blocked untouched" "exists" "gone"
-branch_exists feat/ok2 && pass "abort: feat/ok2 untouched" || fail "abort: feat/ok2 untouched" "exists" "gone"
+assert_branch "abort: feat/blocked untouched" present feat/blocked
+assert_branch "abort: feat/ok2 untouched" present feat/ok2
 git -C "$REPO" update-ref -d refs/repo-hygiene/deleted/feat/blocked/child
 
 # ---- Ledger unwritable: nothing deleted -------------------------------------
@@ -273,7 +288,7 @@ rc=$?
 assert_exit "unwritable ledger exits 1" 1 "$rc"
 assert_contains "unwritable ledger aborts" "$out" "Aborted: cannot write ledger"
 assert_not_contains "unwritable ledger deletes nothing" "$out" "Deleted:"
-branch_exists feat/ok2 && pass "unwritable ledger: feat/ok2 untouched" || fail "unwritable ledger: feat/ok2 untouched" "exists" "gone"
+assert_branch "unwritable ledger: feat/ok2 untouched" present feat/ok2
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
