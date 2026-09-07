@@ -1097,15 +1097,19 @@ class ShortNameJoinTests(unittest.TestCase):
     An artifact that records a method as `run` rather than as `Alpha.run`
     matches every function in the file whose name ends in `run`, so the name
     alone cannot say which one it measured. The committed fixture
-    `../../../scripts/fixtures/coverage/lcov-short-names.info` holds the three
+    `../../../scripts/fixtures/coverage/lcov-short-names.info` holds the four
     shapes that decide it: `src/dispatch.py`, where the record sits in the
     second function's range; `src/handler.py`, the same shape with the record
-    moved into the first function's range; and `src/router.py`, where an
-    `FNDA` with no `FN` declaration names the function and places it nowhere.
-    Every section declares the same two functions, `Alpha.run` at 3-6 and
-    `Beta.run` at 11-14, so what changes between them is only where the
-    coverage sits.
+    moved into the first function's range; `src/router.py`, where an `FNDA`
+    with no `FN` declaration names the function and places it nowhere; and
+    `src/relay.py`, where two records named `run` sit inside the first
+    function's range and neither one starts where it does. Every section
+    declares the same two functions,
+    `Alpha.run` at 3-6 and `Beta.run` at 11-14, so what changes between them is
+    only where the coverage sits.
     """
+
+    PATHS = ("src/dispatch.py", "src/handler.py", "src/router.py", "src/relay.py")
 
     def _document(self) -> dict:
         parsed = subprocess.run(
@@ -1119,7 +1123,7 @@ class ShortNameJoinTests(unittest.TestCase):
             case = JoinCase(tmp).complexity(
                 [
                     complexity_row(path, name, start, end, "python", 3)
-                    for path in ("src/dispatch.py", "src/handler.py", "src/router.py")
+                    for path in self.PATHS
                     for name, start, end in (("Alpha.run", 3, 6), ("Beta.run", 11, 14))
                 ]
             )
@@ -1172,6 +1176,25 @@ class ShortNameJoinTests(unittest.TestCase):
             self.assertIsNone(row["hit"])
             self.assertEqual(row["values"]["cyclomatic"], 3)
 
+    def test_two_records_inside_one_range_leave_that_function_unjoined(self) -> None:
+        # `src/relay.py` declares `run` twice, at 4-4 and at 5-6, two nested
+        # closures the artifact also recorded short, and both sit inside
+        # `Alpha.run` at 3-6. The range narrows the candidates without
+        # separating them, so taking the first would hand `Alpha.run` a hit
+        # count that is one of the two records and no way to tell which. The
+        # row is withheld and says why. `Beta.run` at 11-14 holds neither
+        # record, so it keeps the line-range fallback over its own lines.
+        rows = self._rows(self._document(), "src/relay.py")
+        alpha = rows["Alpha.run"]
+        self.assertEqual(alpha["cov_source"], "ambiguous")
+        self.assertIn("coverage-ambiguous", alpha["labels"])
+        self.assertIsNone(alpha["values"]["coverage_pct"])
+        self.assertIsNone(alpha["values"]["crap"])
+        self.assertIsNone(alpha["hit"])
+        self.assertIn("fall inside this function's line range", alpha["reason"])
+        self.assertEqual(rows["Beta.run"]["cov_source"], "line-range")
+        self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 0.0)
+
     def test_the_lane_run_row_reports_the_functions_it_left_unjoined(self) -> None:
         # The refusal has to be visible without reading the JSON row by row:
         # the lane says it measured only part of itself and names what it could
@@ -1183,9 +1206,13 @@ class ShortNameJoinTests(unittest.TestCase):
             if entry["lane"] == "python" and entry["measure"] == "coverage"
         )
         self.assertEqual(row["status"], "partial")
-        self.assertIn("2 function(s) left unjoined", row["reason"])
+        # Both refusals reach the row: the two unplaced records in
+        # `src/router.py` and the two in-range records in `src/relay.py`.
+        self.assertIn("3 function(s) left unjoined", row["reason"])
         self.assertIn("Alpha.run", row["reason"])
         self.assertIn("Beta.run", row["reason"])
+        self.assertIn("carries no line range", row["reason"])
+        self.assertIn("fall inside this function's line range", row["reason"])
 
     def test_a_lone_short_name_still_binds_where_nothing_contests_it(self) -> None:
         # The single-candidate trailing-name match is unchanged: one record,
