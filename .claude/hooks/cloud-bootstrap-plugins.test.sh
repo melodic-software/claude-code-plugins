@@ -193,8 +193,8 @@ run_case() {
   local fx="$TMP/$name"
   mkdir -p "$fx/.claude" "$fx/node_modules/.bin" "$fx/plugins/alpha" "$fx/plugins/beta" "$fx/cfg/plugins"
 
-  printf '%s\n' "${CASE_SETTINGS:-{\"enabledPlugins\":{\"alpha@melodic-software\":true,\"beta@melodic-software\":true\}\}}" \
-    >"$fx/.claude/settings.json"
+  local default_settings='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}'
+  printf '%s\n' "${CASE_SETTINGS:-$default_settings}" >"$fx/.claude/settings.json"
   # A fleet list for the case, handed to the block through its test seam. The
   # default points at a path that does not exist, so the settings file stays
   # the only source, as on a machine outside the managed environment, and no
@@ -391,6 +391,20 @@ CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='not json at all' \
   run_case fleet_malformed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a malformed fleet list degrades to the settings block, not to an empty set" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+# Valid JSON of the wrong shape (an error body, an array where the object
+# should be) would break the merge the same way a parse failure does.
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='{"enabledPlugins":["alpha@melodic-software"]}' \
+  run_case fleet_wrong_shape "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a wrong-shaped fleet list degrades to the settings block, not to an empty set" \
+  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET='[]' \
+  run_case fleet_array "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a fleet list that is a bare array degrades to the settings block" \
   "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
 
 # --- report -------------------------------------------------------------------

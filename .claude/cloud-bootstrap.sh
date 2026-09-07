@@ -161,28 +161,28 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   fi
 
   # Enabled set: the fleet list the shared environment baked into the snapshot
-  # (standards cloud-environment component; the /tmp copy is its fallback when
-  # /opt was unwritable at cache build), overlaid with the tracked settings
-  # file, so a repo entry set to false opts out of a fleet entry and a repo
-  # entry beyond the fleet is added. Only this marketplace's ids count, and
-  # they resolve against the checkout registered above, so a settings block
-  # reduced to deltas still dogfoods the whole catalog from the current
+  # (standards cloud-environment component), overlaid with the tracked
+  # settings file, so a repo entry set to false opts out of a fleet entry and
+  # a repo entry beyond the fleet is added. Only this marketplace's ids count,
+  # and they resolve against the checkout registered above, so a settings
+  # block reduced to deltas still dogfoods the whole catalog from the current
   # branch. Absent outside a managed environment, in which case the settings
   # file is the only source, as before. CLOUD_BOOTSTRAP_FLEET_LIST is the test
   # seam.
-  fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-}"
-  if [[ -z "$fleet_list" ]]; then
-    for candidate in /opt/melodic-fleet-plugins.json /tmp/melodic-fleet-plugins.json; do
-      if [[ -f "$candidate" ]]; then
-        fleet_list="$candidate"
-        break
-      fi
-    done
-  fi
-  # A present-but-unparsable list (partial write at cache build) must degrade
-  # to settings-only, not empty the whole enabled set: `--slurpfile` fails
-  # before emitting anything.
-  if ! [[ -f "$fleet_list" ]] || ! jq empty "$fleet_list" 2>/dev/null; then
+  #
+  # Only the /opt copy is read. The environment component also leaves a /tmp
+  # copy when /opt was unwritable at cache build, but /tmp is world-writable
+  # and a list at a predictable path there is an input any code running in
+  # the session could plant to enable a plugin with no settings diff; a
+  # snapshot whose /opt was unwritable simply gets the settings-only path.
+  fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
+  # A list that is absent, unparsable (partial write at cache build), or not
+  # the settings shape (an error body, an array) must degrade to settings-only,
+  # not empty the whole enabled set: `--slurpfile` and the object merge below
+  # both fail before emitting anything.
+  if ! [[ -f "$fleet_list" ]] ||
+    ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' \
+      "$fleet_list" >/dev/null 2>&1; then
     fleet_list=.claude/settings.json
   fi
   mapfile -t wanted < <(
