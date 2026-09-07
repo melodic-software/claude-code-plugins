@@ -1072,6 +1072,7 @@ else
     ok "SKIP: chmod 000 does not deny the arm record for this user"
   else
     UNREAD_ARM_ERR="$WORK/unreadable-arm.err"
+    rm -f "$SETTINGS"
     OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
       env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
         -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
