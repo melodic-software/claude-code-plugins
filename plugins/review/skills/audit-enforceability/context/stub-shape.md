@@ -45,12 +45,14 @@ when one reaches a written file:
 | A top-level `branch:` key | The second half of the admission test. The stub records the source branch as `source-branch:` instead, which nothing scans for. |
 | A `## Findings` heading | The table anchor every findings reader parses. |
 
-The `type:` marker is the load-bearing exclusion. The writer's two home refusals (a stub home
-inside the fix action's scan directory, and a stub home inside the input file's own directory)
-are defense in depth on top of it, not a substitute for it. Those refusals compare each path
-after folding it to the filesystem's own spelling of its deepest existing ancestor, because one
-directory can be addressed by more than one absolute path and comparing two spellings as strings
-would report "not within" for the very case the fence exists to catch.
+The `type:` marker is the load-bearing exclusion. The writer's home refusals (a stub home
+inside the fix action's scan directory, a stub home inside the input file's own directory, a
+home carrying a `..` segment, a home outside `--memory-root` when the caller composed the path,
+and a last path segment outside the branch-slug charset `[a-z0-9._-]`) are defense in depth on
+top of it, not a substitute for it. The two sibling refusals compare each path after folding it
+to the filesystem's own spelling of its deepest existing ancestor, because one directory can be
+addressed by more than one absolute path and comparing two spellings as strings would report
+"not within" for the very case the fence exists to catch.
 
 ## Filename
 

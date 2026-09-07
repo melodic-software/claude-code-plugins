@@ -37,7 +37,7 @@
 # That action scans the binding's resolved reviews location for `*.md` files
 # whose frontmatter declares `type: review-findings`. A stub declares
 # `type: enforceability-stub` and carries no `branch:` key, which is the
-# load-bearing exclusion; the two refusals below are defense in depth. This
+# load-bearing exclusion; the refusals below are defense in depth. This
 # script refuses, writing nothing, when --out is --scan-dir or sits under it,
 # and when --out is the findings file's own directory or sits under it. Each
 # path is normalized lexically and then folded to the filesystem's own spelling
@@ -49,10 +49,13 @@
 # operator-supplied text: this script records it as `source-branch:` in the
 # stub and never puts it, or anything else read out of the input, into a path.
 # Every filename segment it derives is passed through the slug charset first.
-# The caller does compose --out from a slug, so two further refusals bound
+# The caller does compose --out from a slug, so three further refusals bound
 # that: a --out carrying a `..` segment is refused outright (no resolved home
-# has one, and a slug that escaped sanitization is exactly how one appears),
-# and --memory-root, when the caller composed --out, must contain it.
+# has one, and a slug that escaped sanitization is exactly how one appears);
+# --memory-root, when the caller composed --out, must contain it; and the last
+# path segment of --out (the branch slug) must match the slug charset
+# [a-z0-9._-], so an unsanitized value that does not rely on `..` still cannot
+# steer the home.
 #
 # Exit: 0 wrote (or planned) every stub; 2 usage, unreadable or non-conforming
 # --findings, missing --scan-dir; 3 a refused home; 4 a written stub carried a
@@ -288,6 +291,28 @@ is_unc_path() {
   [[ "$p" == //* ]]
 }
 
+# last_path_segment <path>: the final component after folding `\` and dropping
+# trailing slashes. For a composed home that is the branch slug; for a
+# handed-over home it is still the last segment the caller named. Result in
+# LAST_SEG rather than on stdout: same spawn-avoidance as normalize_path.
+LAST_SEG=""
+last_path_segment() {
+  local p="${1//\\//}"
+  while [[ "$p" == */ ]]; do
+    p="${p%/}"
+  done
+  LAST_SEG="${p##*/}"
+}
+
+# is_slug_charset <seg>: true when every character is in the branch-slug
+# charset [a-z0-9._-]. Empty is a miss. `.` and `..` match the class
+# syntactically and are refused by has_dotdot_segment instead; this check is
+# the other half: an unsanitized slug that does not use `..` to escape.
+is_slug_charset() {
+  local slug_re='^[a-z0-9._-]+$'
+  [[ -n "$1" && "$1" =~ $slug_re ]]
+}
+
 # --- Findings-file admission, first half: the frontmatter marker --------------
 #
 # One pass over the frontmatter block reads both values this script needs: the
@@ -462,6 +487,18 @@ if [[ -n "$memory_root" ]]; then
       "$out_abs" "$root_abs" >&2
     exit 3
   fi
+fi
+
+# The last path segment is the branch slug the caller composed from
+# operator-supplied frontmatter (or the last segment of a handed-over home).
+# --memory-root bounds WHERE the home may sit; this bounds WHAT that last
+# segment may be, including when the caller omitted the anchor. A charset
+# miss is an unsanitized value reaching the path.
+last_path_segment "$out"
+if ! is_slug_charset "$LAST_SEG"; then
+  printf 'refusing: the stub home %s has a last path segment outside the branch-slug charset [a-z0-9._-]. That segment is the branch slug the caller composed from operator-supplied frontmatter; a value that reached the path unsanitized is how a write escapes the tree. Apply the slug rule rather than letting the raw value steer the path.\n' \
+    "$out" >&2
+  exit 3
 fi
 
 # --- Classification input ------------------------------------------------------

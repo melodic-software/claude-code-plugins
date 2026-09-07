@@ -15,9 +15,10 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`audit-enforceability/scripts/emit-stubs.sh`:** the deterministic stub writer. It anchors on
   the `## Findings` heading so the `## By dimension` re-render is never counted twice, unescapes
   `\|`, never overwrites, and refuses a stub home that is the fix action's resolved reviews
-  location, the input file's own directory, a path carrying a `..` segment, or a path outside the
-  root the caller composed it from. After writing it re-reads every stub and removes all of them
-  if one carries a findings-file marker.
+  location, the input file's own directory, a path carrying a `..` segment, a path outside the
+  root the caller composed it from, or a path whose last segment sits outside the branch-slug
+  charset `[a-z0-9._-]`. After writing it re-reads every stub and removes all of them if one
+  carries a findings-file marker.
 - **`reference/topic-docs.md`:** a second five-rung resolution list, for the reserved
   `enforceability/<branch-slug>/` concern, plus the stub artifact row. Rungs 1 and 5 compose the
   segment and make the stub home a sibling of `reviews/`; rungs 2 to 4 yield a declared, inferred,

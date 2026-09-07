@@ -6,7 +6,9 @@
 # pass. Three independent halves prove it -- the stub carries no findings-file
 # marker (cases 2 and 11), the fix action's own admission predicate returns
 # nothing over the stub home (case 3), and the writer refuses a stub home inside
-# either the scan directory or the input's own directory (case 4).
+# either the scan directory or the input's own directory (case 4). Cases 14 and
+# 21 add the composed-home bounds: a `..` segment, a home outside --memory-root,
+# and a last path segment outside the branch-slug charset.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -470,6 +472,39 @@ for f in "$OUT20"/-/*.md; do
   [[ -f "$f" ]] && dash_left=$((dash_left + 1))
 done
 assert_eq "case 20: the rollback removed every stub despite the option-shaped path" "0" "$dash_left"
+
+# --- Case 21: the last path segment must match the branch-slug charset -----
+#
+# --memory-root bounds where a composed home may sit. The last path segment is
+# the branch slug itself, taken from operator-supplied frontmatter, and a
+# charset miss is an unsanitized value that does not need `..` to be wrong.
+# Checked even when the home already sits under --memory-root, and even when
+# the caller omitted the anchor: neither bound is a substitute for the other.
+CHARSET_ROOT="$TEST_TMPDIR/charset-root"
+CHARSET_BAD="$CHARSET_ROOT/enforceability/Feat-X"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_BAD" \
+  --scan-dir "$SCAN_DIR" --memory-root "$CHARSET_ROOT" >/dev/null 2>&1
+assert_eq "case 21: an uppercase last segment under --memory-root is refused" "3" "$?"
+assert_eq "case 21: the uppercase home was never created" "0" \
+  "$([[ -e "$CHARSET_BAD" ]] && echo 1 || echo 0)"
+
+charset_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_BAD" \
+  --scan-dir "$SCAN_DIR" --memory-root "$CHARSET_ROOT" 2>&1 >/dev/null)"
+assert_contains "case 21: the refusal names the charset" "$charset_err" "charset"
+assert_contains "case 21: the refusal names the branch slug" "$charset_err" "branch slug"
+
+CHARSET_SPACE="$TEST_TMPDIR/charset-space/feat x"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_SPACE" \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 21: a last segment with a space is refused without --memory-root" "3" "$?"
+assert_eq "case 21: the spaced home was never created" "0" \
+  "$([[ -e "$CHARSET_SPACE" ]] && echo 1 || echo 0)"
+
+CHARSET_OK="$CHARSET_ROOT/enforceability/feat-x"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_OK" \
+  --scan-dir "$SCAN_DIR" --memory-root "$CHARSET_ROOT" >/dev/null 2>&1
+assert_eq "case 21: a last segment inside the charset still writes" "0" "$?"
+assert_eq "case 21: the charset-ok home got its seven stubs" "7" "$(count_files "$CHARSET_OK")"
 
 # --- Dry run ------------------------------------------------------------------
 

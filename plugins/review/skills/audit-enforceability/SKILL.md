@@ -126,8 +126,11 @@ temporary file is left behind. This step is done when the writer has exited 0 an
 
 The writer is deterministic and owns the shape ([`context/stub-shape.md`](context/stub-shape.md)):
 it anchors on `## Findings`, unescapes `\|`, never overwrites, refuses a stub home inside either
-fenced directory, refuses a home carrying a `..` segment or one that escapes `--memory-root`, and
-re-reads every stub it wrote, removing all of them if any carries a findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
+fenced directory, refuses a home carrying a `..` segment or one that escapes `--memory-root`,
+refuses a home whose last path segment sits outside `[a-z0-9._-]` (that segment is the branch
+slug, composed from operator-supplied frontmatter; a charset miss is an unsanitized value
+reaching the path), and re-reads every stub it wrote, removing all of them if any carries a
+findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
 `4` a forbidden marker. Surface a non-zero exit verbatim; never retry it into a different
 directory.
 
