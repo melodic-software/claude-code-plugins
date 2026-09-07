@@ -27,13 +27,13 @@ add_row() { rows="${rows}${1}\t${2}\t${3}\t${4}\n"; }
 if have scc; then
   add_row count scc present "-"
 else
-  add_row count scc absent "Per-file comment+complexity census and ranking. Falls back to line-prefix counting, which miscounts heredocs and block comments."
+  add_row count scc absent "The per-file complexity estimate the ranking uses. Census lines and bytes then come from pygments; with pygments absent too, the census and the ranking cannot run at all (exit 3)."
 fi
 
 if pyhas pygments; then
   add_row extract pygments present "-"
 else
-  add_row extract pygments absent "Accurate per-comment extraction in every language. Falls back to grep, which cannot see trailing or block comments and misreads heredoc bodies as comments."
+  add_row extract pygments absent "Per-comment byte counts and the token estimate, and correct extraction of trailing, block and heredoc-adjacent comments. With scc absent too, the census and the ranking cannot run at all (exit 3): a line-prefix grep is never substituted, because it counts heredoc bodies and string data as comments."
 fi
 
 TS_LANGS=""

@@ -37,4 +37,4 @@ not a scoped rule.
   licensed, which is why every treatment here is per comment.
 
 Ranking and census sources are listed in [tooling.md](tooling.md) and in the header of
-`${CLAUDE_PLUGIN_ROOT}/scripts/rank-comment-targets.py`.
+`../../../scripts/rank-comment-targets.py`.

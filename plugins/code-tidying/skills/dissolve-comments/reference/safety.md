@@ -11,8 +11,13 @@ behavior, while a token comparison is exhaustive over the file.
 
 | Mode | Class A | Class B | Class C |
 |---|---|---|---|
-| **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; narrative staging |
-| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage; deletions of pure narrative still apply, with staging |
+| **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
+| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
+
+`conservative` is `safe` as a standing default, so it reads the `safe` row. The class-C column is
+the one to get right: the triage still runs in every mode and still returns a verdict, but a
+verdict is not an application. `safe` narrowing class C to proposals is what makes "only class-A
+deletions are applied" in the action router true rather than approximately true.
 
 In **no mode** does the skill: apply an edit whose tier gate did not pass, touch an exempt surface
 or excluded path, or delete text without a landing place (staging rule below).
@@ -26,12 +31,24 @@ or excluded path, or delete text without a landing place (staging rule below).
 | **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
 | **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
 
-`change-shape.py` is at `${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py` and carries its verdict in
+`change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file; the
+`${CLAUDE_PLUGIN_ROOT}` token is substituted in `SKILL.md` but **not** in a reference file, which
+arrives through the Read tool with the placeholder intact) and carries its verdict in
 the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
-unavailable. Run it against the file's content before and after each edit, and before the comment
-is deleted. Any verdict other than the tier's required one reverts the edit and demotes the item to
-a proposal that quotes the verdict, including which token kinds differed. UNPROVABLE (a parse
-error on either side) is a revert, never a pass.
+unavailable, **2 no grammar mapping for the file's extension** (or a usage error). Run it against
+the file's content before and after each edit, and before the comment is deleted. Any verdict other
+than the tier's required one reverts the edit and demotes the item to a proposal that quotes the
+verdict, including which token kinds differed. UNPROVABLE (a parse error on either side) is a
+revert, never a pass, and so is exit 2: an unmapped extension is an *unproven* edit, never a
+tacit pass.
+
+**Exit 2 is the common case on a mixed-language repository, not an edge case.** `CODE_EXT` in
+`scope-code-files.sh` admits 28 extensions; `change-shape.py` maps 15 of them and
+`commented-out-code.py` 11, and their union is 15. The 13 with no grammar in either —
+`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql .toml` — reach triage normally and then
+have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.
+Say so in the report rather than reporting those files as clean: a file nothing could prove is not
+a file with nothing to fix.
 
 When tree-sitter is unavailable (exit 3), tier 0 falls back to whatever reading layer the tooling
 probe reported: a pygments-level read may still apply deletions; a grep-level read applies nothing
@@ -70,13 +87,40 @@ open the apply path, because they cannot attest behavior preservation.
 - Suppression justifications: the reason attached to a lint waiver, a cast-safety claim, or a
   narrowing assertion (`@SuppressWarnings("unchecked") // safe because …`). The waiver is a
   directive and the reason is what makes it reviewable. Removing either breaks the pair
+- `TODO(#issue)` / `FIXME(#issue)` markers tracking real work
+- Lines carrying `dissolve-comments-ignore` (on the line or the line immediately before)
+
+## Not exempt, but the highest-cost misclassification: route to class C
+
+These three are **not** on the list above, and the distinction is deliberate. They are not
+machine-read, not legal, and not a contract another tool consumes; they are prose that a reader
+needs, which makes them class C — subject to the earn-its-keep test and the line budget like any
+other class-C comment, not exempt from them.
+
 - **Negative information**: what the code deliberately does NOT do, and why an alternative was
   rejected. This class has no referent in the adjacent code, which gives it the same surface
   signature as a stale comment. It is the tool's most likely false positive. See the gotcha below
 - **Operational information**: how this component fits the wider system. By construction it cannot
   live in the code of an encapsulated unit without breaking that encapsulation
-- `TODO(#issue)` / `FIXME(#issue)` markers tracking real work
-- Lines carrying `dissolve-comments-ignore` (on the line or the line immediately before)
+- Rejected-alternative rationale, the narrative form of the first bullet
+
+**What "route to class C" buys them**, and what it does not. Each passes criterion 1 automatically:
+none of it is expressible in a name, a type, or an assertion, so no class-B move applies and a
+class-A deletion is never correct. Criteria 2 and 3 still bind. A rejected alternative recorded
+nowhere else is load-bearing and is kept. The same rationale already in the commit that made the
+change, an ADR, or a linked issue fails criterion 2. Twelve lines of narrative about three
+alternatives exceeds the budget and is *rewritten* to the durable constraint with the narrative
+staged, which is exactly what the skill's own eval 13 asserts.
+
+Treating the whole category as untouchable instead would contradict that eval, and would contradict
+the class-C test in [triage.md](triage.md), which the skill body applies to precisely this content.
+The discriminator the design uses is the **budget, not the category**.
+
+Because this class is the likeliest false positive, its evidence bar is raised rather than lowered:
+a criterion-2 failure here needs the alternative recorded *somewhere a reader would actually reach*
+— a commit message, an ADR, a linked issue — and "it is probably in the history" is not that. Where
+a repository pairs such a comment with a regression test, the comment is half of a two-part record
+and is kept; see the gotcha below.
 
 ### Repo-local machine-read markers: discover, never assume
 
@@ -118,7 +162,7 @@ default rather than betting deletion on a clean discovery pass.
 ## Path exclusions
 
 The canonical baseline is the plugin's standard tier — tidy's
-[exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md), GLOBAL HARD
+[exclusions reference](../../tidy/reference/exclusions.md), GLOBAL HARD
 list: the whole `.claude/**` tree plus any script wired as a hook command in
 `.claude/settings.json` or `.claude/settings.local.json` (wherever it lives), other agents'
 config bundles, `.github/workflows/**` and CI surface, git-hook manager config, cross-ecosystem

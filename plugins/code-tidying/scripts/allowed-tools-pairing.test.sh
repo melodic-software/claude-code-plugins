@@ -11,9 +11,18 @@
 # non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
 # match a quoted body path, which is how one grant in this repo shipped dead.
 #
-# `${CLAUDE_SKILL_DIR}` is the only skill-relative token substituted in
-# `allowed-tools`; `${CLAUDE_PLUGIN_ROOT}` stays a literal string there and the
-# grant is inert.
+# This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
+# convention rather than a platform limit. `${CLAUDE_PLUGIN_ROOT}` DOES
+# substitute in a plugin skill's `allowed-tools` Bash rules
+# (<https://code.claude.com/docs/en/skills>, fetched 2026-09-07: "In a plugin
+# skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and
+# `${CLAUDE_PLUGIN_DATA}` in the same two places"), so the older "the token is
+# inert there" reason is stale and is not why this rule exists. The reason it
+# still holds: the docs establish substitution, not that such a rule matches at
+# runtime on every host, and this repo does not ship a grant on docs alone
+# (`plugins/discovery/reference/parent-contract.md`). Until a runtime check
+# exists, the skill-local path is the exercised shape — reachable from a shared
+# `scripts/` location through a thin exec wrapper.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
@@ -24,7 +33,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(tidy audit-comment-residue audit-dead-code)
+SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a
@@ -81,6 +90,19 @@ for skill in "${SKILLS[@]}"; do
     fi
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
+    fi
+    # An injected ${CLAUDE_PLUGIN_ROOT} script is unmatched by any grant this
+    # gate permits, so under default permissions the injection aborts before
+    # Claude sees the skill. The grant-side checks above cannot catch it — the
+    # grant is simply absent — which is how two skills shipped an ungranted
+    # injection while this gate passed green. Route the shared script through a
+    # skill-local exec wrapper instead. (Not because the token fails to
+    # substitute; see the header. It is that this repo grants only the shape
+    # whose runtime matching is exercised.)
+    if grep -qE '!`[^`]*\$\{CLAUDE_PLUGIN_ROOT\}/scripts/' "$f"; then
+      fail "$f: body injects a \${CLAUDE_PLUGIN_ROOT} script no permitted grant covers — add a \${CLAUDE_SKILL_DIR}/scripts wrapper"
+    else
+      pass "$(basename "$f"): no ungrantable \${CLAUDE_PLUGIN_ROOT} injection"
     fi
   done
 
