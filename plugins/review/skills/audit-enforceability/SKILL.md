@@ -77,8 +77,17 @@ finding, not the cheapest rung imaginable.
 Both through [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](../../reference/topic-docs.md),
 which owns the ladder, the rung semantics, and the non-interactive collapse:
 
-- **The stub home**: the `enforceability/<branch-slug>/` ladder, where `<branch-slug>` comes from
-  the findings file's own `branch:` value.
+- **The stub home**: the `enforceability/<branch-slug>/` ladder.
+
+  `<branch-slug>` comes from the findings file's own `branch:` value, which the operator chose
+  and which nothing authenticates. **The raw value is never a path segment.** Apply the binding's
+  branch-slug rule first: lowercase it, then replace `/` and every other character outside
+  `[a-z0-9._-]` with `-`. That is what turns a value like `../../etc` into `..-..-etc`, one inert
+  segment. A slug that is empty after that rule is not a home; report the classification table and
+  write nothing. When you composed the home this way (the ladder's rungs 1 and 5), pass the root
+  you composed it from as `--memory-root`, so the writer refuses a home that escaped it. When the
+  consumer handed the home over whole (rungs 2 to 4), no segment of it came from the input file
+  and no anchor applies.
 - **The fix action's reviews location** for that same branch: the `reviews/<branch-slug>/` ladder.
   This is what the writer is fenced against; it is resolved, never assumed, because the binding's
   middle rungs do not compose a `reviews/<branch-slug>` segment at all.
@@ -104,7 +113,8 @@ Each `<TAB>` below is a single tab character, not that text:
   --findings <findings-file> \
   --classes - \
   --out <resolved-stub-home> \
-  --scan-dir <resolved-reviews-home> <<'TSV'
+  --scan-dir <resolved-reviews-home> \
+  --memory-root <the root the home was composed from, at rungs 1 and 5 only> <<'TSV'
 1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig
 2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector
 TSV
@@ -116,8 +126,8 @@ temporary file is left behind. This step is done when the writer has exited 0 an
 
 The writer is deterministic and owns the shape ([`context/stub-shape.md`](context/stub-shape.md)):
 it anchors on `## Findings`, unescapes `\|`, never overwrites, refuses a stub home inside either
-fenced directory, and re-reads every stub it wrote, removing all of them if any carries a
-findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
+fenced directory, refuses a home carrying a `..` segment or one that escapes `--memory-root`, and
+re-reads every stub it wrote, removing all of them if any carries a findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
 `4` a forbidden marker. Surface a non-zero exit verbatim; never retry it into a different
 directory.
 
