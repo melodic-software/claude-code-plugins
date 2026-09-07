@@ -23,6 +23,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   from 12 to 0. No runtime behavior changes: both predicates test the same
   conditions and return the same values, and all 650 engine tests stay green.
 
+### Added
+
+- **`tests/test_babysit_util.py` pins the runtime side of the two guards.**
+  `babysit_util.py` mapped to no test suite, which `scripts/affected-tests.sh`
+  reports as an error rather than an empty selection. Twelve cases fix what each
+  predicate accepts and rejects, including the cases a truthiness shortcut would
+  confuse (an empty container, `None`) and the fact that neither check inspects a
+  key or an element, plus `dig`'s bail-out on a non-object level.
+
 ## [0.55.61]
 
 ### Changed
