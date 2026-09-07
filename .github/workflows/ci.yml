@@ -1096,6 +1096,46 @@ jobs:
         id: listing_budget
         continue-on-error: true
         run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
+      # The step above measures a DEFAULT consumer, against the documented
+      # 8,000-char fallback, and for this fleet it is permanently many times
+      # over. That makes it useless as a growth signal: nothing it can print is
+      # ever new information. This second pass measures the budget THIS repo
+      # actually configures, reconstructed with the script's own documented
+      # arithmetic (TOKENS x CHARS_PER_TOKEN x FRACTION).
+      #
+      # THE FRACTION IS READ FROM .claude/settings.json, never repeated here.
+      # A literal 0.05 in this file would be a second copy of a value that
+      # lives in exactly one place, free to drift the moment anyone retunes the
+      # setting — and it would drift silently, because a wrong basis still
+      # prints a confident OK. Reading it means the tripwire follows the
+      # setting by construction. A tree that stops setting the key is a warning
+      # rather than a silently green step: the repo would then be on the
+      # harness default 0.01 and this measurement would be measuring nothing.
+      #
+      # THE WINDOW IS PINNED TO THE TIGHTER BASIS, 750,000 tokens, which is
+      # what #3505 exhibited live. The budget is a FRACTION of the live
+      # context window, so the same 0.05 buys 150,000 chars there and 200,000
+      # on a 1M-token model. Measuring the 1M basis would put this WARN roughly
+      # a month after the 750k consumers had already overflowed, and a tripwire
+      # that fires after the failure it exists to predict is worse than none.
+      # (Neither basis speaks for a 200k-window consumer, who is over the
+      # 40,000-char budget today; docs/CLOUD-SESSIONS.md records that.)
+      # Report-only for the same reason its sibling is. The fix for the
+      # aggregate is the per-skill description trim, which #3526 owns.
+      - name: Report the skill-listing budget at this repo's configured fraction
+        id: listing_budget_configured
+        continue-on-error: true
+        env:
+          CHECK_SKILL_LISTING_CONTEXT_TOKENS: "750000"
+        run: |
+          fraction="$(jq -r '.skillListingBudgetFraction // empty' .claude/settings.json)"
+          if [ -z "$fraction" ]; then
+            echo "::warning::.claude/settings.json no longer sets skillListingBudgetFraction, so this repo is back on the harness default (0.01) and there is no configured fraction to measure. Restore the key or retire this step."
+            exit 0
+          fi
+          echo "skillListingBudgetFraction read from .claude/settings.json: $fraction"
+          CHECK_SKILL_LISTING_BUDGET_FRACTION="$fraction" \
+            bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 
       # Portability lint: skills declared ecosystem/forge/tracker-agnostic must
       # not ship bare hardcoded stack/forge/branch/tracker defaults — the
@@ -1244,6 +1284,7 @@ jobs:
             evals-quality=${{ steps.evals_quality.outcome }}
             precompute-compose=${{ steps.precompute_compose.outcome }}
             listing-budget=${{ steps.listing_budget.outcome }}
+            listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
