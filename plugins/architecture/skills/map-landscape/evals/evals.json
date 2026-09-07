@@ -28,7 +28,7 @@
       "expectations": [
         "Invokes /repo-fleet-hygiene:audit via the Skill tool with `--plan-file <memory_dir>/<topic-slug>/fleet-plan.json`, creating the memory slice first",
         "Confirms the plan's `schema_version` is `1` before reading `repositories[]`",
-        "FILTERS `repositories[]` to entries whose `discovered` path lies under the requested root: /home/operator/personal/scratchpad is present in the plan and MUST NOT appear in either artifact",
+        "FILTERS `repositories[]` to entries whose `discovered` path lies under the requested root: /srv/personal/scratchpad is present in the plan and MUST NOT appear in either artifact",
         "Uses each kept entry's `canonical` path (so the web worktree charts as /srv/code/platform/web) and its `remote`",
         "Announces that the collaborator's audit collects GitHub evidence and may need `gh` authentication",
         "Treats fleet-plan.json as a temp artifact in the self-ignoring memory slice; never commits it or copies it into architecture_dir"

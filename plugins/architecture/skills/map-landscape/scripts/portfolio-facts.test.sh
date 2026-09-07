@@ -7,6 +7,12 @@
 # here reads or writes a real repository.
 set -uo pipefail
 
+# Isolate the fixture repositories from any ambient git environment. `git -C`
+# changes directory but does not override discovery, so an exported absolute
+# GIT_DIR would land these throwaway identities in the CALLER's .git/config,
+# and GIT_CONFIG is a second leak path that survives a cleared GIT_DIR.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/portfolio-facts.sh"
 TEST_TMPDIR="$(mktemp -d)"
@@ -153,8 +159,8 @@ module example.invalid/edge-proxy
 go 1.23
 
 require (
-	github.com/spf13/cobra v1.8.1
-	golang.org/x/sync v0.8.0
+  github.com/spf13/cobra v1.8.1
+  golang.org/x/sync v0.8.0
 )
 GOMOD
 commit_repo "$go_repo"

@@ -19,8 +19,8 @@
       "verdict": "clean"
     },
     {
-      "discovered": "/home/operator/personal/scratchpad",
-      "canonical": "/home/operator/personal/scratchpad",
+      "discovered": "/srv/personal/scratchpad",
+      "canonical": "/srv/personal/scratchpad",
       "remote": "https://example.invalid/operator/scratchpad.git",
       "verdict": "clean"
     }
