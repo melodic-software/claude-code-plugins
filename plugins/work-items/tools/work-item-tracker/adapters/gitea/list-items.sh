@@ -58,8 +58,22 @@ wit_gitea_scope_parts "$REPO"
 
 # Gitea's `state` query parameter takes open|closed|all — the seam's own vocabulary, so
 # it passes through. STATE is already constrained to those three by the parse above.
+#
+# Rows travel through FILES, not shell variables. The earlier shape kept the accumulated
+# array in a variable and re-serialized the whole of it through jq once per page and
+# once per item, which is quadratic in the repository size, and it fed that variable to
+# jq as a here-string, which on Git Bash blocks the shell forever once the payload
+# reaches the pipe capacity (65536 bytes; see lib/hook-utils.sh hook::json_complete).
+# Appending each page's issues to a file as one JSON object per line is linear, keeps
+# every jq input off the command line (ARG_MAX) and out of here-strings, and lets the
+# whole list be normalized in a single jq pass at the end.
+if ! { ROWS="$(mktemp)" && COUNTS="$(mktemp)"; }; then
+  printf 'list-items.sh: could not create temp files for the item walk\n' >&2
+  exit "$EX_INTERNAL"
+fi
+trap 'rm -f "$ROWS" "$COUNTS"' EXIT
+
 PAGE=1
-COLLECTED='[]'
 # SEEN counts raw rows returned so far, for comparison against gitea's own X-Total-Count.
 # `services/convert.ToCorrectPageSize` silently clamps `limit` to `[api] MAX_RESPONSE_ITEMS`
 # (stock 50), so on an instance whose cap is below config.gitea.page_size EVERY page comes
@@ -76,19 +90,14 @@ while :; do
   # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
   wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
-  GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || {
+  GOT="$(printf '%s' "$WIT_GITEA_BODY" | jq 'length' 2>/dev/null)" || {
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2
     exit "$EX_INTERNAL"
   }
   # Belt and braces: `type=issues` should mean gitea sends no PRs, but a PR arriving as a work
-  # item would be claimed and worked like one, so the filter stays.
-  # The ACCUMULATOR travels on stdin and only the (page-size-bounded) page travels in argv.
-  # The other way round — `--argjson acc "$COLLECTED"` — puts an unboundedly growing array on
-  # jq's command line, and past ARG_MAX the kernel refuses the exec: jq dies with "Argument
-  # list too long", the unchecked assignment leaves COLLECTED empty, and list-items reports
-  # ZERO issues while exiting 0. A big repo silently looked empty.
-  COLLECTED="$(jq -c --argjson page "$WIT_GITEA_BODY" \
-    '. + [ $page[] | select(.pull_request == null) ]' <<<"$COLLECTED")" || {
+  # item would be claimed and worked like one, so the filter stays. A page that will not
+  # append is fatal: continuing would report a partial list as complete.
+  printf '%s' "$WIT_GITEA_BODY" | jq -c '.[] | select(.pull_request == null)' >>"$ROWS" || {
     printf 'list-items.sh: could not accumulate page %s for %s — refusing to report a partial list as complete\n' \
       "$PAGE" "$REPO" >&2
     exit "$EX_INTERNAL"
@@ -121,32 +130,38 @@ done
 # data and there is no bulk dependency endpoint. Returning 0 instead would be worse
 # than slow — list-frontier filters on blocked_by_count == 0, so every blocked item
 # would surface as available work.
-ITEMS='[]'
-while IFS= read -r raw; do
-  [[ -n "$raw" ]] || continue
-  NUMBER="$(jq -r '.number' <<<"$raw")"
+#
+# The item numbers come out of the rows file in ONE jq pass, and each count is written
+# beside its number as a JSON line; the final pass below joins the two files by number.
+# So the per-item cost is the dependency request itself, not that plus three more jq
+# processes to re-read, normalize and re-accumulate the item.
+while IFS= read -r NUMBER; do
+  # The number reaches a request path and is the join key below, so anything but digits
+  # is refused here, before it can be interpolated or mis-joined.
+  [[ "$NUMBER" =~ ^[0-9]+$ ]] || {
+    printf 'list-items.sh: gitea returned an issue in %s without a numeric number: %s\n' "$REPO" "$NUMBER" >&2
+    exit "$EX_INTERNAL"
+  }
   # The helper exits on transport/HTTP failure, but inside $( ) that only ends the
   # subshell — propagate its code rather than continuing with "" and reporting a 401 or
   # a 503 as this adapter's own internal error.
   BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || exit "$?"
-  ONE="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --argjson bbc "$BBC" \
-    --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" \
-    '(.repository.full_name //= $full) | '"$WIT_GITEA_NORMALIZE_PROGRAM" <<<"$raw")" || {
-    printf 'list-items.sh: could not normalize a gitea issue in %s\n' "$REPO" >&2
-    exit "$EX_INTERNAL"
-  }
-  # Accumulator on stdin, one item in argv — see the note on the page accumulation above.
-  ITEMS="$(jq -c --argjson one "$ONE" '. + [$one]' <<<"$ITEMS")" || {
-    printf 'list-items.sh: could not accumulate a normalized issue in %s — refusing to report a partial list as complete\n' "$REPO" >&2
-    exit "$EX_INTERNAL"
-  }
-done < <(jq -c '.[]' <<<"$COLLECTED")
+  printf '{"number":%s,"blocked_by_count":%s}\n' "$NUMBER" "$BBC" >>"$COUNTS"
+done < <(jq -r '.number' "$ROWS")
 
-# The envelope is built with ITEMS on STDIN for the same ARG_MAX reason as the accumulation
-# above — this is the one place where the array is guaranteed to be at its largest, so it is
-# the likeliest to blow the command line. A failure here must not emit a truncated or empty
-# envelope with a success status.
-jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
-  printf 'list-items.sh: could not emit the item envelope for %s\n' "$REPO" >&2
+# One pass builds the envelope: slurp the rows, join each to its blocker count, normalize.
+# jq materializes the envelope before printing any of it, so a failure here (including a
+# row with no count, which `error` turns into one) emits nothing rather than a truncated
+# or partial envelope with a success status.
+jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
+  --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" '
+  ($counts | map({key: (.number | tostring), value: .blocked_by_count}) | from_entries) as $bbc_by_number
+  | {schema_version: $sv,
+     items: [ .[]
+       | (.repository.full_name //= $full)
+       | ($bbc_by_number[.number | tostring]) as $bbc
+       | if $bbc == null then error("no blocker count for issue " + (.number | tostring)) else . end
+       | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ]}' "$ROWS" || {
+  printf 'list-items.sh: could not normalize the gitea issues in %s; refusing to report a partial list as complete\n' "$REPO" >&2
   exit "$EX_INTERNAL"
 }
