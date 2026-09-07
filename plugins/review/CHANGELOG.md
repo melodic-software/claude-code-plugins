@@ -11,8 +11,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   column when any of the container's retrieved criteria opens with a bracketed EARS tag. The cell
   carries one of exactly five names, `ubiquitous`, `event-driven`, `state-driven`,
   `unwanted-behaviour`, `optional-feature`, matching what the planning surfaces emit; a bracket
-  holding anything else leaves the cell empty rather than echoing raw text. Detection is that
-  bracket's presence, so no flag, lever, or convention key is read. Every criterion still gets a
+  holding anything else leaves the cell empty rather than echoing raw text. Detection is a leading
+  bracket holding one of those names, so a checklist marker (`- [ ]`) is not read as a tag and no
+  flag, lever, or convention key is read at all. Every criterion still gets a
   row, so a partially tagged set shows its untagged rows with an empty pattern cell, and a set
   with no tag renders exactly as before with no extra column. Step 2's extraction bullet now says
   to keep the criterion line whole so the tag survives the read. The verdict vocabulary
