@@ -144,7 +144,7 @@ Then, for the rest of the run:
 
   | File | The re-read it saves |
   |---|---|
-  | `pre-refresh.<mp>.json` | Step 1's, before that marketplace's refresh, so the refresh's own effect on `catalog_versions` is visible |
+  | `pre-refresh.<mp>.json` | Step 1's, taken by both actions before the point that marketplace's refresh occupies, so in `sync` the refresh's own effect on `catalog_versions` is visible and in `audit` the chain still starts where `sync`'s does |
   | `pre.<mp>.json` | Step 2's, before the in-repo update |
   | `mid.<mp>.json` | Step 3's, before the user-scope sweep |
   | `pre-install.<mp>.json` | Step 4's, before any install |
@@ -153,15 +153,19 @@ Then, for the rest of the run:
 
   The three the divergence attribution needs are `pre`, `mid`, and `post`; two more exist because
   Steps 4 and 5 mutate too, and `pre-refresh` exists for the catalog regression check below. Step 1
-  saves it inside its own per-marketplace loop, immediately before that marketplace's refresh call;
-  the snippet is there rather than restated here.
+  saves it inside its own per-marketplace loop, at the point that marketplace's refresh call
+  occupies in `sync`; the snippet is there rather than restated here. It is a read, so `audit`
+  saves it too, into that run's scratch directory.
 
 - **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
   snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
-  FIRST interval in which any id's catalog version moved backward. That interval is the signal that
-  names the cause: a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh
-  pulling a source that moved backward, while one appearing later is the checkout changing under
-  the run. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
+  FIRST interval in which any id's catalog version moved backward. Both actions have all four
+  snapshots, so both have the full chain. That interval is the signal that
+  names the cause: in `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1
+  refresh pulling a source that moved backward, while one appearing later is the checkout changing
+  under the run. In `audit` no refresh runs, so a regression in that same first interval is the
+  checkout changing under the run as well, not this run's doing — the interval still names WHEN,
+  and the action determines what that means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
   the hand-written-`jq` prohibition that governs `--ids` does not apply to it:
 
   ```bash
@@ -212,8 +216,10 @@ Then, for the rest of the run:
 **`audit` writes no durable journal — it uses a throwaway scratch directory instead.** SKILL.md's
 action table says `audit` mutates nothing, and a run that leaves directories behind under the plugin
 data dir does not match that line even though the data dir is not fleet state. But `audit` runs this
-same algorithm, and Steps 2–5 project their id lists with `--from` against a saved report, so it
-does need somewhere to put those reports. It gets one outside the journal root and deletes it:
+same algorithm, and it writes reports: Step 1 saves its pre-refresh snapshot, and Steps 2–5 project
+their id lists with `--from` against a saved report. So it does need somewhere to put them, and that
+somewhere has to exist before Step 1 rather than before Step 2. It gets one outside the journal root
+and deletes it:
 
 ```bash
 run_dir=$(mktemp -d "${TMPDIR:-${TEMP:-.}}/plugins-audit.XXXXXX")
@@ -330,12 +336,21 @@ and the loop-from-a-file shape are this section's and are not restated at each s
 ## Step 1 — Marketplace refresh
 
 For each target marketplace (the resolved default, the named one, or every marketplace when the
-argument is `all`), save that marketplace's pre-refresh snapshot and then refresh it:
+argument is `all`), save that marketplace's pre-refresh snapshot and then refresh it.
+
+**The snapshot is a read, and BOTH actions take it.** It is the earliest link in the catalog
+regression check's snapshot chain, and an action that skips it starts that check at `pre` and loses
+its first interval:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
   >"$run_dir/pre-refresh.$mp.json"
+```
 
+**The refresh is the mutation, and it is `sync` only.** It is the one call this step replaces with
+`would run: claude plugin marketplace update <mp>` in an `audit` report:
+
+```bash
 claude plugin marketplace update "$mp"
 ```
 
@@ -350,6 +365,12 @@ successful refresh as the expected case, not a guarantee.
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
 which is what lets the Run journal's catalog regression check attribute a backward move to this
 refresh. It belongs to this step's own loop, not to the Steps 2-5 loop body.
+
+That attribution is what the interval means in each action, and the two readings differ. In `sync`,
+a regression across the `pre-refresh` to `pre` boundary is this run's own refresh pulling a source
+that moved backward. In `audit` no refresh runs, so a regression across the same boundary is the
+catalog changing under the run — a concurrent session or a background `autoUpdate` sweep — and never
+something this run did. Report the interval either way; read its cause per the action.
 
 In `all` mode, loop this per marketplace name (rather than the bulk no-argument form) so a single
 marketplace's failure is attributable and reported inline without aborting the sweep for the rest.
@@ -508,7 +529,8 @@ an id current, and what each does:
   report the ids it withheld as already-current as a lower bound: they may still be behind
   upstream, so rerun after the refresh succeeds. Acting unconditionally on an untrusted catalog is
   the rollback path, which is the larger risk of the two. See Step 1.
-- **`audit` mode** — `audit` issues zero mutating calls, so Step 1 never runs and the catalog is
+- **`audit` mode** — `audit` issues zero mutating calls, so Step 1's refresh never runs (its
+  snapshot is a read and is still taken) and the catalog is
   simply however stale it already was, by an unbounded amount. The pre-filter still runs (predicting
   the real algorithm is the point of a dry run), but its output is a **lower bound**: a real `sync`
   refreshes first and may find more to update. Say so, and quantify the uncertainty with the
