@@ -50,7 +50,59 @@ FAKEGH
   closed_out="$(PATH="$fake_bin:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
   assert_contains "closed pr review tier" "$closed_out" "Tier: REVIEW"
   assert_contains "closed pr reason" "$closed_out" "PR closed without merge"
+  assert_contains "complete map reports its size" "$closed_out" "PRCount: 1"
+  assert_not_contains "complete map is not flagged truncated" "$closed_out" "PRDataTruncated:"
+  assert_not_contains "complete map is not flagged unavailable" "$closed_out" "PRDataUnavailable:"
+
+  # --- PR map: truncation is detected and announced -----------------------------
+  # The lookup is the ONLY mechanism that sees a squash merge, so a short map
+  # does not soften a verdict, it inverts it: a landed branch reports as needing
+  # review. `gh pr list` has no unlimited sentinel and rejects `--limit 0`, so
+  # truncation can only be inferred from returned-count == requested-limit.
+  # CLEAN_PR_LIST_LIMIT makes that boundary reachable without 100000 fixtures.
+  trunc_out="$(PATH="$fake_bin:$PATH" CLEAN_PR_LIST_LIMIT=1 GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
+  assert_contains "truncated map is announced" "$trunc_out" "PRDataTruncated:"
+  assert_contains "truncated map still reports its count" "$trunc_out" "PRCount: 1"
+
+  # --- PR map: empty is NOT the same as unavailable -----------------------------
+  empty_bin="$TEST_TMPDIR/empty-pr-bin"
+  mkdir -p "$empty_bin"
+  cat >"$empty_bin/gh" <<'EMPTYGH'
+#!/usr/bin/env bash
+case "$*" in
+  *pr\ list*) printf '%s\n' '[]' ;;
+  *) exit 1 ;;
+esac
+EMPTYGH
+  chmod +x "$empty_bin/gh"
+  empty_pr_out="$(PATH="$empty_bin:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
+  assert_contains "a repo with no PRs reports a real count" "$empty_pr_out" "PRCount: 0"
+  assert_not_contains "a repo with no PRs is not called unavailable" "$empty_pr_out" "PRDataUnavailable:"
+
+  # A `gh` that exits 0 with output that is not a PR array must not be counted.
+  junk_bin="$TEST_TMPDIR/junk-pr-bin"
+  mkdir -p "$junk_bin"
+  cat >"$junk_bin/gh" <<'JUNKGH'
+#!/usr/bin/env bash
+case "$*" in
+  *pr\ list*) printf '%s\n' 'not json at all' ;;
+  *) exit 1 ;;
+esac
+JUNKGH
+  chmod +x "$junk_bin/gh"
+  junk_out="$(PATH="$junk_bin:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
+  assert_contains "unparseable gh output is unavailable" "$junk_out" "PRDataUnavailable:"
+  assert_not_contains "unparseable gh output fabricates no count" "$junk_out" "PRCount:"
 fi
+
+# --- PR map: a failed lookup is distinguishable from an empty one ---------------
+FAILGH_BIN="$TEST_TMPDIR/failgh-bin"
+mkdir -p "$FAILGH_BIN"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$FAILGH_BIN/gh"
+chmod +x "$FAILGH_BIN/gh"
+failed_out="$(PATH="$FAILGH_BIN:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
+assert_contains "failed lookup says so" "$failed_out" "PRDataUnavailable:"
+assert_not_contains "failed lookup reports no count" "$failed_out" "PRCount:"
 
 # A no-op gh stub keeps the worktree / no-upstream cases below deterministic and
 # offline (the real gh would hit the network for its PR map).

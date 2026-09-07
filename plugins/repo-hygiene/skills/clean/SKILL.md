@@ -6,9 +6,17 @@ argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|bu
 allowed-tools:
   # Read-only scripts only, one narrow rule each. The mutating scripts
   # (clean-caches / clean-build / git-prune / git-tree-reset[-batch] /
-  # remove-path / clean-batch) are deliberately NOT pre-approved: they stay
-  # behind the PreToolUse destructive guard and the permission flow, which is
-  # where the dry-run-then-confirm contract below is actually enforced.
+  # remove-path / clean-batch) are deliberately NOT pre-approved: withholding
+  # the grant is what keeps them behind the permission flow, which together
+  # with the dry-run-then-confirm contract below is where the gate actually is.
+  # NOT the PreToolUse destructive guard: that guard matches destructive
+  # command SHAPES (`rm -rf`, `git clean -f*`, `git reset --hard`,
+  # `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`), and
+  # it matches none of these six scripts, nor `git branch -D`, nor
+  # `git push --delete`. The guard's own header declares it a best-effort net
+  # rather than a security boundary with accepted coverage gaps; whether that
+  # coverage should grow is a separate human-gated decision (#3852), so do not
+  # read this list as a claim that the guard inspects these scripts.
   - Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/scan.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/preflight.sh:*)
@@ -16,7 +24,13 @@ allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/git-stash-audit.sh:*)
 hooks:
   PreToolUse:
-    - matcher: "Bash"
+    # Both shell tools. The guard's own patterns include a PowerShell spelling
+    # (recursive `Remove-Item`), and a `Bash`-only matcher can never deliver a
+    # PowerShell call to it, so on a host whose primary shell is PowerShell the
+    # guard was simply absent. `Bash|PowerShell` is the spelling every other
+    # guard in this marketplace registers with, and a PowerShell tool call
+    # carries its command in the same `.tool_input.command` field Bash uses.
+    - matcher: "Bash|PowerShell"
       hooks:
         # Shell form (no `args`) on purpose: exec form resolves `command` via PATH,
         # which on Windows finds the WSL relay (System32\bash.exe) and the guard
@@ -101,7 +115,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion, and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>`, never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`).
+**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). It is a best-effort net over command text, not a security boundary: it does not match this skill's own mutating scripts, `git branch -D`, or `git push --delete`, which are gated by the permission flow and the confirmation gate instead. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`).
 
 ## Confirmation gate
 
@@ -115,11 +129,11 @@ Per-tier targets: [reference/cleanup-config.md](reference/cleanup-config.md). Sc
 
 ## Workflow
 
-### 0. Resolve action and repo root
+### 0. Resolve action
 
 Run `resolve-clean-action.sh`. If `Action: menu`, show table + ask. Otherwise dispatch to the matching § below. **Never `--apply` on first invocation.**
 
-- Repo root for the run: `REPO_ROOT=$(git rev-parse --show-toplevel)`
+Resolve no repo root here. This step is reachable from anywhere, including outside a repository, and a bare `git rev-parse --show-toplevel` on that path exits non-zero and takes the menu down with it. The tiers that need a root resolve it themselves, guarded, in §§ 4 to 6 below; the bundled scripts each resolve their own and print `Error: not a git repository` rather than failing.
 
 ### 1. Scan (`scan`)
 
@@ -145,19 +159,21 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 **Write-safe metadata only**, not working-tree reset (that is §6 `tree`).
 
+**Repo root for this tier** (§4 and §6 are the tiers that need one): `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)`. An empty `REPO_ROOT` means the working directory is not inside a repository: tell the user and stop this tier. Never let the resolution itself end the run.
+
 #### 4.1 Prune and gc
 
 `${CLAUDE_SKILL_DIR}/scripts/git-prune.sh`. `--dry-run` default; `--apply` after confirmation.
 
 #### 4.2 Branch audit
 
-`${CLAUDE_SKILL_DIR}/scripts/git-branch-audit.sh`. Deletion via the [confirmation gate](#confirmation-gate) per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d`. Route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work. Surface the count and confirm before any deletion.
+`${CLAUDE_SKILL_DIR}/scripts/git-branch-audit.sh`. Deletion via the [confirmation gate](#confirmation-gate) per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). **Read the PR-map status line first.** `PRDataUnavailable:` means squash-merge detection did not run at all, and `PRDataTruncated:` means the map may be short. Under either line a branch that actually landed can be classified `REVIEW` or worse, so surface the line in the confirmation gate and do not present a `SAFE`/`REVIEW` split as complete evidence. Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d`. Route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work. Surface the count and confirm before any deletion.
 
 #### 4.3 Stash audit
 
-`${CLAUDE_SKILL_DIR}/scripts/git-stash-audit.sh`. Read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop ([Confirmation gate](#confirmation-gate)); a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
+`${CLAUDE_SKILL_DIR}/scripts/git-stash-audit.sh`. Read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop ([Confirmation gate](#confirmation-gate)); a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step. **Read the PR-map status line first.** `PRDataUnavailable:` means the PR/merge signal did not run at all, and `PRDataTruncated:` means the map may be short. Under either line a stash whose source branch actually landed can carry no `superseded` advisory, so surface the line in the confirmation gate and do not present the advisories as complete evidence for a drop.
 
-**Dropping stashes safely.** A confirmed drop is destructive and gated by the session guard, after the user confirms, re-issue as `CLEAN_GUARD_ACK=1 git stash drop <ref>`. The `Stash:` selector (`stash@{n}`) is **volatile**: the list renumbers after every drop, so dropping more than one by selector top-down retargets the wrong entry. Drop by the stable `Commit:` id (resolve it to its current selector immediately before each drop), or drop the highest-numbered selector first so lower indices stay valid.
+**Dropping stashes safely.** A confirmed drop is destructive and gated by the session guard, after the user confirms, re-issue as `CLEAN_GUARD_ACK=1 git stash drop <ref>` (Bash tool) or `$env:CLEAN_GUARD_ACK=1; git stash drop <ref>` (PowerShell tool). **On the PowerShell tool a `stash@{n}` ref must be single-quoted** (`git stash drop 'stash@{0}'`): bare, pwsh reads `@{…}` as splatting syntax and git gets a mangled argument (``unknown switch `e'``) and drops nothing. A `Commit:` id needs no quoting. The `Stash:` selector (`stash@{n}`) is **volatile**: the list renumbers after every drop, so dropping more than one by selector top-down retargets the wrong entry. Drop by the stable `Commit:` id (resolve it to its current selector immediately before each drop), or drop the highest-numbered selector first so lower indices stay valid.
 
 ### 5. All
 

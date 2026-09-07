@@ -43,8 +43,11 @@ SKILLS=(clean)
 # `clean` names one because its grant scope carries real blast radius: only the
 # READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
 # clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
-# keep routing through the PreToolUse destructive guard and the permission flow,
-# and every one of them is bundled, executable, and invoked in the skill's
+# keep routing through the permission flow, which is the gate that actually
+# covers them: the PreToolUse destructive guard matches destructive command
+# SHAPES and matches none of these six scripts, so withholding the grant is the
+# whole mechanism here, not a second line of defense.
+# Every one of them is bundled, executable, and invoked in the skill's
 # markdown — so without this allowlist a grant added for any of them would
 # satisfy every other check here and land silently.
 expected_granted() {
@@ -117,6 +120,41 @@ for skill in "${SKILLS[@]}"; do
       fi
     fi
   done
+
+  # The frontmatter must not promise guard coverage the guard does not provide.
+  # The destructive guard matches destructive command SHAPES and matches none of
+  # the six mutating scripts (nor `git branch -D`, nor `git push --delete`), so a
+  # comment here saying they "stay behind the PreToolUse destructive guard" is a
+  # safety claim the code does not honour. Two assertions rather than one: the
+  # first bans the specific overstatement, the second requires any mention of the
+  # guard to state its real scope, so a reworded overstatement cannot slip past.
+  if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
+    fail "$skill: allowed-tools claims the mutating scripts sit behind the destructive guard, which matches none of them"
+  else
+    pass "$skill: allowed-tools makes no unbacked destructive-guard coverage claim"
+  fi
+  if grep -qi 'destructive guard' <<<"$at" && ! grep -qiE 'matches none of these|does not match' <<<"$at"; then
+    fail "$skill: allowed-tools names the destructive guard without stating that it does not match these scripts"
+  else
+    pass "$skill: any destructive-guard mention in allowed-tools states the guard's real scope"
+  fi
+
+  # An unguarded repository-root resolution, on a path the skill documents as
+  # usable from anywhere, terminates the run with git's own error status when the
+  # working directory is not a repository. Only the command-substitution form is
+  # checked: `$(git rev-parse --show-toplevel)` is the shape the model actually
+  # executes, whereas a bare mention inside a markdown code span is prose about
+  # the command and runs nothing. Every executable occurrence must suppress the
+  # failure so the caller can test for an empty result instead.
+  unguarded_root=0
+  while IFS= read -r hit; do
+    [[ -z "$hit" ]] && continue
+    if [[ "$hit" != *"2>/dev/null"* ]]; then
+      fail "$skill: unguarded '\$(git rev-parse --show-toplevel)' ends the run outside a repo: $hit"
+      unguarded_root=1
+    fi
+  done < <(grep -Hn -F -- '$(git rev-parse --show-toplevel' "${mds[@]}" 2>/dev/null || true)
+  [[ "$unguarded_root" -eq 0 ]] && pass "$skill: every executable repo-root resolution is failure-guarded"
 
   # Each granted script must exist, be executable, and be invoked by the body —
   # a grant nothing runs is dead weight, and a non-executable target cannot be

@@ -3,6 +3,59 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.34]
+
+### Fixed
+
+- The `clean` skill's session-scoped destructive guard now registers against `Bash|PowerShell`
+  instead of `Bash` alone. The guard's own patterns have always included a PowerShell spelling
+  (recursive `Remove-Item`), but a `Bash`-only matcher can never hand it a PowerShell tool call,
+  so that pattern was unreachable and on a host whose primary shell is PowerShell the guard was
+  absent rather than merely partial. A PowerShell tool call carries its command in the same
+  `.tool_input.command` field.
+- The guard accepts a PowerShell acknowledgement, `$env:CLEAN_GUARD_ACK=1; <command>`, on the
+  PowerShell tool. The only documented ack was the Bash prefix `CLEAN_GUARD_ACK=1 <command>`,
+  which PowerShell cannot execute, so once the guard reached the PowerShell tool a confirmed
+  `Remove-Item -Recurse`, `git reset --hard`, or `git stash drop` had no acknowledgement path
+  short of the kill switch. Each spelling counts only on its own tool and only as the leading
+  statement with the literal value `1`: the token inside a comment or a quoted string, after the
+  destructive command, in a later pipeline segment, or with any other value does not unblock.
+  The tool dispatch is default-deny: the Bash prefix is accepted only when `tool_name` is exactly
+  `Bash`, the `$env:` spelling only when it is exactly `PowerShell`, and any other or missing
+  `tool_name` gets no acknowledgement path at all. Blocking is unchanged for every tool, so this
+  closes no live bypass. It removes a grant nobody chose: written as "anything that is not
+  PowerShell", the dispatch would hand the Bash prefix to a third shell tool added later, before
+  anyone decided that tool should have an unblock. The block reason for such a tool now says
+  there is no acknowledgement path instead of naming a spelling the tool cannot honour.
+- The `clean` skill's documented PowerShell stash drop quotes the `stash@{n}` selector. Bare, pwsh
+  reads `@{…}` as splatting syntax and git receives a mangled argument, reporting
+  ``unknown switch `e'`` and dropping nothing, so the documented example did not do what it said.
+  The acknowledgement itself always propagated correctly; only the selector needed quoting, and
+  only on the PowerShell lane. Bash is unchanged.
+- Both audit scripts stop truncating the pull-request lookup at 200 and stop swallowing its
+  failures. `git-branch-audit.sh` and `git-stash-audit.sh` now share one `clean_pr_map` helper
+  that raises the cap, detects truncation by comparing the returned count against the requested
+  limit (`gh pr list` has no unlimited sentinel and rejects `--limit 0`), and reports status as
+  `PRCount:`, `PRDataTruncated:`, or `PRDataUnavailable:`. The lookup is the only mechanism that
+  detects a squash merge, so a short or missing map did not soften a verdict, it inverted one: a
+  branch whose work had landed lost its evidence and reported as unmerged. A repository with no
+  pull requests (`PRCount: 0`) is now distinguishable from one whose pull requests could not be
+  read at all. Override the cap with `CLEAN_PR_LIST_LIMIT`.
+
+### Changed
+
+- The skill body no longer resolves a repository root unconditionally in step 0. A bare
+  `git rev-parse --show-toplevel` there ended the run with git's error status when invoked
+  outside a repository, on a path the skill documents as reachable from anywhere. The tiers that
+  need a root resolve it themselves, guarded, and an empty result stops that tier instead of the
+  session.
+- The `allowed-tools` frontmatter comment no longer says the six mutating scripts stay behind the
+  PreToolUse destructive guard. They do not: the guard matches destructive command shapes and
+  matches none of those scripts, nor `git branch -D`, nor `git push --delete`. Withholding the
+  grant, so the permission flow and the confirmation gate apply, is the actual mechanism. The
+  guard's stated best-effort posture is preserved rather than extended; whether its coverage
+  should grow is a separate human-gated decision.
+
 ## [0.10.33]
 
 ### Changed
