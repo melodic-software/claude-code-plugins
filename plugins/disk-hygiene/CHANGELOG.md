@@ -3,6 +3,36 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.2]
+
+### Added
+
+- **`handoff-verify` names emptied containers in the same round.** After the approved-path
+  verdicts, it reuses the apply lane's bottom-up `removal_sort_key` to decide which inventoried
+  directories the settled removals (`clear` or `gone`) leave empty, then runs each through the
+  same categorical checks and reports them under `emptied_containers` (deepest first) with
+  `removable_emptied_containers` counting the `clear` ones. Verification still mutates nothing.
+  The approved paths' `clear`/`not_clear` counters, and the CLI exit code they drive, are
+  unchanged. A cascade that used to cost a second full scan for one empty directory is now
+  named completely in one round. Refs #3859.
+
+### Fixed
+
+- **A later re-verify after a verify-one-delete-one step is not drift.** Apply refuses to
+  `rmdir` a directory only when `scandir` still finds an occupant. The container check therefore
+  compares only the surplus (live children the snapshot did not record). Missing inventoried
+  children are the settled removals progressing; a replaced inventoried child fails its own
+  approved-path verdict and stays out of the settled set, so it cannot empty the container.
+- **Approved paths are revalidated after container probes.** Container walks and handle
+  checks can outlast a concurrent same-name replacement of an approved path, and the
+  container surplus-name check does not see that replacement. When any emptied container is
+  named, `handoff-verify` reruns the approved-path checks and recomputes containers from
+  the post-revalidation settled set, so a stale `clear` is not emitted.
+- **Windows handle probes skip descendants that are already gone.** After verify-one-delete-one,
+  `expected_paths` still names settled missing children; `CreateFileW(..., OPEN_EXISTING)`
+  on those returns ERROR_FILE_NOT_FOUND and would make the emptied container
+  `handle-state-unverified`. The container probe now walks the live descendant set.
+
 ## [0.23.1]
 
 ### Changed

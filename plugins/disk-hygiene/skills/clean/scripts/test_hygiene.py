@@ -2415,7 +2415,9 @@ class HygieneTests(unittest.TestCase):
         # samefile raises when a path is missing; a home that cannot be stat'd
         # must be no match, never a crash.
         with (
-            mock.patch.object(hygiene, "user_home", return_value=Path("/home") / "missing"),
+            mock.patch.object(
+                hygiene, "user_home", return_value=Path("/home") / "missing"
+            ),
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home") / "target"))
@@ -4414,6 +4416,302 @@ class HandoffVerifyTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual("drifted", payload["verdicts"][0]["verdict"])
             self.assertTrue(junk.exists())
+
+    @staticmethod
+    def nested_residue(root: Path) -> Path:
+        """outer/middle/inner/leaf.tmp plus one unrelated top-level file."""
+        deep = root / "outer" / "middle" / "inner"
+        deep.mkdir(parents=True)
+        leaf = deep / "leaf.tmp"
+        leaf.write_text("residue", encoding="utf-8")
+        (root / "keep.txt").write_text("keep", encoding="utf-8")
+        return leaf
+
+    def test_emptied_container_cascade_is_reported_in_one_round(self) -> None:
+        # Removing the single leaf empties three nested containers. The whole
+        # cascade must be named in this round, deepest first, without a second
+        # scan and without touching the tree.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            leaf = self.nested_residue(root)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            before = sorted(
+                item.relative_to(root).as_posix() for item in root.rglob("*")
+            )
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/middle/inner/leaf.tmp"]
+                )
+            self.assertEqual(
+                [
+                    {"path": "outer/middle/inner", "verdict": "clear", "reasons": []},
+                    {"path": "outer/middle", "verdict": "clear", "reasons": []},
+                    {"path": "outer", "verdict": "clear", "reasons": []},
+                ],
+                result["emptied_containers"],
+            )
+            self.assertEqual(3, result["removable_emptied_containers"])
+            # Container reporting must not move the approved-path counters the
+            # CLI turns into its exit code.
+            self.assertEqual(1, result["clear"])
+            self.assertEqual(0, result["not_clear"])
+            self.assertTrue(leaf.exists(), "handoff-verify must remain read-only")
+            self.assertEqual(
+                before,
+                sorted(item.relative_to(root).as_posix() for item in root.rglob("*")),
+            )
+
+    def test_container_with_a_surviving_sibling_is_not_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            (container / "keep.log").write_text("live", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("clear", result["verdicts"][0]["verdict"])
+            self.assertEqual([], result["emptied_containers"])
+
+    def test_container_of_a_contested_path_is_not_reported(self) -> None:
+        # The approved path stays on disk, so its container never empties.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-tracked-content"
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("contested", result["verdicts"][0]["verdict"])
+            self.assertEqual([], result["emptied_containers"])
+
+    def test_emptied_container_with_uninventoried_content_is_not_clear(self) -> None:
+        # Something written after the scan survives the approved removal, so
+        # the container does not actually become empty.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (container / "surprise.txt").write_text("new", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("clear", result["verdicts"][0]["verdict"])
+            self.assertEqual(
+                [
+                    {
+                        "path": "outer",
+                        "verdict": "drifted",
+                        "reasons": ["changed-since-scan"],
+                    }
+                ],
+                result["emptied_containers"],
+            )
+            self.assertEqual(0, result["removable_emptied_containers"])
+
+    def test_emptied_container_keeps_categorical_protections(self) -> None:
+        # A consumer protection recorded against the container itself keeps it
+        # contested even though its last inventoried child is clearing.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["policy"]["additional_protected_path_globs"] = ["outer"]
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            container_verdict = result["emptied_containers"][0]
+            self.assertEqual("contested", container_verdict["verdict"])
+            self.assertIn("consumer-protected-path", container_verdict["reasons"])
+
+    def test_container_survives_the_verify_one_delete_one_sequence(self) -> None:
+        # The manual lane deletes one approved path at a time, so a later
+        # re-verify sees the container already missing an earlier one. That is
+        # progress toward emptiness, not drift, and the container is held to
+        # object identity, not stat identity, because every child removal
+        # changes its mtime and size.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "first.tmp").write_text("stale", encoding="utf-8")
+            (container / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (container / "first.tmp").unlink()  # manual-lane deletion
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/first.tmp", "outer/second.tmp"]
+                )
+            self.assertEqual(
+                ["gone", "clear"],
+                [item["verdict"] for item in result["verdicts"]],
+            )
+            self.assertEqual(
+                [{"path": "outer", "verdict": "clear", "reasons": []}],
+                result["emptied_containers"],
+            )
+
+    def test_approved_path_replaced_during_container_probes_is_not_emitted_clear(
+        self,
+    ) -> None:
+        # Container work runs after the first clear. A same-name replacement
+        # during that window must fail the emitted approved-path verdict.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            leaf = container / "junk.tmp"
+            leaf.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            original = hygiene.verify_emptied_container
+
+            def replace_then_verify(*args: object, **kwargs: object):
+                leaf.write_text("replaced-under-the-same-name", encoding="utf-8")
+                return original(*args, **kwargs)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene, "verify_emptied_container", side_effect=replace_then_verify
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("drifted", result["verdicts"][0]["verdict"])
+            self.assertIn("changed-since-scan", result["verdicts"][0]["reasons"])
+            self.assertEqual([], result["emptied_containers"])
+            self.assertEqual(0, result["clear"])
+
+    def test_emptied_container_handle_probe_skips_already_removed_descendants(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "first.tmp").write_text("stale", encoding="utf-8")
+            (container / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (container / "first.tmp").unlink()
+            seen: list[set[str]] = []
+            original = hygiene.candidate_handle_state
+
+            def record_paths(
+                target: Path, path: Path, expected_paths: set[str]
+            ) -> tuple[str, str | None]:
+                seen.append(set(expected_paths))
+                return original(target, path, expected_paths)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene, "candidate_handle_state", side_effect=record_paths
+                ),
+            ):
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/first.tmp", "outer/second.tmp"]
+                )
+            container_probes = [paths for paths in seen if "outer" in paths]
+            self.assertTrue(container_probes)
+            self.assertNotIn("outer/first.tmp", container_probes[0])
+            self.assertIn("outer/second.tmp", container_probes[0])
+            self.assertEqual("clear", result["emptied_containers"][0]["verdict"])
+
+    def test_container_order_is_the_apply_lane_removal_order(self) -> None:
+        # Both lanes must derive container order from the same rule: the apply
+        # lane's bottom-up removal order, restricted to directories, is exactly
+        # the order handoff-verify names the containers in.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            self.nested_residue(root)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+            self.assertEqual(
+                [
+                    name
+                    for name in hygiene.removal_entries("outer", entries)
+                    if entries[name]["kind"] == "directory"
+                ],
+                hygiene.emptied_container_order(
+                    ["outer/middle/inner/leaf.tmp"], entries
+                ),
+            )
+
+    def test_apply_removes_exactly_the_containers_verification_named(self) -> None:
+        # The acceptance-criteria agreement test: one fixture, both lanes.
+        # handoff-verify names the containers; the apply lane, given the same
+        # tree, removes those same directories in that same order.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            self.nested_residue(root)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                verified = hygiene.handoff_verify(
+                    snapshot, ["outer/middle/inner/leaf.tmp"]
+                )
+            named = [item["path"] for item in verified["emptied_containers"]]
+            entries = hygiene.entry_map(snapshot)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("outer")]}
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual([], report["skipped"])
+            self.assertEqual(
+                named,
+                [
+                    item["path"]
+                    for item in report["removed"]
+                    if entries[item["path"]]["kind"] == "directory"
+                ],
+            )
+            self.assertFalse((root / "outer").exists())
+            self.assertTrue((root / "keep.txt").exists())
+
+    def test_container_cascade_terminates_on_deeply_nested_input(self) -> None:
+        # Convergence is a single decreasing-depth pass, not a fixed-point
+        # loop: a 60-level cascade resolves in one round, in order.
+        entries = {}
+        parts: list[str] = []
+        for index in range(60):
+            parts.append(f"level{index}")
+            entries["/".join(parts)] = {
+                "path": "/".join(parts),
+                "kind": "directory",
+                "size_qualifiers": [],
+            }
+        leaf = "/".join(parts + ["leaf.tmp"])
+        entries[leaf] = {"path": leaf, "kind": "file", "size_qualifiers": []}
+        ordered = hygiene.emptied_container_order([leaf], entries)
+        self.assertEqual(60, len(ordered))
+        self.assertEqual("/".join(parts), ordered[0])
+        self.assertEqual("level0", ordered[-1])
 
 
 class _ClosedPipeStderr(io.StringIO):
