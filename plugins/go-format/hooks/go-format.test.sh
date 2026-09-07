@@ -514,23 +514,55 @@ fi
 # The script's own case filter stays as defense in depth, so the two sets must
 # be IDENTICAL: an if row the script does not handle spawns a process that
 # exits at the case, and an extension the script handles with no if row is a
-# silent regression, since the hook then never runs for it. The expected set is
-# read from the script's pre-filter line, so drift on either side fails here.
+# silent regression, since the hook then never runs for it.
+#
+# The expected set is every pattern of every arm in the script's whole
+# `case "$RAW_FILE" ... esac` block except the bare `*` catch-all, so an arm
+# added anywhere in the block counts, and an alternation wrapped across lines
+# (a backslash continuation, or `;;` on its own line) reads the same as one
+# line. On the manifest side every handler under every event and matcher
+# group is read, not only the `Write|Edit` group: the if values across all of
+# them must be exactly the derived set, one row each, so a handler with no if,
+# an if outside the set, a `Write(...)` rule, a duplicate row, an unfiltered
+# group under any event, or a command pointing elsewhere fails here. What
+# this does not reach is a registration outside hooks/hooks.json.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
-SCRIPT_EXTS="$(sed -n '/^case "\$RAW_FILE" in$/{n;p;q;}' "$HOOK" | tr -d ' );' | tr '|' '\n' | LC_ALL=C sort)"
+SCRIPT_EXTS="$(awk '
+  /^case "[$]RAW_FILE" in[[:space:]]*$/ { inblock = 1; next }
+  inblock && /^esac([[:space:]]|$)/ { exit }
+  inblock {
+    sub(/#.*/, "")
+    sub(/\\$/, " ")
+    block = block " " $0
+  }
+  END {
+    n = split(block, arms, ";;")
+    for (i = 1; i <= n; i++) {
+      if (index(arms[i], ")") == 0) continue
+      pats = substr(arms[i], 1, index(arms[i], ")") - 1)
+      sub(/^[[:space:]]*\(/, "", pats)
+      m = split(pats, alts, "|")
+      for (j = 1; j <= m; j++) {
+        p = alts[j]
+        gsub(/[[:space:]]+/, "", p)
+        if (p != "" && p != "*") print p
+      }
+    }
+  }' "$HOOK" | LC_ALL=C sort -u)"
 EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')"
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$EXPECTED_COUNT" -gt 0 ]]; then
-  HANDLERS="$(jq -c '[.hooks.PostToolUse[]? | select(.matcher == "Write|Edit") | .hooks[]?]' "$HOOKS_JSON")"
+  HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
+  HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
   CMD_OK="$(jq '[.[] | select((.command | contains("\"${CLAUDE_PLUGIN_ROOT}\"")) and (.command | contains("go-format.sh")))] | length' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && "$CMD_OK" == "$EXPECTED_COUNT" ]]; then
-    ok "hooks.json launches only for $EXPECTED_IF, the script's own extension set"
+    ok "hooks.json: every handler ($HANDLER_GROUPS) carries an if row, and the rows are exactly $EXPECTED_IF, the script's own extension set"
   else
-    fail "hooks.json launch gate: count=$HANDLER_COUNT/$EXPECTED_COUNT if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd=$CMD_OK"
+    fail "hooks.json launch gate: handlers=$HANDLER_COUNT/$EXPECTED_COUNT groups=$HANDLER_GROUPS if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd=$CMD_OK"
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and the script's case \"\$RAW_FILE\" pre-filter"
