@@ -46,6 +46,14 @@ scalar, and the resolver refuses it by key and layer (exit 2, and a FAIL `config
 
 ## Keys
 
+The key column and the default column of this table are checked against
+`scripts/config-defaults.json` on every change by
+`scripts/check-code-metrics-config-reference.py`, so the two cannot disagree: a key added to,
+removed from, or given a different default in that file fails the check until this table follows.
+The third column is written by hand and is not derived from anything. A row whose key carries a
+`<placeholder>` segment covers every key matching it, and a default written as the bare word
+`absent` marks a key the defaults file deliberately does not default.
+
 | Key | Default | Meaning and provenance |
 |---|---|---|
 | `scope.default` | `change` | `change` (the merge-base diff plus uncommitted and untracked files) or `all` |

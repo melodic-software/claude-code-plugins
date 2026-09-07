@@ -65,7 +65,9 @@ from pathlib import Path
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DEFAULTS = REPO_ROOT / "plugins" / "code-metrics" / "scripts" / "config-defaults.json"
+DEFAULT_DEFAULTS = (
+    REPO_ROOT / "plugins" / "code-metrics" / "scripts" / "config-defaults.json"
+)
 DEFAULT_DOC = REPO_ROOT / "plugins" / "code-metrics" / "reference" / "config.md"
 
 # Top-level defaults members that are not consumer configuration. The document
@@ -312,7 +314,10 @@ def main(argv: "list[str]") -> int:
         print(f"CANNOT RUN: {args.defaults}: {error}", file=sys.stderr)
         return 2
     if not isinstance(defaults, dict):
-        print(f"CANNOT RUN: {args.defaults}: top level is not a JSON object", file=sys.stderr)
+        print(
+            f"CANNOT RUN: {args.defaults}: top level is not a JSON object",
+            file=sys.stderr,
+        )
         return 2
 
     try:
