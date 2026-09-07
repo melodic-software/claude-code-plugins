@@ -14,7 +14,7 @@
     "memory_dir": {
       "type": "string",
       "default": ".work",
-      "description": "Memory-tier root, relative to the repo root. Self-ignoring (contains a .gitignore with '*'). Holds <slug>/ slices (recursive; child slices per the contract's slice tree) plus the reserved concern directories handoffs/, reviews/, running-retros/, overengineering/, exports/, and lanes/."
+      "description": "Memory-tier root, relative to the repo root. Self-ignoring (contains a .gitignore with '*'). Holds <slug>/ slices (recursive; child slices per the contract's slice tree) plus the reserved concern directories handoffs/, reviews/, running-retros/, overengineering/, enforceability/, exports/, and lanes/."
     },
     "contract_tier": {
       "type": "string",
