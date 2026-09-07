@@ -38,8 +38,16 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. Fail-open is the status
+# quo on abort for this guard too; it is now announced on both channels so a
+# write that went unscanned for secrets is never a silent one. A maintainer
+# who wants an unscanned write denied instead flips this one word to closed.
+guard::abort_boundary secret-pattern-detection PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # Bundled pattern lib — resolved under the plugin root (CC sets
 # CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
