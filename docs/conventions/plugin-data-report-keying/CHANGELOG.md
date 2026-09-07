@@ -5,6 +5,21 @@ is versioned by the `Version:` stamp in `README.md` (SemVer). A rule whose `[SPE
 tightens is a major bump; a new rule or a new named example is a minor bump; wording and adoption-table
 updates are a patch.
 
+## 1.0.2 — 2026-09-07
+
+Patch under this contract's own rule — adoption table only. No `[SPEC]` obligation tightens, no
+rule is added, and no worked example is added or removed.
+
+- **Two `claude-ops` writers join the adoption table** (#3576): `observability --write`
+  (`reports/<state-key>/claude-observability-<date>.md`) and `known-issues check-all`
+  (`check-all-output/<state-key>/`). Both were unkeyed, which is to say one artifact per machine.
+  The `check-all` row is the first entry whose collision was **reproduced** rather than reasoned
+  about: on the pre-fix script one project read the other project's registry rows out of the shared
+  scratch directory and reported them as its own, which is rule 3's failure exactly.
+- **Both rows record a fail-closed derivation**, a detail no earlier adopter states: when the state
+  key cannot be derived the writer stops rather than falling back to the unkeyed path, because that
+  fallback silently restores the collision the key exists to remove.
+
 ## 1.0.1 — 2026-08-28
 
 Patch under this contract's own rule — wording only. No `[SPEC]` obligation tightens, no rule is
