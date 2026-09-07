@@ -1,0 +1,598 @@
+<!doctype html>
+<!--
+  html-loop-closure.html: the marketplace's loop-closure and export snippet
+  reference for interactive rendered HTML views (the rendered-views
+  convention's second sanctioned shared piece, beside html-chrome.html).
+
+  What it is for. A rendered view that only shows things is a dead end: the
+  reader has to retype what they picked. Loop closure is the family of patterns
+  that gives the reader a terse payload to hand back, and export is the pattern
+  that gets live page state off the page. Skills that emit an interactive view
+  copy the helpers and one or more patterns from here and shape the page
+  themselves; this file owns no page shape, and adopting it is a per-lane
+  change.
+
+  Doctrine. The rendered-views convention owns when a view owes an export and
+  which genres this family is excluded from: docs/conventions/rendered-views/
+  README.md, "Loop closure and the export obligation".
+
+  Security. The rendered-views convention's "Security baseline" owns the
+  escaping and self-containment rules; this file does not restate them, it
+  demonstrates them. Two positions that rule's character set does not reach are
+  handled by the safeHref and safeFilename helpers below, and are called out in
+  the "Positions escaping does not reach" panel.
+
+  Provenance. The pattern family is the one the rendered-views convention's
+  corpus distillate names (item 3 of the nine cross-cutting families) plus the
+  clipboard boilerplate (item 4). The helpers and demos here are written for
+  this repository; no working loop-closure or export code existed in it to
+  extract.
+
+  Accessibility floor and tokens: taken from html-chrome.html, which stays the
+  canonical copy of both. The token block below is the subset this page needs
+  so it renders standalone; html-chrome.html governs any disagreement.
+
+  Sharing contract: this is the canonical copy. A second plugin adopting it
+  copies the file byte-identical to the same path within its own plugin root
+  (reference/html-loop-closure.html) and registers the cluster in
+  scripts/cross-plugin-source-registry.txt; the drift checker rejects a
+  registration while only one plugin carries it.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendered-views loop-closure and export reference</title>
+<style>
+  :root {
+    --ivory: #FAF9F5;
+    --slate: #141413;
+    --clay: #D97757;
+    --oat: #E3DACC;
+    --olive: #788C5D;
+    --white: #FFFFFF;
+    --gray-100: #F0EEE6;
+    --gray-300: #D1CFC5;
+    --gray-500: #87867F;
+    --gray-700: #3D3D3A;
+    --serif: ui-serif, Georgia, serif;
+    --sans: system-ui, -apple-system, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --clay-deep: #A0512E;
+    --clay-soft: #E89B7E;
+    --radius-panel: 12px;
+    --radius-row: 8px;
+    --border: 1.5px solid var(--gray-300);
+    --bg: var(--ivory);
+    --fg: var(--slate);
+    --panel: var(--white);
+    --muted: var(--gray-500);
+    --link: var(--clay-deep);
+    --focus: var(--clay-deep);
+    --code-bg: var(--gray-100);
+    --code-fg: var(--slate);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--slate);
+      --fg: var(--ivory);
+      --panel: var(--gray-700);
+      --muted: var(--gray-300);
+      --border: 1.5px solid var(--gray-500);
+      --link: var(--clay-soft);
+      --focus: var(--clay-soft);
+      --code-bg: #23231F;
+      --code-fg: var(--ivory);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+  html { color-scheme: light dark; }
+  body {
+    margin: 0 auto; max-width: 880px; padding: 2rem 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55;
+  }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; }
+  h1 { font-size: 1.7rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.4rem; border-bottom: var(--border); padding-bottom: .3rem; }
+  h3 { font-size: 1rem; margin-top: 1.6rem; margin-bottom: .4rem; }
+  p.lead { color: var(--muted); margin-top: 0; }
+  .panel {
+    background: var(--panel); border: var(--border);
+    border-radius: var(--radius-panel); padding: 1rem 1.25rem; margin: 1rem 0;
+  }
+  .demo { border-left: 4px solid var(--olive); }
+  .note { border-left: 4px solid var(--clay); }
+  code, .mono { font-family: var(--mono); font-size: .9em; }
+  pre {
+    font-family: var(--mono); font-size: .82rem; line-height: 1.5;
+    background: var(--code-bg); color: var(--code-fg);
+    border: var(--border); border-radius: var(--radius-row);
+    padding: .8rem .9rem; overflow-x: auto; margin: .6rem 0 0;
+  }
+  a { color: var(--link); }
+  a:focus-visible, button:focus-visible, input:focus-visible,
+  textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
+  }
+  button {
+    font: inherit; font-size: .85rem; cursor: pointer;
+    background: var(--panel); color: var(--fg);
+    border: var(--border); border-radius: var(--radius-row);
+    padding: .3rem .7rem;
+  }
+  button[aria-pressed="true"] {
+    background: var(--oat); color: var(--slate); border-color: var(--clay-deep);
+  }
+  input[type="text"] {
+    font: inherit; font-size: .85rem; background: var(--panel); color: var(--fg);
+    border: var(--border); border-radius: var(--radius-row); padding: .25rem .5rem;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
+  .flash { font-size: .82rem; color: var(--olive); font-weight: 600; min-height: 1.2em; }
+  .payload {
+    font-family: var(--mono); font-size: .85rem; word-break: break-word;
+    background: var(--code-bg); color: var(--code-fg);
+    border: var(--border); border-radius: var(--radius-row); padding: .5rem .6rem;
+  }
+  ol.numbered { padding-left: 1.4rem; }
+  ol.numbered li { margin: .3rem 0; }
+  textarea {
+    font: inherit; font-size: .85rem; width: 100%; box-sizing: border-box;
+    background: var(--panel); color: var(--fg); border: var(--border);
+    border-radius: var(--radius-row); padding: .4rem .5rem;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: .45rem .5rem; vertical-align: top; }
+  th { font-family: var(--sans); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Loop-closure and export reference</h1>
+<p class="lead">Snippets an interactive rendered view copies so the reader can hand something back, and so live page state can leave the page. Self-contained: no external links, scripts, fonts, or images. Every demo below runs from this file alone.</p>
+
+<div class="panel note">
+  <p><strong>Doctrine lives in the convention, not here.</strong> When a view owes an export, which genres this family is excluded from, and why payloads stay terse are stated in <code>docs/conventions/rendered-views/README.md</code>, section &quot;Loop closure and the export obligation&quot;. The escaping and self-containment rules are that document's &quot;Security baseline&quot;. This file demonstrates both and owns neither.</p>
+  <p><strong>These snippets own no page shape.</strong> Each adopting lane keeps its own layout, vocabulary, and genre. Copy a helper and a pattern; do not copy this page.</p>
+</div>
+
+<h2>The four shared helpers</h2>
+<p>Every pattern below is built from these four and nothing else. Copy all four, or the subset a pattern names. The snippet blocks in this section are printed from the live functions this page is running, so what you read is what executes.</p>
+
+<h3>esc: the one interpolation path</h3>
+<p>Use it for every value that reaches markup, in text and in a quoted attribute alike. <code>&amp;</code> is replaced first, so an already-escaped entity is not double-decoded. The safer path is still not to interpolate at all: <code>node.textContent = value</code> needs no escaping, and the patterns below prefer it wherever the value is a whole text node.</p>
+<pre id="src-esc"></pre>
+
+<h3>copyText: the clipboard boilerplate</h3>
+<p>One copy of the write-then-fall-back-then-flash sequence that every interactive page otherwise reinvents. The flash element is written with <code>textContent</code>, never <code>innerHTML</code>. It returns whether the copy landed, so a caller reports a failure instead of showing a false confirmation.</p>
+<pre id="src-copy"></pre>
+
+<h3>safeHref: URL position, which esc does not cover</h3>
+<p>Escaping keeps a value inside its attribute; it does not make the value safe to <em>navigate to</em>. <code>javascript:alert(1)</code> contains none of the characters the baseline escapes, so it survives <code>esc</code> unchanged and still runs on click. Any value that lands in <code>href</code>, <code>src</code>, <code>action</code>, <code>formaction</code>, or SVG <code>xlink:href</code> is scheme-checked first and escaped second. A relative URL is rejected too: a self-contained view has nothing to resolve it against.</p>
+<pre id="src-href"></pre>
+
+<h3>downloadText: export without a data URL</h3>
+<p>Exports build a <code>Blob</code> and an object URL rather than concatenating content into a <code>data:</code> URL. A data URL puts the payload in URL position, where it needs percent-encoding rather than HTML escaping, and <code>data:text/html</code> in particular runs script. The object URL is minted by the browser from bytes, so no input reaches the URL string, and it is revoked once the click is dispatched. The download filename is reader-reachable too, so it is reduced to an allowlisted character set before it becomes an attribute.</p>
+<pre id="src-download"></pre>
+<pre id="src-filename"></pre>
+
+<div class="panel note">
+  <p><strong>Positions escaping does not reach.</strong> The convention's character-escape rule covers text and quoted-attribute positions. It does not cover URL position (use <code>safeHref</code>), a download filename (use <code>safeFilename</code>), an unquoted attribute (always quote), a value inside <code>&lt;script&gt;</code> or <code>&lt;style&gt;</code> (never interpolate there, per the baseline), or a CSS <code>url()</code>. A view that needs one of those and has no helper for it emits the value as visible text instead.</p>
+</div>
+
+<h2>Pattern 1: numbered resonate tokens</h2>
+<p>The cheapest rung. Items carry stable visible numbers; the reader names the numbers back in chat. The page needs no state and no script beyond the render. Reach for this when the reader is picking from a list you already had to show.</p>
+<div class="panel demo">
+  <ol class="numbered" id="p1-list"></ol>
+  <p class="lead">Reply with the numbers that resonate, for example <code>2, 4</code>.</p>
+</div>
+<pre id="src-p1"></pre>
+
+<h2>Pattern 2: chip-assembled reply</h2>
+<p>The reader toggles chips and the page assembles the terse payload for them. Use it when the reply has a fixed vocabulary the reader should not have to spell. The payload stays short on purpose: the page is still on screen, so the agent re-anchors by token rather than by a restated body.</p>
+<div class="panel demo">
+  <div class="row" id="p2-chips"></div>
+  <div class="payload" id="p2-payload"></div>
+  <div class="row">
+    <button type="button" id="p2-copy">Copy reply</button>
+    <span class="flash" id="p2-flash" role="status" aria-live="polite"></span>
+  </div>
+</div>
+<pre id="src-p2"></pre>
+
+<h2>Pattern 3: generated follow-up prompts</h2>
+<p>The page writes the next prompt for the reader, one button per branch. Use it when the useful next moves are known at render time and typing them is the only friction. Each prompt is a whole text node, so it is set with <code>textContent</code> and never interpolated.</p>
+<div class="panel demo">
+  <div id="p3-list"></div>
+  <span class="flash" id="p3-flash" role="status" aria-live="polite"></span>
+</div>
+<pre id="src-p3"></pre>
+
+<h2>Pattern 4: accept and correct sign-off</h2>
+<p>The escalation for a view the reader approves rather than picks from. Every row is accepted or corrected; a correction carries free text, which is the first payload in this family that is not a token, and so the first that is untrusted on the way back out.</p>
+<div class="panel demo">
+  <div id="p4-rows"></div>
+  <div class="payload" id="p4-payload"></div>
+  <div class="row">
+    <button type="button" id="p4-copy">Copy sign-off</button>
+    <span class="flash" id="p4-flash" role="status" aria-live="polite"></span>
+  </div>
+</div>
+<pre id="src-p4"></pre>
+
+<h2>Pattern 5: live-state export</h2>
+<p>The top rung, and the one a custom editor always owes. The page holds state the reader changed, so the export reads that state and rebuilds the record: markdown, a diff, or plain text. Build the string from state, never by scraping <code>innerHTML</code>, and offer both rungs: the clipboard for a payload the reader pastes into chat, a file download for a payload that is a document.</p>
+<div class="panel demo">
+  <div id="p5-rows"></div>
+  <div class="row">
+    <button type="button" id="p5-copy">Copy markdown</button>
+    <button type="button" id="p5-download">Download .md</button>
+    <span class="flash" id="p5-flash" role="status" aria-live="polite"></span>
+  </div>
+  <pre id="p5-preview"></pre>
+</div>
+<pre id="src-p5"></pre>
+
+<h2>Choosing a rung</h2>
+<div class="panel">
+  <table>
+    <tr><th>The view asks the reader to</th><th>Pattern</th><th>Payload shape</th></tr>
+    <tr><td>Pick from things already listed</td><td>1, numbered tokens</td><td>Numbers typed in chat, no script</td></tr>
+    <tr><td>Answer with a fixed vocabulary</td><td>2, chips</td><td>One assembled line, copied</td></tr>
+    <tr><td>Choose a next move</td><td>3, follow-up prompts</td><td>A whole prompt, copied</td></tr>
+    <tr><td>Approve or amend a proposal</td><td>4, accept and correct</td><td>Tokens plus free-text corrections</td></tr>
+    <tr><td>Edit state the page holds</td><td>5, live-state export</td><td>A rebuilt record, copied or downloaded</td></tr>
+  </table>
+  <p>A view may carry more than one rung, and a custom editor carries rung 5 whatever else it carries. Adding a rung the reader did not need is overproduction: the convention's doctrine section names an obligation, not a floor to hit on every page.</p>
+</div>
+
+<script>
+"use strict";
+
+/* ---- the four shared helpers ---- */
+
+function esc(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function copyText(text, flashEl) {
+  var ok = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    }
+  } catch (err) {
+    ok = false;
+  }
+  if (!ok) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      ok = document.execCommand("copy");
+    } catch (err2) {
+      ok = false;
+    }
+    ta.remove();
+  }
+  if (flashEl) {
+    flashEl.textContent = ok ? "Copied" : "Copy failed. Select the payload and copy it.";
+    setTimeout(function () { flashEl.textContent = ""; }, 1600);
+  }
+  return ok;
+}
+
+function safeHref(value) {
+  var raw = String(value).trim();
+  if (raw.charAt(0) === "#") { return raw; }
+  var parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (err) {
+    return "#";
+  }
+  var allowed = ["https:", "http:", "mailto:"];
+  return allowed.indexOf(parsed.protocol) === -1 ? "#" : parsed.href;
+}
+
+function safeFilename(name, fallback) {
+  var cleaned = String(name)
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[.-]+/, "")
+    .slice(0, 100);
+  return cleaned || fallback || "export.txt";
+}
+
+function downloadText(name, text, mime) {
+  var blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement("a");
+  link.href = url;
+  link.download = safeFilename(name, "export.txt");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+}
+
+/* ---- pattern snippets, printed into their pre blocks as text ---- */
+
+var SNIPPETS = {
+  "src-p1": [
+    "// Pattern 1: numbered resonate tokens. No state, no handlers.",
+    "// esc() guards the label; the number is the reader's handle.",
+    "var items = [",
+    "  { n: 1, label: 'Split the reader out of the parser' },",
+    "  { n: 2, label: 'Cache the resolved config per run' }",
+    "];",
+    "list.innerHTML = items.map(function (it) {",
+    "  return '<li value=\"' + esc(it.n) + '\">' + esc(it.label) + '<\\/li>';",
+    "}).join('');",
+    "// Then tell the reader how to answer, in the page:",
+    "//   \"Reply with the numbers that resonate, for example 2, 4.\""
+  ].join("\n"),
+  "src-p2": [
+    "// Pattern 2: chip-assembled reply. Chips are native buttons with",
+    "// aria-pressed, so keyboard reach and state come for free.",
+    "var chosen = [];",
+    "function render() {",
+    "  payloadEl.textContent = chosen.length",
+    "    ? 'focus: ' + chosen.join(', ')",
+    "    : 'focus: (nothing selected)';",
+    "}",
+    "vocab.forEach(function (token) {",
+    "  var b = document.createElement('button');",
+    "  b.type = 'button';",
+    "  b.textContent = token;               // no interpolation needed",
+    "  b.setAttribute('aria-pressed', 'false');",
+    "  b.addEventListener('click', function () {",
+    "    var at = chosen.indexOf(token);",
+    "    if (at === -1) { chosen.push(token); } else { chosen.splice(at, 1); }",
+    "    b.setAttribute('aria-pressed', String(at === -1));",
+    "    render();",
+    "  });",
+    "  chipRow.appendChild(b);",
+    "});",
+    "copyBtn.addEventListener('click', function () {",
+    "  copyText(payloadEl.textContent, flashEl);",
+    "});"
+  ].join("\n"),
+  "src-p3": [
+    "// Pattern 3: generated follow-up prompts. One button per branch.",
+    "// The prompt is a whole text node, so textContent replaces esc().",
+    "prompts.forEach(function (prompt) {",
+    "  var row = document.createElement('div');",
+    "  row.className = 'row';",
+    "  var text = document.createElement('span');",
+    "  text.className = 'mono';",
+    "  text.textContent = prompt;",
+    "  var btn = document.createElement('button');",
+    "  btn.type = 'button';",
+    "  btn.textContent = 'Copy';",
+    "  btn.addEventListener('click', function () { copyText(prompt, flashEl); });",
+    "  row.appendChild(btn);",
+    "  row.appendChild(text);",
+    "  listEl.appendChild(row);",
+    "});"
+  ].join("\n"),
+  "src-p4": [
+    "// Pattern 4: accept and correct sign-off. The correction text is",
+    "// reader input on the way back out: it is a text node here, and it",
+    "// would need esc() if it were ever interpolated into markup.",
+    "function payload() {",
+    "  var accepted = rows.filter(function (r) { return r.state === 'accept'; })",
+    "    .map(function (r) { return r.n; });",
+    "  var parts = [];",
+    "  if (accepted.length) { parts.push('ACCEPT ' + accepted.join(',')); }",
+    "  rows.filter(function (r) { return r.state === 'correct'; })",
+    "    .forEach(function (r) {",
+    "      parts.push('CORRECT ' + r.n + ': ' + (r.text || '(no text)'));",
+    "    });",
+    "  return parts.length ? parts.join(' | ') : '(nothing signed off)';",
+    "}",
+    "payloadEl.textContent = payload();"
+  ].join("\n"),
+  "src-p5": [
+    "// Pattern 5: live-state export. Build the record from STATE, never",
+    "// by scraping innerHTML, and offer both rungs.",
+    "function buildMarkdown() {",
+    "  return ['# Review notes', ''].concat(rows.map(function (r) {",
+    "    return '- [' + (r.done ? 'x' : ' ') + '] ' + r.title +",
+    "           (r.note ? ' -- ' + r.note : '');",
+    "  })).join('\\n') + '\\n';",
+    "}",
+    "copyBtn.addEventListener('click', function () {",
+    "  copyText(buildMarkdown(), flashEl);",
+    "});",
+    "downloadBtn.addEventListener('click', function () {",
+    "  downloadText('review-notes.md', buildMarkdown(), 'text/markdown');",
+    "});"
+  ].join("\n")
+};
+
+/* ---- render the helper sources and the pattern snippets ---- */
+
+function printSource(id, fn) {
+  document.getElementById(id).textContent = fn.toString();
+}
+
+printSource("src-esc", esc);
+printSource("src-copy", copyText);
+printSource("src-href", safeHref);
+printSource("src-download", downloadText);
+printSource("src-filename", safeFilename);
+
+Object.keys(SNIPPETS).forEach(function (id) {
+  document.getElementById(id).textContent = SNIPPETS[id];
+});
+
+/* ---- live demos ---- */
+
+// Pattern 1. The labels carry markup-ish and quote characters on purpose:
+// that is what a real repo-derived label looks like, and esc() is what keeps
+// them visible text.
+var p1Items = [
+  { n: 1, label: "Split the reader out of the parser" },
+  { n: 2, label: "Cache the resolved config per run" },
+  { n: 3, label: "Name the <timeout> knob in one place" },
+  { n: 4, label: "Drop the \"legacy\" branch in loader's fallback" }
+];
+document.getElementById("p1-list").innerHTML = p1Items.map(function (it) {
+  return '<li value="' + esc(it.n) + '">' + esc(it.label) + '<\/li>';
+}).join("");
+
+// Pattern 2.
+var p2Chosen = [];
+var p2Payload = document.getElementById("p2-payload");
+function p2Render() {
+  p2Payload.textContent = p2Chosen.length
+    ? "focus: " + p2Chosen.join(", ")
+    : "focus: (nothing selected)";
+}
+["perf", "api-shape", "tests", "naming", "docs"].forEach(function (token) {
+  var b = document.createElement("button");
+  b.type = "button";
+  b.textContent = token;
+  b.setAttribute("aria-pressed", "false");
+  b.addEventListener("click", function () {
+    var at = p2Chosen.indexOf(token);
+    if (at === -1) { p2Chosen.push(token); } else { p2Chosen.splice(at, 1); }
+    b.setAttribute("aria-pressed", String(at === -1));
+    p2Render();
+  });
+  document.getElementById("p2-chips").appendChild(b);
+});
+p2Render();
+document.getElementById("p2-copy").addEventListener("click", function () {
+  copyText(p2Payload.textContent, document.getElementById("p2-flash"));
+});
+
+// Pattern 3.
+var p3Flash = document.getElementById("p3-flash");
+[
+  "Take option 2 and sketch the interface twice.",
+  "Show me what breaks if the cache is per process.",
+  "Write the failing test for the timeout knob first."
+].forEach(function (prompt) {
+  var row = document.createElement("div");
+  row.className = "row";
+  var text = document.createElement("span");
+  text.className = "mono";
+  text.textContent = prompt;
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "Copy";
+  btn.addEventListener("click", function () { copyText(prompt, p3Flash); });
+  row.appendChild(btn);
+  row.appendChild(text);
+  document.getElementById("p3-list").appendChild(row);
+});
+
+// Pattern 4.
+var p4Rows = [
+  { n: 1, title: "Extract the resolver", state: "accept", text: "" },
+  { n: 2, title: "Inline the two-line wrapper", state: "accept", text: "" }
+];
+var p4Payload = document.getElementById("p4-payload");
+function p4Build() {
+  var accepted = p4Rows.filter(function (r) { return r.state === "accept"; })
+    .map(function (r) { return r.n; });
+  var parts = [];
+  if (accepted.length) { parts.push("ACCEPT " + accepted.join(",")); }
+  p4Rows.filter(function (r) { return r.state === "correct"; })
+    .forEach(function (r) {
+      parts.push("CORRECT " + r.n + ": " + (r.text || "(no text)"));
+    });
+  p4Payload.textContent = parts.length ? parts.join(" | ") : "(nothing signed off)";
+}
+p4Rows.forEach(function (r) {
+  var wrap = document.createElement("div");
+  var row = document.createElement("div");
+  row.className = "row";
+  var label = document.createElement("span");
+  label.textContent = r.n + ". " + r.title;
+  var accept = document.createElement("button");
+  accept.type = "button";
+  accept.textContent = "Accept";
+  var correct = document.createElement("button");
+  correct.type = "button";
+  correct.textContent = "Correct";
+  var box = document.createElement("textarea");
+  box.rows = 2;
+  box.hidden = true;
+  box.setAttribute("aria-label", "Correction for item " + r.n);
+  function sync() {
+    accept.setAttribute("aria-pressed", String(r.state === "accept"));
+    correct.setAttribute("aria-pressed", String(r.state === "correct"));
+    box.hidden = r.state !== "correct";
+    p4Build();
+  }
+  accept.addEventListener("click", function () { r.state = "accept"; sync(); });
+  correct.addEventListener("click", function () { r.state = "correct"; sync(); });
+  box.addEventListener("input", function () { r.text = box.value; p4Build(); });
+  row.appendChild(label);
+  row.appendChild(accept);
+  row.appendChild(correct);
+  wrap.appendChild(row);
+  wrap.appendChild(box);
+  document.getElementById("p4-rows").appendChild(wrap);
+  sync();
+});
+
+// Pattern 5.
+var p5Rows = [
+  { title: "Resolver extracted", note: "", done: true },
+  { title: "Timeout knob named once", note: "", done: false }
+];
+var p5Preview = document.getElementById("p5-preview");
+function p5BuildMarkdown() {
+  return ["# Review notes", ""].concat(p5Rows.map(function (r) {
+    return "- [" + (r.done ? "x" : " ") + "] " + r.title +
+      (r.note ? " -- " + r.note : "");
+  })).join("\n") + "\n";
+}
+function p5Sync() { p5Preview.textContent = p5BuildMarkdown(); }
+p5Rows.forEach(function (r, index) {
+  var row = document.createElement("div");
+  row.className = "row";
+  var box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = r.done;
+  box.id = "p5-done-" + index;
+  var label = document.createElement("label");
+  label.setAttribute("for", box.id);
+  label.textContent = r.title;
+  var note = document.createElement("input");
+  note.type = "text";
+  note.placeholder = "note";
+  note.setAttribute("aria-label", "Note for " + r.title);
+  box.addEventListener("change", function () { r.done = box.checked; p5Sync(); });
+  note.addEventListener("input", function () { r.note = note.value; p5Sync(); });
+  row.appendChild(box);
+  row.appendChild(label);
+  row.appendChild(note);
+  document.getElementById("p5-rows").appendChild(row);
+});
+p5Sync();
+var p5Flash = document.getElementById("p5-flash");
+document.getElementById("p5-copy").addEventListener("click", function () {
+  copyText(p5BuildMarkdown(), p5Flash);
+});
+document.getElementById("p5-download").addEventListener("click", function () {
+  downloadText("review-notes.md", p5BuildMarkdown(), "text/markdown");
+});
+</script>
+</body>
+</html>
