@@ -75,7 +75,10 @@ gate_resolve_plugin_name() {
   # execs a bare `$(jq …)` in the substitution's own subshell, but a redirect
   # written inside it forces a second fork for the same one program. Same
   # program, same input, same suppressed stderr, one process instead of two.
-  { name=$(jq -r '.name | select(type == "string")'); } <"$manifest" 2>/dev/null || return 1
+  # `2>/dev/null` is written BEFORE the input redirection: bash applies
+  # redirections left to right, so an existing-but-unreadable manifest would
+  # otherwise print "Permission denied" before stderr is silenced.
+  { name=$(jq -r '.name | select(type == "string")'); } 2>/dev/null <"$manifest" || return 1
   [[ -n "$name" ]] || return 1
   GATE_PLUGIN_NAME="$name"
 }
@@ -269,6 +272,9 @@ gate_managed_settings_files() {
 # bash variable cannot. The separator is built with `[0] | implode` so the jq
 # program text holds no NUL byte. The redirections sit on the group around the
 # loop, so jq is exec'd straight from the substitution's fork: one process.
+# `2>/dev/null` is written BEFORE the input redirection: bash applies
+# redirections left to right, so an existing-but-unreadable settings file would
+# otherwise print "Permission denied" before stderr is silenced.
 # Trailing newlines are removed from each value as the former `$(jq -r …)`
 # capture removed them, so a value reads the same on either path.
 #   gate_settings_options_to <file> <key>...
@@ -310,7 +316,7 @@ gate_settings_options_to() {
              elif type == "string" then "v:" + .
              else empty end ] | last // "-")
       | (., ([0] | implode))')
-  } <"$file" 2>/dev/null
+  } 2>/dev/null <"$file"
   ((${#recs[@]} == $#)) || return 1
   local have=1
   for ((i = 0; i < $#; i++)); do
@@ -366,4 +372,26 @@ gate_managed_option() {
   gate_managed_options_to "$1" || return 1
   ((GATE_MANAGED_OPT_HAVE[0])) || return 1
   printf '%s' "${GATE_MANAGED_OPT_VALUE[0]}"
+}
+
+# Whether THIS bash provides EPOCHSECONDS as a clock (Bash 5.0+). Split out so
+# the pre-5.0 path stays reachable in tests: BASH_VERSINFO is readonly, so it
+# cannot be shadowed, but a test can override this function after sourcing.
+# Not a consumer seam — nothing reads it from the environment.
+gate_epochseconds_is_clock() {
+  ((BASH_VERSINFO[0] >= 5))
+}
+
+# Wall-clock seconds for the arm-record TTL. Trust EPOCHSECONDS only when this
+# bash provides it; before 5.0 it is an ordinary variable a repo env block can
+# set, and an inherited value would choose the TTL verdict. Older bash falls
+# back to `date +%s`.
+#   gate_epoch_seconds_to <var>
+gate_epoch_seconds_to() {
+  local __now=""
+  if gate_epochseconds_is_clock; then
+    __now="${EPOCHSECONDS-}"
+  fi
+  [[ "$__now" =~ ^[0-9]+$ ]] || { { __now=$(date +%s); } 2>/dev/null || __now=""; }
+  printf -v "$1" '%s' "$__now"
 }

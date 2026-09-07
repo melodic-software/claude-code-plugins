@@ -188,33 +188,49 @@ hook::buffer_stdin_to INPUT || exit 0
 # the notice reaches both the agent and the user.
 hook::require_jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
 
-# Every payload field the gate reads, in ONE jq pass (hook::jq_fields, the
-# shared helper): five `printf | jq | tr` pipelines used to read the same
-# buffer one field at a time, each a subshell plus two pipeline forks plus the
-# `tr`. The helper's values are CR-stripped, as the `tr -d '\r'` here was, and a
-# malformed payload leaves every field empty, which exits at the event guard
-# exactly as an empty per-field read did. `// false | tostring` keeps
-# stop_hook_active reading "false" (not the helper's empty default) when the
-# key is absent, the value `jq -r '… // false'` printed.
-#
-# The five values are then chomped the way the `$( )` captures chomped them —
-# trailing newlines only — so each reads byte-for-byte as before.
+# Every payload field the gate reads, in ONE jq pass: five `printf | jq | tr`
+# pipelines used to read the same buffer one field at a time. EVENT, SESSION_ID,
+# CWD and STOP_ACTIVE used to be `jq -r | tr -d '\r'`; last_assistant_message
+# was `jq -r` with no `tr`. The shared `hook::jq_fields` helper strips every CR,
+# so `LANE-STOP\r-OK` would become `LANE-STOP-OK` and authorize a stop the parent
+# blocked. LAST is therefore read by this pass and left CR-intact; the other
+# four are CR-stripped after the read. Trailing newlines are chomped as `$( )`
+# did. A malformed payload leaves every field empty, which exits at the event
+# guard. `// false | tostring` keeps stop_hook_active reading "false" when the
+# key is absent, the value `jq -r '… // false'` printed. NULs are dropped inside
+# jq so they cannot split the delimiter, the same contract as hook::jq_fields.
 chomp_nl() {
   local __v="${!1}"
   while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
   printf -v "$1" '%s' "$__v"
 }
-hook::jq_fields "$INPUT" \
-  '.hook_event_name // ""' \
-  '.session_id // ""' \
-  '.cwd // ""' \
-  '.stop_hook_active // false | tostring' \
-  '.last_assistant_message // ""' || HOOK_JQ_FIELDS=()
-EVENT="${HOOK_JQ_FIELDS[0]-}"
-SESSION_ID="${HOOK_JQ_FIELDS[1]-}"
-CWD="${HOOK_JQ_FIELDS[2]-}"
-STOP_ACTIVE="${HOOK_JQ_FIELDS[3]-}"
-LAST="${HOOK_JQ_FIELDS[4]-}"
+strip_cr() {
+  local __v="${!1}"
+  __v="${__v//$'\r'/}"
+  printf -v "$1" '%s' "$__v"
+}
+GATE_PAYLOAD_FIELDS=()
+{
+  local f
+  while IFS= read -r -d '' f; do
+    GATE_PAYLOAD_FIELDS+=("$f")
+  done < <(printf '%s' "$INPUT" | jq -j '
+    [ (.hook_event_name // "" | tostring),
+      (.session_id // "" | tostring),
+      (.cwd // "" | tostring),
+      (.stop_hook_active // false | tostring),
+      (.last_assistant_message // "" | tostring)
+    ] | map(split("\u0000") | join("")) | .[] | (., ([0] | implode))')
+} 2>/dev/null
+EVENT="${GATE_PAYLOAD_FIELDS[0]-}"
+SESSION_ID="${GATE_PAYLOAD_FIELDS[1]-}"
+CWD="${GATE_PAYLOAD_FIELDS[2]-}"
+STOP_ACTIVE="${GATE_PAYLOAD_FIELDS[3]-}"
+LAST="${GATE_PAYLOAD_FIELDS[4]-}"
+strip_cr EVENT
+strip_cr SESSION_ID
+strip_cr CWD
+strip_cr STOP_ACTIVE
 chomp_nl EVENT
 chomp_nl SESSION_ID
 chomp_nl CWD
@@ -312,6 +328,9 @@ gate_arm_owned() {
 # at the digit check, as `-e` refused it. The separator is `[0] | implode` so
 # the program text carries no NUL byte, and the value read for each field is
 # chomped of trailing newlines as the former `$( )` captures were.
+# `2>/dev/null` is written BEFORE the input redirection: bash applies
+# redirections left to right, so an existing-but-unreadable record would
+# otherwise print "Permission denied" before stderr is silenced.
 GATE_ARM_OPT_HAVE=(0 0 0)
 GATE_ARM_OPT_VALUE=("" "" "")
 gate_load_arm_record() {
@@ -331,14 +350,14 @@ gate_load_arm_record() {
         (.sentinel | if type == "string" then "v:" + . else "-" end),
         (.marker | if type == "string" then "v:" + . else "-" end),
         tojson ] | .[] | (., ([0] | implode))')
-  } <"$rec" 2>/dev/null
+  } 2>/dev/null <"$rec"
   ((${#fields[@]} == 5)) || return 1
   armed_at="${fields[0]}"
   [[ "$armed_at" =~ ^[0-9]+$ ]] || return 1
-  # EPOCHSECONDS (Bash 5.0+) is the same wall clock `date +%s` reads, without
-  # the process; an older bash still pays the date.
-  now="${EPOCHSECONDS:-}"
-  [[ "$now" =~ ^[0-9]+$ ]] || { { now=$(date +%s); } 2>/dev/null || now=""; }
+  # EPOCHSECONDS is a clock only on Bash 5.0+; before that it is an ordinary
+  # variable a repo env block can set, and an inherited value would choose the
+  # TTL verdict. gate_epoch_seconds_to trusts it only when this bash provides it.
+  gate_epoch_seconds_to now
   if [[ -n "$now" ]] && ((now - armed_at > GATE_ARM_TTL_SECONDS)); then
     rm -f -- "$rec" "$claim" 2>/dev/null
     return 1
@@ -503,7 +522,7 @@ done
 # authorized the stop on a line matching EITHER half of the token; here the
 # token is one pattern, so only the whole token standing alone matches, which
 # is what the block reason below asks the agent to emit. Disclosed in the
-# 0.22.30 changelog entry; no shipped launcher writes such a token.
+# 0.23.1 changelog entry; no shipped launcher writes such a token.
 SENTINEL_LINE_RE="(^|"$'\n'")[[:space:]]*${SENTINEL_RE}[[:space:]]*("$'\n'"|\$)"
 if [[ "$LAST" =~ $SENTINEL_LINE_RE ]]; then
   SIGNALED=1

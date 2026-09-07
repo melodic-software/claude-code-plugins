@@ -42,6 +42,18 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   (`gate_*_to`, `gate_managed_settings_files_load`, `gate_settings_options_to`,
   `gate_managed_options_to`); the print forms delegate to them, so `lane-stop-gate-arm.sh`
   and existing callers read exactly what they read before.
+- **Arm-record TTL trusts `EPOCHSECONDS` only on Bash 5.0+.** Before 5.0 it is
+  an ordinary variable; a repo env block can set it and would otherwise choose
+  the TTL verdict. `BASH_VERSINFO` decides; older bash falls back to `date +%s`.
+- **`last_assistant_message` keeps carriage returns.** The parent extracted it
+  with `jq -r` and no `tr`; `hook::jq_fields` strips every CR, so
+  `LANE-STOP\r-OK` became `LANE-STOP-OK` and authorized. LAST is read in the
+  same one jq payload pass and left intact; the other four fields are still
+  CR-stripped.
+- **Group redirections on the remaining file reads silence stderr before the
+  input open** (`gate_resolve_plugin_name`, `gate_settings_options_to`,
+  arm-record load), matching `gate_file_mentions`. A file that exists but
+  cannot be read stays silent.
 
 ### Added
 

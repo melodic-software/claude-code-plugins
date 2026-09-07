@@ -173,7 +173,7 @@ The payload is a fixed vocabulary, never the sentinel token, marker path, cwd, o
 `lane-stop-gate.sh` fires on every `Stop`, so its default path (no gate footprint in any settings
 file, which is every interactive session) draws on the 500 ms per-turn ceiling in the marketplace's
 hook-budget convention. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve` from a
-staged install on Linux, 2026-09-06, autonomy 0.22.30 against 0.22.29. Process creations are the
+staged install on Linux, 2026-09-06, autonomy 0.23.1 against 0.22.29. Process creations are the
 drift-immune proxy #3508 asks for: a spawn costs about 1 ms on the measuring host and 180 to
 2,841 ms on the affected Windows hosts, where the wall-clock share the convention binds still needs
 measuring.
@@ -189,8 +189,8 @@ measuring.
 
 The default path's one process is `uname -s`, the managed-settings platform primitive (`$OSTYPE`
 is a variable a repository's env block can set). Of the enabled block path's 10 creations, 4 are
-`hook::buffer_stdin` in the synced shared library (its capture, its read-slice probe and its
-`printf | jq -e` validation pass); the hook's own 6 are the one `hook::jq_fields` payload pass (3),
+`hook::buffer_stdin_to` in the synced shared library (its capture, its read-slice probe and its
+`printf | jq -e` validation pass); the hook's own 6 are the one payload jq pass (3),
 `uname`, one settings `jq` and the block-decision `jq`. The suite pins these counts by trace where
 `strace` is available.
 

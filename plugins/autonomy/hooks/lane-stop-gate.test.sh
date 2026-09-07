@@ -941,7 +941,7 @@ fi
 # newline inside the configured token as a PATTERN SEPARATOR and authorized a
 # stop on a line matching either half; the regex treats the token as one
 # pattern, so only the whole token standing alone matches — the thing the block
-# reason asks for. Pinned so the disclosed divergence (0.22.30 changelog) is a
+# reason asks for. Pinned so the disclosed divergence (0.23.1 changelog) is a
 # decision this suite owns, not drift.
 OUT="$(run "$(build_input Stop "A" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL=$'A\nB')"
 if is_block "$OUT"; then ok "newline-bearing sentinel: half the token does not authorize"; else fail "newline-bearing sentinel: half the token authorized a stop: $OUT"; fi
@@ -986,6 +986,119 @@ fi
 chmod 600 "$SETTINGS" 2>/dev/null || true
 rm -f "$SETTINGS"
 
+# --- Case 52: an embedded CR in the completion token does not authorize ------
+# last_assistant_message was `jq -r` with no `tr`; hook::jq_fields strips every
+# CR, so LANE-STOP\r-OK would become LANE-STOP-OK and authorize. The payload
+# pass leaves LAST intact, so this must still block. A real token whose only CR
+# is a line-ending (whitespace the match already accepts) still authorizes.
+OUT="$(run "$(build_input Stop $'LANE-STOP\r-OK' false)")"
+if is_block "$OUT"; then ok "embedded CR in the completion token does not authorize"; else fail "LANE-STOP\\r-OK authorized — LAST must preserve CR: $OUT"; fi
+OUT="$(run "$(build_input Stop $'LANE-STOP-OK\r' false)")"
+if is_block "$OUT"; then fail "CRLF-terminated sentinel was not honored: $OUT"; else ok "CRLF-terminated sentinel still authorizes (CR as line-ending whitespace)"; fi
+
+# --- Case 53: on Bash < 5.0, inherited EPOCHSECONDS is not the TTL clock -----
+# BASH_VERSINFO is readonly, so the pre-5.0 path is reached by overriding
+# gate_epochseconds_is_clock after sourcing, the same seam hook::read_supports_nchars
+# uses for the pre-4.1 read. An inherited EPOCHSECONDS=1 must not become `now`.
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_epochseconds_is_clock() { return 1; }
+  EPOCHSECONDS=1
+  export EPOCHSECONDS
+  gate_epoch_seconds_to got
+  [[ "$got" =~ ^[0-9]+$ ]] || exit 1
+  [[ "$got" != "1" ]] || exit 1
+  # Fallback is date +%s; it must be a plausible wall clock, not the spoof.
+  ((got > 1)) || exit 1
+  exit 0
+); then
+  ok "pre-5.0 path ignores inherited EPOCHSECONDS (date fallback)"
+else
+  fail "pre-5.0 path trusted inherited EPOCHSECONDS=1"
+fi
+# This host's real clock path (Bash 5+) still reads EPOCHSECONDS when provided.
+if ((BASH_VERSINFO[0] >= 5)); then
+  if (
+    # shellcheck source=lane-stop-gate-lib.sh
+    source "$STAGED_DIR/lane-stop-gate-lib.sh"
+    gate_epoch_seconds_to got
+    [[ "$got" =~ ^[0-9]+$ ]] || exit 1
+    [[ "$got" == "$EPOCHSECONDS" ]] || exit 1
+    exit 0
+  ); then
+    ok "Bash 5+ path uses EPOCHSECONDS as the clock"
+  else
+    fail "Bash 5+ path did not use EPOCHSECONDS"
+  fi
+fi
+
+# --- Case 54: unreadable file reads stay silent at every remaining site ------
+# Case 51 pins gate_file_mentions. The same left-to-right redirection bug lived
+# on gate_resolve_plugin_name, gate_settings_options_to, and the arm-record
+# load. Verdicts are fail-open either way; only stderr discriminates.
+UNREAD_PLUGIN="$WORK/unreadable-plugin"
+mkdir -p "$UNREAD_PLUGIN/.claude-plugin"
+printf '{"name":"autonomy"}\n' >"$UNREAD_PLUGIN/.claude-plugin/plugin.json"
+UNREAD_OPTS="$WORK/unreadable-opts.json"
+printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$UNREAD_OPTS"
+chmod 000 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null || true
+if [[ -r "$UNREAD_PLUGIN/.claude-plugin/plugin.json" || -r "$UNREAD_OPTS" ]]; then
+  ok "SKIP: chmod 000 does not deny for this user — remaining unreadable-source stderr not asserted here"
+else
+  UNREAD_LIB_ERR="$WORK/unreadable-lib.err"
+  if (
+    # shellcheck source=lane-stop-gate-lib.sh
+    source "$STAGED_DIR/lane-stop-gate-lib.sh"
+    gate_resolve_install "$STAGED_DIR/.." || exit 1
+    gate_resolve_plugin_name "$UNREAD_PLUGIN"
+    gate_settings_options_to "$UNREAD_OPTS" lane_stop_gate_enabled lane_stop_gate_sentinel lane_stop_gate_marker || true
+    exit 0
+  ) 2>"$UNREAD_LIB_ERR"; then
+    UNREAD_LIB_STDERR="$(<"$UNREAD_LIB_ERR")"
+    if [[ -z "$UNREAD_LIB_STDERR" ]]; then
+      ok "unreadable manifest and settings file produce no stderr (lib redirection order holds)"
+    else
+      fail "unreadable lib file leaked to stderr — silence stderr BEFORE the input redirection: $UNREAD_LIB_STDERR"
+    fi
+  else
+    fail "unreadable lib file reads aborted the sourced helpers"
+  fi
+  ARM_ID_UNREAD="unreadarm0123456"
+  bash "$ARM" --id "$ARM_ID_UNREAD" --cwd "$WORK" 2>/dev/null
+  REC_UNREAD="$DATA_DIR/lane-arms/$ARM_ID_UNREAD"
+  chmod 000 "$REC_UNREAD" 2>/dev/null || true
+  if [[ -r "$REC_UNREAD" ]]; then
+    ok "SKIP: chmod 000 does not deny the arm record for this user"
+  else
+    UNREAD_ARM_ERR="$WORK/unreadable-arm.err"
+    OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
+      env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+        -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+        -u CLAUDE_PLUGIN_DATA \
+        CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+        CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_UNREAD" \
+        bash "$HOOK" 2>"$UNREAD_ARM_ERR")"
+    RC=$?
+    UNREAD_ARM_STDERR="$(<"$UNREAD_ARM_ERR")"
+    if [[ -z "$UNREAD_ARM_STDERR" ]]; then
+      ok "unreadable arm record produces no stderr (redirection order holds)"
+    else
+      fail "unreadable arm record leaked to stderr — silence stderr BEFORE the input redirection: $UNREAD_ARM_STDERR"
+    fi
+    if [[ $RC -eq 0 ]] && ! is_block "$OUT"; then
+      ok "unreadable arm record contributes no verdict (stop allowed)"
+    else
+      fail "unreadable arm record changed the verdict (rc=$RC out=$OUT)"
+    fi
+  fi
+  chmod 600 "$REC_UNREAD" 2>/dev/null || true
+  rm -f "$REC_UNREAD" "$REC_UNREAD.claim"
+fi
+chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null || true
+rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
+
 # ============================================================================
 # #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
 # ============================================================================
@@ -1007,9 +1120,9 @@ rm -f "$SETTINGS"
 #     grep per settings file.
 #   enabled (user settings, first stop, no signal → block): a CEILING of 10
 #     creations and 5 launches. This hook's own share is 6 creations: the
-#     hook::jq_fields payload pass (3: process substitution, printf writer, jq),
+#     payload jq pass (3: process substitution, printf writer, jq),
 #     uname, the one settings jq, the block-decision jq. The remainder is
-#     hook::buffer_stdin in the synced shared library (its capture, its
+#     hook::buffer_stdin_to in the synced shared library (its capture, its
 #     read-slice probe, its `printf | jq -e` validation pass), which this plugin
 #     does not own. A shared-library saving lowers the count without failing
 #     here; a regression in this plugin's own files raises it and does.
