@@ -12,10 +12,12 @@ All notable changes to the `fleet` plugin are documented here. Format follows
 - Target resolution from the rendered fleet manifest at `~/.config/fleet/FLEET.md`, addressing
   machines by hostname over the tailnet rather than by session name.
 - Verification, one-shot and multi-turn (`--output-format json` plus `--resume`) headless recipes
-  for the WSL hop, and the reason port 22 is not an agent lane.
+  for the WSL hop, and the reason port 22 is not an agent lane. The recipes and a Gotchas entry
+  carry the apostrophe rule: a `'` in `<prompt>` closes the local shell's outer single quote
+  before ssh runs, so replace each `'` with `'\''` or wrap the remote command in `$'...'`.
 - The Windows-side relay, in `reference/relay.md`: reaching a target's own native-Windows sessions
   through the same SSH hop, since a WSL session and a native Windows session on one computer
-  cannot see each other.
+  cannot see each other. The relay command carries the same apostrophe rule as the hub recipes.
 - The account model: why the accounts are split per machine and why that puts the built-in peer
   tools out of reach across machines.
 - The permission posture: remote agent launches are outside the auto-mode classifier and prompt by

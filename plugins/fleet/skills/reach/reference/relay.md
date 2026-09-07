@@ -22,6 +22,12 @@ same-account and behave normally.
 ssh -p 2222 <wsl-user>@<host> 'cd /mnt/c/Users/<user>/claude-lane-sandbox && /mnt/c/Users/<user>/.local/bin/claude.exe -p "<prompt>" < /dev/null'
 ```
 
+Escape every apostrophe in `<prompt>` before substituting it. The remote command is single-quoted
+on the LOCAL shell, so a raw `'` ("what's", "don't") closes that quote early, before `ssh` runs,
+and the remainder is re-parsed as separate words. Two ways: replace each `'` with `'\''`, or wrap
+the remote command in `$'...'` quoting and write `\'` for each apostrophe. Same rule as the hub's
+one-shot and multi-turn recipes; see SKILL.md's Gotchas.
+
 Three parts, each load-bearing:
 
 - **Absolute paths.** WSL interop answers by absolute path inside an sshd session even though
@@ -31,11 +37,6 @@ Three parts, each load-bearing:
   the console account's profile, and the relay turn uses the same directory. Never point it at a
   repository that defines the fleet's accounts, firewall scope or tailnet policy.
 - **`< /dev/null`.** Same reason as every other headless turn: `claude -p` reads stdin.
-
-`<prompt>` is double-quoted inside a command that is itself single-quoted on the LOCAL shell, same
-as the hub's one-shot and multi-turn recipes: an apostrophe in the prompt text closes that outer
-quote early, before `ssh` runs. Escape it the same way: replace each `'` with `'\''` before
-substituting (see SKILL.md's Gotchas).
 
 `~/.config/fleet/FLEET.md` renders this with the target's real profile path substituted, so prefer
 copying it from there over expanding `<user>` by hand.

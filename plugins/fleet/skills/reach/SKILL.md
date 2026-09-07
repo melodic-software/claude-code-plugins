@@ -52,6 +52,13 @@ working. Do this before sending a long or expensive prompt.
 ssh -p 2222 <wsl-user>@<host> 'claude -p "<prompt>" < /dev/null'
 ```
 
+Escape every apostrophe in `<prompt>` before substituting it. The remote command is single-quoted
+on the LOCAL shell, so a raw `'` ("what's", "don't") closes that quote early and the remainder is
+re-parsed as separate words. Two ways: replace each `'` with `'\''`
+(`'claude -p "what'\''s the disk usage?" < /dev/null'`), or wrap the remote command in `$'...'`
+quoting and write `\'` for each apostrophe
+(`$'claude -p "what\'s the disk usage?" < /dev/null'`).
+
 The turn runs under the TARGET's account, config, plugins and usage limits. That is the point: the
 work happens where its files and credentials already are, and it draws down that machine's window
 rather than this one's.
@@ -64,6 +71,9 @@ The first call reports the session it created; resume by that id:
 ssh -p 2222 <wsl-user>@<host> 'claude -p --output-format json "<prompt>" < /dev/null'
 ssh -p 2222 <wsl-user>@<host> 'claude -p --resume <session_id> "<prompt>" < /dev/null'
 ```
+
+Same apostrophe rule as the one-shot recipe: escape each `'` in both prompts before substituting,
+or wrap each remote command in `$'...'`.
 
 `--resume` finds the id on the machine that made it, in any project directory there. Ids do not
 travel between hosts or accounts, so resume against the same host you started on.
@@ -148,7 +158,8 @@ into it, which is the human path from a phone or the web.
 - **Escape apostrophes in `<prompt>`.** The remote command is single-quoted on the LOCAL shell, so
   a `'` inside the prompt text ("what's", "don't") closes that quote early, before `ssh` ever
   runs, and the rest is re-parsed as separate words. Replace each `'` in the prompt with `'\''`
-  before substituting it, e.g. `claude -p "what'\''s the disk usage?" < /dev/null`.
+  before substituting it, e.g. `'claude -p "what'\''s the disk usage?" < /dev/null'`, or wrap the
+  remote command in `$'...'` and write `\'` for each apostrophe.
 - **Parse the JSON, not the stream.** A relay turn's `SessionEnd` hooks print `Hook cancelled` on
   stdout. Take the JSON object out of the output before reading it, for example
   `grep '^{' | jq -r .session_id`, rather than piping the whole stream to `jq`.

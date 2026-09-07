@@ -43,6 +43,13 @@
       "prompt": "I'm getting Permission denied (publickey) when I ssh to the desktop from Git Bash. Fix my keys.",
       "expected_output": "Identifies the client rather than the key: Git Bash's MSYS ssh reaches no agent. Directs the command through the Windows OpenSSH client at C:\\Windows\\System32\\OpenSSH\\ssh.exe, which is agent-backed and what ~/.ssh/config is wired to. Does not start regenerating or re-authorizing keys.",
       "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Ask the desktop what's using the most disk space.",
+      "expected_output": "Reads ~/.config/fleet/FLEET.md, then composes the one-shot WSL hop. Escapes the apostrophe in what's before substituting into the single-quoted remote command: replace each ' with '\\'' or wrap the remote command in $'...' quoting. Does not paste the contraction unescaped into the outer single quotes, because that would close the local shell quote before ssh runs.",
+      "narration": true,
+      "files": []
     }
   ]
 }
