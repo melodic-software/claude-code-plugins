@@ -47,7 +47,10 @@ when one reaches a written file:
 
 The `type:` marker is the load-bearing exclusion. The writer's two home refusals (a stub home
 inside the fix action's scan directory, and a stub home inside the input file's own directory)
-are defense in depth on top of it, not a substitute for it.
+are defense in depth on top of it, not a substitute for it. Those refusals compare each path
+after folding it to the filesystem's own spelling of its deepest existing ancestor, because one
+directory can be addressed by more than one absolute path and comparing two spellings as strings
+would report "not within" for the very case the fence exists to catch.
 
 ## Filename
 

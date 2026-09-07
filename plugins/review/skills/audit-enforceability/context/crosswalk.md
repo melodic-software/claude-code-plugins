@@ -28,6 +28,11 @@ rule family the id belongs to, then the dimension heading the row sat under.
 The one id form the detector-findings contract allows is `<plugin>/<skill>/rule-<slug>`, so a
 match here is byte-exact on the whole id.
 
+Every owner cell below reading "already deterministic: keep the `<plugin>:<skill>` detector" is
+gated on that plugin still being installed in the consuming repo; where it is not, the finding has
+no deterministic rung there and falls back to `llm-only`, a review-time judgment, until the
+detector is reinstalled. The same gate and the same fallback bind the rule-family rows.
+
 | Rule id | Class | Rung | Owner or pointer | Basis |
 |---|---|---|---|---|
 | `mutation-testing/audit/rule-survivor-productive` | `design-judgment` | `llm-only` | none | the remedy is a covering test whose assertion is a judgment about the code's contract, which no check can state for you |

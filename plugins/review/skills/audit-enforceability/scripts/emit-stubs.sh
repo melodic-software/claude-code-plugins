@@ -33,9 +33,11 @@
 # `type: enforceability-stub` and carries no `branch:` key, which is the
 # load-bearing exclusion; the two refusals below are defense in depth. This
 # script refuses, writing nothing, when --out is --scan-dir or sits under it,
-# and when --out is the findings file's own directory or sits under it. Both
-# comparisons are lexical: neither directory need exist yet, and a refusal that
-# had to create a directory to decide would violate its own contract.
+# and when --out is the findings file's own directory or sits under it. Each
+# path is normalized lexically and then folded to the filesystem's own spelling
+# of its deepest EXISTING ancestor, so two spellings of one directory compare
+# equal. Neither directory need exist, and nothing is created to decide a
+# refusal: a refused run leaves the tree exactly as it found it.
 #
 # Exit: 0 wrote (or planned) every stub; 2 usage, unreadable or non-conforming
 # --findings, missing --scan-dir; 3 a refused home; 4 a written stub carried a
@@ -168,12 +170,42 @@ normalize_path() {
   NORM="$prefix$joined"
 }
 
+# canonicalize_dir: fold NORM to the filesystem's own spelling of the deepest
+# ancestor that exists, then re-attach the part that does not.
+#
+# Lexical normalization alone is not enough for the fence. One directory has
+# more than one absolute spelling on a host whose shell layer maps drives
+# (`/d/x` and `D:/x` and `d:/x` are one directory), and a symlinked home is a
+# second spelling anywhere. Comparing two different spellings of the SAME
+# directory reports "not within" and writes the stubs into the very directory
+# the fence exists to protect.
+#
+# This reads the filesystem but still creates nothing: it walks UP to an
+# existing ancestor rather than materializing the target, so a refused run
+# leaves the tree exactly as it found it. When nothing resolves, the lexical
+# value stands.
+canonicalize_dir() {
+  local p="$NORM" tail="" prev phys
+  while [[ ! -d "$p" ]]; do
+    prev="$p"
+    tail="${p##*/}${tail:+/$tail}"
+    p="${p%/*}"
+    [[ -n "$p" ]] || p="/"
+    [[ "$p" != "$prev" ]] || return 0
+  done
+  phys="$(cd -- "$p" 2>/dev/null && pwd -P)" || return 0
+  [[ -n "$phys" ]] || return 0
+  NORM="${phys%/}${tail:+/$tail}"
+}
+
 # is_within <candidate> <ancestor>: true when candidate IS ancestor or sits
 # under it. The trailing slash is what keeps `reviews-archive` from reading as a
-# child of `reviews`.
+# child of `reviews`; stripping it off the ancestor first is what lets the
+# filesystem root be an ancestor at all.
 is_within() {
   local candidate="$1" ancestor="$2"
-  [[ "$candidate" == "$ancestor" || "$candidate" == "$ancestor"/* ]]
+  [[ "$candidate" == "$ancestor" ]] && return 0
+  [[ "$candidate" == "${ancestor%/}"/* ]]
 }
 
 # --- Findings-file admission, first half: the frontmatter marker --------------
@@ -246,12 +278,18 @@ read_rows() {
       }
       if (expect_sep) { expect_sep = 0; next }
       if (n != 9) {
-        printf "row %d splits into %d fields, not 9; an unescaped pipe shifts the cells\n", NR, n > "/dev/stderr"
+        printf "diagnostic: row %d of the ## Findings table splits into %d fields, not 9; an unescaped pipe shifts its cells, so it was not stubbed. Write a literal pipe as \\|.\n", NR, n > "/dev/stderr"
+        malformed++
         next
       }
       printf "%s\002%s\002%s\002%s\002%s\002%s\002%s\n", cell[2], cell[3], cell[4], cell[5], cell[6], cell[7], cell[8]
     }
-    END { if (!seen_header) exit 9 }
+    END {
+      if (!seen_header) exit 9
+      # A trailing sentinel record, so the shell can report a row this reader
+      # had to drop instead of printing a count that silently excludes it.
+      printf "\003%d\n", malformed
+    }
   ' "$findings"
 }
 
@@ -269,13 +307,18 @@ fi
 # --- The two home fences -------------------------------------------------------
 
 normalize_path "$out"
+canonicalize_dir
 out_abs="$NORM"
 normalize_path "$scan_dir"
+canonicalize_dir
 scan_abs="$NORM"
 normalize_path "$findings"
 findings_abs="$NORM"
 findings_dir_abs="${findings_abs%/*}"
 [[ -n "$findings_dir_abs" ]] || findings_dir_abs="/"
+NORM="$findings_dir_abs"
+canonicalize_dir
+findings_dir_abs="$NORM"
 
 if is_within "$out_abs" "$scan_abs"; then
   printf 'refusing: the stub home %s is the fix action scan directory %s or sits under it; a stub written there is offered to the fix pass.\n' \
@@ -358,11 +401,16 @@ sanitize_slug() {
 declare -a written=()
 declare -a table_ranks=()
 count=0
+malformed=0
 
 mkdir_done=0
 
 while IFS= read -r record; do
   [[ -n "$record" ]] || continue
+  if [[ "$record" == $'\003'* ]]; then
+    malformed="${record#$'\003'}"
+    continue
+  fi
   IFS=$'\002' read -r r_rank r_tier r_conf r_loc r_surf r_find r_act <<<"$record"
   table_ranks+=("$r_rank")
   seen_rank["$r_rank"]=1
@@ -411,7 +459,9 @@ while IFS= read -r record; do
     mkdir_done=1
   fi
 
-  {
+  # A write that fails part way leaves a truncated stub the self-check below
+  # would read as clean, so the status is checked rather than assumed.
+  if ! {
     printf -- '---\n'
     printf 'type: enforceability-stub\n'
     printf 'date: %s\n' "$now_utc"
@@ -440,7 +490,11 @@ while IFS= read -r record; do
     printf '%s\n' "$f_owner"
     printf '\n## Not done here\n\n'
     printf 'This stub proposes. Nothing was implemented.\n'
-  } >"$target"
+  } >"$target"; then
+    rm -f "$target" ${written[@]+"${written[@]}"}
+    printf 'refusing: writing %s failed part way; every stub this run wrote has been removed.\n' "$target" >&2
+    exit 2
+  fi
 
   written+=("$target")
 done <<<"$rows_raw"
@@ -497,4 +551,8 @@ if [[ -n "$violation" ]]; then
 fi
 
 printf '%d findings → %d stubs in %s\n' "$count" "${#written[@]}" "$out"
+if [[ "$malformed" -gt 0 ]]; then
+  printf 'WARNING: %d further row(s) carried an unescaped pipe and were NOT stubbed; the count above excludes them.\n' \
+    "$malformed" >&2
+fi
 exit 0
