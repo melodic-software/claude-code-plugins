@@ -398,7 +398,7 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
-**0.32.15, the abort boundary.** 2026-09-07, Linux CI host. A correctness
+**0.32.16, the abort boundary.** 2026-09-07, Linux CI host. A correctness
 change, not a perf one, recorded here because it touches every registered
 hook's prologue: each now sources `hooks/abort-boundary.sh` and installs an
 EXIT trap (#3528). Kernel census with

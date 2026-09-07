@@ -48,6 +48,19 @@
 # inside the handler ends the process once, with that failure's status, after
 # the stderr line is already written.
 #
+# One EXIT trap per shell. Bash holds a single EXIT trap, so a hook that runs
+# its own `trap ... EXIT` (or `trap - EXIT`) after the install line REPLACES
+# this boundary and is back to the silent abort it exists to remove, with
+# nothing at run time to say so. abort-boundary.test.sh fails on any `trap`
+# naming EXIT in a registered hook or in a library it sources; this file is the
+# only one allowed to touch it. No hook needs exit-time work today (each is
+# builtins plus one jq read, nothing to clean up). The supported way for one
+# that does is to chain through this library, not around it: add a chain slot
+# here that guard::_abort_on_exit calls before it decides (the chained
+# function under the same handler discipline: builtins only, never exits,
+# never touches the trap), with a suite case beside the others, in the same
+# change. A release on purpose goes through guard::abort_boundary_release.
+#
 # Under run-guards.sh each guard is sourced inside its own command-substitution
 # subshell. The trap a guard installs there runs at that subshell's exit; its
 # stderr passes straight through and its stdout document is merged with the

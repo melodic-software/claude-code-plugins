@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.15]
+## [0.32.16]
 
 ### Fixed
 
@@ -40,8 +40,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the only delta, and flipping a guard to fail-closed is one word on its
   install line. `run-guards.sh` installs the same boundary around its own
   prologue and merge (an abort there skipped every guard of the event), primes
-  `.hook_event_name` in its existing jq call so its notice names the event,
-  and releases the trap before its deliberate aggregated exit, so a non-block
+  `.hook_event_name` in its existing jq call so its notice names the event
+  (looked up by name among the primed filters, never by position, so a filter
+  added ahead of it cannot move the event), and releases the trap before its
+  deliberate aggregated exit, so a non-block
   status a guard returns still surfaces as before. `block-hook-bypass`'s
   bespoke handler is replaced by the shared one; its crash test passes
   against it unchanged in expectation. New `hooks/abort-boundary.test.sh`
@@ -52,7 +54,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   payload the shipped guard still denies) and one advisory hook; checks the
   dispatched path keeps a sibling's deny beside an aborting guard and merges
   two notices into one document; checks chosen statuses pass through with no
-  output; and checks the handler ends the process once when its own body
+  output; checks no registered hook or sourced library installs an EXIT trap
+  of its own (bash keeps one per shell, so a second would replace the boundary
+  and restore the silent abort); and checks the handler ends the process once
+  when its own body
   fails. A/B against a pristine `origin/main` export: every guardrails contract
   suite produces the same assertion lines on both trees (the injected-crash
   fixture aside), and the same 71 payloads through the dispatcher and the
