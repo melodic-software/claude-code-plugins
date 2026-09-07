@@ -75,3 +75,55 @@ obligates a plugin `version` bump, since the version is the update cache key. (`
 `repo-analysis` + `video-digestion`, shared by its `video-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
+
+## Addendum (2026-09-07): one sync lane with N steps, not one lane per library
+
+Recorded by the ci-perf program (melodic-software/github-iac#378, Phase 9). The decision above is
+unchanged: a shared source still has one canonical copy, a `sync-*.sh` script still propagates it,
+and CI still fails a pull request when a copy drifts or when the lib changed without a plugin
+version bump. What changed is where that gate runs.
+
+Each shared source used to get **its own CI job**. Before claude-code-plugins#3696
+(`31dc91ded6cc51cac47c6cb27c49788ba9cde449`, merged 2026-09-04) `ci.yml` carried thirteen
+`*-sync` jobs, one per library: `hook-utils-sync`, `rewrite-guard-sync`,
+`parse-concern-value-sync`, `managed-scope-sync`, `state-key-sync`, `spawn-noise-sync`,
+`check-retirements-sync`, `legacy-statusline-detect-sync`, `unwrap-before-compose-sync`,
+`resolve-convention-home-sync`, `resolve-convention-pattern-sync`, `index-regen-sync` and
+`standards-contract-sync`. Each was a runner, a pinned `actions/checkout`, a
+`checkout-with-base` deepen to full history plus a base fetch, the `--check` and `--check-bump`
+steps, and in eleven of the thirteen a per-library test step as well. No toolchain install: these
+are shell scripts, and the toolchains belong to `test-linux`. The cost was the runner, the checkout
+and the unshallow, paid thirteen times over.
+
+**The cost is latency here and money on the fleet.** This repository is public and the jobs ran on
+`ubuntu-24.04`, a standard runner, so nothing was billed: what thirteen jobs bought was thirteen
+runner startups and thirteen unshallows on the critical path, and thirteen concurrency slots taken
+from every other lane in the run. In the private repositories the same ci-perf program covers, the
+identical shape spends the metered minute pool instead, because GitHub rounds the minutes and
+partial minutes each job uses up to the nearest whole minute
+(<https://docs.github.com/en/billing/reference/actions-runner-pricing>), so a per-library job floor
+is a per-library pooled minute there. That organization caps Actions spend at `$0` with
+`prevent_further_usage` (melodic-software/github-iac ADR 0008), so the failure mode is not a line
+item but a hard stop on every private repository's hosted CI once the pool is gone.
+
+**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
+already performs that same deepen and base fetch for its own `--check-bump` steps;
+`sync-hook-utils.sh` runs in the `hook-utils` job beside the hook contract tests it covers, on the
+shell-only diff that job exists to keep off the heavier lanes. Adding a fourteenth shared source
+therefore adds a step to an existing job, and adding a job is the thing to justify rather than the
+default.
+
+One thing was lost and is worth naming rather than glossing. The old **job** name
+(`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every
+step kept the name it had, but those names were never carrying that load: seven of the twelve drift
+checks name their library and five do not, and none of the `--check-bump` steps do, seven of them
+sharing the string "Verify carrying plugins bumped when canonical changed". So a red bump check now
+needs its log read to say which library it was. That is the price paid for the consolidation, and a
+new sync step should name its library in its step name so the price stops growing.
+
+Nothing about the invariant moved: byte-drift is still fatal, the `--check-bump` half still fails a
+lib change whose carrying plugin's manifest version did not move, and the intra-plugin `vendor/`
+shape above still replaces the byte-drift gate with delivery-by-version
+(`check-vendor-version-bump.sh`, its own gate). **Recheck trigger:** a sync gate that needs a
+different runner, a different toolchain, or an isolation the consolidated job cannot give it earns
+its own job again; say which of the three when adding one.
