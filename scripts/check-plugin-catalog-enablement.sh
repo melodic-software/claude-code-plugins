@@ -155,7 +155,8 @@ if [[ -n "${PLUGIN_CATALOG_ENABLEMENT_FLEET:-}" ]]; then
 else
   fleet_tmp="$(mktemp)"
   trap 'rm -f "$fleet_tmp"' EXIT
-  if ! curl -fsSL --proto '=https' --retry 2 --retry-delay 3 "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
+  if ! curl -fsSL --proto '=https' --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 3 \
+    "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
     printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
     echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
     exit 2
