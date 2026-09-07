@@ -8,6 +8,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 ### Changed
 
 - improve: the HTML report points at the rendered-views security baseline (`docs/conventions/rendered-views/README.md`, "Security baseline") and repeats its rules once, in Phase 2 of `actions/deepening.md`, in place of the escaping and no-remote-runtime wording that was spread across `actions/deepening.md` and `research/deepening/html-report.md`. `html-report.md` keeps the two report-specific additions: which strings count as repository-derived (now naming the scaffold's `<title>`), and no `<script>` inside SVG (#3609).
+- improve: another repository's files are not rendered to HTML until the rendered-views escape helper ships (the baseline's third bullet, the same carve-out `visualization:visualize` carries): a scan of a repository that is not the user's own delivers the durable candidate artifact and says in one line why no page was produced. Stated in Phase 2 of `actions/deepening.md` and in the SKILL.md "does NOT do" list (#3609).
+- improve: the repeated baseline passage in `actions/deepening.md` carries a `contract-restatement` marker for the `rendered-views-security-baseline` clause, so `scripts/check-contract-clause-coverage.py` fails when the copy drifts from the convention (#3609).
 
 ## [0.6.10]
 

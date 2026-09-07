@@ -14,6 +14,10 @@ All notable changes to the `adhd` plugin are documented here. Format follows
   event-handler attributes from input, self-containment. Kept as skill-specific: escaping is
   what keeps the verbatim promise true in the rendered page, and terminal markdown wraps
   code-like terms in backticks (#3609).
+- **clarify:** the repeated baseline passage carries a `contract-restatement` marker for the
+  `rendered-views-security-baseline` clause, so `scripts/check-contract-clause-coverage.py`
+  fails when the copy drifts from the convention's five escape characters, the
+  `<script>`/`<style>` rule, the event-handler rule, or self-containment (#3609).
 
 ## [0.4.7]
 
