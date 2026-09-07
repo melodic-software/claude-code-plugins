@@ -77,9 +77,18 @@ hook::require_jq PostToolUse actionlint "$INPUT"
 # lib is synced fleet-wide and other consumers keep the guard).
 FILE=$(printf '%s' "$INPUT" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
 [[ -n "$FILE" && -f "$FILE" ]] || exit 0
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a workflow file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 # Only GitHub Actions workflow files. actionlint recognizes both .yml and .yaml
 # under .github/workflows/; other YAML is not a workflow and must be skipped.
-FILE_NORM="$(hook::normalize_path "$FILE")"
+FILE_NORM=""
+hook::normalize_path_to FILE_NORM "$FILE"
 case "$FILE_NORM" in
 */.github/workflows/*.yml | */.github/workflows/*.yaml) ;;
 *) exit 0 ;;
@@ -98,16 +107,20 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument actionlint runs on from the repo root. A path the prefix strip
 # could not make relative degrades to its basename, which is right for telemetry
 # but names a DIFFERENT file when resolved against the repo root, so the
-# invocation below has to know which of the two it holds. Command substitution
-# runs the helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never
-# reaches this scope; the return status is the channel that survives.
+# invocation below has to know which of the two it holds. `_to` writes FILE_REL
+# and HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture subshell that
+# used to hide the global is gone (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution). Status remains the
+# distinguishable channel.
 FILE_REL_DEGRADED=0
-FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
+FILE_REL=""
+hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
@@ -190,7 +203,7 @@ fi
 FINDINGS_JSON='[]'
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
-  hook::ctx_append "actionlint: $(basename "$FILE") has findings:"
+  hook::ctx_append "actionlint: $FILE_BASE has findings:"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue

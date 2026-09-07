@@ -44,6 +44,26 @@ Arguments: `$ARGUMENTS`
 - **`--persist-findings`**: after reporting, also write the survivors as a findings file the
   `review:fanout` `fix` action consumes ([Phase 6](#phase-6--persist-opt-in)). Off by default.
 
+### Effort, the mutant cap of last resort
+
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
+one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
+
+Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,
+then the configured `max-mutants`, then this table; effort never lowers a cap the caller or the
+config chose, and never raises one:
+
+| Effort | Cap when neither `--max` nor `max-mutants` is set |
+|---|---|
+| `low` | 5 mutants |
+| `medium` | 15 mutants |
+| `high`, `xhigh`, `max` | uncapped, the current behavior |
+
+An effort-derived cap is a cap like any other, so Phase 1 step 5 already governs how it is reported:
+say what was dropped, because a truncated run must never read as a clean one. Nothing downstream
+moves. Phase 4 triage still runs in fresh context on every surviving mutant, at every effort level.
+
 ## The contract this skill holds
 
 Three properties, stated first because everything below depends on them:

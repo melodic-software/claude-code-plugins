@@ -38,8 +38,15 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. This guard runs on every
+# Write/Edit: a defect in it must not stop the session writing files, and the
+# allow it always inherited on an abort is now visible instead of silent.
+guard::abort_boundary hardcoded-path-check PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # Bundled pattern lib — resolved under the plugin root (CC sets
 # CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
@@ -131,9 +138,11 @@ hpc_resolve_scan_root() {
   [[ -n "$root" ]] || return 0
   toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
   [[ -n "$toplevel" ]] || return 0
-  tl_norm="$(hook::normalize_path "$toplevel")"
+  tl_norm=""
+  hook::normalize_path_to tl_norm "$toplevel"
   tl_norm="${tl_norm%/}"
-  home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
+  home_norm=""
+  hook::normalize_path_to home_norm "${HOME:-${USERPROFILE:-}}"
   home_norm="${home_norm%/}"
   if [[ -n "$home_norm" && ("$tl_norm" == "$home_norm" || "$home_norm" == "$tl_norm"/*) ]]; then
     SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
@@ -283,8 +292,10 @@ NORM_FILE="${FILE//\\//}"
 # repo also skips (no working tree means no tracked portable artifacts to
 # protect at this path).
 [[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
-_scope_file="$(hook::normalize_path "$FILE")"
-_scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
+_scope_file=""
+hook::normalize_path_to _scope_file "$FILE"
+_scope_project=""
+hook::normalize_path_to _scope_project "${CLAUDE_PROJECT_DIR}"
 _scope_project="${_scope_project%/}"
 case "$_scope_file" in
 "$_scope_project"/*) ;; # inside the project — proceed
@@ -353,8 +364,8 @@ emit_tel() {
   # would collapse to its basename. PROJECT_ROOT comes from the caller-supplied
   # CLAUDE_PROJECT_DIR, where a trailing slash is a supported spelling, so trim
   # it here. The copy this replaced did the same.
-  local file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "${PROJECT_ROOT%/}")"
+  local file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "${PROJECT_ROOT%/}"
   local data
   data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
     '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||

@@ -44,8 +44,15 @@ start=${EPOCHREALTIME:-}
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
+# enforced here, so the loss on an abort is the advisory itself; the notice
+# says it was not produced.
+guard::abort_boundary cli-flag-verify PostToolUse open 0
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 hook::ctx_reset
 
@@ -126,7 +133,8 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
@@ -482,7 +490,8 @@ emit_tel() {
   # comes back as the basename, never an absolute path (which would embed the
   # developer's username).
   local findings_json="[]" file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#FAILURES[@]} > 0)); then
     local f raw="" disp
     for f in "${FAILURES[@]}"; do

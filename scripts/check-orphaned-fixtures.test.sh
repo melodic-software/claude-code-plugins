@@ -53,6 +53,14 @@ printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 if run_check "$repo" >/dev/null; then ok "files[]-referenced fixture passes --check"; else fail "files[]-referenced fixture wrongly flagged"; fi
 rm -rf "$repo"
 
+# --- two files[] entries in one evals.json (cached jq extract) -> both consumed
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/a.md", "evals/fixtures/b.md"'
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/a.md"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/b.md"
+if run_check "$repo" >/dev/null; then ok "two files[]-referenced fixtures in one grader both pass --check"; else fail "cached files[] extract missed a sibling fixture"; fi
+rm -rf "$repo"
+
 # --- consumed via a test file (basename) -> not an orphan ------------------
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''
@@ -60,6 +68,17 @@ printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/by-test.md"
 mkdir -p "$repo/plugins/p/skills/s/scripts"
 printf 'assert_on fixtures/by-test.md\n' >"$repo/plugins/p/skills/s/scripts/thing.test.sh"
 if run_check "$repo" >/dev/null; then ok "test-asserted fixture passes --check"; else fail "test-asserted fixture wrongly flagged"; fi
+rm -rf "$repo"
+
+# --- a single backslash in the fixture basename is ERE-escaped. A quoted
+# `'\\'` case arm matches two backslash chars and leaves `\b` as a word
+# boundary, so a same-skill test that names the file would not consume it.
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/s" ''
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/x\\b.json" # portability-ok: literal backslash in the fixture basename, not a GNU grep word boundary
+mkdir -p "$repo/plugins/p/skills/s/scripts"
+printf 'assert_on fixtures/x\\b.json\n' >"$repo/plugins/p/skills/s/scripts/thing.test.sh" # portability-ok: names the same literal-backslash basename
+if run_check "$repo" >/dev/null; then ok "fixture basename with a single backslash is consumed when a same-skill test names it"; else fail "single-backslash basename not consumed (ere_escape_to missed a lone backslash)"; fi
 rm -rf "$repo"
 
 # --- REFERENCE-NAME SUFFIX SIBLING: a referenced valid.json must NOT consume

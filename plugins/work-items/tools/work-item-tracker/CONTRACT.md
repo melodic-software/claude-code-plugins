@@ -204,8 +204,16 @@ there is no `--repo` flag. `--state` defaults to `all`.
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` AND no
 assignee AND not a container (a `work-map` item is never its own frontier item — see
 "Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
-excluded — the filter runs core-side over the labels `list-items` already returns; provider
-search syntax never leaves the adapter. With `--parent <container-id>` the frontier is scoped
+excluded, as are items carrying a **human-floor work class** — `work-class: structural` (C4)
+or `work-class: untrusted-provenance` (C5), whose admission disposition is human-gated
+regardless of any other signal. The floor wins over the autonomous-eligible role label: an
+item carrying both is contradictory, and resolving it against the floor is what keeps a
+worker from claiming and then escalating it once per lane pass. `work-class: scoped` (C3) is
+deliberately not floored here — its disposition turns on bug-fix-vs-feature shape and
+first-drain ratification, which the work-loop admission gate owns and no label carries. The
+floor is autonomous-only: the default (attended) frontier still surfaces these items, so they
+never become unreachable. The filter runs core-side over the labels `list-items` already
+returns; provider search syntax never leaves the adapter. With `--parent <container-id>` the frontier is scoped
 to one container: core reads the adapter's `list-sub-items` for that container instead of the
 repo-global `list-items`, then applies the identical filter (so a nested sub-map among the
 children is likewise excluded). `--parent` gates on the adapter's `list-sub-items` capability,

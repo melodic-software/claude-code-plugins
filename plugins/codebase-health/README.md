@@ -4,9 +4,15 @@ A Claude Code plugin for repo-wide drift auditing: it verifies that a codebase's
 ground truth via a parallel per-file subagent fan-out, findings are severity-rated, and the audit
 reports them read-only. Remediation is delegated to the implementation/verification lanes.
 
-Distinct from diff/PR review (which judges a change) and from Claude Code configuration audits (which
-check `settings.json` / hooks / permissions): this plugin verifies whether the repo's own written
-claims about itself are true.
+Distinct from diff/PR review (which judges a change): this plugin verifies whether the repo's own
+written claims about itself are true.
+
+Other kinds of drift belong to other lanes. The audit skill's
+[Boundary](skills/audit/SKILL.md#boundary-the-adjacent-drift-lanes) section routes seven of them
+(doc drift in a change under review or in a repo-wide sweep, stale session assumptions, currency
+against upstream docs, prose copied from an external source, Claude Code's own configuration and
+instruction surfaces, and the placement and enforcement delta lanes) to the sibling that owns each,
+presence-gated on that plugin being installed.
 
 | Skill | What it does |
 |---|---|

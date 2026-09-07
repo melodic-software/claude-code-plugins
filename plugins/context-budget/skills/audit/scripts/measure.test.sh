@@ -8,7 +8,8 @@
 # (one file per run plus an appended history line; schema-checked append),
 # the attribute/additivity pipeline in cli-parse mode against a fake
 # `claude` binary (a vanished bucket is unmeasured and incomparable, never a
-# coerced zero), and verify-catalogue (binary-scan present/absent, never
+# coerced zero; per-bucket verdicts; an unmeasured verdict distinct from a
+# measured negative), and verify-catalogue (binary-scan present/absent, never
 # invents presence). The sdk measurement path spawns a real Claude Code
 # binary and is exercised manually, not here — this suite must stay hermetic.
 #
@@ -152,6 +153,8 @@ assert_eq "$(jsonget "$row2" 'j.delta["System tools"]')" "-1000" \
   "delta is after-minus-before (a saving prints negative)" "delta sign/magnitude wrong"
 assert_eq "$(jsonget "$row2" 'j.comparability.systemToolsComparable')" "true" \
   "same-signature runs keep System tools comparable" "same-signature runs lost comparability"
+assert_eq "$(jsonget "$row2" 'j.comparability.modeBinaryComparable')" "true" \
+  "same-signature runs keep the shared mode/binary predicate" "same-signature runs lost modeBinaryComparable"
 
 # --- compare: signature mismatch poisons the System tools delta -----------
 
@@ -159,6 +162,9 @@ row3="$WORK/row-sig.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/c.json" --out "$row3" >/dev/null
 assert_eq "$(jsonget "$row3" 'j.comparability.systemToolsComparable')" "false" \
   "skill-listing signature mismatch marks System tools incomparable" "signature mismatch not detected"
+assert_eq "$(jsonget "$row3" 'j.comparability.modeBinaryComparable')" "true" \
+  "skill-listing signature mismatch does not poison the shared mode/binary predicate" \
+  "signature mismatch wrongly flipped modeBinaryComparable"
 if grep -q 'skill listing differs' "$row3"; then
   ok "signature mismatch carries its reason in the row"
 else
@@ -172,12 +178,18 @@ node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/d.json" --out "$WO
 assert_eq "$(jsonget "$WORK/row-path.json" 'j.comparability.systemToolsComparable')" "false" \
   "same version but different binary path marks System tools incomparable" \
   "binary-path mismatch not reflected in the predicate"
+assert_eq "$(jsonget "$WORK/row-path.json" 'j.comparability.modeBinaryComparable')" "false" \
+  "binary-path mismatch also flips the shared mode/binary predicate" \
+  "binary-path mismatch not reflected in modeBinaryComparable"
 
 node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.skillListing.tokens=2500;fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/e.json"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/e.json" --out "$WORK/row-skills.json" >/dev/null
 assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsComparable')" "false" \
   "matching listing but moved Skills bucket marks System tools incomparable" \
   "skills-bucket drift not reflected in the predicate"
+assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.modeBinaryComparable')" "true" \
+  "Skills-token drift does not poison the shared mode/binary predicate" \
+  "Skills-token drift wrongly flipped modeBinaryComparable"
 
 # --- emit: --out creates missing parent directories -----------------------
 
@@ -264,6 +276,11 @@ const mode = process.env.FAKE_MODE || 'control';
 // Savings per deny set, constructed additive: combined always equals the sum.
 const prefixSaved = { AlphaTool: 1000, BetaTool: 600, GammaTool: 500, 'AlphaTool+BetaTool': 1600 };
 const deferredSaved = { AlphaTool: 400, BetaTool: 100, GammaTool: 0, 'AlphaTool+BetaTool': 500 };
+// nonadd — the measured shape the audit found: the prefix side double-counts
+// (combined saves 400 less than the sum of parts) while the deferred side
+// sums to the token. Every bucket is present in every run, so the reading is
+// comparable and the negative verdict is measured, not unmeasured.
+if (mode === 'nonadd') prefixSaved['AlphaTool+BetaTool'] = 1200;
 const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
 // The deferred bucket is dropped (omitted, not reported as 0) when:
 //   novocab      — this fake "version" has no deferred bucket in any run;
@@ -274,10 +291,20 @@ const dropDeferred = mode === 'novocab'
   || key === 'GammaTool';
 if (!dropDeferred) table['System tools (deferred)'] = 12000 - (deferredSaved[key] ?? 0);
 table.Messages = 42;
+// skilltok — combined run only: Skills-token count moves while the listing
+// signature stays identical, so systemToolsComparable is false and the
+// shared mode/binary predicate stays true.
+if (mode === 'skilltok') table.Skills = key === 'AlphaTool+BetaTool' ? 2500 : 2000;
 const lines = ['## Context Usage', '', '**Model:** fake-model', '',
   '### Estimated usage by category', '',
   '| Category | Tokens | Percentage |', '|---|---|---|'];
 for (const [name, tokens] of Object.entries(table)) lines.push(`| ${name} | ${tokens} | 0% |`);
+// skillsig — combined run only: a Skills table appears, changing the listing
+// signature. Per-tool runs stay matching so they remain savers.
+if (mode === 'skillsig' && key === 'AlphaTool+BetaTool') {
+  lines.push('', '### Skills', '', '| Skill | Source | Tokens |', '|---|---|---|',
+    '| drift-skill | User | 100 |');
+}
 process.stdout.write(lines.join('\n') + '\n');
 EOF
 case "$(uname -s)" in
@@ -314,15 +341,50 @@ if attr vanish "$avanish" --tools AlphaTool,BetaTool --verify-additivity; then
     "vanished bucket yields combinedSaved null, never a coerced 0" "combinedSaved fabricated from a null delta"
   assert_eq "$(jsonget "$avanish" 'j.additivity.comparable')" "false" \
     "vanished bucket marks the additivity record incomparable" "additivity published comparable despite a vanished bucket"
-  assert_eq "$(jsonget "$avanish" 'j.additivity.additive')" "false" \
-    "incomparable additivity is never reported additive" "additive true despite a vanished bucket"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.additive')" "null" \
+    "an unmeasurable additivity reading reports a null verdict, not a definite negative" \
+    "unmeasured additivity published as a boolean verdict"
   if [[ "$(jsonget "$avanish" 'j.additivity.reasons.join(" ")')" == *"System tools (deferred)"* ]]; then
     ok "additivity record names the vanished bucket in its reasons"
   else
     fail "vanished-bucket reason missing from additivity record"
   fi
+  # Per bucket: the vanished deferred side is unmeasured, but the prefix side
+  # was measured in both runs and still gets a verdict.
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].sumOfParts')" "1600" \
+    "per-bucket sum of parts comes off the per-tool prefixDelta values" "per-bucket prefix sumOfParts wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].combinedSaved')" "1600" \
+    "per-bucket combined saving comes off the combined run's prefix delta" "per-bucket prefix combinedSaved wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools"].additive')" "true" \
+    "a vanished deferred bucket does not poison the prefix bucket's verdict" "prefix verdict lost to an unrelated vanish"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools (deferred)"].combinedSaved')" "null" \
+    "the vanished bucket's combined saving stays null" "vanished per-bucket saving coerced to a number"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.perBucket["System tools (deferred)"].additive')" "null" \
+    "the vanished bucket's verdict is unmeasured, not a negative" "vanished per-bucket verdict published as a boolean"
 else
   fail "attribute --verify-additivity (vanish scenario) exited nonzero"
+fi
+
+# A measured negative: every bucket present in every run, the reading
+# comparable, and the prefix side genuinely failing to add. The unmeasured
+# verdict above must NOT be the same value as this one.
+anon="$WORK/attr-nonadditive.json"
+if attr nonadd "$anon" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$anon" 'j.additivity.comparable')" "true" \
+    "the measured-negative reading is comparable" "nonadd reading marked incomparable"
+  assert_eq "$(jsonget "$anon" 'j.additivity.additive')" "false" \
+    "a comparable reading whose parts overshoot reports a measured false" "nonadd verdict wrong"
+  assert_eq "$(jsonget "$anon" 'j.additivity.additive === JSON.parse(require("fs").readFileSync("'"$avanish"'","utf8")).additivity.additive')" "false" \
+    "the unmeasured verdict is a different value from the measured negative" \
+    "unmeasured and measured-negative additivity verdicts are indistinguishable"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools"].additive')" "false" \
+    "the prefix bucket reports its own measured negative" "per-bucket prefix verdict wrong under nonadd"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools"].combinedSaved')" "1200" \
+    "the prefix bucket's combined saving is the combined run's own number" "per-bucket prefix combinedSaved wrong under nonadd"
+  assert_eq "$(jsonget "$anon" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "the deferred bucket adds even when the prefix bucket does not" "per-bucket deferred verdict wrong under nonadd"
+else
+  fail "attribute --verify-additivity (nonadd scenario) exited nonzero"
 fi
 
 # Control: all buckets present in every run — the verdict must be untouched.
@@ -385,8 +447,65 @@ if attr novocab "$anv" --tools AlphaTool,BetaTool --verify-additivity; then
     "additivity over the present bucket alone still measures" "vocabulary-absent combinedSaved wrong"
   assert_eq "$(jsonget "$anv" 'j.additivity.additive')" "true" \
     "additivity over the present bucket alone still verifies" "vocabulary-absent additive wrong"
+  assert_eq "$(jsonget "$anv" 'Object.keys(j.additivity.perBucket).join(",")')" "System tools" \
+    "a bucket absent from both runs gets no per-bucket verdict row" "vocabulary-absent bucket invented a per-bucket verdict"
 else
   fail "attribute (novocab scenario) exited nonzero"
+fi
+
+# Prefix-only listing drift: the combined run's skill listing (or Skills-token
+# count) changes, so systemToolsComparable is false, but the deferred bucket's
+# numeric deltas remain valid under the shared mode/binary checks. Applying
+# the prefix flag to every bucket would publish the deferred verdict as null.
+askillsig="$WORK/attr-skillsig.json"
+if attr skillsig "$askillsig" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.comparable')" "false" \
+    "combined listing drift marks the top-level additivity record incomparable" \
+    "skillsig top-level comparable stayed true"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.additive')" "null" \
+    "combined listing drift leaves the top-level verdict unmeasured" \
+    "skillsig top-level additive published as a boolean"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools"].additive')" "null" \
+    "listing drift leaves the prefix bucket verdict unmeasured" \
+    "skillsig prefix verdict published as a boolean"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools"].sumOfParts')" "1600" \
+    "listing drift still reports the prefix sum of parts" "skillsig prefix sumOfParts wrong"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools"].combinedSaved')" "1600" \
+    "listing drift still reports the prefix combined saving" "skillsig prefix combinedSaved wrong"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "listing drift does not take the deferred bucket's measured verdict" \
+    "skillsig deferred verdict lost to a prefix-only mismatch"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools (deferred)"].sumOfParts')" "500" \
+    "listing drift still reports the deferred sum of parts" "skillsig deferred sumOfParts wrong"
+  assert_eq "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools (deferred)"].combinedSaved')" "500" \
+    "listing drift still reports the deferred combined saving" "skillsig deferred combinedSaved wrong"
+  if [[ "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools"].reasons.join(" ")')" == *"skill listing"* ]]; then
+    ok "prefix bucket names the listing mismatch in its reasons"
+  else
+    fail "skillsig prefix reasons missing the listing mismatch"
+  fi
+  if [[ "$(jsonget "$askillsig" 'j.additivity.perBucket["System tools (deferred)"].reasons.join(" ")')" == *"skill listing"* ]]; then
+    fail "skillsig deferred reasons inherited a prefix-only listing mismatch"
+  else
+    ok "deferred bucket does not inherit prefix-only listing reasons"
+  fi
+else
+  fail "attribute --verify-additivity (skillsig scenario) exited nonzero"
+fi
+
+askilltok="$WORK/attr-skilltok.json"
+if attr skilltok "$askilltok" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$askilltok" 'j.additivity.comparable')" "false" \
+    "combined Skills-token drift marks the top-level additivity record incomparable" \
+    "skilltok top-level comparable stayed true"
+  assert_eq "$(jsonget "$askilltok" 'j.additivity.perBucket["System tools"].additive')" "null" \
+    "Skills-token drift leaves the prefix bucket verdict unmeasured" \
+    "skilltok prefix verdict published as a boolean"
+  assert_eq "$(jsonget "$askilltok" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "Skills-token drift does not take the deferred bucket's measured verdict" \
+    "skilltok deferred verdict lost to a prefix-only mismatch"
+else
+  fail "attribute --verify-additivity (skilltok scenario) exited nonzero"
 fi
 
 # --- verify-catalogue: binary existence, never invents presence -----------

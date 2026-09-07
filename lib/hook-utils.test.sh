@@ -747,6 +747,13 @@ if [[ "$esc2" == "abc" ]]; then
 else
   fail "json_escape: wrong residual-C0 handling: $(printf '%q' "$esc2")"
 fi
+esc14_to=""
+hook::json_escape_to esc14_to "$in14"
+if [[ "$esc14_to" == "$esc" ]]; then
+  ok "json_escape_to: matches print form"
+else
+  fail "json_escape_to: got '$esc14_to' want '$esc'"
+fi
 
 # --- Test 14b: hook::json_escape_jq matches jq's own string escaping ----------
 # The telemetry envelope's string fields are escaped by this function instead
@@ -2043,6 +2050,38 @@ else
   fail "resolve_read_timeout below floor: got '$resolved' (expected 2)"
 fi
 
+# Bash 3.2 has no fractional `read -t` (CHANGES bash-4.0-alpha). Override the
+# predicate the way the pre-4.1 nchars cases do: BASH_VERSINFO is readonly.
+# shellcheck disable=SC2016 # $1 is the child shell's positional, not this one's
+force_no_frac='source "$1"; hook::read_supports_fractional_timeout() { return 1; }; '
+frac_branch=$(bash -c "${force_no_frac}"'hook::read_supports_fractional_timeout && echo modern || echo legacy' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_branch" == "legacy" ]]; then
+  ok "read_supports_fractional_timeout: override selects the Bash 3.2 branch"
+else
+  fail "fractional-timeout override did not flip the branch (got '$frac_branch')"
+fi
+frac_slice=$(bash -c "${force_no_frac}"'hook::resolve_read_slice 2' _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_slice" == "2 1" ]]; then
+  ok "resolve_read_slice: Bash 3.2 fallback is unsliced '<timeout> 1'"
+else
+  fail "resolve_read_slice 3.2 fallback: got '$frac_slice' (expected '2 1')"
+fi
+frac_t=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_t" == "2" ]]; then
+  ok "resolve_read_timeout: fractional custom value degrades to default on Bash 3.2"
+else
+  fail "resolve_read_timeout 3.2 fractional: got '$frac_t' (expected 2)"
+fi
+frac_int=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$frac_int" == "5" ]]; then
+  ok "resolve_read_timeout: integer custom value is honored on Bash 3.2"
+else
+  fail "resolve_read_timeout 3.2 integer: got '$frac_int' (expected 5)"
+fi
+
 # A VALID non-default value must still be honored — the guard must not collapse
 # every setting to the default. 0.5 s against a producer that holds the pipe until
 # the verdict is in, so the stall cannot lose a race with EOF.
@@ -2125,23 +2164,14 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
     "$t_file"
   rm -f "$t_file"
 }
-# The unsliced override must pay the same COMMAND SUBSTITUTION the real
-# hook::resolve_read_slice pays at hook-utils.sh:849 to probe its slice value.
-# `printf "%s 1" "$1"` alone forks zero times where the sliced arm forks once,
-# and it is the arm that must come out SLOWER, so the missing fork shrinks the
-# very gap this case measures. On a host where a fork has been measured at up
-# to 3.2 s that is enough to invert the result: the run that exposed it had two
-# of five paired deltas negative. As with the json_complete override above, an
-# override may lie about a VERDICT but must never skip the WORK.
+# Production slice resolution is a BASH_VERSINFO predicate (same class as
+# hook::read_supports_nchars), not a command-substitution probe, so the
+# unsliced override matches that work: no TMPDIR file, no substitution fork.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_unsliced='hook::resolve_read_slice() {
-  local probe
-  probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf "%s 1" "$1"
 }
 hook::resolve_read_slice_to() {
-  local probe
-  probe=$(read -r -t "$1" discard </dev/null 2>&1)
   printf -v "$2" "%s" "$1"
   printf -v "$3" "%s" "1"
 }'
@@ -3170,6 +3200,72 @@ else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
 
+# ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).
+bps_acd_cmd='git commit -m $'"'"'hello\nworld'"'"
+hook::bash_parse_segments "$bps_acd_cmd" bps_collect
+if [[ "${bps_last[0]-}" == git && "${bps_last[1]-}" == commit && "${bps_last[2]-}" == -m && "${bps_last[3]-}" == $'hello\nworld' ]]; then
+  ok "bash_parse_segments: ANSI-C \$'…' decodes newline"
+else
+  fail "bash_parse_segments ANSI-C: got [${bps_last[*]-}]"
+fi
+acd_to=""
+hook::ansi_c_decode_to acd_to 'tab\tx'
+if [[ "$acd_to" == $'tab\tx' ]]; then
+  ok "ansi_c_decode_to: writes the decoded body in-process"
+else
+  fail "ansi_c_decode_to: got $(printf %q "$acd_to")"
+fi
+acd_print=$(hook::ansi_c_decode 'a\nb')
+if [[ "$acd_print" == $'a\nb' ]]; then
+  ok "ansi_c_decode: print form still decodes"
+else
+  fail "ansi_c_decode print form: got $(printf %q "$acd_print")"
+fi
+
+# The tokenizer and $'…' decode must run in this shell, not a leftover
+# command-substitution / process-substitution subshell.
+acd_pin_dir="$(mktemp -d)"
+acd_pin_file="$acd_pin_dir/pids"
+eval "$(declare -f hook::ansi_c_decode_to | sed '1s/^hook::ansi_c_decode_to/__pin_acd_to/')"
+hook::ansi_c_decode_to() {
+  printf 'acd %s %s\n' "$$" "$BASHPID" >>"$acd_pin_file"
+  __pin_acd_to "$@"
+}
+hook::bash_parse_segments "$bps_acd_cmd" bps_collect
+if grep -q "^acd $$ $$" "$acd_pin_file"; then # portability-ok: grep -q quiet match, not grep -P
+  ok "bash_parse_segments: ansi_c_decode_to runs in-process"
+else
+  fail "bash_parse_segments ansi_c_decode_to not in-process: $(tr '\n' ';' <"$acd_pin_file")"
+fi
+eval "$(declare -f __pin_acd_to | sed '1s/^__pin_acd_to/hook::ansi_c_decode_to/')"
+rm -rf "$acd_pin_dir"
+
+# repo_root_to / repo_relative_path_to write in this shell (print forms wrap them).
+rr_to=""
+hook::repo_root_to rr_to "."
+rr_print=$(hook::repo_root ".")
+if [[ -n "$rr_to" && "$rr_to" == "$rr_print" ]]; then
+  ok "repo_root_to: matches print form"
+else
+  fail "repo_root_to: to=$(printf %q "$rr_to") print=$(printf %q "$rr_print")"
+fi
+rp_to=""
+HOOK_REPO_RELATIVE_DEGRADED=1
+hook::repo_relative_path_to rp_to "/repo/a/b.md" "/repo" || true
+if [[ "$rp_to" == "a/b.md" && "${HOOK_REPO_RELATIVE_DEGRADED:-1}" == "0" ]]; then
+  ok "repo_relative_path_to: strips in-process"
+else
+  fail "repo_relative_path_to: got $(printf %q "$rp_to") degraded=${HOOK_REPO_RELATIVE_DEGRADED-}"
+fi
+rp_deg=""
+HOOK_REPO_RELATIVE_DEGRADED=0
+hook::repo_relative_path_to rp_deg "/elsewhere/a/b.md" "/repo" || true
+if [[ "$rp_deg" == "b.md" && "${HOOK_REPO_RELATIVE_DEGRADED:-0}" == "1" ]]; then
+  ok "repo_relative_path_to: degraded basename is distinguishable"
+else
+  fail "repo_relative_path_to degraded: got $(printf %q "$rp_deg") flag=${HOOK_REPO_RELATIVE_DEGRADED-}"
+fi
+
 # --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
 # GNU Bash forks a subshell for $( ) and process substitution even when the
 # body is builtins only. The previous buffer_stdin startup paid two of those
@@ -3317,6 +3413,60 @@ if [[ "$jso_esc_got" == "$jso_esc_want" ]]; then
 else
   fail "json_str_object_to escapes: got [$jso_esc_got] want [$jso_esc_want]"
 fi
+
+# --- hook::json_escape / notice_once no longer exec tr ----------------------
+tr_shim="$(mktemp -d)"
+tr_log="$tr_shim/log"
+real_tr=$(type -P tr) || real_tr=""
+if [[ -n "$real_tr" ]]; then
+  cat >"$tr_shim/tr" <<EOF
+#!/usr/bin/env bash
+printf 'TR\\n' >>"$tr_log"
+exec "$real_tr" "\$@"
+EOF
+  chmod +x "$tr_shim/tr"
+  PATH="$tr_shim:$PATH" hook::json_escape $'a\001b"c' >/dev/null
+  if [[ -f "$tr_log" ]]; then
+    fail "json_escape spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "json_escape: drops C0 in-shell, does not exec tr"
+  fi
+  : >"$tr_log"
+  notice_data="$(mktemp -d)"
+  PATH="$tr_shim:$PATH" CLAUDE_PLUGIN_DATA="$notice_data" \
+    hook::notice_once "k-tr" '{"session_id":"s","hook_event_name":"PostToolUse"}' >/dev/null || true
+  PATH="$tr_shim:$PATH" CLAUDE_PLUGIN_DATA="$notice_data" \
+    hook::notice_once "k-tr" '{"session_id":"s","hook_event_name":"PostToolUse"}' >/dev/null || true
+  if [[ -s "$tr_log" ]]; then
+    fail "notice_once spawned tr ($(wc -l <"$tr_log") times)"
+  else
+    ok "notice_once: reads the marker in-shell, does not exec tr"
+  fi
+  rm -rf "$notice_data"
+  unset _HOOK_NOTICE_PRUNED
+else
+  fail "json_escape/notice_once tr pin: no real tr on PATH to wrap"
+fi
+rm -rf "$tr_shim"
+
+# buffer_stdin must not leak a probe file into TMPDIR. Suites that isolate
+# TMPDIR and assert it is empty after the hook exits (powershell-format
+# rewrite-guard arms) fail closed on leftover hook-utils-read-t.$$ files.
+hu_scratch="$(mktemp -d)"
+hu_scratch_rc=0
+# Env prefix on a child bash, not a subshell: SC2031 would fire on
+# `export TMPDIR=...` inside `( )`, and the isolation must not leak into
+# later cases in this file.
+TMPDIR="$hu_scratch" TMP="$hu_scratch" TEMP="$hu_scratch" \
+  bash -c 'source "$1"; printf "{\"ok\":true}" | hook::buffer_stdin >/dev/null' \
+  _ "$HOOK_DIR/hook-utils.sh" || hu_scratch_rc=$?
+hu_left=$(find "$hu_scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')
+if ((hu_scratch_rc == 0)) && [[ "${hu_left:-1}" == "0" ]]; then
+  ok "buffer_stdin: isolated TMPDIR is empty after a successful read (no probe file)"
+else
+  fail "buffer_stdin leaked ${hu_left:-?} temp file(s) into TMPDIR (rc=$hu_scratch_rc)"
+fi
+rm -rf "$hu_scratch"
 
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"

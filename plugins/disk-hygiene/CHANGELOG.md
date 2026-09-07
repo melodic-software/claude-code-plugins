@@ -3,37 +3,106 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.10]
+## [0.23.1]
 
 ### Changed
 
-- **The PowerShell engine-gate entry carries an `if` filter, `PowerShell(*hygiene.py*)`,
-  matching the Bash entry's.** Every PowerShell tool call in every session was still launching
-  the guard to be told it was irrelevant: on a warm interpreter cache that is four `execve` calls
+- **The PowerShell engine-gate entry carries `if` filters, matching the Bash entry's
+  `Bash(*hygiene.py*)`.** Every PowerShell tool call in every session was still launching the
+  guard to be told it was irrelevant: on a warm interpreter cache that is four `execve` calls
   (`bash -c`, the launcher through its `env` shebang, bash, the interpreter) and a 106 KB module
-  import, counted with `strace -f`. The harness now evaluates the filter before spawning
-  anything, so a PowerShell call that does not name the engine costs this plugin no process. The
-  0.21.4 note that a PowerShell filter "must match every subcommand of a compound command"
-  described allow rules, not `if`: the harness evaluates `if` through the tool's own permission
-  matcher, and the PowerShell tool's parses the command AST and runs the hook when any statement,
-  pipeline element or nested command matches (verified in Claude Code 2.1.258's
+  import, counted with `strace -f`. The harness now evaluates the filters before spawning
+  anything, so a PowerShell call that does not name the engine and does not invoke an interpreter
+  or call-operator through a variable costs this plugin no process. The 0.21.4 note that a
+  PowerShell filter "must match every subcommand of a compound command" described allow rules,
+  not `if`: the harness evaluates `if` through the tool's own permission matcher, and the
+  PowerShell tool's parses the command AST and runs the hook when any statement, pipeline
+  element or nested command matches (verified in Claude Code 2.1.258's
   `preparePermissionMatcher`: `some` over every collected command, case-insensitive glob; an
-  unparsable command runs the hook). A mixed line such as `Get-Date; python hygiene.py` therefore
-  still reaches the guard and is still denied on the PowerShell lane, as are the `|`, `&&`,
-  newline, CR LF and U+2028 forms. No allow/deny decision changes for a call that reaches the
-  guard, and no call the guard would have judged is skipped: the gate defers every command that
-  is not `_engine_gate_relevant` before any deletion spelling is consulted, and relevance needs
-  the engine's file name in the text or a path that is the same file as the bundled engine. That
-  second case, any spelling that reaches the engine without its own file name in the text (a
-  symlink or hard link under another name, a Win32 8.3 short name), is the residual the filter
-  cannot see, and the Bash lane has accepted it since 0.21.4; text the PowerShell parser assigns
-  to no command (a comment naming the engine) is likewise invisible to the filter where the guard
-  would have failed closed on it. `test_engine_gate_is_registered_once_per_tool` now asserts both
-  filters; two new tests assert that a PowerShell call the filter skips is one the gate defers,
-  and that every compound invocation shape the filter admits is still relevant and still denied.
-  The launcher's contract suite gains a kernel-level spawn census (`strace -f`, skipped where
-  unavailable): a warm launch creates no process and execs exactly bash and the interpreter. The
-  README's hook-budget accounting records the before and after census. (#3349)
+  unparsable command runs the hook). A mixed line such as `Get-Date; python hygiene.py`
+  therefore still reaches the guard and is still denied on the PowerShell lane, as are the `|`,
+  `&&`, newline, CR LF and U+2028 forms. The assignment
+  `$script = '.../hygiene.py'; python $script scan` is the shape a single
+  `PowerShell(*hygiene.py*)` filter misses: the matcher evaluates collected command nodes, so
+  the literal path lives in the assignment and is not part of the later `python $script`
+  command. Sibling filters `PowerShell(*python*$*)` and `PowerShell(*& $*)` keep that
+  invocation, and the call-operator form `& $script`, on the guard. No allow/deny decision
+  changes for a call that reaches the guard. Residuals the filters still cannot see: an engine
+  reached without its file name in any command node and without an interpreter or call-operator
+  variable (a symlink or hard link under another name, a Win32 8.3 short name), which the Bash
+  lane has accepted since 0.21.4; text the PowerShell parser assigns to no command (a comment
+  naming the engine). The launcher's contract suite gains a kernel-level spawn census
+  (`strace -f`, skipped where unavailable). The README's hook-budget accounting records the
+  before and after census.
+
+## [0.23.0]
+
+### Added
+
+- **Guard decisions are recorded locally, with no configuration.** `lib/guard_decision_log.py`
+  appends one JSON object per line to `<plugin data root>/guard-decisions/decisions.jsonl` every
+  time the guard reaches a verdict. Each line carries the timestamp, the decision, the rule that
+  fired, the tool, the registration mode, the command that drove it, and the reason the host was
+  given, so a denial explains itself from the record alone rather than by reproducing it. Before
+  this, decisions left the process only through `HOOK_TELEMETRY_SINK`, which is inert unless an
+  environment variable names an executable, so on an ordinary install every decision was discarded
+  as it was made.
+- **Command text is omitted on the catch-all arms, and remaining text is secret-scrubbed.** A
+  PowerShell `none` record (belt mode, no flagged spelling) and a Bash deny-by-default
+  (`not-exact-engine-command`) persist `command_chars` rather than the command. Other
+  `command`/`reason` fields are shape-scrubbed (tokens, bearer headers, `SECRET`/`KEY`/`TOKEN`/
+  `PASSWORD` assignments including `$env:...`) before the 400-character clip.
+- **Owner-only files.** The log directory is `0700` and the live file `0600`, reapplied on every
+  write so a leftover world-readable file is tightened.
+- **The record distinguishes allowed, denied, and did-not-run.** `guard_launch_monitor.py` writes
+  the third state when it detects a `hook_non_blocking_error` for the guard: a hook that never
+  launched cannot record its own absence, so the detector that already finds it now leaves the
+  evidence behind. A PowerShell call the guard adjudicated without issuing a decision is recorded
+  as `none`, which is not the same event as an absent record.
+- **Bounded by rotation, not by advice.** The live file is retired to `decisions.previous.jsonl`
+  once it reaches 1 MiB, so the record occupies at most about 2 MiB forever with no operator
+  pruning. The bound is checked from the offset the append already returns, so it costs no extra
+  syscall. Command and reason fields are clipped to 400 characters, which keeps a record a record
+  of the decision rather than a copy of the payload, and keeps every line short enough that
+  concurrent hook processes appending to the same file do not interleave.
+- Set `DISK_HYGIENE_GUARD_DECISION_LOG` to `0`, `off`, `false`, or `no` to turn the record off. It
+  is opt-out, not opt-in: any other value, including an absent one, records.
+
+### Changed
+
+- The existing `HOOK_TELEMETRY_SINK` channel is untouched. A configured sink receives exactly the
+  envelopes it received before, with the same fields.
+- Measured cost on the hook path, per the hook-budget convention: the always-on defer branch (a
+  Bash command that does not name the engine) writes nothing and is unchanged. On a branch that
+  does reach a decision the process and exec census is identical to before, one `execve` and one
+  thread clone, and the record costs one `openat` plus one `write` plus one `chmod` on a warm data
+  root, plus one failed `openat`, one `mkdir`, and one `chmod` on the first write of an install.
+  See the README's trust-surface record for the numbers and the method.
+
+## [0.22.0]
+
+### Added
+
+- **clean:** `scan --quiet` omits `children_rollup` from stdout and shortens the closing note,
+  keeping `status`, `target`, `snapshot`, the three coverage terms, `empty_directory_count`, both
+  byte totals, `truncated_paths`, `errors`, `policy_sources` and `os_autoclean`. The snapshot file
+  carries the rollup in full in both modes, so the flag drops a duplicate rather than data. Default
+  output is unchanged: a caller already parsing the rollup off stdout keeps it. On a real
+  `--max-depth 1` home-directory scan the payload fell from 7,247 to 893 bytes (88 %); on a
+  200-child target, from 67,262 to 5,052 (93 %), because the rollup is the only part that grows
+  with the frontier.
+- **clean:** the Bash guard admits `--quiet` as a third valueless scan flag, at most one per
+  invocation and with no trailing value, so the flag is reachable without widening the grammar. No
+  pipe, redirect, or shell-operator allowance is added; that rejection is unchanged.
+- **clean:** `--root-children` scans get their own quiet note, and report `empty_directory_count`
+  on stdout like an ordinary scan does. Root-children mode's default note carries a coverage
+  qualification nothing else on stdout encodes: the volume root and every skipped
+  OS-owned/hidden/system/reparse entry were never walked, so the inventory is partial by
+  construction and `children_rollup` covers the selected children only. The skipped entries are
+  recorded as `root_children_skipped` in the snapshot alone and `truncated_paths` does not stand in
+  for them, so quieting that sentence away would drop a fact rather than a duplicate. The quiet
+  root-children note keeps the coverage sentence and drops only the rollup prose, and the field set
+  `--quiet` documents now holds in both scan modes rather than in ordinary scans alone.
 
 ## [0.21.9]
 

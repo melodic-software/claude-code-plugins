@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 import io
 import json
@@ -21,6 +22,7 @@ import unittest
 from contextlib import (
     ExitStack,
     chdir as chdir_context,
+    nullcontext,
     redirect_stderr,
     redirect_stdout,
 )
@@ -1156,6 +1158,50 @@ class HygieneTests(unittest.TestCase):
             self.assertNotIn("root-only.tmp", paths)
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
+
+    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(
+        self,
+    ) -> None:
+        """Root-children mode emits its own scan-complete, so quiet must reach it.
+
+        A flag that shapes one of the two scan-complete payloads and silently
+        does nothing in the other is a trap for the caller who reaches for it
+        exactly where the frontier is widest.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "builds" / "orphan.tmp").write_text("left", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children", "--root-child", "builds", "--quiet"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertNotIn("children_rollup", payload)
+            # Root-children mode keeps its own quiet note: the coverage
+            # qualification it carries is not recoverable from any other
+            # stdout field, so quieting must not replace it with the ordinary
+            # note the way it does for a full scan.
+            self.assertEqual(hygiene.QUIET_ROOT_CHILDREN_SCAN_NOTE, payload["note"])
+            self.assertNotEqual(hygiene.QUIET_SCAN_NOTE, payload["note"])
+            self.assertIn("never walked", payload["note"])
+            self.assertIn("root_children_skipped", payload["note"])
+            # The documented quiet field set applies to this mode too.
+            self.assertIn("empty_directory_count", payload)
+            self.assertEqual(["builds"], payload["root_children_selected"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ["builds"], [row["name"] for row in snapshot["children_rollup"]]
+            )
 
     def test_root_children_rejects_unadmitted_or_path_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2734,6 +2780,167 @@ class ChildrenRollupTests(unittest.TestCase):
             )
 
 
+class ScanOutputVerbosityTests(unittest.TestCase):
+    """``scan --quiet`` shapes stdout only; the snapshot is never shaped.
+
+    The rollup is written to the snapshot on every run, so the stdout copy is
+    duplication for a caller that only needs the frontier. These pin the three
+    ways that trade could go wrong: quiet dropping a field the caller decides
+    on, quiet reaching the snapshot on disk, and the default quietly becoming
+    the quiet mode under an existing caller that parses the full payload.
+    """
+
+    @staticmethod
+    def _fixture(root: Path, children: int) -> None:
+        root.mkdir(parents=True)
+        for index in range(children):
+            child = root / f"child_{index:03d}"
+            (child / "nested").mkdir(parents=True)
+            (child / "nested" / "a.log").write_text("a" * (index + 1), encoding="utf-8")
+        (root / "loose.tmp").write_text("x" * 42, encoding="utf-8")
+
+    def _scan(
+        self, root: Path, data_root: Path, extra: list[str]
+    ) -> tuple[int, dict[str, object], str, dict[str, object]]:
+        output = data_root / "runs" / "snapshot.json"
+        stdout_io = io.StringIO()
+        with redirect_stdout(stdout_io):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                    "--max-depth",
+                    "1",
+                    *extra,
+                ]
+            )
+        raw = stdout_io.getvalue()
+        payload = cast("dict[str, object]", json.loads(raw))
+        snapshot = cast(
+            "dict[str, object]",
+            json.loads(Path(str(payload["snapshot"])).read_text(encoding="utf-8")),
+        )
+        return code, payload, raw, snapshot
+
+    def _both_modes(
+        self, children: int
+    ) -> tuple[tuple[dict[str, object], str, dict[str, object]], ...]:
+        results = []
+        for extra in ([], ["--quiet"]):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "target"
+                self._fixture(root, children)
+                data_root = Path(temporary) / "data"
+                data_root.mkdir()
+                code, payload, raw, snapshot = self._scan(root, data_root, extra)
+                self.assertEqual(0, code, extra)
+                results.append((payload, raw, snapshot))
+        return tuple(results)
+
+    def test_default_scan_still_carries_the_rollup_and_the_explaining_note(
+        self,
+    ) -> None:
+        """Pins the default so a future flip of it cannot pass silently.
+
+        An existing caller parses `children_rollup` off stdout. Making quiet
+        the default would break it, so the default has to be asserted, not
+        assumed.
+        """
+        (default, _, _), _ = self._both_modes(4)
+        self.assertEqual("scan-complete", default["status"])
+        self.assertEqual(
+            {
+                "status",
+                "target",
+                "snapshot",
+                "entries",
+                "hinted_entries",
+                "unhinted_entries",
+                "empty_directory_count",
+                "target_logical_bytes",
+                "target_reclaimable_local_bytes",
+                "truncated_paths",
+                "children_rollup",
+                "errors",
+                "policy_sources",
+                "os_autoclean",
+                "note",
+            },
+            set(default),
+        )
+        rows = cast("list[dict[str, object]]", default["children_rollup"])
+        self.assertEqual(5, len(rows))
+        self.assertNotEqual(hygiene.QUIET_SCAN_NOTE, default["note"])
+        self.assertIn("children_rollup carries one row", str(default["note"]))
+
+    def test_quiet_drops_the_rollup_and_keeps_every_decision_field(self) -> None:
+        (default, _, _), (quiet, _, _) = self._both_modes(4)
+        self.assertNotIn("children_rollup", quiet)
+        self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
+        # Every field the caller decides on survives, with the same value the
+        # default run reported: quiet is a projection, never a recomputation.
+        for field in set(quiet) - {"note", "target", "snapshot"}:
+            self.assertEqual(default[field], quiet[field], field)
+        self.assertEqual(hygiene.QUIET_SCAN_NOTE, quiet["note"])
+        self.assertIn("snapshot", quiet)
+
+    def test_snapshot_on_disk_keeps_the_rollup_in_both_modes(self) -> None:
+        """A quiet run whose snapshot lost the rollup is data loss, not brevity."""
+        (_, _, default_snapshot), (_, _, quiet_snapshot) = self._both_modes(4)
+        for snapshot in (default_snapshot, quiet_snapshot):
+            rows = cast("list[dict[str, object]]", snapshot["children_rollup"])
+            self.assertEqual(5, len(rows))
+            self.assertTrue(all(row["name"] for row in rows))
+        self.assertEqual(
+            [
+                row["name"]
+                for row in cast(
+                    "list[dict[str, object]]", default_snapshot["children_rollup"]
+                )
+            ],
+            [
+                row["name"]
+                for row in cast(
+                    "list[dict[str, object]]", quiet_snapshot["children_rollup"]
+                )
+            ],
+        )
+
+    def test_quiet_stdout_stops_growing_with_the_child_count(self) -> None:
+        """The saving is the whole point, so pin that it scales with the frontier."""
+        (small_default, small_raw, _), (_, small_quiet_raw, _) = self._both_modes(4)
+        (large_default, large_raw, _), (_, large_quiet_raw, _) = self._both_modes(40)
+        self.assertEqual(5, len(cast("list[object]", small_default["children_rollup"])))
+        self.assertEqual(
+            41, len(cast("list[object]", large_default["children_rollup"]))
+        )
+        self.assertLess(len(small_quiet_raw), len(small_raw))
+        self.assertLess(len(large_quiet_raw), len(large_raw))
+        # The default payload grows a whole rollup row per extra child. Quiet
+        # carries no per-child rows, so its only per-child growth is the one
+        # truncated path each depth-cut child adds: an order of magnitude
+        # flatter, which is the saving this flag exists to buy.
+        default_growth = len(large_raw) - len(small_raw)
+        quiet_growth = len(large_quiet_raw) - len(small_quiet_raw)
+        self.assertGreater(default_growth, 5000)
+        self.assertLess(quiet_growth * 10, default_growth)
+        self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
+
+    def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
+        payload = {"status": "scan-complete", "children_rollup": [1], "note": "keep"}
+        self.assertIs(payload, hygiene.scan_stdout_payload(payload, False))
+        trimmed = hygiene.scan_stdout_payload(payload, True)
+        self.assertNotIn("children_rollup", trimmed)
+        # The caller's dict is never mutated in place.
+        self.assertIn("children_rollup", payload)
+        self.assertEqual("keep", payload["note"])
+
+
 class VersionFloorTests(unittest.TestCase):
     """The Python floor has one origin: hygiene.MIN_PYTHON."""
 
@@ -4241,6 +4448,12 @@ class GuardTests(unittest.TestCase):
         # Managed settings stay absent (points into the temp dir, never written),
         # so tests never read a real /etc or Program Files managed-settings.json.
         self._managed = cfg / "managed-settings.json"
+        # Every decision the guard reaches now appends to the local decision
+        # record under whatever data root resolves, so the data root these
+        # helpers hand it must be owned and disposable: an in-repo path would
+        # litter the checkout, and an inherited CLAUDE_PLUGIN_DATA would write
+        # into the developer's real plugin data directory.
+        self._data_root = cfg / "plugin-data"
         # Hermetic watchdog deadline for the same reason. The guard's own deny
         # diagnostic tells operators to raise
         # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
@@ -4252,6 +4465,19 @@ class GuardTests(unittest.TestCase):
         environ_patch.start()
         self.addCleanup(environ_patch.stop)
         os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
+        os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+
+    def decision_records(self, data_root: Path | None = None) -> list[dict]:
+        """Every decision record written under a data root, oldest first."""
+        root = self._data_root if data_root is None else data_root
+        path = guard.guard_decision_log.log_path(str(root))
+        if not path.is_file():
+            return []
+        return [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def _set_kill_switch(self, enabled: bool) -> None:
         if enabled:
@@ -4580,7 +4806,11 @@ class GuardTests(unittest.TestCase):
             )
 
     def run_guard_engine_gate(
-        self, command: str, tool_name: str = "Bash", enabled: bool = True
+        self,
+        command: str,
+        tool_name: str = "Bash",
+        enabled: bool = True,
+        data_root: Path | None = None,
     ) -> dict[str, object] | None:
         """Drive the guard as the plugin-level engine-gate deployment would.
 
@@ -4600,7 +4830,7 @@ class GuardTests(unittest.TestCase):
             "--plugin-root",
             os.fspath(self._plugin_root),
             "--authorized-data-root",
-            str(SCRIPT_DIR / "data-root"),
+            os.fspath(self._data_root if data_root is None else data_root),
         ]
         stdin = io.StringIO(
             json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
@@ -4620,6 +4850,358 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(0, guard.main())
         text = stdout.getvalue().strip()
         return json.loads(text) if text else None
+
+    # --- the local decision record (#3862) ---------------------------------
+    #
+    # These pin the observable behaviour an operator relies on after the fact:
+    # a decision leaves evidence explaining itself, a defer costs nothing, and
+    # no failure of the record can move a verdict.
+
+    def _engine_command(self, subcommand: str, data_root: Path | None = None) -> str:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        # resolve() yields the long-form path: the guard rejects the "~" in
+        # Windows 8.3 short names as a shell-expansion character.
+        root = (
+            (self._data_root if data_root is None else data_root).resolve().as_posix()
+        )
+        if subcommand == "scan":
+            tail = "scan --target t --output s"
+        else:
+            tail = (
+                "apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r"
+            )
+        return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
+
+    def _run_guard_belt(
+        self, command: str, tool_name: str = "Bash"
+    ) -> dict[str, object] | None:
+        """Belt mode (the skill-frontmatter deployment) with an owned data root.
+
+        The engine-gate helper cannot reach every branch: in that mode a
+        PowerShell command is either irrelevant (an instant defer) or names the
+        engine (always a deny), so the no-flagged-spelling branch only exists
+        under belt.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def test_denied_engine_command_is_recorded_with_its_rule_and_input(self) -> None:
+        """A deny-by-default records the rule and reason, not the command text."""
+        elsewhere = Path(self._cfg.name) / "elsewhere"
+        command = self._engine_command("scan", data_root=elsewhere)
+        result = self.run_guard_engine_gate(command)
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        (entry,) = self.decision_records()
+        self.assertEqual("deny", entry["decision"])
+        self.assertEqual("not-exact-engine-command", entry["rule"])
+        self.assertEqual("destructive-guard", entry["hook"])
+        self.assertEqual("Bash", entry["tool"])
+        self.assertEqual("engine-gate", entry["mode"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
+        # The reason the host was given is the reason the record carries (to
+        # the record's bounded length), so the two can never disagree about
+        # why this was denied.
+        host_reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        recorded = entry["reason"]
+        self.assertTrue(recorded.endswith("..."), recorded)
+        self.assertTrue(host_reason.startswith(recorded[:-3]), recorded)
+        self.assertIn("fails closed", recorded)
+        self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
+
+    def test_allow_and_ask_verdicts_are_recorded_with_distinct_rules(self) -> None:
+        allowed = self.run_guard_engine_gate(self._engine_command("scan"))
+        assert allowed is not None
+        self.assertEqual("allow", allowed["hookSpecificOutput"]["permissionDecision"])
+        asked = self.run_guard_engine_gate(self._engine_command("apply"))
+        assert asked is not None
+        self.assertEqual("ask", asked["hookSpecificOutput"]["permissionDecision"])
+        entries = self.decision_records()
+        self.assertEqual(["allow", "ask"], [entry["decision"] for entry in entries])
+        self.assertEqual(
+            ["exact-engine-scan", "exact-engine-apply"],
+            [entry["rule"] for entry in entries],
+        )
+
+    def test_kill_switch_denial_is_recorded_under_its_own_rule(self) -> None:
+        """`denied because execution is off` and `denied because it is not the
+        engine` are different answers to `why`, so they are different rules."""
+        result = self.run_guard_engine_gate(
+            self._engine_command("apply"), "Bash", enabled=False
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        (entry,) = self.decision_records()
+        self.assertEqual("kill-switch-disabled-apply", entry["rule"])
+
+    def test_engine_gate_defer_records_nothing(self) -> None:
+        """The always-on hot path stays free: no decision, no record, no cost."""
+        self.assertIsNone(self.run_guard_engine_gate("git status --short"))
+        self.assertEqual([], self.decision_records())
+        self.assertFalse(
+            guard.guard_decision_log.log_path(os.fspath(self._data_root)).exists()
+        )
+
+    def test_powershell_call_without_a_flagged_spelling_records_none(self) -> None:
+        """`the guard ran and adjudicated nothing` must be distinguishable from
+        `the guard never ran`, which is what the PowerShell lane needs: it
+        carries no `if` filter, so it is the one surface that always runs."""
+        result = self._run_guard_belt("Get-Process", "PowerShell")
+        self.assertIsNone(result, "no deletion spelling, so no permissionDecision")
+        (entry,) = self.decision_records()
+        self.assertEqual("PowerShell", entry["tool"])
+        self.assertEqual("belt", entry["mode"])
+        self.assertEqual("none", entry["decision"])
+        self.assertEqual("powershell-no-flagged-spelling", entry["rule"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len("Get-Process"), entry["command_chars"])
+
+    def test_powershell_deletion_spelling_verdict_is_recorded(self) -> None:
+        result = self._run_guard_belt("Remove-Item -Recurse C:/tmp/x", "PowerShell")
+        assert result is not None
+        (entry,) = self.decision_records()
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], entry["decision"]
+        )
+        self.assertEqual("powershell-deletion-spelling", entry["rule"])
+
+    def test_powershell_none_does_not_persist_session_command_secrets(self) -> None:
+        command = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
+        result = self._run_guard_belt(command, "PowerShell")
+        self.assertIsNone(result)
+        (entry,) = self.decision_records()
+        self.assertEqual("none", entry["decision"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
+        log_text = guard.guard_decision_log.log_path(
+            os.fspath(self._data_root)
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("s3cretvalue", log_text)
+
+    def test_powershell_deletion_command_secrets_are_redacted(self) -> None:
+        command = (
+            "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Remove-Item -Recurse C:/tmp/x"
+        )
+        result = self._run_guard_belt(command, "PowerShell")
+        assert result is not None
+        (entry,) = self.decision_records()
+        self.assertEqual("powershell-deletion-spelling", entry["rule"])
+        self.assertNotIn("s3cretvalue", entry["command"])
+        self.assertIn(guard.guard_decision_log.REDACTED, entry["command"])
+
+    def test_records_accumulate_across_invocations(self) -> None:
+        for _ in range(3):
+            self.run_guard_engine_gate(self._engine_command("scan"))
+        self.assertEqual(3, len(self.decision_records()))
+
+    def test_an_unparsable_payload_deny_is_recorded(self) -> None:
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", io.StringIO('{"tool_input": {}}')),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "deny",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        (entry,) = self.decision_records()
+        self.assertEqual("unparsable-payload", entry["rule"])
+        self.assertEqual("deny", entry["decision"])
+
+    def _verdicts_with_recording_broken(
+        self, breakage, data_root: Path | None = None
+    ) -> list[str | None]:
+        """Every verdict the guard reaches, with the record write sabotaged.
+
+        The data root the commands name and the one the guard is given are the
+        same value, so an unwritable root sabotages the RECORD without moving
+        the authority check that decides allow from deny.
+        """
+        root = self._data_root if data_root is None else data_root
+        verdicts: list[str | None] = []
+        commands = (
+            (self._engine_command("scan", root), True),
+            (self._engine_command("apply", root), True),
+            (self._engine_command("scan", Path(self._cfg.name) / "elsewhere"), True),
+            (self._engine_command("apply", root), False),
+            ("git status --short", True),
+        )
+        with breakage:
+            for command, enabled in commands:
+                result = self.run_guard_engine_gate(
+                    command, "Bash", enabled=enabled, data_root=root
+                )
+                verdicts.append(
+                    None
+                    if result is None
+                    else result["hookSpecificOutput"]["permissionDecision"]
+                )
+        return verdicts
+
+    def test_a_broken_decision_record_never_changes_a_verdict(self) -> None:
+        """The whole feature is worth less than one wrong verdict.
+
+        Two sabotage shapes covering both layers that can fail: an unwritable
+        data root, where the append and the `mkdir` behind it fail with a real
+        filesystem `OSError` (the read-only-root and full-disk shape), and the
+        record function raising past its own boundary. Every verdict must be
+        identical to the unsabotaged run, including the deny that rides exit 0
+        and the defer that emits nothing.
+        """
+        baseline = self._verdicts_with_recording_broken(nullcontext())
+        self.assertEqual(["allow", "ask", "deny", "deny", None], baseline)
+        self.assertNotEqual([], self.decision_records())
+
+        blocker = Path(self._cfg.name) / "a-file-not-a-directory"
+        blocker.write_text("", encoding="utf-8")
+        unwritable = blocker / "plugin-data"
+        with self.subTest(sabotage="unwritable data root"):
+            self.assertEqual(
+                baseline,
+                self._verdicts_with_recording_broken(
+                    nullcontext(), data_root=unwritable
+                ),
+            )
+            self.assertFalse(unwritable.exists())
+        with self.subTest(sabotage="record raises"):
+            self.assertEqual(
+                baseline,
+                self._verdicts_with_recording_broken(
+                    mock.patch.object(
+                        guard.guard_decision_log,
+                        "record",
+                        side_effect=RuntimeError("audit exploded"),
+                    )
+                ),
+            )
+
+    def test_record_decision_swallows_a_failure_in_data_root_resolution(self) -> None:
+        """`_record_decision` resolves the data root and the mode in its own
+        argument list, outside `guard_decision_log.record`'s boundary. One of
+        its call sites is `main`'s `except BaseException` handler, where a raise
+        would reach the interpreter's default handler: exit 1, which PreToolUse
+        treats as non-blocking, so the denied command would run.
+        """
+        with mock.patch.object(
+            guard,
+            "resolve_authorized_data_root",
+            side_effect=RuntimeError("resolution exploded"),
+        ):
+            self.assertIsNone(
+                guard._record_decision("rm -rf /", "Bash", "deny", "some-rule")
+            )
+        with mock.patch.object(
+            guard, "resolve_mode", side_effect=RuntimeError("mode exploded")
+        ):
+            self.assertIsNone(
+                guard._record_decision("rm -rf /", "Bash", "deny", "some-rule")
+            )
+
+    def test_a_write_failure_leaves_the_deny_exit_status_untouched(self) -> None:
+        """An unwritable data root must not turn a deny into anything else.
+
+        The data root's parent is a FILE here, so the append and the `mkdir`
+        that follows both fail with a real `OSError` from the filesystem rather
+        than a patched one.
+        """
+        blocker = Path(self._cfg.name) / "a-file-not-a-directory"
+        blocker.write_text("", encoding="utf-8")
+        unwritable = blocker / "plugin-data"
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(unwritable),
+        ]
+        command = self._engine_command("scan", data_root=unwritable)
+        stdout = io.StringIO()
+        with (
+            mock.patch(
+                "sys.stdin",
+                io.StringIO(
+                    json.dumps(
+                        {"tool_name": "Bash", "tool_input": {"command": command}}
+                    )
+                ),
+            ),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "allow",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        self.assertFalse(unwritable.exists())
+
+    def test_the_record_can_be_turned_off_without_changing_a_verdict(self) -> None:
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        command = self._engine_command("scan")
+        stdout = io.StringIO()
+        with (
+            mock.patch(
+                "sys.stdin",
+                io.StringIO(
+                    json.dumps(
+                        {"tool_name": "Bash", "tool_input": {"command": command}}
+                    )
+                ),
+            ),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict(
+                "os.environ",
+                {guard.guard_decision_log.DISABLE_ENV: "off"},
+                clear=True,
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "allow",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        self.assertEqual([], self.decision_records())
 
     def test_engine_gate_defers_all_non_engine_commands(self) -> None:
         """Plugin-level deployment must never tax unrelated work in a session."""
@@ -6349,9 +6931,9 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in cls._hook_argv(hook))
         ]
-        # One registration per tool, each carrying its own tool-scoped ``if``
-        # filter and the same guard argv.
-        assert len(commands) == 2, commands
+        # One Bash registration plus the PowerShell filename filter and the
+        # two variable-invocation filters; every row carries the same guard argv.
+        assert len(commands) == 4, commands
         argvs = {
             tuple(cls._guard_argv_from_hook(hook, "destructive_guard.py"))
             for hook in commands
@@ -6359,59 +6941,78 @@ class GuardTests(unittest.TestCase):
         assert len(argvs) == 1, argvs
         return list(argvs.pop())
 
-    # The rule content both engine-gate ``if`` filters carry: the engine's file
-    # name, so the harness spawns the guard only for a call that names it.
-    _ENGINE_GATE_FILTER_CONTENT = "*hygiene.py*"
+    # Glob bodies the engine-gate ``if`` filters carry. Bash uses the filename
+    # glob only. PowerShell adds interpreter-with-variable and call-operator-
+    # with-variable globs so an assignment that holds the engine path still
+    # reaches the guard.
+    _POWERSHELL_ENGINE_GATE_GLOBS = (
+        "*hygiene.py*",
+        "*python*$*",
+        "*& $*",
+    )
+    _POWERSHELL_ASSIGNMENT = re.compile(r"^\s*\$[\w:.]+\s*=")
 
     def test_engine_gate_is_registered_once_per_tool(self) -> None:
         """Lock the per-tool registration shape of the plugin-level engine gate.
 
         An ``if`` filter is scoped to the tool it names: under a single
         ``Bash|PowerShell`` matcher, ``Bash(...)`` filtered every PowerShell call
-        out of this kill-switch guard. Each tool therefore has its own entry, and
-        each entry carries the filter for its own tool over the same content.
-        The PowerShell filter is safe on a compound line because the harness
-        evaluates ``if`` through the tool's own permission matcher, and the
-        PowerShell tool's parses the command AST and runs the hook when ANY
-        statement, pipeline element or nested command matches (Claude Code
-        2.1.258, the PowerShell tool's ``preparePermissionMatcher``: ``some``
-        over every collected command, case-insensitive glob; an unparsable
-        command runs the hook). The every-subcommand rule belongs to allow
-        decisions, not to ``if``.
+        out of this kill-switch guard. Each tool therefore has its own matcher
+        entry. Bash carries the filename glob. PowerShell carries that glob plus
+        the two variable-invocation globs, because the harness evaluates ``if``
+        through the tool's own permission matcher, and the PowerShell tool's
+        parses the command AST and runs the hook when ANY statement, pipeline
+        element or nested command matches (Claude Code 2.1.258, the PowerShell
+        tool's ``preparePermissionMatcher``: ``some`` over every collected
+        command, case-insensitive glob; an unparsable command runs the hook).
+        An assignment is not a collected command, so ``$script = '.../hygiene.py';
+        python $script`` would miss a filename-only filter. The every-subcommand
+        rule belongs to allow decisions, not to ``if``.
         """
         hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
         config = json.loads(hooks_path.read_text(encoding="utf-8"))
-        by_matcher = {
-            entry.get("matcher"): hook
-            for entry in config["hooks"]["PreToolUse"]
-            for hook in entry.get("hooks", [])
-            if any("destructive_guard.py" in token for token in self._hook_argv(hook))
-        }
+        by_matcher: dict[str, list[dict]] = {}
+        for entry in config["hooks"]["PreToolUse"]:
+            matcher = entry.get("matcher")
+            for hook in entry.get("hooks", []):
+                if any("destructive_guard.py" in token for token in self._hook_argv(hook)):
+                    by_matcher.setdefault(matcher, []).append(hook)
         self.assertEqual({"Bash", "PowerShell"}, set(by_matcher))
-        for tool, hook in by_matcher.items():
-            with self.subTest(tool=tool):
-                self.assertEqual(
-                    f"{tool}({self._ENGINE_GATE_FILTER_CONTENT})", hook.get("if")
-                )
+        self.assertEqual(
+            ["Bash(*hygiene.py*)"],
+            [hook.get("if") for hook in by_matcher["Bash"]],
+        )
+        self.assertEqual(
+            [
+                "PowerShell(*hygiene.py*)",
+                "PowerShell(*python*$*)",
+                "PowerShell(*& $*)",
+            ],
+            [hook.get("if") for hook in by_matcher["PowerShell"]],
+        )
 
     _IF_STATEMENT_SPLIT = re.compile(r"\r?\n|\u2028|\u2029|;|\|\||&&|\|")
 
     @classmethod
     def _powershell_if_admits(cls, command: str) -> bool:
-        """Reference of the harness's PowerShell ``if`` for ``*hygiene.py*``.
+        """Reference of the harness's PowerShell ``if`` across the three globs.
 
         Mirrors Claude Code 2.1.258: the command is split into statements and
-        pipeline elements, each element's text is whitespace-normalised, and the
-        rule glob (``^.*hygiene\\.py.*$``, case-insensitive) is tried against
-        each; any match runs the hook. The real evaluator walks the PowerShell
-        AST, so text the parser assigns to no command (a comment) is invisible
-        to it where this reference still sees it; the commands the tests below
-        feed it are chosen so the two agree.
+        pipeline elements, assignment statements are dropped (the real evaluator
+        walks the AST and does not treat ``$script = '...'`` as a command node),
+        each remaining element's text is whitespace-normalised, and each glob is
+        tried against each element; any match runs the hook.
         """
-        rule = re.compile(r"(?s)^.*hygiene\.py.*$", re.IGNORECASE)
+        parts = []
+        for part in cls._IF_STATEMENT_SPLIT.split(command):
+            stripped = re.sub(r"[ \t]+", " ", part.strip())
+            if not stripped or cls._POWERSHELL_ASSIGNMENT.match(stripped):
+                continue
+            parts.append(stripped)
         return any(
-            rule.match(re.sub(r"[ \t]+", " ", part.strip())) is not None
-            for part in cls._IF_STATEMENT_SPLIT.split(command)
+            fnmatch.fnmatch(part.casefold(), glob.casefold())
+            for part in parts
+            for glob in cls._POWERSHELL_ENGINE_GATE_GLOBS
         )
 
     def test_powershell_if_filter_skips_only_calls_the_gate_would_defer(
@@ -6475,6 +7076,35 @@ class GuardTests(unittest.TestCase):
                 verdict = guard.powershell_decision(command, True)
                 self.assertIsNotNone(verdict)
                 self.assertEqual("deny", verdict[0])
+
+    def test_powershell_if_filter_admits_variable_script_invocations(self) -> None:
+        """A script path held in a variable still reaches the guard.
+
+        The PowerShell matcher evaluates collected command nodes, so
+        ``$script = '.../hygiene.py'; python $script scan`` puts the literal
+        path in the assignment and not in the later ``python $script`` command.
+        The filename glob misses that command node; the interpreter-with-variable
+        and call-operator-with-variable globs keep it on the guard. The unfiltered
+        gate treats the same payload as ``_engine_gate_relevant`` and denies it.
+        """
+        engine = (SCRIPT_DIR / "hygiene.py").as_posix()
+        admitted = [
+            f"$script = '{engine}'; python $script scan",
+            f"$script = '{engine}'; python3 $script scan",
+            f"$script = '{engine}'; & $script scan",
+        ]
+        for command in admitted:
+            with self.subTest(command=command):
+                self.assertTrue(self._powershell_if_admits(command), command)
+                self.assertTrue(
+                    guard._engine_gate_relevant(command, "PowerShell"), command
+                )
+                verdict = guard.powershell_decision(command, True)
+                self.assertIsNotNone(verdict, command)
+                self.assertEqual("deny", verdict[0], command)
+        for command_node in ("python $script scan", "& $script scan"):
+            with self.subTest(command_node=command_node):
+                self.assertTrue(self._powershell_if_admits(command_node), command_node)
 
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
@@ -6570,6 +7200,42 @@ class GuardTests(unittest.TestCase):
         denied = (
             f"{base} --confirmed-large-scan --confirmed-large-scan",
             f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_scan_accepts_single_quiet_flag(self) -> None:
+        """The verbosity flag has to be reachable from the lane that needs it.
+
+        `--quiet` shapes stdout and nothing else, so admitting it widens no
+        capability. Admitting it once is the whole allowance: a repeat, or a
+        value attached to it, is still a shape the classifier has never seen
+        and still fails closed.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --quiet",
+            f"{base} --quiet --max-depth 1",
+            f"{base} --max-depth 1 --quiet",
+            f"{base} --confirmed-large-scan --quiet",
+            f"{base} --quiet --root-children --root-child builds",
+        )
+        denied = (
+            f"{base} --quiet --quiet",
+            f"{base} --quiet v",
+            f"{base} --quiet=1",
+            f"{base} -q",
         )
         for command in allowed:
             self.assertEqual(

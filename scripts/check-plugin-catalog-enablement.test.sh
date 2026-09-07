@@ -78,20 +78,44 @@ write_bootstrap() {
   printf '#!/usr/bin/env bash\nmarketplace_name="%s"\n' "$1" >"$TMP/.claude/cloud-bootstrap.sh"
 }
 
+FLEET="$TMP/fleet.json"
+write_fleet() {
+  # "<plugin>@<marketplace>" ids the fixture fleet list enables, one per
+  # argument; no arguments writes an empty list.
+  {
+    echo '{'
+    echo '  "extraKnownMarketplaces": {'
+    echo '    "fixture": {"source": {"source": "github", "repo": "o/r"}}'
+    echo '  },'
+    echo '  "enabledPlugins": {'
+    local first=1 id
+    for id in "$@"; do
+      if ((first)); then first=0; else echo ','; fi
+      printf '    "%s": true' "$id"
+    done
+    echo
+    echo '  }'
+    echo '}'
+  } >"$FLEET"
+}
+
 run() {
   (
     cd "$TMP" &&
       PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
         PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
         PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
+        PLUGIN_CATALOG_ENABLEMENT_FLEET="${FLEET_OVERRIDE:-$FLEET}" \
         bash "$SUT" 2>&1
   )
 }
 
 # Every fixture below declares the "fixture" marketplace unless it overrides
 # this, so the identity check agrees by default and each case exercises only
-# the drift class it names.
+# the drift class it names. The fleet list is empty unless a case says
+# otherwise, so the settings file alone has to cover the catalog there.
 write_bootstrap fixture
+write_fleet
 
 # --- 1. Happy path: catalog and enabledPlugins name the same set. -----------
 write_marketplace alpha beta gamma
@@ -104,16 +128,55 @@ else
   fail "happy path should pass (rc=$rc): $out"
 fi
 
-# --- 2. The class that shipped: catalogued, never enabled. ------------------
+# --- 2. The class that shipped: catalogued, enabled nowhere. ----------------
 write_marketplace alpha beta gamma
 printf 'alpha true\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNENABLED PLUGIN' <<<"$out" && grep -q "'beta'" <<<"$out"; then
-  pass "a catalogued plugin with no enabledPlugins key fails the gate"
+  pass "a catalogued plugin enabled neither by the fleet list nor by settings fails the gate"
 else
-  fail "missing enabledPlugins key should fail (rc=$rc): $out"
+  fail "plugin enabled nowhere should fail (rc=$rc): $out"
 fi
+
+# --- 2b. The fleet list covers what settings no longer mirrors. -------------
+# This is the post-migration shape: settings carries only deltas (here one
+# opt-out) and the fleet list enables the rest of the catalog.
+write_marketplace alpha beta gamma
+write_fleet alpha@fixture beta@fixture gamma@fixture
+printf 'beta false\n' | write_settings
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  pass "a catalog the fleet list enables passes with a deltas-only settings block"
+else
+  fail "fleet-covered catalog should pass (rc=$rc): $out"
+fi
+
+# A fleet entry for another marketplace does not cover this catalog.
+write_marketplace alpha beta
+write_fleet alpha@fixture beta@other-market
+printf 'alpha true\n' | write_settings
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "'beta'" <<<"$out"; then
+  pass "a fleet entry under another marketplace does not cover a catalogued plugin"
+else
+  fail "foreign-marketplace fleet entry must not count as coverage (rc=$rc): $out"
+fi
+
+# An unreadable or absent fleet list is fatal, never a pass.
+write_marketplace alpha
+printf 'alpha true\n' | write_settings
+printf 'not json\n' >"$FLEET"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'not a settings-shaped JSON object' <<<"$out"; then
+  pass "a malformed fleet list exits 2"
+else
+  fail "malformed fleet list should exit 2 (rc=$rc): $out"
+fi
+write_fleet
 
 # --- 3. An explicit false is a decision, not drift. -------------------------
 write_marketplace alpha beta gamma

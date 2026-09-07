@@ -54,6 +54,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
 import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
@@ -93,6 +94,55 @@ def _emit_guard_telemetry(
         data,
         os.environ.get("CLAUDE_PROJECT_DIR"),
     )
+
+
+_HOOK_ID = "destructive-guard"
+
+
+def _record_decision(
+    command: str,
+    tool_name: str,
+    decision_value: str,
+    rule: str,
+    reason: str | None = None,
+) -> None:
+    """Append this decision to the plugin's local, bounded decision record.
+
+    Called AFTER the verdict has been emitted, never before, and its result is
+    deliberately discarded: `guard_decision_log.record` returns a bool and
+    raises nothing, so no audit-write outcome — unwritable path, full disk,
+    absent data root — can reach or alter the verdict this guard just gave.
+
+    The plugin-level defer (engine-gate mode, no engine reference in the
+    command) records nothing, on purpose. That is the branch this hook takes in
+    every consumer session for work that has nothing to do with disk-hygiene,
+    and the hook-budget convention's ceiling is what it is; a decision the guard
+    declined to make is also not the thing an operator is reconstructing later.
+    The guard's own absence is recorded instead by `guard_launch_monitor.py`,
+    which is a separate process for the reason a guard that cannot launch
+    cannot report that it did not launch.
+
+    Total by construction, and the `try` is load-bearing rather than defensive
+    duplication of `guard_decision_log.record`'s own boundary: the data root and
+    mode are resolved HERE, in the argument list, outside that function's
+    protection. One of the call sites is `main`'s own `except BaseException`
+    handler, where an exception raised out of this call would escape to the
+    interpreter's default handler — exit 1, which PreToolUse reads as
+    non-blocking, so the destructive command the guard just denied would run.
+    """
+    try:
+        guard_decision_log.record(
+            resolve_authorized_data_root(),
+            hook=_HOOK_ID,
+            decision=decision_value,
+            rule=rule,
+            tool=tool_name or "",
+            mode=resolve_mode(),
+            command=command,
+            reason=reason,
+        )
+    except BaseException:  # noqa: BLE001 - an audit write never changes a verdict
+        pass
 
 
 def _is_current_python(value: str) -> bool:
@@ -883,16 +933,20 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             or not _argument(tokens[6])
         ):
             return None
-        # --confirmed-large-scan and --root-children are the valueless scan
-        # flags; strip at most one of each so the remainder is the pure
+        # --confirmed-large-scan, --quiet and --root-children are the valueless
+        # scan flags; strip at most one of each so the remainder is the pure
         # flag/value-pair grammar every other optional follows. --root-child
         # is repeatable (one basename per occurrence) and is stripped next.
+        # --quiet only shapes the engine's stdout, so admitting it widens no
+        # capability: it cannot reach a path the same invocation without it
+        # could not already reach.
         optionals = list(tokens[7:])
-        confirmed = optionals.count("--confirmed-large-scan")
-        if confirmed > 1:
-            return None
-        if confirmed:
-            optionals.remove("--confirmed-large-scan")
+        for valueless in ("--confirmed-large-scan", "--quiet"):
+            occurrences = optionals.count(valueless)
+            if occurrences > 1:
+                return None
+            if occurrences:
+                optionals.remove(valueless)
         root_children = optionals.count("--root-children")
         if root_children > 1:
             return None
@@ -2062,19 +2116,35 @@ def _decide(command: str, tool_name: str, start: float) -> int:
                 _telemetry_status_for_permission(verdict[0]),
                 decision_value=verdict[0],
             )
+            _record_decision(
+                command,
+                tool_name,
+                verdict[0],
+                "powershell-deletion-spelling",
+                verdict[1],
+            )
         else:
             _emit_guard_telemetry(start, tool_name, "ok")
+            # A `none` record, not silence: the PowerShell registration carries
+            # no `if` filter, so this branch is the evidence that the guard ran
+            # on this call and adjudicated nothing — the distinction the
+            # fail-open finding needs and that an absent record cannot make.
+            # Command text is not persisted here: belt mode records every
+            # PowerShell call, including unrelated session commands.
+            _record_decision(
+                command,
+                tool_name,
+                guard_decision_log.DECISION_NONE,
+                "powershell-no-flagged-spelling",
+            )
         return 0
 
     authority = resolve_authorized_data_root()
     if is_exact_kill_switch_probe(command):
-        _emit_decision(
-            decision(
-                "allow",
-                "Exact bundled disk-hygiene kill-switch probe (read-only report).",
-            )
-        )
+        reason = "Exact bundled disk-hygiene kill-switch probe (read-only report)."
+        _emit_decision(decision("allow", reason))
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
+        _record_decision(command, tool_name, "allow", "kill-switch-probe", reason)
         return 0
     if is_exact_readonly_supporting_command(command):
         # Engine-gate mode runs in every consumer session. A hard `allow` here
@@ -2082,41 +2152,58 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         # that also names the engine path (#2774). `ask` keeps the ergonomic
         # win while preserving the prompt for sessions that never invoked clean.
         permission = "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
-        _emit_decision(
-            decision(
-                permission,
-                "Exact literal-form read-only supporting Bash command "
-                "(disk-hygiene belt inspection allowlist).",
-            )
+        reason = (
+            "Exact literal-form read-only supporting Bash command "
+            "(disk-hygiene belt inspection allowlist)."
         )
+        _emit_decision(decision(permission, reason))
         _emit_guard_telemetry(start, tool_name, "ok", decision_value=permission)
+        _record_decision(
+            command,
+            tool_name,
+            permission,
+            "readonly-supporting-allowlist",
+            reason,
+        )
         return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:
-        _emit_decision(
-            decision(
-                "allow",
-                "Exact bundled disk-hygiene read-only gate invocation.",
-            )
-        )
+        reason = "Exact bundled disk-hygiene read-only gate invocation."
+        _emit_decision(decision("allow", reason))
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
+        _record_decision(
+            command,
+            tool_name,
+            "allow",
+            f"exact-engine-{command_kind}",
+            reason,
+        )
         return 0
     if command_kind == "apply" and enabled:
-        _emit_decision(
-            decision(
-                "ask",
-                "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
-            )
-        )
+        reason = "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved."
+        _emit_decision(decision("ask", reason))
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="ask")
+        _record_decision(command, tool_name, "ask", "exact-engine-apply", reason)
         return 0
+    denied_by_kill_switch = command_kind == "apply"
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
-        if command_kind == "apply"
+        if denied_by_kill_switch
         else _bash_denial_guidance(authority)
     )
     _emit_decision(decision("deny", reason))
     _emit_guard_telemetry(start, tool_name, "blocked", decision_value="deny")
+    _record_decision(
+        command,
+        tool_name,
+        "deny",
+        (
+            "kill-switch-disabled-apply"
+            if denied_by_kill_switch
+            else "not-exact-engine-command"
+        ),
+        reason,
+    )
     return 0
 
 
@@ -2183,28 +2270,30 @@ def main() -> int:
             # this point it deliberately cannot, and denies.
             _publish_command_for_watchdog(command)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            _emit_decision(
-                decision(
-                    "deny",
-                    f"disk-hygiene guard could not validate the shell call: {exc}",
-                )
-            )
+            reason = f"disk-hygiene guard could not validate the shell call: {exc}"
+            _emit_decision(decision("deny", reason))
             _emit_guard_telemetry(
                 start,
                 str(tool_name),
                 "blocked",
                 decision_value="deny",
             )
+            _record_decision("", str(tool_name), "deny", "unparsable-payload", reason)
             result = 0
             return result
         result = _decide(command, tool_name, start)
         return result
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")
-        _write_diagnostic(
+        diagnostic = (
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"
         )
+        _write_diagnostic(diagnostic)
+        # The deny rides exit 2 rather than stdout, so without this record an
+        # internal-error deny leaves nothing behind at all once the session's
+        # stderr is gone.
+        _record_decision("", "", "deny", "internal-error", diagnostic)
         result = 2
         return result
     finally:

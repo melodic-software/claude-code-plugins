@@ -172,9 +172,28 @@ out of scope until such a signal exists.
   repository where guardrails is enabled. Those levers are printed on stderr
   (Claude Code surfaces an exit-2 stderr reason; `systemMessage` is an exit-0
   field and is discarded on a block).
-- **`block-hook-bypass` fails open on its own crash.** An internal script error
-  exits 0 so a defect on this hottest-path hook cannot freeze the session, and
-  emits a dual-channel "guard did not run" notice so the allow is not silent.
+- **Every hook says so when it could not run.** A hook has three outcomes,
+  not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
+  hook and the dispatcher install the shared abort boundary
+  (`hooks/abort-boundary.sh`, #3528) right after their first line. It passes
+  the statuses the hook chooses through untouched and turns any other exit (an
+  unbound variable under `set -u`, a helper that stopped existing, a
+  `hook-utils.sh` that failed to load) into a one-line "guard did not run"
+  notice naming the hook and the status, on stderr and as a
+  `systemMessage` / `additionalContext` document, then exits with the posture
+  the hook declares beside its install. Every hook currently declares
+  **fail-open**: the tool call proceeds exactly as it did before this boundary
+  existed, and the notice is the only change. Before it, such an abort exited
+  with a bare status, usually 1, which Claude Code treats as a non-blocking
+  error with nothing to show; a blocking guard enforced nothing and nobody was
+  told. Flipping a hook to fail-closed (deny the call when the guard could not
+  check it) is the one word `closed` on its install line; the contract test
+  reads the registered set from `hooks.json`, so a hook added without the
+  boundary fails it.
+- **`block-hook-bypass` fails open on its own crash.** The boundary above is
+  the generalization of the handler this guard carried first (#3130 F5): an
+  internal script error exits 0 so a defect on this hottest-path hook cannot
+  freeze the session, with the dual-channel notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
   override: if the process is killed at that bound, the tool call proceeds.
@@ -378,6 +397,149 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.32.17, forks with no exec in `block-noncanonical-commit`.** 2026-09-06,
+Linux CI host. A PATH shim counts execs, and a fork that never execs is
+invisible to it. On every Bash and PowerShell call this guard created two
+such processes and executed none. One was the guard's own, an eager telemetry
+subject at file scope that the verdict never reads; it is now derived inside
+`emit_tel`, behind the gates that keep the envelope off by default. On the
+blocked multi-line commit path, `$(effective_dir …)` and
+`$(explicit_git_dir …)` each paid a fork for a builtins-only function (now
+`effective_dir_to` and `explicit_git_dir_to`, nameref assignments), and off
+the common path a `!` alias reparse paid one `$(printf '%q')` per trailing
+argument (now `printf -v`) and the PowerShell lane paid `$(cd … && pwd)` for
+the plugin root when `CLAUDE_PLUGIN_ROOT` was unset (now the path itself).
+The shared parser's `< <(printf …)` in `lib/hook-utils.sh`, which held the
+benign figure at one, went in 0.32.13 (#3878); on this guard a benign Bash
+call now creates no process at all. No verdict changed: 218 paired runs
+against `origin/main` (96 payloads: 85 Bash, 9 PowerShell, 2 Write-tool,
+standalone and dispatched, plus 13 payloads under a `PATH` with no `git`)
+agree on exit code, stdout and stderr, 11 telemetry envelopes agree on
+subject and form, and the contract suite passes.
+
+*Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+on the dispatched path (`run-guards.sh block-noncanonical-commit.sh`), this
+repository as cwd, `HOOK_TELEMETRY_SINK` unset, `CLAUDE_PROJECT_DIR` empty.
+The guard's share is the count minus a no-op guard dispatched the same way.
+Creations are clone-family returns; execve is counted separately so an exec
+cannot pass for a removed fork. Three repeats, identical each time. Wall
+clock is p50/p95 of 20 samples after 2 warmup, sides interleaved, on a host
+whose `bash -c :` floor is about 1 ms; the milliseconds are context, the
+durable figure is the process count, and none of this was measured on a
+Windows host. The "before" column is `main` at `1b681862`, after #3878
+removed the parser fork; against the pre-#3878 `main` every creation count
+below read one higher on both sides. The wall-clock rows were taken against
+that earlier baseline (`c0fba152`) and not re-run.
+
+| Counter | before | after |
+|---|---|---|
+| Guard share, benign `git status --short`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, single-line `git commit -m`: creations / execve | 1 / 0 | 0 / 0 |
+| Guard share, blocked multi-line `git commit -m`: creations / execve | 5 / 1 | 2 / 1 |
+| Guard share, non-builtin subcommand (`git wibble`): creations / execve | 6 / 2 | 4 / 2 |
+| Guard share, blocked inline `!` alias: creations / execve | 10 / 3 | 6 / 3 |
+| Guard share, PowerShell `git status`: creations / execve | 14 / 3 | 12 / 3 |
+| Whole Bash dispatcher (eight guards), benign: creations / execve | 22 / 2 | 21 / 2 |
+| Guard alone under the dispatcher, benign, wall p50 / p95 (n=20), vs `c0fba152` | 23.8 / 25.9 ms | 21.2 / 30.9 ms |
+| Guard alone under the dispatcher, blocked, wall p50 / p95 (n=20), vs `c0fba152` | 32.2 / 75.8 ms | 29.9 / 44.7 ms |
+
+The execve column does not move, which is what makes this latency rather
+than removed work. The PowerShell lane's remaining creations are in
+`lib/powershell/ps-command.sh`, not in this guard. The contract suite pins the
+benign share, the blocked-path delta and the alias reparse by the same
+instrument.
+
+**0.32.16, the abort boundary.** 2026-09-07, Linux CI host. A correctness
+change, not a perf one, recorded here because it touches every registered
+hook's prologue: each now sources `hooks/abort-boundary.sh` and installs an
+EXIT trap (#3528). Kernel census with
+`strace -f -e trace=clone,clone3,fork,vfork,execve` of the whole Bash
+dispatcher (eight guards) on a benign `git status --short`, three repeats each
+side against `origin/main`: creations **23 -> 23**, execve **2 -> 2**. The
+boundary adds no process: the trap is a builtin, the handler is builtins only,
+and under the dispatcher each isolation subshell inherits the loaded library
+and returns on its include guard. Wall clock, p50/p95 of 20 samples after 2
+warmup, interleaved, two rounds: 59.9/65.1 and 61.7/63.3 ms before,
+67.0/92.1 and 63.8/68.5 ms after, so about 2 to 5 ms at p50 on this host from
+eight extra file opens. Not measured on a Windows host.
+
+**0.32.14, leftover helper-capture forks on verifiers and PreToolUse
+telemetry.** 2026-09-06, Linux CI host characterised measurable by
+`spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
+the leftover `$(hook::repo_root)` / `$(hook::repo_relative_path)` /
+`$(hook::normalize_path)` captures the always-on verifiers and
+PreToolUse scanners still paid around helpers that already have `_to`
+forms. Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`:
+
+| Counter | before | after |
+|---|---|---|
+| `skill-reference-verify` Write with no skill refs | 18 clones (8 execs) | 17 clones (8 execs) |
+| `secret-pattern-detection` clean Write | 10 clones (4 execs) | 8 clones (4 execs) |
+
+PATH-visible execs unchanged. Isolation `$(source …)` forks are
+unchanged (#3685). Finding text and redaction are unchanged.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
+**0.32.13, leftover tokenizer and path-helper forks.** 2026-09-06, Linux CI host
+characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+The 0.32.12 PATH-shim and kernel-census tables are unchanged for stdin,
+notice, and json-escape: this drop is the command tokenizer every Bash
+guard runs, plus `_to` forms of `repo_root` / `repo_relative_path`.
+Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve` on the
+library helpers, 5 plain `bash_parse_segments` plus 5 with a `$'…'` word
+after 0 warmup (the subject is a builtin):
+
+| Counter | before | after |
+|---|---|---|
+| `hook::bash_parse_segments` process creations | 15 (1 process-subst clone per parse, plus 1 `$(ansi_c_decode)` per `$'…'`) | 0 |
+
+Slice, notice, and fused stdin `jq` counts are unchanged. Isolation
+`$(source …)` forks are unchanged (#3685). Tokenizer argv is
+byte-identical.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
+
+**0.32.12, leftover stdin and notice forks.** 2026-09-06, Linux CI host
+characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+The 0.32.11 PATH-shim table is unchanged: those counters fire only on
+`exec`, and the forks this drop never exec. Kernel census
+`strace -f -e trace=clone,clone3,fork,vfork,execve` on the library
+helpers, 20 calls after 0 warmup (the subject is a builtin):
+
+| Counter | before | after |
+|---|---|---|
+| `hook::json_escape` process creations | 60 (20× `tr` exec) | 0 |
+| `hook::emit_channels` process creations | 240 | 0 |
+| `hook::resolve_read_slice_to 2` process creations | 20 | 0 |
+| `hook::notice_once` process creations | 79 | 3 (1 `mkdir` + 1 `find` + harness) |
+| `hook::buffer_stdin_to` (5 fires, fused fields) | 20 | 15 |
+
+Slice acceptance is a Bash 4+ version check (CHANGES bash-4.0-alpha:
+fractional `read -t`); it creates no TMPDIR file. PATH-visible `jq`
+execs on a benign Bash call stay at 1. Notices and skip-notice JSON
+are byte-identical.
+
+*Method.* Kernel trace as above; PATH shim cannot see a builtin-only
+fork. GNU Bash runs command substitution in a subshell even for builtins
+(Command Substitution, Bash Reference Manual;
+https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
+and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.11, fused stdin completeness and field extract.** 2026-09-06,
 Linux CI host. The 0.32.10 table still carries two PATH-visible `jq`

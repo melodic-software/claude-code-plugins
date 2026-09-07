@@ -1,5 +1,18 @@
 # Changelog — session-flow plugin
 
+## [0.35.4]
+
+### Fixed
+
+- **handoff:** `save_point.py validate` now separates a relocated save-point from a misidentified
+  one. A stored `Read @` path that names the validated file's own basename under a different
+  directory is reported as a WARN and no longer fails the run, matching what `emit` already does
+  when it substitutes the real path. A stored path naming a different basename still fails with
+  the existing "does not name this file" message, and the absolute-and-forward-slash check is
+  unchanged. Because `new --previous` validates its predecessor through the same path, a chain
+  copied out of a removed worktree stops tainting every carried entry with
+  `UNVERIFIED (predecessor failed validation):`.
+
 ## [0.35.3]
 
 ### Changed

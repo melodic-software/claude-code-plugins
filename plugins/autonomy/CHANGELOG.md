@@ -3,6 +3,135 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- **`hooks/lane-stop-gate.sh` spends one process on the interactive default path, and
+  about a fifth of what it did on an enabled lane's stop.** Counted with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` from a staged install: the default
+  path (no gate footprint in any settings file, the path every interactive `Stop` takes)
+  went from 4 process creations and 2 launches (`grep`, `uname`) to 1 and 1 (`uname`); an
+  enabled lane's first unsignaled stop from 48 creations and 18 launches to 10 and 5; a
+  signaled stop from 44 and 16 to 9 and 4; an armed lane's stop from 60 and 20 to 11 and 5.
+  The cost was in how the work was written, not in what the work was: every `$( )` capture
+  of a lib helper that is nothing but parameter expansion has a `_to <var>` form now; the
+  five per-field `printf | jq | tr` payload reads are one `hook::jq_fields` pass; the three
+  per-key settings reads are one jq per settings file (`gate_settings_options_to`), read
+  once and answered from memory; the arm record is read in one jq pass instead of five;
+  the `grep -q` scan of each settings file is a builtin read; the sentinel escape (`sed`)
+  and match (`grep -E`) are the shell's own; `uname -s` runs once per stop with its
+  redirection on the enclosing group, the placement that lets bash exec a substitution's
+  one command without a second fork; the telemetry data object is assembled in the shell
+  from its closed vocabulary. Unchanged on purpose: `uname -s` stays the managed-settings
+  platform primitive, `hook::buffer_stdin_to` and its validation pass belong to the synced
+  shared library, and the block decision is still one `jq`. Process counts are the proxy
+  reported because a spawn is about 1 ms on the measuring Linux host; #3508 measures
+  180 to 2,841 ms per spawn on the affected Windows hosts, where the wall-clock share the
+  hook-budget convention binds still needs measuring. (#3515; parent #3508; the in-file
+  approach follows #3779)
+- **Disclosed divergence, one degenerate config: a sentinel that itself holds a newline.**
+  `grep` read that newline as a pattern separator and authorized a stop on a line matching
+  either half of the token; the shell match treats the token as one pattern, so only the
+  whole token standing alone authorizes, which is what the block reason asks the agent to
+  emit. No shipped launcher writes such a token. Every other verdict is the same: 95
+  old-versus-new scenarios were compared byte for byte (rc, stdout, marker and ledger side
+  effects), including malformed payloads, every settings shape the reader distinguishes,
+  and the arm record's claim and TTL paths.
+- **`hooks/lane-stop-gate-lib.sh` grows an in-process form beside every print form**
+  (`gate_*_to`, `gate_managed_settings_files_load`, `gate_settings_options_to`,
+  `gate_managed_options_to`); the print forms delegate to them, so `lane-stop-gate-arm.sh`
+  and existing callers read exactly what they read before.
+- **Arm-record TTL trusts `EPOCHSECONDS` only on Bash 5.0+.** Before 5.0 it is
+  an ordinary variable; a repo env block can set it and would otherwise choose
+  the TTL verdict. `BASH_VERSINFO` decides; older bash falls back to `date +%s`.
+- **`last_assistant_message` keeps carriage returns.** The parent extracted it
+  with `jq -r` and no `tr`; `hook::jq_fields` strips every CR, so
+  `LANE-STOP\r-OK` became `LANE-STOP-OK` and authorized. LAST is read in the
+  same one jq payload pass and left intact; the other four fields are still
+  CR-stripped.
+- **Group redirections on the remaining file reads silence stderr before the
+  input open** (`gate_resolve_plugin_name`, `gate_settings_options_to`,
+  arm-record load), matching `gate_file_mentions`. A file that exists but
+  cannot be read stays silent.
+
+### Fixed
+
+- **Payload-field read no longer calls `local` at script scope.** The NUL-split
+  loop lived in a group, not a function, so `local f` was invalid (SC2168) and
+  the group's `2>/dev/null` swallowed the diagnostic. The loop uses `_gate_pf`
+  at script scope and unsets it after the read.
+
+### Added
+
+- **The suite pins the process budget by trace** (`lane-stop-gate.test.sh`): exactly 1
+  creation and 1 launch (`uname`) on the default path; a ceiling of 10 creations and 5
+  launches on the enabled block path, the ceiling leaving the shared library's
+  `hook::buffer_stdin_to` share room to shrink without failing here; and no `dirname`, `tr`,
+  `sed`, `grep`, `cksum` or `date` on either. Moving one redirection back inside its
+  substitution takes the default path to 2 and fails it. Skipped where `strace` is
+  unavailable; the CI Linux lane does not skip.
+
+## [0.23.0]
+
+### Added
+
+- **`drift-delta-sweep`, an eleventh `v1` routine class, with its own definition leaf
+  (#3819).** The catalog gains a sibling row under Code quality / knowledge
+  (`AGT | R + WI | repo | C1 | v1`) and the leaf
+  `reference/routines/drift-delta-sweep.md` carries its instruction content: a cadence pass
+  that runs the repository's installed drift lanes and reports what moved, fanning out to the
+  instruction-placement delta lane, the enforcement-surface delta lane (two layers rotating on
+  the ISO week), and the repository drift audit lane (one dimension rotating on the same week,
+  never with `--fix`). Each invocation is presence-gated on its owning plugin and states its
+  fallback; a missing lane is recorded as not run rather than silently skipped. The row is a
+  sibling of `doc-freshness-sweep`, not an extension of it: `doc-freshness-sweep/advisory` is
+  a ratified admission identity on org security bindings, and broadening its substance would
+  change what a ratified entry authorizes without an org re-reviewing it. A class parameter
+  records the one dimension the two classes overlap on, and that the class's substantive
+  prerequisites (three optional sibling plugins, plus a run resolving a branch identity whose
+  memory-tier home persists across cycles) are not representable in the generated prerequisite
+  emission, so a `supported` verdict for this identity over-reports. The generated
+  `generated/identity-prerequisites.json` goes from thirteen identities to fourteen.
+
+## [0.22.32]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks in the command tokenizer
+  and path helpers.** `hook::bash_parse_segments` walks `${cmd:i:1}` instead of
+  `read -N1` from a process substitution, and `$'…'` bodies decode through
+  `ansi_c_decode_to` (`printf -v`) instead of `$(ansi_c_decode)`. `repo_root`
+  and `repo_relative_path` gain `_to` forms so a caller does not pay a capture
+  subshell around the necessary git process or around builtins-only work.
+  GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
+  argv, unresolved-root fallback, and relative-path redaction are unchanged.
+
+## [0.22.31]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks on the stdin and notice
+  paths.** `hook::json_escape` no longer pipes through `tr`; `hook::emit_channels`
+  writes through `json_escape_to` instead of `$(json_escape)`; the fractional
+  `read -t` slice uses a Bash 4+ version check (CHANGES bash-4.0-alpha)
+  instead of a TMPDIR probe file; `notice_once`
+  reads the marker with `read` and creates or prunes the skip-notice directory
+  once per process. GNU Bash runs command substitution in a subshell even for
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 20 calls: `json_escape` 60→0 creations (20 `tr` execs→0);
+  `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
+  Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
+  Notice JSON, timeout resolution, and skip-notice latching are unchanged.
+
 ## [0.22.30]
 
 ### Changed

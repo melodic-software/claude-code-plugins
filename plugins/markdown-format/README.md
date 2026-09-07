@@ -151,7 +151,10 @@ trials against an interleaved `bash -c :` floor (2026-09-02):
 | PostToolUse `Write`, non-Markdown file | 0 | skipped by the `if` rows | one entry per extension since 0.11.35 |
 
 The residual is `markdownlint-cli2` itself (one Node process per fire) plus the shared library's
-payload reader and telemetry emitter, cut in 0.11.39 by the vendored `hook-utils.sh`.
+payload reader and telemetry emitter, cut in 0.11.39 by the vendored `hook-utils.sh`. 0.11.51
+drops leftover helper-capture and dirname forks on the root-resolution path
+(`resolve_repo_root_to`, jq-absent opt-in probe, membership dirname); physical `pwd -P`
+containment stays.
 
 ## Install
 

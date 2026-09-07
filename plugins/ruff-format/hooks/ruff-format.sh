@@ -84,6 +84,14 @@ case "$FILE" in
 *.py | *.pyi) ;;
 *) exit 0 ;;
 esac
+# Basename via parameter expansion, not `basename(1)`: this hook fires on
+# every Write/Edit of a Python file, and GNU Bash forks a subshell for
+# `$(basename "$FILE")` even though the body is a single exec (Command
+# Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
+# so a mixed-form Windows path still yields the final component.
+FILE_BASE="${FILE##*/}"
+FILE_BASE="${FILE_BASE##*\\}"
 
 # Telemetry-only. Parsed behind the sink opt-in so the unwired default path
 # spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
@@ -98,16 +106,20 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument Ruff runs on from the repo root. A path the prefix strip could
 # not make relative degrades to its basename, which is right for telemetry but
 # names a DIFFERENT file when resolved against the repo root, so the invocation
-# below has to know which of the two it holds. Command substitution runs the
-# helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never reaches
-# this scope; the return status is the channel that survives.
+# below has to know which of the two it holds. `_to` writes FILE_REL and
+# HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture subshell that used
+# to hide the global is gone (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). Status remains the
+# distinguishable channel.
 FILE_REL_DEGRADED=0
-FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
+FILE_REL=""
+hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
@@ -132,10 +144,13 @@ emit_skipped() {
   exit 0
 }
 
-# Resolve the file's directory in `pwd` form once. Both walks below start here,
-# and it anchors the repo-root-relative path passed to Ruff.
-FILE_DIR_POSIX="$(cd "$FILE_DIR" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
-root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
+# (and pwd) on every fire to canonicalize a path git already answered as
+# absolute, or a fallback hint that `cd "$RUN_DIR"` already accepts relative.
+FILE_DIR_POSIX=""
+[[ -d "$FILE_DIR" ]] && FILE_DIR_POSIX="$FILE_DIR"
+root=""
+[[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
 
 # Consumer opt-in: a Ruff configuration that governs the edited file. Walk up
 # from the file's directory to the repo root, stopping at the FIRST config found
@@ -197,7 +212,9 @@ while [[ -n "$dir" ]]; do
   dir="$parent"
 done
 if [[ -z "$RUFF_BIN" ]]; then
-  RUFF_BIN="$(command -v ruff 2>/dev/null)" || RUFF_BIN=""
+  # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
+  # just to learn the path. The later exec looks the name up on PATH itself.
+  command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
 fi
 
 # The repo opted in via a Ruff config but no binary is available → visible
@@ -250,7 +267,7 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 # single-document composition live in the shared rewrite-guard lib (#3406,
 # #3409): the disclosure is TAKEN at each exit arm and composed into that
 # arm's one JSON document, never emitted mid-run as a second document.
-RUFF_REWRITE_MESSAGE="ruff-format: auto-fixed and/or reformatted $(basename "$FILE") via Ruff."
+RUFF_REWRITE_MESSAGE="ruff-format: auto-fixed and/or reformatted $FILE_BASE via Ruff."
 hook::rewrite_guard_begin "$FILE"
 (cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
 (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
@@ -275,7 +292,7 @@ if [[ $RC -eq 0 ]]; then
 fi
 
 if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
-  RUFF_CTX="ruff-format: $(basename "$FILE") has Ruff findings (advisory):"
+  RUFF_CTX="ruff-format: $FILE_BASE has Ruff findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -302,7 +319,7 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran to judgment), the same status as the
 # no-config / no-binary paths.
-RUFF_CTX="ruff-format: ruff failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+RUFF_CTX="ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   RUFF_CTX+=$'\n'"  $line"

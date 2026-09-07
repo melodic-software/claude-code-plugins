@@ -1,5 +1,5 @@
 ---
-description: "Read coverage artifacts a build already produced (lcov `.info` including the 2.2 `FNL`/`FNA` records, Cobertura XML, coverage.py JSON, a Go cover profile) and report line coverage per file and per function for a change, a path, or the tree, plus CRAP per function (`comp^2 * (1 - cov/100)^3 + comp`, Savoia and Evans 2007) from the sibling complexity numbers. It never runs a test command and installs nothing. A missing artifact is a warning naming the paths searched, never a silent skip; a function with no executable lines reports null, not 0. Coverage and CRAP both default to a null reference (no bar) printed with its provenance; no finding, severity, or exit-code gate is emitted. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'; for complexity alone use /code-metrics:audit-complexity; for what these numbers can and cannot tell you, /code-metrics:principles."
+description: "Read coverage artifacts a build already wrote (lcov `.info` including the 2.2 `FNL`/`FNA` records, Cobertura XML, coverage.py JSON, a Go cover profile) and report line coverage per file and function for a change, a path, or the tree, plus CRAP per function (`comp^2 * (1 - cov/100)^3 + comp`, Savoia and Evans 2007) from the sibling complexity numbers. It runs no tests and installs nothing. A missing artifact warns, naming the paths searched, never a silent skip; a function with no executable lines reports null, not 0. Coverage and CRAP default to a null reference (no bar) with its provenance, and no finding, severity, or exit-code gate is emitted. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'; for complexity alone use /code-metrics:audit-complexity; for what these numbers can and cannot say, /code-metrics:principles."
 argument-hint: "[--json] [--all] [--base <ref>] [--artifacts <path>]... [<path>...]"
 user-invocable: true
 disable-model-invocation: false
@@ -67,9 +67,20 @@ otherwise keep the JSON beside your notes and compare by hand.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end
   line), `line-range` when the range came from the complexity collector, in which case nested
-  function ranges are subtracted from the parent first, and `statement-ratio` on a file row whose
-  percentage came from a Go profile's statements rather than from a line table. The markdown table
-  renders the values; the per-row `cov_source` and `hit` fields are in the `--json` document.
+  function ranges are subtracted from the parent first, `statement-ratio` on a file row whose
+  percentage came from a Go profile's statements rather than from a line table, and `ambiguous`
+  on a function the join refused. The markdown table renders the values; the per-row `cov_source`
+  and `hit` fields are in the `--json` document.
+- A function the artifact names by a short name binds to the function whose line range holds the
+  lines the artifact recorded, not to whichever function the name happens to end at. Two `run`
+  methods in one file and a record named `run` are one function's coverage, and the range says
+  whose. Where nothing separates the candidates, because the artifact placed none of them at a
+  line or because two of them fall inside the same range, the join is refused rather than guessed:
+  the row reads `cov_source: ambiguous`; coverage, line counts, hit, and CRAP are null because
+  those numbers would be a guess, while cyclomatic from the complexity row is kept because that
+  collector already measured it; it carries a `coverage-ambiguous` label, and the lane's run row
+  turns `partial` and names the functions it left unjoined. A missing coverage number an operator
+  can see beats a wrong number they cannot.
 - `hit` is the artifact's function-hit flag. When it says the function was never entered,
   `coverage_pct` is 0 rather than the 1/N a declaration line executed at import would produce.
 - A function with no executable lines in the artifact reports `coverage_pct: null` and
@@ -88,7 +99,8 @@ otherwise keep the JSON beside your notes and compare by hand.
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
   executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
   no artifact covers is `unavailable` with that count; when no artifact was found at all, the
-  reason lists every path searched.
+  reason lists every path searched. A lane that left a function unjoined is `partial` for that
+  reason too.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
   `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;
@@ -153,8 +165,15 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
   the counts behind a number they did not produce. The lane's `collector` still names both formats
   read. Function rows are line-based, so a Go function does take its region from a line artifact
   when one covers it.
-- A Cobertura report with several `<source>` roots is read with the first one only; a class whose
-  filename resolves under a later root lands in the partial count rather than in an error.
+- A Cobertura report with several `<source>` roots is read against all of them: a relative class
+  filename takes the first root under which that path exists in the scanned tree, and falls back
+  to the first root when no candidate exists. Two roots that both hold the file is an ambiguity
+  the report cannot settle, so the first one wins and the class lands under it. The probe settles
+  anything only when the roots are relative, or absolute and present on the machine running the
+  audit. A report built elsewhere declares absolute roots (the usual coverlet, kcov and gcovr shape
+  for a CI run) naming directories this machine does not have, so every candidate misses and every
+  class lands under the first root the way it did before the roots were read at all. Rewriting a
+  root from another machine onto the local tree needs a mapping the report does not carry.
 - Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to
   each other's artifact region when the artifact carries only the short name; the file-level
   numbers are unaffected.

@@ -177,6 +177,27 @@ Claude Code spawns the hook regardless for such a command, so the gate still jud
 it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
 `$()` sample.
 
+#### Measured cost
+
+Its share of the [hook budget](../../docs/conventions/hook-budget/README.md),
+counted as kernel process creations rather than wall time: the host that
+reported this hook timing out pays 0.3-0.9 s per spawn, so wall time there says
+more about contention than about the hook. Counted with
+`strace -f -e trace=clone,clone3,fork,vfork,execve`, telemetry sink off:
+
+| Path | clone-family | `execve` |
+| --- | --- | --- |
+| A `gh` call with no `pr` in it | 7 | 2 |
+| `gh pr create` with a readable body (allow or block) | 11 | 3 |
+| `pr-linkage-mcp-gate`, an MCP create (allow or block) | 11 | 4 |
+
+Two of each `execve` count belong to `lib/hook-utils.sh`, not to these hooks:
+one `jq -e .` validating the payload and one `git rev-parse` resolving the repo
+root. The gates themselves spend one batched `jq` over the whole payload, plus,
+on the MCP surface only, the `git remote get-url` its origin-match scope guard
+needs. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
+with no headroom, and proves itself non-vacuous against three mutants.
+
 #### Telemetry (opt-in)
 
 The hook emits one structured
@@ -232,6 +253,34 @@ and wrapped forms) still reaches them, and every other Bash call no longer pays 
 two hook processes. The same best-effort caveat applies: a command containing `$()`, a
 backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
 what the substitution expands to.
+
+#### Measured cost
+
+The two Bash-matcher worktree gates and the `WorktreeCreate` gate, counted as kernel
+process creations rather than wall time: the host that reported these hooks timing out
+pays 0.3-0.9 s per spawn, so wall time there describes contention more than it describes
+the hook. Counted with `strace -f -e trace=clone,clone3,fork,vfork,execve`:
+
+| Path | clone-family | `execve` |
+| --- | --- | --- |
+| Either Bash gate, a `worktree` command that is not an `add` | 7 | 2 |
+| `worktree-add-containment-gate`, an `add` it allows | 18 | 5 |
+| `worktree-add-containment-gate`, an `add` it blocks | 18-22 | 5-7 |
+| `worktree-add-claim-gate`, a parsed `add` target | 22 | 6 |
+| `worktree-create-gate`, before it reaches the placement helper | 13 | 4 |
+
+Four of the seven creations on the not-an-`add` path belong to
+[`lib/hook-utils.sh`](../../lib/hook-utils.sh), not to these gates: the
+`hook::buffer_stdin` substitution and `hook::json_complete`'s `printf | jq -e .`. The
+gates' own share of that path is one `printf '%s' "$INPUT" | jq` field read, 3 creations
+and 1 `execve`. That feed is the form the library prescribes and is kept on purpose: a
+here-string would cost 1 creation, but bash fills a here-string's pipe itself and
+deadlocks at the pipe capacity on Git Bash (#1587), which on a hook is the timeout. The
+block-path spread is the ancestor walk: a `.git`-directory target asks `git rev-parse` a
+third time, and a block message that names a configured root reads the
+`melodic.worktreeroot` key. `hooks/worktree-gates-spawn-budget.test.sh` holds these
+numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
+fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 

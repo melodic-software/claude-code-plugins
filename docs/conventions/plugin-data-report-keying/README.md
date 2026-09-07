@@ -1,7 +1,7 @@
 # Plugin-data report keying, retention, and overwrite
 
-Version: 1.0.1
-Last updated: 2026-08-28
+Version: 1.0.2
+Last updated: 2026-09-07
 
 A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`** —
 the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live
@@ -171,6 +171,8 @@ holds every project's artifact under the same deletable root.
 | `claude-config:unhobble` | Different solution, same problem: keys by `<experiment-id>` whose basename is *a label*, and records the canonical checkout identity (absolute worktree path, and the origin URL when one exists) **in the manifest**, verifying it before every later phase. Verification instead of a keyed path; acceptable because the artifact is never *served* — a mismatch aborts and names the conflicting path |
 | `docs/conventions/topic-docs/` non-repo fallback | Keyed by **topic slug**, not project (`${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/`, the non-interactive branch when no project root resolves) — an instance of the gap, recorded here rather than silently declared conformant |
 | `machine-health:audit` | Not keyed — roots are passed in by the caller, deliberately, per that skill's own inherited-variable hazard. Cited above for retention shape only |
+| `claude-ops:observability --write` | Keyed (#3576), `reports/<state-key>/claude-observability-<date>.md`, resolved by running `skills/observability/scripts/report-path.sh` rather than composing a path (rule 1a). One file per project per date is the stated retention shape: the report is a working artifact, and its source — the hook event log inside the checkout — is why the key's worktree split is the behavior it wants. Rule 3 on the leftovers: the script names any unkeyed `reports/claude-observability-<date>.md` on stderr and reads none of them |
+| `claude-ops:known-issues check-all` | Keyed (#3576), `check-all-output/<state-key>/`, obtained by running `scripts/check-all.sh --print-output-dir`. A read-back artifact under rule 2 and a rule 3 surface: the registry is project-relative whenever the `registry_dir` option is set, and the pre-fix unkeyed directory was reproduced serving one project the other's registry rows. Both this writer and the one above fail closed when the key cannot be derived, rather than falling back to the unkeyed path |
 
 ## Related
 

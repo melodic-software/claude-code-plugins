@@ -3,6 +3,117 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1]
+
+### Fixed
+
+- **`design`:** the skill body named no resolver for step 2 of the `diagram_dialect` ladder and
+  told the running agent the plugin ships none, so every run degraded to the default no matter what
+  the consuming team declared. A consumer setting `diagram_dialect.data` to `dbml` was served
+  `mermaid`, and the system-scope C4 container view was unreachable for every consumer, since
+  `diagram_dialect.system` could never resolve to a value. The body now names the bundled resolver
+  at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` with its exit-code contract, in
+  the same terms `interview` and `prd` already use. The resolver itself shipped in 0.39.0; only the
+  `design` body was left behind. The untrusted-input rule and the restate-rather-than-cite
+  rationale are unchanged, and no dialect branch below the ladder moved.
+
+## [0.39.0]
+
+### Added
+
+- **`interview`, `prd`:** an always-on acceptance-criteria coverage prompt. During
+  acceptance-criteria capture each skill asks ONCE whether an unwanted-behaviour case (`IF-THEN`)
+  and a state-driven case (`WHILE`) are missing; "neither applies" closes it. It is never a `Q<N>`
+  row in the interview's open-question register, and asking it does not by itself bring the Step 3
+  register gate into scope — the exemption covers that one prompt and never a real question asked
+  beside it. In a non-interactive run — a dispatched worker, a forked subagent, a headless
+  invocation, or the PRD's `synthesize` path — the ask is SKIPPED rather than blocking, and the
+  returned summary states that unwanted-behaviour and state-driven coverage went unexamined. The
+  unattended condition stays caller-declared, never sniffed.
+- **`interview`, `prd`:** convention-gated EARS pattern tags on emitted acceptance criteria. When
+  the consuming team's `acceptance_criteria_format` resolves to `ears`, each emitted criterion
+  carries a bracketed prefix drawn from exactly five names — `ubiquitous`, `event-driven`,
+  `state-driven`, `unwanted-behaviour`, `optional-feature` — on the Brief's existing plain-bullet
+  shape (`- [event-driven] WHEN the upload completes, the manifest is rewritten`). Under
+  `free-text`, the default and every degrade, criteria are emitted untagged and byte-comparable in
+  shape to the previous release. Both skills RESTATE the authoring-formats resolution ladder in
+  their own bodies rather than citing a convention document, because an installed plugin never sees
+  the publishing repository's `docs/`.
+- **`lib/resolve-convention-home.sh`:** the plugin enrolls as a carrier of the cross-plugin
+  convention-home resolver, so the ladder's step 2 has a bundled resolver to call instead of
+  hand-parsing the consumer's root instruction file.
+
+### Changed
+
+- **`interview`, `prd`:** both descriptions name the trigger phrases that reach acceptance-criteria
+  capture, and both Boundary sections name Gherkin export as a deferred extension point that this
+  release deliberately does not build.
+- **`interview`:** `context/loop.md` documents the tagged bullet form beside the Brief template and
+  states that `### Acceptance criteria` stays plain bullets in both formats. The template
+  placeholder is unchanged. Every site stating a register rule — the Emit-checklist line, the
+  ask-time rule, Step 3's gate, Frontier-rounds item 5, "Write at ask-time", "Gate before locking",
+  and the unattended ladder — carries the coverage prompt's carve-out, each scoped so it exempts
+  that prompt alone.
+
+## [0.38.1]
+
+### Changed
+
+- **`interview`:** the ADR bullet and the interview-outputs line route to
+  `/architecture:record-decision` when the `architecture` plugin is installed, and keep today's
+  write-to-the-declared-convention sentence as the fallback. New Composition row; two eval cases
+  covering both branches.
+- **`design-handoff`:** the handoff summary gains an "ADR candidates" bullet. Each resolved decision
+  meeting the three-part admission test is offered to `/architecture:record-decision` when that
+  plugin is installed, and listed for the human to record by hand otherwise. The offer never blocks
+  the handoff.
+- **`plan`:** close-out step 2 names `/architecture:record-decision` as the presence-gated way to
+  write an ADR the moment a decision crystallizes. The ADR admission test is unchanged.
+
+## [0.38.0]
+
+### Added
+
+- **`design-handoff`:** a `Coverage report (advisory)` section between the binary gate and the
+  handoff summary. After the verdict sentence, and on a FAIL after the routing sentence too, the
+  gate emits one table with columns `Dimension | Covered by | Status` and one row per dimension a
+  design answers: what, how, where, who, when, why. A row is covered when a thread whose status is
+  RESOLVED or directional records a decision about that dimension, and the row names that thread and
+  its status; a TAGGED-DEFERRED thread never covers a row; an uncovered row reads `none`. The
+  artifact carries no dimension field, so the reading rule per dimension is stated as the example
+  table's own second column. On a `design-resolution.md` early exit the table is read over that
+  file. The handoff summary gains an `Uncovered dimensions` bullet and the resume prompt carries
+  them, so `/planning:plan` can hold them as open questions.
+- **`design-handoff`:** three eval cases over three new fixtures, covering an all-six-covered read,
+  a gapped read that still PASSes, and a read over the early-exit artifact; the existing FAIL case
+  asserts that the verdict and routing are unchanged and that any coverage table follows them.
+- The pass/fail determination and the routing are untouched by this release. The coverage report
+  never blocks, no flag makes it block, and the table is never written to disk.
+
+## [0.37.0]
+
+### Added
+
+- **`design`:** the existing Scope-specific artifacts table gains **Typed artifact** and **Dialect**
+  columns. `data` emits `entity-relationships.md` as a mermaid `erDiagram`, or DBML when
+  `diagram_dialect.data` selects it; `integration` emits `sequence-flows.md` as a mermaid
+  `sequenceDiagram` and `contract-spec.md` as an OpenAPI 3.1 sketch; `system` emits
+  `component-map.md` as a C4 container view in LikeC4 or C4-PlantUML only when
+  `diagram_dialect.system` names one, and no C4 view at all when it is unset. Mermaid's
+  experimental C4 support is never used. `library` and `module` emit no typed artifact.
+- **`design`:** every typed artifact opens with a scope label — frontmatter carrying `scope`
+  (`data` | `integration` | `system`) and `dialect` (`mermaid` | `dbml` | `openapi-3.1` |
+  `likec4` | `c4-plantuml`) — so a consumer reads the producing scope rather than inferring it
+  from prose. Untyped artifacts (`schema-decisions.md`, `communication-patterns.md`,
+  `component-map.md` with the system key unset, and every `library` and `module` artifact) are
+  unchanged and carry no label.
+- **`design`:** the body restates the `authoring-formats` resolution ladder rather than pointing at
+  the convention document, because an installed plugin never sees the publishing repository at
+  runtime. Zero config is unchanged behaviour: mermaid data diagrams and no C4 container view.
+- **`design`:** mermaid craft routes to `/visualization:visualize` when the `visualization` plugin
+  is installed; without it the skill emits the plainest correct form of the dialect. The typed
+  artifact is produced either way.
+
 ## [0.36.5]
 
 ### Changed

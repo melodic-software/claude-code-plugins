@@ -3,6 +3,110 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1]
+
+### Fixed
+
+- **`list-frontier --autonomous` no longer surfaces items whose work class is a
+  human floor.** `work-class: structural` (C4) and `work-class: untrusted-provenance`
+  (C5) are human-gated regardless of any other signal, per the admission-gate
+  table that binds whether or not the `autonomy` plugin is installed — but the
+  frontier filter only excluded the `human-gated` role label, so such an item
+  stayed frontier-available. Each lane instance in turn claimed it, hit the
+  fail-closed admission gate, escalated, and released it: a burned worker every
+  pass, with the item never moving. An item carrying BOTH the autonomous-eligible
+  role label and a floor class is self-contradictory, and the frontier now
+  resolves that against the floor. The exclusion is autonomous-only, so
+  `list-frontier` without `--autonomous` still returns the item rather than it
+  vanishing from every derived view; keeping it in the attended lane's attention
+  view is the human-gated role label's job, which is what the routing fix below
+  preserves. C3 `scoped` is deliberately not floored here: its disposition
+  turns on bug-fix-vs-feature shape and first-drain ratification, which no label
+  carries and the work-loop admission gate owns. Floor strings live in
+  `lib/labels.sh` as the one definition source; unlike the canonical roles and
+  the container marker they are fixed, because the work-class axis has no
+  binding key to remap. Four new `lib/frontier.test.sh` cases cover the floor
+  under `--autonomous`, its absence on the attended frontier, C3 survival, and
+  exact-match (not substring) label comparison.
+- **Resolving a C4/C5 escalation no longer strands the item between both lanes.**
+  `/work-items:attend-queue`'s "Flip to agent-ready" transition removed the
+  human-gated role label unconditionally once an answer landed. With the floor
+  above in place that made a floor-class item reachable by nobody: the autonomous
+  frontier drops it on the work class, and the attended attention view keys on the
+  human-gated role label plus a machine-marked comment rather than on the frontier,
+  so removing the label deleted its last row condition. The transition now reads
+  the item's `work-class:` label first and resolves a floor-class row one of two
+  ways: reclassify to an autonomously dispatchable class in the **same edit** as
+  the role-label flip (recording the reclassification and its reason), or leave
+  the human-gated role label in place and record the completion route, so the row
+  keeps listing until the item is executed attended, reclassified, or closed. A
+  floor-class item never leaves the attended lane carrying the autonomous-eligible
+  role label alone. `tests/floor-class-stays-routable.test.sh` pins the transition:
+  it extracts the flip bullet from the shipped skill and fails when that region
+  stops naming both floor classes and offering the reclassify branch, with
+  synthetic fixtures (the exact pre-fix wording, a one-class transition, and floor
+  classes named outside the transition) proving the detector discriminates.
+
+### Changed
+
+- **Triage may no longer pair the autonomous-eligible role label with a C4/C5
+  work class.** `skills/triage/context/apply-outcome.md` listed all five classes
+  as valid partners for `agent-ready`, which is what produced the contradictory
+  items above; the hard pairing rule now admits C1–C3 only and routes a C4/C5
+  outcome to the human-gated role label. `reference/work-class-labels.md` gains
+  the invariant, its enforcement points, and the remediation for items already
+  carrying the pair; `tools/work-item-tracker/CONTRACT.md` records the new
+  `list-frontier` filter term.
+
+## [0.40.0]
+
+### Added
+
+- **`decompose`:** the spec container's body inlines the design artifacts the design behind the
+  plan produced. Each is emitted as a fenced block copied verbatim from the artifact, followed by
+  a one-line provenance note naming the producing design scope and the dialect. The container is
+  the join, not a slice: one design session stands one-to-one with one container, whereas a
+  vertical slice crosses layers by construction and carries no scope, so an artifact matched every
+  slice or none. Slice bodies are unchanged and keep only their existing pressure-test carve-out.
+- **`decompose`:** the artifact is matched by frontmatter carrying both `scope` (`data`,
+  `integration`, `system`) and `dialect` (`mermaid`, `dbml`, `openapi-3.1`, `likec4`,
+  `c4-plantuml`), read from the `design/` subdirectory of the same topic slice and tier the source
+  document was read from. Every match is inlined, filename-ordered: an `integration` design labels
+  two artifacts and both are carried. A source with no topic slice (an item number or the
+  conversation) has no lookup. Existence of the artifact is the whole trigger, so no flag, lever,
+  or convention key is added, and a container whose design produced none is unchanged in shape.
+- **`decompose`:** only the artifact's fenced block travels, never its frontmatter and never the
+  prose that follows it. The note names the dialect as the frontmatter spells it rather than the
+  fence tag (`openapi-3.1`, not `yaml`), because only mermaid renders as a diagram in the bundled
+  providers and a reader of the rest needs to know what the fence holds. No file path appears in
+  any emitted body: the contract slice holding the artifact is pruned before merge, so a pointer
+  would dangle by construction.
+- **`decompose`:** `container-lifecycle.md`'s Body bullet now states these blocks as an explicit
+  exception to its own no-inflation rule, alongside the `## Testing decisions` section and the
+  execution-shape line, so the rule enumerates what is admitted rather than contradicting the
+  addition.
+
+## [0.39.67]
+
+### Fixed
+
+- work-item-tracker GitHub adapter: `list-sub-items` scopes sub-issues to the parent's own repo
+  by the node's `url` rather than `repository.nameWithOwner`. `gh issue view --json subIssues`
+  projects each node down to `id`, `number`, `title`, `url`, `state` and drops the `repository`
+  object, so the old predicate matched no node and every container enumerated as childless,
+  which also blinded `list-frontier --parent` and container rollup. A node that does carry
+  `repository.nameWithOwner` still filters on it. A node attributable to neither field is still
+  dropped, but the verb now names it on stderr, so a further narrowing of gh's projection shows
+  up as a message rather than as another silently empty list; a node in a different repo stays a
+  silent drop, since that is the documented cross-repo truncation. The adapter README records the
+  projection and the gh version the fix was checked against.
+- work-item-tracker GitHub adapter: the `list-sub-items` same-repo test folds case on both sides.
+  GitHub owner and repo names are case-insensitive and the id grammar accepts any case, so an id
+  written `github:acme/widgets#99` read every child of a repo the API spells `Acme/Widgets` as
+  foreign and returned an empty list with no signal, reaching the same blindness as the bug above by
+  a different route. Folding widens the match on case alone: a genuinely cross-repo node still
+  drops, and an unattributable node still warns on stderr.
+
 ## [0.39.66]
 
 ### Changed

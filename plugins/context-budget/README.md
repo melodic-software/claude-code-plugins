@@ -7,8 +7,10 @@ pinned binary, and record what every trim actually saved.
 the built-in tool pool: `System tools` and `System tools (deferred)` are lump sums, and together
 they are typically the largest single contributor to the fixed payload. This plugin attributes
 them per tool by A/B differencing: a baseline headless session versus one session per candidate
-tool with that tool denied by bare name. The deltas are compositional, so a basket of trims can be
-priced from its members.
+tool with that tool denied by bare name. The two attributed buckets compose differently:
+deferred-side deltas add, so a basket's deferred saving is the sum of its members, while
+prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix
+saving.
 
 ## Install
 

@@ -3,6 +3,113 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1]
+
+### Added
+
+- **`/skill-doctor` has its own native-surfaces row, pinned to the upstream commit
+  that added it.** The store recorded the surface inside the `doctor` row with a note
+  saying a dedicated row was owed and blocked on an upstream commit pin. The pin is
+  `d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` in `anthropics/claude-code`, the commit
+  that added the `## 2.1.261` CHANGELOG heading and the `/skill-doctor` bullet under
+  it, read from that commit's own diff rather than from the rendered changelog page.
+  The row lands in the built-in-command lane, not the bundled-skill lane: upstream's
+  all-commands table lists `/skill-doctor` without the `[Skill]` marker it puts on
+  `/doctor`, `/run`, `/run-skill-generator` and `/simplify`. Recording it as an
+  `upstream-source` observation is what puts the commit under the self-check's
+  existing pin rules, which refuse such a row with no commit in its detail and
+  compare every recorded commit against `self-check --upstream-sha`.
+
+### Changed
+
+- **`audit-skill-visibility` gates `/skill-doctor` and `/doctor` separately.** One
+  row standing in for two surfaces meant one presence gate for two surfaces, and the
+  two are not gated by the same thing: `/doctor` answers to `DISABLE_DOCTOR_COMMAND`,
+  `/skill-doctor` to a minimum version and to feature-flag fetching, and upstream
+  documents it as unavailable over Remote Control besides. A session can resolve
+  either, both, or neither, so the description's Not-for clause, the Purpose section
+  and the Scope boundary table now name each surface behind its own gate. The
+  shipped text no longer states a version for `/skill-doctor`: upstream's CHANGELOG
+  announces it at 2.1.261 while `commands.md` and `skills.md` say v2.1.252 or later,
+  and a routing line does not need to settle that. The `doctor` row keeps its own
+  verdict and routing, re-verified against the current `/doctor` docs row, and its
+  debt note is gone.
+
+## [0.43.0]
+
+### Fixed
+
+- **The two unkeyed plugin-data artifacts are keyed by project, so one project
+  stops being served another's.** `${CLAUDE_PLUGIN_DATA}` resolves to
+  `~/.claude/plugins/data/{id}/` and carries no project, checkout or worktree
+  segment ([plugins reference](https://code.claude.com/docs/en/plugins-reference),
+  § Persistent data directory), so `reports/claude-observability-<date>.md` and
+  `check-all-output/` were one artifact per MACHINE. Both now sit under
+  `lib/state-key.sh`'s `<repo-identity>/<worktree-discriminator>`, the scheme
+  [`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+  rule 1 defines:
+  - `observability --write` resolves its path by running the new
+    `skills/observability/scripts/report-path.sh`, which prints
+    `reports/<state-key>/claude-observability-<date>.md` and creates the parent.
+    The report's source is the hook event log inside the checkout
+    (`session_event_log_dir`, project-relative), so the key's worktree split is
+    the behavior this artifact needs.
+  - `known-issues check-all` asks `scripts/check-all.sh --print-output-dir` for
+    its scratch directory, now `check-all-output/<state-key>`. The collision
+    here was not merely a lost file: the registry is project-relative whenever
+    the `registry_dir` option is set, and a reproduction on the pre-fix script
+    had project A read project B's registry rows back out of the shared
+    directory and report them as its own.
+  - Both fail closed when the state key cannot be derived. Falling back to the
+    unkeyed path would silently restore the collision.
+- **Migration follows rule 3: nothing reads the old locations.** An artifact
+  written under the unkeyed layout has no project segment, so nothing records
+  which repository produced it and it cannot be adopted into any key without
+  inventing that attribution. Both scripts NAME such leftovers on stderr as
+  files the operator may delete, and neither reads, moves, nor derives from
+  one. Existing reports and scratch files stay where they are.
+- **`check-all.test.sh`'s row-count assertion stopped being vacuous.** It called
+  an `assert_eq` the file never defined, so the case printed
+  `assert_eq: command not found` and passed regardless of the count.
+
+## [0.42.23]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks in the command tokenizer
+  and path helpers.** `hook::bash_parse_segments` walks `${cmd:i:1}` instead of
+  `read -N1` from a process substitution, and `$'…'` bodies decode through
+  `ansi_c_decode_to` (`printf -v`) instead of `$(ansi_c_decode)`. `repo_root`
+  and `repo_relative_path` gain `_to` forms so a caller does not pay a capture
+  subshell around the necessary git process or around builtins-only work.
+  GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
+  argv, unresolved-root fallback, and relative-path redaction are unchanged.
+
+## [0.42.22]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks on the stdin and notice
+  paths.** `hook::json_escape` no longer pipes through `tr`; `hook::emit_channels`
+  writes through `json_escape_to` instead of `$(json_escape)`; the fractional
+  `read -t` slice uses a Bash 4+ version check (CHANGES bash-4.0-alpha)
+  instead of a TMPDIR probe file; `notice_once`
+  reads the marker with `read` and creates or prunes the skip-notice directory
+  once per process. GNU Bash runs command substitution in a subshell even for
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 20 calls: `json_escape` 60→0 creations (20 `tr` execs→0);
+  `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
+  Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
+  Notice JSON, timeout resolution, and skip-notice latching are unchanged.
+
 ## [0.42.21]
 
 ### Changed

@@ -30,7 +30,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
   `security`, `spec` (spec-fidelity: did the change deliver what the originating item, plan, or
   brief asked for), `close-out` (the same fidelity lens at spec-container scale, one cumulative
   pass over everything a container shipped, across however many PRs, against the container's own
-  body; derives its own diff basis per execution shape), `downstream` (what the change breaks
+  body; derives its own diff basis per execution shape, and its acceptance-criteria rollup gains a
+  requirement-pattern column when the container's criteria carry bracketed EARS tags),
+  `downstream` (what the change breaks
   outside its own diff: callers, serialization boundaries, cross-service consumers), `pr`,
   `criteria`, `slice <name>`, `restatement`.
 - **`/review:fanout [mode]`**. Breadth review: fans out across the
@@ -38,6 +40,11 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
+- **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
+  operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
+  rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
+  test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
+  owner. It proposes a rung and never implements one.
 - **`/review:code-review`**. CI code-review lane command for
   `melodic-software/ci-workflows` `claude-review.yml` (correctness /
   maintainability; security scoped out when a security lane exists).
@@ -92,6 +99,11 @@ axis. [`reference/topic-docs.md`](reference/topic-docs.md) owns where that resol
 its non-interactive collapse, and the `.work/reviews/<branch-slug>/` default, and the skills read it
 rather than assuming a path shape. The memory root self-ignores (a `.gitignore` containing `*`,
 created on the session's first memory-tier write), so findings never enter version control.
+
+Enforcement-rung proposal stubs resolve through that same binding's separate
+`enforceability/<branch-slug>/` ladder, and the stub writer is handed both resolved homes so a stub
+can never land in the directory the `fanout` `fix` action scans, nor in the findings file's own
+directory.
 
 ## Install
 

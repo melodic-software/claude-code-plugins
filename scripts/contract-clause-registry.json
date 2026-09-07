@@ -118,6 +118,61 @@
           "hint": "state the fallback where no independent dispatch is reachable — leave the thread unresolved and do not merge"
         }
       ]
+    },
+    {
+      "id": "rendered-views-security-baseline",
+      "title": "Everything interpolated into a rendered view is untrusted data",
+      "$comment": "Registered by #3609. Three copies: the convention README owns the clause; adhd:clarify and architecture:improve repeat it inline because a skill runs where docs/conventions/ is not on disk. Before that retrofit the adhd copy named no escape characters at all, so one qualifier per character is what turns that drift into a gate failure instead of a review catch.",
+      "canonical": "docs/conventions/rendered-views/README.md",
+      "detect": "rendered[- ]views|security baseline|escape `&`, `<`",
+      "restates": "escape `&`, `<`|never build (an )?event-handler attributes? from input",
+      "qualifiers": [
+        {
+          "name": "escape-ampersand",
+          "pattern": "`&`",
+          "hint": "name `&` in the escape set"
+        },
+        {
+          "name": "escape-less-than",
+          "pattern": "`<`",
+          "hint": "name `<` in the escape set"
+        },
+        {
+          "name": "escape-greater-than",
+          "pattern": "`>`",
+          "hint": "name `>` in the escape set"
+        },
+        {
+          "name": "escape-double-quote",
+          "pattern": "`\"`",
+          "hint": "name `\"` in the escape set"
+        },
+        {
+          "name": "escape-single-quote",
+          "pattern": "`'`",
+          "hint": "name `'` in the escape set; the retrofit issue listed four characters, the convention lists five and governs"
+        },
+        {
+          "name": "text-and-attribute-positions",
+          "pattern": "in text and attribute positions",
+          "hint": "say the escape set applies in text AND attribute positions; a copy that names only element text leaves attribute injection unaddressed"
+        },
+        {
+          "name": "script-and-style",
+          "pattern": "never interpolate unescaped content into `<script>` or `<style>`",
+          "hint": "carry the `<script>` / `<style>` rule; escaping does not make interpolation into those elements safe"
+        },
+        {
+          "name": "event-handler-attributes",
+          "pattern": "never build (an )?event-handler attributes? from input",
+          "hint": "carry the event-handler rule; an `on*` attribute built from input runs regardless of escaping"
+        },
+        {
+          "name": "self-contained",
+          "pattern": "self-contained: no external requests, no remote scripts, assets inline",
+          "hint": "carry the self-containment bullet with its three parts: no external requests, no remote scripts, assets inline"
+        }
+      ]
     }
   ]
 }

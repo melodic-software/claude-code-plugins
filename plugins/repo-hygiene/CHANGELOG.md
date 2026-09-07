@@ -3,6 +3,109 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.35]
+
+### Added
+
+- `clean`: `git-branch-audit.sh` reports each branch's tip commit as a `Tip:` field, for every
+  branch regardless of verdict, and writes the tips with tier, PR state, upstream, ahead/behind and
+  a timestamp to a durable capture under the main checkout's `.git/repo-hygiene/branch-tips/`,
+  printing its path as `TipCapture:`. The file is written to a `.part` and sealed only when the
+  row count matches; any failure prints `TipCaptureError:` and no path, so a partial capture can
+  never pass for a complete one. `--capture-file PATH` overrides the location. The `.part` is
+  created exclusively (`noclobber`), so a stamp-pid collision or an interrupted run is refused
+  rather than interleaved into one file, and rows are recognised by shape (nine columns, a commit
+  id second), so a branch whose name begins with `#` is a row, never a miscounted comment that
+  fails the seal.
+- `clean`: `git-branch-delete.sh`, the only sanctioned branch-deletion path for the git tier. It
+  takes the audit's capture and refuses the whole batch, deleting nothing, when the capture is
+  missing, a branch has no captured tip, a captured tip no longer matches the branch, or a branch
+  is PROTECTED, WORKTREE, or an unforced REVIEW. In `--apply` it re-verifies the tip, pins it under
+  `refs/repo-hygiene/deleted/<branch>` so `gc` cannot prune the commits the record points at,
+  appends the deletion to `<capture>.deleted.tsv` (beside the capture's real file, symlinks
+  resolved), and only then deletes with `git update-ref -d refs/heads/<branch> <tip>`, an atomic
+  compare-and-delete that refuses a tip that moved after the re-check, the window between the pin
+  and the delete that a plain `git branch -D` leaves open; a failure in any earlier step aborts the
+  batch before that branch is touched, and a refused delete leaves the branch and its pin in place
+  with a `# not deleted:` note in the ledger. A SAFE-by-ancestry row is admitted only when its tip
+  is merged into `origin/<default>`, and refused up front otherwise. Every `Deleted:` line and the
+  closing `Restore:` line carry the restore command. The test deletes branches through the script,
+  runs `gc --prune=now`, restores them from the capture alone, and opens both tip-move windows
+  deterministically (a FIFO at the ledger path parks the script between pin and delete) to show
+  that neither can remove a moved tip. Closes #3853, the first half of #3346 gap G1.
+
+### Changed
+
+- `clean`: §4.7 of `context/git-branch-cleanup.md` routes deletion through the script instead of
+  a bare `git branch -d`/`-D`, documents the capture path convention and the ledger, and gains a
+  §4.8 with the recovery steps; SKILL.md §4.2 states the precondition.
+
+### Fixed
+
+- `git-branch-delete.sh` treats a SAFE row as a force delete only when the captured `pr` matches
+  the audit's exact merged-PR format (`#<n> MERGED` or `#<n> MERGED (tip drift)`). A substring
+  containing MERGED is not enough: both `tier` and `pr` are untrusted capture text, and a bare
+  substring skipped the ancestry check that is the last verification for SAFE-by-ancestry deletes.
+- An unresolved capture `common_dir` (missing, empty, or the literal `unknown`) is a refusal, not
+  a skipped check. That field is the only gate that the capture describes this repository, so
+  delete fails closed the same way `git-branch-audit.sh` already does when it cannot resolve one.
+
+## [0.10.34]
+
+### Fixed
+
+- The `clean` skill's session-scoped destructive guard now registers against `Bash|PowerShell`
+  instead of `Bash` alone. The guard's own patterns have always included a PowerShell spelling
+  (recursive `Remove-Item`), but a `Bash`-only matcher can never hand it a PowerShell tool call,
+  so that pattern was unreachable and on a host whose primary shell is PowerShell the guard was
+  absent rather than merely partial. A PowerShell tool call carries its command in the same
+  `.tool_input.command` field.
+- The guard accepts a PowerShell acknowledgement, `$env:CLEAN_GUARD_ACK=1; <command>`, on the
+  PowerShell tool. The only documented ack was the Bash prefix `CLEAN_GUARD_ACK=1 <command>`,
+  which PowerShell cannot execute, so once the guard reached the PowerShell tool a confirmed
+  `Remove-Item -Recurse`, `git reset --hard`, or `git stash drop` had no acknowledgement path
+  short of the kill switch. Each spelling counts only on its own tool and only as the leading
+  statement with the literal value `1`: the token inside a comment or a quoted string, after the
+  destructive command, in a later pipeline segment, or with any other value does not unblock.
+  The tool dispatch is default-deny: the Bash prefix is accepted only when `tool_name` is exactly
+  `Bash`, the `$env:` spelling only when it is exactly `PowerShell`, and any other or missing
+  `tool_name` gets no acknowledgement path at all. Blocking is unchanged for every tool, so this
+  closes no live bypass. It removes a grant nobody chose: written as "anything that is not
+  PowerShell", the dispatch would hand the Bash prefix to a third shell tool added later, before
+  anyone decided that tool should have an unblock. The block reason for such a tool now says
+  there is no acknowledgement path instead of naming a spelling the tool cannot honour.
+- The `clean` skill's documented PowerShell stash drop quotes the `stash@{n}` selector. Bare, pwsh
+  reads `@{…}` as splatting syntax and git receives a mangled argument, reporting
+  ``unknown switch `e'`` and dropping nothing, so the documented example did not do what it said.
+  The acknowledgement itself always propagated correctly; only the selector needed quoting, and
+  only on the PowerShell lane. Bash is unchanged.
+- Both audit scripts stop truncating the pull-request lookup at 200 and stop swallowing its
+  failures. `git-branch-audit.sh` and `git-stash-audit.sh` now share one `clean_pr_map` helper
+  that raises the cap, detects truncation by comparing the returned count against the requested
+  limit (`gh pr list` has no unlimited sentinel and rejects `--limit 0`), and reports status as
+  `PRCount:`, `PRDataTruncated:`, or `PRDataUnavailable:`. The lookup is the only mechanism that
+  detects a squash merge, so a short or missing map did not soften a verdict, it inverted one: a
+  branch whose work had landed lost its evidence and reported as unmerged. A repository with no
+  pull requests (`PRCount: 0`) is now distinguishable from one whose pull requests could not be
+  read at all. Failure to create or write the map file is the same unavailable case: an ignored
+  redirect used to leave no file while still emitting `PRCount`, so a broken `TMPDIR` looked like a
+  complete map with no rows. Override the cap with `CLEAN_PR_LIST_LIMIT`.
+
+### Changed
+
+- The skill body no longer resolves a repository root unconditionally in step 0. A bare
+  `git rev-parse --show-toplevel` there ended the run with git's error status when invoked
+  outside a repository, on a path the skill documents as reachable from anywhere. The tiers that
+  need a root resolve it themselves, guarded, and an empty result stops that tier instead of the
+  session.
+- The `allowed-tools` frontmatter comment no longer says the six mutating scripts stay behind the
+  PreToolUse destructive guard. They do not: the guard matches destructive command shapes and
+  matches none of those scripts, nor `git branch -D`, nor `git push --delete`. Withholding the
+  grant, so the permission flow and the confirmation gate apply, is the actual mechanism. The
+  guard's stated best-effort posture is preserved rather than extended; whether its coverage
+  should grow is a separate human-gated decision
+  ([#3852](https://github.com/melodic-software/claude-code-plugins/issues/3852)).
+
 ## [0.10.33]
 
 ### Changed

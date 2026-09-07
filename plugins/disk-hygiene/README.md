@@ -134,6 +134,51 @@ alias (Settings > Apps > Advanced app settings > App execution aliases) or insta
 of WindowsApps on `PATH`. A bare `command -v python3` / `where python3` success is not proof the
 interpreter is real, the stub answers to the name too.
 
+## Reading guard decisions after the fact
+
+Every verdict the guard reaches is appended to a local record under the plugin's own persistent
+data directory, with no configuration:
+
+```text
+<CLAUDE_PLUGIN_DATA>/guard-decisions/decisions.jsonl
+```
+
+One JSON object per line, so `tail`, `grep`, and any JSON-aware reader all work with no
+purpose-built tool:
+
+```json
+{"schema_version":"1.0","timestamp":"2026-09-07T18:22:41.907Z","hook":"destructive-guard","decision":"ask","rule":"exact-engine-apply","tool":"Bash","mode":"engine-gate","command":"python3 <engine> apply --execute ...","reason":"disk-hygiene is ready to apply one exact, previewed tier..."}
+```
+
+`decision` is one of `allow`, `ask`, `deny`, `none` (the guard ran and issued no
+`permissionDecision`), or `not-run`. `rule` names the branch that fired, so a denial because
+execution is switched off (`kill-switch-disabled-apply`) is distinguishable from a denial because
+the command was not an exact engine invocation (`not-exact-engine-command`). The `not-run` records
+come from the `Stop` detector, which is the only process that can observe a guard that never
+launched.
+
+- **Bounded.** The live file rotates to `decisions.previous.jsonl` at 1 MiB, so the record holds at
+  most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
+  to 400 characters.
+- **Command text is omitted on the catch-all arms.** A PowerShell call recorded as `none` (belt mode,
+  no flagged spelling) and a Bash deny-by-default (`not-exact-engine-command`) persist
+  `command_chars` (length only) instead of the command text. Those branches fire on arbitrary
+  session commands.
+- **Owner-only.** The directory is created `0700` and the live file `0600`. Mode is reapplied on
+  every write so a leftover world-readable file is tightened.
+- **Never a factor in a verdict.** An unwritable data root, a full disk, or any other write failure
+  records nothing and changes no decision: the verdict is computed and emitted before the record is
+  attempted, and the write path raises nothing.
+- **Not a replacement for telemetry.** A configured `HOOK_TELEMETRY_SINK` keeps receiving exactly
+  what it received before. The local record is the floor beneath it, for the ordinary case where no
+  sink exists.
+- **What is not recorded.** The plugin-level defer, the branch this hook takes for every Bash
+  command that does not name the engine, writes nothing, which is what keeps the always-on path
+  free. The watchdog's expiry path also writes nothing: that callback runs while the main thread is
+  presumed wedged inside a filesystem call, and it stays syscall-free for exactly that reason.
+- **Turning it off.** Set `DISK_HYGIENE_GUARD_DECISION_LOG` to `0`, `off`, `false`, or `no`. Any
+  other value, including an absent one, records.
+
 ## Usage
 
 ```text
@@ -250,28 +295,49 @@ measurements below carry the conditions they were taken under.
   pairs, measured p50 5446 → 1418 ms and p95 16991 → 7874 ms; those absolute values are specific to
   that contention and are not comparable to the ≈ 190–300 ms figures above, which were taken on a
   quiet host. Re-measure per the convention's method on a quiet host before citing a new share.
-  **Superseded in 0.21.10 for every shell call that does not name the engine.** The gate is
-  registered once per tool, and each entry carries the `if` filter for its own tool over the
-  engine's file name, `Bash(*hygiene.py*)` (since 0.21.4) and `PowerShell(*hygiene.py*)`, because
-  an `if` filter is scoped to the tool it names and one `Bash(...)` filter under a `Bash|PowerShell`
-  matcher left every PowerShell call unguarded. The harness evaluates the filter through the
-  tool's own permission matcher before it spawns anything, so a Bash or PowerShell call that does
-  not name the engine now costs this plugin zero processes and zero `execve` calls. Before, on a
-  warm interpreter cache, every PowerShell call paid four `execve` calls (`bash -c`, the launcher
-  through its `env` shebang, bash, the interpreter), no fork, and a 106 KB module import, to be
-  told it was irrelevant; measured with `strace -f` on Linux, where the hook process walled at
-  p50 44 ms against a `bash -c :` floor of 2 ms (n = 20 per tool), about 22 spawn-equivalents,
-  the cost class the issue measured as a 2.4 s median on Windows. A call that names the engine
-  pays that chain unchanged and is judged unchanged. What each filter still cannot see: for Bash,
-  a command containing `$()`, a backtick or `$VAR` spawns the guard anyway, because the filter
-  cannot see what the substitution expands to; for PowerShell, the matcher parses the command and
-  runs the hook when any statement, pipeline element or nested command matches, so a mixed line
-  such as `Get-Date; python hygiene.py` still reaches the guard (the every-subcommand rule applies
-  to allow decisions, not to `if`). Neither filter sees an engine reached without its own file
-  name in the command text, any spelling such as a symlink or hard link under another name or a
-  Win32 8.3 short name; the gate's relevance check could catch that case by file identity, and the
-  residual is accepted on both lanes, as it has been on the Bash lane since 0.21.4, because the
-  engine's own preview and approval-token containment still answers for it.
+  **Superseded in 0.23.1 for every shell call that does not name the engine and does not
+  invoke it through a variable.** The gate is registered once per tool. Bash carries
+  `Bash(*hygiene.py*)`. PowerShell carries `PowerShell(*hygiene.py*)` plus
+  `PowerShell(*python*$*)` and `PowerShell(*& $*)`, because the PowerShell matcher evaluates
+  collected command nodes and a literal path in `$script = '.../hygiene.py'` is not part of the
+  later `python $script` (or `& $script`) command. An `if` filter is scoped to the tool it
+  names, and one `Bash(...)` filter under a `Bash|PowerShell` matcher left every PowerShell
+  call unguarded. The harness evaluates the filter through the tool's own permission matcher
+  before it spawns anything, so a Bash or PowerShell call that does not name the engine and
+  does not invoke an interpreter or call-operator through a variable now costs this plugin
+  zero processes and zero `execve` calls. Before, on a warm interpreter cache, every
+  PowerShell call paid four `execve` calls (`bash -c`, the launcher through its `env`
+  shebang, bash, the interpreter), no fork, and a 106 KB module import, to be told it was
+  irrelevant; measured with `strace -f` on Linux, where the hook process walled at p50 44 ms
+  against a `bash -c :` floor of 2 ms (n = 20 per tool), about 22 spawn-equivalents, the cost
+  class the issue measured as a 2.4 s median on Windows. A call that names the engine, or
+  invokes python/`&` through a variable, pays that chain unchanged and is judged unchanged.
+  What the filters still cannot see: for Bash, a command containing `$()`, a backtick or
+  `$VAR` spawns the guard anyway, because the filter cannot see what the substitution expands
+  to; for PowerShell, the matcher parses the command and runs the hook when any statement,
+  pipeline element or nested command matches, so a mixed line such as
+  `Get-Date; python hygiene.py` still reaches the guard (the every-subcommand rule applies to
+  allow decisions, not to `if`). Neither filter sees an engine reached without its own file
+  name in a command node and without an interpreter or call-operator variable, any spelling
+  such as a symlink or hard link under another name or a Win32 8.3 short name; the gate's
+  relevance check could catch that case by file identity, and the residual is accepted on
+  both lanes, as it has been on the Bash lane since 0.21.4, because the engine's own preview
+  and approval-token containment still answers for it.
+  **0.23.0 delta (local decision record):** the guard now appends one line to
+  `<CLAUDE_PLUGIN_DATA>/guard-decisions/decisions.jsonl` on every branch that reaches a verdict.
+  The added trust surface is that one append, to a path under the plugin's own data root and
+  nowhere else, no read of anything new and no process. The always-on defer branch, which is what a
+  Bash command that does not name the engine takes, writes nothing and is byte-for-byte the path it
+  was. Measured with `strace -f -e trace=clone,clone3,fork,vfork,execve,openat,write` on a Linux
+  container against `origin/main` at `6db96637d`, five invocations per arm: the **process and exec
+  census is unchanged on both paths**, one `execve` (the guard) and one `clone3` (the watchdog
+  thread, `CLONE_THREAD`, not a process), before and after. The record itself costs one `openat`
+  plus one `write` plus one `chmod` (the live file, `0600`) on a warm data root, and one extra
+  failed `openat` plus one `mkdir` plus one `chmod` (the directory, `0700`) on the first write of
+  an install. Wall-clock over 40 invocations per arm, alternated twice, moved inside
+  run-to-run noise on that host (52–58 ms both before and after, the sign of the difference
+  changing between repetitions), which is why the syscall census rather than a duration is the
+  figure cited here.
   On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`

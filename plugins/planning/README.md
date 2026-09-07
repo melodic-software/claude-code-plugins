@@ -12,13 +12,13 @@ where artifacts land in the consuming repo.
 |---|---|---|
 | `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared decision map on the work-item tracker, then works its frontier one decision at a time, routing each to the right skill until the fog clears and a Brief / PRD / PLAN can be handed onward. Upstream of the whole pipeline. |
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
-| `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. |
-| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. |
+| `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. Acceptance-criteria capture asks once about missing unwanted-behaviour and state-driven cases (skipped and reported unexamined on the `synthesize` path). |
+| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. Acceptance-criteria capture asks once about missing unwanted-behaviour and state-driven cases, and emits EARS-tagged criteria when the team's convention selects that format. |
 | `/planning:audit-answers` | Contract validation | Independent adversarial validation of a completed `/planning:interview`'s answers, over any filled ledger, hand-answered or auto-accepted. Fresh-context validators re-examine each answer with its rationale withheld and return one verdict per answer: `confirmed`, `challenged`, or `reclassified`. Only the challenged and reclassified answers, plus every user-reserved decision, return as real human questions. Open branches are accept-filled first, holding the never-auto floor. |
 | `/planning:questionnaire` | Person hand-off | Turns a decision another person holds into a discovery questionnaire delivered async. It interviews the user about the send only (recipient, what's needed back), writes the document to the topic's memory slice, and leaves delivery out-of-band. |
 | `/planning:draft-goal-condition` | Goal authoring | Crafts a paste-ready `/goal` completion condition from a stated intent. It reads the current official `/goal` docs live for the condition shape and character limit (nothing hardcoded), drafts a transcript-demonstrable condition, and proves it fits the limit with a deterministic character counter instead of model guesswork, with a branch that builds a checkable condition for goals no metric can measure; a lever-fit gate routes interval-shaped, cloud/sessionless, orchestration-only, and multi-window / multi-ticket work elsewhere. Standalone. |
-| `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts; its `handoff` action delegates to `/planning:design-handoff`. |
-| `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan`. The gate is a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED. Then it packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
+| `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts; its `handoff` action delegates to `/planning:design-handoff`. Its `data`, `integration`, and `system` artifacts are typed: each carries a `scope` + `dialect` label and a fenced block in the dialect the `diagram_dialect` convention key resolves to (mermaid `erDiagram` or DBML for data; mermaid `sequenceDiagram` plus an OpenAPI 3.1 sketch for integration; a LikeC4 or C4-PlantUML container view for system, and no C4 view at all when that key is unset). `library` and `module` emit no typed artifact. |
+| `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan`. The gate is a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED. Then it packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. On PASS and FAIL alike it also emits an advisory six-dimension coverage table (what, how, where, who, when, why) that never contributes to the verdict; uncovered dimensions ride along in the handoff summary and the resume prompt. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps. Every finding evidence-backed, never generic warnings. An `incumbent` mode turns the same lens on the status quo: an Alternatives Sweep that stress-tests keeping an incumbent tool/approach against alternatives (native > official > vetted ladder, coupling priced, KEEP / MIGRATE / RESEARCH verdict), exploring the incumbent first-hand in a fresh sub-agent. |
 | `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | `check` inspects the topic-docs seam and standards index read-only; `apply` interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts, and bootstraps the standards index (idempotent; re-run to reconfigure). |
@@ -39,7 +39,8 @@ themselves. Every skill also works standalone.
   engineering defaults.
 - **Graceful degrade.** Adjacent capabilities are invoked when installed:
   codebase exploration and external research (`discovery`), test-design guidance
-  (`tdd`), prototyping (`prototype`), and session handoff (`session-flow`).
+  (`tdd`), prototyping (`prototype`), decision recording (`architecture`), and
+  session handoff (`session-flow`).
   Missing plugins get inline guidance; no step blocks.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
   planning artifacts land per the topic-docs convention. Contract documents go in
@@ -65,6 +66,17 @@ self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run
 `/planning:setup apply` to interview and persist the tracked
 concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
 `contract_tier: branch | local`); absent keys mean those documented defaults.
+
+The **format acceptance criteria are written in** is a separate, optional team-shared
+choice. `/planning:interview` and `/planning:prd` read
+`acceptance_criteria_format` from `<home>/authoring-formats/README.md`, where
+`<home>` is the convention home bound by the pointer line in your root instruction
+file. `ears` tags every emitted criterion with one of five bracketed patterns
+(`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`,
+`optional-feature`); `free-text` is the default and emits prose criteria untagged,
+exactly as before. Every failure to resolve degrades to `free-text` with the cause
+named, whether that is no pointer line, no such document, no such key, or an
+unrecognized value, so a repo that declares nothing sees no change in output.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

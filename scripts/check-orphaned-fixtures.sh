@@ -83,17 +83,60 @@ matched_baseline() {
 }
 
 # plugin root that owns a path under plugins/<name>/… -> plugins/<name>
-plugin_root_of() {
+plugin_root_of_to() {
   # plugins / <name> / rest…  -> keep the first two segments
-  local rest="${1#plugins/}"
-  printf 'plugins/%s' "${rest%%/*}"
+  local rest="${2#plugins/}"
+  printf -v "$1" 'plugins/%s' "${rest%%/*}"
+}
+
+# ere_escape_to <var> <string>
+# Write the ERE-escaped form into <var> in THIS shell. The previous
+# `esc=$(printf '%s' "$base" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')` paid a
+# printf+sed pipeline per fixture (380 on this tree). GNU Bash runs command
+# substitution in a subshell even for builtins (Command Substitution, Bash
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Same
+# metacharacter class as that sed.
+ere_escape_to() {
+  local __s="$2" __out="" __c
+  local -i __i
+  for ((__i = 0; __i < ${#__s}; __i++)); do
+    __c="${__s:__i:1}"
+    case "$__c" in
+    # Unquoted `\\` is one backslash. A quoted `'\\'` arm is two backslash
+    # characters, so a basename containing a single `\` would not be escaped
+    # and `grep -E` would treat `\b` as a word boundary.
+    \\ | '.' | '|' | '$' | '(' | ')' | '[' | ']' | '{' | '}' | '?' | '+' | '*' | '^')
+      __out+="\\$__c"
+      ;;
+    *)
+      __out+="$__c"
+      ;;
+    esac
+  done
+  printf -v "$1" '%s' "$__out"
+}
+
+# jq files[] extract, once per evals.json. autonomy/setup alone has 238
+# fixtures sharing one grader; a per-fixture jq was 378 execs for 26 files.
+declare -A EVAL_FILES_VALUES
+eval_files_values_to() {
+  local __dest="$1" __path="$2"
+  if [[ "${EVAL_FILES_VALUES[$__path]+x}" == x ]]; then
+    printf -v "$__dest" '%s' "${EVAL_FILES_VALUES[$__path]}"
+    return
+  fi
+  local __v=""
+  __v="$(jq -r '.. | objects | .files? // empty | .[]? | select(type == "string")' "$__path" 2>/dev/null)" || __v=""
+  EVAL_FILES_VALUES[$__path]="$__v"
+  printf -v "$__dest" '%s' "$__v"
 }
 
 # consumed <fixture-path> -> 0 if some grader consumes it
 consumed() {
   local fixture="$1"
   local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
-  local esc_base base_re test_file
+  local esc_base base_re test_file line
+  local -a skill_tests plugin_other_tests
 
   fixtures_dir="${fixture%/*}"
   # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
@@ -111,8 +154,7 @@ consumed() {
   # wrongly consume a new unconsumed valid.json.bak sibling. Escape ERE
   # metacharacters in the basename, then require the neighbors (if any) to be
   # outside [A-Za-z0-9._-] so a longer filename never satisfies the match.
-  # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE metachar being escaped, not a shell expansion
-  esc_base="$(printf '%s' "$base" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')"
+  ere_escape_to esc_base "$base"
   base_re="(^|[^A-Za-z0-9._-])${esc_base}([^A-Za-z0-9._-]|$)"
 
   if [[ -f "$evals_json" ]]; then
@@ -123,12 +165,14 @@ consumed() {
     # differently still names the file). A shorter $rel is not a substring of a
     # longer value under -x. jq failure (missing/invalid json) -> empty -> falls
     # through to the test-file check below.
-    files_values="$(jq -r '.. | objects | .files? // empty | .[]? | select(type == "string")' "$evals_json" 2>/dev/null)"
-    if printf '%s\n' "$files_values" | grep -qxF -- "$rel"; then
-      return 0
-    fi
-    if printf '%s\n' "$files_values" | grep -qE -- "$base_re"; then
-      return 0
+    eval_files_values_to files_values "$evals_json"
+    if [[ -n "$files_values" ]]; then
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" == "$rel" ]] && return 0
+      done <<<"$files_values"
+      if printf '%s\n' "$files_values" | grep -qE -- "$base_re"; then
+        return 0
+      fi
     fi
   fi
 
@@ -136,26 +180,38 @@ consumed() {
   # the OWNING skill, so same-named fixtures in sibling skills are never
   # conflated. A test elsewhere in the plugin must name the fixture by its
   # plugin-relative path (fixed string), which is unambiguous across skills.
-  while IFS= read -r -d '' test_file; do
-    if grep -qE "$base_re" "$test_file"; then
-      return 0
-    fi
-  done < <(find "$skill_dir" -type f -name '*.test.*' -print0 2>/dev/null)
-
-  plugin="$(plugin_root_of "$fixture")"
+  # ALL_TEST_FILES is indexed once below — not `find` per fixture (#3488 class).
+  plugin_root_of_to plugin "$fixture"
   plugin_rel="${fixture#"$plugin"/}"
-  while IFS= read -r -d '' test_file; do
-    case "$test_file" in "$skill_dir"/*) continue ;; *) ;; esac
-    if grep -qF -- "$plugin_rel" "$test_file"; then
-      return 0
-    fi
-  done < <(find "$plugin" -type f -name '*.test.*' -print0 2>/dev/null)
+  skill_tests=()
+  plugin_other_tests=()
+  for test_file in "${ALL_TEST_FILES[@]}"; do
+    [[ -n "$test_file" ]] || continue
+    case "$test_file" in
+    "$skill_dir"/*) skill_tests+=("$test_file") ;;
+    "$plugin"/*) plugin_other_tests+=("$test_file") ;;
+    *) ;;
+    esac
+  done
+  if ((${#skill_tests[@]} > 0)) && grep -qE -- "$base_re" "${skill_tests[@]}"; then
+    return 0
+  fi
+  if ((${#plugin_other_tests[@]} > 0)) && grep -qF -- "$plugin_rel" "${plugin_other_tests[@]}"; then
+    return 0
+  fi
 
   return 1
 }
 
-# Collect every fixture under a **/evals/fixtures/ directory, sorted.
+# Collect every fixture under a **/evals/fixtures/ directory, sorted. One find
+# of every plugin `*.test.*` indexes the test-file graders: consumed() used to
+# `find` the owning skill and then the plugin for each of ~380 fixtures
+# (253 find execs on this tree). Same leftover-process class #3488 removed
+# from the shell-portability scan (979s → 34s) — GNU find is a process;
+# Cygwin's fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's
+# Guide, Process Creation).
 mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
+mapfile -t -d '' ALL_TEST_FILES < <(find plugins -type f -name '*.test.*' -print0 2>/dev/null)
 
 # Track which baseline entries actually shadow an orphan, to flag stale ones.
 declare -A entry_used

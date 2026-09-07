@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.17]
+
+### Added
+
+- **`audit`:** an Effort subsection that reads the caller's effort level through the
+  `${CLAUDE_EFFORT}` substitution and derives a default mutant cap from it, 5 at `low` and 15 at
+  `medium`. The cap applies only when neither `--max` nor the configured `max-mutants` sets one, so
+  effort never overrides a caller's or the config's choice and `high` and above stay uncapped, which
+  leaves behavior at the default level unchanged. An effort-derived cap reports through the existing
+  Phase 1 truncation rule, and Phase 4 triage still runs in fresh context on every surviving mutant
+  at every level.
+
 ## [0.3.16]
 
 ### Changed

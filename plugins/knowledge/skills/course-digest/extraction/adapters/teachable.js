@@ -23,6 +23,7 @@ import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { login as teachableLogin } from "../lib/auth/teachable-sso.js";
 import { fetchMetaTags } from "../lib/meta-tags.js";
 import {
+  DEFAULT_VIDEO_PLAYER_SELECTOR,
   extractFrames as extractHotmartFrames,
   getHlsUrl,
   getTranscript,
@@ -40,7 +41,7 @@ const COURSE_SLUG_PATH = /\/courses\/([^/]+)/;
 // ---------------------------------------------------------------------------
 
 export const defaults = {
-  videoPlayerSelector: ".hotmart_video_player",
+  videoPlayerSelector: DEFAULT_VIDEO_PLAYER_SELECTOR,
   authWarnDays: 14,
   authProvider: "teachable",
   subtitleLanguage: "eng",
@@ -86,6 +87,11 @@ function resolveResourceSelectors(platformCfg) {
   return { ...defaults.resourceSelectors, ...platformCfg.resourceSelectors };
 }
 
+/** The configured video-player selector, falling back to the adapter default. */
+export function resolveVideoPlayerSelector(platformCfg) {
+  return platformCfg?.videoPlayerSelector ?? defaults.videoPlayerSelector;
+}
+
 /**
  * Detect available resources on the current Teachable lesson page.
  * Reads .lecture-attachment-type-* CSS classes from the DOM.
@@ -93,14 +99,15 @@ function resolveResourceSelectors(platformCfg) {
 export async function detectResources(page, platformCfg) {
   return timed("detect-resources", null, async () => {
     const selectors = resolveResourceSelectors(platformCfg);
+    const videoPlayerSelector = resolveVideoPlayerSelector(platformCfg);
 
     return page.evaluate(
-      ({ sel, attachmentTypeSource }) => {
+      ({ sel, attachmentTypeSource, videoSel }) => {
         const has = (s) => !!document.querySelector(s);
         const attachmentTypePattern = new RegExp(attachmentTypeSource);
 
         return {
-          hasVideo: has(".hotmart_video_player"),
+          hasVideo: has(videoSel),
           hasTranscript: false,
           hasDownload: has(sel.file),
           hasLessonNotes: false,
@@ -115,7 +122,11 @@ export async function detectResources(page, platformCfg) {
           ),
         };
       },
-      { sel: selectors, attachmentTypeSource: LECTURE_ATTACHMENT_TYPE_SOURCE },
+      {
+        sel: selectors,
+        attachmentTypeSource: LECTURE_ATTACHMENT_TYPE_SOURCE,
+        videoSel: videoPlayerSelector,
+      },
     );
   });
 }
@@ -149,8 +160,9 @@ export async function prepareLessonPage(page, platformCfg, lesson) {
   return timed("prepare-lesson-page", { lesson: lesson?.title }, async () => {
     const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
     const manifestTimeout = platformCfg.manifestTimeoutMs ?? defaults.manifestTimeoutMs;
+    const videoSelector = resolveVideoPlayerSelector(platformCfg);
 
-    return preparePage(page, subtitleLang, manifestTimeout);
+    return preparePage(page, subtitleLang, manifestTimeout, videoSelector);
   });
 }
 
@@ -243,13 +255,13 @@ export async function extractFramesCanvas({ page, duration, outputDir, options =
 /**
  * Pre-flight check: verify Hotmart iframe loads and Teachable API responds.
  */
-export async function preflight(page, _platformCfg) {
-  const checks = await page.evaluate(() => {
-    const hotmartEl = !!document.querySelector(".hotmart_video_player");
+export async function preflight(page, platformCfg) {
+  const checks = await page.evaluate((videoSel) => {
+    const hotmartEl = !!document.querySelector(videoSel);
     const lectureContent = !!document.querySelector(".lecture-content");
     const attachments = document.querySelectorAll(".lecture-attachment").length;
     return { hotmart: hotmartEl, lectureContent, attachments };
-  });
+  }, resolveVideoPlayerSelector(platformCfg));
 
   const failures = Object.entries(checks)
     .filter(([key, val]) => key !== "attachments" && !val)
@@ -273,7 +285,7 @@ export async function preflight(page, _platformCfg) {
  * @param {import('./auth-session.js').AuthSessionInput} input
  */
 export async function authenticate({ context, page, course, storageStatePath, platformCfg }) {
-  const videoSelector = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
+  const videoSelector = resolveVideoPlayerSelector(platformCfg);
   const envPrefix = platformCfg.authEnvPrefix ?? "TEACHABLE";
 
   const firstVideoLesson = course.modules.flatMap((m) => m.lessons).find((l) => l.duration);

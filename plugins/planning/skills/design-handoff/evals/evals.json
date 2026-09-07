@@ -24,7 +24,8 @@
         "Output reports a FAIL rather than handing off",
         "Output names the specific offending thread that is unresolved AND untagged (the stop-word / stemming thread)",
         "Output routes back to /planning:design to resolve or tag the gap",
-        "Output does NOT emit a plan-ready handoff summary"
+        "Output does NOT emit a plan-ready handoff summary",
+        "The FAIL verdict and the routing back to /planning:design are unchanged and come first; any coverage table follows them and never turns the FAIL into a PASS or the PASS into a FAIL"
       ]
     },
     {
@@ -61,6 +62,48 @@
         "Output does NOT itself decide/resolve the open design thread",
         "Output routes the resolution work back to /planning:design",
         "Output keeps its role to the binary gate + handoff packaging, not design exploration"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "coverage-table-all-resolved",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-coverage-all-six.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and report coverage.",
+      "expected_output": "The gate PASSes and then emits the advisory coverage table with one row per dimension — what, how, where, who, when, why — each row naming the thread that addresses it and that thread's status (RESOLVED or directional). No row reads `none`, because every dimension is addressed by a resolved or directional thread.",
+      "files": ["evals/fixtures/design-threads-coverage-all-six.md"],
+      "expectations": [
+        "Output emits a coverage table with the columns Dimension | Covered by | Status and exactly six rows: what, how, where, who, when, why",
+        "Each row names the thread from the fixture that addresses that dimension and that thread's status",
+        "The directional threads (runtime placement; timing, sequencing and lifecycle) count as covering their dimensions, reported with status directional",
+        "No row reads `none`",
+        "The coverage table follows the PASS verdict and does not change it"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "coverage-gaps-still-pass",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-coverage-gaps.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and report coverage.",
+      "expected_output": "Every thread is RESOLVED or TAGGED-DEFERRED, so the binary gate PASSes and the handoff proceeds. The coverage table nevertheless reads `none` for `where` and for `who`, because no resolved or directional thread records location, topology or runtime placement, nor an actor, owner, operator or caller. The gap is advisory: it is reported and listed as an uncovered dimension in the handoff summary, and it does not block.",
+      "files": ["evals/fixtures/design-threads-coverage-gaps.md"],
+      "expectations": [
+        "Output reports a PASS: every thread is RESOLVED, directional, or TAGGED-DEFERRED",
+        "The coverage table reads `none` for the where row and for the who row",
+        "The coverage gap does NOT downgrade the PASS or block the handoff, and is not promoted to a FAIL",
+        "The handoff summary lists the uncovered dimensions (where, who) and the resume prompt carries them",
+        "The TAGGED-DEFERRED encoding thread is not treated as covering any dimension"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "coverage-on-early-exit",
+      "prompt": "/planning:design-handoff — there is no design-threads.md; treat evals/fixtures/design-resolution-early-exit.md (relative to the skill directory) as the topic's design-resolution.md. Run the gate and report coverage.",
+      "expected_output": "The early-exit slice hands off on `design-resolution.md` alone, and the coverage table is read over that file rather than over an absent design-threads.md — covered rows cite the early-exit artifact's recorded decisions and uncovered rows read `none`.",
+      "files": ["evals/fixtures/design-resolution-early-exit.md"],
+      "expectations": [
+        "Output reads the gate and the coverage table over design-resolution.md, not over an absent design-threads.md",
+        "Output still emits all six dimension rows: what, how, where, who, when, why",
+        "Covered rows cite what the early-exit artifact actually records (the value type, the normalization mechanism, the recorded rationale), with the Status cell reading `recorded` because the artifact carries no thread statuses",
+        "Dimensions the artifact records nothing about read `none` rather than being invented",
+        "The coverage report does not turn the early-exit handoff into a FAIL"
       ]
     }
   ]

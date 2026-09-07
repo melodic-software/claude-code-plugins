@@ -5,6 +5,44 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.48]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks in the command tokenizer
+  and path helpers.** `hook::bash_parse_segments` walks `${cmd:i:1}` instead of
+  `read -N1` from a process substitution, and `$'…'` bodies decode through
+  `ansi_c_decode_to` (`printf -v`) instead of `$(ansi_c_decode)`. `repo_root`
+  and `repo_relative_path` gain `_to` forms so a caller does not pay a capture
+  subshell around the necessary git process or around builtins-only work.
+  GNU Bash runs command substitution in a subshell even for builtins
+  (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 5 plain parses plus 5 with a `$'…'` word: 15 clones → 0. Tokenizer
+  argv, unresolved-root fallback, and relative-path redaction are unchanged.
+
+## [0.7.47]
+
+### Changed
+
+- **Synced `hooks/hook-utils.sh` drops leftover forks on the stdin and notice
+  paths.** `hook::json_escape` no longer pipes through `tr`; `hook::emit_channels`
+  writes through `json_escape_to` instead of `$(json_escape)`; the fractional
+  `read -t` slice uses a Bash 4+ version check (CHANGES bash-4.0-alpha)
+  instead of a TMPDIR probe file; `notice_once`
+  reads the marker with `read` and creates or prunes the skip-notice directory
+  once per process. GNU Bash runs command substitution in a subshell even for
+  builtins (Command Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is a
+  non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  Creation). Kernel census `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  over 20 calls: `json_escape` 60→0 creations (20 `tr` execs→0);
+  `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
+  Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
+  Notice JSON, timeout resolution, and skip-notice latching are unchanged.
+
 ## [0.7.46]
 
 ### Changed

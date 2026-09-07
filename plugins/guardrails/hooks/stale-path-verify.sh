@@ -56,8 +56,14 @@ start=${EPOCHREALTIME:-}
 # no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
+# enforced here, so the loss on an abort is the advisory itself.
+guard::abort_boundary stale-path-verify PostToolUse open 0
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh"
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 hook::ctx_reset
 
@@ -133,7 +139,8 @@ esac
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
 # Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
@@ -532,7 +539,8 @@ emit_tel() {
   # comes back as the basename, never an absolute path, which would embed the
   # developer's username.
   local findings_json="[]" file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
   if ((${#MISSING[@]} > 0)); then
     findings_json=$(printf '%s\n' "${MISSING[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi

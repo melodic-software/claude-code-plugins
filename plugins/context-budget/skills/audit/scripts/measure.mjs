@@ -30,11 +30,14 @@
 //
 // Comparability rules the engine enforces (measured, see the plugin's
 // reference/engine.md):
-//   - `System tools` deltas are only meaningful between runs whose skill
-//     listing is identical (listed skill-frontmatter tokens are subtracted
-//     from that bucket). Every record carries a skill-listing signature and
-//     compare/attribute refuse to call mismatched runs comparable.
-//   - Deltas are computed within one mode and one binary version only.
+//   - Prefix `System tools` deltas are only meaningful between runs whose
+//     skill listing is identical (listed skill-frontmatter tokens are
+//     subtracted from that bucket). The deferred bucket is a separate pool
+//     and listing drift does not poison it. Every record carries a
+//     skill-listing signature; compare/attribute mark
+//     `systemToolsComparable: false` on mismatch.
+//   - Deltas are computed within one mode and one binary version only. Those
+//     shared checks apply to both attributed buckets.
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -541,6 +544,22 @@ function summarize(snap) {
   };
 }
 
+// Mode and binary have to match for any attributed delta: a cross-mode
+// comparison mixes precisions, and a cross-binary comparison measures the
+// upgrade, not the lever. Skill-listing tokens are subtracted from the
+// prefix `System tools` bucket, so listing or Skills-token drift poisons
+// that bucket only; the deferred pool is separate and stays measurable.
+function modeBinaryComparable(before, after) {
+  return before.mode === after.mode
+    && before.binary?.version === after.binary?.version
+    && before.binary?.path === after.binary?.path;
+}
+
+function skillListingComparable(before, after) {
+  return before.skillListing?.signature === after.skillListing?.signature
+    && before.skillListing?.tokens === after.skillListing?.tokens;
+}
+
 function compareSnapshots(before, after, { lever = null, emittedConfig = null } = {}) {
   const reasons = [];
   if (before.mode !== after.mode) reasons.push(`mode differs (${before.mode} vs ${after.mode}) — deltas across modes mix precisions`);
@@ -566,6 +585,8 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
   const totalDelta = (typeof before.totalTokens === 'number' && typeof after.totalTokens === 'number')
     ? after.totalTokens - before.totalTokens : null;
 
+  const sharedOk = modeBinaryComparable(before, after);
+  const listingOk = skillListingComparable(before, after);
   return {
     schema: LEDGER_SCHEMA,
     timestampUtc: nowUtc(),
@@ -580,13 +601,12 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     totalDelta,
     comparability: {
       ok: reasons.length === 0,
-      // Every recorded mismatch poisons the predicate — a reason the caller
-      // could read but a `true` flag would let it ignore is how an
+      // Every recorded mismatch poisons the prefix predicate — a reason the
+      // caller could read but a `true` flag would let it ignore is how an
       // acknowledged-incomparable run gets published as attribution.
-      systemToolsComparable: sigMatch && skillTokensMatch
-        && before.mode === after.mode
-        && before.binary?.version === after.binary?.version
-        && before.binary?.path === after.binary?.path,
+      systemToolsComparable: listingOk && sharedOk,
+      // Shared mode/binary checks only: listing drift does not apply.
+      modeBinaryComparable: sharedOk,
       reasons,
     },
   };
@@ -614,6 +634,61 @@ function systemBucketSaving(cmp) {
 function vanishedReason(vanished) {
   return `${vanished.join(' and ')} present in only one run — the bucket was emptied out of one `
     + 'snapshot, so its delta is unmeasured, not zero';
+}
+
+// Per-bucket additivity, read off the deltas the per-tool rows already carry:
+// no extra measurement pass, just the rows this run produced. The two sides
+// do not compose alike — the deferred side sums to the token while the prefix
+// side double-counts — so one verdict over the pair hides which column an
+// operator can price a basket from.
+const BUCKET_ROW_FIELD = {
+  'System tools': 'prefixDelta',
+  'System tools (deferred)': 'deferredDelta',
+};
+
+// A verdict is `true`/`false` only when the bucket was measured on both sides
+// of the comparison; anything unmeasured is `null` — "not measurable" is not
+// the same answer as "measured, and not additive".
+function bucketAdditivity(rows, cmp) {
+  const perBucket = {};
+  for (const bucket of SYSTEM_TOOL_BUCKETS) {
+    // A bucket absent from BOTH runs is outside this binary's category
+    // vocabulary: a non-event, so it gets no verdict row at all.
+    if (!(bucket in cmp.delta)) continue;
+    const parts = rows.map((r) => r[BUCKET_ROW_FIELD[bucket]]);
+    const sumOfParts = parts.some((d) => typeof d !== 'number')
+      ? null
+      : -parts.reduce((sum, d) => sum + d, 0);
+    const combinedDelta = cmp.delta[bucket];
+    const combinedSaved = typeof combinedDelta === 'number' ? -combinedDelta : null;
+    // Skill-listing / Skills-token drift poisons only the prefix bucket.
+    // The deferred bucket still has a measurable delta under the shared
+    // mode/binary checks, so one listing mismatch no longer takes the other
+    // column's verdict with it.
+    const runComparable = bucket === 'System tools'
+      ? cmp.comparability.systemToolsComparable
+      : cmp.comparability.modeBinaryComparable;
+    const measured = runComparable && sumOfParts !== null && combinedSaved !== null;
+    const reasons = [];
+    if (!runComparable) {
+      const gateReasons = bucket === 'System tools'
+        ? cmp.comparability.reasons
+        : cmp.comparability.reasons.filter((r) => !r.startsWith('skill listing'));
+      reasons.push(...gateReasons);
+    }
+    if (combinedSaved === null) reasons.push(vanishedReason([bucket]));
+    if (sumOfParts === null) {
+      reasons.push(`${bucket} is unmeasured on at least one per-tool row, so the sum of parts `
+        + 'for this bucket is unmeasured, not zero');
+    }
+    perBucket[bucket] = {
+      sumOfParts,
+      combinedSaved,
+      additive: measured ? combinedSaved === sumOfParts : null,
+      reasons,
+    };
+  }
+  return perBucket;
 }
 
 function loadInteractiveOnly() {
@@ -689,12 +764,17 @@ async function runAttribute(args) {
       const comparable = cmp.comparability.systemToolsComparable && !vanished.length;
       const sumOfParts = perTool.filter((t) => savers.includes(t.tool))
         .reduce((s, t) => s + t.savedTokens, 0);
+      const saverRows = perTool.filter((t) => savers.includes(t.tool));
       additivity = {
         tools: savers,
         sumOfParts,
         combinedSaved,
-        additive: comparable && combinedSaved === sumOfParts,
+        // Tri-state: true/false are measured verdicts, null means the run
+        // could not be measured. A boolean here would publish an unmeasured
+        // reading as a definite "not additive".
+        additive: comparable ? combinedSaved === sumOfParts : null,
         comparable,
+        perBucket: bucketAdditivity(saverRows, cmp),
         reasons: vanished.length
           ? [...cmp.comparability.reasons, vanishedReason(vanished)]
           : cmp.comparability.reasons,

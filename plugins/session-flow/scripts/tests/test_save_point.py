@@ -300,7 +300,6 @@ def test_validate_missing_predecessor_beside_file_fails(tmp_path):
         ("ascii-rails", HOP1, "U+2500"),
         ("fill-leftover", HOP1, "<!-- FILL"),
         ("dropped-entry", HOP2, "dropped"),
-        ("moved-file", HOP1, "does not name this file"),
         ("then-not-last", HOP1, "'Then: /<skill>' must be the last line"),
         ("six-next-lines", HOP1, "6 headline lines (max 5)"),
         ("untagged-entry", HOP1, "provenance tag"),
@@ -313,6 +312,57 @@ def test_validate_shape2_failures_exit_one(tmp_path, case, name, needle):
     result = run("validate", str(handoffs / name), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
     assert needle in out(result), out(result)
+    assert "FAIL" in out(result)
+
+
+# --- validate: relocation is a warning, misidentification is a failure -------------
+
+
+def test_validate_relocated_file_warns_and_exits_zero(tmp_path):
+    """The moved-file fixture stores a 'Read @' path under another root with
+    this file's own basename: a relocated save-point, not a wrong one."""
+    handoffs = materialize(tmp_path, "moved-file")
+    result = run("validate", str(handoffs / HOP1), "--strict-transcript")
+    assert result.returncode == 0, out(result) + err(result)
+    assert "FAIL" not in out(result)
+    assert "WARN" in out(result)
+    assert "/work/elsewhere/removed-worktree/.work/handoffs/" + HOP1 in out(result)
+    assert real_posix(handoffs / HOP1) in out(result)
+
+
+def test_validate_survives_a_copy_out_of_its_handoffs_dir(tmp_path):
+    """The reported case: a chain copied out of a worktree before the worktree
+    is removed still validates where it landed."""
+    handoffs = materialize(tmp_path, "good-chain")
+    in_place = run("validate", str(handoffs / HOP1), "--strict-transcript")
+    assert in_place.returncode == 0, out(in_place)
+    assert "WARN" not in out(in_place)
+    elsewhere = tmp_path / "relocated"
+    elsewhere.mkdir()
+    copied = elsewhere / HOP1
+    shutil.copy(handoffs / HOP1, copied)
+    result = run("validate", str(copied), "--strict-transcript")
+    assert result.returncode == 0, out(result) + err(result)
+    assert "WARN" in out(result) and "FAIL" not in out(result)
+    assert real_posix(handoffs / HOP1) in out(result)
+
+
+def test_validate_rejects_a_read_at_naming_a_different_basename(tmp_path):
+    """Relaxing relocation must not relax misidentification: a stored path
+    naming some other save-point is still a hard failure."""
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    stored = f"Read @{real_posix(target)},"
+    assert stored in text
+    target.write_text(
+        text.replace(stored, "Read @/work/elsewhere/20260101T000000Z-handoff-other.md,"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "does not name this file" in out(result)
     assert "FAIL" in out(result)
 
 
@@ -641,6 +691,30 @@ def test_new_hop2_from_malformed_shape2_marks_carried_rows_unverified(tmp_path):
     text = (handoffs / HOP2).read_text(encoding="utf-8")
     assert "- [h1] UNVERIFIED (predecessor failed validation): The public `WidgetReader` signature is frozen." in text
     assert bad.read_bytes() == (FIXTURES / "malformed-predecessor" / "handoffs" / HOP1).read_bytes()
+
+
+def test_new_hop2_from_relocated_predecessor_carries_rows_verified(tmp_path):
+    """A predecessor whose only defect is relocation must not taint the
+    entries carried into its successor."""
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    text = fill(hop1.read_text(encoding="utf-8"))
+    stored = f"Read @{real_posix(hop1)},"
+    assert stored in text
+    # Same basename under a root that no longer exists: what copying a chain
+    # out of a removed worktree leaves behind.
+    text = text.replace(stored, f"Read @/work/elsewhere/removed-worktree/.work/handoffs/{HOP1},")
+    hop1.write_text(text, encoding="utf-8", newline="\n")
+    relocated = run("validate", str(hop1), "--projects-root", projects_root(tmp_path))
+    assert relocated.returncode == 0, out(relocated) + err(relocated)
+    assert "WARN" in out(relocated)
+    result = run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    assert result.returncode == 0, err(result)
+    carried = (handoffs / HOP2).read_text(encoding="utf-8")
+    assert "UNVERIFIED" not in carried, carried
+    assert "- [h1] The thing must stay green." in carried
 
 
 def test_new_origin_falls_back_to_directory_name(tmp_path):

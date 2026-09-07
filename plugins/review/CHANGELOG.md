@@ -3,6 +3,66 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1]
+
+### Fixed
+
+- **`audit-enforceability`:** the stub-home fence asks the filesystem rather than the string.
+  Comparing spellings folds ASCII only when no locale is set, while the filesystem folds all of
+  Unicode, so a non-ASCII case variant of a fenced path (`RÉVIEWS` against `réviews`) was one
+  directory the comparison called two, and stubs landed inside the fix action's scan directory at
+  exit 0. The string compare is now the fast path; when it does not match, a walk up the
+  candidate's chain compares device and inode for the part of the path that exists.
+- **`audit-enforceability`:** the post-write marker check treats a bare CR as a line terminator and
+  strips leading whitespace, so a marker that any universal-newline reader would see cannot reach a
+  stub behind one space or one CR.
+- **`audit-enforceability`:** the exit-4 rollback removes the stub home only when the run created
+  it, instead of deleting a pre-existing empty home the caller had prepared.
+- **`audit-enforceability`:** a path segment ending in a dot or a space is refused. Such a
+  directory exists but ordinary path APIs cannot address it, so a stub home there is invisible to
+  every consumer and compares unequal to the same name without the suffix.
+- **`audit-enforceability`:** a row whose `Rank` cell is empty is stubbed under a placeholder
+  rather than dropped by an invalid array subscript while the summary counted only what it wrote.
+
+## [0.27.0]
+
+### Added
+
+- **`audit-enforceability`:** a read-only audit skill that reads ONE operator-named findings file,
+  derives a finding class per row through a stated ladder (exact qualified rule id, then rule
+  family, then the `## By dimension` heading, then judgment, then unresolved), applies the
+  enforcement-rung crosswalk, and writes one proposal stub per finding naming the cheapest
+  deterministic rung and its owner or pointer. It proposes a rung and never implements one.
+- **`audit-enforceability/scripts/emit-stubs.sh`:** the deterministic stub writer. It anchors on
+  the `## Findings` heading so the `## By dimension` re-render is never counted twice, unescapes
+  `\|`, never overwrites, and refuses a stub home that is the fix action's resolved reviews
+  location, the input file's own directory, a path carrying a `..` segment, a path outside the
+  root the caller composed it from, or a path whose last segment sits outside the branch-slug
+  charset `[a-z0-9._-]`. After writing it re-reads every stub and removes all of them if one
+  carries a findings-file marker.
+- **`reference/topic-docs.md`:** a second five-rung resolution list, for the reserved
+  `enforceability/<branch-slug>/` concern, plus the stub artifact row. Rungs 1 and 5 compose the
+  segment and make the stub home a sibling of `reviews/`; rungs 2 to 4 yield a declared, inferred,
+  or chosen location, and the writer's fence keeps the stub home out of the fix action's scan at
+  every rung.
+
+## [0.26.20]
+
+### Added
+
+- **`quality-gate`:** close-out mode's acceptance-criteria rollup gains a requirement-pattern
+  column when any of the container's retrieved criteria opens with a bracketed EARS tag. The cell
+  carries one of exactly five names, `ubiquitous`, `event-driven`, `state-driven`,
+  `unwanted-behaviour`, `optional-feature`, matching what the planning surfaces emit; a bracket
+  holding anything else leaves the cell empty rather than echoing raw text. Detection is a leading
+  bracket holding one of those names, so a checklist marker (`- [ ]`) is not read as a tag and no
+  flag, lever, or convention key is read at all. Every criterion still gets a
+  row, so a partially tagged set shows its untagged rows with an empty pattern cell, and a set
+  with no tag renders exactly as before with no extra column. Step 2's extraction bullet now says
+  to keep the criterion line whole so the tag survives the read. The verdict vocabulary
+  (`delivered` / `partial` / `missing` / `unverifiable`) and the blocking rule (`missing` or
+  `wrong` keeps the container open) are unchanged.
+
 ## [0.26.19]
 
 ### Changed

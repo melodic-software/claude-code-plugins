@@ -144,7 +144,7 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",
@@ -563,6 +563,20 @@
         "gui",
         "screenshot",
         "accessibility",
+        "skill"
+      ]
+    },
+    {
+      "name": "fleet",
+      "source": "./plugins/fleet",
+      "category": "claude-code",
+      "tags": [
+        "fleet",
+        "cross-machine",
+        "ssh",
+        "tailnet",
+        "headless",
+        "remote-agent",
         "skill"
       ]
     },

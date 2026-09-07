@@ -85,10 +85,27 @@ and dashboard lifecycle.
 
 The two session scopes render the per-session skeleton in
 [context/output-format.md](context/output-format.md); every other scope renders the whole-root
-report. Optional tokens: `--write` (persist the report to
-`${CLAUDE_PLUGIN_DATA}/reports/claude-observability-<date>.md` instead of stdout) and
+report. Optional tokens: `--write` (persist the report to a keyed path under
+`${CLAUDE_PLUGIN_DATA}/reports/` instead of stdout) and
 `--hook-root REL` (read a different hook log root for this run; the rendered option above is
 the default).
+
+**`--write` resolves its path by running a command, never by composing one.** In the project
+being reported on:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/report-path.sh" --mkdir
+```
+
+It prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md` and creates
+the parent directory. Write there, and print that path on stdout. `<state-key>` is
+`lib/state-key.sh`'s `<repo-identity>/<worktree-discriminator>`, the scheme
+[`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+rule 1 defines. The key splits worktrees, which is what this report needs: its source is the hook
+event log inside the checkout, so two worktrees of one repository hold two different histories.
+The script names any unkeyed leftover from the older `reports/claude-observability-<date>.md`
+layout on stderr. Repeat that path to the operator as a file they may delete, and never read it or
+compute from it: it carries no project segment, so nothing records which repository produced it.
 
 When the scope is `week` or larger, optionally offer a self-contained HTML dashboard rendering
 the same multi-metric trend report alongside the markdown (session/day stay markdown; markdown

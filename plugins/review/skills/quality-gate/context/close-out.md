@@ -93,7 +93,9 @@ inside the verbatim fence [spec.md](spec.md) "Step 2" specifies.
 
 From the body, extract the three things the rest of this mode needs:
 
-- the **acceptance criteria** — the checklist the cumulative verdict is rendered against
+- the **acceptance criteria** — the checklist the cumulative verdict is rendered against. Keep each
+  criterion line whole rather than stripping it to prose: a leading bracketed tag is part of the
+  line, and Step 6 reads it
 - any **scope statement** (an `## Out of scope` section, an acceptance-criteria list read as
   exhaustive) — without one, `scope-creep` is not reachable at all, per [spec.md](spec.md)
   "Finding classes"
@@ -369,7 +371,20 @@ plus, above it:
   `sub-item → PR → oid`, so the basis is auditable rather than asserted; name the rung, and say
   outright when it was the heuristic scan
 - the **acceptance-criteria rollup** — every criterion with its `delivered` / `partial` /
-  `missing` / `unverifiable` verdict
+  `missing` / `unverifiable` verdict, and, **when any criterion retrieved in Step 2 opens with a
+  bracketed EARS tag, one more column naming that criterion's requirement pattern**. That column is
+  what makes the shape of a tagged set legible: that every `unwanted-behaviour` criterion came back
+  `unverifiable` while the `event-driven` ones were all `delivered` is a fact the verdict column
+  alone cannot show. The pattern cell carries one of exactly five names, `ubiquitous`,
+  `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature`, or nothing at all; a
+  bracket holding anything else is an untagged criterion that looks tagged, so the cell stays empty
+  rather than echoing the raw text. Detection is a leading bracket holding one of those five names
+  in the criteria as retrieved, nothing else: a checklist marker (`- [ ]`) is a bracket and not a
+  tag, and no flag, no lever, and no convention key is read here. **Every criterion
+  still gets a row.** A partially tagged set leaves the untagged rows' pattern cell empty rather
+  than dropping them, which is the invisibility this rollup exists to remove; a set carrying no tag
+  at all renders exactly as it does today, with no pattern column. The column names the pattern and
+  changes no verdict
 - the **`no-code` sub-items** — those the provider confirms closed without a PR, each with the
   closing comment its criteria were judged against. These are journey coverage, not gaps.
 - any sub-item whose shipping commit could not be resolved (`unresolved`), listed as a coverage gap

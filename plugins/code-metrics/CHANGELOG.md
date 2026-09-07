@@ -3,6 +3,87 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7]
+
+### Changed
+
+- **The configuration reference's key table can no longer disagree with the bundled defaults.**
+  `reference/config.md` restated every key from `scripts/config-defaults.json` as hand-maintained
+  prose, and nothing checked the two against each other, so a key added, removed, or given a
+  different default left a stale reference that reads exactly like a current one. A repository gate
+  (`scripts/check-code-metrics-config-reference.py`, run on every change) now pins the table's key
+  column and default column to that file: every non-reserved defaults leaf must be documented by
+  exactly one row, every row must document a key that exists (or be marked `absent`), and each
+  row's default must equal the canonical rendering of the value, pipes escaped and backtick fences
+  widened so a value carrying markdown-significant characters cannot produce a broken table that
+  still passes. The third column stays hand written; the document's prose is unchanged apart from
+  a paragraph saying what the gate covers. The prose copies of default values in the skill bodies
+  remain unbound and are now recorded in the README's known gaps.
+
+## [0.1.6]
+
+### Fixed
+
+- **A Cobertura class is no longer keyed under the wrong source root.** A multi-root build declares
+  several `<source>` roots and each class filename is relative to one of them, but the parser
+  collected all the roots and then applied the first one to every filename. A class belonging to a
+  later root was keyed under a path that does not exist, so its coverage never joined against the
+  measured file and the file read as uncovered or dropped out of the join. A relative filename now
+  takes the first declared root under which that path exists in the scanned tree, which the calling
+  skill passes as `CODE_METRICS_SCAN_ROOT` rather than leaving the parser to probe whatever
+  directory the session happens to sit in. With no candidate on disk the first root still applies,
+  a report declaring one root is resolved without reading the filesystem at all and is unchanged,
+  and absolute and drive-qualified filenames keep taking no prefix. The on-disk probe can only tell
+  the roots apart when they are relative, or absolute and present on the machine running the audit;
+  a report whose absolute roots name the machine that produced it (a CI build) misses every
+  candidate and still takes the first root, because rewriting a root from another machine onto the
+  local tree needs a mapping the report does not carry.
+
+### Added
+
+- A source root skipped for a reason other than the file being absent, an unreadable directory
+  above all, now prints one line to stderr per distinct reason instead of being silently
+  indistinguishable from a miss. stdout stays the parsed document alone.
+
+## [0.1.5]
+
+### Fixed
+
+- **A short name in the artifact no longer binds to the wrong function.** Where a coverage
+  artifact records a function as `run` rather than as `Alpha.run`, the join fell back to matching
+  on the trailing component of the name, and a lone record ending in `run` bound to whichever
+  function was measured first. Two `run` methods in one file therefore reported the same coverage,
+  one of them out of the other method's region, with nothing in the report to say so: a method
+  that never ran read as fully covered, and its CRAP followed. The fallback now places each record
+  by the lines the artifact recorded for it and binds it to the function whose declared range
+  holds them. An exact name still wins outright and is unchanged, and so is a single record whose
+  trailing name no other function in the file shares, since a name nothing contests is not a tie
+  to break and an artifact built from compiled output numbers its lines differently from the
+  source.
+- **An unresolvable short name is now refused rather than guessed.** Where the range cannot
+  separate the candidates, because the artifact placed none of them at a line (an lcov `FNDA`
+  with no `FN` declaration) or because two of them fall inside the same range, the function is
+  left unjoined: the row reads `cov_source: ambiguous` with coverage, line counts, hit, and CRAP
+  null, cyclomatic kept from the complexity row, and a `coverage-ambiguous` label, and the lane's
+  `coverage` run row turns `partial` and names the functions it could not place, so the document
+  cannot settle as `complete` over it. A missing number an operator can see beats a wrong number
+  they cannot.
+
+## [0.1.4]
+
+### Changed
+
+- **Three descriptions recovered headroom against the Agent Skills field maximum (#3845).**
+  `audit-complexity` (1016), `audit-coverage` (1007) and `principles` (1004) all sat within twenty
+  codepoints of the spec's 1024-codepoint `description` maximum. A description is the surface an
+  author edits to add a trigger phrase, so each of the three was one ordinary edit away from a
+  breach the Skills API rejects at upload. They now measure 963, 968 and 949: 53, 39 and 55
+  codepoints recovered. The rewrite cut redundancy, not vocabulary. Every single-quoted trigger
+  phrase survives verbatim (7, 7 and 6 phrases), confirmed by check 3 of
+  `plugins/skill-quality/scripts/check-skill.sh` against `origin/main` rather than by reading the
+  diff, because clipping a description is the failure mode that makes a skill undiscoverable.
+  No skill's behavior changed.
+
 ## [0.1.1]
 
 ### Fixed

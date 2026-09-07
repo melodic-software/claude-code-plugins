@@ -59,7 +59,21 @@ interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
 | PostToolUse `Write`, already-normalized `.md` | 1 | 41.0 before, 21.5 after (0.6.28) | sixteen of twenty-seven processes gone: one `git check-attr` for both attributes, `dirname` and `basename` as parameter expansions, the NUL sniff as one `read`, and no temp file, `cp`, `cmp` or `rm` for a file that needs no rewrite |
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.29 by the
-vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope).
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope). 0.6.41 drops leftover
+`$(hook::repo_root)` / `$(hook::repo_relative_path)` capture subshells around those helpers'
+`_to` forms; the git check-attr probe is unchanged.
+
+`hooks/hooks.json` carries no `if` row, and that is deliberate (#3411). The sibling formatters
+filter by extension at the manifest so a Write of any other file spawns nothing, but this hook
+has no extension filter of its own: which files it normalizes is decided by the consuming
+repository's `.gitattributes` through `git check-attr eol text`, not by file type, so the set a
+declarative filter would have to reproduce is every file, and a file-type row would silently
+stop normalizing whatever it left out. What the manifest cannot filter the script keeps cheap:
+a file that already carries its `eol=` ending is decided by the plan step before any snapshot,
+so the kernel census (`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64,
+`HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.42) on such a `Write` is
+13 process creations and 6 execs (`git` three times: the working-tree probe, the root resolver
+and `check-attr`; `jq`, `realpath`, the hook's own `bash`) with no `mktemp` or `cp`.
 
 ## Install
 

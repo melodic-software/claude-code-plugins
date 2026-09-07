@@ -43,10 +43,53 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 
 # Native child numbers, scoped to the parent's own repo (a cross-repo sub-issue's
 # number would collide with an unrelated same-numbered issue in this repo).
+#
+# The same-repo test reads the node's `url`, not `repository.nameWithOwner`. gh's
+# GraphQL query does request `repository{nameWithOwner}`, but its `--json
+# subIssues` projection drops it again, emitting only id/number/title/url/state
+# (checked in gh's export path, 2.94.0 through 2.98.0). Selecting on the absent
+# field matched nothing, so every container read as childless (#3825). A node's
+# `url` is `<host>/<owner>/<repo>/issues/<n>`, so owner/repo are the two path
+# segments before `issues`. `repository.nameWithOwner` still wins where a gh
+# build does emit it; a node attributable to neither repo is dropped, as before.
+#
+# The same-repo test is case-INSENSITIVE. GitHub owner and repo names are, and
+# the id grammar accepts any case, so an id spelling the repo in lower case must
+# still match a node whose url spells it in mixed case. A case-sensitive compare
+# would classify every child as foreign and return an empty list with no signal,
+# which is the same silent blindness (#3825) was.
+#
+# Two different drops, only one of them expected. A node resolving to ANOTHER
+# repo is out of scope for this number-keyed intersect and stays silent
+# (CONTRACT.md "Adapter contract": a documented truncation, not an error). A node
+# resolving to NO repo means neither field parsed — the shape #3825 was, where a
+# projection change blinds the verb with an empty list and no signal. That case
+# gets a one-line stderr note so the next projection change is visible instead of
+# silent. It cannot fire on well-formed input: every node gh emits carries a
+# `url`. stdout stays the machine-parseable envelope either way.
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
-child_nums="$(jq -c --arg repo "$target_repo" \
-  '[(.subIssues.nodes // [])[] | select(.repository.nameWithOwner == $repo) | .number]' \
-  <<<"$WIT_GH_OUT")"
+scoped="$(jq -c --arg repo "$target_repo" '
+  def node_repo:
+    (.repository.nameWithOwner? // null)
+    // (((.url // "") | split("/")) as $seg
+        | if ($seg | length) >= 5 and $seg[-2] == "issues"
+          then ($seg[-4:-2] | join("/"))
+          else null
+          end);
+  ($repo | ascii_downcase) as $want
+  | [(.subIssues.nodes // [])[] | {n: .number, r: node_repo}] as $nodes
+  | {
+      nums: [$nodes[] | select(.r != null and (.r | ascii_downcase) == $want) | .n],
+      unattributed: [$nodes[] | select(.r == null) | (.n // "?") | tostring]
+    }
+' <<<"$WIT_GH_OUT")"
+child_nums="$(jq -c '.nums' <<<"$scoped")"
+
+unattributed="$(jq -r '.unattributed | join(", ")' <<<"$scoped")"
+if [[ -n "$unattributed" ]]; then
+  printf '%s: dropped subIssues node(s) with no derivable repo (number: %s); neither repository.nameWithOwner nor the node url parsed, so the subIssues projection may have changed (#3825)\n' \
+    "$(basename "${BASH_SOURCE[0]}")" "$unattributed" >&2
+fi
 
 if [[ "$child_nums" == "[]" ]]; then
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'

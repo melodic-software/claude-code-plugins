@@ -20,6 +20,13 @@ import {
   processSubtitleSegments,
 } from "@melodic/video-digestion/transcript/vtt-parser";
 
+/**
+ * Selector for the Hotmart player element as Teachable renders it by default.
+ * Callers override it through `platformConfig.videoPlayerSelector`; this is the
+ * fallback used when a caller supplies nothing.
+ */
+export const DEFAULT_VIDEO_PLAYER_SELECTOR = ".hotmart_video_player";
+
 const VIDEO_ID_PREFIX = /^(\w+)-\d+-/;
 const PNG_DATA_URL_PREFIX = /^data:image\/png;base64,/;
 const SUBTITLE_BATCH_SIZE = 15;
@@ -33,19 +40,41 @@ const HLS_FIELDS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Module-level state (per-session singleton)
+// Module-level state
 // ---------------------------------------------------------------------------
 
-/** @type {Map<string, { hlsMasterUrl: string|null, subtitleManifestBody: string|null }>} */
-const capturedData = new Map();
+/**
+ * Captured HLS master URL and subtitle manifest, keyed by Page.
+ *
+ * Keyed by Page rather than by URL: two Pages on the same lesson URL must not
+ * overwrite each other's capture, and `preparePage` must not delete another
+ * Page's entry. A WeakMap lets a closed Page be collected without a
+ * deregistration step.
+ *
+ * @type {WeakMap<import('playwright').Page, {
+ *   hlsMasterUrl: string|null,
+ *   subtitleManifestBody: string|null,
+ * }>}
+ */
+let capturedData = new WeakMap();
 
-let interceptorsInstalled = false;
+/**
+ * Pages that already carry this module's request/response listeners.
+ *
+ * Keyed by Page rather than by module: the listeners are attached with
+ * `page.on`, so the double-install hazard this guard exists to prevent is per
+ * Page, and a second Page in the same process needs its own listeners. A
+ * WeakSet lets a closed Page be collected without a deregistration step.
+ *
+ * @type {WeakSet<import('playwright').Page>}
+ */
+let pagesWithInterceptors = new WeakSet();
 
-function getOrCreateEntry(pageUrl) {
-  const existing = capturedData.get(pageUrl);
+function getOrCreateEntry(page) {
+  const existing = capturedData.get(page);
   if (existing) return existing;
   const entry = { hlsMasterUrl: null, subtitleManifestBody: null };
-  capturedData.set(pageUrl, entry);
+  capturedData.set(page, entry);
   return entry;
 }
 
@@ -56,7 +85,7 @@ function findHotmartFrame(page) {
 /** Record `url` as the page's HLS master when it matches the packaged-master pattern. */
 function captureMasterUrl(page, url) {
   if (url.includes("master-pkg-t-") && url.includes(".m3u8")) {
-    getOrCreateEntry(page.url()).hlsMasterUrl = url;
+    getOrCreateEntry(page).hlsMasterUrl = url;
   }
 }
 
@@ -288,7 +317,7 @@ async function readHlsDataFromFrame(hotmartFrame, subtitleLang) {
   }
 }
 
-async function storeSubtitleManifest(hotmartFrame, hlsData, currentUrl) {
+async function storeSubtitleManifest(hotmartFrame, hlsData, page) {
   if (!hlsData.subtitlePlaylistUrlFull) return null;
 
   const manifestBody = await hotmartFrame.evaluate(async (url) => {
@@ -302,7 +331,7 @@ async function storeSubtitleManifest(hotmartFrame, hlsData, currentUrl) {
   const segCount = parseSubtitleManifest(manifestBody).length;
   writeStdout(`    ✓ Subtitle manifest fetched: ${segCount} segments`);
 
-  const entry = getOrCreateEntry(currentUrl);
+  const entry = getOrCreateEntry(page);
   entry.hlsMasterUrl = hlsData.masterUrlFull;
   entry.subtitleManifestBody = manifestBody;
 
@@ -317,13 +346,16 @@ async function storeSubtitleManifest(hotmartFrame, hlsData, currentUrl) {
  * Install page.on("request") and page.on("response") interceptors for
  * HLS master URL and subtitle manifest capture.
  *
- * Safe to call multiple times — installs only once per module lifetime.
+ * Semantics are PER PAGE: repeat calls for the same Page are a no-op, and each
+ * new Page in the process gets its own listeners. The listeners are registered
+ * on the Page, so installing twice on one Page would double-handle every
+ * request, while skipping a second Page would leave it capturing nothing.
  *
  * @param {import('playwright').Page} page
  * @param {string} subtitleLang — e.g. "eng"
  */
 export function installInterceptors(page, subtitleLang) {
-  if (interceptorsInstalled) return;
+  if (pagesWithInterceptors.has(page)) return;
 
   page.on("request", (request) => {
     captureMasterUrl(page, request.url());
@@ -338,14 +370,14 @@ export function installInterceptors(page, subtitleLang) {
 
       if (url.includes(`textstream_${subtitleLang}`) && url.includes(".m3u8")) {
         const body = await response.text();
-        getOrCreateEntry(page.url()).subtitleManifestBody = body;
+        getOrCreateEntry(page).subtitleManifestBody = body;
       }
     } catch {
       // Response body may not be available for all intercepted responses
     }
   });
 
-  interceptorsInstalled = true;
+  pagesWithInterceptors.add(page);
 }
 
 /**
@@ -355,14 +387,18 @@ export function installInterceptors(page, subtitleLang) {
  * @param {import('playwright').Page} page
  * @param {string} subtitleLang — e.g. "eng"
  * @param {number} _manifestTimeoutMs
+ * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
  * @returns {Promise<{ hasVideo: boolean, hotmartFrame?: object, hlsMasterUrl?: string, subtitleSegments?: number, warning?: string }>}
  */
-export async function preparePage(page, subtitleLang, _manifestTimeoutMs) {
-  const currentUrl = page.url();
+export async function preparePage(
+  page,
+  subtitleLang,
+  _manifestTimeoutMs,
+  videoPlayerSelector = DEFAULT_VIDEO_PLAYER_SELECTOR,
+) {
+  capturedData.delete(page);
 
-  capturedData.delete(currentUrl);
-
-  const hasHotmart = await hasHotmartPlayer(page);
+  const hasHotmart = await hasHotmartPlayer(page, videoPlayerSelector);
 
   writeStdout(`    hasHotmart: ${hasHotmart}`);
 
@@ -402,7 +438,7 @@ export async function preparePage(page, subtitleLang, _manifestTimeoutMs) {
     `    HLS data: master=${hlsData.masterUrl ? "found" : "none"}, sub=${hlsData.subtitlePlaylistUrl ? "found" : "none"}, vjs=${hlsData.hasVjs}`,
   );
 
-  const subtitleSegments = await storeSubtitleManifest(hotmartFrame, hlsData, currentUrl);
+  const subtitleSegments = await storeSubtitleManifest(hotmartFrame, hlsData, page);
   if (subtitleSegments !== null) {
     return {
       hasVideo: true,
@@ -413,7 +449,7 @@ export async function preparePage(page, subtitleLang, _manifestTimeoutMs) {
   }
 
   if (hlsData.masterUrlFull) {
-    getOrCreateEntry(currentUrl).hlsMasterUrl = hlsData.masterUrlFull;
+    getOrCreateEntry(page).hlsMasterUrl = hlsData.masterUrlFull;
   }
 
   return {
@@ -434,8 +470,7 @@ export async function preparePage(page, subtitleLang, _manifestTimeoutMs) {
  * @returns {Promise<string>} — formatted transcript text
  */
 export async function getTranscript(page) {
-  const currentUrl = page.url();
-  const captured = capturedData.get(currentUrl);
+  const captured = capturedData.get(page);
 
   if (!captured?.subtitleManifestBody) {
     throw new Error("No subtitle manifest captured. Ensure preparePage() ran and video played.");
@@ -496,13 +531,13 @@ export async function getTranscript(page) {
 }
 
 /**
- * Get the captured HLS master URL for the current page.
+ * Get the captured HLS master URL for this Page.
  *
  * @param {import('playwright').Page} page
  * @returns {string}
  */
 export function getHlsUrl(page) {
-  const captured = capturedData.get(page.url());
+  const captured = capturedData.get(page);
 
   if (!captured?.hlsMasterUrl) {
     throw new Error("No HLS master URL captured. Ensure preparePage() ran and video played.");
@@ -550,32 +585,46 @@ export async function extractFrames(page, duration, outputDir, options = {}) {
 }
 
 /**
- * Clear captured data for a specific URL.
- * @param {string} url
+ * Clear captured data for a specific Page.
+ * @param {import('playwright').Page} page
  */
-export function clearCapturedData(url) {
-  capturedData.delete(url);
+export function clearCapturedData(page) {
+  capturedData.delete(page);
 }
 
 /**
- * Check if the Hotmart video player element exists on the page.
+ * Check if the video player element exists on the page.
+ *
+ * `videoPlayerSelector` is handed to `page.evaluate` as an argument rather than
+ * closed over: the callback is serialized into the browser context, where this
+ * module's bindings do not exist.
+ *
  * @param {import('playwright').Page} page
+ * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
  * @returns {Promise<boolean>}
  */
-export async function hasHotmartPlayer(page) {
-  return page.evaluate(() => !!document.querySelector(".hotmart_video_player")).catch(() => false);
+export async function hasHotmartPlayer(page, videoPlayerSelector = DEFAULT_VIDEO_PLAYER_SELECTOR) {
+  return page
+    .evaluate((selector) => !!document.querySelector(selector), videoPlayerSelector)
+    .catch(() => false);
 }
 
 // ---------------------------------------------------------------------------
 // Test helpers (exported for unit tests only)
 // ---------------------------------------------------------------------------
 
-/** @returns {boolean} */
-export function isInterceptorsInstalled() {
-  return interceptorsInstalled;
+/**
+ * @param {import('playwright').Page} page
+ * @returns {boolean}
+ */
+export function isInterceptorsInstalled(page) {
+  if (!page || typeof page !== "object") {
+    throw new TypeError("isInterceptorsInstalled(page) requires the Page to check.");
+  }
+  return pagesWithInterceptors.has(page);
 }
 
-/** @returns {Map} */
+/** @returns {WeakMap} */
 export function getCapturedData() {
   return capturedData;
 }
@@ -584,6 +633,6 @@ export function getCapturedData() {
  * Reset module state — for tests only.
  */
 export function resetState() {
-  capturedData.clear();
-  interceptorsInstalled = false;
+  capturedData = new WeakMap();
+  pagesWithInterceptors = new WeakSet();
 }
