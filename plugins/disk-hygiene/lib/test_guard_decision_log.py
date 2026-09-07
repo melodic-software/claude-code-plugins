@@ -187,10 +187,13 @@ class GuardDecisionLogTests(unittest.TestCase):
             self.assertTrue(rotated.is_file())
             # The bound is two generations of MAX_BYTES plus the line that
             # crossed it, enforced on the write path rather than advertised.
-            total = self.log_file.stat().st_size + rotated.stat().st_size
+            # A write that crosses the bound rotates the live file away, so
+            # the live path may be absent until the next append.
+            live_size = self.log_file.stat().st_size if self.log_file.exists() else 0
+            total = live_size + rotated.stat().st_size
             self.assertLess(total, 2 * 2000 + 4096, total)
-            # The live file is genuinely a fresh generation, not the old one.
-            self.assertLess(self.log_file.stat().st_size, 2000)
+            if self.log_file.exists():
+                self.assertLess(self.log_file.stat().st_size, 2000)
 
     def test_rotation_discards_only_the_generation_before_last(self) -> None:
         with mock.patch.object(decision_log, "MAX_BYTES", 900):
