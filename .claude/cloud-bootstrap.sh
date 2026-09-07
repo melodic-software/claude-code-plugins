@@ -125,7 +125,9 @@ fi
 
 # --- Plugins (best effort) -----------------------------------------------------
 # .claude/settings.json declares this repo as its own marketplace through a
-# relative `directory` source and enables the full catalog. Cloud sessions do
+# relative `directory` source; the fleet list the environment bakes into the
+# snapshot enables the catalog, and the settings block carries only this
+# repo's deltas (see the enabled-set computation below). Cloud sessions do
 # install plugins declared in project settings at session start, but only from a
 # marketplace source that path can resolve; a checkout-relative `directory`
 # source is documented as a development source, and sessions in fact arrive with
