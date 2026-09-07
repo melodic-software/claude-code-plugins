@@ -110,9 +110,10 @@ read-only scan here is language-agnostic: the set a declarative file-type filter
 reproduce is every file, and a narrower row would silently stop scanning whatever it left out.
 The write-mode allowlist is a separate, later decision inside the script and never gates the
 scan, and `NotebookEdit` stays in the matcher for the same reason. The kernel census
-(`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64, 2026-09-07, 0.6.48) on a
-clean `.md` `Write` is 12 process creations and 5 execs (`typos`, `git`, `jq`, `realpath`, the
-hook's own `bash`).
+(`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64, `HOOK_TELEMETRY_SINK` and
+`CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.48) on a clean `.md` `Write` is 13 process
+creations and 6 execs (`typos`, `git` twice for the working-tree probe and the root resolver,
+`jq`, `realpath`, the hook's own `bash`).
 
 ## Install
 

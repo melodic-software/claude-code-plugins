@@ -71,8 +71,9 @@ declarative filter would have to reproduce is every file, and a file-type row wo
 stop normalizing whatever it left out. What the manifest cannot filter the script keeps cheap:
 a file that already carries its `eol=` ending is decided by the plan step before any snapshot,
 so the kernel census (`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64,
-2026-09-07, 0.6.42) on such a `Write` is 12 process creations and 5 execs (`git` twice, `jq`,
-`realpath`, the hook's own `bash`) with no `mktemp` or `cp`.
+`HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.42) on such a `Write` is
+13 process creations and 6 execs (`git` three times: the working-tree probe, the root resolver
+and `check-attr`; `jq`, `realpath`, the hook's own `bash`) with no `mktemp` or `cp`.
 
 ## Install
 

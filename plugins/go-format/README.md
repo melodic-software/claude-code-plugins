@@ -72,23 +72,25 @@ formatting still runs.
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit` of a `.go` file (the one `if` row in
-`hooks/hooks.json` keeps every other extension from spawning it, and the suite pins that row to
-the script's own extension set), so its cost on a clean Go file is the figure that counts.
-Measured on Linux x86_64 under bash 5.2 in a container, twelve interleaved trials against an
-interleaved `bash -c :` floor S of about 2 ms, with a kernel census from
+this hook is always-on for every `Write` and `Edit` of a `.go` file (every handler in
+`hooks/hooks.json` carries the one `if` row, which keeps every other extension from spawning it,
+and the suite pins the whole handler set to the script's own extension set), so its cost on a
+clean Go file is the figure that counts. Measured on Linux x86_64 under bash 5.2 in a container
+with `HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, twelve interleaved trials against an
+interleaved `bash -c :` floor S of about 4 ms, with a kernel census from
 `strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.3.46):
 
 | Event | Fires | Wall | Spawn-equivalents | Kernel census |
 | --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.go` (no opt-in; goimports always runs) | 1 | 58 ms | 25.6 | 35 process creations, 11 execs: `goimports`, two `go` (the module-path probe), `git`, `jq`, `realpath`, the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm`, and the hook's own `bash` |
+| PostToolUse `Write`, clean `.go` (no opt-in; goimports always runs) | 1 | 63 ms | 15.0 | 35 to 37 process creations (the Go runtimes' own threads vary), 12 execs: `goimports` and the `go env` it runs, the hook's own `go list -m` module-path probe, two `git rev-parse` (the working-tree probe and the root resolver), `jq`, `realpath`, the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm`, and the hook's own `bash` |
 | PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` row drops the handler before a spawn |
 
-At a 2 ms floor the spawn-equivalent column mostly measures goimports' own run time rather
+At a 4 ms floor the spawn-equivalent column mostly measures goimports' own run time rather
 than spawns, so the census column is the number that transfers to the Windows 11 Git Bash
 reference host the convention calls binding; that host's figure for this plugin has not been
 taken. The residual is goimports and the `go list` probe plus the shared library's payload
-reader (`jq`), root resolver (`git`, `realpath`) and the disclosure snapshot.
+reader (`jq`), working-tree probe and root resolver (`git` twice, `realpath`) and the
+disclosure snapshot.
 
 ## Install
 

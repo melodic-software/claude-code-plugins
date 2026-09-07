@@ -64,24 +64,25 @@ linting still run.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write` and `Edit` of a `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`,
-`.cjs`, `.mts`, `.cts`, `.json` or `.jsonc` file (the ten `if` rows in `hooks/hooks.json` keep
-every other extension from spawning it, and the suite pins those rows to the script's own
-extension set), so its cost on a clean file is the figure that counts. Measured on Linux x86_64
-under bash 5.2 in a container, twelve interleaved trials against an interleaved `bash -c :`
-floor S of about 2 ms, with a kernel census from
+`.cjs`, `.mts`, `.cts`, `.json` or `.jsonc` file (every handler in `hooks/hooks.json` carries
+one of the ten `if` rows, which keep every other extension from spawning it, and the suite pins
+the whole handler set to the script's own extension set), so its cost on a clean file is the
+figure that counts. Measured on Linux x86_64 under bash 5.2 in a container with
+`HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, twelve interleaved trials against an
+interleaved `bash -c :` floor S of about 4 ms, with a kernel census from
 `strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.6.42):
 
 | Event | Fires | Wall | Spawn-equivalents | Kernel census |
 | --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.ts`, no `biome.json` (opt-in absent) | 1 | 31 ms | 14.2 | 10 process creations, 4 execs: `git`, `jq`, `realpath`, the hook's own `bash` |
-| PostToolUse `Write`, clean `.ts`, `biome.json` present | 1 | 116 ms | 52.0 | 33 process creations, 16 execs: the row above plus three `biome` runs, the `node_modules/.bin` launcher and the `node` and `ldd` it spawns, and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
+| PostToolUse `Write`, clean `.ts`, no `biome.json` (opt-in absent) | 1 | 31 ms | 7.9 | 11 process creations, 5 execs: two `git rev-parse` (the working-tree probe and the root resolver), `jq`, `realpath`, the hook's own `bash` |
+| PostToolUse `Write`, clean `.ts`, `biome.json` present | 1 | 117 ms | 27.5 | 34 process creations, 15 execs: the row above plus the hook's `env -u BIOME_CONFIG_PATH` wrapper, the `node_modules/.bin/biome` launcher script and the `node` it runs, the `sh -c "ldd --version"` and `ldd` of that launcher's libc probe, one `biome` binary run, and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
 | PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
 
-At a 2 ms floor the spawn-equivalent column mostly measures Biome's own run time rather than
+At a 4 ms floor the spawn-equivalent column mostly measures Biome's own run time rather than
 spawns, so the census column is the number that transfers to the Windows 11 Git Bash reference
 host the convention calls binding; that host's figure for this plugin has not been taken. The
-residual is Biome itself plus the shared library's payload reader (`jq`), root resolver (`git`,
-`realpath`) and the disclosure snapshot.
+residual is Biome and its launcher plus the shared library's payload reader (`jq`), working-tree
+probe and root resolver (`git` twice, `realpath`) and the disclosure snapshot.
 
 ## Install
 
