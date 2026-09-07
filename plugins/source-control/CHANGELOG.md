@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.62]
+
+### Changed
+
+- **`babysit_util.is_json_object` and `is_json_array` return `TypeGuard`, so 15
+  casts go away.** Both predicates returned a plain `bool`, which told the type
+  checker nothing: every caller that acted on a true result had to restate the
+  fact with `cast(dict[str, Any], ...)` or `cast(list[Any], ...)`. Fourteen such
+  casts in `babysit_merge.py` and one in `dig` are deleted, and ten inline
+  `isinstance` tests that existed only to pair with a cast now call the shared
+  predicate. Each guard asserts only what its own runtime check establishes:
+  `isinstance(value, dict)` earns `dict[Any, Any]`, not `dict[str, Any]`, since
+  the check never inspects a key, and `isinstance(value, list)` earns
+  `list[Any]`, since no element is inspected. That is strictly weaker than the
+  casts it replaces, which asserted string keys with nothing behind them.
+  Pyright over the babysit script tree drops from 130 errors to 92 with no new
+  error; over `babysit_util.py`, `babysit_merge.py` and `babysit_gh.py` it drops
+  from 12 to 0. No runtime behavior changes: both predicates test the same
+  conditions and return the same values, and all 650 engine tests stay green.
+
+### Added
+
+- **`tests/test_babysit_util.py` pins the runtime side of the two guards.**
+  `babysit_util.py` mapped to no test suite, which `scripts/affected-tests.sh`
+  reports as an error rather than an empty selection. Twelve cases fix what each
+  predicate accepts and rejects, including the cases a truthiness shortcut would
+  confuse (an empty container, `None`) and the fact that neither check inspects a
+  key or an element, plus `dig`'s bail-out on a non-object level.
+
 ## [0.55.61]
 
 ### Changed
