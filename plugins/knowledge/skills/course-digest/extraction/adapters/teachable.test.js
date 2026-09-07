@@ -186,7 +186,7 @@ describe("preflight video-player selector", () => {
     expect(page.lastArg).toBe(".skin-v2-player");
   });
 
-  it("should fail when only the hardcoded literal is present and an override is configured", async () => {
+  it("should fail when only the default selector is present and an override is set", async () => {
     const page = makeDomPage([defaults.videoPlayerSelector, ".lecture-content"]);
 
     const result = await preflight(page, { videoPlayerSelector: ".skin-v2-player" });
