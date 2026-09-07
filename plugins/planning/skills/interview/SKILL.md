@@ -195,6 +195,13 @@ session's returned summary states that **unwanted-behaviour and state-driven cov
 unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
 summary. A prompt nobody can answer must not stall the run and must not silently vanish.
 
+**That line is the coverage note and nothing else.** It records that a check went unrun. It is never
+a place to park a decision, it satisfies no part of the auto-guard, and it changes nothing about the
+unattended ladder: a decision genuinely the user's is still recorded `blocked`, still written to
+`### Deferred questions` with **arbiter: USER-RESERVED**, and still named as a blocker. Capturing a
+user's decision as an assumption is the failure the auto-guard exists to prevent, and no line here
+licenses it.
+
 The unattended condition is **declared by the caller, never sniffed**, the same rule the auto-guard's
 unattended path states. There is no supported way for a session to observe that it is
 non-interactive, so never read an environment variable to decide this.
