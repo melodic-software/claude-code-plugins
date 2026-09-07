@@ -1,0 +1,41 @@
+# Skills whose `description` already exceeded the Agent Skills spec field
+# maximum (1024 Unicode codepoints) when check 2b of
+# plugins/skill-quality/scripts/check-skill.sh became a FAIL (#3845).
+#
+# Read by scripts/check-changed-skills.sh, passed to the checker as
+# CHECK_SKILL_DESC_FIELD_BASELINE. A listed skill's over-cap description
+# downgrades from FAIL to WARN, so introducing the FAIL did not turn sixteen
+# untouched skills into landmines for whoever edits one next.
+#
+# This is an AUDIT TRAIL, not a mute list. A description over the maximum is
+# rejected by the Skills API at upload; every row here is a real breach that is
+# simply older than the gate.
+#
+# Format: `plugins/<plugin>/skills/<skill>`, optionally followed by `# note`.
+# Blank lines and `#` lines are ignored.
+#
+# The list can only SHRINK: the checker FAILs on a stale row, a skill whose
+# description is now at or under the maximum. NEVER add a row because CI is red
+# on a description you just lengthened. Shorten the description instead, and
+# shorten it for density rather than by clipping trigger phrases, which is what
+# makes a skill findable in the first place.
+#
+# Codepoint counts recorded at a3dc8f48a, measured the way check 2b measures
+# (UTF-8 -> UTF-32BE via iconv, bytes / 4).
+
+plugins/architecture/skills/improve                       # 1105
+plugins/claude-config/skills/audit-prompting-postures     # 1228
+plugins/claude-ops/skills/audit-native-overlap            # 1153
+plugins/claude-ops/skills/audit-performance               # 1528
+plugins/claude-ops/skills/audit-skill-visibility          # 1467
+plugins/code-tidying/skills/audit-dead-code               # 1094
+plugins/docs-hygiene/skills/audit-progressive-disclosure  # 1145
+plugins/docs-hygiene/skills/compress                      # 1027
+plugins/docs-hygiene/skills/write-for-humans              # 1106
+plugins/improvement/skills/find                           # 1212
+plugins/mutation-testing/skills/audit                     # 1150
+plugins/overengineering/skills/audit                      # 1202
+plugins/overengineering/skills/realign                    # 1130
+plugins/session-flow/skills/show-options                  # 1140
+plugins/work-items/skills/decompose                       # 1110
+plugins/work-items/skills/setup                           # 1273
