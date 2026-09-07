@@ -127,6 +127,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   with `printf -v`. Synced `hooks/hook-utils.sh` also fuses an optional
   JSON completeness check with field extraction so a caller that was about
   to run `jq` twice spends one process. What the hook checks is unchanged.
+
 ## [0.55.58]
 
 ### Changed
