@@ -511,9 +511,14 @@ assert_eq "case 21: the charset-ok home got its seven stubs" "7" "$(count_files 
 # folds all of Unicode, so a non-ASCII segment spelled two ways is one directory
 # the string compare calls two. This is the arm case 17 cannot cover.
 #
-# This case PRE-CREATES the scan directory, so it exercises only the arm where
-# the filesystem has an inode to compare. Case 27 is its sibling for the arm
-# where neither spelling exists yet, which is decided by the fold alone.
+# This case PRE-CREATES the scan directory, so the filesystem has an inode to
+# compare and existence decides who answers. A volume that folds the two
+# spellings to one directory refuses (exit 3). A volume that keeps them
+# distinct writes (exit 0), and nothing lands in --scan-dir. The suite must
+# not treat those two outcomes as equivalent: a flip from write to refuse on
+# a case-sensitive volume is a regression of the existing-inode arm. Case 27
+# is the sibling for the arm where neither spelling exists yet, which the
+# fold still decides.
 UNI="$TEST_TMPDIR/uni"
 if mkdir -p "$UNI/réviews/feat-x" 2>/dev/null && [[ -d "$UNI/réviews/feat-x" ]]; then
   cp "$FINDINGS" "$UNI/réviews/feat-x/review-findings.md"
@@ -526,12 +531,14 @@ if mkdir -p "$UNI/réviews/feat-x" 2>/dev/null && [[ -d "$UNI/réviews/feat-x" ]
   done
   if [[ "$uni_landed" -gt 0 ]]; then
     fail "case 22: a non-ASCII case variant is fenced" "no stub inside --scan-dir" "$uni_landed stubs landed there"
-  elif [[ "$uni_exit" -eq 3 ]]; then
-    pass "case 22: a non-ASCII case variant of --scan-dir is refused"
   else
-    # On a case-SENSITIVE volume the two spellings are genuinely two
-    # directories, so writing is correct and nothing landed in the scan dir.
-    pass "case 22: the non-ASCII spellings are distinct directories on this volume, and nothing landed in --scan-dir"
+    mkdir -p "$UNI/caseprobe/reviews"
+    if [[ -d "$UNI/caseprobe/REVIEWS" ]]; then
+      assert_eq "case 22: a folding volume refuses a non-ASCII case variant of --scan-dir" "3" "$uni_exit"
+    else
+      assert_eq "case 22: a case-sensitive volume writes into the distinct spelling" "0" "$uni_exit"
+      assert_eq "case 22: the distinct home received stubs" "7" "$(count_files "$UNI/RÉVIEWS/feat-x/stubs")"
+    fi
   fi
 else
   skip_case "case 22: this filesystem does not accept a non-ASCII path segment"
@@ -622,23 +629,60 @@ fi
 # --- Case 28: a non-ASCII case variant of the findings directory -------------
 #
 # The second anchor. Its ancestor cannot be absent: --findings must name a file
-# that exists, which pins its directory into existence, so a folding volume
-# settles this pair by inode. A volume that does NOT fold has two distinct
-# directories and no inode to share, and the fold is then the only thing that
-# refuses. One case, both volumes, the same exit 3.
+# that exists, which pins its directory into existence, so existence decides
+# who answers the same way case 22 does. A folding volume settles the pair by
+# inode and refuses. A volume that keeps the spellings distinct writes into
+# the other directory; the fold does not get to refuse an inode the filesystem
+# already named.
 if [[ "$UNI_OK" -eq 1 ]]; then
   UNIF="$TEST_TMPDIR/uni-findings"
   mkdir -p "$UNIF/réviews/feat-x"
   cp "$FINDINGS" "$UNIF/réviews/feat-x/review-findings.md"
   bash "$EMIT" --findings "$UNIF/réviews/feat-x/review-findings.md" --classes "$CLASSES" \
     --out "$UNIF/RÉVIEWS/feat-x/stubs" --scan-dir "$TEST_TMPDIR/elsewhere28" >/dev/null 2>&1
-  assert_eq "case 28: a non-ASCII case variant of the findings directory is refused" "3" "$?"
-  assert_eq "case 28: the case-variant stub home was never created" "0" \
-    "$([[ -e "$UNIF/RÉVIEWS/feat-x/stubs" ]] && echo 1 || echo 0)"
+  unif_exit=$?
+  mkdir -p "$UNIF/caseprobe/reviews"
+  if [[ -d "$UNIF/caseprobe/REVIEWS" ]]; then
+    assert_eq "case 28: a folding volume refuses a non-ASCII case variant of the findings directory" "3" "$unif_exit"
+    assert_eq "case 28: the case-variant stub home was never created" "0" \
+      "$([[ -e "$UNIF/RÉVIEWS/feat-x/stubs" ]] && echo 1 || echo 0)"
+  else
+    assert_eq "case 28: a case-sensitive volume writes into the distinct findings-dir spelling" "0" "$unif_exit"
+    assert_eq "case 28: the distinct home received stubs" "7" "$(count_files "$UNIF/RÉVIEWS/feat-x/stubs")"
+  fi
   assert_eq "case 28: the findings directory still holds only its own file" "1" \
     "$(count_files "$UNIF/réviews/feat-x")"
 else
   skip_case "case 28: this filesystem does not accept a non-ASCII path segment"
+fi
+
+# --- Case 30: existing siblings the coarse fold would collide ----------------
+#
+# `révu` and `rêvu` both exist and the filesystem names them as two inodes.
+# The placeholder fold would still spell them alike, but the inode walk runs
+# first, so the write into the sibling proceeds. The over-refusal is paid only
+# for unresolved tails (case 27), not for directories the filesystem can
+# already tell apart.
+if [[ "$UNI_OK" -eq 1 ]]; then
+  SIB="$TEST_TMPDIR/sibling-uni"
+  if mkdir -p "$SIB/révu/feat-x" "$SIB/rêvu" 2>/dev/null &&
+    [[ -d "$SIB/révu/feat-x" && -d "$SIB/rêvu" ]] &&
+    ! [[ "$SIB/révu" -ef "$SIB/rêvu" ]]; then
+    cp "$FINDINGS" "$SIB/révu/feat-x/review-findings.md"
+    bash "$EMIT" --findings "$SIB/révu/feat-x/review-findings.md" --classes "$CLASSES" \
+      --out "$SIB/rêvu/feat-x/stubs" --scan-dir "$SIB/révu/feat-x" >/dev/null 2>&1
+    assert_eq "case 30: existing non-ASCII siblings the fold would collide still write" "0" "$?"
+    assert_eq "case 30: the sibling home received stubs" "7" "$(count_files "$SIB/rêvu/feat-x/stubs")"
+    sib_landed=0
+    for f in "$SIB/révu/feat-x/stubs"/*.md; do
+      [[ -f "$f" ]] && sib_landed=$((sib_landed + 1))
+    done
+    assert_eq "case 30: nothing landed in the scan directory" "0" "$sib_landed"
+  else
+    skip_case "case 30: this filesystem does not keep révu and rêvu as distinct directories"
+  fi
+else
+  skip_case "case 30: this filesystem does not accept a non-ASCII path segment"
 fi
 
 # --- Case 29: the rollback removes every level the run created ---------------

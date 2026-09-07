@@ -46,15 +46,16 @@
 # it. Each path is normalized lexically and then folded to the filesystem's own
 # spelling of its deepest EXISTING ancestor, so two spellings of one directory
 # compare equal. Nothing is created to decide a refusal: a refused run leaves
-# the tree exactly as it found it. Neither directory need exist, and the fence
-# does not ask whether they do. It compares the whole of both paths under a
-# spelling fold coarser than the CASE fold of any filesystem this runs on,
-# which refuses whatever MIGHT be one directory (it is not coarser than a
-# Unicode NORMALIZATION fold, which APFS and HFS+ apply and NTFS does not; two
-# normalizations of one name still compare unequal there);
-# the filesystem is then asked, by device and inode, about the
-# part of the chain that exists, which ADDS the refusals a fold cannot see
-# (a drive mapping, a symlink) and never takes one away.
+# the tree exactly as it found it. Neither directory need exist, but existence
+# decides WHO answers. For the part of a chain that exists the filesystem
+# answers, by device and inode. For the unresolved tail, a spelling fold
+# answers, and that fold is deliberately coarser than the CASE fold of any
+# filesystem this runs on, so the absent case is refused wherever it might be
+# one directory (it is not coarser than a Unicode NORMALIZATION fold, which
+# APFS and HFS+ apply and NTFS does not; two normalizations of one name still
+# compare unequal there). The inode walk never takes a refusal away once the
+# fold has spoken for a tail, and it never lets the fold speak for inodes the
+# filesystem can already distinguish.
 #
 # THE BRANCH SLUG IS NOT A PATH HERE. The findings file's `branch:` value is
 # operator-supplied text: this script records it as `source-branch:` in the
@@ -310,6 +311,30 @@ is_within() {
   done
 }
 
+# fold_ascii_case <path>: ASCII letters to upper case; every other character
+# stands. Result in ASCII_FOLDED. This is the fence's ASCII fast path: it
+# matches `reviews` / `REVIEWS` without asking the filesystem, and it does not
+# match `réviews` / `RÉVIEWS` even when the locale's case table would, so those
+# pairs reach the inode walk. `nocasematch` is not used: a UTF-8 locale folds
+# Unicode case too.
+ASCII_FOLDED=""
+fold_ascii_case() {
+  local rest="$1" ch head out=""
+  local lower='abcdefghijklmnopqrstuvwxyz'
+  local upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  while [[ -n "$rest" ]]; do
+    ch="${rest:0:1}"
+    rest="${rest:1}"
+    head="${lower%%"$ch"*}"
+    if [[ "$head" != "$lower" ]]; then
+      out="$out${upper:${#head}:1}"
+    else
+      out="$out$ch"
+    fi
+  done
+  ASCII_FOLDED="$out"
+}
+
 # fold_path <path>: the spelling-insensitive rendering the fences compare when
 # the filesystem cannot answer. ASCII letters fold to upper case; every other
 # ASCII character stands; a RUN of anything else folds to one placeholder.
@@ -328,12 +353,12 @@ is_within() {
 # of them. `réviews` and `RÉVIEWS` fold alike, which is the point; so do
 # `révu` and `rêvu`, which is the cost. That cost is a VISIBLE refusal of two
 # genuinely distinct non-ASCII siblings, recoverable by renaming one, and it is
-# paid UNCONDITIONALLY: the fence folds before it asks the filesystem anything,
-# so a volume that would have called the two distinct is refused all the same.
-# That is the trade the ASCII fast path already made, and the one case 17
-# asserts on both kinds of volume. The opposite error, a silent write into the
-# fix action's scan directory, is not recoverable, and it is the error the
-# ASCII-only compare actually made.
+# paid only where the filesystem cannot answer: an unresolved tail after the
+# inode walk has matched the existing prefix. Two siblings that already exist
+# as distinct inodes are not folded together; the walk sees they are different
+# directories and the fold never runs on them. The opposite error, a silent
+# write into the fix action's scan directory, is not recoverable, and it is
+# the error an ASCII-only compare of an ABSENT tail actually made.
 FOLDED=""
 fold_path() {
   local rest="$1" ch head out=""
@@ -395,24 +420,33 @@ split_existing() {
 # because here a positive answer is a refusal and the unsettled case is exactly
 # the one that must not be written into.
 #
-# Two arms, both fail-closed, neither creating anything:
+# Three arms, all fail-closed, none creating anything. Existence decides
+# which of the last two answers; the first is an ASCII-letter fold that does
+# not inherit the locale:
 #
-#   1. The folded spellings. Subsumes the exact and `nocasematch` compares
-#      is_within uses, and unlike them it folds a non-ASCII case variant.
+#   1. Exact or ASCII-case spelling. `reviews` and `REVIEWS` refuse without
+#      asking the filesystem, which is the documented cost case 17 asserts on
+#      both kinds of volume. Unlike `nocasematch`, this fold does not take the
+#      locale's Unicode case table, so `réviews` / `RÉVIEWS` do not match here
+#      and fall through to the inode walk.
 #   2. The filesystem, generalized past the "ancestor exists" gate is_within
 #      stops at. The ancestor is split at its deepest EXISTING ancestor; the
 #      candidate is walked up to a prefix that IS that directory by device and
-#      inode; and what is left of each path, which by construction exists on
-#      neither side, is settled by the fold. When the ancestor exists whole,
-#      its tail is empty and this reduces to the walk is_within already does.
+#      inode. When the ancestor exists whole, its tail is empty and this
+#      reduces to the walk is_within already does: distinct existing inodes
+#      are not one directory, even if a later fold would have spelled them
+#      alike.
+#   3. What is left of each path after that match, which by construction
+#      exists on neither side, is settled by the fold. That is the only arm
+#      that pays the coarse-fold over-refusal (`révu` vs `rêvu` as tails).
 may_be_within() {
   local candidate="$1" ancestor="$2" tail="" probe prev
-  local c_folded a_folded a_base a_tail
-  fold_path "$candidate"
-  c_folded="$FOLDED"
-  fold_path "$ancestor"
-  a_folded="$FOLDED"
-  if [[ "$c_folded" == "$a_folded" || "$c_folded" == "${a_folded%/}/"* ]]; then
+  local c_folded a_folded a_base a_tail c_ascii a_ascii
+  fold_ascii_case "$candidate"
+  c_ascii="$ASCII_FOLDED"
+  fold_ascii_case "$ancestor"
+  a_ascii="$ASCII_FOLDED"
+  if [[ "$c_ascii" == "$a_ascii" || "$c_ascii" == "${a_ascii%/}"/* ]]; then
     return 0
   fi
 

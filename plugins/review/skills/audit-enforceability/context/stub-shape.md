@@ -49,10 +49,15 @@ The `type:` marker is the load-bearing exclusion. The writer's home refusals (a 
 inside the fix action's scan directory, a stub home inside the input file's own directory, a
 home carrying a `..` segment, a home outside `--memory-root` when the caller composed the path,
 and a last path segment outside the branch-slug charset `[a-z0-9._-]`) are defense in depth on
-top of it, not a substitute for it. The two sibling refusals compare each path after folding it
-to the filesystem's own spelling of its deepest existing ancestor, because one directory can be
-addressed by more than one absolute path and comparing two spellings as strings would report
-"not within" for the very case the fence exists to catch.
+top of it, not a substitute for it. The two sibling refusals ask the filesystem first, by device and inode, about
+the part of each path that already exists, then compare only the unresolved
+tails under a spelling fold coarser than any filesystem's case fold. Existence
+decides which half answers: two directories the filesystem can already tell
+apart are not folded together, because one directory can still be addressed by
+more than one absolute path and comparing those spellings as strings would
+report "not within" for the very case the fence exists to catch, while folding
+them before asking would refuse distinct siblings the filesystem has already
+named.
 
 ## Filename
 
