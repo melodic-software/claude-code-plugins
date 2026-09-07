@@ -123,6 +123,26 @@ deterministic floor is what makes daily coverage predictable.
 
 Zero verified findings is a clean, successful outcome. Do **not** invent a finding to justify the run.
 
+### Effort
+
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
+one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+skill-loaded, so the substitution never ran: treat the run as `high` and use the full budget above.
+
+Effort scales the **recall stage only**. The verification gate is the precision machinery and never
+relaxes: every candidate still faces a separate fresh-context refuting subagent at every level, and
+"if uncertain, it is NOT a finding" binds at `low` exactly as it does at `max`.
+
+| Effort | Lenses dispatched (step 2) | Refill waves | Stop condition |
+|---|---|---|---|
+| `low` | 1, the highest-ranked lens for the scope | 0 | first verified finding |
+| `medium` | 2 | 1 | 2 verified findings |
+| `high`, `xhigh`, `max` | up to 4, sized to the surface as step 2 describes | 2 | 3 verified findings |
+
+The candidate cap of 10 per wave holds at every level. Name the effort level and the lens count in
+the report's run metadata, so a `low` run reads as the narrower sample it is rather than as a clean
+lane.
+
 ## The scan pipeline
 
 Process one unit at a time. One target, or one lane. A unit is closed when its verified findings are
@@ -144,7 +164,8 @@ call; on a shallow clone, print the skip notice and continue unranked.
 Dispatch **one subagent per lens** over the resolved scope, each with the four-part contract:
 objective, output format, tool/source guidance, and task boundaries, spelled out in
 [`context/lenses.md`](context/lenses.md). Size the fan-out to the surface: a single small file may
-warrant one or two lenses; a full lane warrants all four. Every hunter is read-only, must attach a
+warrant one or two lenses; a full lane warrants all four. Whatever the surface suggests, the effort
+row in [Budget](#effort) is the ceiling. Every hunter is read-only, must attach a
 verbatim evidence quote to every candidate, and is explicitly told that **returning no candidate is a
 valid and expected outcome**.
 

@@ -102,6 +102,29 @@ Steps 2–3 run in the fresh `auditor` subagent in every zone, the zone modulate
 | dumb | summary + packet pointer only (no bulk re-read) | MUST dispatch to fresh subagents | immediate flush of all main-thread evidence to the packet at every step boundary. Each flush is a new `evidence-<n>.md`, never an append to an existing one (packet files are write-once); the flush artifact is the observable |
 | unknown (absent/stale/no-jq) | conservative = dumb row + one-line visible notice: `plugin-quality: no fresh context snapshot — running conservative dispatch` | as dumb | as dumb |
 
+### Effort, and why the zone outranks it
+
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
+one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+skill-loaded, so the substitution never ran: treat the run as `high` and run every seam below.
+
+Two dials now sit over step 5, and they answer different questions. The **zone decides where a seam
+runs**; effort decides **which seams run at all**. Where they disagree the zone wins, so `low` effort
+never buys an inline review the dumb or unknown row says MUST dispatch, and never trims an evidence
+flush. Effort touches step 5 only. Steps 1 through 4 are the evidence and contract-lock spine and run
+in full at every level:
+
+| Effort | Step 5 review seams |
+|---|---|
+| `low` | `skill-quality:check` only, and only for a skill target. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor |
+| `high`, `xhigh`, `max` | every presence-gated seam over every finding, the current behavior |
+
+`skill-quality:check` stays required for a skill target at every level; it is the one seam that
+grades the artifact against its own contract rather than reviewing the write-up. When effort skips
+the breadth pass, say so in the emitted write-up next to the seam list, so an ungraded write-up is
+never mistaken for one that passed review.
+
 ## Target resolution (fan-out is normal, not an improvisation)
 
 The argument may name one component, several, or neither. "audit the plugins we used" is an
@@ -255,8 +278,9 @@ an unattended external emit.
 
 ### Step 5. Review / gate (presence-gated seams)
 
-Re-evaluate the context-gate, then gate the write-up. Each seam is used when installed, with a
-one-line fallback when absent:
+Re-evaluate the context-gate, then gate the write-up. Which of these seams run at all is the effort
+row in [Effort, and why the zone outranks it](#effort-and-why-the-zone-outranks-it); each seam that
+runs is used when installed, with a one-line fallback when absent:
 
 - `review:fanout` / `review:quality-gate`. Breadth/depth review of the findings write-up.
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each
