@@ -12,7 +12,8 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   holds four shared helpers (`esc` for the convention's escape set in text and attribute
   positions; `copyText`, the clipboard write-fallback-flash boilerplate every interactive
   page otherwise duplicates; `safeHref` for URL position, which refuses `javascript:`,
-  `data:`, and relative URLs; `safeFilename` for a `download` attribute) plus
+  `data:`, and relative URLs, and HTML-escapes a bare `#fragment` so a quote cannot
+  break out of a quoted `href` attribute; `safeFilename` for a `download` attribute) plus
   `downloadText`, which exports through a `Blob` and an object URL rather than a `data:`
   URL. Five runnable demos cover the escalating loop-closure payload shapes: numbered
   resonate tokens, chip-assembled replies, generated follow-up prompts,

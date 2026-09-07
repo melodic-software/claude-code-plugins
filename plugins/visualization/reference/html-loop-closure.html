@@ -296,7 +296,8 @@ async function copyText(text, flashEl) {
 
 function safeHref(value) {
   var raw = String(value).trim();
-  if (raw.charAt(0) === "#") { return raw; }
+  // Bare fragments skip new URL(); esc so a quote cannot close a quoted href.
+  if (raw.charAt(0) === "#") { return esc(raw); }
   var parsed;
   try {
     parsed = new URL(raw);

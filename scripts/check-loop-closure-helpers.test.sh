@@ -101,6 +101,14 @@ for (const value of rejected) {
   check(safeHref(value) === "#", `safeHref refuses ${JSON.stringify(value)}`);
 }
 check(safeHref("#section-2") === "#section-2", "safeHref passes a fragment through");
+check(
+  !safeHref('#" onmouseover="alert(1)').includes('"'),
+  "safeHref escapes a quote in a fragment so it cannot close a double-quoted href",
+);
+check(
+  safeHref('#" onmouseover="alert(1)') === esc('#" onmouseover="alert(1)'),
+  "safeHref routes a bare fragment through esc",
+);
 check(safeHref("https://example.com/x").startsWith("https://"), "safeHref allows https");
 check(safeHref("mailto:a@example.com").startsWith("mailto:"), "safeHref allows mailto");
 // A rejected scheme must also survive the escape pass without reappearing.
