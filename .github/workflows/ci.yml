@@ -706,6 +706,22 @@ jobs:
         continue-on-error: true
         run: python3 scripts/sync-plugin-options-docs.py --check
 
+      # code-metrics resolves every tunable from one defaults file and restates
+      # every key in a reference table with its default. The setup template is
+      # pinned to that defaults file leaf for leaf by a test; the reference
+      # table was pinned to nothing, and a stale default in a reference reads
+      # exactly like a current one (#3841). The gate is ungated on purpose: a
+      # change that edits only the reference is docs-only, and that is exactly
+      # the edit that can walk the table away from the defaults. Self-test
+      # first so a broken detector cannot mask a regression.
+      - name: Test the code-metrics config reference gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-code-metrics-config-reference.test.sh
+      - name: Check the code-metrics config reference against its defaults file
+        id: code_metrics_config_reference
+        continue-on-error: true
+        run: python3 scripts/check-code-metrics-config-reference.py
+
       - name: Check hook entry scripts for silent prerequisite skips
         id: silent_skips
         continue-on-error: true
@@ -1259,6 +1275,7 @@ jobs:
             hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}
             discriminating-test-skips=${{ steps.discriminating_test_skips.outcome }}
             plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}

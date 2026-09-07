@@ -3,6 +3,23 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7]
+
+### Changed
+
+- **The configuration reference's key table can no longer disagree with the bundled defaults.**
+  `reference/config.md` restated every key from `scripts/config-defaults.json` as hand-maintained
+  prose, and nothing checked the two against each other, so a key added, removed, or given a
+  different default left a stale reference that reads exactly like a current one. A repository gate
+  (`scripts/check-code-metrics-config-reference.py`, run on every change) now pins the table's key
+  column and default column to that file: every non-reserved defaults leaf must be documented by
+  exactly one row, every row must document a key that exists (or be marked `absent`), and each
+  row's default must equal the canonical rendering of the value, pipes escaped and backtick fences
+  widened so a value carrying markdown-significant characters cannot produce a broken table that
+  still passes. The third column stays hand written; the document's prose is unchanged apart from
+  a paragraph saying what the gate covers. The prose copies of default values in the skill bodies
+  remain unbound and are now recorded in the README's known gaps.
+
 ## [0.1.6]
 
 ### Fixed
