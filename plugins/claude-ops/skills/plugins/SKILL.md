@@ -163,10 +163,9 @@ pre-refresh `fleet-state.sh` snapshot is a read and `audit` takes it, and only t
 the catalog regression check's chain, so an `audit` that skipped it would start the check at `pre`
 and lose the interval that isolates the refresh point. See [context/sync.md](context/sync.md) Step 1.
 
-`audit` runs the same steps, which write reports — Step 1's snapshot, plus the ones Steps 2–5 project
-their id lists from with `--from` — so it does write them, to a throwaway `mktemp -d` scratch
-directory created before Step 1 and deleted when the run
-ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
+`audit` runs the same steps, and those steps write reports from Step 1's snapshot onward, so it does
+write them: to a throwaway `mktemp -d` scratch directory, created before Step 1 and deleted when the
+run ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
 for both actions while leaving nothing behind, which is what "mutates nothing" means here. See
 [context/sync.md](context/sync.md)'s "Run journal" section.
 

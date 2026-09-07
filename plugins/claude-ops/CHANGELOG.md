@@ -18,9 +18,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   so outright ("Step 1 never runs"), so an `audit` run's check started at `pre` and
   lost the interval that isolates the refresh point. Step 1 now separates the two:
   the snapshot is a read taken by both actions, and only the refresh is `sync`-only.
-  The interval's meaning is stated per action — under `sync` a regression across
+  The interval's meaning is stated per action: under `sync` a regression across
   `pre-refresh` to `pre` is that run's own refresh pulling a source that moved
-  backward, under `audit` it is the checkout changing under the run — and `audit`'s
+  backward, under `audit` it is the checkout changing under the run. `audit`'s
   scratch directory is now created before Step 1 rather than before Step 2. The
   run journal's `pre-refresh.<mp>.json` row, `SKILL.md`'s action table and "Action:
   audit" section, and the `audit-issues-zero-mutating-calls` eval read correctly for

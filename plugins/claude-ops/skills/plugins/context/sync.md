@@ -160,12 +160,12 @@ Then, for the rest of the run:
 - **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
   snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
   FIRST interval in which any id's catalog version moved backward. Both actions have all four
-  snapshots, so both have the full chain. That interval is the signal that
-  names the cause: in `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1
-  refresh pulling a source that moved backward, while one appearing later is the checkout changing
-  under the run. In `audit` no refresh runs, so a regression in that same first interval is the
-  checkout changing under the run as well, not this run's doing — the interval still names WHEN,
-  and the action determines what that means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
+  snapshots, so both have the full chain. That interval is the signal that names the cause: in
+  `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
+  source that moved backward, while one appearing later is the checkout changing under the run. In
+  `audit` no refresh runs, so a regression in that same first interval is the checkout changing
+  under the run as well, never this run's doing. The interval names when; the action names what it
+  means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
   the hand-written-`jq` prohibition that governs `--ids` does not apply to it:
 
   ```bash
@@ -218,8 +218,7 @@ action table says `audit` mutates nothing, and a run that leaves directories beh
 data dir does not match that line even though the data dir is not fleet state. But `audit` runs this
 same algorithm, and it writes reports: Step 1 saves its pre-refresh snapshot, and Steps 2–5 project
 their id lists with `--from` against a saved report. So it does need somewhere to put them, and that
-somewhere has to exist before Step 1 rather than before Step 2. It gets one outside the journal root
-and deletes it:
+somewhere has to exist before Step 1. It gets one outside the journal root and deletes it:
 
 ```bash
 run_dir=$(mktemp -d "${TMPDIR:-${TEMP:-.}}/plugins-audit.XXXXXX")
@@ -363,14 +362,14 @@ repository: fatal: destination path '...' already exists and is not an empty dir
 successful refresh as the expected case, not a guarantee.
 
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
-which is what lets the Run journal's catalog regression check attribute a backward move to this
-refresh. It belongs to this step's own loop, not to the Steps 2-5 loop body.
+which is what gives the Run journal's catalog regression check its first interval. It belongs to
+this step's own loop, not to the Steps 2-5 loop body.
 
-That attribution is what the interval means in each action, and the two readings differ. In `sync`,
-a regression across the `pre-refresh` to `pre` boundary is this run's own refresh pulling a source
-that moved backward. In `audit` no refresh runs, so a regression across the same boundary is the
-catalog changing under the run — a concurrent session or a background `autoUpdate` sweep — and never
-something this run did. Report the interval either way; read its cause per the action.
+What a regression in that first interval means differs by action. In `sync`, a backward move across
+the `pre-refresh` to `pre` boundary is this run's own refresh pulling a source that moved backward.
+In `audit` no refresh runs, so the same move is the catalog changing under the run: a concurrent
+session, or a background `autoUpdate` sweep. Report the interval either way; read its cause per the
+action.
 
 In `all` mode, loop this per marketplace name (rather than the bulk no-argument form) so a single
 marketplace's failure is attributable and reported inline without aborting the sweep for the rest.
