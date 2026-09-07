@@ -12,8 +12,8 @@ where artifacts land in the consuming repo.
 |---|---|---|
 | `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared decision map on the work-item tracker, then works its frontier one decision at a time, routing each to the right skill until the fog clears and a Brief / PRD / PLAN can be handed onward. Upstream of the whole pipeline. |
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
-| `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. |
-| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. |
+| `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. Acceptance-criteria capture asks once about missing unwanted-behaviour and state-driven cases (skipped and reported unexamined on the `synthesize` path). |
+| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. Acceptance-criteria capture asks once about missing unwanted-behaviour and state-driven cases, and emits EARS-tagged criteria when the team's convention selects that format. |
 | `/planning:audit-answers` | Contract validation | Independent adversarial validation of a completed `/planning:interview`'s answers, over any filled ledger, hand-answered or auto-accepted. Fresh-context validators re-examine each answer with its rationale withheld and return one verdict per answer: `confirmed`, `challenged`, or `reclassified`. Only the challenged and reclassified answers, plus every user-reserved decision, return as real human questions. Open branches are accept-filled first, holding the never-auto floor. |
 | `/planning:questionnaire` | Person hand-off | Turns a decision another person holds into a discovery questionnaire delivered async. It interviews the user about the send only (recipient, what's needed back), writes the document to the topic's memory slice, and leaves delivery out-of-band. |
 | `/planning:draft-goal-condition` | Goal authoring | Crafts a paste-ready `/goal` completion condition from a stated intent. It reads the current official `/goal` docs live for the condition shape and character limit (nothing hardcoded), drafts a transcript-demonstrable condition, and proves it fits the limit with a deterministic character counter instead of model guesswork, with a branch that builds a checkable condition for goals no metric can measure; a lever-fit gate routes interval-shaped, cloud/sessionless, orchestration-only, and multi-window / multi-ticket work elsewhere. Standalone. |
@@ -65,6 +65,17 @@ self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run
 `/planning:setup apply` to interview and persist the tracked
 concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
 `contract_tier: branch | local`); absent keys mean those documented defaults.
+
+The **format acceptance criteria are written in** is a separate, optional team-shared
+choice. `/planning:interview` and `/planning:prd` read
+`acceptance_criteria_format` from `<home>/authoring-formats/README.md`, where
+`<home>` is the convention home bound by the pointer line in your root instruction
+file. `ears` tags every emitted criterion with one of five bracketed patterns
+(`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`,
+`optional-feature`); `free-text` is the default and emits prose criteria untagged,
+exactly as before. Every failure to resolve — no pointer line, no such document, no
+such key, an unrecognized value — degrades to `free-text` with the cause named, so a
+repo that declares nothing sees no change in output.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

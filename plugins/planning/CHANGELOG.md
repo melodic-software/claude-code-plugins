@@ -3,6 +3,44 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0]
+
+### Added
+
+- **`interview`, `prd`:** an always-on acceptance-criteria coverage prompt. During
+  acceptance-criteria capture each skill asks ONCE whether an unwanted-behaviour case (`IF-THEN`)
+  and a state-driven case (`WHILE`) are missing; "neither applies" closes it. It is never a `Q<N>`
+  row in the interview's open-question register, and asking it does not by itself bring the Step 3
+  register gate into scope — the exemption covers that one prompt and never a real question asked
+  beside it. In a non-interactive run — a dispatched worker, a forked subagent, a headless
+  invocation, or the PRD's `synthesize` path — the ask is SKIPPED rather than blocking, and the
+  returned summary states that unwanted-behaviour and state-driven coverage went unexamined. The
+  unattended condition stays caller-declared, never sniffed.
+- **`interview`, `prd`:** convention-gated EARS pattern tags on emitted acceptance criteria. When
+  the consuming team's `acceptance_criteria_format` resolves to `ears`, each emitted criterion
+  carries a bracketed prefix drawn from exactly five names — `ubiquitous`, `event-driven`,
+  `state-driven`, `unwanted-behaviour`, `optional-feature` — on the Brief's existing plain-bullet
+  shape (`- [event-driven] WHEN the upload completes, the manifest is rewritten`). Under
+  `free-text`, the default and every degrade, criteria are emitted untagged and byte-comparable in
+  shape to the previous release. Both skills RESTATE the authoring-formats resolution ladder in
+  their own bodies rather than citing a convention document, because an installed plugin never sees
+  the publishing repository's `docs/`.
+- **`lib/resolve-convention-home.sh`:** the plugin enrolls as a carrier of the cross-plugin
+  convention-home resolver, so the ladder's step 2 has a bundled resolver to call instead of
+  hand-parsing the consumer's root instruction file.
+
+### Changed
+
+- **`interview`, `prd`:** both descriptions name the trigger phrases that reach acceptance-criteria
+  capture, and both Boundary sections name Gherkin export as a deferred extension point that this
+  release deliberately does not build.
+- **`interview`:** `context/loop.md` documents the tagged bullet form beside the Brief template and
+  states that `### Acceptance criteria` stays plain bullets in both formats. The template
+  placeholder is unchanged. Every site stating a register rule — the Emit-checklist line, the
+  ask-time rule, Step 3's gate, Frontier-rounds item 5, "Write at ask-time", "Gate before locking",
+  and the unattended ladder — carries the coverage prompt's carve-out, each scoped so it exempts
+  that prompt alone.
+
 ## [0.38.0]
 
 ### Added
