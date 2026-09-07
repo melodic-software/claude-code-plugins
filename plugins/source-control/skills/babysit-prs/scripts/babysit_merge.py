@@ -99,6 +99,7 @@ from babysit_review_trigger import (
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     configure_stdio,
+    is_json_array,
     is_json_object,
     json_array,
 )
@@ -194,9 +195,9 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
     def project(thread: dict[str, Any]) -> dict[str, object]:
         comments = thread.get("comments")
         first = comments[0] if isinstance(comments, list) and comments else {}
-        first_object = cast(dict[str, Any], first) if isinstance(first, dict) else {}
+        first_object = first if is_json_object(first) else {}
         author = first_object.get("author")
-        author_object = cast(dict[str, Any], author) if isinstance(author, dict) else {}
+        author_object = author if is_json_object(author) else {}
         return {
             "author": author_object.get("login"),
             "path": first_object.get("path"),
@@ -226,7 +227,7 @@ def repository_default_branch(repo: str) -> str | None:
         return None
     if not is_json_object(data):
         return None
-    name = cast(dict[str, Any], data).get("name")
+    name = data.get("name")
     return str(name) if name else None
 
 
@@ -265,23 +266,20 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     required_contexts: set[str] = set()
     required_reviews = 0
     require_thread_resolution = False
-    for rule in cast(list[Any], rules) if isinstance(rules, list) else []:
-        if not isinstance(rule, dict):
+    for rule in rules if is_json_array(rules) else []:
+        if not is_json_object(rule):
             continue
-        rule_object = cast(dict[str, Any], rule)
-        rtype = rule_object.get("type")
-        raw_params = rule_object.get("parameters")
-        params = (
-            cast(dict[str, Any], raw_params) if isinstance(raw_params, dict) else {}
-        )
+        rtype = rule.get("type")
+        raw_params = rule.get("parameters")
+        params = raw_params if is_json_object(raw_params) else {}
         if rtype == "required_status_checks":
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
             # surface downstream as a literal "None" required context.
             required_contexts.update(
-                str(cast(dict[str, Any], c)["context"])
+                str(c["context"])
                 for c in params.get("required_status_checks", [])
-                if isinstance(c, dict) and cast(dict[str, Any], c).get("context")
+                if is_json_object(c) and c.get("context")
             )
         elif rtype == "pull_request":
             # Absence and unreadability are different facts. No key means the
@@ -544,6 +542,11 @@ def evaluate_decision_default_veto(
     blockers: list[str] = []
     held: list[str] = []
     for ref in closing_issues:
+        # Untyped either way: a linked-issue ref arrives as a raw number or as an
+        # object whose "number" key may be absent. The int() below, guarded by
+        # its own except, is the validation -- annotating the declared type here
+        # keeps that the single place the shape is decided.
+        number: Any
         if is_json_object(ref):
             number = ref.get("number")
             issue_repo = _ref_repo(ref) or repo
@@ -756,15 +759,13 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
         return None
     if not is_json_object(data):
         return None
-    commit = cast(dict[str, Any], data).get("commit")
+    commit = data.get("commit")
     if not is_json_object(commit):
         return None
-    committer = cast(dict[str, Any], commit).get("committer")
+    committer = commit.get("committer")
     if not is_json_object(committer):
         return None
-    return parse_github_timestamp(
-        str(cast(dict[str, Any], committer).get("date") or "")
-    )
+    return parse_github_timestamp(str(committer.get("date") or ""))
 
 
 def latest_check_activity(status_rollup: Any) -> datetime | None:
@@ -946,7 +947,7 @@ def evaluate(
             "closingIssuesReferences",
         ]
     )
-    pr = cast(dict[str, Any], pr_data) if isinstance(pr_data, dict) else {}
+    pr = pr_data if is_json_object(pr_data) else {}
     threads = unresolved_threads(repo, number)
     checks = classify_checks(pr.get("statusCheckRollup"))
     failing = checks["failing"]
@@ -973,9 +974,7 @@ def evaluate(
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
     required_context_list = (
-        cast(list[Any], required_contexts)
-        if isinstance(required_contexts, list)
-        else []
+        required_contexts if is_json_array(required_contexts) else []
     )
     required_check_status: list[dict[str, object]] = []
     for raw_context in required_context_list:
@@ -1199,7 +1198,7 @@ def allowed_method(repo: str, requested: str | None) -> str:
             "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed",
         ]
     )
-    data = cast(dict[str, Any], data) if isinstance(data, dict) else {}
+    data = data if is_json_object(data) else {}
     allowed = {
         "squash": bool(data.get("squashMergeAllowed")),
         "merge": bool(data.get("mergeCommitAllowed")),
