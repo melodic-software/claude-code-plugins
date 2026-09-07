@@ -23,7 +23,7 @@
 # already deleted keep their backup ref and ledger row. A refusal in 4 leaves
 # the branch intact with its pin in place (recoverable, and noted in the
 # ledger). The batch-wide precondition check (capture present, every branch
-# captured, every tip unmoved, no protected/worktree/unforced-REVIEW branch, a
+# captured, every tip unmoved, no protected/worktree/unforced-LOSSY/unforced-REVIEW branch, a
 # SAFE-by-ancestry tip actually merged) runs before the first deletion, so a
 # refused batch deletes nothing at all.
 #

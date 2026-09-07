@@ -30,8 +30,7 @@
 # The LOSSY set is printed again as its own block after the per-branch records,
 # one LossBranch line per branch with the commits that would be lost, so the
 # operator confronts it as a separate decision before any deletion is
-# confirmed: a prose flag beside a verdict column is the shape that once let
-# five branches of unlanded work through a deletion pass.
+# confirmed: a prose flag beside a verdict column is easy to skim past.
 #
 # TIP CAPTURE. Every branch's tip commit is written, together with its verdict,
 # upstream and ahead/behind counts, to a durable TSV under the repository's
@@ -63,6 +62,7 @@ Usage:
   --capture-file PATH  write the branch-tip capture to PATH instead of the
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
 
+Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
 Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason.
 Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
 that is deletable but whose deletion loses commits present on no remote ref and

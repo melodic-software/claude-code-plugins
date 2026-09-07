@@ -98,7 +98,7 @@ Then, as its own section and immediately before the confirmation question, the l
   - ... (and K more, when the block capped the listing)
 ```
 
-The block must appear even when the table already shows the tier: the near-miss that motivates it was five branches of unlanded work flagged in prose beside a verdict column that said delete. A column value is not a decision surface; the block is. When the block is empty (`LossBlock: 0`), say so in one line rather than omitting the section.
+The block must appear even when the table already shows the tier: a column value is not a decision surface, because a prose flag beside a binary verdict is easy to skim past when confirming deletion. When the block is empty (`LossBlock: 0`), say so in one line rather than omitting the section.
 
 ## 4.7 Interactive deletion
 
