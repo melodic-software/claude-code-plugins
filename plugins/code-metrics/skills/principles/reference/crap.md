@@ -103,14 +103,20 @@ because every one of them can change a number:
    function's start and end lines, with nested function ranges subtracted from the parent first. The
    row records `cov_source: line-range`. The range comes from a collector that reports function end
    lines, which means `lizard` or `radon`.
-3. **A lane whose resolved collector reports only start lines** gets a `run[]` row
+3. **A short name that fits more than one function is refused, not guessed.** Where the artifact
+   records a function as `run` rather than as `Alpha.run`, the record binds to the function whose
+   declared range holds the lines the artifact placed it at. Where no range separates the
+   candidates, because the artifact placed none of them at a line or because two of them fall
+   inside the same range, the row records `cov_source: ambiguous` with `cov` and CRAP both `null`,
+   a `coverage-ambiguous` label, and a `reason` saying which way it was unresolvable.
+4. **A lane whose resolved collector reports only start lines** gets a `run[]` row
    `<lane>/crap: not-applicable` with the reason "the resolved collector reports no function end
    lines", rather than a null that would quietly cover the whole lane. In this version Bash is that
    lane, and it is a documented gap.
-4. **A function-hit flag of zero forces `cov: 0`.** lcov `FNDA`/`FNA` records and Cobertura
+5. **A function-hit flag of zero forces `cov: 0`.** lcov `FNDA`/`FNA` records and Cobertura
    `method` hits say whether the function was entered at all. Without that check, a declaration line
    executed at import time reports a small non-zero coverage for a function nothing ever called.
-5. **`cov: null` gives `crap: null`, never 0.** A function with no executable lines in the artifact
+6. **`cov: null` gives `crap: null`, never 0.** A function with no executable lines in the artifact
    was not measured. Substituting zero would fabricate the maximal CRAP for that complexity, which
    is the single most misleading number this plugin could print.
 
