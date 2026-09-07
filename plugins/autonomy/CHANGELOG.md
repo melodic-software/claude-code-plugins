@@ -55,6 +55,13 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   arm-record load), matching `gate_file_mentions`. A file that exists but
   cannot be read stays silent.
 
+### Fixed
+
+- **Payload-field read no longer calls `local` at script scope.** The NUL-split
+  loop lived in a group, not a function, so `local f` was invalid (SC2168) and
+  the group's `2>/dev/null` swallowed the diagnostic. The loop uses `_gate_pf`
+  at script scope and unsets it after the read.
+
 ### Added
 
 - **The suite pins the process budget by trace** (`lane-stop-gate.test.sh`): exactly 1

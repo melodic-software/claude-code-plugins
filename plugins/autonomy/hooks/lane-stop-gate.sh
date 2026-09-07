@@ -211,9 +211,10 @@ strip_cr() {
 }
 GATE_PAYLOAD_FIELDS=()
 {
-  local f
-  while IFS= read -r -d '' f; do
-    GATE_PAYLOAD_FIELDS+=("$f")
+  # Script-level group: `local` is invalid here (SC2168) and was swallowed by
+  # the group's 2>/dev/null, so `f` was already a global. Keep it one.
+  while IFS= read -r -d '' _gate_pf; do
+    GATE_PAYLOAD_FIELDS+=("$_gate_pf")
   done < <(printf '%s' "$INPUT" | jq -j '
     [ (.hook_event_name // "" | tostring),
       (.session_id // "" | tostring),
@@ -222,6 +223,7 @@ GATE_PAYLOAD_FIELDS=()
       (.last_assistant_message // "" | tostring)
     ] | map(split("\u0000") | join("")) | .[] | (., ([0] | implode))')
 } 2>/dev/null
+unset -v _gate_pf
 EVENT="${GATE_PAYLOAD_FIELDS[0]-}"
 SESSION_ID="${GATE_PAYLOAD_FIELDS[1]-}"
 CWD="${GATE_PAYLOAD_FIELDS[2]-}"
