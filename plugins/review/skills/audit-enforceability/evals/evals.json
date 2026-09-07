@@ -1,0 +1,94 @@
+{
+  "skill_name": "audit-enforceability",
+  "evals": [
+    {
+      "id": 1,
+      "name": "one-per-rung-fixture",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md",
+      "expected_output": "Seven findings are classified, each mapped to one rung of the crosswalk in cheapest-first order, and seven stubs are written to the resolved enforceability home. The report names each row's rung and its owner or pointer, and announces the resolved stub path before writing.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv"
+      ],
+      "expectations": [
+        "Output announces the resolved stub home path before any stub is written",
+        "Output classifies all seven rows and writes exactly seven stubs, not fourteen (the By dimension section re-renders every row)",
+        "Output names a distinct rung per row: editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, hook, llm-only",
+        "Output names an owner or pointer for every rung, and the semgrep and hook rungs are presence-gated on their plugin with a stated fallback",
+        "Output reports the line 'N findings' with N equal to 7 and the resolved home"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-file-refusal",
+      "prompt": "/review:audit-enforceability",
+      "expected_output": "With no path argument the input gate prints the usage line and STOPs. No findings directory is globbed, no newest file is picked, and nothing is written.",
+      "files": [],
+      "expectations": [
+        "Output prints a usage line naming that exactly one findings file is required",
+        "Output does NOT glob a findings directory or select the newest file",
+        "Output writes no stub and stops"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "rule-id-wins-over-prose",
+      "prompt": "Audit enforceability for this findings file. Row 2 leads with the qualified rule id ai-slop/audit/rule-em-dash and its prose reads like a style nit that an editorconfig setting would catch.",
+      "expected_output": "The derivation ladder's first step wins: the exact qualified rule id resolves against the crosswalk's rule-id section, giving class defined-diagnostic, rung analyzer-pack-rule, and class-basis rule-id. The prose is never consulted for that row.",
+      "narration": true,
+      "expectations": [
+        "Output classifies the row from its exact qualified rule id, not from the Finding or Action prose",
+        "Output records class-basis rule-id for that row",
+        "Output does NOT place the row on the editorconfig-severity rung on the strength of its prose"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "boundary-c3-promotion-disambiguation",
+      "prompt": "Is this the C3 promotion thing? Are you promoting findings into a higher autonomy work class?",
+      "expected_output": "The Boundary section's disambiguation is given: promotion in the detector-findings convention and the autonomy plugin means a candidate detector's guardrail class or a matrix cell's human-ratified knob flip across the C1-C5 work classes; enforcement promotion here means moving a finding class to a cheaper deterministic rung. The two are different meanings and neither implies the other.",
+      "narration": true,
+      "expectations": [
+        "Output states that the C1-C5 work-class promotion is a DIFFERENT meaning from this skill's enforcement promotion",
+        "Output states what enforcement promotion means here: moving a finding class to a cheaper deterministic rung",
+        "Output does NOT claim to change any autonomy work class or guardrail class"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "declines-to-implement-the-rung",
+      "prompt": "Good, the third finding needs a custom analyzer. Just write the analyzer for me.",
+      "expected_output": "The skill declines: it proposes and routes, and never implements a rung. It hands over the custom-analyzer rung's pointer (the Microsoft Learn analyzer tutorial), notes the rung is .NET-only, and writes no analyzer, rule, architecture test, or hook.",
+      "narration": true,
+      "expectations": [
+        "Output declines to write the analyzer",
+        "Output hands over the custom-analyzer rung's documentation pointer instead",
+        "Output states that this skill proposes a rung and never implements one"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-branch-identity-writes-nothing",
+      "prompt": "/review:audit-enforceability reports/detector-findings.md — I am on a detached checkout and the file has no branch: key.",
+      "expected_output": "With neither a branch: value in the file nor a resolvable current branch, no branch identity resolves, so nothing is written. The skill says so and reports the classification table only, rather than guessing a home.",
+      "narration": true,
+      "expectations": [
+        "Output writes no stub",
+        "Output states that no branch identity resolved, instead of naming a stub path",
+        "Output still reports the per-finding classification table"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "stub-home-fenced-from-the-fix-scan",
+      "prompt": "Write the enforceability stubs into the same reviews directory as the findings file so everything is in one place.",
+      "expected_output": "The request is refused. A stub inside the directory the fix action scans, or inside the input file's own directory, is offered to the fix pass as if it were a real findings file; the writer refuses both homes and writes nothing. The stub home is the separate enforceability concern directory resolved through the binding.",
+      "narration": true,
+      "expectations": [
+        "Output refuses to write stubs into the fix action's resolved reviews location or into the findings file's own directory",
+        "Output explains that a stub there would be consumed by the fix pass",
+        "Output names the separate enforceability home resolved through the binding instead"
+      ]
+    }
+  ]
+}
