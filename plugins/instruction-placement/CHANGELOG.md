@@ -120,6 +120,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `emit_channels` 240→0; `resolve_read_slice_to` 20→0; `notice_once` 79→3.
   Per `buffer_stdin_to` fire: 4→3 creations; PATH-visible `jq` execs unchanged.
   Notice JSON, timeout resolution, and skip-notice latching are unchanged.
+
 ## [0.11.30]
 
 ### Changed
