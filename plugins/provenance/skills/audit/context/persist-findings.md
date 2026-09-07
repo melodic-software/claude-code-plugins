@@ -64,12 +64,15 @@ says" below.
 
 **Only fingerprint-confirmed copy findings and the two deterministic stamp rules enter the
 file.** Judgment verdicts — `source-fetched-similar`, `llm-suspected`, and the neutral outcome
-under both the names this skill uses for it, `not-found` and the `source-not-identified` that
-`SKILL.md` publishes — go to the human report only. They have no crosswalk row to look a tier up
+`not-found` — go to the human report only. They have no crosswalk row to look a tier up
 from, and a relay row is an instruction to a remediation surface, not a place to record a
-suspicion. Both spellings are recognized because the sidecar is model-authored against that
-published description: recognizing one name too many can only withhold a record, and one too few
-walks a judgment verdict onto a relay row.
+suspicion.
+
+`not-found` is the single name every prose surface of this skill publishes for the neutral
+outcome. The reader also recognizes `source-not-identified`, the name `SKILL.md` published before
+that reconciliation, and that tolerance is permanent: a sidecar is model-authored against
+whatever description was in context, and recognizing one name too many can only withhold a
+record, while one too few walks a judgment verdict onto a relay row.
 
 The script applies this filter itself rather than trusting the sidecar to arrive pre-filtered,
 and it counts what it withheld in `## Surfaces` rather than dropping it. Two consequences worth
@@ -156,8 +159,9 @@ it names a tier only when it EQUALS one — so `"  not-found  "`, `["not-found"]
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.
 
-A tier that RENDERS as a verdict name in the written file should BE a verdict name, and the
-reader pursues that by Unicode CLASS rather than by a list of the code points someone thought of.
+The reader strips and folds by Unicode CLASS rather than by a list of the code points someone
+thought of. That approximates a motive no jq predicate reaches in general: a tier that RENDERS as
+a verdict name in the written file should BE a verdict name.
 Characters that render as nothing are stripped everywhere, by `Default_Ignorable_Code_Point` plus
 the rest of `Cf`, and hyphen-like code points are folded to ASCII by the dash class, because
 every one of these names is hyphenated. Anything narrower leaks: an enumeration of two
@@ -172,9 +176,17 @@ to find. Such a tier is an unknown tier, and the record takes the ordinary path 
 — never a relay row it could have reached by declaring a verdict this reader cannot read. That
 holds for the stamp rules too: they fire on date arithmetic that owes the tier nothing and relay
 whatever a record does or does not declare, but a record whose OWN `tier` field names no tier
-this reader knows is not relayed on it. The exception stops at that field; a stamp finding
-carrying a benign `verdict` sibling has declared no tier and still relays, because withholding it
-would be this rule committing the over-capture the boundary exists to avoid.
+this reader knows is not relayed on it.
+
+**Two conditions stop a stamp record short of the relay, and the unreadable `tier` field is the
+second of them.** The first is the judgment-verdict check, which runs before any rule id is read:
+a stamp record naming a judgment verdict is withheld there, whether it names it in `tier` or only
+in `verdict`, so `{"rule": "rule-stamp-expired", "verdict": "not-found"}` produces no relay row
+and is counted as withheld even though it declares no `tier` at all. That is the boundary doing
+its job on a record that declared a judgment verdict. Neither condition reaches a stamp finding
+carrying a benign `verdict` sibling: it names no verdict and declares no tier, so it still
+relays, because withholding it would be these rules committing the over-capture the boundary
+exists to avoid.
 
 Both directions matter. Separators and combining marks at large do render, so a separator is
 trimmed at the ends only and a combining mark is not stripped at all: `"not found"` and
