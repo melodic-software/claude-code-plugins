@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.47]
+
+### Fixed
+
+- **course-digest:** an adapter's `videoPlayerSelector` override now reaches every place that
+  queries for the player. `.hotmart_video_player` was hardcoded inside the `page.evaluate` calls in
+  `detectResources` and `preflight` (Teachable adapter) and in `hasHotmartPlayer` (Hotmart player
+  module), so an override validated and was then ignored, and detection failed as though no player
+  were present. The selector is passed as an evaluate argument, not closed over, because the
+  callback is serialized into the browser context.
+- **course-digest:** the Hotmart interceptor guard is keyed to the Page instead of the module. A
+  second Page in the same process was short-circuited by a module-level flag and captured no HLS
+  master URL or subtitle manifest. Repeat installs on one Page remain a no-op. The test helper
+  `isInterceptorsInstalled` now takes the Page to check and throws when called without one.
+
 ## [0.13.46]
 
 ### Changed

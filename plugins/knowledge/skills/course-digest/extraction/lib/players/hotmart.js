@@ -375,7 +375,7 @@ export function installInterceptors(page, subtitleLang) {
  * @param {import('playwright').Page} page
  * @param {string} subtitleLang — e.g. "eng"
  * @param {number} _manifestTimeoutMs
- * @param {string} [videoPlayerSelector] — defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
+ * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
  * @returns {Promise<{ hasVideo: boolean, hotmartFrame?: object, hlsMasterUrl?: string, subtitleSegments?: number, warning?: string }>}
  */
 export async function preparePage(
@@ -591,7 +591,7 @@ export function clearCapturedData(url) {
  * module's bindings do not exist.
  *
  * @param {import('playwright').Page} page
- * @param {string} [videoPlayerSelector] — defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
+ * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
  * @returns {Promise<boolean>}
  */
 export async function hasHotmartPlayer(page, videoPlayerSelector = DEFAULT_VIDEO_PLAYER_SELECTOR) {
