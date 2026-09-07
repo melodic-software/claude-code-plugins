@@ -176,14 +176,18 @@ Whichever medium, the decision table has numbered rows and these columns:
   cell is where paraphrase and truncation creep in; resist both. If a
   recommendation is too long for a cell, quote its operative clause verbatim and
   link the row to the fuller original by its `Item` number. Never a lossy summary.
-- **Escape copied text before it becomes HTML.** In the artifact and local-file
-  media, treat every copied term as text content and HTML-escape it. Operative
-  terms often contain code-like characters (`<dialog>`, `A && B`, `--force`); left
-  raw, a `<tag>` gets eaten or the table breaks, so escaping is what keeps rule 1's
-  verbatim promise *true in the rendered page*. It also closes an injection vector:
-  the artifact you are clarifying may be untrusted, and unescaped markup copied
-  from it would execute in the published page. In terminal markdown, wrap such
-  terms in backticks so they render literally.
+- **The rendered-views security baseline governs the artifact and local-file
+  media.** The baseline is owned by `docs/conventions/rendered-views/README.md`
+  ("Security baseline") in the marketplace repository; its rules are repeated
+  here because this skill runs where that file is not on disk. Everything copied <!-- contract-restatement-begin: rendered-views-security-baseline -->
+  into the page is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text
+  and attribute positions; never interpolate unescaped content into `<script>`
+  or `<style>`; never build an event-handler attribute from input. The page is
+  self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
+  Specific to this skill: operative terms often carry code-like characters
+  (`<dialog>`, `A && B`, `--force`), so the escape rule is also what keeps rule
+  1's verbatim promise *true in the rendered page*. In terminal markdown, wrap
+  such terms in backticks so they render literally.
 
 ### Honoring the Artifact contract
 
@@ -191,7 +195,7 @@ When you publish an artifact, honor the Artifact tool contract. **Load the
 `artifact-design` skill for the design fundamentals when it is available**. It
 ships with the artifact surface, so it is normally present on the publish rung;
 if it is not, meet the contract's essentials directly rather than skipping them:
-a self-contained page (no external hosts), theme-aware, a title and one-line
+a self-contained page (the baseline above), theme-aware, a title and one-line
 description, a favicon. Either way, the decision table is the page's spine. Keep
 the treatment utilitarian, not a flashy hero, and this static table needs no
 runtime capabilities. In the terminal, give a one-line summary and the artifact
