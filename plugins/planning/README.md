@@ -39,7 +39,8 @@ themselves. Every skill also works standalone.
   engineering defaults.
 - **Graceful degrade.** Adjacent capabilities are invoked when installed:
   codebase exploration and external research (`discovery`), test-design guidance
-  (`tdd`), prototyping (`prototype`), and session handoff (`session-flow`).
+  (`tdd`), prototyping (`prototype`), decision recording (`architecture`), and
+  session handoff (`session-flow`).
   Missing plugins get inline guidance; no step blocks.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
   planning artifacts land per the topic-docs convention. Contract documents go in

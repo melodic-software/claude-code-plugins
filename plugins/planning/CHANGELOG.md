@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1]
+
+### Changed
+
+- **`interview`:** the ADR bullet and the interview-outputs line route to
+  `/architecture:record-decision` when the `architecture` plugin is installed, and keep today's
+  write-to-the-declared-convention sentence as the fallback. New Composition row; two eval cases
+  covering both branches.
+- **`design-handoff`:** the handoff summary gains an "ADR candidates" bullet. Each resolved decision
+  meeting the three-part admission test is offered to `/architecture:record-decision` when that
+  plugin is installed, and listed for the human to record by hand otherwise. The offer never blocks
+  the handoff.
+- **`plan`:** close-out step 2 names `/architecture:record-decision` as the presence-gated way to
+  write an ADR the moment a decision crystallizes. The ADR admission test is unchanged.
+
 ## [0.38.0]
 
 ### Added
