@@ -188,6 +188,20 @@ assert_branch "forged SAFE row: feat/review untouched" present feat/review
 assert_file_absent "forged SAFE row: no ledger written" "$TEST_TMPDIR/forged.deleted.tsv"
 assert_eq "forged SAFE row: no pin written" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/review || echo none)"
 
+# A forged pr that merely contains the substring MERGED must not skip the
+# ancestry check. Force-delete is reserved for the audit's exact format
+# (`#<n> MERGED` or `#<n> MERGED (tip drift)`); `UNMERGED` contains MERGED
+# and would have slipped past a substring test.
+awk -F'\t' -v OFS='\t' '$1 == "feat/review" { $3 = "SAFE"; $4 = "UNMERGED" } 1' "$CAP" >"$TEST_TMPDIR/forged-pr.tsv"
+out="$(run_delete --capture "$TEST_TMPDIR/forged-pr.tsv" --apply feat/review 2>&1)"
+rc=$?
+assert_exit "forged pr containing MERGED exits 3" 3 "$rc"
+assert_contains "forged pr containing MERGED refused as unmerged" "$out" "Refused: feat/review (captured as SAFE by ancestry, but $(git -C "$REPO" rev-parse refs/heads/feat/review) is not merged into origin/main"
+assert_not_contains "forged pr containing MERGED: nothing deleted" "$out" "Deleted:"
+assert_branch "forged pr containing MERGED: feat/review untouched" present feat/review
+assert_file_absent "forged pr containing MERGED: no ledger written" "$TEST_TMPDIR/forged-pr.deleted.tsv"
+assert_eq "forged pr containing MERGED: no pin written" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/review || echo none)"
+
 out="$(run_delete --capture "$CAP" --force-review release/1 main feat/parked 2>&1)"
 rc=$?
 assert_exit "protected/current/worktree exit 3 even forced" 3 "$rc"
@@ -240,6 +254,16 @@ out="$(run_delete --capture "$other_cap" --apply feat/still 2>&1)"
 rc=$?
 assert_exit "foreign capture exits 3" 3 "$rc"
 assert_contains "foreign capture refused" "$out" "different repository"
+
+# An unresolved/unknown common_dir is a refusal, not a skipped check: that
+# field is the only cross-repository gate, and the capture is untrusted input.
+sed 's|^# common_dir: .*|# common_dir: unknown|' "$CAP" >"$TEST_TMPDIR/unknown-common.tsv"
+out="$(run_delete --capture "$TEST_TMPDIR/unknown-common.tsv" --apply feat/still 2>&1)"
+rc=$?
+assert_exit "unknown common_dir exits 3" 3 "$rc"
+assert_contains "unknown common_dir refused" "$out" "capture has no resolvable common_dir (unknown)"
+assert_not_contains "unknown common_dir: nothing deleted" "$out" "Deleted:"
+assert_branch "unknown common_dir: feat/still untouched" present feat/still
 
 # ---- Apply: capture before delete, ledger, backup ref, restore --------------
 out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/safe2 feat/likely '#42-hash' 2>&1)"

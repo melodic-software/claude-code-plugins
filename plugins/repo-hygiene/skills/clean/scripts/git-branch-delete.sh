@@ -182,10 +182,19 @@ fi
 
 # The capture must describe THIS repository. Compared by common git dir so an
 # audit run from a linked worktree and a deletion run from the main checkout
-# still agree; a capture from another repository is refused outright.
+# still agree; a capture from another repository is refused outright. An
+# unresolved common_dir (missing, empty, or the literal `unknown`) is a
+# refusal, not a skipped check: that field is the only cross-repository gate,
+# and the capture is untrusted input. git-branch-audit.sh already fails closed
+# when it cannot resolve one for the default location; delete does the same
+# with any capture that reaches it.
 COMMON_DIR="$(clean_git_common_dir "$REPO_ROOT")" || COMMON_DIR=""
-if [[ $REFUSED -eq 0 && -n "$CAP_COMMON" && "$CAP_COMMON" != "unknown" ]]; then
-  if [[ -z "$COMMON_DIR" || "$(clean_path_key "$CAP_COMMON")" != "$(clean_path_key "$COMMON_DIR")" ]]; then
+if [[ $REFUSED -eq 0 ]]; then
+  if [[ -z "$CAP_COMMON" || "$CAP_COMMON" == "unknown" ]]; then
+    refuse "capture has no resolvable common_dir (${CAP_COMMON:-missing}); cannot verify it describes this repository ($CAPTURE_HINT)"
+  elif [[ -z "$COMMON_DIR" ]]; then
+    refuse "cannot resolve this repository's git common dir; cannot verify the capture describes it ($CAPTURE_HINT)"
+  elif [[ "$(clean_path_key "$CAP_COMMON")" != "$(clean_path_key "$COMMON_DIR")" ]]; then
     refuse "capture was taken in a different repository ($CAP_COMMON), not $COMMON_DIR ($CAPTURE_HINT)"
   fi
 fi
@@ -206,11 +215,17 @@ live_tip() {
 # often than not, so that check would refuse it; LIKELY-SAFE (upstream gone) and
 # forced REVIEW are force deletes. The delete itself is the same atomic
 # compare-and-delete in every mode.
+#
+# Both tier and pr come from the capture TSV, which is untrusted input. A SAFE
+# row is a force delete only when pr matches the audit's exact merged-PR format
+# (`#<n> MERGED`, optionally ` (tip drift)`). A substring containing MERGED is
+# not enough: that would skip the ancestry check on a forged or edited capture.
 delete_mode() {
   local tier="$1" pr="$2"
+  local pr_merged_re='^#[0-9]+ MERGED( \(tip drift\))?$'
   case "$tier" in
   SAFE)
-    if [[ "$pr" == *MERGED* ]]; then printf 'force'; else printf 'safe'; fi
+    if [[ "$pr" =~ $pr_merged_re ]]; then printf 'force'; else printf 'safe'; fi
     ;;
   *) printf 'force' ;;
   esac

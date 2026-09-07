@@ -40,6 +40,16 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   a bare `git branch -d`/`-D`, documents the capture path convention and the ledger, and gains a
   §4.8 with the recovery steps; SKILL.md §4.2 states the precondition.
 
+### Fixed
+
+- `git-branch-delete.sh` treats a SAFE row as a force delete only when the captured `pr` matches
+  the audit's exact merged-PR format (`#<n> MERGED`, optionally ` (tip drift)`). A substring
+  containing MERGED is not enough: both `tier` and `pr` are untrusted capture text, and a bare
+  substring skipped the ancestry check that is the last verification for SAFE-by-ancestry deletes.
+- An unresolved capture `common_dir` (missing, empty, or the literal `unknown`) is a refusal, not
+  a skipped check. That field is the only gate that the capture describes this repository, so
+  delete fails closed the same way `git-branch-audit.sh` already does when it cannot resolve one.
+
 ## [0.10.34]
 
 ### Fixed
