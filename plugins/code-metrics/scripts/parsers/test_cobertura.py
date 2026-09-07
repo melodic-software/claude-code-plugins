@@ -74,9 +74,7 @@ def _posix(path: str) -> str:
 def _multi_root_xml(sources: list[str], filename: str) -> str:
     source_elems = "".join(f"<source>{_posix(s)}</source>" for s in sources)
     return (
-        "<coverage><sources>"
-        + source_elems
-        + "</sources><packages><package><classes>"
+        "<coverage><sources>" + source_elems + "</sources><packages><package><classes>"
         f'<class filename="{filename}"><lines>'
         '<line number="1" hits="1"/></lines></class>'
         "</classes></package></packages></coverage>"
@@ -192,7 +190,10 @@ class MultiRootTests(unittest.TestCase):
         # keys the class under the first root, which is what the parser did
         # before it read later roots at all.
         body = _multi_root_xml(["/ci/build/alpha", "/ci/build/beta"], "later.sh")
-        with tempfile.TemporaryDirectory() as scan, tempfile.TemporaryDirectory() as tmp:
+        with (
+            tempfile.TemporaryDirectory() as scan,
+            tempfile.TemporaryDirectory() as tmp,
+        ):
             document = parsed(
                 write(tmp, "absent-absolute-root.xml", body), scan_root=scan
             )
