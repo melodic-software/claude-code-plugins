@@ -9,6 +9,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **audit-install-state, audit-skill-visibility:** the CSV formula-injection fixture uses a directory name legal on every host, and the skill-visibility wrapper embeds its throwaway marketplace paths in the host's native spelling, so both suites run on Windows as well as Linux; neither shipped script changed (prompt-audit follow-up F10).
 
+### Fixed
+
+- Restored the capability clauses main added after the fork to the plugin description: the Windows
+  kernel-object census in `audit-performance`, the per-session hook event log and its per-session
+  report in `observability`, the setup action's skill-usage and hook-log roots, and the sink's
+  per-session envelope routing. The catalog names every capability this plugin still ships.
+
 ## [0.44.5]
 
 ### Changed
