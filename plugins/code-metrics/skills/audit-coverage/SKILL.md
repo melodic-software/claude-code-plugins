@@ -76,9 +76,11 @@ otherwise keep the JSON beside your notes and compare by hand.
   methods in one file and a record named `run` are one function's coverage, and the range says
   whose. Where nothing separates the candidates, because the artifact placed none of them at a
   line or because two of them fall inside the same range, the join is refused rather than guessed:
-  the row reads `cov_source: ambiguous`, every value is null, it carries a `coverage-ambiguous`
-  label, and the lane's run row turns `partial` and names the functions it left unjoined. A
-  missing number an operator can see beats a wrong number they cannot.
+  the row reads `cov_source: ambiguous`; coverage, line counts, hit, and CRAP are null because
+  those numbers would be a guess, while cyclomatic from the complexity row is kept because that
+  collector already measured it; it carries a `coverage-ambiguous` label, and the lane's run row
+  turns `partial` and names the functions it left unjoined. A missing coverage number an operator
+  can see beats a wrong number they cannot.
 - `hit` is the artifact's function-hit flag. When it says the function was never entered,
   `coverage_pct` is 0 rather than the 1/N a declaration line executed at import would produce.
 - A function with no executable lines in the artifact reports `coverage_pct: null` and

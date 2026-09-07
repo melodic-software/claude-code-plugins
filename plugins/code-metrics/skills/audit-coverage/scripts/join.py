@@ -43,9 +43,10 @@ What comes out:
     the file measures lines at all, which is every function of a file measured
     only by a Go cover profile. `cov_source` is `ambiguous` where an artifact
     recorded a function under a short name that fits more than one function in
-    the file and no line range says which; every value is `null` there and the
-    row carries a `coverage-ambiguous` label, because a missing number an
-    operator can see beats a wrong number they cannot.
+    the file and no line range says which; coverage, line counts, `hit`, and
+    CRAP are `null` there while cyclomatic from the complexity row is kept,
+    and the row carries a `coverage-ambiguous` label, because a missing
+    coverage number an operator can see beats a wrong number they cannot.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
     paths were searched; a lane matched in part is `partial` and carries
@@ -651,10 +652,10 @@ def _function_row(
         entry["functions"], row.get("function"), start, end, rival
     )
     if ambiguity:
-        # Refused, not guessed. Every value the ambiguous record would have
-        # produced is withheld, the row says why through its label, and the
-        # lane's run row carries the reason, so the gap is visible in the
-        # markdown as well as in the JSON.
+        # Refused, not guessed. Coverage, line counts, hit, and CRAP are
+        # withheld; cyclomatic from the complexity row is kept. The row says
+        # why through its label, and the lane's run row carries the reason, so
+        # the gap is visible in the markdown as well as in the JSON.
         return {
             "file": row["file"],
             "function": row["function"],
