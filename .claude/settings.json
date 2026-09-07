@@ -52,6 +52,7 @@
     "evals@melodic-software": true,
     "event-storming@melodic-software": true,
     "firecrawl@melodic-software": true,
+    "fleet@melodic-software": true,
     "github@melodic-software": true,
     "go-format@melodic-software": true,
     "guardrails@melodic-software": true,
