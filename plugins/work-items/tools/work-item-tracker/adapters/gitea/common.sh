@@ -114,11 +114,23 @@ readonly WIT_GITEA_SCOPE_RE='^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._
 # api.DEFAULT_PAGING_NUM = 30 and truncates silently — the same trap the contract calls
 # out for `gh`. Overridable per instance via config.gitea.page_size.
 readonly WIT_GITEA_DEFAULT_PAGE_SIZE=50
-# The total this adapter will page up to, matching limits.list_items_max in
-# capabilities.json. Kept in sync deliberately: the manifest is what callers read, this
-# is what the code enforces, and a conformance case asserts they agree.
-# shellcheck disable=SC2034  # read by list-items.sh; this file is sourced-only
-readonly WIT_GITEA_LIST_ITEMS_MAX=1000
+# The total every paginated walk in this adapter will page up to: the list-items issue
+# walk, the per-item dependency count below, and create-item's repository and
+# organization label walks. Read from limits.list_items_max in capabilities.json at load
+# time, the way the github, jira and local-markdown adapters read theirs, so the manifest
+# callers read and the bound the code enforces are ONE value with no second copy to
+# drift (common.test.sh pins the equality; the list-items tests point a fixture manifest
+# at a lower ceiling to prove the truncation path without walking a thousand items).
+# The manifest schema allows null for "no ceiling", but here the ceiling is also what
+# stops a server that keeps answering full pages from spinning a walk forever, so
+# anything but a positive integer is a setup error (exit 3), never an unbounded walk.
+WIT_GITEA_LIST_ITEMS_MAX="$(jq -r '.limits.list_items_max' "$WIT_GITEA_ADAPTER_DIR/capabilities.json" 2>/dev/null)"
+if [[ ! "$WIT_GITEA_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'work-item-tracker gitea adapter: limits.list_items_max in %s/capabilities.json must be a positive integer, got: %s\n' \
+    "$WIT_GITEA_ADAPTER_DIR" "${WIT_GITEA_LIST_ITEMS_MAX:-<unreadable>}" >&2
+  exit "$EX_CONFIG"
+fi
+readonly WIT_GITEA_LIST_ITEMS_MAX
 
 # Set by wit_gitea_http; declared here so a read before the first call
 # does not trip `set -u`.
@@ -462,7 +474,7 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM='
 # dependency endpoint, so this is inherent to the provider rather than a shortcut not
 # taken — see this adapter's README.
 wit_gitea_blocked_by_count() {
-  local owner="$1" repo="$2" index="$3" page=1 total=0 got
+  local owner="$1" repo="$2" index="$3" page=1 total=0 got counts
   while :; do
     wit_gitea_http GET "/repos/$owner/$repo/issues/$index/dependencies?page=$page&limit=$WIT_GITEA_PAGE_SIZE"
     # A repo with the dependencies unit disabled answers 404 here while the issue
@@ -474,8 +486,15 @@ wit_gitea_blocked_by_count() {
       return 0
     fi
     wit_gitea_require_ok "listing dependencies of $owner/$repo#$index"
-    got="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || got=0
-    total=$((total + $(jq '[.[] | select(.state != "closed")] | length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
+    # Both counts from ONE jq process (this runs once per item inside list-items), fed
+    # through a pipe rather than a here-string: a page of full Issue objects can pass the
+    # 65536 bytes at which a here-string hangs Git Bash (lib/hook-utils.sh
+    # hook::json_complete). A body that is not an array counts as an empty page.
+    counts="$(printf '%s' "$WIT_GITEA_BODY" |
+      jq -r '[length, ([.[] | select(.state != "closed")] | length)] | @tsv' 2>/dev/null)" || counts=""
+    [[ "$counts" =~ ^[0-9]+$'\t'[0-9]+$ ]] || counts=$'0\t0'
+    got="${counts%%$'\t'*}"
+    total=$((total + ${counts##*$'\t'}))
     # A short page is the last page. This endpoint genuinely sends no total-count header —
     # `routers/api/v1/repo/issue_dependency.go` calls neither SetTotalCountHeader nor
     # SetLinkHeader, unlike the issue and label list handlers — so unlike those two there is

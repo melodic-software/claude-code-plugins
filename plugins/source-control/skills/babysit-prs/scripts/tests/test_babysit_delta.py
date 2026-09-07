@@ -49,7 +49,6 @@ def make_pr(**over: object) -> dict[str, object]:
         "headRefName": "feature",
         "headRefOid": HEAD,
         "baseRefName": "main",
-        "baseRefOid": "b" * 40,
         "headRepository": {"nameWithOwner": "owner/repo"},
         "headRepositoryOwner": {"login": "owner"},
         "isCrossRepository": False,
@@ -940,6 +939,25 @@ class AdvisoryTripwireSnapshotTests(unittest.TestCase):
             ],
             [],
         )
+
+
+class GraphQLProvenanceTests(unittest.TestCase):
+    """A REST-hydrated PR is marked as such in its snapshot record: thread
+    resolution is unproven for it, and the merge gate will hold it."""
+
+    def test_a_graphql_hydrated_pr_records_availability(self) -> None:
+        self.assertTrue(
+            classify(make_pr(_graphql_available=True), None)["graphql_available"]
+        )
+
+    def test_a_rest_hydrated_pr_records_the_degrade(self) -> None:
+        self.assertFalse(
+            classify(make_pr(_graphql_available=False), None)["graphql_available"]
+        )
+
+    def test_a_record_with_no_marker_reads_as_graphql(self) -> None:
+        # The key postdates the fallback; every earlier hydration was GraphQL.
+        self.assertTrue(classify(make_pr(), None)["graphql_available"])
 
 
 class RecommendCadenceTests(unittest.TestCase):

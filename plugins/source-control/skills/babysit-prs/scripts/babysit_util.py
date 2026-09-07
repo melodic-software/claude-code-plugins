@@ -17,7 +17,7 @@ from collections.abc import Collection, Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeGuard
 
 # Minimum accepted hex-prefix length for --expected-head-sha pins. Lives here --
 # not in the state module -- so the guarded mutation CLIs can validate pins
@@ -26,13 +26,25 @@ MIN_HEAD_SHA_PREFIX_LENGTH = 12
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 60.0
 
 
-def is_json_object(value: Any) -> bool:
-    """True when a decoded JSON value is an object with string keys."""
+def is_json_object(value: Any) -> TypeGuard[dict[Any, Any]]:
+    """True when a decoded JSON value is an object.
+
+    The guard narrows to `dict[Any, Any]`, which is exactly what the
+    `isinstance` test establishes. JSON grammar does guarantee string keys, but
+    this check never inspects them, so claiming `dict[str, Any]` would hand the
+    type checker a promise the runtime test has not made. Callers index these
+    dicts with string literals, which `dict[Any, Any]` already permits, so the
+    narrower claim costs them nothing.
+    """
     return isinstance(value, dict)
 
 
-def is_json_array(value: Any) -> bool:
-    """True when a decoded JSON value is an array."""
+def is_json_array(value: Any) -> TypeGuard[list[Any]]:
+    """True when a decoded JSON value is an array.
+
+    Narrows to `list[Any]`: the check establishes the container and inspects no
+    element, which is precisely what `Any` element type asserts.
+    """
     return isinstance(value, list)
 
 
@@ -52,9 +64,9 @@ def dig(value: Any, *keys: str) -> Any:
     Lets callers narrow untyped JSON without inline type-ignore suppressions.
     """
     for key in keys:
-        if not isinstance(value, dict):
+        if not is_json_object(value):
             return None
-        value = cast(dict[str, Any], value).get(key)
+        value = value.get(key)
     return value
 
 

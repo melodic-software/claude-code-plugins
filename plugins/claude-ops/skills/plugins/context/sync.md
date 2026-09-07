@@ -3,6 +3,7 @@
 ## Contents
 
 - [Concurrency](#concurrency)
+- [Downgrade guard](#downgrade-guard)
 - [Version capture for the report](#version-capture-for-the-report)
 - [Run journal](#run-journal)
 - [Marketplace scoping — Steps 2–5 are the per-marketplace loop body](#marketplace-scoping--steps-25-are-the-per-marketplace-loop-body)
@@ -38,6 +39,32 @@ concurrent sweep having just updated it; the two are indistinguishable, and a re
 to tell them apart would be inventing a signal. The one outcome that **is** distinguishable, and
 worth a report row under "Action needed", is an id present in the pre-mutation snapshot that the CLI
 then reports as **not installed** — that is a genuine concurrent uninstall, not this benign race.
+
+## Downgrade guard
+
+**A sweep never moves an install backward by default.** `fleet-state.sh` compares direction, not
+just difference: when both the installed and the catalog version parse as a numeric
+major.minor.patch triple and the catalog's is lower, that id is a proven downgrade, and it is
+withheld from `update-candidates-user` and `update-candidates-project`, the two selectors the
+sweeps loop. `downgrade-candidates` is the selector that names them, one line of
+`<id>\t<scope>\t<installed>\t<catalog>` each. The guard is proof-based and fails open the same way
+the equality pre-filter does: a version either side cannot parse, and a catalog version that is
+unknown, is not a proven downgrade and stays a sweep candidate.
+
+The reason is the failure it prevents. A sweep keyed on "the catalog differs from what is
+installed" has no direction in it, so a catalog that moved backward turns the whole sweep into a
+fleet rollback, and `claude plugin update` prints each rollback as `updated from X to Y`, which
+reads as success.
+
+**The opt-in is explicit: the `--allow-downgrade` argument to `sync`.** Without it, Step 3 leaves
+every downgrade candidate untouched and reports it under `Action needed`. With it, Step 3 acts on
+them and their outcomes render under `Downgraded:`, never under `Updated:`.
+
+**Name the likely cause in the report: a marketplace source that moved backward.** A `directory`
+source whose checkout is parked on an old branch, or a git source that was force-pushed or
+re-pointed, both make the catalog read lower than what is installed. The remediation is to fix the
+source and rerun `sync`, not to accept the downgrade, so `--allow-downgrade` belongs to the case
+where the rollback is what the operator actually wants.
 
 ## Version capture for the report
 
@@ -83,6 +110,15 @@ a compaction, and `converge` or a later audit gets a real before-state.
 `fleet-state.sh` does not write it — it stays the read-only inspector its own header advertises.
 The journal is agent-executed shell around the calls the algorithm already makes.
 
+**The journal is durable across `sync` runs and session restarts, but not across the removal of its
+own marketplace.** It lives under `${CLAUDE_PLUGIN_DATA}`, and running
+`claude plugin marketplace remove` on the marketplace this plugin came from deletes that directory
+along with every install record for the marketplace, so a remediation that needs the journal copies
+`plugins-sync/runs/` out first, or uninstalls the plugins individually with `--keep-data` instead of
+removing the marketplace. It stays in the data directory anyway, because that is the documented
+per-plugin persistent location. See
+[gotchas.md](gotchas.md), "`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal".
+
 At run start, take `journal_root` from SKILL.md's "State inspection" section (the value substitutes
 there and **not** here — a `context/*.md` spoke is read raw, so a `${CLAUDE_PLUGIN_DATA}` written
 here would resolve to nothing) and create one directory for this run:
@@ -108,14 +144,43 @@ Then, for the rest of the run:
 
   | File | The re-read it saves |
   |---|---|
+  | `pre-refresh.<mp>.json` | Step 1's, before that marketplace's refresh, so the refresh's own effect on `catalog_versions` is visible |
   | `pre.<mp>.json` | Step 2's, before the in-repo update |
   | `mid.<mp>.json` | Step 3's, before the user-scope sweep |
   | `pre-install.<mp>.json` | Step 4's, before any install |
   | `pre-enable.<mp>.json` | Step 5's, before any enable |
   | `post.<mp>.json` | the post-sweep re-read Step 6 reads |
 
-  The three the divergence attribution needs are `pre`, `mid`, and `post`; the other two exist
-  because Steps 4 and 5 mutate too.
+  The three the divergence attribution needs are `pre`, `mid`, and `post`; two more exist because
+  Steps 4 and 5 mutate too, and `pre-refresh` exists for the catalog regression check below. Step 1
+  saves it inside its own per-marketplace loop, immediately before that marketplace's refresh call;
+  the snippet is there rather than restated here.
+
+- **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
+  snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
+  FIRST interval in which any id's catalog version moved backward. That interval is the signal that
+  names the cause: a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh
+  pulling a source that moved backward, while one appearing later is the checkout changing under
+  the run. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
+  the hand-written-`jq` prohibition that governs `--ids` does not apply to it:
+
+  ```bash
+  jq -r --slurpfile a "$run_dir/pre-refresh.$mp.json" --slurpfile b "$run_dir/pre.$mp.json" -n '
+    def triple:
+      if type == "string" then
+        ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
+         | if . == null then null else [.x, .y, .z] | map(tonumber) end)
+      else null end;
+    ($a[0].catalog_versions // {}) as $before | ($b[0].catalog_versions // {}) as $after
+    | $before | to_entries[]
+    | select((.value | triple) != null and ($after[.key] | triple) != null
+             and ($after[.key] | triple) < (.value | triple))
+    | "\(.key) \(.value) \($after[.key])"'
+  ```
+
+  Run it per consecutive pair and stop at the first pair that prints anything. Emit SKILL.md's
+  `Catalog regression:` line with the interval and the ids; report nothing when every pair is
+  silent.
 - **Append every mutating CLI call and its output** to `$run_dir/journal.log` as it runs, so the
   `<new>` values that only the CLI reports survive the step that produced them:
 
@@ -265,19 +330,26 @@ and the loop-from-a-file shape are this section's and are not restated at each s
 ## Step 1 — Marketplace refresh
 
 For each target marketplace (the resolved default, the named one, or every marketplace when the
-argument is `all`):
+argument is `all`), save that marketplace's pre-refresh snapshot and then refresh it:
 
 ```bash
-claude plugin marketplace update <marketplace-name>
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+  >"$run_dir/pre-refresh.$mp.json"
+
+claude plugin marketplace update "$mp"
 ```
 
-Attempts to re-fetch from the marketplace's registered source; this skill never re-clones or
+The update call attempts to re-fetch from the marketplace's registered source; this skill never re-clones or
 performs cache surgery by hand. It does not reliably self-heal: the refresh is known to fail against an
 existing non-empty marketplace directory
 ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open —
 reported on macOS, reproduced on Windows), where it reports `Failed to clone marketplace
 repository: fatal: destination path '...' already exists and is not an empty directory`. Treat a
 successful refresh as the expected case, not a guarantee.
+
+The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
+which is what lets the Run journal's catalog regression check attribute a backward move to this
+refresh. It belongs to this step's own loop, not to the Steps 2-5 loop body.
 
 In `all` mode, loop this per marketplace name (rather than the bulk no-argument form) so a single
 marketplace's failure is attributable and reported inline without aborting the sweep for the rest.
@@ -290,15 +362,17 @@ Which later steps a stale catalog compromises, and how each one degrades:
 
 - **Step 2 is unaffected.** It operates purely on installed state, which a failed refresh leaves
   untouched, and it is deliberately not catalog-pre-filtered (see Step 2).
-- **Step 3 still runs, but WITHOUT its pre-filter.** Its sweep is installed-state-driven, so the
-  updates themselves are safe — but the `catalog_versions` pre-filter reads the marketplace
+- **Step 3 still runs, and keeps the guarded selector.** Its sweep is installed-state-driven, so
+  the updates themselves are safe, but the `catalog_versions` pre-filter reads the marketplace
   *checkout*, and a checkout that failed to refresh may be behind the real catalog. An id whose
-  installed version matches the **stale** catalog version would then be withheld from the sweep as
-  "already current" when a newer version exists upstream — a silently skipped update, which is
-  exactly the class of failure this skill exists to prevent. So for a marketplace whose Step 1
-  refresh failed, Step 3 falls back to `--ids installed-user` and sweeps every user-scope id
-  unconditionally. Correctness over speed: the pre-filter is an optimization, and an optimization
-  keyed on data known to be stale is not one.
+  installed version matches the **stale** catalog version is then withheld from the sweep as
+  "already current" when a newer version may exist upstream. That is a real cost, and it is the
+  smaller one: a failed refresh means the checkout is UNTRUSTED, and sweeping every user-scope id
+  unconditionally against an untrusted catalog is the rollback path, since a catalog that reads
+  lower is exactly what an unrefreshed or misdirected source produces. So Step 3 keeps
+  `update-candidates-user`, and reports the ids it withheld as already-current as a LOWER BOUND:
+  they may still be behind upstream, and the run says so and tells the operator to rerun after the
+  refresh succeeds. That is the same shape `audit` already uses for its own unrefreshed prediction.
 - **Steps 4–5 are skipped entirely.** Step 4 derives installations from the catalog
   (`missing_from_user_install`) and Step 5 consults catalog metadata (`defaultEnabled`), so running
   them against a stale catalog can install a since-removed plugin or enable one the publisher has
@@ -306,8 +380,14 @@ Which later steps a stale catalog compromises, and how each one degrades:
   they would have done under "Action needed" as deferred until a sync run where the refresh
   succeeds.
 
+**A refresh that SUCCEEDS is not a trust signal about direction.** It establishes that the checkout
+is current with its source, nothing else: a current catalog can still read lower than what is
+installed, because the source itself can have moved backward. The downgrade guard applies on every
+run, refreshed or not.
+
 Say so in the report — `Marketplace: <name> — refresh failed, catalog may be stale; update sweep
-ran unfiltered; install/enable maintenance deferred` — rather than claiming it is current. Do not
+ran guarded, its already-current ids are a lower bound; install/enable maintenance deferred`,
+rather than claiming it is current. Do not
 delete, rename, or re-clone the marketplace directory to work around it — that is cache surgery
 this skill does not do. To learn how stale the catalog actually is, compare
 `git -C <installLocation> rev-parse HEAD` against `git ls-remote origin HEAD` run in that
@@ -339,22 +419,23 @@ report. They are categorically different answers and the user cannot tell them a
 - **`project_root` is a path and records carry `currentProject: true`** — the success path below.
 
 Reading `project_root` costs nothing extra: this step already calls `fleet-state.sh` above, and the
-field is in the JSON it returned. Do not try to recover the distinction from `--ids current-project`
-alone: that selector emits nothing in both of the first two cases, so a step keyed on it no-ops
-invisibly. And do not infer it from `currentProject` per record either: that flag is a
+field is in the JSON it returned. Do not try to recover the distinction from
+`--ids update-candidates-project` alone: that selector emits nothing in both of the first two cases,
+so a step keyed on it no-ops invisibly. And do not infer it from `currentProject` per record either: that flag is a
 tri-state whose `null` covers user-scope records, records with no `projectPath`, *and* the
 no-project-context case all at once.
 
 Then look at `installed[]` entries with `currentProject: true` and run an update for **every one of
-them**, unconditionally:
+them the downgrade guard does not withhold**:
 
 ```bash
 claude plugin update <id> -s project   # for a currentProject:true entry with scope "project"
 claude plugin update <id> -s local     # for a currentProject:true entry with scope "local"
 ```
 
-`fleet-state.sh --ids current-project` emits exactly those records — use it rather than a
+`fleet-state.sh --ids update-candidates-project` emits exactly those records. Use it rather than a
 hand-written `jq` over `installed[]` (see Step 3 for why the hand-written form breaks on Windows).
+`current-project` names the same set unguarded and is not what this step loops.
 Project it with `--from` off the report this step just saved rather than running a second live
 process: that process would re-parse `installed_plugins.json`, re-walk the catalog manifests, and
 re-run `realpath` to recompute a block already on disk. Same script, same projection, so the
@@ -371,7 +452,7 @@ projection's exit status is checked before the loop:
 project_root=$(jq -r '.project_root // "null"' "$run_dir/pre.$mp.json")
 
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
-  --ids current-project --from "$run_dir/pre.$mp.json" >"$run_dir/ids.pre.$mp.txt"
+  --ids update-candidates-project --from "$run_dir/pre.$mp.json" >"$run_dir/ids.pre.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing in-repo"
 
 if ((rc != 0)); then
@@ -402,12 +483,17 @@ just not internally disagreeing). Both are real staleness `divergences[]` cannot
 correct signal here is "is this entry present" — just call `update`, letting the CLI report
 "already at the latest version" as a no-op when nothing changes.
 
-Deliberately **not** pre-filtered on `catalog_versions` the way Step 3's sweep is, even though the
-field is available for these ids too. The in-repo population is small (a handful of records,
-against Step 3's dozens), so the saving is negligible, while a project/local pin is far more likely
-than a user-scope install to sit at a version the catalog does not carry — a deliberate pin, or a
-local build. Paying one redundant no-op call per in-repo record buys the primary value path a
-signal that does not depend on the catalog resolving at all. Verified safe: `plugin update
+Filtered for proven downgrades and for **nothing else**: `update-candidates-project` withholds an
+id the catalog would move backward, and declines the catalog EQUALITY filter Step 3's selector
+applies. The two filters are not the same kind of thing. Equality is an optimization, and it buys
+nothing here: the in-repo population is small (a handful of records, against Step 3's dozens), so
+the saving is negligible, while a project/local pin is far more likely than a user-scope install to
+sit at a version the catalog does not carry, a deliberate pin or a local build, and paying one
+redundant no-op call per in-repo record buys the primary value path a signal that does not depend on
+the catalog resolving at all. The downgrade guard is not an optimization: it withholds a call whose
+effect would be wrong, not one whose effect would be nothing, and skipping it here would let a
+catalog that moved backward roll back exactly the deliberate pins this step is most likely to be
+holding. Verified safe: `plugin update
 -s project` does not write the committed `.claude/settings.json` (see
 [scope-semantics.md](scope-semantics.md)) — no settings-diff review needed for this step, unlike
 `converge`.
@@ -418,8 +504,10 @@ Partially catalog-dependent: the sweep itself is installed-state-driven and alwa
 pre-filter reads the marketplace checkout. Two cases where that checkout cannot be trusted to prove
 an id current, and what each does:
 
-- **Step 1's refresh failed for this marketplace** — use `--ids installed-user` instead of
-  `--ids update-candidates-user`, and sweep unconditionally. See Step 1.
+- **Step 1's refresh failed for this marketplace.** Keep `--ids update-candidates-user`, and
+  report the ids it withheld as already-current as a lower bound: they may still be behind
+  upstream, so rerun after the refresh succeeds. Acting unconditionally on an untrusted catalog is
+  the rollback path, which is the larger risk of the two. See Step 1.
 - **`audit` mode** — `audit` issues zero mutating calls, so Step 1 never runs and the catalog is
   simply however stale it already was, by an unbounded amount. The pre-filter still runs (predicting
   the real algorithm is the point of a dry run), but its output is a **lower bound**: a real `sync`
@@ -430,7 +518,13 @@ an id current, and what each does:
   ```text
   Would update: <N> plugin(s) (lower bound — predicted against a catalog last refreshed
     <lastUpdated>, which `audit` does not refresh; `sync` refreshes first and may find more)
+  Would withhold: <N> downgrade(s) (the catalog reads lower than what is installed; `sync`
+    reports these under Action needed unless it is run with --allow-downgrade)
   ```
+
+  The withheld count comes from `--ids downgrade-candidates`, projected off the same saved report
+  as the `Would update` count. Print it whenever it is non-zero: a prediction that names only what
+  would move forward hides the direction problem the guard exists to surface.
 
   Never present an `audit` prediction of zero as "the fleet is current" — it means "nothing is
   behind the catalog as it stands on disk", which is a different claim.
@@ -458,6 +552,10 @@ re-read — the one the concurrency rule requires before a mutating step — red
   --ids update-candidates-user --from "$run_dir/mid.$mp.json" >"$run_dir/ids.mid.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "fleet already current"
 
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+  --ids downgrade-candidates --from "$run_dir/mid.$mp.json" >"$run_dir/downgrades.$mp.txt"
+dg_rc=$?   # same rule: exit 2 is a failed projection, not "no downgrades"
+
 if ((rc != 0)); then
   # Report the projection failure under "Action needed"; the sweep did not run.
 else
@@ -470,16 +568,42 @@ fi
 
 Reading an unchecked empty projection as "already current" is the silently-skipped-update failure
 this step exists to prevent, so check `rc` per the projection section before concluding the sweep
-had nothing to do.
+had nothing to do. The same check governs `dg_rc`: an unchecked failed downgrade projection reads
+as "no downgrades", which is the guard reporting the all-clear it never established.
+
+### The withheld set
+
+`downgrades.$mp.txt` carries one `<id>\t<scope>\t<installed>\t<catalog>` line per proven downgrade,
+across user scope and this repo's in-repo records both, so it covers what Step 2's selector withheld
+as well as Step 3's. What happens to it is the operator's call, not this step's:
+
+- **`--allow-downgrade` was NOT given.** Do not touch them. Report each under `Action needed` with
+  both versions and the likely cause, per SKILL.md's `downgrade withheld:` row.
+- **`--allow-downgrade` WAS given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
+  takes it off its own line, journaled through the same `tee` plus `PIPESTATUS[0]` shape as every
+  other mutating call:
+
+  ```bash
+  while IFS=$'\t' read -r id scope installed catalog; do
+    [[ -n "$id" ]] || continue
+    { echo "\$ claude plugin update $id -s $scope   # downgrade $installed -> $catalog"
+      claude plugin update "$id" -s "$scope" 2>&1; } | tee -a "$run_dir/journal.log"
+    rc=${PIPESTATUS[0]}
+  done <"$run_dir/downgrades.$mp.txt"
+  ```
+
+  Their outcomes render under `Downgraded:`, never under `Updated:`, whatever the CLI's own line
+  calls them.
 
 ### Why the pre-filter, and why it can only ever be a candidate list
 
 Each plugin's version lives in its own manifest inside the marketplace checkout
 (`<installLocation>/<entry.source>/.claude-plugin/plugin.json`), even though the `marketplace.json`
 entry itself carries no version. `fleet-state.sh` reads those manifests into `catalog_versions` with
-no network call and no `claude plugin` invocation, and `update-candidates-user` withholds only the
-ids it positively proved already sit at the catalog version. On an already-current fleet that turns
-the whole sweep into zero `claude plugin update` calls instead of one per user-scope install.
+no network call and no `claude plugin` invocation, and `update-candidates-user` withholds the ids it
+positively proved already sit at the catalog version, plus the ids it positively proved the catalog
+would move backward. On an already-current fleet that turns the whole sweep into zero
+`claude plugin update` calls instead of one per user-scope install.
 
 It is not free, just far cheaper than what it replaces: the read costs one `jq` over every manifest
 the shell located plus one batched `realpath` over every manifest that exists, per marketplace,
@@ -495,12 +619,13 @@ version resolved for every entry of some and for a small minority of others', so
 the pre-filter withholds nothing at all is an ordinary outcome, not a malfunction. Read a shrunken
 sweep as a bonus, never as evidence that the ids it skipped were checked.
 
-`installed-user` remains available and unchanged for a caller that deliberately wants every
-user-scope id. Do not reach for it here to "be safe" when the catalog is trustworthy —
-`update-candidates-user` is already a superset of what needs updating. Reach for it in the one case
-where the catalog itself is suspect: **a marketplace whose Step 1 refresh failed.** The pre-filter's
-guarantee is "this id matches the version in the local checkout"; that is only a statement about
-staleness when the checkout is current.
+`installed-user` is available for a caller that deliberately wants every user-scope id, and **the
+sync algorithm does not use it.** An unconditional user-scope sweep is what turns a catalog that
+moved backward into a fleet rollback, and a marketplace whose Step 1 refresh failed is the likeliest
+place for a catalog that reads backward, so it is the last place for an unguarded sweep.
+The pre-filter's guarantee is "this id matches the version in the local checkout"; that is only a
+statement about staleness when the checkout is current, which is why a failed refresh downgrades the
+sweep's already-current set to a reported lower bound rather than widening the sweep.
 
 `--ids` emits the fully-qualified `<name>@<marketplace>` form, one per line, CR-free — a bare name
 is ambiguous across marketplaces and has failed with "Plugin not found" on earlier CLI versions,
@@ -590,6 +715,24 @@ rather than leading with the match count.
 Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from
 the sources the "Version capture for the report" section above fixes, read back out of the run
 journal rather than out of memory of the run.
+
+**Classify every `<old> -> <new>` pair by direction before printing it.** Apply the same triple
+compare the guard uses: a pair whose new version is higher, or whose direction the compare cannot
+read, goes under `Updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
+version is lower goes under `Downgraded:`. A pair whose two versions differ as strings but whose
+triples tie, `1.2.3` to `1.2.3-beta`, goes under `Updated:` flagged `(direction unknown)` too,
+because the compare cannot rank suffixes. This classification is what makes a backward move
+unprintable as `Updated:` for the ids that still reach the CLI on the guard's fail-open path, the
+ones whose catalog version was null or unparsable and so could never be proven a downgrade in
+advance. The guard withholds what it can prove; this step catches what only the outcome reveals.
+The same classification governs the `In-repo:` count: it counts forward moves only, and an in-repo
+record that moved backward renders under `Downgraded:` with its scope instead of being counted
+there.
+
+**Report the catalog regression check.** Emit SKILL.md's `Catalog regression:` line for the first
+snapshot interval in which any id's catalog version moved backward, per the "Run journal" section's
+jq. It is the signal that names the cause behind every withheld downgrade, so it belongs in the
+report even when `--allow-downgrade` moved them anyway.
 
 **Split the Divergences count into pre-existing and run-caused.** A user-scope sweep that moves user
 scope ahead of untouched project records *manufactures* actionable divergences — the run's own

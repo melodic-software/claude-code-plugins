@@ -398,6 +398,99 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.20, forks with no exec in `block-dangerous-git`.** 2026-09-06, Linux CI
+host. A PATH shim counts execs, and a fork that never execs is invisible to
+it. On every Bash and PowerShell call this guard created three such
+processes and executed none. One was the guard's own, an eager telemetry
+subject at file scope that the verdict never reads; it is now derived inside
+`emit_tel`, behind the gates that keep the envelope off by default. Off the
+common path, the hash-width probe `$(git ... 2>&1)` paid a second fork for
+its in-substitution redirect (now `exec git ...`, the redirect stays inside
+because git's stderr is what the block message quotes), and a `!` alias
+reparse paid one `$(printf '%q')` per trailing argument plus one
+`$(effective_dir ...)` (now `printf -v` and a nameref assignment). The two
+creations that used to remain on the common path are `$(hook::buffer_stdin)`
+and the shared parser's `< <(printf ...)`, both `lib/hook-utils.sh` work
+that already landed (#3740, #3838), so the guard's own share on a benign
+Bash call is now zero processes.
+No verdict changed: 190 paired runs against `origin/main` agree on exit code
+and stderr, and the 479-case contract suite passes. Those runs did not cover a
+`PATH` carrying no `git`, and that is the one input whose stderr text moves:
+the quoted probe diagnostic reads `exec: git: not found` where it read
+`git: command not found`. The push is blocked either way.
+
+*Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+on the dispatched path (`run-guards.sh block-dangerous-git.sh`), this
+repository as cwd, `HOOK_TELEMETRY_SINK` unset, `CLAUDE_PROJECT_DIR` empty.
+The guard's share is the count minus a no-op guard dispatched the same way.
+Creations are clone-family returns; execve is counted separately so an exec
+cannot pass for a removed fork. Three repeats, identical each time. Wall
+clock is not reported: this host's spawn floor is under a millisecond and the
+figure would not transfer to the Windows hosts the budget is written for; the
+process count is the durable number.
+
+| Counter | before | after |
+|---|---|---|
+| Guard share, benign `git status --short`: creations / execve | 3 / 0 | 0 / 0 |
+| Guard share, blocked `git push --force origin main`: creations / execve | 3 / 0 | 0 / 0 |
+| Guard share, lease `--force-with-lease=main:<40-hex>`: creations / execve | 5 / 1 | 1 / 1 |
+| Guard share, `!` alias with three trailing args: creations / execve | 8 / 0 | 0 / 0 |
+| Guard share, PowerShell `git status`: creations / execve | 15 / 3 | 14 / 3 |
+| Whole Bash dispatcher, benign: creations / execve | 35 / 3 | 34 / 3 |
+
+The execve column does not move, which is what makes this latency rather
+than removed work. The two guard-share rows and the lease / alias pins are
+current after merging #3838. The whole-dispatcher and PowerShell rows were
+measured against this branch's base before #3838 landed, so they still carry
+the dispatcher's own pre-fusion cost; the reduction that change made to the
+dispatcher is recorded in the 0.32.11 row below, not here. The contract suite
+pins the benign share, the lease probe and the alias reparse by the same
+instrument.
+
+**0.32.18, forks with no exec in `block-hook-bypass`.** 2026-09-06, Linux CI
+host. Every earlier row in this section counts execs through a PATH shim, and
+a shim cannot see a fork: `$(builtin-only function)`, `< <(printf ...)` and a
+pipeline each create a process that never execs. On a benign Bash call this
+guard created seven such processes and executed none. Six were in the guard
+itself (an eager telemetry subject at file scope, a `$(strip_literals)`, four
+process-substitution line loops); the seventh was `$(hook::buffer_stdin)`,
+whose fork-free form is `lib/hook-utils.sh` work. That form landed in #3838
+and this guard now calls `hook::buffer_stdin_to`, so all seven are gone and
+the guard's own share on a benign Bash call is zero processes.
+No verdict changed: 244 paired runs against `origin/main`
+(61 commands, Bash and PowerShell payloads, standalone and dispatched, plus
+70 KiB single-line and 3000-line commands) agree on exit code and first
+stderr line, and the 611-case contract suite passes.
+
+*Method.* Kernel census, `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+on the dispatched path (`run-guards.sh block-hook-bypass.sh`), this repository
+as cwd, `HOOK_TELEMETRY_SINK` unset, `CLAUDE_PROJECT_DIR` empty. The guard's
+share is the count minus a no-op guard dispatched the same way, which removes
+the dispatcher's own stdin, jq and isolation forks. Creations are clone-family
+returns; execve is counted separately so an exec cannot pass for a removed
+fork. Three repeats, identical each time. Wall clock is p50/p95 of 20 samples
+after 2 warmup, sides interleaved, on a host whose `bash -c :` floor is about
+1 ms; the milliseconds are context, the durable figure is the process count.
+
+| Counter | before | after |
+|---|---|---|
+| Guard share, benign `git status --short`: creations / execve | 7 / 0 | 0 / 0 |
+| Guard share, blocked `echo hi > notes.md`: creations / execve | 10 / 1 | 4 / 1 |
+| Whole Bash dispatcher, benign: creations / execve | 36 / 3 | 30 / 3 |
+| Guard alone under the dispatcher, wall p50 / p95 (n=20) | 27.4 / 29.2 ms | 24.3 / 27.5 ms |
+| Whole Bash dispatcher, wall p50 / p95 (n=20) | 51.6 / 60.4 ms | 48.2 / 49.6 ms |
+
+The execve column does not move, which is what makes this latency rather than
+removed work. The contract suite pins the guard's benign share at exactly 0 by
+the same instrument, so the figure moves with the code rather than with this
+table.
+
+The two guard-share rows are current after merging #3838. The
+whole-dispatcher and wall-clock rows were measured against this branch's
+base before #3838 landed, so they still carry the dispatcher's own pre-fusion
+cost; the reduction that change made to the dispatcher is recorded in the
+0.32.11 row below, not here.
+
 **0.32.17, forks with no exec in `block-noncanonical-commit`.** 2026-09-06,
 Linux CI host. A PATH shim counts execs, and a fork that never execs is
 invisible to it. On every Bash and PowerShell call this guard created two

@@ -297,6 +297,27 @@ path cannot assess merge-readiness at all: report it unchecked, never inferred f
 classification gate. Let a safe iteration proceed when the engine is absent, reporting
 merge-readiness as unchecked.
 
+**Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
+`gh pr view --json` is implemented entirely over GraphQL, so it fails with `HTTP 403` wherever only
+a pinned set of GraphQL operations is served (Claude Code on the web and remote execution), the same
+restriction [`pull-request/reference/create.md`](../pull-request/reference/create.md) §2.4.0 and the
+[work-item-tracker GitHub adapter](../../../work-items/tools/work-item-tracker/adapters/github/README.md)
+work around. That 403 reads like an expired token or a missing scope and is neither, so take it as a
+signal to switch APIs rather than to re-authenticate. The engine re-sources the whole `gh pr view`
+bundle over REST by itself (`GET …/pulls/{n}` for the pull request, plus the commit check-runs and
+combined-status endpoints for the check rollup), so discovery, classification, and the branch-rule
+and freshness checks keep working unchanged.
+
+Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.
+The merge gate reports `threadResolutionProven: false` and `unresolvedThreadCount: null`, never `0`,
+and holds the PR with a blocker naming the restriction: an empty thread list would read as "zero
+unresolved threads", the false-clean signal [reference/safety.md](reference/safety.md) exists to
+prevent. Readiness there is UNPROVEN, never clean. Report it that way, quoting the blocker, and run
+the lane from a session that is served GraphQL when a PR actually needs to merge. `reviewDecision`
+degrades the same way: REST can prove `CHANGES_REQUESTED` but cannot prove an approval (GitHub folds
+CODEOWNERS and the required-reviewer count into that field), so a protected base holds rather than
+merging on evidence that does not reach it.
+
 ## Per-PR checklist (safe core, each PR, every iteration)
 
 Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).

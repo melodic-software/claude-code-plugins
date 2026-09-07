@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.18]
+## [0.32.21]
 
 ### Fixed
 
@@ -29,6 +29,120 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   whitespace arms have returned. `hook::stdin_cut_short_notice` carries the
   notice. The stdin posture comments in the sibling guards, the README, and
   the `stdin_read_timeout` option text say the same.
+
+## [0.32.20]
+
+### Changed
+
+- **`block-dangerous-git` no longer forks for work that had no process in
+  it.** On every Bash and PowerShell call the guard created three processes
+  of its own and executed none, so the PATH-shim census read it as free. One
+  of the three was this file's: an eager
+  `SUBJECT=$(hook::extract_bash_subject ...)` at file scope, feeding a
+  telemetry envelope that is off by default and that the verdict never reads.
+  It is now derived inside `emit_tel`, behind the start-stamp and sink gates.
+  Off the common path, three more sites paid a fork for a string: the
+  hash-width probe `$(git ... rev-parse --show-object-format 2>&1)` cost two
+  creations for one exec, because bash execs a substitution's body in the
+  substitution's own subshell only when that body carries no redirection of
+  its own, and the `2>&1` has to stay inside (git's stderr is the diagnostic
+  the block message quotes), so the body is now `exec git ...` and the
+  subshell becomes git; a `!` alias reparse spent one `$(printf '%q')` per
+  trailing argument, now `printf -v`; and its `$(effective_dir ...)` around a
+  builtins-only function is now `effective_dir_to`, a nameref assignment.
+  Verdicts are unchanged: 190 paired runs against `origin/main` (87 Bash and
+  8 PowerShell commands, standalone and dispatched, three repository shapes,
+  every force-push, lease, reset, clean, checkout, restore and switch form the
+  guard matches plus their near-miss safe spellings, `!` and inline aliases,
+  `bash -c` wrappers, and commands carrying a CR, BOM, zero-width space or
+  U+2028) agree on exit code and stderr, with one input those runs did not
+  cover: on a `PATH` carrying no `git`, the diagnostic the block message
+  quotes now reads `exec: git: not found` where it read
+  `git: command not found`. The status is still 127, the same `*` branch
+  runs, and the push is still blocked; the wording of that quoted error is
+  the only thing that changes.   The 479-case contract suite passes. The two
+  creations that used to remain on the common path,
+  `$(hook::buffer_stdin)` and the shared parser's `< <(printf ...)`, both
+  belong to `lib/hook-utils.sh` and already landed (#3740, #3838), so the
+  guard's own share on a benign Bash call is now zero processes. The
+  PowerShell lane's remaining creations live in `lib/powershell/ps-command.sh`.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve`,
+  guard share = dispatched count minus a no-op guard dispatched the same way,
+  this repository as cwd, `HOOK_TELEMETRY_SINK` unset: benign
+  `git status --short` and blocked `git push --force origin main` creations
+  **3 -> 0**, execve **0 -> 0**; lease with a full-width object id
+  **5 -> 1**, execve **1 -> 1**; `!` alias with three trailing arguments
+  **8 -> 0**, execve **0 -> 0**. The unchanged execve column is the
+  evidence this is latency, not removed work. The contract suite now pins
+  each of these by the same instrument and skips visibly where strace is
+  absent.
+
+## [0.32.19]
+
+### Changed
+
+- **`hooks/block-convention-violation.sh` hoists three `2>/dev/null` redirects
+  off the command substitutions they sat inside.** GNU Bash execs the body of a
+  command substitution in the substitution's own subshell, instead of forking a
+  second time, only when that body carries no redirection of its own (Command
+  Substitution, Bash Reference Manual;
+  https://mywiki.wooledge.org/CommandSubstitution). So `v=$(cmd 2>/dev/null)`
+  costs two process creations to run one program where
+  `{ v=$(cmd); } 2>/dev/null` costs one, and on the Windows Git Bash hosts this
+  marketplace targets a fork is a full process creation. The three sites are the
+  convention resolver fork, the `rev-parse --absolute-git-dir` sequencer probe,
+  and the `config --get alias.<sub>` probe that runs for every non-builtin git
+  subcommand, which is the one of the three on the per-tool-call path. Counted
+  from the kernel with `strace -f -e trace=clone,clone3,fork,vfork,execve`
+  (a PATH shim cannot see a fork that never execs, and `bash -x` prints one line
+  either way), process creations per invocation: cold-cache stdin-form commit
+  **34 → 31**, warm-cache commit **19 → 18**, non-builtin git subcommand
+  **14 → 13**, `echo hello` and `git status --short` unchanged at 11. `execve`
+  is unchanged at every one of those, which is the evidence this drops latency
+  rather than work. Verdicts are unchanged: each redirect now sits on a group
+  holding exactly one command, so the group's status is still that command's and
+  nothing extra is silenced. The contract test gains a per-site kernel-trace
+  budget assertion that fails when a redirect moves back inside its
+  substitution.
+
+## [0.32.18]
+
+### Changed
+
+- **`block-hook-bypass` no longer forks for work that had no process in it.**
+  On a benign Bash call the guard created seven processes and executed none,
+  so every exec census (the PATH-shim spawn census, `run-guards.test.sh`'s
+  dirname/sed pin, an xtrace command count) read it as free. Six were the
+  guard's own: an eager `SUBJECT=$(hook::extract_bash_subject ...)` at file
+  scope, feeding a telemetry envelope that is off by default; a
+  `$(strip_literals ...)` around a builtin-only function; and four
+  `done < <(printf ...)` line loops (the literal strip and the three
+  per-segment scans). The seventh is `$(hook::buffer_stdin)`. After: the
+  subject is derived inside `emit_tel`, behind the start-stamp and sink gates;
+  the strip assigns through a nameref (`strip_literals_to`); and one fork-free
+  splitter (`split_lines_to`, a sentinel-prefixed IFS split under `set -f`, so
+  blank lines and runs of newlines arrive exactly as `read` delivered them)
+  feeds the strip and fills `NORMALIZED_SEGMENTS` once, as an array the three
+  scans iterate. `return` and `continue 2` inside those loops reach the same
+  scopes as before, since neither loop shape ran its body in a subshell.
+  Verdicts are unchanged: 244 paired runs against `origin/main` (61 commands,
+  Bash and PowerShell payloads, standalone and dispatched, plus 70 KiB
+  single-line and 3000-line commands) agree on exit code and first stderr
+  line, and the 611-case contract suite passes. The seventh creation,
+  `$(hook::buffer_stdin)`, is gone too: #3838 landed the fork-free
+  `hook::buffer_stdin_to` in `lib/hook-utils.sh` and this guard now calls it,
+  so the guard's own share on a benign Bash call is zero processes.
+  Kernel census with `strace -f -e trace=clone,clone3,fork,vfork,execve` on
+  the dispatched path (`run-guards.sh block-hook-bypass.sh`, this repository
+  as cwd, `HOOK_TELEMETRY_SINK` unset), guard share = count minus a no-op
+  guard dispatched the same way, three identical repeats: benign
+  `git status --short` creations **7 -> 0**, execve **0 -> 0**; blocked
+  `echo hi > notes.md` creations **10 -> 4**, execve **1 -> 1**. Whole Bash
+  dispatcher on the benign payload: creations **36 -> 30**, execve **3 -> 3**
+  (bash plus the two primed `jq`). The unchanged execve column is the
+  evidence this is latency, not removed work. The contract suite now pins
+  the guard's benign share at exactly 0 by the same instrument, and skips
+  visibly where strace is absent.
 
 ## [0.32.17]
 

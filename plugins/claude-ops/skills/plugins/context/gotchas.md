@@ -206,6 +206,58 @@ names `--marketplace`; the resolver never guesses.
 What is missing without a deliberate report row is any *statement* of it — see `SKILL.md`'s
 self-update row.
 
+## `marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal
+
+With plugins from that marketplace still installed, `claude plugin marketplace remove <name>` is a
+fleet-wide delete rather than the retirement of a registry entry. Run with no `--scope`, so that it
+removes the marketplace from its last remaining scope, it:
+
+- deletes every `installed_plugins.json` record keyed `*@<name>`, at every scope in one pass, user,
+  project and local alike;
+- deletes each of those plugins' persistent data directories,
+  `~/.claude/plugins/data/<plugin>-<marketplace>/`, recursively and forcibly. That is
+  `${CLAUDE_PLUGIN_DATA}`, and for this skill it holds `plugins-sync/runs/`, so **the pre, mid and
+  post snapshots and the `journal.log` a remediation would consult are the first casualties of the
+  command.** The directory is recreated empty on the next expansion, so an empty data directory
+  afterwards is the normal resting state and is evidence of nothing either way;
+- clears that marketplace's `enabledPlugins` and `pluginConfigs` entries from user, project and
+  local settings, removes its `extraKnownMarketplaces` entry, and clears its `pluginSecrets` and
+  `pluginUsage`. Managed policy settings are untouched;
+- writes each still-installed plugin's `.orphaned_at` cache marker itself, leaving the cache tree
+  for the orphan sweep exactly as an `uninstall` does.
+
+Nothing preserves the journal through it. `claude plugin uninstall` has `--keep-data`;
+`marketplace remove` takes only `--scope`, and it does not route through the uninstall path, it is a
+parallel path over the same delete helpers.
+
+**So never run `marketplace remove` as a remediation for a bad `sync`.** It destroys the evidence
+the remediation reads. When a marketplace genuinely has to go and the journal matters, either
+uninstall each plugin individually with `claude plugin uninstall <id> --keep-data` first, or copy
+`plugins-sync/runs/` out of the data directory to a path outside `~/.claude/plugins/` before the
+removal. After a per-plugin uninstall no install record is left, which is the benign case
+[scope-semantics.md](scope-semantics.md#marketplace-remove-leaves-the-cache-tree-marked-for-the-orphan-sweep)
+records: the registry entries go and the marked cache tree stays.
+
+**The settings map is a recovery source only where something outside Claude Code holds it.** Claude
+Code clears `enabledPlugins` for the removed marketplace at every scope it writes, so a map that
+survives the removal means a dotfile manager, a committed project `.claude/settings.json`, or a
+backup put it back. Read it as a copy restored by that external holder, never as state Claude Code
+preserved.
+
+**Verification record.** *Claim:* the four effects above, and the absence of any keep-data option on
+this subcommand. *Basis:* the shipped CLI bundle (`~/.local/share/claude/versions/<version>`) for
+the record cascade, the data-directory removal, the settings cleanup and the `.orphaned_at` write,
+none of which the docs state;
+[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) for "Removing a
+marketplace from its last remaining scope also uninstalls any plugins you installed from it", and
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference) for `uninstall --keep-data`;
+and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
+2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
+2.1.261, so the behaviour is not version-gated. ***Recheck trigger:*** any release note or
+`plugin-marketplaces` / `plugins-reference` change touching marketplace removal, `--keep-data`, the
+persistent data directory, or the settings cleanup cascade; or a keep-data flag appearing on
+`claude plugin marketplace remove --help`.
+
 ## Internal-schema drift — fail loud, never guess
 
 `installed_plugins.json` and `known_marketplaces.json` are Claude Code's *internal* state — not a
@@ -258,7 +310,7 @@ feeds `claude plugin` needs no `jq` of its own at all:
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
-done < <(…/scripts/fleet-state.sh --ids installed-user)
+done < <(…/scripts/fleet-state.sh --ids update-candidates-user)
 ```
 
 For anything `--ids` does not cover: capture every `jq` call the way `fleet-state.sh`'s `jq_to`
