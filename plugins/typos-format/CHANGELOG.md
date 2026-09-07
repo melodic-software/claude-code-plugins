@@ -3,6 +3,19 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.48]
+
+### Changed
+
+- **The README records why the manifest carries no `if` row (#3411).** The
+  sibling formatters filter by extension at the manifest; the read-only scan
+  here is language-agnostic, so the set a declarative file-type filter would
+  reproduce is every file and a narrower row would silently stop scanning
+  whatever it left out. The write-mode allowlist never gates the scan, and
+  `NotebookEdit` stays in the matcher. The section also records the kernel
+  census on a clean `.md` Write. Documentation only; no hook behavior
+  changes.
+
 ## [0.6.47]
 
 ### Changed

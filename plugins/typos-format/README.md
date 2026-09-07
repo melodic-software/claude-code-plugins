@@ -104,6 +104,17 @@ The residual is the shared library's payload reader and telemetry emitter, cut i
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
 itself.
 
+`hooks/hooks.json` carries no `if` row, and that is deliberate (#3411). The sibling formatters
+filter by extension at the manifest so a Write of any other file spawns nothing, but the
+read-only scan here is language-agnostic: the set a declarative file-type filter would have to
+reproduce is every file, and a narrower row would silently stop scanning whatever it left out.
+The write-mode allowlist is a separate, later decision inside the script and never gates the
+scan, and `NotebookEdit` stays in the matcher for the same reason. The kernel census
+(`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64, `HOOK_TELEMETRY_SINK` and
+`CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.48) on a clean `.md` `Write` is 13 process
+creations and 6 execs (`typos`, `git` twice for the working-tree probe and the root resolver,
+`jq`, `realpath`, the hook's own `bash`).
+
 ## Install
 
 ```shell
