@@ -3,6 +3,24 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **`map-landscape` no longer fabricates an `owner` from a local-path remote.** A git remote is
+  often a plain filesystem path, and `portfolio-facts.sh` stripped its first segment as if it were a
+  hosting account: `/srv/code/platform/billing` reported owner `srv`, and `file:///opt/mirror/repo`
+  reported `opt`. Both were emitted with `evidence.owner: "origin remote URL"`, so a fabricated
+  fact carried a citation, which is worse than the wrong value alone. `remote_owner` now requires a
+  host (a `scheme://host/...` authority, or the scp-style `host:owner/repo`) and returns `unknown`
+  for every path form. The contract's rule is `unknown` for anything underivable, never a guess.
+- **`map-landscape` reads the top-level `dependencies` even when a nested member shares its name.**
+  The package.json reader sought the first literal `"dependencies"` in the byte stream, so a
+  `pnpm.overrides.dependencies` block appearing earlier in the file shadowed the real one and the
+  portfolio listed the override's pins as the project's dependencies. The reader now locates the
+  member by position with a container stack rather than by text search.
+- Regression cases for both, plus assertions for `path` and for the absent-owner citation.
+
 ## [0.8.0]
 
 ### Added

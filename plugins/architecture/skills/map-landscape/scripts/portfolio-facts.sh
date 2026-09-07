@@ -150,13 +150,41 @@ find_all() {
   done <<<"$REPO_FILES"
 }
 
-# The owner segment of a git remote URL. Handles scheme://host/owner/repo,
-# user@host:owner/repo, and host/owner/repo. Prints nothing when the shape does
-# not yield an owner rather than guessing at one.
+# The owner segment of a git remote URL. Handles `scheme://[user@]host/owner/repo`
+# and scp-style `[user@]host:owner/repo`. Returns non-zero when the shape names
+# no host, rather than guessing at an owner.
+#
+# A HOST IS REQUIRED, and that is the whole guard. A git remote is often a plain
+# filesystem path, and a path's first segment is a directory, not an owner: an
+# earlier spelling stripped a leading segment unconditionally and reported
+# `/srv/code/platform/billing` as owner `srv` and `file:///opt/mirror/repo` as owner
+# `opt`. Both were emitted with `evidence.owner: "origin remote URL"`, so a
+# fabricated fact carried a citation. `unknown` is the correct answer here.
 remote_owner() {
-  local url="$1" rest owner
+  local url="$1" rest owner had_scheme=0
   url="${url%.git}"
-  url="${url#*://}"
+  case "$url" in
+  *://*)
+    had_scheme=1
+    url="${url#*://}"
+    # An empty authority (`file:///path`) leaves a leading slash: no host.
+    case "$url" in
+    /*) return 1 ;;
+    *) ;;
+    esac
+    ;;
+  *)
+    # No scheme. Only the scp-style `host:owner/repo` form names a host; an
+    # absolute, relative, or Windows path does not. A colon that appears AFTER
+    # a slash is part of a path, not an scp separator.
+    case "$url" in
+    /* | ./* | ../* | ~*) return 1 ;;
+    */*:*) return 1 ;;
+    *:*) ;;
+    *) return 1 ;;
+    esac
+    ;;
+  esac
   # Strip a `user@` only when the `@` precedes the first path separator, so an
   # `@` inside a path segment is left alone.
   case "$url" in
@@ -168,17 +196,34 @@ remote_owner() {
     ;;
   *) ;;
   esac
-  # scp-style `host:owner/repo` becomes `host/owner/repo`.
-  case "$url" in
-  *:*) url="${url%%:*}/${url#*:}" ;;
-  *) ;;
-  esac
+  # scp-style `host:owner/repo` becomes `host/owner/repo`. ONLY when there was
+  # no scheme: with one, a colon in the authority is a PORT, and converting it
+  # promotes the port number to a path segment, so `https://example.com:8080/acme/repo`
+  # would resolve to owner `8080`. That is the same fabricated-fact-with-a-citation
+  # this guard exists to stop, arriving by a different route. With a scheme, strip
+  # the port from the authority instead.
+  if [[ "$had_scheme" -eq 1 ]]; then
+    case "$url" in
+    *:*)
+      case "${url%%/*}" in
+      *:*) url="${url%%:*}/${url#*/}" ;;
+      *) ;;
+      esac
+      ;;
+    *) ;;
+    esac
+  else
+    case "$url" in
+    *:*) url="${url%%:*}/${url#*:}" ;;
+    *) ;;
+    esac
+  fi
   case "$url" in
   */*) rest="${url#*/}" ;;
   *) return 1 ;;
   esac
   owner="${rest%%/*}"
-  # A local-path remote yields a drive letter or a dot segment, not an owner.
+  # A Windows drive letter normalizes to an empty or backslash-bearing segment.
   case "$owner" in
   "" | . | ..) return 1 ;;
   *[!A-Za-z0-9._-]*) return 1 ;;
@@ -197,42 +242,55 @@ codeowners_default() {
   ' "$1"
 }
 
-# Keys of a top-level JSON object member, one per line. Walks the text with a
-# depth and string-state machine because a package.json is not line-oriented
-# and an anchored grep would miss a one-line manifest entirely.
+# Keys of a TOP-LEVEL JSON object member, one per line. Walks the text with a
+# depth and string-state machine because a package.json is not line-oriented and
+# an anchored grep would miss a one-line manifest entirely.
+#
+# The member must be found BY POSITION, not by text search. Seeking the first
+# literal `"dependencies"` anywhere in the file lets a nested member of the same
+# name shadow the real one: a `pnpm.overrides.dependencies` block appears first
+# in the byte stream, so the top-level dependencies were reported as whatever
+# the override pinned. A container stack costs a few lines and cannot be fooled
+# that way.
 json_object_keys() {
   awk -v want="$2" '
     { buf = buf $0 "\n" }
     END {
-      i = index(buf, "\"" want "\"")
-      if (i == 0) exit 0
       n = length(buf)
-      while (i <= n && substr(buf, i, 1) != "{") {
-        c = substr(buf, i, 1)
-        # A member whose value is not an object has no keys to report.
-        if (c == "[" || (c == "," && i > 1)) exit 0
-        i++
-      }
-      if (i > n) exit 0
-      i++
-      depth = 1; instr = 0; esc = 0; expectkey = 1; collecting = 0; key = ""
-      while (i <= n && depth > 0) {
+      depth = 0; instr = 0; esc = 0
+      expectkey = 0; collecting = 0; key = ""; target = 0; done = 0
+      for (i = 1; i <= n; i++) {
         c = substr(buf, i, 1)
         if (instr) {
           if (esc) { esc = 0 }
           else if (c == "\\") { esc = 1 }
           else if (c == "\"") {
             instr = 0
-            if (collecting) { print key; collecting = 0 }
+            if (collecting) {
+              collecting = 0
+              # The last key seen at this depth names the value about to open.
+              keyat[depth] = key
+              if (target != 0 && depth == target) print key
+            }
           } else if (collecting) { key = key c }
-        } else if (c == "\"") {
+          continue
+        }
+        if (c == "\"") {
           instr = 1
-          if (depth == 1 && expectkey) { collecting = 1; key = "" }
-        } else if (c == "{") { depth++ }
-        else if (c == "}") { depth-- }
-        else if (c == ":" && depth == 1) { expectkey = 0 }
-        else if (c == "," && depth == 1) { expectkey = 1 }
-        i++
+          if (expectkey) { collecting = 1; key = "" }
+        } else if (c == "{") {
+          depth++; isobj[depth] = 1; expectkey = 1
+          if (!done && target == 0 && depth == 2 && keyat[1] == want) target = 2
+        } else if (c == "[") {
+          depth++; isobj[depth] = 0; expectkey = 0
+        } else if (c == "}" || c == "]") {
+          if (target != 0 && depth == target) { target = 0; done = 1 }
+          depth--; expectkey = 0
+        } else if (c == ":") {
+          expectkey = 0
+        } else if (c == ",") {
+          expectkey = (depth >= 1 && isobj[depth] == 1) ? 1 : 0
+        }
       }
     }
   ' "$1"
