@@ -163,6 +163,17 @@ def pygments_available() -> bool:
     return True
 
 
+def scc_available() -> bool:
+    """Whether the scc layer can be used at all, independent of any file.
+
+    The counterpart to `pygments_available`, and needed for the same reason:
+    `scc_counts` returns None both when the binary is missing AND when the file
+    list is empty, so its result cannot answer "is scc installed" on an empty
+    scope. Reusing it as that proxy reports an installed scc as unavailable.
+    """
+    return shutil.which("scc") is not None
+
+
 def pygments_counts(path: Path) -> dict | None:
     try:
         from pygments import lex
@@ -212,7 +223,8 @@ def sha256_of(path: Path) -> str:
 
 
 def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
-    scc = scc_counts(files) if layer in ("auto", "scc") else None
+    use_scc = layer in ("auto", "scc")
+    scc = scc_counts(files) if use_scc else None
     use_pygments = layer in ("auto", "pygments")
     records = []
     sources = {"lines": None, "bytes": None, "complexity": None}
@@ -249,10 +261,14 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
         records.append(rec)
     # An empty scope and a missing analyser both yield zero records, and reporting
     # the second as a clean zero is the worse error: every later count reads as an
-    # improvement against a baseline that was never measured. Probe the layers
-    # directly rather than inferring from sources["lines"], which stays None when
-    # there was simply nothing to read.
-    if sources["lines"] is None and (scc is None and not (use_pygments and pygments_available())):
+    # improvement against a baseline that was never measured. Probe each layer for
+    # INSTALLED-ness directly. Neither `sources["lines"]` nor the `scc` result can
+    # answer that here: the first stays None when there was simply nothing to read,
+    # and `scc_counts` returns None on an empty file list even when the binary is
+    # present, so using either as the proxy reports an installed analyser as
+    # missing and turns an empty scope into a false hard stop.
+    have_layer = (use_scc and scc_available()) or (use_pygments and pygments_available())
+    if sources["lines"] is None and not have_layer:
         return [], {
             "error": "neither scc nor pygments is available (install scc, or pip install pygments)"
         }

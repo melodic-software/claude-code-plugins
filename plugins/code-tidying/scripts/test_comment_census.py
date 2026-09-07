@@ -252,6 +252,67 @@ class Degradation(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    def test_empty_scope_with_scc_installed_is_not_reported_as_no_layer(self):
+        """An empty scope must not be diagnosed as a missing analyser.
+
+        `scc_counts` returns None both when the binary is absent AND when the
+        file list is empty, so using its result as the availability proxy makes
+        an installed scc read as "neither scc nor pygments is available" on an
+        empty scope. SKILL.md step 4 treats exit 3 as a hard stop, so that
+        aborts a run on a false diagnosis. Stub scc onto PATH and block pygments
+        so only the availability probe, never the record count, can decide.
+        """
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            bin_dir = tmp / "stub-bin"
+            bin_dir.mkdir()
+            scc_stub = bin_dir / "scc"
+            scc_stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            scc_stub.chmod(0o755)
+            blocked = tmp / "blocked"
+            blocked.mkdir()
+            (blocked / "pygments.py").write_text(
+                'raise ImportError("blocked so only the probe decides")\n',
+                encoding="utf-8",
+            )
+            repo = tmp / "repo"
+            repo.mkdir()
+            env = {
+                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
+            }
+            env.update(
+                {
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@x",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@x",
+                }
+            )
+            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+            (repo / "README.md").write_text("# no code file here\n")
+            subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
+                check=True,
+                env=env,
+            )
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+            env["PYTHONPATH"] = f"{blocked}{os.pathsep}{env.get('PYTHONPATH', '')}"
+            p = subprocess.run(
+                [sys.executable, str(SCRIPT), ".", "--json"],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(repo),
+                env=env,
+            )
+            self.assertNotEqual(
+                p.returncode, 3, f"empty scope misreported as no-layer: {p.stderr}"
+            )
+            self.assertNotIn("UNAVAILABLE", p.stderr)
+        finally:
+            shutil.rmtree(tmp)
+
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
         # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
