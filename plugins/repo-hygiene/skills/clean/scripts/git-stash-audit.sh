@@ -65,11 +65,13 @@ declare -A PR_NUM=()
 PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
 trap 'rm -f "$PR_MAP_FILE"' EXIT
 clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number'
-while IFS=$'\t' read -r head state num; do
-  [[ -z "$head" ]] && continue
-  PR_STATE["$head"]="$state"
-  PR_NUM["$head"]="$num"
-done <"$PR_MAP_FILE"
+if [[ -f "$PR_MAP_FILE" ]]; then
+  while IFS=$'\t' read -r head state num; do
+    [[ -z "$head" ]] && continue
+    PR_STATE["$head"]="$state"
+    PR_NUM["$head"]="$num"
+  done <"$PR_MAP_FILE"
+fi
 
 NOW=$(date +%s)
 count=0 superseded=0

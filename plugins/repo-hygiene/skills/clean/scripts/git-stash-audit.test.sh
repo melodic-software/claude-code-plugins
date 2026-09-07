@@ -116,6 +116,17 @@ EMPTYGH
   empty_pr_out="$(PATH="$EMPTY_BIN:$PATH" bash -c "cd '$REPO' && bash '$AUDIT'")"
   assert_contains "a repo with no PRs reports a real count" "$empty_pr_out" "PRCount: 0"
   assert_not_contains "a repo with no PRs is not called unavailable" "$empty_pr_out" "PRDataUnavailable:"
+
+  # --- PR map: cannot create the outfile is unavailable, not a count ----------
+  # Same helper, second call site: a successful gh lookup must not report a
+  # complete map when the file was never created (invalid TMPDIR / mktemp
+  # fallback). Capture stderr so a missing-file redirect would show up.
+  mapfail_out="$(
+    PATH="$PR_BIN:$PATH" TMPDIR="$TEST_TMPDIR/no-such-tmpdir" \
+      bash -c "cd '$REPO' && bash '$AUDIT'" 2>&1
+  )"
+  assert_contains "unwritable TMPDIR is unavailable here too" "$mapfail_out" "PRDataUnavailable:"
+  assert_not_contains "unwritable TMPDIR reports no count here too" "$mapfail_out" "PRCount:"
 fi
 
 if [[ $FAILED -ne 0 ]]; then

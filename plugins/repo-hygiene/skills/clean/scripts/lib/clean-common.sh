@@ -55,10 +55,22 @@ clean_default_branch() {
 #   PRCount: <n>             the map is usable; <n> rows were read
 #   PRDataUnavailable: <why> no map at all; PR-based classification is blind
 #   PRDataTruncated: <why>   follows PRCount when the cap was hit
+#
+# A usable count requires a real file the caller can read. Failure to create
+# or write <outfile> is unavailable data, not an empty repository: emitting
+# PRCount after a failed redirect would look like a complete map while the
+# caller loads no rows. Callers must not read <outfile> unless it exists.
 clean_pr_map() {
   local outfile="$1" fields="$2"
   local limit="${CLEAN_PR_LIST_LIMIT:-100000}"
-  : >"$outfile" 2>/dev/null || true
+
+  # Subshell so the redirect's own failure message is captured by 2>/dev/null
+  # (a bare `: >"$outfile" 2>/dev/null` still prints it — the target redirect is
+  # set up before stderr is redirected). Same reason as clean_manifest_path.
+  if ! (: >"$outfile") 2>/dev/null; then
+    printf 'PRDataUnavailable: cannot create the pull-request map file; squash-merged branches cannot be detected\n'
+    return 0
+  fi
 
   if ! command -v gh >/dev/null 2>&1; then
     printf 'PRDataUnavailable: gh not on PATH; squash-merged branches cannot be detected\n'
@@ -85,7 +97,11 @@ clean_pr_map() {
     return 0
   fi
 
-  printf '%s' "$raw" | jq -r ".[] | [.${fields//,/,.}] | @tsv" 2>/dev/null | tr -d '\r' >"$outfile"
+  if ! (printf '%s' "$raw" | jq -r ".[] | [.${fields//,/,.}] | @tsv" | tr -d '\r' >"$outfile") 2>/dev/null ||
+    [[ ! -f "$outfile" ]]; then
+    printf 'PRDataUnavailable: cannot write the pull-request map file; squash-merged branches cannot be detected\n'
+    return 0
+  fi
   printf 'PRCount: %s\n' "$count"
   if [[ "$count" -ge "$limit" ]]; then
     printf 'PRDataTruncated: %s pull requests returned at the --limit %s cap; the map may be short, and a squash-merged branch missing from it is reported as unmerged\n' \

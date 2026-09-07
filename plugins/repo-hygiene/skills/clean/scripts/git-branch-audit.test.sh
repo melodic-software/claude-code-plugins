@@ -93,6 +93,30 @@ JUNKGH
   junk_out="$(PATH="$junk_bin:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
   assert_contains "unparseable gh output is unavailable" "$junk_out" "PRDataUnavailable:"
   assert_not_contains "unparseable gh output fabricates no count" "$junk_out" "PRCount:"
+
+  # --- PR map: cannot create the outfile is unavailable, not a count ----------
+  # A successful gh lookup used to emit PRCount even when the map file was never
+  # created (ignored `: >"$outfile"`), so the audit looked complete while loading
+  # no rows. Failure to create the file is the same class as a missing lookup.
+  helper_out="$(
+    PATH="$fake_bin:$PATH" bash -c '
+      source "$1"
+      clean_pr_map "$2" "headRefName,state,number,headRefOid"
+    ' bash "$SCRIPT_DIR/lib/clean-common.sh" "$TEST_TMPDIR/no-such-dir/pr-map"
+  )"
+  assert_contains "helper: missing map file is unavailable" "$helper_out" "PRDataUnavailable:"
+  assert_not_contains "helper: missing map file reports no count" "$helper_out" "PRCount:"
+
+  # mktemp fails when TMPDIR is not a directory; both audits then fall back to
+  # ${TMPDIR}/clean-pr-map.$$ in that same unusable directory. Capture stderr
+  # so a missing-file redirect would show up as a regression.
+  mapfail_out="$(
+    PATH="$fake_bin:$PATH" TMPDIR="$TEST_TMPDIR/no-such-tmpdir" \
+      GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" \
+      bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'" 2>&1
+  )"
+  assert_contains "unwritable TMPDIR is unavailable" "$mapfail_out" "PRDataUnavailable:"
+  assert_not_contains "unwritable TMPDIR reports no count" "$mapfail_out" "PRCount:"
 fi
 
 # --- PR map: a failed lookup is distinguishable from an empty one ---------------

@@ -40,7 +40,9 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   detects a squash merge, so a short or missing map did not soften a verdict, it inverted one: a
   branch whose work had landed lost its evidence and reported as unmerged. A repository with no
   pull requests (`PRCount: 0`) is now distinguishable from one whose pull requests could not be
-  read at all. Override the cap with `CLEAN_PR_LIST_LIMIT`.
+  read at all. Failure to create or write the map file is the same unavailable case: an ignored
+  redirect used to leave no file while still emitting `PRCount`, so a broken `TMPDIR` looked like a
+  complete map with no rows. Override the cap with `CLEAN_PR_LIST_LIMIT`.
 
 ### Changed
 
@@ -54,7 +56,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   matches none of those scripts, nor `git branch -D`, nor `git push --delete`. Withholding the
   grant, so the permission flow and the confirmation gate apply, is the actual mechanism. The
   guard's stated best-effort posture is preserved rather than extended; whether its coverage
-  should grow is a separate human-gated decision.
+  should grow is a separate human-gated decision
+  ([#3852](https://github.com/melodic-software/claude-code-plugins/issues/3852)).
 
 ## [0.10.33]
 

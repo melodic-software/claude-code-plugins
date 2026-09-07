@@ -15,7 +15,7 @@ allowed-tools:
   # it matches none of these six scripts, nor `git branch -D`, nor
   # `git push --delete`. The guard's own header declares it a best-effort net
   # rather than a security boundary with accepted coverage gaps; whether that
-  # coverage should grow is a separate human-gated decision (#3852), so do not
+  # coverage should grow is a separate human-gated decision, so do not
   # read this list as a claim that the guard inspects these scripts.
   - Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/scan.sh:*)

@@ -55,12 +55,14 @@ declare -A PR_REFOID=()
 PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
 trap 'rm -f "$PR_MAP_FILE"' EXIT
 clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid'
-while IFS=$'\t' read -r head state num refoid; do
-  [[ -z "$head" ]] && continue
-  PR_STATE["$head"]="$state"
-  PR_NUM["$head"]="$num"
-  PR_REFOID["$head"]="$refoid"
-done <"$PR_MAP_FILE"
+if [[ -f "$PR_MAP_FILE" ]]; then
+  while IFS=$'\t' read -r head state num refoid; do
+    [[ -z "$head" ]] && continue
+    PR_STATE["$head"]="$state"
+    PR_NUM["$head"]="$num"
+    PR_REFOID["$head"]="$refoid"
+  done <"$PR_MAP_FILE"
+fi
 
 WORKTREE_BRANCHES="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r')"
 GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"
