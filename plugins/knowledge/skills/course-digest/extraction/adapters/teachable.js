@@ -160,8 +160,9 @@ export async function prepareLessonPage(page, platformCfg, lesson) {
   return timed("prepare-lesson-page", { lesson: lesson?.title }, async () => {
     const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
     const manifestTimeout = platformCfg.manifestTimeoutMs ?? defaults.manifestTimeoutMs;
+    const videoSelector = resolveVideoPlayerSelector(platformCfg);
 
-    return preparePage(page, subtitleLang, manifestTimeout, resolveVideoPlayerSelector(platformCfg));
+    return preparePage(page, subtitleLang, manifestTimeout, videoSelector);
   });
 }
 
