@@ -177,6 +177,27 @@ Claude Code spawns the hook regardless for such a command, so the gate still jud
 it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
 `$()` sample.
 
+#### Measured cost
+
+Its share of the [hook budget](../../docs/conventions/hook-budget/README.md),
+counted as kernel process creations rather than wall time: the host that
+reported this hook timing out pays 0.3-0.9 s per spawn, so wall time there says
+more about contention than about the hook. Counted with
+`strace -f -e trace=clone,clone3,fork,vfork,execve`, telemetry sink off:
+
+| Path | clone-family | `execve` |
+| --- | --- | --- |
+| A `gh` call with no `pr` in it | 7 | 2 |
+| `gh pr create` with a readable body (allow or block) | 11 | 3 |
+| `pr-linkage-mcp-gate`, an MCP create (allow or block) | 11 | 4 |
+
+Two of each `execve` count belong to `lib/hook-utils.sh`, not to these hooks:
+one `jq -e .` validating the payload and one `git rev-parse` resolving the repo
+root. The gates themselves spend one batched `jq` over the whole payload, plus,
+on the MCP surface only, the `git remote get-url` its origin-match scope guard
+needs. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
+with no headroom, and proves itself non-vacuous against three mutants.
+
 #### Telemetry (opt-in)
 
 The hook emits one structured
