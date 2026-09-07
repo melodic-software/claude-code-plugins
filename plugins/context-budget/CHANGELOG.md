@@ -22,9 +22,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The record gains `perBucket`, carrying `{sumOfParts, combinedSaved, additive,
   reasons}` for each bucket, derived from the `prefixDelta`/`deferredDelta`
   values the per-tool rows already carry: no extra measurement pass, and one
-  bucket vanishing no longer costs the other bucket its verdict. A bucket absent
-  from both runs is outside the binary's category vocabulary and gets no verdict
-  row. (#3863)
+  bucket vanishing no longer costs the other bucket its verdict. Skill-listing
+  and Skills-token checks gate only the prefix column; the shared mode/binary
+  checks gate both, so a combined-run listing mismatch does not publish the
+  deferred verdict as unmeasured. A bucket absent from both runs is outside the
+  binary's category vocabulary and gets no verdict row. (#3863)
 - **`additive` is tri-state instead of boolean.** It was computed from the
   comparability flag, so an unmeasurable reading published as a definite
   `false`. `true` and `false` are now measured verdicts and `null` means the

@@ -35,14 +35,17 @@ never silently assumed durable.
 
 ## Comparability rules (enforced, not advisory)
 
-1. **Skill-listing signature.** The `System tools` bucket has listed skill-frontmatter tokens
-   subtracted from it, so its value is only meaningful relative to a run with an identical skill
-   listing. Every snapshot carries `skillListing.signature` — a hash of the sorted
+1. **Skill-listing signature.** The prefix `System tools` bucket has listed skill-frontmatter
+   tokens subtracted from it, so its value is only meaningful relative to a run with an identical
+   skill listing. Every snapshot carries `skillListing.signature` — a hash of the sorted
    (name, source) listing — and `compare`/`attribute` mark `systemToolsComparable: false` on
-   mismatch, with the reason in `comparability.reasons`. Denying a tool changes no skills, which
-   is what makes per-tool attribution well-posed under this rule.
+   mismatch, with the reason in `comparability.reasons`. The deferred bucket is a separate pool
+   and listing or Skills-token drift does not poison it: per-bucket additivity applies this gate
+   only to the prefix column. Denying a tool changes no skills, which is what makes per-tool
+   attribution well-posed under this rule.
 2. **One mode, one binary.** Deltas across modes mix precisions; deltas across binary versions or
-   paths measure the upgrade, not the lever. Both mark the row incomparable.
+   paths measure the upgrade, not the lever. Both mark the row incomparable. These shared checks
+   apply to both attributed buckets (`comparability.modeBinaryComparable`).
 3. **Signed deltas.** `delta` is after-minus-before (a saving is negative); `attribute` rows carry
    `savedTokens` with the sign flipped for ranking. `prefixDelta` and `deferredDelta` stay
    separate: a deferred-bucket saving reduces request weight without moving the context-usage
@@ -68,11 +71,14 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   `comparable`/`reasons`, plus `perBucket` carrying `{sumOfParts, combinedSaved, additive,
   reasons}` for each attributed bucket, read off the `prefixDelta`/`deferredDelta` the saver rows
   already carry rather than from any extra run; a bucket absent from both runs is outside the
-  binary's category vocabulary and gets no verdict row). Every `additive` field, top level and per
-  bucket, is tri-state: `true` and `false` are measured verdicts, `null` means the reading could
-  not be measured, so an incomparable run is never published as a definite negative. The two
-  buckets are reported separately because they do not compose alike: the deferred side adds, the
-  prefix side double-counts. `knownUncovered` (interactive-only product tools from
+  binary's category vocabulary and gets no verdict row). Per-bucket measurability is independent:
+  skill-listing and Skills-token checks gate only the prefix column, while the shared mode/binary
+  checks gate both, so a combined-run listing mismatch leaves a measurable deferred verdict in
+  place. Every `additive` field, top level and per bucket, is tri-state: `true` and `false` are
+  measured verdicts, `null` means the reading could not be measured, so an incomparable run is
+  never published as a definite negative. The two buckets are reported separately because they
+  do not compose alike: the deferred side adds, the prefix side double-counts.
+  `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
   run — structurally unreachable from a headless inventory, not silent zeros), plus the binary
   stamp and `skillListingSignature`. A deny can empty a
@@ -86,8 +92,9 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   consumer can tell a reported 0 from a filled-in omission. A bucket absent from *both* runs is
   outside that binary's category vocabulary and simply contributes nothing.
 - `context-budget.ledger/1` — one before/after: `lever`, `emittedConfig`, `before`/`after`
-  summaries, `delta` per category, `totalDelta`, `comparability`. A category present in only one
-  run gets `null`, never an invented number.
+  summaries, `delta` per category, `totalDelta`, `comparability` (`ok`, `systemToolsComparable`
+  for the prefix bucket, `modeBinaryComparable` for the shared mode/binary checks, `reasons`).
+  A category present in only one run gets `null`, never an invented number.
 - `context-budget.catalogue-verify/1` — `verify-catalogue`: a docs-independent existence
   check. Reads the stamped binary and reports `present`/`absent` (with hit counts) for every
   settings key and env name the catalogue row names. The binary is the authority on *existence
