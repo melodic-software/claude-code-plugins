@@ -55,8 +55,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   output; and checks the handler ends the process once when its own body
   fails. A/B against a pristine `origin/main` export: every guardrails contract
   suite produces the same assertion lines on both trees (the injected-crash
-  fixture aside), and the same 68 payloads through the dispatcher and the
-  standalone guards agree on exit code, stdout, and stderr.
+  fixture aside), and the same 71 payloads through the dispatcher and the
+  standalone guards agree on exit code, stdout, and stderr. Kernel census
+  (`strace -f -e trace=clone,clone3,fork,vfork,execve`) of the whole Bash
+  dispatcher on a benign `git status --short`, three repeats each side:
+  creations **23 -> 23**, execve **2 -> 2**; the boundary adds no process.
+  Wall clock on the Linux CI host moved about 2 to 5 ms at p50 (n=20), which
+  is the eight isolation subshells each opening the boundary file and
+  returning on its include guard. Not measured on a Windows host.
 
 ## [0.32.14]
 

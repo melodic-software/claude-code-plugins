@@ -398,6 +398,20 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.32.15, the abort boundary.** 2026-09-07, Linux CI host. A correctness
+change, not a perf one, recorded here because it touches every registered
+hook's prologue: each now sources `hooks/abort-boundary.sh` and installs an
+EXIT trap (#3528). Kernel census with
+`strace -f -e trace=clone,clone3,fork,vfork,execve` of the whole Bash
+dispatcher (eight guards) on a benign `git status --short`, three repeats each
+side against `origin/main`: creations **23 -> 23**, execve **2 -> 2**. The
+boundary adds no process: the trap is a builtin, the handler is builtins only,
+and under the dispatcher each isolation subshell inherits the loaded library
+and returns on its include guard. Wall clock, p50/p95 of 20 samples after 2
+warmup, interleaved, two rounds: 59.9/65.1 and 61.7/63.3 ms before,
+67.0/92.1 and 63.8/68.5 ms after, so about 2 to 5 ms at p50 on this host from
+eight extra file opens. Not measured on a Windows host.
+
 **0.32.14, leftover helper-capture forks on verifiers and PreToolUse
 telemetry.** 2026-09-06, Linux CI host characterised measurable by
 `spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
