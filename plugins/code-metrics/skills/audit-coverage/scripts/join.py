@@ -545,9 +545,7 @@ def _match_function(
         return None, None
     if tail:
         shared = [
-            candidate
-            for candidate in functions
-            if _tail(candidate.get("name")) == tail
+            candidate for candidate in functions if _tail(candidate.get("name")) == tail
         ]
         if shared:
             if start_line is not None:
