@@ -669,6 +669,26 @@ assert_eq "case 29: the one level this run created is gone" "0" \
 assert_eq "case 29: the prepared parent survives the rollback" "1" \
   "$([[ -d "$RB2" ]] && echo 1 || echo 0)"
 
+# Spellings of the SAME home that a raw-string walk reads as a different chain.
+# A trailing slash makes the first step up yield the same directory twice, and a
+# `.` segment makes it yield a path that already exists, so a walk over the raw
+# --out stops before it has recorded the parent it is about to create.
+RB3="$TEST_TMPDIR/rollback3"
+mkdir -p "$RB3"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB3/a/b/" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
+assert_eq "case 29: a trailing-slash home still exits 4" "4" "$?"
+assert_eq "case 29: a trailing slash does not strand the parent level" "0" \
+  "$([[ -e "$RB3/a" ]] && echo 1 || echo 0)"
+
+RB4="$TEST_TMPDIR/rollback4"
+mkdir -p "$RB4"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB4/a/./b" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
+assert_eq "case 29: a home with a dot segment still exits 4" "4" "$?"
+assert_eq "case 29: a dot segment does not strand the parent level" "0" \
+  "$([[ -e "$RB4/a" ]] && echo 1 || echo 0)"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"

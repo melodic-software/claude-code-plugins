@@ -48,8 +48,11 @@
 # compare equal. Nothing is created to decide a refusal: a refused run leaves
 # the tree exactly as it found it. Neither directory need exist, and the fence
 # does not ask whether they do. It compares the whole of both paths under a
-# spelling fold coarser than any filesystem's, which refuses whatever MIGHT be
-# one directory; the filesystem is then asked, by device and inode, about the
+# spelling fold coarser than the CASE fold of any filesystem this runs on,
+# which refuses whatever MIGHT be one directory (it is not coarser than a
+# Unicode NORMALIZATION fold, which APFS and HFS+ apply and NTFS does not; two
+# normalizations of one name still compare unequal there);
+# the filesystem is then asked, by device and inode, about the
 # part of the chain that exists, which ADDS the refusals a fold cannot see
 # (a drive mapping, a symlink) and never takes one away.
 #
@@ -273,11 +276,12 @@ canonicalize_dir() {
 # asks the filesystem itself (`-ef`, which compares device and inode rather than
 # spelling) is the authority for the part of the path that exists.
 #
-# THIS PREDICATE IS THE STRICT ONE, and it stays strict. It answers "not within"
-# whenever the filesystem cannot settle the question, which is the fail-closed
-# direction for the two --memory-root checks, its only remaining callers: a
-# composed home whose root is absent must not be admitted on a spelling match
-# alone. The two home
+# THIS PREDICATE IS THE STRICT ONE, and it stays strict. Past the fast path
+# above (an exact or ASCII-case spelling still answers "within" without asking
+# the filesystem anything), it answers "not within" whenever the filesystem
+# cannot settle the question, which is the fail-closed direction for the two
+# --memory-root checks, its only remaining callers: a composed home whose root
+# is absent must not be admitted on a NON-ASCII spelling match. The two home
 # fences want the opposite default, since for them a positive answer is a
 # refusal, and they call may_be_within below instead.
 is_within() {
@@ -312,8 +316,11 @@ is_within() {
 # Result in FOLDED rather than on stdout: same spawn-avoidance as
 # normalize_path.
 #
-# The fold is deliberately COARSER than any filesystem's, and that is the whole
-# design. A fold that tried to match NTFS character for character would need
+# The fold is deliberately COARSER than any filesystem's CASE fold, and that is
+# the whole design. It is not coarser than a Unicode NORMALIZATION fold: APFS
+# and HFS+ treat NFC and NFD spellings of one name as one directory, and this
+# fold does not, so on those filesystems that pair is left to the `-ef` arm.
+# A fold that tried to match NTFS character for character would need
 # NTFS's upcase table; a fold that used `nocasematch` or `${p,,}` would inherit
 # whatever the ambient locale happens to be, which is the hole this closes. So
 # instead of asking which non-ASCII characters a filesystem folds together, this
@@ -819,9 +826,15 @@ while IFS= read -r record; do
 
   if [[ $mkdir_done -eq 0 ]]; then
     # `mkdir -p` creates every absent level, not just the innermost, so every
-    # absent level is recorded. Separators are folded first, or a Windows-style
-    # --out reads as one segment and the levels above the last one are missed.
-    mk_probe="${out//\\//}"
+    # absent level is recorded. The walk starts from the NORMALIZED home, not
+    # the raw argument: `${p%/*}` on a raw `--out` reads a trailing slash as one
+    # more level (recording the same directory twice, so the rollback hits
+    # ENOENT on the duplicate and stops before the parent) and reads a `.`
+    # segment as a level that already exists (stopping the walk at once). Both
+    # spell the same home as the plain form, which rolls back correctly.
+    # Normalizing also keeps the Windows-style `\` form reading as many
+    # segments rather than one.
+    mk_probe="$out_abs"
     while [[ ! -d "$mk_probe" ]]; do
       created_dirs+=("$mk_probe")
       mk_prev="$mk_probe"
