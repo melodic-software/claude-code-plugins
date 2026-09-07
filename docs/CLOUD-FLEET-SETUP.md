@@ -165,9 +165,18 @@ in cloud sessions, unlike anything user-scoped):
       "source": { "source": "github", "repo": "melodic-software/claude-code-plugins" }
     }
   },
-  "enabledPlugins": { "<plugin>@melodic-software": true }
+  "enabledPlugins": { "<plugin-to-opt-out>@melodic-software": false }
 }
 ```
+
+The fleet's plugin set is not declared per repo: the shared environment installs the standards
+fleet list
+([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json))
+into every snapshot, and the bootstrap reads that list overlaid with the repo's own block. So a
+repo's `enabledPlugins` carries only deltas: an explicit `false` to opt out of a fleet entry, or
+a `true` for a plugin beyond the fleet. A block that mirrors the whole catalog still works (the
+overlay is a union) but writes one project-scope install record per entry per checkout on every
+local session start, which is the accumulation #3688 removed.
 
 **`.claude/cloud-bootstrap.sh`** — do not author one. The canonical script is generic and
 manifest-driven (it carries no repo names, no marketplace identifiers, and no pinned versions),
