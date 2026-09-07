@@ -303,6 +303,7 @@ const lifecycleProtocolCopies = [
   "implementation",
   "verification",
   "overengineering",
+  "instruction-placement",
 ].map((plugin) =>
   join(pluginRoot, plugin, "reference", "artifact-protocol.md"),
 );

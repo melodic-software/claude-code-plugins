@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Edit",
     "Write",
@@ -42,7 +41,8 @@ Not restated here. A paraphrase inside a proposal is a drift seed.
 
 | Read | For |
 |---|---|
-| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's location, fields, status vocabulary, merge rules |
+| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's location, fields, status vocabulary, merge rules, and the finding-id constituents a suppression entry is keyed by |
+| [`../../reference/consumer-config.md`](../../reference/consumer-config.md) | The suppression surface a decline is recorded on: its layers, its per-key merge, and the offered-never-taken rule |
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny classes and what each destination means |
 | [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | Why the shim is mandatory and why the index exists |
 | [`context/apply-recipes.md`](context/apply-recipes.md) | The exact edit sequence per destination, and the verification each one owes |
@@ -64,18 +64,43 @@ it is presented.** Say so in the run's opening line, then hold it literally.
 - **A decline is recorded, not argued.** Write `declined` into the artifact and move on. A declined
   finding is not re-proposed by a later audit.
 
+## Recording a decline so it survives the checkout
+
+The artifact is memory tier: branch-keyed, invisible from every other worktree, and gone with the
+memory root. A decline written only there is a judgment the next checkout never sees, and the
+operator is asked again. So a decline has **two** writes, and the second is what makes it durable.
+
+1. **`declined` into the findings artifact.** Unchanged, and still the record this branch's run
+   reads.
+2. **An entry on the tracked suppression surface**, `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`.
+   Git carries that file to every checkout whose branch holds the commit, which is the only mechanism
+   that crosses checkouts at all.
+
+The entry's five required keys, its `finding_id`, and the layer rules are owned by the two documents
+in the table above. Do not invent a format here. Four rules bind the write:
+
+- **Offered, never taken.** Show the composed entry in full (`check`, `claim`, `sites`, the `reason`
+  in the operator's own words, `date`), and write it only on an explicit yes. Declining a *finding*
+  and agreeing to *never be asked again* are two decisions, and the second silences a future report.
+- **A reason is required, and it is theirs, not yours.** An entry with no stated reason cannot be
+  reviewed or retired later. If the operator gives none, ask once; if they still give none, record
+  `declined` in the artifact only and say the decline will not survive this checkout.
+- **Team layer only.** Write `${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`, never
+  `~/.claude/**` and never the `.local.md` overlay: a personal-layer entry the team layer does not
+  carry is reported `personal-only, not applied` and suppresses nothing, so writing one would look
+  like recording a decision while recording none.
+- **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no
+  other worktree yet. Name that rather than implying the decision is already everywhere.
+
 ## Prerequisites
 
-Read the artifact from **this project's derived key**:
+Read the artifact from the home the plugin's topic-docs binding resolves
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
-
-If it is absent, say no audit has been run for this project and offer to run one. Do **not** fall
-back to an unkeyed path: a machine-global artifact carries no project segment, so its findings may
-describe a different repository's instruction layer entirely. Name such a file as a leftover and run
-a fresh audit instead of acting on it.
+If it is absent, say no audit has been run for this branch and offer to run one. Do **not** fall
+back to another path or another branch's artifact: findings cite line ranges, and a range derived
+elsewhere points at different text here. Name such a file as a leftover and run a fresh audit
+instead of acting on it.
 
 Three staleness checks before the first edit, because acting on a stale artifact edits the wrong
 lines:
@@ -125,7 +150,9 @@ accepted proposal.
 
 ## Hard rules
 
-- **No blanket approval, ever.** Not on request, not for a batch, not for "the trivial ones".
+- **No blanket approval, ever.** Not on request, not for a batch, not for "the trivial ones". That
+  covers suppression entries too: a standing "and never ask me about any of these again" is declined
+  the same way, with an offer to compose one entry at a time.
 - **Hard-denied content is not applicable.** The held-back section carries no destination and there
   is no code path that gives it one. If the operator asks for one, explain the class and offer
   compression in place. This is the one place where the operator's instruction does not carry.

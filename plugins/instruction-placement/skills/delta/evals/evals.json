@@ -55,11 +55,38 @@
       "name": "no-prior-artifact-routes-out",
       "prompt": "/instruction-placement:delta — first time running this here.",
       "narration": true,
-      "expected_output": "Resolves the state key, finds no prior artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
+      "expected_output": "Resolves the memory-tier home through the plugin's topic-docs binding, finds no stored spine baseline and no findings artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
       "expectations": [
-        "Reports the absent prior artifact rather than treating it as an error",
+        "Resolves the home through the topic-docs binding rather than a machine-global key",
+        "Reports the absent baseline rather than treating it as an error",
         "Routes to the full audit instead of silently becoming one",
         "Writes nothing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "committed-decline-holds-in-a-fresh-worktree",
+      "prompt": "/instruction-placement:delta — fresh worktree of the same repo, branch cut from main. On main I declined the deploy-conventions demote finding and committed .claude/instruction-placement.md.",
+      "narration": true,
+      "expected_output": "Reports that this worktree has no spine baseline — the memory tier is invisible across checkouts and a first run here is expected — and still does not surface the deploy-conventions finding. It resolves the tracked suppression surface .claude/instruction-placement.md across its three layers, derives the finding's finding_id from its check, claim, and site anchor, matches the committed team-layer entry, and suppresses it. The suppression is visible rather than silent: the entry's reason, date, and contributing layer are reported, alongside any entry that did not suppress. It writes only its own memory-tier baseline and never edits the suppression surface, which realign owns.",
+      "expectations": [
+        "Honors the committed suppression entry even though this checkout has no baseline",
+        "Names the tracked surface, not the baseline, as what carried the decline across checkouts",
+        "Reports the suppression with its reason, date, and contributing layer",
+        "Does not write the suppression surface"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "personal-only-entry-does-not-suppress",
+      "prompt": "/instruction-placement:delta — I put an entry in .claude/instruction-placement.local.md for the CLAUDE.md testing-conventions finding, so it should be quiet now.",
+      "narration": true,
+      "expected_output": "Reports the finding rather than suppressing it, and explains why: the overlay is a personal layer, and on this policy-floor surface a personal-layer entry for a finding_id the team layer does not carry is read, reported as 'personal-only, not applied', and does not take effect — absence from the team layer is the team's unsuppressed state. It names the contributing layer, points at promotion to the tracked team file as what makes the entry effective, and does not silently honor it or silently drop it.",
+      "expectations": [
+        "Does not suppress on a personal-only entry",
+        "Reports it as personal-only, not applied, naming its layer",
+        "Names promotion to the team-tracked layer as the fix",
+        "Still reports the finding itself"
       ]
     }
   ]

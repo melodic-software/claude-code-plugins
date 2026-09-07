@@ -9,7 +9,6 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Grep",
     "Glob",
@@ -127,16 +126,32 @@ validate it. An unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the project key and write under it. `findings-artifact.md` owns the full path shape:
+Resolve the home through the plugin's topic-docs binding
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+and write under it. That document owns the rung order, the constant slug, the branch axis, and the
+memory root's self-ignore guard; `findings-artifact.md` owns what the file contains.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
+**Resolve the home; never hardcode the default's shape.** A skill that composes the documented
+default itself writes where the consumer's configured root is not, and the reader's failure mode is
+a missing-artifact stop indistinguishable from "the audit was never run". If a prior artifact exists
+at the resolved home, merge per the contract's re-run semantics rather than overwriting. An
+operator's `declined` decision must survive a re-audit.
 
-The plugin data directory is keyed to the plugin identifier and nothing else, so an unkeyed filename
-is one file per **machine**: a later run in a different repository would read this one's findings as
-its own. Never skip the key. If a prior artifact exists for this key, merge per the contract's
-re-run semantics rather than overwriting. An operator's `declined` decision must survive a re-audit.
+## The suppression surface
+
+Before ranking, resolve the tracked suppression surface `.claude/instruction-placement.md` across
+its three layers ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md))
+and suppress every candidate whose `finding_id` it carries. That file is how a decline reaches a
+checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
+operator already made somewhere else.
+
+Three obligations, none optional. **Read, never write**: `realign` composes an entry behind its
+per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
+contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
+this run's scope. **Exclude the surface and its layers**, because auditing the file that records the
+decisions would make recording one perturb the next run. That exclusion is applied to the candidate
+set after the detector has run, not to the corpus: the corpus document above stays the one owner of
+what is swept, and the detector's coverage numbers keep counting every file it read.
 
 ## Routing out
 

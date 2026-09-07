@@ -16,13 +16,35 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings; the only mutating surface, with no blanket-approve path |
 | `/instruction-placement:check` | Deterministic pass/fail gate | Verifies every rule glob resolves and the always-loaded index is current |
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
-| `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget |
+| `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
 `realign`. Use `delta` for repeat runs, so a re-audit costs attention proportional to what actually
 moved. Wire `check`
 into CI beside the linters.
+
+## Where the artifacts land
+
+This plugin is a participant in the marketplace's lifecycle artifact protocol
+([`reference/artifact-protocol.md`](reference/artifact-protocol.md), byte-identical to the canonical
+copy) and resolves every path through its topic-docs binding
+([`reference/topic-docs.md`](reference/topic-docs.md)). Three homes, and the difference between them
+is what a decline costs to make twice:
+
+| What | Default location | Tier | Crosses checkouts? |
+|---|---|---|---|
+| Findings (`audit` writes, `realign` updates statuses) | `.work/instruction-placement/<branch-slug>/findings.md` | Memory, branch-keyed | No |
+| Spine baseline (`delta` reads and captures) | `.work/instruction-placement/<branch-slug>/baselines/spine-baseline.md` | Memory, branch-keyed | No |
+| Declined findings (`realign` offers, `audit` and `delta` read) | `.claude/instruction-placement.md` | Tracked, three cascade layers | **Yes, once committed** |
+
+The first two are evidence and a diff spine: recomputed by the next run, and worthless outside the
+checkout that produced them. The third is the operator's judgment, which is expensive to reproduce
+and worthless *inside* only one checkout, so it rides a tracked file, where git carries it to every
+worktree whose branch holds the commit. Its entries follow the marketplace's finding-suppression
+contract; the keys and layer rules are owned by
+[`reference/consumer-config.md`](reference/consumer-config.md), and what the memory-tier files
+contain by [`context/findings-artifact.md`](context/findings-artifact.md).
 
 ## Why this is not just "move things into `.claude/rules/`"
 
@@ -134,6 +156,11 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
 
 ## Configuration
+
+The options below are personal, enable-time dials. The one setting that is policy rather than taste,
+the record of findings the operator has declined, lives on the tracked cascade surface
+`.claude/instruction-placement.md` instead, whose keys, layers, and policy-floor merge are owned by
+[`reference/consumer-config.md`](reference/consumer-config.md).
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
