@@ -3,6 +3,58 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Fixed
+
+- **`dissolve-comments`:** the class-C earn-its-keep test stated a decision the workflow never
+  implemented. A comment that was inexpressible, within budget, and **not** load-bearing had a
+  verdict and no treatment, and "doubt keeps the comment" resolved the gap to keep — so on a
+  rationale-dense repository the skill returned zero edits by construction. The triage table now
+  names the treatment on both sides of the test, and step 6 carries the delete branch.
+- **`dissolve-comments`:** criterion 2 had no evidence procedure, so "recoverable from version
+  control" was decided by impression and every guess resolved to keep. Step 5 now runs
+  `git log -L` over the comment's own lines and checks the repo's ADR directory, recording a
+  per-comment verdict.
+- **`rank-comment-targets.py`:** exit 3 discarded the census's stderr on the one branch where it
+  was the only actionable output, so a missing analyser exited with stdout **and** stderr empty and
+  was indistinguishable from a tree with nothing to rank. The hint is relayed, with a regression
+  test that fails on the previous shape.
+- **`comment-tooling-probe.sh`:** both absent-layer cost strings claimed a line-prefix or grep
+  fallback that `comment-census.py` explicitly never performs. They now state the real
+  consequence: the census and the ranking cannot run at all.
+- **`comment-census.py`:** an empty record set returned exit 0 with all-zero totals whether the
+  scope was empty or no analyser was installed, so a later count read as an improvement against a
+  baseline that was never measured. Layer availability is probed directly now. `unread=True` was
+  written and never read; unread files are counted and reported.
+- **`dissolve-comments`, `audit-comment-residue`:** both injected a `${CLAUDE_PLUGIN_ROOT}` script
+  that no `allowed-tools` rule can match, since that token is never substituted there — under
+  default permissions the injection aborts. Both now go through a skill-local exec wrapper with a
+  live `${CLAUDE_SKILL_DIR}` grant, and `allowed-tools-pairing.test.sh` gained a body-side check
+  for the class plus coverage of `dissolve-comments`, which it had never checked.
+- **`dissolve-comments`:** `description` sat at 1024/1024 against the Agent Skills spec field
+  maximum with zero headroom; trimmed to 978, all trigger phrases preserved.
+
+### Changed
+
+- **`dissolve-comments`:** negative information, operational information and rejected-alternative
+  rationale are no longer blanket-exempt surfaces. They were simultaneously "never touched, any
+  mode" in `safety.md` and a class-C criterion-1 pass everywhere else, and the plugin's own eval 13
+  requires rewriting rejected-alternative narrative to the budget. They are now class C with a
+  raised evidence bar, held to the same test and budget as any class-C comment.
+- **`dissolve-comments`:** the one-directional posture ladder is documented — `strict` is both
+  default and ceiling — and class B's apply capacity (2 of 15 moves without a test net, 0 of 15
+  with tree-sitter absent, no move dissolves a why) is stated where class B is introduced rather
+  than left to be inferred from a zero result.
+- **`dissolve-comments`:** scope reporting lists every dropped path with its reason instead of a
+  per-reason tally only; steps 1, 4 and 7 have explicit exit-3 stops so a missing analyser can no
+  longer surface as a `+0` delta; `safety.md` documents `change-shape.py`'s exit 2 and the 13 of 28
+  in-scope extensions no grammar covers; the over-budget escape clause requires a reason **per
+  comment**, not per category.
+- **`dissolve-comments`:** reference-file paths are relative to the plugin rather than
+  `${CLAUDE_PLUGIN_ROOT}`, which is substituted in `SKILL.md` but arrives literal in a reference
+  file read through the Read tool.
+
 ## [0.16.3]
 
 ### Changed

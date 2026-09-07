@@ -24,7 +24,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(tidy audit-comment-residue audit-dead-code)
+SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a
@@ -81,6 +81,17 @@ for skill in "${SKILLS[@]}"; do
     fi
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
+    fi
+    # A ${CLAUDE_PLUGIN_ROOT} script injection cannot be granted at all: that
+    # token is never substituted in allowed-tools, so no rule can match it and
+    # the injected command aborts under default permissions. The grant-side
+    # check above cannot see this — the grant is simply absent — which is how
+    # two skills shipped an ungranted injection while this gate passed green.
+    # Route the shared script through a skill-local exec instead.
+    if grep -qE '!`[^`]*\$\{CLAUDE_PLUGIN_ROOT\}/scripts/' "$f"; then
+      fail "$f: body injects a \${CLAUDE_PLUGIN_ROOT} script — ungrantable; add a \${CLAUDE_SKILL_DIR}/scripts wrapper"
+    else
+      pass "$(basename "$f"): no ungrantable \${CLAUDE_PLUGIN_ROOT} injection"
     fi
   done
 

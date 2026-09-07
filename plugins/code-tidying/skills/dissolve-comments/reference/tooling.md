@@ -1,6 +1,6 @@
 # Tooling — the reading layers, what each proves, how to get it
 
-`dissolve-comments` never assumes a tool. `${CLAUDE_PLUGIN_ROOT}/scripts/comment-tooling-probe.sh`
+`dissolve-comments` never assumes a tool. `../../../scripts/comment-tooling-probe.sh`
 asks the environment at scope time and the run states the layer it operated at. Every layer is
 optional; each row below names what its absence costs, so the reader can decide whether to install
 it. The consumer's own `.claude/ecosystems/*.yaml` (the ecosystem-commands convention) is read as an

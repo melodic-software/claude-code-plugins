@@ -149,6 +149,20 @@ def scc_counts(files: list[Path]) -> dict[str, dict] | None:
     return by_path
 
 
+def pygments_available() -> bool:
+    """Whether the pygments layer can be used at all, independent of any file.
+
+    `pygments_counts` answers this only as a side effect of reading a file, so a
+    scope with no readable files cannot distinguish "nothing to read" from "no
+    analyser installed" without asking separately.
+    """
+    try:
+        import pygments  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def pygments_counts(path: Path) -> dict | None:
     try:
         from pygments import lex
@@ -233,12 +247,17 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
                 unread=True,
             )
         records.append(rec)
-    if not records:
-        return [], sources
-    if sources["lines"] is None:
+    # An empty scope and a missing analyser both yield zero records, and reporting
+    # the second as a clean zero is the worse error: every later count reads as an
+    # improvement against a baseline that was never measured. Probe the layers
+    # directly rather than inferring from sources["lines"], which stays None when
+    # there was simply nothing to read.
+    if sources["lines"] is None and (scc is None and not (use_pygments and pygments_available())):
         return [], {
             "error": "neither scc nor pygments is available (install scc, or pip install pygments)"
         }
+    if not records:
+        return [], sources
     return records, sources
 
 
@@ -264,6 +283,10 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         "comment_ratio": round(cl / lines, 4) if lines else 0.0,
         "comment_bytes": cb,
         "approx_tokens": cb // 4,
+        # Files no analyser could read count 0 comments and 0 lines, which is
+        # indistinguishable from a genuinely comment-free file in every total
+        # above. Carry the count so the report can say the coverage is partial.
+        "unread_files": sum(1 for r in chosen if r.get("unread")),
     }
 
 
@@ -310,6 +333,12 @@ def render(report: dict, top: int) -> str:
             )
         )
     out.append("tokens are an estimate: comment_bytes / 4")
+    unread = report["deduped"].get("unread_files", 0)
+    if unread:
+        out.append(
+            f"NOTE: {unread} file(s) no analyser could read are counted as 0 comments — "
+            "the totals above are a floor, not a measurement, for those files"
+        )
     out.append("")
     out.append("language\tfiles\tcomment_lines\tlines\tratio\tcomment_bytes")
     for r in report["by_language"]:

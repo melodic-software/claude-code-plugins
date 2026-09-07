@@ -204,6 +204,34 @@ class Ranking(unittest.TestCase):
         p = self.run_rank(cwd=self.tmp)
         self.assertEqual(p.returncode, 1, p.stderr)
 
+    @unittest.skipIf(shutil.which("scc"), "scc on PATH supplies the count layer")
+    def test_no_layer_relays_the_census_install_hint(self):
+        """Exit 3 must say why. It used to exit with stdout AND stderr empty.
+
+        The census names the missing analyser and the install command on stderr;
+        the no-layer branch here dropped it, leaving a caller unable to tell a
+        missing layer from a tree with nothing to rank.
+        """
+        blocked = self.tmp / "blocked"
+        blocked.mkdir(exist_ok=True)
+        (blocked / "pygments.py").write_text(
+            'raise ImportError("blocked so the no-layer path is reachable")\n',
+            encoding="utf-8",
+        )
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(blocked) + os.pathsep + env.get("PYTHONPATH", "")
+        p = subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(self.repo),
+            env=env,
+        )
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertNotEqual(p.stderr.strip(), "", "exit 3 must not be silent")
+        self.assertIn("pygments", p.stderr)
+
 
 class RankNormalisation(unittest.TestCase):
     """Ties share one rank, so path spelling never moves a score."""
