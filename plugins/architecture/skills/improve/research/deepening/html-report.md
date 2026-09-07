@@ -1,8 +1,11 @@
 # HTML Report Format
 
-Deepening review rendered as self-contained HTML in the ephemeral tier — one file created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file. Inline styles only — no CDN, no remote runtime, no remote fetch (a report that fetches remote assets is a privacy and supply-chain hazard and breaks when opened offline). Diagrams use inline SVG shapes and text only — no `<script>` elements inside SVG (SVG script executes like any page script and defeats the no-remote-runtime guarantee).
+Deepening review rendered as self-contained HTML in the ephemeral tier: one file created through the platform's temp API, resolved deterministically rather than by branching on an injected scratchpad path or `CLAUDE_JOB_DIR`. The path is handed back for the user to open, so the file is never deleted before returning; it outlives the invocation, which is why one run writes exactly one file.
 
-**Escape all codebase-derived text** before writing the report. Paths, glossary terms, ADR excerpts, repo names, module labels, and any other string taken from the scanned repository must be HTML-escaped (`&`, `<`, `>`, `"`, `'`) before embedding in element text or attributes. Never paste attacker-controlled markup verbatim into the HTML file.
+**Security baseline.** The report holds to the rendered-views security baseline as stated in Phase 2 of [../../actions/deepening.md](../../actions/deepening.md). Two additions are specific to this report:
+
+- The untrusted data is every repository-derived string: paths, glossary terms, ADR excerpts, repo names, module labels, the `{{repo name}}` in the scaffold's `<title>`, and any other string taken from the scanned repository. Each is escaped before it lands in element text or an attribute.
+- Diagrams are inline SVG shapes and text only, with no `<script>` element inside the SVG: SVG script runs like any page script.
 
 ## Scaffold
 
@@ -88,7 +91,7 @@ No paragraphs of explanation. If diagram needs a paragraph, redraw it.
 
 ## Diagram patterns
 
-Pick pattern that fits. Mix them — variety is the point. No Mermaid or other remote runtime — use inline SVG or hand-built HTML/CSS only.
+Pick pattern that fits. Mix them; variety is the point. Inline SVG or hand-built HTML/CSS only; a diagram runtime such as Mermaid is out.
 
 ### Flowchart (inline SVG or hand-built boxes)
 
@@ -132,7 +135,7 @@ after sit side by side, so the arrow count is the comparison.
 - Color sparingly: one accent from the scaffold palette (clay or olive), rust for leakage, amber for warnings
 - Diagrams ~320px tall so before/after fits side-by-side without scrolling
 - Module labels inside diagrams are small, uppercase, and letter-spaced
-- Inline styles and inline SVG only — no CDN, no remote scripts
+- Inline styles and inline SVG only (self-containment per the baseline)
 
 ## Top recommendation section
 

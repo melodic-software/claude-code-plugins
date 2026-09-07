@@ -125,7 +125,9 @@ Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
-`architecture:improve`.
+`architecture:improve`. Both were retrofitted by #3609: each HTML lane repeats the
+baseline's rules in its own instruction text (a skill runs where this file is not on
+disk) and keeps only additions specific to that surface.
 
 ## Security baseline (wave-1 skeleton)
 
