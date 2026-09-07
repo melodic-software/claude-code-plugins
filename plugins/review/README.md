@@ -30,7 +30,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
   `security`, `spec` (spec-fidelity: did the change deliver what the originating item, plan, or
   brief asked for), `close-out` (the same fidelity lens at spec-container scale, one cumulative
   pass over everything a container shipped, across however many PRs, against the container's own
-  body; derives its own diff basis per execution shape), `downstream` (what the change breaks
+  body; derives its own diff basis per execution shape, and its acceptance-criteria rollup gains a
+  requirement-pattern column when the container's criteria carry bracketed EARS tags),
+  `downstream` (what the change breaks
   outside its own diff: callers, serialization boundaries, cross-service consumers), `pr`,
   `criteria`, `slice <name>`, `restatement`.
 - **`/review:fanout [mode]`**. Breadth review: fans out across the
