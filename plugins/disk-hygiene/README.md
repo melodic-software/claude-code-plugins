@@ -168,7 +168,7 @@ launched.
 - **Bounded.** The live file rotates to `decisions.previous.jsonl` at 1 MiB, so the record holds at
   most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
   to 400 characters.
-- **Command text is omitted on the catch-alls.** A PowerShell call recorded as `none` (belt mode,
+- **Command text is omitted on the catch-all arms.** A PowerShell call recorded as `none` (belt mode,
   no flagged spelling) and a Bash deny-by-default (`not-exact-engine-command`) persist
   `command_chars` (length only) instead of the command text. Those branches fire on arbitrary
   session commands.

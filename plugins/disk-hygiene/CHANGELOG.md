@@ -15,7 +15,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   this, decisions left the process only through `HOOK_TELEMETRY_SINK`, which is inert unless an
   environment variable names an executable, so on an ordinary install every decision was discarded
   as it was made.
-- **Command text is omitted on the catch-alls, and remaining text is secret-scrubbed.** A
+- **Command text is omitted on the catch-all arms, and remaining text is secret-scrubbed.** A
   PowerShell `none` record (belt mode, no flagged spelling) and a Bash deny-by-default
   (`not-exact-engine-command`) persist `command_chars` rather than the command. Other
   `command`/`reason` fields are shape-scrubbed (tokens, bearer headers, `SECRET`/`KEY`/`TOKEN`/
