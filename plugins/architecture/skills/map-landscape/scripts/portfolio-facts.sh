@@ -59,26 +59,24 @@ fi
 # JSON emission helpers
 # ---------------------------------------------------------------------------
 
-# Escape a scalar for a JSON string body. Backslash first, then quote, then the
-# control characters JSON forbids raw. A Windows path is full of backslashes,
-# so getting this order wrong corrupts every `path` field.
+# Escape a scalar for a JSON string body into JSON_ESC. Backslash first, then
+# quote, then the control characters JSON forbids raw: a Windows path is full of
+# backslashes, so getting this order wrong corrupts every `path` field.
+#
+# Pure parameter expansion, and it assigns a global rather than printing,
+# because BOTH an external process and a command substitution cost a fork. This
+# runs once per emitted field, so the obvious `printf | awk` spelling inside
+# `$(...)` measured near a second per field on a Windows checkout and dominated
+# the whole collector.
+JSON_ESC=""
 json_escape() {
-  printf '%s' "$1" | awk '
-    BEGIN { ORS = "" }
-    {
-      if (NR > 1) printf "\\n"
-      s = $0
-      gsub(/\\/, "\\\\", s)
-      gsub(/"/, "\\\"", s)
-      gsub(/\t/, "\\t", s)
-      gsub(/\r/, "\\r", s)
-      printf "%s", s
-    }
-  '
-}
-
-json_string() {
-  printf '"%s"' "$(json_escape "$1")"
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\t'/\\t}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\n'/\\n}"
+  JSON_ESC="$s"
 }
 
 # ---------------------------------------------------------------------------
@@ -109,10 +107,14 @@ index_repo_files() {
   )"
 }
 
-# First indexed file whose basename matches the glob. Prints a repo-relative
-# path, or nothing and a non-zero status.
+# First indexed file whose basename matches the glob, into FIND_HIT. Returns 1
+# and clears FIND_HIT when nothing matches. Assigns rather than prints for the
+# same reason json_escape does: a command substitution per probe is a fork per
+# probe, and there are a dozen probes per repository.
+FIND_HIT=""
 find_first() {
   local pattern="$1" line base
+  FIND_HIT=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     base="${line##*/}"
@@ -121,7 +123,7 @@ find_first() {
     # shellcheck disable=SC2254
     case "$base" in
     $pattern)
-      printf '%s' "$line"
+      FIND_HIT="$line"
       return 0
       ;;
     *) ;;
@@ -340,7 +342,8 @@ for raw_path in "$@"; do
 
   dotnet_proj=""
   for pattern in '*.csproj' '*.fsproj' 'global.json'; do
-    if hit="$(find_first "$pattern")"; then
+    if find_first "$pattern"; then
+      hit="$FIND_HIT"
       [[ -z "$dotnet_proj" ]] && dotnet_proj="$hit"
       break
     fi
@@ -348,7 +351,8 @@ for raw_path in "$@"; do
   [[ -n "$dotnet_proj" ]] && add_runtime dotnet "$dotnet_proj"
 
   node_manifest=""
-  if node_manifest="$(find_first 'package.json')"; then
+  if find_first 'package.json'; then
+    node_manifest="$FIND_HIT"
     js_runtime="node"
     if [[ -f "$repo/bun.lockb" || -f "$repo/bun.lock" || -f "$repo/bunfig.toml" ]]; then
       js_runtime="bun"
@@ -362,7 +366,8 @@ for raw_path in "$@"; do
 
   py_manifest=""
   for pattern in 'pyproject.toml' 'requirements*.txt' 'setup.py'; do
-    if hit="$(find_first "$pattern")"; then
+    if find_first "$pattern"; then
+      hit="$FIND_HIT"
       py_manifest="$hit"
       break
     fi
@@ -370,16 +375,17 @@ for raw_path in "$@"; do
   [[ -n "$py_manifest" ]] && add_runtime python "$py_manifest"
 
   go_manifest=""
-  go_manifest="$(find_first 'go.mod')" || go_manifest=""
+  if find_first 'go.mod'; then go_manifest="$FIND_HIT"; else go_manifest=""; fi
   [[ -n "$go_manifest" ]] && add_runtime go "$go_manifest"
 
   rust_manifest=""
-  rust_manifest="$(find_first 'Cargo.toml')" || rust_manifest=""
+  if find_first 'Cargo.toml'; then rust_manifest="$FIND_HIT"; else rust_manifest=""; fi
   [[ -n "$rust_manifest" ]] && add_runtime rust "$rust_manifest"
 
   jvm_manifest=""
   for pattern in 'pom.xml' 'build.gradle*'; do
-    if hit="$(find_first "$pattern")"; then
+    if find_first "$pattern"; then
+      hit="$FIND_HIT"
       jvm_manifest="$hit"
       break
     fi
@@ -387,17 +393,18 @@ for raw_path in "$@"; do
   [[ -n "$jvm_manifest" ]] && add_runtime jvm "$jvm_manifest"
 
   ruby_manifest=""
-  ruby_manifest="$(find_first 'Gemfile')" || ruby_manifest=""
+  if find_first 'Gemfile'; then ruby_manifest="$FIND_HIT"; else ruby_manifest=""; fi
   [[ -n "$ruby_manifest" ]] && add_runtime ruby "$ruby_manifest"
 
   php_manifest=""
-  php_manifest="$(find_first 'composer.json')" || php_manifest=""
+  if find_first 'composer.json'; then php_manifest="$FIND_HIT"; else php_manifest=""; fi
   [[ -n "$php_manifest" ]] && add_runtime php "$php_manifest"
 
   # `shell` only when nothing else claimed the repository.
   if [[ ${#runtimes[@]} -eq 0 ]]; then
     for pattern in '*.sh' '*.ps1'; do
-      if hit="$(find_first "$pattern")"; then
+      if find_first "$pattern"; then
+        hit="$FIND_HIT"
         add_runtime shell "$hit"
         break
       fi
@@ -479,7 +486,9 @@ for raw_path in "$@"; do
     dep_sources="$dep_sources$1"
   }
 
-  if [[ -n "$dotnet_proj" ]]; then
+  # `global.json` alone marks the runtime but carries no references, so it must
+  # not claim a dependency source that produced nothing.
+  if [[ "$dotnet_proj" == *.*proj ]]; then
     while IFS= read -r projfile; do
       [[ -n "$projfile" ]] || continue
       hits="$(grep -oE '<(Package|Project)Reference[^>]*Include="[^"]*"' "$repo/$projfile" 2>/dev/null |
@@ -565,30 +574,29 @@ for raw_path in "$@"; do
   fi
 
   # --- emit ----------------------------------------------------------------
-  {
-    printf '{'
-    printf '"name":%s,' "$(json_string "$name")"
-    printf '"path":%s,' "$(json_string "$repo")"
-    printf '"remote":%s,' "$(json_string "$remote")"
-    printf '"owner":%s,' "$(json_string "$owner")"
-    printf '"runtime":%s,' "$(json_string "$runtime")"
-    printf '"target_framework":%s,' "$(json_string "$target_framework")"
-    printf '"dependencies":['
-    for ((di = 0; di < ${#dependencies[@]}; di++)); do
-      [[ "$di" -gt 0 ]] && printf ','
-      json_string "${dependencies[$di]}"
-    done
-    printf '],'
-    printf '"last_touched":%s,' "$(json_string "$last_touched")"
-    printf '"evidence":{'
-    printf '"owner":%s,' "$(json_string "$owner_evidence")"
-    printf '"runtime":%s,' "$(json_string "$runtime_evidence")"
-    printf '"target_framework":%s,' "$(json_string "$tf_evidence")"
-    printf '"dependencies":%s,' "$(json_string "$dep_sources")"
-    printf '"last_touched":%s' "$(json_string "$lt_evidence")"
-    printf '}}'
-    printf '\n'
-  }
+  record='{'
+  json_escape "$name" && record="$record\"name\":\"$JSON_ESC\","
+  json_escape "$repo" && record="$record\"path\":\"$JSON_ESC\","
+  json_escape "$remote" && record="$record\"remote\":\"$JSON_ESC\","
+  json_escape "$owner" && record="$record\"owner\":\"$JSON_ESC\","
+  json_escape "$runtime" && record="$record\"runtime\":\"$JSON_ESC\","
+  json_escape "$target_framework" && record="$record\"target_framework\":\"$JSON_ESC\","
+  record="$record\"dependencies\":["
+  for ((di = 0; di < ${#dependencies[@]}; di++)); do
+    [[ "$di" -gt 0 ]] && record="$record,"
+    json_escape "${dependencies[$di]}"
+    record="$record\"$JSON_ESC\""
+  done
+  record="$record],"
+  json_escape "$last_touched" && record="$record\"last_touched\":\"$JSON_ESC\","
+  record="$record\"evidence\":{"
+  json_escape "$owner_evidence" && record="$record\"owner\":\"$JSON_ESC\","
+  json_escape "$runtime_evidence" && record="$record\"runtime\":\"$JSON_ESC\","
+  json_escape "$tf_evidence" && record="$record\"target_framework\":\"$JSON_ESC\","
+  json_escape "$dep_sources" && record="$record\"dependencies\":\"$JSON_ESC\","
+  json_escape "$lt_evidence" && record="$record\"last_touched\":\"$JSON_ESC\""
+  record="$record}}"
+  printf '%s\n' "$record"
 
   unset -f add_runtime note_dep_source
 done
