@@ -61,7 +61,7 @@ Every missing or failed signal therefore lands in REVIEW, never in LOSSY and nev
 
 **WORKTREE tier (priority 4)** — a branch checked out in a linked worktree is a real cleanup candidate (it may be merged or gone), but `git branch -d` on it fails or, forced, breaks the worktree. It is therefore its own bucket, distinct from PROTECTED: never offer it for deletion here — route the user to the worktree-management tool to remove the worktree first (after which a later audit reclassifies the branch on its merge/PR state). Priority 4 sits below the protected checks so a `release/*` or default branch that also happens to be checked out stays PROTECTED.
 
-**No-upstream class (priority 9)** — a never-pushed branch with commits not on `origin/<default>` is unmerged local work; it ranks above the generic stale/orphaned REVIEW reasons so the unpushed-commit count is the headline. Never SAFE or LIKELY-SAFE: with a measured positive loss it is LOSSY and appears in the loss block with its own confirmation; otherwise it stays REVIEW.
+**No-upstream class (priority 9).** A never-pushed branch with commits not on `origin/<default>` is unmerged local work; it ranks above the generic stale/orphaned REVIEW reasons so the unpushed-commit count is the headline. Never SAFE or LIKELY-SAFE: with a measured positive loss it is LOSSY and appears in the loss block with its own confirmation; otherwise it stays REVIEW.
 
 **Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion — `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
