@@ -27,9 +27,18 @@
 # SAFE-by-ancestry tip actually merged) runs before the first deletion, so a
 # refused batch deletes nothing at all.
 #
+# Tier gate. SAFE and LIKELY-SAFE need no flag. LOSSY (deletable, but its
+# commits exist on no remote ref and no tag, so the deletion loses them) needs
+# --accept-loss; REVIEW needs --force-review; PROTECTED and WORKTREE are never
+# deletable here. The two flags are separate on purpose: the audit surfaces the
+# LOSSY set as its own block, and the operator confirms it as its own decision,
+# so a batch that was confirmed only as "the safe ones" cannot carry a LOSSY
+# branch through on the same acknowledgement. Neither flag admits the other's
+# tier.
+#
 # Usage:
-#   git-branch-delete.sh --capture PATH [--dry-run] [--force-review] BRANCH...
-#   git-branch-delete.sh --capture PATH --apply   [--force-review] BRANCH...
+#   git-branch-delete.sh --capture PATH [--dry-run] [--accept-loss] [--force-review] BRANCH...
+#   git-branch-delete.sh --capture PATH --apply   [--accept-loss] [--force-review] BRANCH...
 #
 # Restore a deleted branch:  git branch <branch> <tip>
 #   (<tip> is in the capture, in the ledger, and under refs/repo-hygiene/deleted/<branch>)
@@ -48,15 +57,20 @@ usage() {
 git-branch-delete.sh - delete local branches, gated on a captured tip per branch.
 
 Usage:
-  git-branch-delete.sh --capture PATH [--dry-run] [--force-review] BRANCH...
-  git-branch-delete.sh --capture PATH --apply   [--force-review] BRANCH...
+  git-branch-delete.sh --capture PATH [--dry-run] [--accept-loss] [--force-review] BRANCH...
+  git-branch-delete.sh --capture PATH --apply   [--accept-loss] [--force-review] BRANCH...
   git-branch-delete.sh --help
 
   --capture PATH   the TipCapture: file written by git-branch-audit.sh (required)
   --dry-run        default; check every precondition and print the plan
   --apply          delete, after pinning each tip under refs/repo-hygiene/deleted/
+  --accept-loss    allow LOSSY-tier branches: deletable, but their commits exist on
+                   no remote ref and no tag, so the deletion loses them. Pass it
+                   only after the user confirmed the audit's LossBlock as its own
+                   decision, separate from the SAFE/LIKELY-SAFE confirmation.
   --force-review   allow REVIEW-tier branches (SAFE and LIKELY-SAFE need no flag;
-                   PROTECTED and WORKTREE are never deletable here)
+                   PROTECTED and WORKTREE are never deletable here). Does not
+                   admit LOSSY, and --accept-loss does not admit REVIEW.
 
 Refuses the whole batch (exit 3, nothing deleted) when the capture is missing,
 a branch has no captured tip, or a captured tip no longer matches the branch.
@@ -71,6 +85,7 @@ EOF
 MODE="dry-run"
 CAPTURE=""
 FORCE_REVIEW=0
+ACCEPT_LOSS=0
 BRANCHES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,6 +103,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --force-review)
     FORCE_REVIEW=1
+    shift
+    ;;
+  --accept-loss)
+    ACCEPT_LOSS=1
     shift
     ;;
   --capture)
@@ -288,6 +307,12 @@ for branch in "${BRANCHES[@]}"; do
   tier="${CAP_TIER[$branch]:-}"
   case "$tier" in
   SAFE | LIKELY-SAFE) ;;
+  LOSSY)
+    if [[ $ACCEPT_LOSS -ne 1 ]]; then
+      refuse "$branch (tier LOSSY: deleting it loses commits that exist on no remote ref and no tag; pass --accept-loss only after the user confirmed the audit's LossBlock for this branch as its own decision, separate from any SAFE/LIKELY-SAFE confirmation)"
+      continue
+    fi
+    ;;
   REVIEW)
     if [[ $FORCE_REVIEW -ne 1 ]]; then
       refuse "$branch (tier REVIEW; pass --force-review only after the user confirmed the loss named in its Unpushed/Reason lines)"
@@ -318,10 +343,26 @@ if [[ $REFUSED -gt 0 ]]; then
   exit 3
 fi
 
+# loss_note <branch>: for a LOSSY branch, the live count of commits on no remote
+# ref and no tag, so the plan the operator confirms states the loss in numbers
+# rather than pointing back at the audit. Empty for every other tier.
+loss_note() {
+  local n
+  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || n=""
+  n="${n%$'\r'}"
+  if [[ "$n" =~ ^[0-9]+$ ]]; then
+    printf ', loses %s commits only on this branch' "$n"
+  else
+    printf ', loses commits only on this branch (count unavailable)'
+  fi
+}
+
 if [[ "$MODE" == "dry-run" ]]; then
   for branch in "${PLAN[@]}"; do
-    printf 'Planned: %s %s (%s, %s delete)\n' "$branch" "${CAP_TIP[$branch]}" "${CAP_TIER[$branch]}" \
-      "$(delete_mode "${CAP_TIER[$branch]}" "${CAP_PR[$branch]}")"
+    note=""
+    [[ "${CAP_TIER[$branch]}" == "LOSSY" ]] && note="$(loss_note "$branch")"
+    printf 'Planned: %s %s (%s, %s delete%s)\n' "$branch" "${CAP_TIP[$branch]}" "${CAP_TIER[$branch]}" \
+      "$(delete_mode "${CAP_TIER[$branch]}" "${CAP_PR[$branch]}")" "$note"
   done
   printf 'Summary: planned=%s refused=0 deleted=0\n' "${#PLAN[@]}"
   printf 'Restore: git branch <branch> <tip> (tips in %s)\n' "$CAPTURE"

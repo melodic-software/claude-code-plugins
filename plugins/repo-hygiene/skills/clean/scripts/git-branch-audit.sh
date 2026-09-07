@@ -4,13 +4,34 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Reason; then TipCapture (or TipCaptureError); Summary line. A missing map is
-# NOT the same as a repo with no PRs, and the two are distinguishable here on
-# purpose: PR state is what detects a squash merge, so without it a landed
-# branch reads as unmerged.
+# Loss, Reason; then the LossBlock (LossBlock / LossBranch / LossCommit /
+# LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
+# map is NOT the same as a repo with no PRs, and the two are distinguishable
+# here on purpose: PR state is what detects a squash merge, so without it a
+# landed branch reads as unmerged.
 # Exit: 0 (2 on a usage error).
 # Omit -e/-o pipefail: script always exits 0 on a successful run; sub-commands
 # are best-effort (gh may be absent).
+#
+# LOSSY TIER. A branch is LOSSY when it is deletable and deleting it loses work:
+# it would otherwise be REVIEW, origin/<default> is present so "landed" can be
+# evaluated, and `git rev-list <branch> --not --remotes --tags` counts at least
+# one commit reachable from no remote-tracking ref and no tag. Those commits
+# exist only on this local branch. Other local branches deliberately do NOT
+# count as "elsewhere": a sibling in the same deletion batch is not a place the
+# work persists. A PR known to be MERGED (a squash changes the SHA, so the count
+# would overstate the loss) or OPEN (an active claim on the branch) keeps the
+# branch in REVIEW. Every missing or failed signal (no tip, no origin/<default>,
+# a failed count) yields `Loss: undetermined` and REVIEW, never LOSSY and never
+# SAFE. SAFE and LIKELY-SAFE are computed exactly as before; LOSSY is carved out
+# of REVIEW only, so this tier can widen what an operator must confirm and can
+# never narrow it.
+#
+# The LOSSY set is printed again as its own block after the per-branch records,
+# one LossBranch line per branch with the commits that would be lost, so the
+# operator confronts it as a separate decision before any deletion is
+# confirmed: a prose flag beside a verdict column is the shape that once let
+# five branches of unlanded work through a deletion pass.
 #
 # TIP CAPTURE. Every branch's tip commit is written, together with its verdict,
 # upstream and ahead/behind counts, to a durable TSV under the repository's
@@ -42,7 +63,16 @@ Usage:
   --capture-file PATH  write the branch-tip capture to PATH instead of the
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
 
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Reason.
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason.
+Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
+that is deletable but whose deletion loses commits present on no remote ref and
+no tag; its `Loss:` line carries the count. A loss that cannot be determined is
+`Loss: undetermined (<why>)` and the branch stays REVIEW.
+Then the loss block, `LossBlock: <n> ...` to `LossBlockEnd: <n>`, listing every
+LOSSY branch (LossBranch) and the commits it would lose (LossCommit, at most
+CLEAN_LOSS_COMMITS_SHOWN per branch, default 10). Surface it as its own decision
+before any deletion is confirmed; git-branch-delete.sh admits LOSSY only under
+--accept-loss.
 Then `TipCapture: <path>` (the durable tip record git-branch-delete.sh requires)
 or `TipCaptureError: <why>` when it could not be written completely.
 Restore a branch from a captured tip: git branch <branch> <tip>
@@ -158,12 +188,36 @@ WORKTREE_BRANCHES="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null |
 GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"
 MERGED_BRANCHES="$(git -C "$REPO_ROOT" branch --merged "origin/${DEFAULT_BRANCH}" 2>/dev/null | sed 's/^[ *]*//' | grep -v "^${DEFAULT_BRANCH}$" | tr -d '\r' || true)"
 
-prot=0 wt=0 safe=0 likely=0 review=0
+prot=0 wt=0 safe=0 likely=0 lossy=0 review=0
 NOW=$(date +%s)
+
+# The LOSSY set, collected during classification and printed as its own block
+# after the per-branch records. Parallel arrays indexed by position.
+LOSSY_BRANCHES=()
+LOSSY_COUNTS=()
+LOSSY_REASONS=()
+LOSSY_TIPS=()
+LOSS_COMMITS_SHOWN="${CLEAN_LOSS_COMMITS_SHOWN:-10}"
+[[ "$LOSS_COMMITS_SHOWN" =~ ^[0-9]+$ ]] || LOSS_COMMITS_SHOWN=10
+
+# loss_count <branch> -> prints the number of commits on refs/heads/<branch>
+# reachable from no remote-tracking ref and no tag; exit non-zero when git could
+# not count. `--not --remotes --tags` is git's own idiom for "unpushed anywhere":
+# it negates every ref under refs/remotes/ and refs/tags/, and nothing else, so
+# another local branch, HEAD, and the refs/repo-hygiene/deleted/ pins are not
+# places the work is considered to persist.
+loss_count() {
+  local n
+  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || return 1
+  n="${n%$'\r'}"
+  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$n"
+}
 
 classify_branch() {
   local branch="$1" age_days="$2" tier reason pr_line="none" local_tip
   local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up behind_up=""
+  local loss_line lost=""
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
@@ -250,11 +304,57 @@ classify_branch() {
     reason="orphaned or needs review"
   fi
 
+  # Loss assessment, and the REVIEW -> LOSSY refinement. Only a REVIEW verdict
+  # is ever refined, and only upward into "deletable, loses work": every branch
+  # the chain above already deemed safe keeps its verdict untouched, and every
+  # signal that is missing or failed leaves the branch in REVIEW with the reason
+  # spelled out. The boundary is therefore checkable: LOSSY iff REVIEW by the
+  # chain, tip resolved, origin/<default> present, the count succeeded and is
+  # positive, and the PR state is neither MERGED nor OPEN.
+  case "$tier" in
+  PROTECTED | WORKTREE | SAFE | LIKELY-SAFE)
+    loss_line="not assessed ($tier)"
+    ;;
+  *)
+    if [[ -z "$local_tip" ]]; then
+      loss_line="undetermined (tip unresolved)"
+    elif [[ -z "$ahead_default" ]]; then
+      loss_line="undetermined (no origin/${DEFAULT_BRANCH} to compare against)"
+    elif ! lost="$(loss_count "$branch")"; then
+      lost=""
+      loss_line="undetermined (could not count commits absent from every remote ref and tag)"
+    elif [[ "$lost" -eq 0 ]]; then
+      loss_line="none (every commit is on a remote ref or a tag)"
+    else
+      loss_line="${lost} commits only on this branch"
+      case "${PR_STATE[$branch]:-}" in
+      MERGED)
+        # A squash merge lands the work under a new SHA, so the count above
+        # overstates what a deletion loses; the tip drift already put the
+        # branch in REVIEW and it stays there.
+        loss_line+=" (PR merged; count unreliable after a squash, stays REVIEW)"
+        ;;
+      OPEN)
+        loss_line+=" (PR open, stays REVIEW)"
+        ;;
+      *)
+        tier="LOSSY"
+        LOSSY_BRANCHES+=("$branch")
+        LOSSY_COUNTS+=("$lost")
+        LOSSY_REASONS+=("$reason")
+        LOSSY_TIPS+=("$local_tip")
+        ;;
+      esac
+    fi
+    ;;
+  esac
+
   case "$tier" in
   PROTECTED) prot=$((prot + 1)) ;;
   WORKTREE) wt=$((wt + 1)) ;;
   SAFE) safe=$((safe + 1)) ;;
   LIKELY-SAFE) likely=$((likely + 1)) ;;
+  LOSSY) lossy=$((lossy + 1)) ;;
   *) review=$((review + 1)) ;;
   esac
 
@@ -280,6 +380,7 @@ classify_branch() {
   printf 'Age days: %s\n' "$age_days"
   printf 'PR: %s\n' "$pr_line"
   printf 'Unpushed: %s\n' "$unpushed_line"
+  printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
 
   if [[ -n "$local_tip" ]]; then
@@ -297,6 +398,33 @@ while IFS= read -r line; do
   age_days=$(((NOW - ts) / 86400))
   classify_branch "$branch" "$age_days"
 done < <(git -C "$REPO_ROOT" for-each-ref refs/heads/ --format='%(refname:short) %(committerdate:unix)' 2>/dev/null | tr -d '\r')
+
+# The loss block: the LOSSY set again, as its own surface. It is printed even
+# when empty so a reader can tell "no branch loses work" from "the block was
+# never produced". Per branch: the count, the chain's reason, the tip, and the
+# commits that would be lost (capped; the remainder is counted, not dropped
+# silently).
+if [[ ${#LOSSY_BRANCHES[@]} -eq 0 ]]; then
+  printf 'LossBlock: 0 branches lose work if deleted\n'
+else
+  printf 'LossBlock: %s branches lose work if deleted; confirm them as their own decision, never with the SAFE/LIKELY-SAFE set\n' "${#LOSSY_BRANCHES[@]}"
+  for i in "${!LOSSY_BRANCHES[@]}"; do
+    b="${LOSSY_BRANCHES[$i]}"
+    n="${LOSSY_COUNTS[$i]}"
+    printf 'LossBranch: %s %s commits only on this branch (%s) tip %s\n' "$b" "$n" "${LOSSY_REASONS[$i]}" "${LOSSY_TIPS[$i]}"
+    shown=0
+    while IFS= read -r cl; do
+      cl="${cl%$'\r'}"
+      [[ -z "$cl" ]] && continue
+      printf 'LossCommit: %s %s\n' "$b" "$cl"
+      shown=$((shown + 1))
+    done < <(git -C "$REPO_ROOT" log --format='%h %s' -n "$LOSS_COMMITS_SHOWN" "refs/heads/$b" --not --remotes --tags 2>/dev/null)
+    if [[ "$n" -gt "$shown" ]]; then
+      printf 'LossCommit: %s and %s more\n' "$b" "$((n - shown))"
+    fi
+  done
+fi
+printf 'LossBlockEnd: %s\n' "${#LOSSY_BRANCHES[@]}"
 
 # Seal the capture: rename the .part into place only after a row count on the
 # written file agrees with the rows this run produced. A short write (disk full,
@@ -322,5 +450,5 @@ else
   printf 'TipCapture: %s\n' "$CAPTURE_PATH"
 fi
 
-printf 'Summary: protected=%s worktree=%s safe=%s likely-safe=%s review=%s\n' "$prot" "$wt" "$safe" "$likely" "$review"
+printf 'Summary: protected=%s worktree=%s safe=%s likely-safe=%s lossy=%s review=%s\n' "$prot" "$wt" "$safe" "$likely" "$lossy" "$review"
 exit 0

@@ -33,7 +33,9 @@ assert_exit "--help exits 0" 0 "$rc"
 #   feat/likely             merged, pushed, then deleted on origin -> SAFE
 #                           (ancestry, priority 6, outranks the gone upstream)
 #   feat/still, feat/moved  merged; feat/moved gains a commit after the audit
-#   feat/review             unmerged local work             -> REVIEW
+#   feat/review             unmerged but pushed (nothing local-only) -> REVIEW
+#   feat/lossy              unmerged, never pushed: its commit exists nowhere
+#                           else -> LOSSY (deletable, loses work)
 #   feat/parked             checked out in a linked worktree -> WORKTREE
 #   release/1               protected pattern
 #   #42-hash                merged; a legal name that starts like a comment
@@ -87,6 +89,13 @@ git -C "$REPO" checkout -q -b feat/review
 echo r >"$REPO/r"
 git -C "$REPO" add r
 git -C "$REPO" commit -qm r
+git -C "$REPO" push -q -u origin feat/review
+git -C "$REPO" checkout -q main
+
+git -C "$REPO" checkout -q -b feat/lossy
+echo unlanded >"$REPO/unlanded"
+git -C "$REPO" add unlanded
+git -C "$REPO" commit -qm "unlanded work"
 git -C "$REPO" checkout -q main
 
 git -C "$REPO" branch feat/parked
@@ -174,6 +183,57 @@ out="$(run_delete --capture "$CAP" --force-review feat/review 2>&1)"
 rc=$?
 assert_exit "REVIEW with --force-review plans" 0 "$rc"
 assert_contains "forced REVIEW is a force delete" "$out" "(REVIEW, force delete)"
+
+# ---- LOSSY tier gate ------------------------------------------------------------
+# feat/lossy carries one commit that exists on no remote ref and no tag. The
+# audit classifies it LOSSY and lists it in the loss block; the delete script
+# admits it only under --accept-loss, and neither flag admits the other's tier.
+lossy_tip="$(git -C "$REPO" rev-parse refs/heads/feat/lossy)"
+assert_contains "audit classifies feat/lossy LOSSY" "$audit_out" "Branch: feat/lossy
+Tip: $lossy_tip
+Tier: LOSSY"
+assert_contains "audit lists feat/lossy in the loss block" "$audit_out" "LossBranch: feat/lossy 1 commits only on this branch (no upstream, 1 commits not on origin/main) tip $lossy_tip"
+assert_contains "audit names the commit that would be lost" "$audit_out" "LossCommit: feat/lossy $(git -C "$REPO" rev-parse --short "$lossy_tip") unlanded work"
+assert_contains "capture row carries LOSSY" "$(cat "$CAP")" "feat/lossy	$lossy_tip	LOSSY	"
+assert_contains "audit keeps the pushed unmerged branch REVIEW with nothing lost" "$audit_out" "Branch: feat/review
+Tip: $(git -C "$REPO" rev-parse refs/heads/feat/review)
+Tier: REVIEW"
+
+out="$(run_delete --capture "$CAP" feat/lossy 2>&1)"
+rc=$?
+assert_exit "LOSSY without --accept-loss exits 3" 3 "$rc"
+assert_contains "LOSSY refused names the flag and the separate decision" "$out" "Refused: feat/lossy (tier LOSSY: deleting it loses commits that exist on no remote ref and no tag; pass --accept-loss only after the user confirmed the audit's LossBlock for this branch as its own decision"
+assert_branch "LOSSY without --accept-loss: feat/lossy intact" present feat/lossy
+
+out="$(run_delete --capture "$CAP" --force-review feat/lossy 2>&1)"
+rc=$?
+assert_exit "--force-review does not admit LOSSY" 3 "$rc"
+assert_contains "--force-review on LOSSY still names --accept-loss" "$out" "Refused: feat/lossy (tier LOSSY"
+
+out="$(run_delete --capture "$CAP" --accept-loss feat/review 2>&1)"
+rc=$?
+assert_exit "--accept-loss does not admit REVIEW" 3 "$rc"
+assert_contains "--accept-loss on REVIEW still names --force-review" "$out" "Refused: feat/review (tier REVIEW; pass --force-review"
+
+out="$(run_delete --capture "$CAP" --accept-loss feat/lossy 2>&1)"
+rc=$?
+assert_exit "LOSSY with --accept-loss plans" 0 "$rc"
+assert_contains "LOSSY plan states the loss in numbers" "$out" "Planned: feat/lossy $lossy_tip (LOSSY, force delete, loses 1 commits only on this branch)"
+assert_branch "LOSSY dry-run deletes nothing" present feat/lossy
+
+# The recorded near-miss, reproduced: a branch carrying work that landed nowhere
+# is offered alongside the plainly safe set, and the operator's "yes" covers
+# only the safe set. The batch must not carry the lossy branch through on that
+# acknowledgement: nothing is deleted, not even the safe sibling, and the
+# refusal names the separate decision the lossy branch needs.
+out="$(run_delete --capture "$CAP" --apply feat/safe1 feat/lossy 2>&1)"
+rc=$?
+assert_exit "near-miss: SAFE + LOSSY on the SAFE confirmation exits 3" 3 "$rc"
+assert_contains "near-miss: the lossy branch is what refused the batch" "$out" "Refused: feat/lossy (tier LOSSY"
+assert_not_contains "near-miss: nothing deleted" "$out" "Deleted:"
+assert_branch "near-miss: feat/lossy still present" present feat/lossy
+assert_branch "near-miss: feat/safe1 still present" present feat/safe1
+assert_eq "near-miss: no pin written for feat/lossy" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/lossy || echo none)"
 
 # A SAFE-by-ancestry row whose tip is not merged (a forged or wrong capture) is
 # refused up front: previously `git branch -d` discovered it only after the pin
@@ -299,6 +359,34 @@ for b in feat/safe1 feat/safe2 feat/likely '#42-hash'; do
 done
 assert_eq "restored safe1 carries its content" "s1" "$(git -C "$REPO" show feat/safe1:s1 2>/dev/null || echo missing)"
 assert_eq "restored #42-hash carries its content" "hh" "$(git -C "$REPO" show '#42-hash:hh' 2>/dev/null || echo missing)"
+
+# ---- LOSSY, end to end through the sanctioned path ---------------------------
+# After its own confirmation, the lossy branch deletes through the same script:
+# tip re-verified, pinned, ledgered with its tier, then compare-and-deleted.
+# Its commit exists on no remote ref and no tag, so the pin is the only thing
+# between the deletion and gc; the restore after `gc --prune=now` proves the
+# pin held and the content came back intact.
+out="$(run_delete --capture "$CAP" --apply --accept-loss feat/lossy 2>&1)"
+rc=$?
+assert_exit "LOSSY apply with --accept-loss exits 0" 0 "$rc"
+assert_contains "LOSSY apply reports the branch with its restore command" "$out" "Deleted: feat/lossy $lossy_tip (was LOSSY) restore: git branch feat/lossy $lossy_tip"
+assert_contains "LOSSY apply summary" "$out" "Summary: planned=1 refused=0 deleted=1 failed=0"
+assert_branch "LOSSY apply: feat/lossy deleted" absent feat/lossy
+assert_contains "ledger row for feat/lossy carries its tier" "$(cat "$LEDGER")" "feat/lossy	$lossy_tip	"
+assert_contains "ledger row for feat/lossy names LOSSY" "$(grep $'^feat/lossy\t' "$LEDGER")" "	LOSSY"
+assert_eq "backup ref pins the lossy tip" "$lossy_tip" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/lossy || echo none)"
+git -C "$REPO" reflog expire --expire=now --all
+git -C "$REPO" gc -q --prune=now 2>/dev/null
+lossy_state="pruned"
+if git -C "$REPO" cat-file -e "$lossy_tip" 2>/dev/null; then lossy_state="present"; fi
+assert_eq "the lossy commit survives gc --prune=now behind its pin" "present" "$lossy_state"
+tip="$(awk -F'\t' -v b=feat/lossy '$1 == b { print $2 }' "$CAP")"
+if [[ "$tip" == "$lossy_tip" ]] && git -C "$REPO" branch feat/lossy "$tip" 2>/dev/null; then
+  pass "restored feat/lossy from the capture alone"
+else
+  fail "restored feat/lossy from the capture alone" "$lossy_tip" "${tip:-none}"
+fi
+assert_eq "restored feat/lossy carries its unlanded work" "unlanded" "$(git -C "$REPO" show feat/lossy:unlanded 2>/dev/null || echo missing)"
 
 # Control for the pin: the same deletion without the backup ref loses the commit
 # to the same prune, which is why step 2 precedes the delete.

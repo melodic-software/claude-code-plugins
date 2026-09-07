@@ -207,6 +207,12 @@ git -C "$NU_REPO" fetch -q --prune origin
 git -C "$NU_REPO" checkout -q main
 gone_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
 assert_contains "gone+unpushed is review not likely-safe" "$gone_out" "Reason: upstream gone, 2 commits not on origin/main"
+assert_contains "gone+unpushed is LOSSY (deletable, loses work), never LIKELY-SAFE" "$gone_out" "Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch
+Reason: upstream gone, 2 commits not on origin/main"
 
 # Gone upstream with NO origin/<default> to compare against (feature-only clone /
 # unfetched remote HEAD): the script cannot prove the branch is merged, so it must
@@ -231,6 +237,17 @@ git -C "$GC_REPO" checkout -q main
 gc_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$GC_REPO' && bash '$AUDIT'")"
 assert_contains "gone + no default to compare fails closed to review" "$gc_out" "Reason: upstream gone, cannot compare against origin/main"
 assert_not_contains "gone + no default is never likely-safe" "$gc_out" "Tier: LIKELY-SAFE"
+# The same missing signal keeps the branch out of LOSSY too: a loss that cannot
+# be measured is reported as undetermined, and the branch stays REVIEW.
+assert_contains "gone + no default: loss undetermined, stays REVIEW" "$gc_out" "Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream (no origin/main to compare)
+Loss: undetermined (no origin/main to compare against)
+Reason: upstream gone, cannot compare against origin/main"
+assert_not_contains "gone + no default is never LOSSY" "$gc_out" "Tier: LOSSY"
+assert_contains "gone + no default: empty loss block" "$gc_out" "LossBlock: 0 branches lose work if deleted
+LossBlockEnd: 0"
 
 # Tip capture: every branch carries its tip as a structured field, and the same
 # facts land in a durable TSV under the common git dir whose path the audit
@@ -259,7 +276,7 @@ lead_tip="$(git -C "$NU_REPO" rev-parse 'refs/heads/#7-lead')"
 tip_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
 assert_contains "Tip line follows Branch line" "$tip_out" "Branch: feat/never-pushed
 Tip: $never_tip
-Tier: REVIEW"
+Tier: LOSSY"
 assert_contains "Tip line for the tracked branch" "$tip_out" "Tip: $tracked_tip"
 assert_not_contains "no branch is left without a resolved tip" "$tip_out" "Tip: unresolved"
 cap="$(printf '%s\n' "$tip_out" | sed -n 's/^TipCapture: //p')"
@@ -269,8 +286,8 @@ assert_file_absent "no .part left behind" "$cap.part"
 cap_body="$(cat "$cap")"
 assert_contains "capture header" "$cap_body" "# repo-hygiene branch tip capture v1"
 assert_contains "capture names the restore command" "$cap_body" "# restore: git branch <branch> <tip>"
-assert_contains "capture row: never-pushed (no upstream, 1 not on default)" "$cap_body" "feat/never-pushed	$never_tip	REVIEW	none	none	-	-	1	"
-assert_contains "capture row: tracked (ahead 1, behind 1)" "$cap_body" "feat/tracked	$tracked_tip	REVIEW	none	origin/feat/tracked	1	1	"
+assert_contains "capture row: never-pushed (no upstream, 1 not on default) carries LOSSY" "$cap_body" "feat/never-pushed	$never_tip	LOSSY	none	none	-	-	1	"
+assert_contains "capture row: tracked (ahead 1, behind 1) carries LOSSY" "$cap_body" "feat/tracked	$tracked_tip	LOSSY	none	origin/feat/tracked	1	1	"
 assert_not_contains "a #-leading branch name does not fail the seal" "$tip_out" "TipCaptureError:"
 assert_contains "capture row: #-leading branch is a row, not a comment" "$cap_body" "#7-lead	$lead_tip	"
 # Rows are counted by shape (nine columns, a commit id second), as the seal does.
@@ -309,6 +326,393 @@ if [[ "$(cat "$TEST_TMPDIR/busy.tsv.part")" == "x" ]]; then
 else
   fail "pre-existing .part left untouched" "x" "$(cat "$TEST_TMPDIR/busy.tsv.part")"
 fi
+
+# ---- LOSSY: deletable, and deleting it loses work --------------------------------
+# The classifier's boundary, stated as record-level rules over the output and
+# checked mechanically on every audit output this suite produces:
+#   - PROTECTED / WORKTREE / SAFE / LIKELY-SAFE always carry `Loss: not assessed`,
+#     so a branch the chain deemed safe is never re-described as losing work
+#     (a squash-merged SAFE branch has unreachable commits and must not be);
+#   - LOSSY always carries a bare positive `Loss: N commits only on this branch`;
+#   - REVIEW never carries a bare positive count: its loss is `none`,
+#     `undetermined (...)`, or a count annotated with why it stays REVIEW;
+#   - the loss block lists exactly the LOSSY records, and LossBlockEnd agrees.
+check_loss_invariants() {
+  local label="$1" out="$2" bad
+  bad="$(printf '%s\n' "$out" | awk '
+    /^Branch: / { branch = substr($0, 9); tier = ""; loss = "" }
+    /^Tier: /   { tier = substr($0, 7) }
+    /^Loss: /   { loss = substr($0, 7) }
+    /^Reason: / {
+      if (tier == "PROTECTED" || tier == "WORKTREE" || tier == "SAFE" || tier == "LIKELY-SAFE") {
+        if (loss !~ /^not assessed \(/) print "tier " tier " with loss [" loss "] on " branch
+      } else if (tier == "LOSSY") {
+        if (loss !~ /^[1-9][0-9]* commits only on this branch$/) print "LOSSY with loss [" loss "] on " branch
+        lossy[branch] = 1; nl++
+      } else if (tier == "REVIEW") {
+        if (loss ~ /^[1-9][0-9]* commits only on this branch$/) print "REVIEW with bare positive loss on " branch
+        if (loss !~ /^(none \(|undetermined \(|[1-9][0-9]* commits only on this branch \()/) print "REVIEW with unexpected loss [" loss "] on " branch
+      } else print "unknown tier [" tier "] on " branch
+      records++
+    }
+    /^LossBranch: / { split(substr($0, 13), f, " "); if (!(f[1] in lossy)) print "LossBranch for non-LOSSY " f[1]; nb++ }
+    /^LossBlockEnd: / { end = substr($0, 15); seen_end++ }
+    END {
+      if (records == 0) print "no branch records parsed"
+      if (seen_end != 1) print "LossBlockEnd lines: " seen_end + 0
+      if (nl + 0 != nb + 0) print "LOSSY records " nl + 0 " != LossBranch lines " nb + 0
+      if (end + 0 != nl + 0) print "LossBlockEnd " end " != LOSSY records " nl + 0
+    }
+  ')"
+  if [[ -z "$bad" ]]; then
+    pass "$label: loss invariants hold"
+  else
+    fail "$label: loss invariants hold" "no violations" "$bad"
+  fi
+}
+check_loss_invariants "single-branch repo" "$out"
+check_loss_invariants "worktree repo" "$wt_out"
+check_loss_invariants "no-upstream repo" "$nu_out"
+check_loss_invariants "unfetched-upstream repo" "$uf_out"
+check_loss_invariants "gone-upstream repo" "$gone_out"
+check_loss_invariants "gone + no default repo" "$gc_out"
+check_loss_invariants "tip-capture repo" "$tip_out"
+
+# One branch per boundary case. main is pushed to a bare origin with origin/HEAD
+# set, so "landed" is measurable everywhere in this repository.
+LR="$TEST_TMPDIR/loss-repo"
+git init -q --bare "$TEST_TMPDIR/loss-origin.git"
+git init -q -b main "$LR"
+git -C "$LR" config user.email "t@example.com"
+git -C "$LR" config user.name "Test"
+echo a >"$LR/a"
+git -C "$LR" add a
+git -C "$LR" commit -qm init
+git -C "$LR" remote add origin "$TEST_TMPDIR/loss-origin.git"
+git -C "$LR" push -q origin HEAD:main
+git -C "$LR" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+lr_commit() { # <file> <message>: one commit on the checked-out branch
+  echo "$1" >"$LR/$1"
+  git -C "$LR" add "$1"
+  git -C "$LR" commit -qm "$2"
+}
+# never pushed, two commits                                  -> LOSSY, both listed
+git -C "$LR" checkout -q -b feat/never
+lr_commit n1 "never one"
+lr_commit n2 "never two"
+git -C "$LR" checkout -q main
+# pushed, two more commits, then deleted on origin: the remote copy is gone, so
+# all three commits exist only here                            -> LOSSY (gone)
+git -C "$LR" checkout -q -b feat/gone
+lr_commit g1 "gone one"
+git -C "$LR" push -q -u origin feat/gone
+lr_commit g2 "gone two"
+lr_commit g3 "gone three"
+git -C "$LR" push -q origin --delete feat/gone
+git -C "$LR" checkout -q main
+# live upstream, one commit past it                            -> LOSSY (ahead)
+git -C "$LR" checkout -q -b feat/ahead
+lr_commit h1 "ahead pushed"
+git -C "$LR" push -q -u origin feat/ahead
+lr_commit h2 "ahead local"
+git -C "$LR" checkout -q main
+# live upstream, nothing local-only                            -> REVIEW, loss none
+git -C "$LR" checkout -q -b feat/pushed
+lr_commit p1 "pushed"
+git -C "$LR" push -q -u origin feat/pushed
+git -C "$LR" checkout -q main
+# never pushed, but a tag pins the tip: a tag persists          -> REVIEW, loss none
+git -C "$LR" checkout -q -b feat/tagged
+lr_commit tg "tagged"
+git -C "$LR" tag keep/tagged
+git -C "$LR" checkout -q main
+# never pushed under its own name, tip on origin under another  -> REVIEW, loss none
+git -C "$LR" checkout -q -b feat/alias
+lr_commit al "alias"
+git -C "$LR" push -q origin feat/alias:refs/heads/other-name
+git -C "$LR" checkout -q main
+# stacked, both never pushed: a local sibling is not "elsewhere" -> both LOSSY
+git -C "$LR" checkout -q -b feat/stack-base
+lr_commit sb "stack base"
+git -C "$LR" checkout -q -b feat/stack-top
+lr_commit st "stack top"
+git -C "$LR" checkout -q main
+# twelve never-pushed commits: the listing is capped, the rest counted -> LOSSY
+git -C "$LR" checkout -q -b feat/many
+for ((i = 1; i <= 12; i++)); do
+  lr_commit "m$i" "many $i"
+done
+git -C "$LR" checkout -q main
+# merged by ancestry                                            -> SAFE, not assessed
+git -C "$LR" checkout -q -b feat/merged
+lr_commit mg "merged"
+git -C "$LR" checkout -q main
+git -C "$LR" merge -q --no-ff -m "merge feat/merged" feat/merged
+git -C "$LR" push -q origin main
+git -C "$LR" fetch -q --prune origin
+
+lr_tip() { git -C "$LR" rev-parse "refs/heads/$1"; }
+lr_short() { git -C "$LR" rev-parse --short "refs/heads/$1${2:-}"; }
+lr_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+check_loss_invariants "loss repo" "$lr_out"
+# assert_no_line <label> <haystack> <ERE>: no whole line matches. Used where a
+# substring needle is ambiguous (a branch named `many` followed by a short SHA
+# that happens to begin with `2` also contains "many 2").
+assert_no_line() {
+  local label="$1" haystack="$2" ere="$3" hits
+  hits="$(printf '%s\n' "$haystack" | grep -c -E "$ere")"
+  if [[ "$hits" == "0" ]]; then
+    pass "$label"
+  else
+    fail "$label" "0 lines matching $ere" "$hits"
+  fi
+}
+
+assert_contains "never pushed: LOSSY with the count and the chain's reason" "$lr_out" "Branch: feat/never
+Tip: $(lr_tip feat/never)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch
+Reason: no upstream, 2 commits not on origin/main"
+assert_contains "upstream gone: LOSSY counting the commits whose remote copy is gone" "$lr_out" "Branch: feat/gone
+Tip: $(lr_tip feat/gone)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 3 commits not on origin/main
+Loss: 3 commits only on this branch
+Reason: upstream gone, 3 commits not on origin/main"
+assert_contains "ahead of a live upstream: LOSSY counting only the unpushed commit" "$lr_out" "Branch: feat/ahead
+Tip: $(lr_tip feat/ahead)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: 1 ahead of origin/feat/ahead
+Loss: 1 commits only on this branch
+Reason: orphaned or needs review"
+assert_contains "fully pushed: REVIEW, nothing lost" "$lr_out" "Branch: feat/pushed
+Tip: $(lr_tip feat/pushed)
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: 0 ahead of origin/feat/pushed
+Loss: none (every commit is on a remote ref or a tag)
+Reason: orphaned or needs review"
+assert_contains "tag-pinned: a tag is elsewhere, so REVIEW with nothing lost" "$lr_out" "Branch: feat/tagged
+Tip: $(lr_tip feat/tagged)
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: none (every commit is on a remote ref or a tag)
+Reason: no upstream, 1 commits not on origin/main"
+assert_contains "pushed under another name: a remote ref is elsewhere, so REVIEW" "$lr_out" "Branch: feat/alias
+Tip: $(lr_tip feat/alias)
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: none (every commit is on a remote ref or a tag)
+Reason: no upstream, 1 commits not on origin/main"
+assert_contains "stack base: LOSSY although a local sibling holds its commit" "$lr_out" "Branch: feat/stack-base
+Tip: $(lr_tip feat/stack-base)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: 1 commits only on this branch"
+assert_contains "stack top: LOSSY with both commits" "$lr_out" "Branch: feat/stack-top
+Tip: $(lr_tip feat/stack-top)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch"
+assert_contains "ancestry-merged: SAFE, loss not assessed" "$lr_out" "Branch: feat/merged
+Tip: $(lr_tip feat/merged)
+Tier: SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 0 commits not on origin/main
+Loss: not assessed (SAFE)
+Reason: merged (git ancestry)"
+assert_contains "default branch: PROTECTED, loss not assessed" "$lr_out" "Tier: PROTECTED
+Age days: 0
+PR: none
+Unpushed: no upstream, 0 commits not on origin/main
+Loss: not assessed (PROTECTED)
+Reason: current branch"
+assert_contains "summary counts the lossy bucket" "$lr_out" "Summary: protected=1 worktree=0 safe=1 likely-safe=0 lossy=6 review=3"
+
+# The block: its own surface, after the records, one LossBranch per LOSSY branch
+# with the commits that would be lost (newest first, subjects included).
+assert_contains "loss block header names the count and the separate decision" "$lr_out" "LossBlock: 6 branches lose work if deleted; confirm them as their own decision, never with the SAFE/LIKELY-SAFE set"
+assert_contains "loss block: never-pushed branch with both commits" "$lr_out" "LossBranch: feat/never 2 commits only on this branch (no upstream, 2 commits not on origin/main) tip $(lr_tip feat/never)
+LossCommit: feat/never $(lr_short feat/never) never two
+LossCommit: feat/never $(lr_short feat/never ~1) never one"
+assert_contains "loss block: gone branch with all three commits" "$lr_out" "LossBranch: feat/gone 3 commits only on this branch (upstream gone, 3 commits not on origin/main) tip $(lr_tip feat/gone)
+LossCommit: feat/gone $(lr_short feat/gone) gone three
+LossCommit: feat/gone $(lr_short feat/gone ~1) gone two
+LossCommit: feat/gone $(lr_short feat/gone ~2) gone one"
+assert_contains "loss block: ahead branch lists only the unpushed commit" "$lr_out" "LossBranch: feat/ahead 1 commits only on this branch (orphaned or needs review) tip $(lr_tip feat/ahead)
+LossCommit: feat/ahead $(lr_short feat/ahead) ahead local
+LossBranch: feat/gone"
+assert_contains "loss block: capped listing counts the remainder" "$lr_out" "LossCommit: feat/many $(lr_short feat/many ~9) many 3
+LossCommit: feat/many and 2 more
+LossBranch: feat/never"
+assert_no_line "loss block: the eleventh commit is not listed" "$lr_out" '^LossCommit: feat/many [0-9a-f]+ many 2$'
+assert_no_line "loss block: the twelfth commit is not listed" "$lr_out" '^LossCommit: feat/many [0-9a-f]+ many 1$'
+assert_not_contains "loss block never lists a REVIEW branch" "$lr_out" "LossBranch: feat/pushed"
+assert_not_contains "loss block never lists a tag-pinned branch" "$lr_out" "LossBranch: feat/tagged"
+assert_not_contains "loss block never lists a SAFE branch" "$lr_out" "LossBranch: feat/merged"
+assert_contains "loss block end agrees with the header" "$lr_out" "LossBlockEnd: 6"
+# The block sits after every branch record and before the capture line.
+block_pos="$(printf '%s\n' "$lr_out" | grep -n '^LossBlock: ' | cut -d: -f1)"
+last_record="$(printf '%s\n' "$lr_out" | grep -n '^Reason: ' | tail -n1 | cut -d: -f1)"
+capture_pos="$(printf '%s\n' "$lr_out" | grep -n '^TipCapture: ' | cut -d: -f1)"
+if [[ -n "$block_pos" && -n "$last_record" && -n "$capture_pos" && "$block_pos" -gt "$last_record" && "$block_pos" -lt "$capture_pos" ]]; then
+  pass "loss block is printed after the records and before the capture line"
+else
+  fail "loss block is printed after the records and before the capture line" "records < block < capture" "record=$last_record block=$block_pos capture=$capture_pos"
+fi
+assert_contains "capture row carries LOSSY" "$(cat "$(printf '%s\n' "$lr_out" | sed -n 's/^TipCapture: //p')")" "feat/never	$(lr_tip feat/never)	LOSSY	none	none	-	-	2	"
+
+cap3_out="$(PATH="$STUB_BIN:$PATH" CLEAN_LOSS_COMMITS_SHOWN=3 bash -c "cd '$LR' && bash '$AUDIT'")"
+assert_contains "CLEAN_LOSS_COMMITS_SHOWN caps the listing" "$cap3_out" "LossCommit: feat/many $(lr_short feat/many ~2) many 10
+LossCommit: feat/many and 9 more"
+assert_no_line "CLEAN_LOSS_COMMITS_SHOWN: the fourth commit is not listed" "$cap3_out" '^LossCommit: feat/many [0-9a-f]+ many 9$'
+
+# PR state as a competing signal. An OPEN PR is an active claim on the branch and
+# a MERGED PR means the count overstates the loss (a squash lands the work under a
+# new SHA); both stay REVIEW with the count still shown and annotated. A CLOSED PR
+# is abandoned work and is LOSSY. A MERGED PR whose head is the local tip is SAFE
+# with the loss deliberately not assessed, even though its commits are on no
+# remote ref: the work landed.
+if command -v jq >/dev/null 2>&1; then
+  for b in feat/pr-open feat/pr-closed feat/pr-drift feat/pr-squashed; do
+    git -C "$LR" checkout -q -b "$b"
+    lr_commit "${b#feat/}-1" "${b#feat/} one"
+    [[ "$b" == feat/pr-drift ]] && lr_commit "${b#feat/}-2" "${b#feat/} two"
+    git -C "$LR" checkout -q main
+  done
+  pr_bin="$TEST_TMPDIR/pr-state-bin"
+  mkdir -p "$pr_bin"
+  printf '[{"headRefName":"feat/pr-open","state":"OPEN","number":1,"headRefOid":"%s"},{"headRefName":"feat/pr-closed","state":"CLOSED","number":2,"headRefOid":"%s"},{"headRefName":"feat/pr-drift","state":"MERGED","number":3,"headRefOid":"%s"},{"headRefName":"feat/pr-squashed","state":"MERGED","number":4,"headRefOid":"%s"}]\n' \
+    "$(lr_tip feat/pr-open)" "$(lr_tip feat/pr-closed)" "$(git -C "$LR" rev-parse refs/heads/feat/pr-drift~1)" "$(lr_tip feat/pr-squashed)" >"$pr_bin/prs.json"
+  cat >"$pr_bin/gh" <<FAKEGH
+#!/usr/bin/env bash
+case "\$*" in
+  *pr\ list*) cat "$pr_bin/prs.json" ;;
+  *) exit 1 ;;
+esac
+FAKEGH
+  chmod +x "$pr_bin/gh"
+  pr_out="$(PATH="$pr_bin:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+  check_loss_invariants "PR-state repo" "$pr_out"
+  assert_contains "OPEN PR: stays REVIEW, count shown and annotated" "$pr_out" "Branch: feat/pr-open
+Tip: $(lr_tip feat/pr-open)
+Tier: REVIEW
+Age days: 0
+PR: #1 OPEN
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: 1 commits only on this branch (PR open, stays REVIEW)
+Reason: no upstream, 1 commits not on origin/main"
+  assert_contains "CLOSED PR: LOSSY" "$pr_out" "Branch: feat/pr-closed
+Tip: $(lr_tip feat/pr-closed)
+Tier: LOSSY
+Age days: 0
+PR: #2 CLOSED
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: 1 commits only on this branch
+Reason: PR closed without merge"
+  assert_contains "MERGED PR with tip drift: stays REVIEW, count annotated as unreliable" "$pr_out" "Branch: feat/pr-drift
+Tip: $(lr_tip feat/pr-drift)
+Tier: REVIEW
+Age days: 0
+PR: #3 MERGED (tip drift)
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch (PR merged; count unreliable after a squash, stays REVIEW)
+Reason: PR merged but branch has commits since merge"
+  assert_contains "MERGED PR at the tip: SAFE, loss not assessed despite unreachable commits" "$pr_out" "Branch: feat/pr-squashed
+Tip: $(lr_tip feat/pr-squashed)
+Tier: SAFE
+Age days: 0
+PR: #4 MERGED
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: not assessed (SAFE)
+Reason: PR merged"
+  assert_contains "loss block lists the CLOSED-PR branch" "$pr_out" "LossBranch: feat/pr-closed 1 commits only on this branch (PR closed without merge) tip $(lr_tip feat/pr-closed)"
+  assert_not_contains "loss block omits the OPEN-PR branch" "$pr_out" "LossBranch: feat/pr-open"
+  assert_not_contains "loss block omits the drifted MERGED-PR branch" "$pr_out" "LossBranch: feat/pr-drift"
+  assert_not_contains "loss block omits the squash-merged SAFE branch" "$pr_out" "LossBranch: feat/pr-squashed"
+  assert_contains "summary with PR states" "$pr_out" "Summary: protected=1 worktree=0 safe=2 likely-safe=0 lossy=7 review=5"
+else
+  skip_case "PR-state cases need jq"
+fi
+
+# Missing signals resolve to REVIEW with the loss undetermined, never to LOSSY
+# and never to SAFE. Three distinct absences:
+#   1. no origin/<default> at all (a repository with no remote),
+#   2. the count itself fails (git cannot answer),
+#   3. upstream gone with no origin/<default> (asserted on GC_REPO above).
+NR="$TEST_TMPDIR/no-remote"
+git init -q -b main "$NR"
+git -C "$NR" config user.email "t@example.com"
+git -C "$NR" config user.name "Test"
+echo a >"$NR/a"
+git -C "$NR" add a
+git -C "$NR" commit -qm init
+git -C "$NR" checkout -q -b feat/local-only
+echo b >"$NR/b"
+git -C "$NR" add b
+git -C "$NR" commit -qm b
+git -C "$NR" checkout -q main
+nr_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NR' && bash '$AUDIT'")"
+check_loss_invariants "no-remote repo" "$nr_out"
+assert_contains "no remote: loss undetermined, stays REVIEW" "$nr_out" "Branch: feat/local-only
+Tip: $(git -C "$NR" rev-parse refs/heads/feat/local-only)
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream (no origin/main to compare)
+Loss: undetermined (no origin/main to compare against)
+Reason: orphaned or needs review"
+assert_not_contains "no remote: never LOSSY" "$nr_out" "Tier: LOSSY"
+assert_not_contains "no remote: never SAFE" "$nr_out" "Tier: SAFE"
+assert_contains "no remote: empty loss block" "$nr_out" "LossBlock: 0 branches lose work if deleted
+LossBlockEnd: 0"
+
+# A git that cannot count: a wrapper that fails exactly the `--remotes` form the
+# loss count uses and passes everything else through. Every branch that was
+# LOSSY above must fall back to REVIEW with the failure named; SAFE and
+# PROTECTED verdicts are untouched.
+REAL_GIT="$(command -v git)"
+BROKEN_BIN="$TEST_TMPDIR/broken-git-bin"
+mkdir -p "$BROKEN_BIN"
+cat >"$BROKEN_BIN/git" <<BROKENGIT
+#!/usr/bin/env bash
+for a in "\$@"; do [[ "\$a" == "--remotes" ]] && exit 128; done
+exec "$REAL_GIT" "\$@"
+BROKENGIT
+chmod +x "$BROKEN_BIN/git"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$BROKEN_BIN/gh"
+chmod +x "$BROKEN_BIN/gh"
+broken_out="$(PATH="$BROKEN_BIN:$PATH" bash -c "cd '$LR' && bash '$AUDIT'")"
+check_loss_invariants "count-failure repo" "$broken_out"
+assert_contains "count failure: never-pushed branch stays REVIEW with the failure named" "$broken_out" "Branch: feat/never
+Tip: $(lr_tip feat/never)
+Tier: REVIEW
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: undetermined (could not count commits absent from every remote ref and tag)
+Reason: no upstream, 2 commits not on origin/main"
+assert_not_contains "count failure: nothing is LOSSY" "$broken_out" "Tier: LOSSY"
+assert_contains "count failure: SAFE and PROTECTED are untouched, everything else is REVIEW" "$broken_out" "Summary: protected=1 worktree=0 safe=1 likely-safe=0 lossy=0 review="
+assert_contains "count failure: empty loss block" "$broken_out" "LossBlock: 0 branches lose work if deleted
+LossBlockEnd: 0"
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
