@@ -21,6 +21,7 @@ import unittest
 from contextlib import (
     ExitStack,
     chdir as chdir_context,
+    nullcontext,
     redirect_stderr,
     redirect_stdout,
 )
@@ -4446,6 +4447,12 @@ class GuardTests(unittest.TestCase):
         # Managed settings stay absent (points into the temp dir, never written),
         # so tests never read a real /etc or Program Files managed-settings.json.
         self._managed = cfg / "managed-settings.json"
+        # Every decision the guard reaches now appends to the local decision
+        # record under whatever data root resolves, so the data root these
+        # helpers hand it must be owned and disposable: an in-repo path would
+        # litter the checkout, and an inherited CLAUDE_PLUGIN_DATA would write
+        # into the developer's real plugin data directory.
+        self._data_root = cfg / "plugin-data"
         # Hermetic watchdog deadline for the same reason. The guard's own deny
         # diagnostic tells operators to raise
         # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
@@ -4457,6 +4464,19 @@ class GuardTests(unittest.TestCase):
         environ_patch.start()
         self.addCleanup(environ_patch.stop)
         os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
+        os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+
+    def decision_records(self, data_root: Path | None = None) -> list[dict]:
+        """Every decision record written under a data root, oldest first."""
+        root = self._data_root if data_root is None else data_root
+        path = guard.guard_decision_log.log_path(str(root))
+        if not path.is_file():
+            return []
+        return [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def _set_kill_switch(self, enabled: bool) -> None:
         if enabled:
@@ -4785,7 +4805,11 @@ class GuardTests(unittest.TestCase):
             )
 
     def run_guard_engine_gate(
-        self, command: str, tool_name: str = "Bash", enabled: bool = True
+        self,
+        command: str,
+        tool_name: str = "Bash",
+        enabled: bool = True,
+        data_root: Path | None = None,
     ) -> dict[str, object] | None:
         """Drive the guard as the plugin-level engine-gate deployment would.
 
@@ -4805,7 +4829,7 @@ class GuardTests(unittest.TestCase):
             "--plugin-root",
             os.fspath(self._plugin_root),
             "--authorized-data-root",
-            str(SCRIPT_DIR / "data-root"),
+            os.fspath(self._data_root if data_root is None else data_root),
         ]
         stdin = io.StringIO(
             json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
@@ -4825,6 +4849,358 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(0, guard.main())
         text = stdout.getvalue().strip()
         return json.loads(text) if text else None
+
+    # --- the local decision record (#3862) ---------------------------------
+    #
+    # These pin the observable behaviour an operator relies on after the fact:
+    # a decision leaves evidence explaining itself, a defer costs nothing, and
+    # no failure of the record can move a verdict.
+
+    def _engine_command(self, subcommand: str, data_root: Path | None = None) -> str:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        # resolve() yields the long-form path: the guard rejects the "~" in
+        # Windows 8.3 short names as a shell-expansion character.
+        root = (
+            (self._data_root if data_root is None else data_root).resolve().as_posix()
+        )
+        if subcommand == "scan":
+            tail = "scan --target t --output s"
+        else:
+            tail = (
+                "apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r"
+            )
+        return f'"{self.python_command()}" "{script}" {tail} --data-root "{root}"'
+
+    def _run_guard_belt(
+        self, command: str, tool_name: str = "Bash"
+    ) -> dict[str, object] | None:
+        """Belt mode (the skill-frontmatter deployment) with an owned data root.
+
+        The engine-gate helper cannot reach every branch: in that mode a
+        PowerShell command is either irrelevant (an instant defer) or names the
+        engine (always a deny), so the no-flagged-spelling branch only exists
+        under belt.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def test_denied_engine_command_is_recorded_with_its_rule_and_input(self) -> None:
+        """A deny-by-default records the rule and reason, not the command text."""
+        elsewhere = Path(self._cfg.name) / "elsewhere"
+        command = self._engine_command("scan", data_root=elsewhere)
+        result = self.run_guard_engine_gate(command)
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        (entry,) = self.decision_records()
+        self.assertEqual("deny", entry["decision"])
+        self.assertEqual("not-exact-engine-command", entry["rule"])
+        self.assertEqual("destructive-guard", entry["hook"])
+        self.assertEqual("Bash", entry["tool"])
+        self.assertEqual("engine-gate", entry["mode"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
+        # The reason the host was given is the reason the record carries (to
+        # the record's bounded length), so the two can never disagree about
+        # why this was denied.
+        host_reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        recorded = entry["reason"]
+        self.assertTrue(recorded.endswith("..."), recorded)
+        self.assertTrue(host_reason.startswith(recorded[:-3]), recorded)
+        self.assertIn("fails closed", recorded)
+        self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
+
+    def test_allow_and_ask_verdicts_are_recorded_with_distinct_rules(self) -> None:
+        allowed = self.run_guard_engine_gate(self._engine_command("scan"))
+        assert allowed is not None
+        self.assertEqual("allow", allowed["hookSpecificOutput"]["permissionDecision"])
+        asked = self.run_guard_engine_gate(self._engine_command("apply"))
+        assert asked is not None
+        self.assertEqual("ask", asked["hookSpecificOutput"]["permissionDecision"])
+        entries = self.decision_records()
+        self.assertEqual(["allow", "ask"], [entry["decision"] for entry in entries])
+        self.assertEqual(
+            ["exact-engine-scan", "exact-engine-apply"],
+            [entry["rule"] for entry in entries],
+        )
+
+    def test_kill_switch_denial_is_recorded_under_its_own_rule(self) -> None:
+        """`denied because execution is off` and `denied because it is not the
+        engine` are different answers to `why`, so they are different rules."""
+        result = self.run_guard_engine_gate(
+            self._engine_command("apply"), "Bash", enabled=False
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        (entry,) = self.decision_records()
+        self.assertEqual("kill-switch-disabled-apply", entry["rule"])
+
+    def test_engine_gate_defer_records_nothing(self) -> None:
+        """The always-on hot path stays free: no decision, no record, no cost."""
+        self.assertIsNone(self.run_guard_engine_gate("git status --short"))
+        self.assertEqual([], self.decision_records())
+        self.assertFalse(
+            guard.guard_decision_log.log_path(os.fspath(self._data_root)).exists()
+        )
+
+    def test_powershell_call_without_a_flagged_spelling_records_none(self) -> None:
+        """`the guard ran and adjudicated nothing` must be distinguishable from
+        `the guard never ran`, which is what the PowerShell lane needs: it
+        carries no `if` filter, so it is the one surface that always runs."""
+        result = self._run_guard_belt("Get-Process", "PowerShell")
+        self.assertIsNone(result, "no deletion spelling, so no permissionDecision")
+        (entry,) = self.decision_records()
+        self.assertEqual("PowerShell", entry["tool"])
+        self.assertEqual("belt", entry["mode"])
+        self.assertEqual("none", entry["decision"])
+        self.assertEqual("powershell-no-flagged-spelling", entry["rule"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len("Get-Process"), entry["command_chars"])
+
+    def test_powershell_deletion_spelling_verdict_is_recorded(self) -> None:
+        result = self._run_guard_belt("Remove-Item -Recurse C:/tmp/x", "PowerShell")
+        assert result is not None
+        (entry,) = self.decision_records()
+        self.assertEqual(
+            result["hookSpecificOutput"]["permissionDecision"], entry["decision"]
+        )
+        self.assertEqual("powershell-deletion-spelling", entry["rule"])
+
+    def test_powershell_none_does_not_persist_session_command_secrets(self) -> None:
+        command = "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Get-Process"
+        result = self._run_guard_belt(command, "PowerShell")
+        self.assertIsNone(result)
+        (entry,) = self.decision_records()
+        self.assertEqual("none", entry["decision"])
+        self.assertNotIn("command", entry)
+        self.assertEqual(len(command), entry["command_chars"])
+        log_text = guard.guard_decision_log.log_path(
+            os.fspath(self._data_root)
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("s3cretvalue", log_text)
+
+    def test_powershell_deletion_command_secrets_are_redacted(self) -> None:
+        command = (
+            "$env:AZURE_CLIENT_SECRET='s3cretvalue'; Remove-Item -Recurse C:/tmp/x"
+        )
+        result = self._run_guard_belt(command, "PowerShell")
+        assert result is not None
+        (entry,) = self.decision_records()
+        self.assertEqual("powershell-deletion-spelling", entry["rule"])
+        self.assertNotIn("s3cretvalue", entry["command"])
+        self.assertIn(guard.guard_decision_log.REDACTED, entry["command"])
+
+    def test_records_accumulate_across_invocations(self) -> None:
+        for _ in range(3):
+            self.run_guard_engine_gate(self._engine_command("scan"))
+        self.assertEqual(3, len(self.decision_records()))
+
+    def test_an_unparsable_payload_deny_is_recorded(self) -> None:
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", io.StringIO('{"tool_input": {}}')),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "deny",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        (entry,) = self.decision_records()
+        self.assertEqual("unparsable-payload", entry["rule"])
+        self.assertEqual("deny", entry["decision"])
+
+    def _verdicts_with_recording_broken(
+        self, breakage, data_root: Path | None = None
+    ) -> list[str | None]:
+        """Every verdict the guard reaches, with the record write sabotaged.
+
+        The data root the commands name and the one the guard is given are the
+        same value, so an unwritable root sabotages the RECORD without moving
+        the authority check that decides allow from deny.
+        """
+        root = self._data_root if data_root is None else data_root
+        verdicts: list[str | None] = []
+        commands = (
+            (self._engine_command("scan", root), True),
+            (self._engine_command("apply", root), True),
+            (self._engine_command("scan", Path(self._cfg.name) / "elsewhere"), True),
+            (self._engine_command("apply", root), False),
+            ("git status --short", True),
+        )
+        with breakage:
+            for command, enabled in commands:
+                result = self.run_guard_engine_gate(
+                    command, "Bash", enabled=enabled, data_root=root
+                )
+                verdicts.append(
+                    None
+                    if result is None
+                    else result["hookSpecificOutput"]["permissionDecision"]
+                )
+        return verdicts
+
+    def test_a_broken_decision_record_never_changes_a_verdict(self) -> None:
+        """The whole feature is worth less than one wrong verdict.
+
+        Two sabotage shapes covering both layers that can fail: an unwritable
+        data root, where the append and the `mkdir` behind it fail with a real
+        filesystem `OSError` (the read-only-root and full-disk shape), and the
+        record function raising past its own boundary. Every verdict must be
+        identical to the unsabotaged run, including the deny that rides exit 0
+        and the defer that emits nothing.
+        """
+        baseline = self._verdicts_with_recording_broken(nullcontext())
+        self.assertEqual(["allow", "ask", "deny", "deny", None], baseline)
+        self.assertNotEqual([], self.decision_records())
+
+        blocker = Path(self._cfg.name) / "a-file-not-a-directory"
+        blocker.write_text("", encoding="utf-8")
+        unwritable = blocker / "plugin-data"
+        with self.subTest(sabotage="unwritable data root"):
+            self.assertEqual(
+                baseline,
+                self._verdicts_with_recording_broken(
+                    nullcontext(), data_root=unwritable
+                ),
+            )
+            self.assertFalse(unwritable.exists())
+        with self.subTest(sabotage="record raises"):
+            self.assertEqual(
+                baseline,
+                self._verdicts_with_recording_broken(
+                    mock.patch.object(
+                        guard.guard_decision_log,
+                        "record",
+                        side_effect=RuntimeError("audit exploded"),
+                    )
+                ),
+            )
+
+    def test_record_decision_swallows_a_failure_in_data_root_resolution(self) -> None:
+        """`_record_decision` resolves the data root and the mode in its own
+        argument list, outside `guard_decision_log.record`'s boundary. One of
+        its call sites is `main`'s `except BaseException` handler, where a raise
+        would reach the interpreter's default handler: exit 1, which PreToolUse
+        treats as non-blocking, so the denied command would run.
+        """
+        with mock.patch.object(
+            guard,
+            "resolve_authorized_data_root",
+            side_effect=RuntimeError("resolution exploded"),
+        ):
+            self.assertIsNone(
+                guard._record_decision("rm -rf /", "Bash", "deny", "some-rule")
+            )
+        with mock.patch.object(
+            guard, "resolve_mode", side_effect=RuntimeError("mode exploded")
+        ):
+            self.assertIsNone(
+                guard._record_decision("rm -rf /", "Bash", "deny", "some-rule")
+            )
+
+    def test_a_write_failure_leaves_the_deny_exit_status_untouched(self) -> None:
+        """An unwritable data root must not turn a deny into anything else.
+
+        The data root's parent is a FILE here, so the append and the `mkdir`
+        that follows both fail with a real `OSError` from the filesystem rather
+        than a patched one.
+        """
+        blocker = Path(self._cfg.name) / "a-file-not-a-directory"
+        blocker.write_text("", encoding="utf-8")
+        unwritable = blocker / "plugin-data"
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(unwritable),
+        ]
+        command = self._engine_command("scan", data_root=unwritable)
+        stdout = io.StringIO()
+        with (
+            mock.patch(
+                "sys.stdin",
+                io.StringIO(
+                    json.dumps(
+                        {"tool_name": "Bash", "tool_input": {"command": command}}
+                    )
+                ),
+            ),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "allow",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        self.assertFalse(unwritable.exists())
+
+    def test_the_record_can_be_turned_off_without_changing_a_verdict(self) -> None:
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--authorized-data-root",
+            os.fspath(self._data_root),
+        ]
+        command = self._engine_command("scan")
+        stdout = io.StringIO()
+        with (
+            mock.patch(
+                "sys.stdin",
+                io.StringIO(
+                    json.dumps(
+                        {"tool_name": "Bash", "tool_input": {"command": command}}
+                    )
+                ),
+            ),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict(
+                "os.environ",
+                {guard.guard_decision_log.DISABLE_ENV: "off"},
+                clear=True,
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        self.assertEqual(
+            "allow",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["permissionDecision"],
+        )
+        self.assertEqual([], self.decision_records())
 
     def test_engine_gate_defers_all_non_engine_commands(self) -> None:
         """Plugin-level deployment must never tax unrelated work in a session."""

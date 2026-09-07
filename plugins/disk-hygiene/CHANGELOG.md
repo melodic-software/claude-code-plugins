@@ -3,6 +3,50 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **Guard decisions are recorded locally, with no configuration.** `lib/guard_decision_log.py`
+  appends one JSON object per line to `<plugin data root>/guard-decisions/decisions.jsonl` every
+  time the guard reaches a verdict. Each line carries the timestamp, the decision, the rule that
+  fired, the tool, the registration mode, the command that drove it, and the reason the host was
+  given, so a denial explains itself from the record alone rather than by reproducing it. Before
+  this, decisions left the process only through `HOOK_TELEMETRY_SINK`, which is inert unless an
+  environment variable names an executable, so on an ordinary install every decision was discarded
+  as it was made.
+- **Command text is omitted on the catch-all arms, and remaining text is secret-scrubbed.** A
+  PowerShell `none` record (belt mode, no flagged spelling) and a Bash deny-by-default
+  (`not-exact-engine-command`) persist `command_chars` rather than the command. Other
+  `command`/`reason` fields are shape-scrubbed (tokens, bearer headers, `SECRET`/`KEY`/`TOKEN`/
+  `PASSWORD` assignments including `$env:...`) before the 400-character clip.
+- **Owner-only files.** The log directory is `0700` and the live file `0600`, reapplied on every
+  write so a leftover world-readable file is tightened.
+- **The record distinguishes allowed, denied, and did-not-run.** `guard_launch_monitor.py` writes
+  the third state when it detects a `hook_non_blocking_error` for the guard: a hook that never
+  launched cannot record its own absence, so the detector that already finds it now leaves the
+  evidence behind. A PowerShell call the guard adjudicated without issuing a decision is recorded
+  as `none`, which is not the same event as an absent record.
+- **Bounded by rotation, not by advice.** The live file is retired to `decisions.previous.jsonl`
+  once it reaches 1 MiB, so the record occupies at most about 2 MiB forever with no operator
+  pruning. The bound is checked from the offset the append already returns, so it costs no extra
+  syscall. Command and reason fields are clipped to 400 characters, which keeps a record a record
+  of the decision rather than a copy of the payload, and keeps every line short enough that
+  concurrent hook processes appending to the same file do not interleave.
+- Set `DISK_HYGIENE_GUARD_DECISION_LOG` to `0`, `off`, `false`, or `no` to turn the record off. It
+  is opt-out, not opt-in: any other value, including an absent one, records.
+
+### Changed
+
+- The existing `HOOK_TELEMETRY_SINK` channel is untouched. A configured sink receives exactly the
+  envelopes it received before, with the same fields.
+- Measured cost on the hook path, per the hook-budget convention: the always-on defer branch (a
+  Bash command that does not name the engine) writes nothing and is unchanged. On a branch that
+  does reach a decision the process and exec census is identical to before, one `execve` and one
+  thread clone, and the record costs one `openat` plus one `write` plus one `chmod` on a warm data
+  root, plus one failed `openat`, one `mkdir`, and one `chmod` on the first write of an install.
+  See the README's trust-surface record for the numbers and the method.
+
 ## [0.22.0]
 
 ### Added
