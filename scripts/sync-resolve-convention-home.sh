@@ -25,7 +25,7 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-resolve-convention-home.sh"
 src="plugins/claude-config/lib/resolve-convention-home.sh"
-copies=(plugins/plugin-quality/lib/resolve-convention-home.sh)
+copies=(plugins/plugin-quality/lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"

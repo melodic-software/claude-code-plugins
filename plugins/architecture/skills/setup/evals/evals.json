@@ -1,0 +1,67 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-no-pointer-line-fails-with-remediation",
+      "prompt": "/architecture:setup check\n\nThe consumer repository has an AGENTS.md, but no marked convention-home region anywhere, so the resolver exits 1.",
+      "expected_output": "A read-only PASS/FAIL/INFO table with a FAIL row for the missing pointer line, and one remediation line naming /architecture:setup apply with home= and architecture_dir=. Nothing is written and no directory is created.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs `bash \"${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh\" --root \"${CLAUDE_PROJECT_DIR}\"` and follows the exit code rather than parsing AGENTS.md itself",
+        "Reports resolver exit 1 as a FAIL row: no pointer line in any root instruction file",
+        "Carries exactly one remediation line for that FAIL, naming `/architecture:setup apply` with `home=` and `architecture_dir=`",
+        "States that inference may propose a home but only the operator's confirmation binds it",
+        "Writes NOTHING: no pointer region, no topic doc, no directory created, no settings file touched",
+        "Does not infer a home in `check`"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "check-conforming-declaration-all-pass",
+      "prompt": "/architecture:setup check\n\nThe resolver exits 0 with home docs/conventions, and docs/conventions/architecture/README.md declares architecture_dir: docs/architecture and landscape_dialect: mermaid.",
+      "expected_output": "Every row PASS. Reports the resolved home, that the topic doc exists, and the effective value of each key with the source that supplied it. No remediation lines, because there are no FAIL rows.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Every row is PASS; no FAIL row and therefore no remediation line",
+        "Reports the resolved home and that `<home>/architecture/README.md` exists",
+        "Reports the effective value of BOTH keys and which source supplied each (topic doc here, or the documented default)",
+        "Still read-only: converging nothing even though everything conforms",
+        "Reports a landscape_dialect that is absent from the topic doc as a PASS carrying its `mermaid` default, and an absent architecture_dir as a FAIL, since that key has no default"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-incomplete-arguments-proposes-and-waits",
+      "prompt": "/architecture:setup apply\n\nThe resolver exits 1. The repository has a docs/conventions/ directory and a docs/architecture/ directory, and no *.dsl file.",
+      "expected_output": "Proposes docs/conventions as the home and docs/architecture as architecture_dir, proposes the mermaid default for landscape_dialect, and WAITS for confirmation before writing either artifact.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "PROPOSES a home inferred from repository evidence (docs/conventions/) rather than binding one",
+        "PROPOSES `architecture_dir: docs/architecture` from the existing directory, and the `mermaid` default for landscape_dialect",
+        "WAITS for confirmation; writes neither the pointer region nor the topic doc until the operator confirms",
+        "Does not silently substitute a default for architecture_dir, which has none",
+        "When it does write the pointer region, it writes INSIDE the marked convention-home region only, appending the region if absent, and edits no byte outside it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-complete-arguments-runs-non-interactively",
+      "prompt": "/architecture:setup apply home=docs/conventions architecture_dir=docs/architecture landscape_dialect=structurizr",
+      "expected_output": "Runs end to end without prompting: writes the pointer line inside the marked convention-home region, converges docs/conventions/architecture/README.md with both keys, then RE-READS both from disk and reports the values it observed, per key, as old -> new. A second identical run produces no diff and says so.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs WITHOUT prompting, because all three of home=, architecture_dir= and landscape_dialect= are supplied",
+        "Writes the pointer line inside the marked `<!-- BEGIN GENERATED: convention-home -->` region only, never outside it",
+        "Converges `docs/conventions/architecture/README.md` per-key, preserving other keys and surrounding prose rather than clobbering the file",
+        "RE-READS the pointer region and the topic doc FROM DISK after writing and reports the OBSERVED values per key as old -> new, not the values it intended to write",
+        "Is idempotent: a second identical apply produces no diff and says so",
+        "Validates before writing, refusing an absolute or repository-escaping architecture_dir and a landscape_dialect outside structurizr / mermaid, with the reason and the accepted set"
+      ]
+    }
+  ]
+}

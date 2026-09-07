@@ -1,0 +1,97 @@
+{
+  "skill_name": "map-landscape",
+  "evals": [
+    {
+      "id": 1,
+      "name": "explicit-list-bypasses-discovery",
+      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe repo-fleet-hygiene plugin is NOT installed. The convention home resolves and its architecture topic doc is the mermaid fixture below.",
+      "expected_output": "Charts exactly the two listed repositories with no discovery of any kind. Runs the bundled facts script over both paths, writes landscape.md (mermaid C4Context) and portfolio.md into docs/architecture, and never mentions a fallback walk because no discovery ran.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "expectations": [
+        "Charts EXACTLY the two paths given; runs no discovery walk and no fleet-hygiene invocation, because an explicit list bypasses discovery outright",
+        "Does NOT announce a bundled-walk fallback: the fallback belongs to the --root mode, and announcing it here would misreport how the set was chosen",
+        "Runs `${CLAUDE_SKILL_DIR}/scripts/portfolio-facts.sh` with both paths rather than reading manifests by hand",
+        "Writes landscape.md (mermaid dialect from the topic doc) and portfolio.md into docs/architecture, the declared architecture_dir",
+        "The portfolio table carries all six columns (Repository, Owner, Target framework, Runtime, Dependencies, Last touched) with one row per repository, sorted by name",
+        "Never scans the session's working directory"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "root-with-collaborator-installed",
+      "prompt": "/architecture:map-landscape --root /srv/code/platform\n\nThe repo-fleet-hygiene plugin IS installed. Its audit writes the plan fixture below, whose repositories[] includes an entry outside the requested root.",
+      "expected_output": "Invokes /repo-fleet-hygiene:audit with --plan-file pointing into the topic-docs memory slice, confirms schema_version is 1, filters repositories[] to entries whose discovered path lies under /srv/code/platform, and charts billing and web from their canonical paths. The operator's personal scratchpad, present in the plan, is excluded.",
+      "files": [
+        "evals/fixtures/fleet-plan.json",
+        "evals/fixtures/topic-doc-mermaid.md"
+      ],
+      "expectations": [
+        "Invokes /repo-fleet-hygiene:audit via the Skill tool with `--plan-file <memory_dir>/<topic-slug>/fleet-plan.json`, creating the memory slice first",
+        "Confirms the plan's `schema_version` is `1` before reading `repositories[]`",
+        "FILTERS `repositories[]` to entries whose `discovered` path lies under the requested root: /home/operator/personal/scratchpad is present in the plan and MUST NOT appear in either artifact",
+        "Uses each kept entry's `canonical` path (so the web worktree charts as /srv/code/platform/web) and its `remote`",
+        "Announces that the collaborator's audit collects GitHub evidence and may need `gh` authentication",
+        "Treats fleet-plan.json as a temp artifact in the self-ignoring memory slice; never commits it or copies it into architecture_dir"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "root-with-collaborator-absent-falls-back",
+      "prompt": "/architecture:map-landscape --root /srv/code/platform\n\nThe repo-fleet-hygiene plugin is NOT installed.",
+      "expected_output": "Announces the fallback, then runs the bundled walk: recurse from the root to depth 5, treat a .git entry as a repository without descending into it, skip node_modules, vendor and .venv, and resolve each canonical checkout from the first record of `git worktree list --porcelain`.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "expectations": [
+        "ANNOUNCES the fallback rather than silently walking: the operator must know the collaborator did not run",
+        "Recurses from the root to depth 5, treats a `.git` entry as a repository and does NOT descend into it",
+        "Skips `node_modules`, `vendor`, and `.venv`",
+        "Resolves each canonical checkout from the first record of `git worktree list --porcelain`, not from `git rev-parse --show-toplevel`",
+        "Falls back the same way when the plan file is missing or carries a schema_version other than 1, rather than parsing an unrecognized plan"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "structurizr-dialect-from-topic-doc",
+      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe convention home resolves and its architecture topic doc is the structurizr fixture below.",
+      "expected_output": "Emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements and -> relationships, and views { systemLandscape \"landscape\" { include * autoLayout } }. Relationships appear only where a collected fact names the target.",
+      "files": ["evals/fixtures/topic-doc-structurizr.md"],
+      "expectations": [
+        "Emits `landscape.dsl`, NOT `landscape.md`, because the topic doc declares landscape_dialect: structurizr",
+        "The DSL carries a `workspace` with a `model` of `softwareSystem` elements and `->` relationships",
+        "The DSL carries `views { systemLandscape \"landscape\" { include * autoLayout } }`",
+        "Writes into `architecture/`, the declared architecture_dir, not a guessed docs/architecture",
+        "Draws an edge ONLY where a collected fact in the source names the target (dependency name equals the target's repository name or package id, a ProjectReference or workspace path resolves into it, or its remote URL appears in tracked config or README), and states the matched string as the edge description",
+        "Does not infer an edge from naming similarity, a shared owner, or directory adjacency"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-topic-doc-and-no-inference-evidence",
+      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing\n\nThe resolver exits 1 (no pointer line anywhere). The repository contains no *.dsl file, no docs/architecture/ and no architecture/ directory. This is a non-interactive run.",
+      "expected_output": "Stops and points at /architecture:setup. architecture_dir has no default, inference found no evidence to propose, and a non-interactive run cannot confirm one, so no artifact is written anywhere.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "STOPS and points at `/architecture:setup`; does not pick a directory",
+        "Writes NO artifact anywhere, including no temp or fallback location",
+        "Names architecture_dir specifically as the key with no default, distinguishing it from landscape_dialect which does default to mermaid",
+        "Does not write the consumer's root instruction file, inside or outside the marked convention-home region",
+        "Does not treat the absent pointer line as permission to infer a home"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-scope-names-both-forms",
+      "prompt": "/architecture:map-landscape",
+      "expected_output": "Stops and names both scope forms, --repos <path>[,<path>...] and --root <dir>. Does not scan the session's working directory, and does not treat the current repository as an implied single-repository scope.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "STOPS rather than choosing a scope",
+        "Names BOTH forms explicitly: `--repos <path>[,<path>...]` and `--root <dir>`",
+        "Does NOT scan the session's working directory",
+        "Does NOT treat the current repository as an implied one-repository landscape",
+        "Runs no facts collection and writes no artifact"
+      ]
+    }
+  ]
+}
