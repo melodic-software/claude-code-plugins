@@ -204,11 +204,12 @@ while IFS= read -r fm || [[ -n "$fm" ]]; do
     source_branch="${source_branch#"${source_branch%%[![:space:]]*}"}"
     source_branch="${source_branch%"${source_branch##*[![:space:]]}"}"
     ;;
+  *) ;;
   esac
 done <"$findings"
 
 if [[ "$declared_type" != "review-findings" ]]; then
-  printf 'refusing: %s does not declare `type: review-findings` in its frontmatter.\n' "$findings" >&2
+  printf 'refusing: %s does not declare "type: review-findings" in its frontmatter.\n' "$findings" >&2
   exit 2
 fi
 [[ -n "$source_branch" ]] || source_branch="unstated"
@@ -257,11 +258,11 @@ read_rows() {
 rows_raw="$(read_rows)"
 rows_status=$?
 if [[ $rows_status -eq 9 ]]; then
-  printf 'refusing: %s has no parseable `## Findings` table (no row-table header under the heading).\n' "$findings" >&2
+  printf 'refusing: %s has no parseable "## Findings" table (no row-table header under the heading).\n' "$findings" >&2
   exit 2
 fi
 if [[ $rows_status -ne 0 ]]; then
-  printf 'refusing: could not read the `## Findings` table in %s.\n' "$findings" >&2
+  printf 'refusing: could not read the "## Findings" table in %s.\n' "$findings" >&2
   exit 2
 fi
 
@@ -310,7 +311,7 @@ if [[ -n "$classes" ]]; then
   elif [[ -f "$classes" ]]; then
     read_classes <"$classes"
   else
-    printf 'refusing: --classes %s does not exist; pass a readable TSV or `-` for stdin.\n' "$classes" >&2
+    printf 'refusing: --classes %s does not exist; pass a readable TSV or "-" for stdin.\n' "$classes" >&2
     exit 2
   fi
 fi
@@ -431,6 +432,8 @@ while IFS= read -r record; do
     printf -- '- Finding: %s\n' "$r_find"
     printf -- '- Action: %s\n' "$r_act"
     printf '\n## Proposed rung\n\n'
+    # The backticks belong to the markdown this writes, not to the shell.
+    # shellcheck disable=SC2016
     printf 'Rung `%s`, reached from finding class `%s` on basis `%s`. The check this rung would carry asserts the class at that rung, so the finding stops being re-derived by a reader on every review. Owner or pointer: %s.\n' \
       "$f_rung" "$f_class" "$f_basis" "$f_owner"
     printf '\n## Next step\n\n'
@@ -444,7 +447,7 @@ done <<<"$rows_raw"
 
 for c_rank in "${!class_of[@]}"; do
   if [[ -z "${seen_rank[$c_rank]:-}" ]]; then
-    printf 'diagnostic: --classes names rank %s, which the `## Findings` table does not carry; no stub written for it.\n' \
+    printf 'diagnostic: --classes names rank %s, which the "## Findings" table does not carry; no stub written for it.\n' \
       "$c_rank" >&2
   fi
 done
@@ -472,6 +475,7 @@ has_forbidden_marker() {
     'type: review-findings'* | 'type: fix-pass-record'* | 'branch:'* | '## Findings'*)
       return 0
       ;;
+    *) ;;
     esac
   done <"$1"
   return 1
