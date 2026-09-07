@@ -65,7 +65,7 @@ Run rounds until the stop condition is met. Each round:
 2. **Compute the frontier** — every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
 3. **Codebase gate per frontier question** — check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait — the rest of the frontier is asked this round
 4. **Ask the frontier as one numbered set** — each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius — the answer that would change the most downstream work goes first
-5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode. Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7")
+5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode — except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7")
 6. **Recompute the tree** — what subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
@@ -184,6 +184,8 @@ A question that was asked, went unanswered across a reply about something else, 
 
 The register tracks the *asking*; the Brief draft tracks the answers, on the schedule Step 2 item 5 sets per mode.
 
+**One thing asked is not a question here: the acceptance-criteria coverage prompt.** It carries no decision, so it gets no row at ask-time and does not by itself make the register exist — including when it rides along inside a round. That is the whole exception. Every real question in the same round is written at `open` exactly as this rule requires, and nothing about the coverage prompt changes when a round is registered or what the gate then demands.
+
 Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
 
 **A run that asks nothing writes no register — but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
@@ -230,6 +232,8 @@ The ladder, in order:
 
 **This preserves the auto-guard rather than carving an exception in it.** SKILL.md Step 1.5's guard forbids *silently* folding a user decision into the Brief as an assumption — the failure it exists to prevent is the choice disappearing. A named blocker is the opposite: the choice is surfaced, attributed to the user, and blocks the contract until they make it. The sibling `plugin-quality:audit` resolves its contract-lock the same way — safe defaults resolve silently and are recorded; anything without a safe default becomes a named blocker.
 
+**The acceptance-criteria coverage prompt is exempt from this ladder.** It is a coverage check, not a decision: unattended it is skipped, reported unexamined in the returned summary, and recorded under `### Captured assumptions`. Never a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the run. It exempts itself and nothing else — a decision genuinely the user's still takes rung 3 exactly as written. Step 4's "Acceptance criteria" guidance owns the prompt itself.
+
 ### Gate before locking
 
 The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments:
@@ -248,6 +252,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief` — a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 
 Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+
+**The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 
 What the gate cannot prove: it grades the interview's own record, so a question never registered is invisible to it. The ask-time write rule is what keeps the record independent of the answer; the contiguity and duplicate checks are what catch a row dropped after it was written.
 
@@ -286,6 +292,31 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
+Two behaviours attach here, both defined in the SKILL.md section "Acceptance-criteria capture" and summarized below for the writer of this section.
+
+**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behaviour** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register — it carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended — declared, never sniffed) SKIPS the ask, states in its returned summary that unwanted-behaviour and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`. That line records an unrun check and nothing else: it is never a place to park a decision, it satisfies no part of the auto-guard, and a decision genuinely the user's is still recorded `blocked` with **arbiter: USER-RESERVED** per the unattended ladder.
+
+**Pattern tags, only under the `ears` convention.** With `acceptance_criteria_format` resolving to `free-text` (the default and every degrade), criteria are emitted untagged, exactly as the template placeholder shows. With it resolving to `ears`, each criterion takes a bracketed pattern prefix on that same plain bullet, drawn from exactly these five names:
+
+| Tag | Pattern |
+|---|---|
+| `[ubiquitous]` | an always-true requirement, no trigger and no state |
+| `[event-driven]` | `WHEN <trigger>, <response>` |
+| `[state-driven]` | `WHILE <state>, <response>` |
+| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[optional-feature]` | `WHERE <feature is included>, <response>` |
+
+```text
+### Acceptance criteria
+- [ubiquitous] The manifest is valid JSON at rest
+- [event-driven] WHEN the upload completes, the manifest is rewritten
+- [state-driven] WHILE a rebuild is in flight, reads are served from the previous manifest
+- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
+```
+
+`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature` — spelled exactly that way. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
+
 **Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
@@ -323,5 +354,7 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 ## Plan
 <empty — populated by /planning:plan>
 ```
+
+**The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox — `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
 
 **Arbiter tag is load-bearing.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.

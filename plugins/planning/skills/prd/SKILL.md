@@ -1,5 +1,5 @@
 ---
-description: "Produce a Product Requirements Document that locks product intent. Problem, users, success metrics. Before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /planning:interview or /planning:plan)."
+description: "Produce a Product Requirements Document that locks product intent. Problem, users, success metrics. Before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /planning:interview or /planning:plan)."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
 user-invocable: true
 disable-model-invocation: false
@@ -128,6 +128,8 @@ When invoked with `synthesize`, skip Step 4 Q&A entirely. Produce the PRD from e
 
 Use when conversation already contains rich product context and re-asking would waste time. The user is signaling "I've told you enough. Write it." Respect that signal.
 
+`synthesize` also skips the always-on coverage prompt and reports it unexamined, per "Acceptance-criteria capture" below.
+
 If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful. `/planning:interview` or `/planning:plan` picks them up downstream.
 
 ### Step 4. Drive frontier-rounds Q&A
@@ -146,6 +148,7 @@ Question shapes that recur, in priority order:
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." |
+| Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
@@ -201,6 +204,101 @@ After writing the PRD, recommend the next step. The recommendation depends on re
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
+## Acceptance-criteria capture
+
+Two behaviours ride on the moment this PRD turns product intent into verifiable statements, the
+Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down. The
+first is always on; the second fires only when the consuming team's convention selects it.
+
+### Coverage prompt. Always on, asked once
+
+While capturing those verifiable statements, ask ONE question: are they missing an
+**unwanted-behaviour** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
+case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
+interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
+whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
+it is a coverage check, not a format. A product PRD reaches for the happy path by construction, and
+this is the one question that asks what must NOT happen.
+
+### Non-interactive runs skip the ask and say so
+
+The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched
+worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In
+every one of those the ask is SKIPPED rather than blocking, and the returned summary states that
+**unwanted-behaviour and state-driven coverage went unexamined**. Record the same line in the PRD's
+**Open questions** section so it outlives the summary. A prompt nobody can answer must not stall the
+run and must not silently vanish.
+
+The unattended condition is **declared by the caller, never sniffed**. There is no supported way for
+a session to observe that it is non-interactive, so never read an environment variable to decide it;
+`synthesize` is an explicit argument, which is a declaration.
+
+### EARS tags, when the convention selects them
+
+Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
+degrade, every section is emitted exactly as today, untagged and byte-comparable in shape to a run
+with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a
+bracketed pattern prefix on a plain bullet:
+
+| Tag | Pattern |
+|---|---|
+| `[ubiquitous]` | an always-true requirement, no trigger and no state |
+| `[event-driven]` | `WHEN <trigger>, <response>` |
+| `[state-driven]` | `WHILE <state>, <response>` |
+| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[optional-feature]` | `WHERE <feature is included>, <response>` |
+
+```text
+- [event-driven] WHEN the upload completes, the manifest is rewritten
+- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+```
+
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, and
+`optional-feature`. A downstream reader matches the literal name, so a variant spelling,
+`unwanted-behavior`, `unwanted`, `event`, is not a near miss; it is an untagged criterion that looks
+tagged, and it fails silently.
+
+**Scope, stated plainly.** The seven required sections carry no acceptance-criteria list of their
+own, and this change adds none: the **Success metrics** table is a measurement with a threshold and
+a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance
+criteria this run writes as plain bullets, and the durable home for tagged criteria is the Brief
+`/planning:interview` locks downstream. What this skill owes is the coverage question, the exact
+vocabulary, and the same resolution, so that a PRD-then-interview pipeline does not change its
+answer halfway through.
+
+### Resolution ladder for `acceptance_criteria_format`
+
+Restated here rather than cited: an installed plugin never sees the publishing repository's
+convention docs, so a path citation would make that publisher a runtime dependency of this session.
+
+```markdown
+1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
+   `git rev-parse --show-toplevel`. Never a CWD-relative read.
+2. Resolve the convention home `<home>` from the pointer line in the marked
+   `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
+   (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
+   bundled resolver where the plugin ships one; never hand-parse the root file.
+3. Read `<home>/authoring-formats/README.md` and take the key's value from its fenced
+   YAML block.
+4. Layer order is one layer deep: an explicit invocation argument, where the skill has
+   one, then the team convention doc, then the documented default. A convention-doc
+   surface has no personal overlay, so there is no further layer to consult.
+5. Default: `acceptance_criteria_format` is `free-text` — emit untagged criteria,
+   exactly today's shape.
+6. Degrade soft, and say so. No pointer line, no convention home on disk, no
+   `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
+   each resolve to the documented default. Name the cause in one clause and continue;
+   never hard-fail, and never ask the operator to create the surface mid-task.
+7. Report provenance whenever the resolved value shapes output: name the key, the value,
+   and the layer it came from — `argument`, `team convention doc <path>`, or `default`.
+```
+
+This plugin ships the step-2 resolver at
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home, exit 1 means
+no pointer line is bound, and exits 2 and 3 are usage and grammar failures. Every non-zero exit is a
+step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create
+the surface.
+
 ## PRD review mode (`review`)
 
 When invoked with `review`:
@@ -221,6 +319,7 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 - **Does not gate other skills**. Engineering-internal tasks skip `/planning:prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea**. Not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
 - **Does not write code, run tests, or modify anything outside the topic's contract and memory slices**. Pure product-intent skill
+- **Does not export Gherkin**. Named as a deferred extension point so its absence reads as a decision rather than an oversight: nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios, and the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract, and none of it is built here
 
 ## Composition with other skills
 
