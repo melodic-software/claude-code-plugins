@@ -3,6 +3,19 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.12]
+
+### Added
+
+- **`scan`:** a Budget subsection that reads the caller's effort level through the
+  `${CLAUDE_EFFORT}` substitution and scales the recall stage by it. `low` dispatches one lens with
+  no refill wave and stops at the first verified finding, `medium` dispatches two with one refill
+  wave, and `high` and above keep the existing four-lens budget, so behavior at the default level is
+  unchanged. The verification gate, the 10-candidate wave cap, and the "if uncertain, it is NOT a
+  finding" rule are explicitly outside the scaling. A run names its effort level and lens count in
+  the report metadata so a narrowed sample does not read as a clean lane, and a body read directly
+  rather than skill-loaded falls back to the full budget.
+
 ## [0.9.11]
 
 ### Changed

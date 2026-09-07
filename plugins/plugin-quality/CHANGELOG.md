@@ -5,6 +5,21 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.10]
+
+### Added
+
+- **`audit`:** an Effort subsection that reads the caller's effort level through the
+  `${CLAUDE_EFFORT}` substitution and uses it to select which step 5 review seams run. `low` runs
+  `skill-quality:check` alone and skips the `review:fanout` / `review:quality-gate` breadth pass
+  together with its absent-seam fallback, `medium` adds that pass over findings at or above the
+  run's severity floor (a Step 4 contract-lock decision; unattended it defaults to every in-scope
+  finding), and `high` and above run every seam, so behavior at the default level is
+  unchanged. The context zone still decides *where* a seam runs and outranks effort on that
+  question, so no effort level buys an inline review the dumb or unknown row requires be dispatched,
+  and none trims an evidence flush. Steps 1 through 4 run in full at every level, and a run that
+  skips the breadth pass says so beside the seam list in the write-up.
+
 ## [0.7.9]
 
 ### Changed

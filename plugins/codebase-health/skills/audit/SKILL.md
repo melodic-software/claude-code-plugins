@@ -129,6 +129,32 @@ Settle targets by this ladder:
 
 Never hardcode a repo layout; read a declared value, infer-and-record, or ask.
 
+### Effort, which dimensions this run covers
+
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
+one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+skill-loaded, so the substitution never ran: treat the run as `high` and audit every resolved
+dimension.
+
+Effort selects a **prefix of the resolved dimension list**, in the declaration order the ladder above
+settled. It never adds a dimension the config removed, and never reorders one:
+
+| Effort | Dimensions audited | External research (Phase 2) |
+|---|---|---|
+| `low` | the first resolved dimension only, `documentation` under the bundled set | skipped |
+| `medium` | the first two, `documentation` and `configuration` under the bundled set | run for Phase 2's listed claim types among the two audited dimensions |
+| `high`, `xhigh`, `max` | every resolved dimension | run wherever the tooling exists |
+
+Two rules keep a narrowed run honest. **Name the skipped dimensions in the report**, in the
+"Required sections after the findings table", so an unaudited dimension never reads as a clean one.
+And when effort skips external research, the claim itself is still not skipped: take the same
+graceful-degrade path Phase 2 already defines for a missing research tool, verifying what the local
+repo can confirm and confidence-tagging the externally-unverifiable part `needs-review`.
+
+Research follows the audited prefix, not a named dimension. Phase 2's claim-type list
+(best-practice, library API, configuration behavior) still decides which claims need a tool, and
+`medium` collects those types only from the two dimensions this run actually audits.
+
 ## Emit checklist
 
 For any audit run (Phases 0–3), copy
