@@ -91,8 +91,8 @@ esac
 JUNKGH
   chmod +x "$junk_bin/gh"
   junk_out="$(PATH="$junk_bin:$PATH" GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
-  assert_contains "unparseable gh output is unavailable" "$junk_out" "PRDataUnavailable:"
-  assert_not_contains "unparseable gh output fabricates no count" "$junk_out" "PRCount:"
+  assert_contains "unparsable gh output is unavailable" "$junk_out" "PRDataUnavailable:"
+  assert_not_contains "unparsable gh output fabricates no count" "$junk_out" "PRCount:"
 
   # --- PR map: cannot create the outfile is unavailable, not a count ----------
   # A successful gh lookup used to emit PRCount even when the map file was never
