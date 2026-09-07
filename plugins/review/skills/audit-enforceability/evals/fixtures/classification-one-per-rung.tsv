@@ -1,0 +1,7 @@
+1	style	judgment	editorconfig-severity	in-repo `.editorconfig`: set the ordering and brace rules there
+2	defined-diagnostic	rule-id	analyzer-pack-rule	already deterministic: keep the ai-slop:audit detector and hold its severity
+3	dotnet-invariant	judgment	custom-analyzer	Microsoft Learn, Tutorial: Write your first analyzer and code fix (https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix)
+4	syntactic-pattern	dimension	semgrep-rule	invoke /semgrep-rule-creator:semgrep-rule-creator (if the semgrep-rule-creator plugin is installed); otherwise Semgrep's rule-writing documentation (https://docs.semgrep.dev/writing-rules/overview) and stop
+5	structure	dimension	architecture-test	ArchUnitNET (https://archunitnet.readthedocs.io/) for .NET; dependency-cruiser (https://github.com/sverweij/dependency-cruiser) for JS/TS
+6	process	judgment	hook	run /claude-config:audit-automation-gaps hooks (if the claude-config plugin is installed) and present this stub as a candidate; otherwise record the candidate with frequency, incident history, and the enforcement level already covering it, and stop
+7	design-judgment	judgment	llm-only	none; the finding stays a review-time judgment
