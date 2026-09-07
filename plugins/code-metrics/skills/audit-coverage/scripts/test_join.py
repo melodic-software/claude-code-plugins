@@ -20,6 +20,11 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "join.py"
+PLUGIN_ROOT = SCRIPT_DIR.parents[2]
+LCOV_PARSER = PLUGIN_ROOT / "scripts" / "parsers" / "lcov.py"
+SHORT_NAME_FIXTURE = (
+    PLUGIN_ROOT / "scripts" / "fixtures" / "coverage" / "lcov-short-names.info"
+)
 
 # The suite drives the script at its command line; this import is only for the
 # few cases that pin a helper's signature directly, such as the default value
@@ -1084,6 +1089,170 @@ class FunctionRowTests(unittest.TestCase):
         self.assertTrue(document["measures"])
         for row in document["measures"]:
             self.assertIn(row["cov_source"], ("artifact-region", "line-range"))
+
+
+class ShortNameJoinTests(unittest.TestCase):
+    """The trailing-name fallback, tie-broken by line range.
+
+    An artifact that records a method as `run` rather than as `Alpha.run`
+    matches every function in the file whose name ends in `run`, so the name
+    alone cannot say which one it measured. The committed fixture
+    `../../../scripts/fixtures/coverage/lcov-short-names.info` holds the four
+    shapes that decide it: `src/dispatch.py`, where the record sits in the
+    second function's range; `src/handler.py`, the same shape with the record
+    moved into the first function's range; `src/router.py`, where an `FNDA`
+    with no `FN` declaration names the function and places it nowhere; and
+    `src/relay.py`, where two records named `run` sit inside the first
+    function's range and neither one starts where it does. Every section
+    declares the same two functions,
+    `Alpha.run` at 3-6 and `Beta.run` at 11-14, so what changes between them is
+    only where the coverage sits.
+    """
+
+    PATHS = ("src/dispatch.py", "src/handler.py", "src/router.py", "src/relay.py")
+
+    def _document(self) -> dict:
+        parsed = subprocess.run(
+            [sys.executable, str(LCOV_PARSER), str(SHORT_NAME_FIXTURE)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert parsed.returncode == 0, parsed.stderr
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row(path, name, start, end, "python", 3)
+                    for path in self.PATHS
+                    for name, start, end in (("Alpha.run", 3, 6), ("Beta.run", 11, 14))
+                ]
+            )
+            case.artifact("lcov", json.loads(parsed.stdout))
+            return case.join()
+
+    @staticmethod
+    def _rows(document: dict, path: str) -> dict:
+        return {
+            row["function"]: row
+            for row in document["measures"]
+            if row["file"] == path and row["function"]
+        }
+
+    def test_a_short_name_binds_to_the_function_whose_range_holds_it(self) -> None:
+        # The record is placed at 11-14, which is `Beta.run`. Bound by the
+        # trailing name alone it also reached `Alpha.run`, which never ran, and
+        # reported it at 100 percent out of the other method's region.
+        rows = self._rows(self._document(), "src/dispatch.py")
+        self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 100.0)
+        self.assertEqual(rows["Beta.run"]["cov_source"], "artifact-region")
+        self.assertEqual(rows["Beta.run"]["hit"], 4)
+        self.assertEqual(rows["Alpha.run"]["values"]["coverage_pct"], 0.0)
+        self.assertEqual(rows["Alpha.run"]["cov_source"], "line-range")
+        self.assertIsNone(rows["Alpha.run"]["hit"])
+
+    def test_moving_the_record_moves_the_binding(self) -> None:
+        # The same two functions with the record at 3-6 instead. The binding
+        # follows the range rather than the order the functions were measured
+        # in, so this is the mirror of the case above and not a repeat of it.
+        rows = self._rows(self._document(), "src/handler.py")
+        self.assertEqual(rows["Alpha.run"]["values"]["coverage_pct"], 100.0)
+        self.assertEqual(rows["Alpha.run"]["cov_source"], "artifact-region")
+        self.assertEqual(rows["Alpha.run"]["hit"], 4)
+        self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 0.0)
+        self.assertEqual(rows["Beta.run"]["cov_source"], "line-range")
+        self.assertIsNone(rows["Beta.run"]["hit"])
+
+    def test_an_unplaceable_record_leaves_both_functions_unjoined(self) -> None:
+        # `FNDA:4,run` with no `FN` declaration names a function and places it
+        # at no line at all, so nothing separates the two `run` methods. Both
+        # rows are withheld rather than one of them taking the count.
+        rows = self._rows(self._document(), "src/router.py")
+        for name in ("Alpha.run", "Beta.run"):
+            row = rows[name]
+            self.assertEqual(row["cov_source"], "ambiguous")
+            self.assertIn("coverage-ambiguous", row["labels"])
+            self.assertIsNone(row["values"]["coverage_pct"])
+            self.assertIsNone(row["values"]["crap"])
+            self.assertIsNone(row["hit"])
+            self.assertEqual(row["values"]["cyclomatic"], 3)
+
+    def test_two_records_inside_one_range_leave_that_function_unjoined(self) -> None:
+        # `src/relay.py` declares `run` twice, at 4-4 and at 5-6, two nested
+        # closures the artifact also recorded short, and both sit inside
+        # `Alpha.run` at 3-6. The range narrows the candidates without
+        # separating them, so taking the first would hand `Alpha.run` a hit
+        # count that is one of the two records and no way to tell which. The
+        # row is withheld and says why. `Beta.run` at 11-14 holds neither
+        # record, so it keeps the line-range fallback over its own lines.
+        rows = self._rows(self._document(), "src/relay.py")
+        alpha = rows["Alpha.run"]
+        self.assertEqual(alpha["cov_source"], "ambiguous")
+        self.assertIn("coverage-ambiguous", alpha["labels"])
+        self.assertIsNone(alpha["values"]["coverage_pct"])
+        self.assertIsNone(alpha["values"]["crap"])
+        self.assertIsNone(alpha["hit"])
+        self.assertIn("fall inside this function's line range", alpha["reason"])
+        self.assertEqual(rows["Beta.run"]["cov_source"], "line-range")
+        self.assertEqual(rows["Beta.run"]["values"]["coverage_pct"], 0.0)
+
+    def test_the_lane_run_row_reports_the_functions_it_left_unjoined(self) -> None:
+        # The refusal has to be visible without reading the JSON row by row:
+        # the lane says it measured only part of itself and names what it could
+        # not place, so the document cannot then settle as complete.
+        document = self._document()
+        row = next(
+            entry
+            for entry in document["run"]
+            if entry["lane"] == "python" and entry["measure"] == "coverage"
+        )
+        self.assertEqual(row["status"], "partial")
+        # Both refusals reach the row: the two unplaced records in
+        # `src/router.py` and the two in-range records in `src/relay.py`.
+        self.assertIn("3 function(s) left unjoined", row["reason"])
+        self.assertIn("Alpha.run", row["reason"])
+        self.assertIn("Beta.run", row["reason"])
+        self.assertIn("carries no line range", row["reason"])
+        self.assertIn("fall inside this function's line range", row["reason"])
+
+    def test_a_lone_short_name_still_binds_where_nothing_contests_it(self) -> None:
+        # The single-candidate trailing-name match is unchanged: one record,
+        # one function that could own it, no tie to break. Its start line is
+        # nowhere near the measured range on purpose, which is what an artifact
+        # built from compiled output looks like.
+        with tempfile.TemporaryDirectory() as tmp:
+            document = (
+                JoinCase(tmp)
+                .complexity(
+                    [complexity_row("src/only.py", "Alpha.run", 3, 6, "python", 3)]
+                )
+                .artifact(
+                    "lcov",
+                    {
+                        "src/only.py": {
+                            "lines": {"4": 2, "5": 2},
+                            "functions": [
+                                {
+                                    "name": "run",
+                                    "start_line": 40,
+                                    "end_line": None,
+                                    "hit": 2,
+                                    "lines": None,
+                                }
+                            ],
+                        }
+                    },
+                )
+                .join()
+            )
+        row = self._rows(document, "src/only.py")["Alpha.run"]
+        self.assertEqual(row["hit"], 2)
+        self.assertEqual(row["values"]["coverage_pct"], 100.0)
+        self.assertEqual(
+            next(entry for entry in document["run"] if entry["measure"] == "coverage")[
+                "status"
+            ],
+            "ok",
+        )
 
 
 class OutputTests(unittest.TestCase):

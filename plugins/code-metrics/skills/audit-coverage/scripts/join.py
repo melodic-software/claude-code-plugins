@@ -41,15 +41,21 @@ What comes out:
     counts are 0 when a line-measuring artifact covered the file, whether or
     not it carried any executable line, and `null` when no artifact covering
     the file measures lines at all, which is every function of a file measured
-    only by a Go cover profile.
+    only by a Go cover profile. `cov_source` is `ambiguous` where an artifact
+    recorded a function under a short name that fits more than one function in
+    the file and no line range says which; every value is `null` there and the
+    row carries a `coverage-ambiguous` label, because a missing number an
+    operator can see beats a wrong number they cannot.
   * one `<lane>/coverage` and one `<lane>/crap` run row per lane. A lane whose
     files are missing from every artifact is `unavailable` and says which
     paths were searched; a lane matched in part is `partial` and carries
     `partial, N of M scope files present in the artifacts`, so a total miss
     never reads as "no executable lines" and a document whose own row says
-    `N of M` cannot settle as `complete`. A lane whose cyclomatic collector
-    reports no function end lines (Bash in V1) gets a `not-applicable` CRAP
-    row rather than a null that would hide the whole lane.
+    `N of M` cannot settle as `complete`. A lane holding an ambiguous function
+    row is `partial` as well, and names the functions it left unjoined. A lane
+    whose cyclomatic collector reports no function end lines (Bash in V1) gets
+    a `not-applicable` CRAP row rather than a null that would hide the whole
+    lane.
 
 Path normalization runs on both sides before the join: forward slashes, `./`
 removed, then the repository root and each `coverage.path_prefix_strip`
@@ -448,18 +454,86 @@ def _coverage(
     return executable, hit, round(100.0 * hit / executable, 2), None
 
 
+def _tail(name: str | None) -> str:
+    return (name or "").rsplit(".", 1)[-1]
+
+
+def _anchors(candidate: dict[str, Any]) -> list[int]:
+    """Every line number the artifact placed this coverage record at.
+
+    A record with none of them is unplaced: the artifact named the function
+    and said nothing about where it sits, which is what an lcov `FNDA` with no
+    `FN` declaration produces. No line range can rule such a record in or out.
+    """
+    found: set[int] = set()
+    for key in ("start_line", "end_line"):
+        value = _int(candidate.get(key))
+        if value is not None:
+            found.add(value)
+    found.update(candidate.get("lines") or {})
+    return sorted(found)
+
+
+def _in_range(candidate: dict[str, Any], start: int, end: int) -> bool:
+    """Whether the artifact placed this record inside the measured range.
+
+    Any recorded line inside the range, not every one of them: the two sides
+    disagree about where a function begins by a line or two, since lcov
+    reports the `FN:` declaration line while the coverage.py JSON report gives
+    the first body line and a decorator sits above both, so demanding that
+    every recorded line fall inside would reject the right record over a
+    one-line disagreement. A record that belongs to a different function of
+    the same trailing name is placed elsewhere in the file entirely and has no
+    line inside the range at all.
+    """
+    return any(start <= number <= end for number in _anchors(candidate))
+
+
 def _match_function(
-    functions: list[dict[str, Any]], name: str | None, start_line: int | None
-) -> dict[str, Any] | None:
-    tail = (name or "").rsplit(".", 1)[-1]
+    functions: list[dict[str, Any]],
+    name: str | None,
+    start_line: int | None,
+    end_line: int | None = None,
+    rival: bool = False,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """The artifact record for one measured function, and why there is none.
+
+    Returns the record and `None`, or `None` and the reason the join was
+    refused. A reason means the candidates were ambiguous and the caller must
+    say so in the output; `None, None` means no record belongs to this
+    function and the line-range fallback is the honest measure.
+
+    An exact name wins outright, as before. The trailing-name fallback below
+    it is what a short name in the artifact reaches: `A.run` and `B.run` both
+    end in `run`, so a record named `run` matches each of them by name alone,
+    and binding it to whichever function was measured first hands one of the
+    two the other's coverage with nothing in the report to show for it.
+
+    The line range settles it. The measured side knows where each function
+    begins and ends, the artifact carries line numbers for what it recorded,
+    and the record whose lines fall inside a function's range is that
+    function's record. Where the range test resolves to exactly one candidate,
+    that candidate binds; where it rules every candidate out and the name is
+    contested, this function has no record and the caller falls back to the
+    file's line table over the measured range, which is a real measure of this
+    function rather than another one's number. Where the test cannot separate
+    them, because two records fall inside the range or because the artifact
+    placed none of them anywhere, the join is refused with a reason: a missing
+    number an operator can see beats a wrong number they cannot.
+
+    `rival` is whether another measured function in this file shares the
+    trailing name. Without one there is no ambiguity to resolve, and a lone
+    record whose name ends the same way as the single function that could own
+    it binds as it always has, wherever the artifact placed it.
+    """
+    tail = _tail(name)
     # An exact name is not an identity either: two `render` methods in one file
     # both carry that name, and the records are kept separate now, so taking
     # the first would hand the second method the first one's hit flag and
-    # region. Disambiguate by the start line the complexity collector reported,
-    # exactly as the tail branch below does.
+    # region. Disambiguate by the start line the complexity collector reported.
     exact = [candidate for candidate in functions if candidate.get("name") == name]
     if len(exact) == 1:
-        return exact[0]
+        return exact[0], None
     if exact:
         positioned = [
             candidate
@@ -467,35 +541,63 @@ def _match_function(
             if candidate.get("start_line") == start_line
         ]
         if start_line is not None and len(positioned) == 1:
-            return positioned[0]
-        return None
-    # A shared tail is not an identity: `A.render` and `B.render` both end in
-    # `render`, so an unqualified complexity row matches each. Prefer the
-    # candidate whose start line the complexity collector also reported, and
-    # take a bare tail match only when exactly one candidate carries it;
-    # returning the first would give both rows the same method's coverage.
+            return positioned[0], None
+        return None, None
     if tail:
         shared = [
-            candidate
-            for candidate in functions
-            if (candidate.get("name") or "").rsplit(".", 1)[-1] == tail
+            candidate for candidate in functions if _tail(candidate.get("name")) == tail
         ]
-        if start_line is not None:
-            positioned = [
-                candidate
-                for candidate in shared
-                if candidate.get("start_line") == start_line
-            ]
-            if len(positioned) == 1:
-                return positioned[0]
-        if len(shared) == 1:
-            return shared[0]
         if shared:
-            return None
+            if start_line is not None:
+                positioned = [
+                    candidate
+                    for candidate in shared
+                    if candidate.get("start_line") == start_line
+                ]
+                if len(positioned) == 1:
+                    return positioned[0], None
+            placed = [candidate for candidate in shared if _anchors(candidate)]
+            if placed and start_line is not None and end_line is not None:
+                inside = [
+                    candidate
+                    for candidate in placed
+                    if _in_range(candidate, start_line, end_line)
+                ]
+                if len(inside) == 1:
+                    return inside[0], None
+                if len(inside) > 1:
+                    return None, (
+                        f"{len(inside)} coverage records named `{tail}` fall inside "
+                        "this function's line range"
+                    )
+                if len(placed) == len(shared) and (rival or len(shared) > 1):
+                    # Every record ending in this name is placed somewhere else
+                    # in the file, so none of them is this function's.
+                    #
+                    # Only where the name is contested, though. One record and
+                    # one function that could own it is not a tie to break, and
+                    # an artifact built from compiled output numbers its lines
+                    # by the compiled file while the complexity collector reads
+                    # the source, so the two disagree by more than a decorator.
+                    # Refusing that pair on the range alone would drop coverage
+                    # the artifact really did measure, and there is no second
+                    # function for it to be wrong about.
+                    return None, None
+            if len(shared) == 1 and not rival:
+                return shared[0], None
+            if len(shared) == 1:
+                return None, (
+                    f"the coverage record named `{tail}` carries no line range, "
+                    "and another function here ends in that name"
+                )
+            return None, (
+                f"{len(shared)} coverage records named `{tail}` and no line range "
+                "placing one of them in this function"
+            )
     for candidate in functions:
         if start_line is not None and candidate.get("start_line") == start_line:
-            return candidate
-    return None
+            return candidate, None
+    return None, None
 
 
 def _cyclomatic_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
@@ -540,7 +642,37 @@ def _function_row(
     row: dict[str, Any], entry: dict[str, Any], siblings: list[dict[str, Any]]
 ) -> dict[str, Any]:
     start, end = row["start_line"], row["end_line"]
-    matched = _match_function(entry["functions"], row.get("function"), start)
+    tail = _tail(row.get("function"))
+    # Whether another measured function in this file ends in the same name. A
+    # short name in the artifact is only ambiguous when there is a second
+    # function it could belong to.
+    rival = sum(1 for other in siblings if _tail(other.get("function")) == tail) > 1
+    matched, ambiguity = _match_function(
+        entry["functions"], row.get("function"), start, end, rival
+    )
+    if ambiguity:
+        # Refused, not guessed. Every value the ambiguous record would have
+        # produced is withheld, the row says why through its label, and the
+        # lane's run row carries the reason, so the gap is visible in the
+        # markdown as well as in the JSON.
+        return {
+            "file": row["file"],
+            "function": row["function"],
+            "start_line": start,
+            "end_line": end,
+            "lane": row.get("lane"),
+            "values": {
+                "coverage_pct": None,
+                "lines_executable": None,
+                "lines_hit": None,
+                "cyclomatic": row["values"]["cyclomatic"],
+                "crap": None,
+            },
+            "cov_source": "ambiguous",
+            "hit": None,
+            "labels": ["coverage-ambiguous"],
+            "reason": ambiguity,
+        }
     hit = matched.get("hit") if matched else None
     if matched and matched.get("lines"):
         region = dict(matched["lines"])
@@ -615,6 +747,11 @@ def join(
         lanes.setdefault(lane_of.get(path, "*"), []).append(path)
 
     measures: list[dict[str, Any]] = []
+    # Per lane, the function rows whose coverage record was ambiguous. They
+    # carry no numbers, so the lane's run row has to say the lane was measured
+    # in part; left `ok`, the document would settle as `complete` over rows
+    # that are null for a reason the reader cannot see.
+    unjoined: dict[str, list[dict[str, Any]]] = {}
     for path in scope:
         entry = merged.get(path)
         if not entry:
@@ -647,7 +784,10 @@ def join(
         for row in siblings:
             joined = dict(row)
             joined["file"] = path
-            measures.append(_function_row(joined, entry, siblings))
+            function_row = _function_row(joined, entry, siblings)
+            if "coverage-ambiguous" in (function_row.get("labels") or []):
+                unjoined.setdefault(lane_of.get(path, "*"), []).append(function_row)
+            measures.append(function_row)
 
     formats: list[str] = []
     for artifact in artifacts:
@@ -682,6 +822,17 @@ def join(
             )
         else:
             status, reason = "ok", None
+        ambiguous = unjoined.get(lane) or []
+        if ambiguous:
+            detail = sorted(
+                {f"{item['function']}: {item['reason']}" for item in ambiguous}
+            )
+            shown = "; ".join(detail[:3])
+            if len(detail) > 3:
+                shown += f"; and {len(detail) - 3} more"
+            note = f"{len(ambiguous)} function(s) left unjoined: {shown}"
+            status = "partial" if status == "ok" else status
+            reason = f"{reason}; {note}" if reason else note
         collector = (
             ", ".join(
                 sorted({fmt for path in matched for fmt in merged[path]["formats"]})

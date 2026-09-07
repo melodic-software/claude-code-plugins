@@ -3,6 +3,29 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3]
+
+### Fixed
+
+- **A short name in the artifact no longer binds to the wrong function.** Where a coverage
+  artifact records a function as `run` rather than as `Alpha.run`, the join fell back to matching
+  on the trailing component of the name, and a lone record ending in `run` bound to whichever
+  function was measured first. Two `run` methods in one file therefore reported the same coverage,
+  one of them out of the other method's region, with nothing in the report to say so: a method
+  that never ran read as fully covered, and its CRAP followed. The fallback now places each record
+  by the lines the artifact recorded for it and binds it to the function whose declared range
+  holds them. An exact name still wins outright and is unchanged, and so is a single record whose
+  trailing name no other function in the file shares, since a name nothing contests is not a tie
+  to break and an artifact built from compiled output numbers its lines differently from the
+  source.
+- **An unresolvable short name is now refused rather than guessed.** Where the range cannot
+  separate the candidates, because the artifact placed none of them at a line (an lcov `FNDA`
+  with no `FN` declaration) or because two of them fall inside the same range, the function is
+  left unjoined: the row reads `cov_source: ambiguous` with every value null and a
+  `coverage-ambiguous` label, and the lane's `coverage` run row turns `partial` and names the
+  functions it could not place, so the document cannot settle as `complete` over it. A missing
+  number an operator can see beats a wrong number they cannot.
+
 ## [0.1.1]
 
 ### Fixed
