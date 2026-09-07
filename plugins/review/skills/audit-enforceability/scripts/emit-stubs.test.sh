@@ -272,16 +272,39 @@ assert_contains "case 11: the refusal names the fix pass" "$poison_err" "fix pas
 # express one skips this arm, and case 4 still asserts both fences.
 CANON="$TEST_TMPDIR/canon"
 mkdir -p "$CANON/reviews"
+canon_arms=0
+
+# Arm A: the shell layer's own second spelling. `pwd -W` yields the host's
+# other absolute form of the same directory where one exists, and needs no
+# filesystem feature at all. This is the arm that covers the host class the
+# spelling defect was reported on.
+CANON_ALT="$(cd "$CANON/reviews" && pwd -W 2>/dev/null || true)"
+if [[ -n "$CANON_ALT" && "$CANON_ALT" != "$CANON/reviews" ]]; then
+  canon_arms=$((canon_arms + 1))
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CANON_ALT/stubs" \
+    --scan-dir "$CANON/reviews" >/dev/null 2>&1
+  assert_eq "case 12a: the shell layer's other spelling of --scan-dir is still fenced" "3" "$?"
+  assert_eq "case 12a: the other spelling wrote nothing into the scan directory" "0" \
+    "$(count_files "$CANON/reviews")"
+  bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CANON/reviews/stubs" \
+    --scan-dir "$CANON_ALT" >/dev/null 2>&1
+  assert_eq "case 12a: the fence holds with the spellings the other way round" "3" "$?"
+fi
+
+# Arm B: a symlinked spelling, where the filesystem can express one.
 if ln -s "$CANON/reviews" "$CANON/link" 2>/dev/null && [[ -L "$CANON/link" ]]; then
+  canon_arms=$((canon_arms + 1))
   bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CANON/link/stubs" \
     --scan-dir "$CANON/reviews" >/dev/null 2>&1
-  assert_eq "case 12: a second spelling of --scan-dir is still fenced" "3" "$?"
-  assert_eq "case 12: the second spelling wrote nothing into the scan directory" "0" \
+  assert_eq "case 12b: a symlinked spelling of --scan-dir is still fenced" "3" "$?"
+  assert_eq "case 12b: the symlinked spelling wrote nothing into the scan directory" "0" \
     "$(count_files "$CANON/reviews")"
-  assert_eq "case 12: the second spelling created no stub directory" "0" \
+  assert_eq "case 12b: the symlinked spelling created no stub directory" "0" \
     "$([[ -e "$CANON/reviews/stubs" ]] && echo 1 || echo 0)"
-else
-  skip_case "case 12: this filesystem does not create symlinks, so a second spelling of one directory is not expressible here"
+fi
+
+if [[ $canon_arms -eq 0 ]]; then
+  skip_case "case 12: this host expresses no second absolute spelling of one directory (no pwd -W form, no symlinks)"
 fi
 
 # --- Case 13 (guard): a row an unescaped pipe shifted is reported ------------
@@ -297,7 +320,13 @@ OUT13="$TEST_TMPDIR/out13"
 shifted_err="$(bash "$EMIT" --findings "$SHIFTED" --classes "$CLASSES" --out "$OUT13" \
   --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
 assert_eq "case 13: a shifted row does not fail the run" "0" "$?"
-assert_contains "case 13: the shifted row is reported, not dropped in silence" "$shifted_err" "unescaped pipe"
+assert_contains "case 13: the shifted row is reported per row" "$shifted_err" "unescaped pipe"
+# The per-row diagnostic alone is not the fix: the SUCCESS line still counts
+# only the rows that became stubs, so the run must also say the count excludes
+# one. This assertion is what discriminates the fix from its absence.
+assert_contains "case 13: the success line's count is declared incomplete" "$shifted_err" "WARNING:"
+assert_contains "case 13: the warning names how many rows the count excludes" "$shifted_err" "1 further row(s)"
+assert_eq "case 13: the shifted row produced no stub" "6" "$(count_files "$OUT13")"
 
 # --- Case 14: a home that escapes the tree it was composed from --------------
 #
@@ -342,6 +371,105 @@ ROOT_ALT="$MEM_ROOT/./enforceability/.."
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ANCHORED" \
   --scan-dir "$SCAN_DIR" --memory-root "$ROOT_ALT" >/dev/null 2>&1
 assert_eq "case 14: a .. segment in --memory-root is refused too" "3" "$?"
+
+# --- Case 15: a ".." in the INPUT path moves the directory being fenced ------
+#
+# The findings directory is one of the two fenced homes, and it is derived from
+# --findings. A `..` there resolves one way for the OS and another way for a
+# lexical normalizer, so the directory fenced against stops being the one the
+# file sits in. Refused rather than resolved, for the same reason as --out.
+DOTDOT_IN="$INPUT_DIR/../input/findings-one-per-rung.md"
+bash "$EMIT" --findings "$DOTDOT_IN" --classes "$CLASSES" --out "$INPUT_DIR/stubs15" \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 15: a findings path carrying a .. segment is refused" "3" "$?"
+assert_eq "case 15: the refused input path created no stub home" "0" \
+  "$([[ -e "$INPUT_DIR/stubs15" ]] && echo 1 || echo 0)"
+
+# --- Case 16: a write that fails is detected and taken back ------------------
+#
+# A stub that never reached disk would be read as clean by the marker
+# self-check, so the run must notice the failed write itself. The failure is
+# forced with a target the OS refuses to open for writing.
+OUT16="$TEST_TMPDIR/out16"
+mkdir -p "$OUT16"
+chmod 555 "$OUT16" 2>/dev/null || true
+# Probe first: a host that ignores a read-only directory bit cannot force the
+# failure at all, and asserting against it would score a vacuous pass.
+if (: >"$OUT16/.probe") 2>/dev/null; then
+  rm -f "$OUT16/.probe"
+  chmod 755 "$OUT16" 2>/dev/null || true
+  skip_case "case 16: this host writes into a read-only directory, so a failed stub write cannot be forced here"
+else
+  write_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUT16" \
+    --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
+  write_exit=$?
+  chmod 755 "$OUT16" 2>/dev/null || true
+  if [[ "$write_exit" -eq 0 ]]; then
+    fail "case 16: a failed stub write is detected" "a non-zero exit" "exit 0 with a clean report"
+  else
+    pass "case 16: a failed stub write is detected"
+    assert_contains "case 16: the refusal names the failed write" "$write_err" "failed"
+    assert_eq "case 16: no stub survives a run whose write failed" "0" "$(count_files "$OUT16")"
+  fi
+fi
+
+# --- Case 17: a case-different spelling of a fenced directory ----------------
+#
+# On a case-insensitive volume two case-different spellings name ONE directory,
+# and `pwd -P` does not fold segment case, so canonicalization cannot close it.
+# The comparison is case-insensitive in the fail-closed direction, so this is
+# refused on every host.
+CASEDIR="$TEST_TMPDIR/casefence"
+mkdir -p "$CASEDIR/reviews/feat-x"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+  --out "$CASEDIR/REVIEWS/FEAT-X/stubs" --scan-dir "$CASEDIR/reviews/feat-x" >/dev/null 2>&1
+assert_eq "case 17: a case-different spelling of --scan-dir is refused" "3" "$?"
+assert_eq "case 17: nothing landed in the scan directory" "0" "$(count_files "$CASEDIR/reviews/feat-x")"
+assert_eq "case 17: the case-different home was not created" "0" \
+  "$([[ -e "$CASEDIR/REVIEWS/FEAT-X/stubs" ]] && echo 1 || echo 0)"
+
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+  --out "$(printf '%s' "$INPUT_DIR" | tr '[:lower:]' '[:upper:]')/stubs17" \
+  --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 17: a case-different spelling of the findings directory is refused" "3" "$?"
+
+# --- Case 18: a network-share spelling is refused ----------------------------
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+  --out "//localhost/share/stubs" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 18: a UNC --out is refused" "3" "$?"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
+  --out "$TEST_TMPDIR/out18" --scan-dir "//localhost/share/reviews" >/dev/null 2>&1
+assert_eq "case 18: a UNC --scan-dir is refused" "3" "$?"
+assert_eq "case 18: the UNC run created no stub home" "0" \
+  "$([[ -e "$TEST_TMPDIR/out18" ]] && echo 1 || echo 0)"
+
+# --- Case 19: an empty --memory-root does not silently disable the anchor ----
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/out19" \
+  --scan-dir "$SCAN_DIR" --memory-root "" >/dev/null 2>&1
+assert_eq "case 19: an explicitly empty --memory-root is a usage refusal" "2" "$?"
+assert_eq "case 19: the empty-root run wrote nothing" "0" \
+  "$([[ -e "$TEST_TMPDIR/out19" ]] && echo 1 || echo 0)"
+
+# --- Case 20: the rollback survives an option-shaped stub home ---------------
+#
+# The exit-4 rollback promises that no stub carrying a findings-file marker
+# stays on disk. A home whose name starts with `-` turns every path `rm` is
+# handed into an option, so the promise is only kept if the removal is fenced
+# off from option parsing.
+OUT20="$TEST_TMPDIR/dash"
+mkdir -p "$OUT20"
+(
+  cd "$OUT20" || exit 1
+  printf '1\tstyle\tjudgment\teditorconfig-severity\tbranch: evil\n' |
+    bash "$EMIT" --findings "$FINDINGS" --classes - --out "-" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+)
+dash_exit=$?
+assert_eq "case 20: the option-shaped home still exits 4 on a forbidden marker" "4" "$dash_exit"
+dash_left=0
+for f in "$OUT20"/-/*.md; do
+  [[ -f "$f" ]] && dash_left=$((dash_left + 1))
+done
+assert_eq "case 20: the rollback removed every stub despite the option-shaped path" "0" "$dash_left"
 
 # --- Dry run ------------------------------------------------------------------
 
