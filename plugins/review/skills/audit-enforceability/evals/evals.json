@@ -69,7 +69,7 @@
     {
       "id": 6,
       "name": "no-branch-identity-writes-nothing",
-      "prompt": "/review:audit-enforceability reports/detector-findings.md — I am on a detached checkout and the file has no branch: key.",
+      "prompt": "/review:audit-enforceability reports/detector-findings.md - I am on a detached checkout and the file has no branch: key.",
       "expected_output": "With neither a branch: value in the file nor a resolvable current branch, no branch identity resolves, so nothing is written. The skill says so and reports the classification table only, rather than guessing a home.",
       "narration": true,
       "expectations": [
