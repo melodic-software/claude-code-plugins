@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "fleet",
+  "version": "0.1.0",
+  "description": "Run a Claude Code agent turn on another machine in a personal fleet, over SSH on the tailnet. Every machine signs into its own Claude account, so the built-in peer tools are same-account and never span machines; this carries the SSH path that does, with target resolution from the rendered fleet manifest, one-shot and multi-turn headless recipes, the Windows-side relay that reaches a target's own sessions, and the permission posture that keeps remote agent launches prompting.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "fleet",
+    "cross-machine",
+    "ssh",
+    "tailnet",
+    "headless",
+    "remote-agent",
+    "skill"
+  ]
+}

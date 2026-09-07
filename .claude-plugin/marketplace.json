@@ -567,6 +567,20 @@
       ]
     },
     {
+      "name": "fleet",
+      "source": "./plugins/fleet",
+      "category": "claude-code",
+      "tags": [
+        "fleet",
+        "cross-machine",
+        "ssh",
+        "tailnet",
+        "headless",
+        "remote-agent",
+        "skill"
+      ]
+    },
+    {
       "name": "overengineering",
       "source": "./plugins/overengineering",
       "category": "quality",

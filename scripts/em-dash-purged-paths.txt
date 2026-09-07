@@ -88,6 +88,13 @@ plugins/education/README.md
 plugins/eol-normalizer/README.md
 plugins/event-storming/README.md
 plugins/firecrawl/README.md
+# The fleet plugin was authored purged rather than purged later, so its changelog
+# and reference spoke are declared alongside the README and the skill body. The
+# reference glob stops short of evals/, which is JSON and not prose.
+plugins/fleet/CHANGELOG.md
+plugins/fleet/README.md
+plugins/fleet/skills/*/SKILL.md
+plugins/fleet/skills/*/reference/*.md
 plugins/github/README.md
 plugins/github/skills/*/SKILL.md
 plugins/go-format/README.md
