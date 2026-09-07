@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1]
+
+### Fixed
+
+- **`design`:** the skill body named no resolver for step 2 of the `diagram_dialect` ladder and
+  told the running agent the plugin ships none, so every run degraded to the default no matter what
+  the consuming team declared. A consumer setting `diagram_dialect.data` to `dbml` was served
+  `mermaid`, and the system-scope C4 container view was unreachable for every consumer, since
+  `diagram_dialect.system` could never resolve to a value. The body now names the bundled resolver
+  at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` with its exit-code contract, in
+  the same terms `interview` and `prd` already use. The resolver itself shipped in 0.39.0; only the
+  `design` body was left behind. The untrusted-input rule and the restate-rather-than-cite
+  rationale are unchanged, and no dialect branch below the ladder moved.
+
 ## [0.39.0]
 
 ### Added
