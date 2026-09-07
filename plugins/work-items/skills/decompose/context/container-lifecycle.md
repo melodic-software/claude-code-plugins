@@ -59,14 +59,15 @@ coordination provider instead of publishing a spec that cannot travel.
     the file is not a typed artifact: skip it and say nothing. The keys and their value sets are
     restated here rather than cited because an installed plugin never sees the publishing
     repository at runtime.
-  - **How many.** Every matching file, never "the" artifact. A `data` or `system` session labels
-    one; an **`integration` session labels two**, its flows diagram and its contract sketch, and
-    both are inlined, each with its own fenced block and its own note. Order them by filename so
-    a re-publish is deterministic. Assume no count.
-  - **What to inline.** The artifact's single fenced block, copied verbatim including its info
-    string, and nothing else. Not the frontmatter, and not the prose that follows the block: that
-    prose is design exploration, and carrying it over is the inflation this rule otherwise
-    forbids. The producer already fixes the info string per dialect (`mermaid`, `dbml`, `yaml`
+  - **How many.** Every matching file, never "the" artifact. A `data` session labels one; a
+    `system` session labels one or none, depending on whether that scope emitted a typed artifact
+    at all; an **`integration` session labels two**, its flows diagram and its contract sketch,
+    and both are inlined, each with its own fenced block and its own note. Order them by filename
+    so a re-publish is deterministic. Assume no count.
+  - **What to inline.** The artifact's FIRST fenced block, the one immediately after the
+    frontmatter, copied verbatim including its info string, and nothing else. Not the frontmatter,
+    and not the prose that follows the block, which may carry fences of its own: that prose is
+    design exploration, and carrying it over is the inflation this rule otherwise forbids. The producer already fixes the info string per dialect (`mermaid`, `dbml`, `yaml`
     for the OpenAPI 3.1 sketch, `likec4`, `plantuml`), so one path serves every dialect. Only
     mermaid renders as a diagram in the bundled providers; the rest land as plain code fences,
     which is why the note below has to name the dialect.
