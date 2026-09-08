@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # worktree-root-doctor.sh — conformance check for the worktreeroot.path
-# convention (#2612; legacy alias melodic.worktreeroot is still read). The
+# convention (#2612). The
 # includeIf machinery the convention leans on for
 # per-identity/per-repository roots fails UNIFORMLY QUIETLY: an unknown
 # condition keyword, a missing include file, a plain value parsed after an
@@ -28,8 +28,8 @@
 #   * which rule supplied the root — `--show-origin` per value; `--show-scope`
 #     is useless here (it collapses a conditionally-included file to `global`).
 #   * a plain value parsed after an include-supplied one — precedence is parse
-#     order, not specificity, so a `[worktreeroot] path` (or the legacy
-#     `[melodic] worktreeroot`) below the includeIf block silently overrides
+#     order, not specificity, so a `[worktreeroot] path` below the includeIf
+#     block silently overrides
 #     every identity include.
 #   * declared-but-unfired includeIf conditions — `git config --list` emits
 #     `includeif.<condition>.path` for every DECLARED condition, matched or
@@ -248,9 +248,9 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
 done
 
 # --- Resolution: which rule supplied the worktree root ------------------------
-# Shared resolver picks the winning key (worktreeroot.path, else the legacy
-# alias). Origin attribution then loops THAT key so empty-last fallthrough
-# matches create.sh. Never write git config.
+# Shared resolver picks worktreeroot.path (and rewrites a retired alias when
+# one is still present). Origin attribution then loops THAT key so empty-last
+# fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
 if worktree_root_resolve "$repo_dir"; then
@@ -267,7 +267,7 @@ fi
 
 nvals=${#val_values[@]}
 if ((nvals == 0)) || [[ -z "$winning_key" ]]; then
-  note "worktreeroot.path is unset — the creation helper falls through to the worktree_root plugin option, then the plugin data directory. Set the key so every consumer can read the root: git config --global worktreeroot.path <dir-outside-every-repo>. The legacy alias melodic.worktreeroot is still read when the current key is unset."
+  note "worktreeroot.path is unset — the creation helper falls through to the worktree_root plugin option, then the plugin data directory. Set the key so every consumer can read the root: git config --global worktreeroot.path <dir-outside-every-repo>."
 else
   win_idx=$((nvals - 1))
   win_val="${val_values[win_idx]}"
@@ -284,9 +284,6 @@ else
     done
   fi
   ok "$winning_key = $win_val (supplied by $supplied_by)"
-  if [[ "$winning_key" == "$WORKTREE_ROOT_LEGACY_KEY" ]]; then
-    note "worktreeroot.path is unset; using legacy $WORKTREE_ROOT_LEGACY_KEY. Migrate with: $(worktree_root_migrate_cmd "$win_origin" "$win_val")"
-  fi
 
   # Parse order is precedence: a plain value the parser meets AFTER an
   # include-supplied one silently overrides every identity include.

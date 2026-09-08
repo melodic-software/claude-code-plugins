@@ -255,9 +255,9 @@ run_git_probe() {
   )
 }
 
-# Convention-root reads (worktreeroot.path, then legacy melodic.worktreeroot)
-# must see global/includeIf config, so they are a separate allowlist from
-# run_git_probe. Fixed keys and flag orders only.
+# Convention-root reads (worktreeroot.path, plus a retired alias the
+# resolver still dual-reads) must see global/includeIf config, so they are
+# a separate allowlist from run_git_probe. Fixed keys and flag orders only.
 convention_git_allowed() {
   case "${1:-}" in
   -C)
@@ -272,11 +272,13 @@ convention_git_allowed() {
       case "$#" in
       6)
         [[ "$4" == "--get-all" && "$5" == "--type=path" &&
-          ( "$6" == "worktreeroot.path" || "$6" == "melodic.worktreeroot" ) ]]
+          ( "$6" == "${WORKTREE_ROOT_CURRENT_KEY:-worktreeroot.path}" ||
+            ( -n "${WORKTREE_ROOT_LEGACY_KEY:-}" && "$6" == "$WORKTREE_ROOT_LEGACY_KEY" ) ) ]]
         ;;
       7)
         [[ "$4" == "--get-all" && "$5" == "--show-origin" && "$6" == "--type=path" &&
-          ( "$7" == "worktreeroot.path" || "$7" == "melodic.worktreeroot" ) ]]
+          ( "$7" == "${WORKTREE_ROOT_CURRENT_KEY:-worktreeroot.path}" ||
+            ( -n "${WORKTREE_ROOT_LEGACY_KEY:-}" && "$7" == "$WORKTREE_ROOT_LEGACY_KEY" ) ) ]]
         ;;
       *) return 1 ;;
       esac
@@ -840,8 +842,8 @@ physical_path() {
 }
 
 # Worktree-root convention is owned by source-control (#2597 / #2606). This collector reads it and
-# reports conformance; it never invents a default root. Prefer the machine-readable git key
-# (worktreeroot.path, then the legacy alias melodic.worktreeroot) when present; otherwise the
+# reports conformance; it never invents a default root. Prefer the
+# machine-readable git key worktreeroot.path when present; otherwise the
 # source-control pluginConfigs / CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT surface. Every git-config
 # read is gated on rev-parse --git-dir first: under dubious ownership, git config --get returns
 # the global default as though it were the repository's answer (rc=0, no stderr). Attribution
@@ -905,12 +907,10 @@ under_configured_root() {
   [[ "$wt_key" == "$root_key" || "$wt_key" == "$root_key"/* ]]
 }
 
-# Gate + last-wins read of worktreeroot.path (then legacy melodic.worktreeroot)
-# from one repository. Sets CONFIGURED_WORKTREE_ROOT / _ORIGIN / _SOURCE on success.
-try_read_melodic_worktree_root() {
-  local probe="$1" line origin value last_origin=""
-  [[ -n "$probe" && -d "$probe" ]] || return 1
-  worktree_root_resolve "$probe" || return 1
+# Last --show-origin record for one worktree-root key. Prints the origin
+# token (file:/path, command:, …) or nothing.
+worktree_root_show_origin() {
+  local probe="$1" key="$2" line origin value last_origin=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] || continue
@@ -924,10 +924,25 @@ try_read_melodic_worktree_root() {
     fi
     [[ -n "$value" ]] || continue
     last_origin="$origin"
-  done < <(run_convention_git -C "$probe" config --get-all --show-origin --type=path "$WORKTREE_ROOT_KEY_USED" 2>/dev/null)
+  done < <(run_convention_git -C "$probe" config --get-all --show-origin --type=path "$key" 2>/dev/null)
+  [[ -n "$last_origin" ]] || return 1
+  printf '%s' "$last_origin"
+}
+
+# Gate + last-wins read of worktreeroot.path from one repository. Sets
+# CONFIGURED_WORKTREE_ROOT / _ORIGIN / _SOURCE on success. Origin may still
+# live on a retired alias under a read-only git wrapper.
+try_read_worktree_root() {
+  local probe="$1" last_origin=""
+  [[ -n "$probe" && -d "$probe" ]] || return 1
+  worktree_root_resolve "$probe" || return 1
+  last_origin="$(worktree_root_show_origin "$probe" "$WORKTREE_ROOT_CURRENT_KEY" || true)"
+  if [[ -z "$last_origin" && -n "${WORKTREE_ROOT_LEGACY_KEY:-}" ]]; then
+    last_origin="$(worktree_root_show_origin "$probe" "$WORKTREE_ROOT_LEGACY_KEY" || true)"
+  fi
   CONFIGURED_WORKTREE_ROOT="$WORKTREE_ROOT_VALUE"
   CONFIGURED_WORKTREE_ROOT_ORIGIN="${last_origin:-unknown}"
-  CONFIGURED_WORKTREE_ROOT_SOURCE="$WORKTREE_ROOT_KEY_USED"
+  CONFIGURED_WORKTREE_ROOT_SOURCE="$WORKTREE_ROOT_CURRENT_KEY"
   return 0
 }
 
@@ -987,17 +1002,17 @@ resolve_configured_worktree_root() {
   CONFIGURED_WORKTREE_ROOT=""
   CONFIGURED_WORKTREE_ROOT_ORIGIN=""
   CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
-  # Fleet-wide single root: first TARGET whose worktreeroot.path (or legacy
-  # alias) resolves wins (discovery order). Per-repository includeIf roots that
+  # Fleet-wide single root: first TARGET whose worktreeroot.path
+  # resolves wins (discovery order). Per-repository includeIf roots that
   # intentionally differ are not modeled — the header and every conformance
   # finding name that one root. Prefer a machine-global pluginConfigs /
   # CLAUDE_PLUGIN_OPTION value when repositories disagree.
   for probe in "${TARGETS[@]:-}"; do
     [[ -n "$probe" ]] || continue
-    try_read_melodic_worktree_root "$probe" && return 0
+    try_read_worktree_root "$probe" && return 0
   done
   if [[ -n "$PROJECT_DIR" ]]; then
-    try_read_melodic_worktree_root "$PROJECT_DIR" && return 0
+    try_read_worktree_root "$PROJECT_DIR" && return 0
   fi
   try_read_source_control_worktree_root && return 0
   return 1
@@ -2123,7 +2138,7 @@ analyze_repo() {
       print_field 'Worktree placement' \
         "$repo_wt_linked linked; no configured worktree root — locations: $placement_paths"
       emit_finding LOW worktree-root-unconfigured "$canonical" \
-        "$repo_wt_linked linked worktree(s) with no configured worktree root (worktreeroot.path / legacy alias and source-control worktree_root unset); placement: $placement_paths" \
+        "$repo_wt_linked linked worktree(s) with no configured worktree root (worktreeroot.path and source-control worktree_root unset); placement: $placement_paths" \
         "Descriptive only; no convention asserted" \
         "Set worktreeroot.path or source-control worktree_root, then rerun for conformance"
     fi
@@ -2619,7 +2634,7 @@ if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
     "Use /source-control:worktree create at the configured root; tool-owned entries are exempt"
 else
   emit_finding LOW worktree-root-unconfigured "fleet" \
-    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path / legacy alias and source-control worktree_root unset) — placement reported without asserting a convention" \
+    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset) — placement reported without asserting a convention" \
     "Descriptive only; no convention asserted" \
     "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
 fi

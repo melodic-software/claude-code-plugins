@@ -19,7 +19,7 @@
 #
 # Root-resolution contract, most specific first (#2610/#2612):
 #   1. an explicit --root/--root-file — a per-invocation caller decision;
-#   2. `worktreeroot.path` (legacy alias `melodic.worktreeroot`), read from the
+#   2. `worktreeroot.path`, read from the
 #      TARGET repository with includes on, so git's own includeIf machinery
 #      supplies per-identity and per-repository answers
 #      (reference/worktree-root-convention.md is the convention's owner doc);
@@ -146,9 +146,8 @@ Usage:
 
 Root resolution, most specific first:
   --root/--root-file (explicit, per invocation), then worktreeroot.path
-  (legacy alias melodic.worktreeroot) read from the target repository (includes
-  on, --type=path, last value wins — includeIf supplies per-identity/per-repo
-  answers), then
+  read from the target repository (includes on, --type=path, last value
+  wins — includeIf supplies per-identity/per-repo answers), then
   --fallback-root/--fallback-root-file (the machine-global plugin option), then
   --data-root-file (<data-dir>/worktrees). Absent all: refuse (exit 3).
 
@@ -174,7 +173,7 @@ Options:
   --fallback-root <dir>
                       The machine-global worktree_root PLUGIN OPTION, consulted
                       only when neither an explicit --root/--root-file nor
-                      worktreeroot.path (legacy alias melodic.worktreeroot) yields
+                      worktreeroot.path yields
                       a value. Ranks
                       below the key deliberately: the key is per-repo/per-identity
                       capable and readable by every consumer, while the plugin
@@ -482,13 +481,13 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
-# Rung 2 (#2610): worktreeroot.path (legacy alias melodic.worktreeroot) — the
-# machine truth for worktree placement, readable by anything that can run
-# `git config --get`, and the layer where git's own includeIf machinery
-# supplies per-identity and per-repository answers (#2612). Owner doc:
-# reference/worktree-root-convention.md. Dual-read lives in
-# worktree-root-resolve.sh so every consumer shares last-wins, empty-last
-# fallthrough, and new-key-wins.
+# Rung 2 (#2610): worktreeroot.path — the machine truth for worktree
+# placement, readable by anything that can run `git config --get`, and the
+# layer where git's own includeIf machinery supplies per-identity and
+# per-repository answers (#2612). Owner doc:
+# reference/worktree-root-convention.md. Resolution lives in
+# worktree-root-resolve.sh so every consumer shares last-wins and empty-last
+# fallthrough.
 #
 # Three reading rules, each load-bearing:
 #   * Read from $toplevel — the TARGET repository — so an includeIf condition

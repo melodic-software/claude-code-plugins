@@ -60,10 +60,15 @@ scripts/compose-statusline-wiring.sh
 # copy it into plugins/rate-limit-guard/scripts/ to fix a drift failure.
 scripts/compose-statusline-wiring.test.sh
 
-# No dedicated check: worktree-root dual-read resolver. Canonical copy:
+# No dedicated check: worktree-root resolver. Canonical copy:
 # plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
 scripts/worktree-root-resolve.sh
+
+# No dedicated check: retired worktree-root alias peel, sourced by the
+# resolver. Delete both copies after 2026-12-31. Canonical copy:
+# plugins/source-control/scripts/worktree-root-legacy.sh.
+scripts/worktree-root-legacy.sh
 
 # Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
 lib/resolve-convention-home.sh

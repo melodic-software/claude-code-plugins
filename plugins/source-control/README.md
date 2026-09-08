@@ -281,7 +281,7 @@ here-string would cost 1 creation, but bash fills a here-string's pipe itself an
 deadlocks at the pipe capacity on Git Bash (#1587), which on a hook is the timeout. The
 block-path spread is the ancestor walk: a `.git`-directory target asks `git rev-parse` a
 third time, and a block message that names a configured root reads the
-`worktreeroot.path` key (legacy alias `melodic.worktreeroot` is still accepted). `hooks/worktree-gates-spawn-budget.test.sh` holds these
+`worktreeroot.path` key. `hooks/worktree-gates-spawn-budget.test.sh` holds these
 numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
 fails when a gate feeds its payload to a reader by here-string.
 

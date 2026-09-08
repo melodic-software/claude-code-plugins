@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.72]
+
+### Changed
+
+- **Worktree root:** a leftover publisher-named git config alias is rewritten
+  onto `worktreeroot.path` at the winning origin and then unset, so
+  downstream machines are left on the current key. Skill bodies and
+  user-facing remedies name only `worktreeroot.path`. The peel lives in
+  `scripts/worktree-root-legacy.sh` (byte-identical copy in
+  `repo-fleet-hygiene`) and is deleted after 2026-12-31. Fleet audit stays
+  read-only. Ruling: ADR 0031.
+
 ## [0.55.71]
 
 ### Changed

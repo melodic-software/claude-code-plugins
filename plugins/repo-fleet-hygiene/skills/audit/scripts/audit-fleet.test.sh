@@ -1501,8 +1501,8 @@ MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
 
-assert_contains_file "header names configured melodic worktree root" \
-  "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
+assert_contains_file "header names configured worktree root from a retired alias" \
+  "Worktree root: $TMP/conform-root (source: worktreeroot.path" "$conform_out"
 assert_contains_file "origin attribution uses --show-origin file: form" \
   "origin: file:$TMP/mock-gitconfig" "$conform_out"
 
@@ -1615,7 +1615,7 @@ unset MOCK_MELODIC_WORKTREE_ROOT
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" \
   HOME="$TMP/settings-home" CLAUDE_CONFIG_DIR="$TMP/settings-home/.claude" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$plugin_out" 2>&1 || true
-assert_contains_file "pluginConfigs worktree_root is used when melodic key unset" \
+assert_contains_file "pluginConfigs worktree_root is used when git key unset" \
   "source: source-control:worktree_root" "$plugin_out"
 assert_contains_file "pluginConfigs origin names settings.json" \
   "settings.json" "$plugin_out"

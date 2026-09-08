@@ -4,6 +4,8 @@
 # GIT_CONFIG_NOSYSTEM, HOME pinned inside the sandbox) and assert on the
 # doctor's findings lines and exit codes. Every fixture reproduces one of the
 # silent-failure classes the doctor exists to make loud. No network.
+# Retired-alias rewrite is owned by worktree-root-legacy.sh (delete after
+# 2026-12-31).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,31 +102,33 @@ assert_contains "the winning value is reported ok with its value" "$OUT" \
   "worktreeroot.path = $TEST_TMPDIR/wt-root"
 assert_contains "the winner names the file that supplied it" "$OUT" "supplied by"
 
-# Legacy alias still answers when the current key is unset.
+# A retired alias is rewritten onto worktreeroot.path at the origin file.
 LEGACY_KEYED="$(mkrepo legacykeyed)"
 fgit -C "$LEGACY_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-legacy"
 run "$EMPTY_GCFG" "$LEGACY_KEYED"
-assert_exit "a legacy-keyed repo exits 0" 0 "$RC"
-assert_contains "the legacy winning value is reported ok" "$OUT" \
-  "melodic.worktreeroot = $TEST_TMPDIR/wt-root-legacy"
-assert_contains "a legacy-only repo names the migrate command" "$OUT" \
-  "git config --file"
-assert_contains "a legacy-only migrate writes the current key into the origin file" "$OUT" \
-  "worktreeroot.path"
+assert_exit "a retired-alias repo exits 0" 0 "$RC"
+assert_contains "the rewritten current key is reported ok" "$OUT" \
+  "worktreeroot.path = $TEST_TMPDIR/wt-root-legacy"
+assert_not_contains "the retired alias is not named in the report" "$OUT" \
+  "melodic.worktreeroot ="
+legacy_now=$(fgit -C "$LEGACY_KEYED" config --get --type=path worktreeroot.path)
+legacy_old_rc=0
+fgit -C "$LEGACY_KEYED" config --get melodic.worktreeroot >/dev/null 2>&1 || legacy_old_rc=$?
+assert_eq "the doctor rewrote worktreeroot.path at the origin" \
+  "$TEST_TMPDIR/wt-root-legacy" "$legacy_now"
+assert_exit "the retired alias is unset after the doctor run" 1 "$legacy_old_rc"
 
-# A space in the root must be quoted so git config does not take a value-pattern.
+# A space in the root must survive the rewrite as a single git-config value.
 SPACE_ROOT="$TEST_TMPDIR/wt root space"
 mkdir -p "$SPACE_ROOT"
 SPACE_KEYED="$(mkrepo spacekeyed)"
 fgit -C "$SPACE_KEYED" config melodic.worktreeroot "$SPACE_ROOT"
 run "$EMPTY_GCFG" "$SPACE_KEYED"
-assert_exit "a space-bearing legacy root exits 0" 0 "$RC"
-space_quoted=$(printf '%q' "$SPACE_ROOT")
-assert_contains "a space-bearing migrate command quotes the value" "$OUT" "$space_quoted"
-assert_contains "a space-bearing migrate still uses --file of the origin" "$OUT" \
-  "git config --file"
+assert_exit "a space-bearing retired alias exits 0" 0 "$RC"
+space_now=$(fgit -C "$SPACE_KEYED" config --get --type=path worktreeroot.path)
+assert_eq "a space-bearing rewrite keeps the whole path" "$SPACE_ROOT" "$space_now"
 
-# Both keys set: the current key wins.
+# Both keys set: the current key wins and the leftover alias is dropped.
 BOTH_KEYED="$(mkrepo bothkeyed)"
 fgit -C "$BOTH_KEYED" config worktreeroot.path "$TEST_TMPDIR/wt-root-new"
 fgit -C "$BOTH_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-old"
@@ -132,8 +136,11 @@ run "$EMPTY_GCFG" "$BOTH_KEYED"
 assert_exit "both keys set exits 0" 0 "$RC"
 assert_contains "the current key wins when both are set" "$OUT" \
   "worktreeroot.path = $TEST_TMPDIR/wt-root-new"
-assert_not_contains "the outranked legacy value is not the ok line" "$OUT" \
+assert_not_contains "the outranked retired value is not the ok line" "$OUT" \
   "melodic.worktreeroot = $TEST_TMPDIR/wt-root-old"
+both_old_rc=0
+fgit -C "$BOTH_KEYED" config --get melodic.worktreeroot >/dev/null 2>&1 || both_old_rc=$?
+assert_exit "a leftover retired alias is unset when the current key already answers" 1 "$both_old_rc"
 
 # --- includeIf attribution: the winner names WHICH condition fired ---------------
 # The include is anchored by repository NAME (**/<name>/.git) so the pattern is
@@ -144,7 +151,7 @@ INCREPO="$INCREPO_PARENT/increpo-fixture"
 mkdir -p "$INCREPO"
 fgit -C "$INCREPO" init -q -b main >/dev/null 2>&1
 INC_FILE="$TEST_TMPDIR/identity-work.inc"
-printf '[melodic]\n\tworktreeroot = %s\n' "$TEST_TMPDIR/work-root" >"$INC_FILE"
+printf '[worktreeroot]\n\tpath = %s\n' "$TEST_TMPDIR/work-root" >"$INC_FILE"
 INC_GCFG="$TEST_TMPDIR/gitconfig-include"
 printf '[includeIf "gitdir/i:**/increpo-fixture/.git"]\n\tpath = %s\n' "$INC_FILE" >"$INC_GCFG"
 run "$INC_GCFG" "$INCREPO"
@@ -199,7 +206,7 @@ fi
 SHADOW_GCFG="$TEST_TMPDIR/gitconfig-shadow"
 {
   printf '[includeIf "gitdir/i:**/increpo-fixture/.git"]\n\tpath = %s\n' "$INC_FILE"
-  printf '[melodic]\n\tworktreeroot = %s\n' "$TEST_TMPDIR/machine-default"
+  printf '[worktreeroot]\n\tpath = %s\n' "$TEST_TMPDIR/machine-default"
 } >"$SHADOW_GCFG"
 run "$SHADOW_GCFG" "$INCREPO"
 assert_exit "a plain value shadowing an include is a finding (exit 1)" 1 "$RC"
@@ -211,7 +218,7 @@ assert_contains "the shadow warning names the remedy (move the default up)" "$OU
 # The correct layering — plain default FIRST, include after — is a clean report.
 LAYERED_GCFG="$TEST_TMPDIR/gitconfig-layered"
 {
-  printf '[melodic]\n\tworktreeroot = %s\n' "$TEST_TMPDIR/machine-default"
+  printf '[worktreeroot]\n\tpath = %s\n' "$TEST_TMPDIR/machine-default"
   printf '[includeIf "gitdir/i:**/increpo-fixture/.git"]\n\tpath = %s\n' "$INC_FILE"
 } >"$LAYERED_GCFG"
 run "$LAYERED_GCFG" "$INCREPO"
@@ -219,12 +226,12 @@ assert_exit "the correct layering is a clean report (exit 0)" 0 "$RC"
 assert_contains "the include-supplied winner is reported as working layering" "$OUT" \
   "the layering is working"
 assert_contains "the layered winner is the include's value" "$OUT" \
-  "melodic.worktreeroot = $TEST_TMPDIR/work-root"
+  "worktreeroot.path = $TEST_TMPDIR/work-root"
 
 # --- The root itself must not sit inside a working tree --------------------------
 
 NESTED_ROOT_REPO="$(mkrepo nestroot)"
-fgit -C "$NESTED_ROOT_REPO" config melodic.worktreeroot "$NESTED_ROOT_REPO/worktrees"
+fgit -C "$NESTED_ROOT_REPO" config worktreeroot.path "$NESTED_ROOT_REPO/worktrees"
 mkdir -p "$NESTED_ROOT_REPO/worktrees"
 run "$EMPTY_GCFG" "$NESTED_ROOT_REPO"
 assert_exit "a root inside a working tree is a finding (exit 1)" 1 "$RC"

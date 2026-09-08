@@ -178,13 +178,19 @@ assert_contains "the key outranks the plugin option in the message" "$ERR" \
 assert_not_contains "the outranked option root is not the named remedy" "$ERR" \
   "$TEST_TMPDIR/option-root"
 
-# Legacy alias still names the root when the current key is unset.
+# A retired alias still names the root when the current key is unset, and is rewritten.
 LEGACYREPO="$(mkrepo)"
 git -C "$LEGACYREPO" config melodic.worktreeroot "$TEST_TMPDIR/legacy-root"
 run "$LEGACYREPO" "git worktree add $LEGACYREPO/wt-legacy"
-assert_exit "a legacy-keyed repo still blocks the nested target" 2 "$RC"
-assert_contains "the message names the legacy git-key root" "$ERR" \
+assert_exit "a retired-alias repo still blocks the nested target" 2 "$RC"
+assert_contains "the message names the git-key root" "$ERR" \
   "$TEST_TMPDIR/legacy-root"
+legacy_rewritten=$(git -C "$LEGACYREPO" config --get --type=path worktreeroot.path)
+assert_eq "the containment gate rewrote worktreeroot.path" \
+  "$TEST_TMPDIR/legacy-root" "$legacy_rewritten"
+legacy_left_rc=0
+git -C "$LEGACYREPO" config --get melodic.worktreeroot >/dev/null 2>&1 || legacy_left_rc=$?
+assert_exit "the containment gate unset the retired alias" 1 "$legacy_left_rc"
 
 # An empty last value is still the last-wins record. Command substitution would
 # strip it and leave the preceding path; the shared resolver keeps it empty and

@@ -1,49 +1,31 @@
 #!/usr/bin/env bash
-# worktree-root-resolve.sh — last-wins read of worktreeroot.path, then the
-# legacy alias melodic.worktreeroot. Owner:
-# reference/worktree-root-convention.md (source-control).
+# worktree-root-resolve.sh — last-wins read of worktreeroot.path.
+# Owner: reference/worktree-root-convention.md (source-control).
 #
 # Git-config(1) Variables invites third-party keys that do not collide with
 # Git or popular tools. Git owns worktree.*; git-wt owns wt.basedir. This
-# capability section is the collision-free spelling. The publisher-named
-# alias is still read so existing machines are not stranded.
+# capability section is the collision-free spelling.
+#
+# A retired alias peel (auto-rewrite onto this key, then drop) lives in
+# worktree-root-legacy.sh and is deleted after 2026-12-31.
 #
 # Sourced or executed. When executed:
 #   worktree-root-resolve.sh --repo-dir <dir>
 #   stdout: the path (one line) or empty
-#   stderr: one notice if the legacy key answered
 #   exit 0 (including unset), 2 usage
 #
 # When sourced, call worktree_root_resolve <repo-dir>
 #   returns 0 and sets WORKTREE_ROOT_VALUE / WORKTREE_ROOT_KEY_USED
-#   returns 1 if neither key yields a non-empty last value
-#   prints the legacy notice to stderr
+#   returns 1 if no key yields a non-empty last value
+#   KEY_USED is always the current key when a value is returned
 #
 # Git invocation: _worktree_root_git if that function is defined (the
 # fleet-audit allowlist wrapper), else git. No scope flag: includes stay on.
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
-WORKTREE_ROOT_LEGACY_KEY="melodic.worktreeroot"
 
-# Copy-pasteable write of the current key. With an origin file, --file
-# preserves local / includeIf / global rather than promoting into --global.
-# The value is shell-quoted so whitespace is not a second git-config argument.
-worktree_root_migrate_cmd() {
-  local origin="" value qfile="" qval=""
-  if [[ $# -eq 2 ]]; then
-    origin="$1"
-    value="$2"
-  else
-    value="${1:-}"
-  fi
-  printf -v qval '%q' "$value"
-  if [[ -n "$origin" ]]; then
-    printf -v qfile '%q' "$origin"
-    printf 'git config --file %s %s %s' "$qfile" "$WORKTREE_ROOT_CURRENT_KEY" "$qval"
-  else
-    printf 'git config %s %s' "$WORKTREE_ROOT_CURRENT_KEY" "$qval"
-  fi
-}
+# shellcheck source=worktree-root-legacy.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-root-legacy.sh"
 
 worktree_root_git() {
   if declare -F _worktree_root_git >/dev/null 2>&1; then
@@ -70,7 +52,8 @@ worktree_root_last_raw() {
 
 # Sets WORKTREE_ROOT_VALUE and WORKTREE_ROOT_KEY_USED. Empty last value on a
 # key is not usable: try the next key (matching create.sh falling through
-# when tail -n 1 is blank).
+# when tail -n 1 is blank). A retired-alias hit is rewritten onto the current
+# key at the winning origin unless the git wrapper is read-only.
 worktree_root_resolve() {
   local repo="$1" raw=""
   # Exported: sourced callers (create, doctor, containment, fleet audit) read these.
@@ -83,16 +66,15 @@ worktree_root_resolve() {
     [[ -n "$raw" ]]; then
     WORKTREE_ROOT_VALUE="$raw"
     WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_CURRENT_KEY"
+    worktree_root_legacy_retire "$repo"
     return 0
   fi
-  if raw=$(worktree_root_last_raw "$repo" "$WORKTREE_ROOT_LEGACY_KEY") &&
+  if [[ -n "${WORKTREE_ROOT_LEGACY_KEY:-}" ]] &&
+    raw=$(worktree_root_last_raw "$repo" "$WORKTREE_ROOT_LEGACY_KEY") &&
     [[ -n "$raw" ]]; then
     WORKTREE_ROOT_VALUE="$raw"
-    WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_LEGACY_KEY"
-    printf '%s: %s is unset; using legacy %s. Migrate with: %s\n' \
-      "${PROG:-worktree-root-resolve.sh}" \
-      "$WORKTREE_ROOT_CURRENT_KEY" "$WORKTREE_ROOT_LEGACY_KEY" \
-      "$(worktree_root_migrate_cmd "$raw")" >&2
+    WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_CURRENT_KEY"
+    worktree_root_legacy_promote "$repo" || true
     return 0
   fi
   return 1

@@ -108,11 +108,10 @@ adopt.
   capability-section rule and names `worktreeroot.path`. Convention
   registry gains a row pointing at
   `plugins/source-control/reference/worktree-root-convention.md`.
-- The owner doc states the new key as the convention and
-  `melodic.worktreeroot` as a legacy alias dual-read still consults.
-- Dual-read fallback, doctor `--fix` print-only migration, the
-  `audit-fleet.sh` argv allowlist, and user-facing remedy strings are the
-  implementation peel. Dual-read is current: `worktreeroot.path` wins;
-  `melodic.worktreeroot` is still read when the current key is unset.
-  Doctor `--fix` print-only remains deferred. The migration contract on
-  #3345 binds the remaining peel.
+- The owner doc states `worktreeroot.path` as the convention. A retired
+  publisher-named alias is not a skill-facing name: `scripts/worktree-root-legacy.sh`
+  dual-reads it, writes `worktreeroot.path` at the winning origin, and unsets
+  the alias. Fleet audit stays read-only (its git wrapper does not write).
+  Delete the peel after 2026-12-31.
+- User-facing remedy strings and skill bodies name only `worktreeroot.path`.
+  Doctor `--fix` print-only remains deferred.

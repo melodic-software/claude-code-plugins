@@ -24,11 +24,13 @@ places is the drift a git-config-readable convention exists to prevent.
   org-agnosticism defect, and a plugin-named key still couples consumers to
   this marketplace. This section is the *capability*, and it collides with
   neither Git's `worktree.*` nor git-wt's `wt.*`.
-  `melodic.worktreeroot` is a legacy alias: readers try `worktreeroot.path`
-  first and fall through to the alias when the current key is unset.
 - **Type:** path (read with `--type=path`, which expands a leading `~`).
 - **Multi-valued, last value wins** — an include can *append* rather than
   override, which is what makes the `includeIf` layering below work.
+- **Retired alias:** `scripts/worktree-root-legacy.sh` (not this skill) rewrites
+  a leftover publisher-named key onto `worktreeroot.path` at the winning origin
+  and unsets it. Delete that peel after 2026-12-31. Fleet audit stays read-only
+  and does not write.
 - **Value:** a directory OUTSIDE every repository, and outside
   repository-discovery roots such as a ghq root (`ghq list` enumerates each
   worktree there as a repository of its own; a leading dot does not hide it).
@@ -39,8 +41,6 @@ places is the drift a git-config-readable convention exists to prevent.
 ```sh
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || exit  # mandatory gate
 root=$(git -C "$repo" config --get-all --type=path worktreeroot.path | tail -n 1)
-# Legacy alias, still read when worktreeroot.path is unset:
-# root=$(git -C "$repo" config --get-all --type=path melodic.worktreeroot | tail -n 1)
 ```
 
 Two hazards, both verified on git 2.55 in #2610 and both silent:
@@ -61,7 +61,7 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
 `WorktreeCreate` hook) resolves the root most specific first:
 
 1. Explicit `--root` / `--root-file` — a per-invocation caller decision.
-2. **`worktreeroot.path`** (legacy alias `melodic.worktreeroot`),
+2. **`worktreeroot.path`**,
    read from the *target repository* with includes on. `includeIf` supplies
    per-identity and per-repository answers with no new machinery (below).
 3. `--fallback-root` / `--fallback-root-file` — the machine-global

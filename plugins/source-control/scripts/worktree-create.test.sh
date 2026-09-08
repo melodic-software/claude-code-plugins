@@ -285,7 +285,7 @@ assert_eq "worktreeroot.path wins over --fallback-root" \
 assert_file_absent "nothing under the fallback root when git config supplies one" \
   "$fallback/acme-widget-feat-gitconfig"
 
-# --- Case: legacy melodic.worktreeroot still wins over --fallback-root ------
+# --- Case: a retired alias is rewritten onto worktreeroot.path --------------
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 legacy_root="$TEST_TMPDIR_NATIVE/legacy-root"
 fallback="$TEST_TMPDIR_NATIVE/fallback-legacy"
@@ -294,12 +294,17 @@ git -C "$repo" config --local melodic.worktreeroot "$legacy_root"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/legacykey --fallback-root "$fallback" --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >"$legacy_out")
 rc=$?
 out=$(cat "$legacy_out")
-assert_exit "legacy melodic.worktreeroot plus --fallback-root creates (exit 0)" 0 "$rc"
-assert_eq "legacy melodic.worktreeroot wins over --fallback-root" \
+assert_exit "a retired alias plus --fallback-root creates (exit 0)" 0 "$rc"
+assert_eq "a retired alias still wins over --fallback-root" \
   "$legacy_root/acme-widget-feat-legacykey" "$out"
-assert_contains "legacy key prints a stderr migrate notice" "$err" "worktreeroot.path is unset; using legacy"
-legacy_quoted=$(printf '%q' "$legacy_root")
-assert_contains "legacy migrate quotes the root" "$err" "$legacy_quoted"
+rewritten=$(git -C "$repo" config --local --get --type=path worktreeroot.path)
+assert_eq "create rewrote worktreeroot.path from the retired alias" \
+  "$legacy_root" "$rewritten"
+old_rc=0
+git -C "$repo" config --local --get melodic.worktreeroot >/dev/null 2>&1 || old_rc=$?
+assert_exit "create unset the retired alias" 1 "$old_rc"
+assert_not_contains "create stderr does not name the retired alias" "$err" \
+  "melodic.worktreeroot"
 
 # --- Case: both keys set — worktreeroot.path wins --------------------------
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
@@ -311,8 +316,11 @@ out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/newwins --data-root-file 
 assert_exit "both keys set creates (exit 0)" 0 "$?"
 assert_eq "worktreeroot.path wins when both keys are set" \
   "$new_root/acme-widget-feat-newwins" "$out"
-assert_file_absent "nothing under the outranked legacy key" \
+assert_file_absent "nothing under the outranked retired key" \
   "$old_root/acme-widget-feat-newwins/README.md"
+both_left_rc=0
+git -C "$repo" config --local --get melodic.worktreeroot >/dev/null 2>&1 || both_left_rc=$?
+assert_exit "create drops the leftover retired alias when the current key already answers" 1 "$both_left_rc"
 
 # --- Case: explicit --root wins over worktreeroot.path (most specific first) ---
 # A per-invocation caller decision outranks the machine convention; without this,

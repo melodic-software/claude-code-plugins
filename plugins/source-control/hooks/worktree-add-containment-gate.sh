@@ -241,8 +241,8 @@ repo_enclosing() {
 }
 
 # configured_root <repo-hint-dir> — the root the block message names, resolved
-# with the same precedence the creation helper uses: worktreeroot.path (legacy
-# alias melodic.worktreeroot) from the repository the command targets (includes
+# with the same precedence the creation helper uses: worktreeroot.path from
+# the repository the command targets (includes
 # on, last value wins, gated on the repository actually resolving — never the
 # silent dubious-ownership global fallback), then the plugin option, then the
 # plugin data dir. Echoes empty when nothing is configured. Empty last value
@@ -252,7 +252,7 @@ repo_enclosing() {
 configured_root() {
   local hint="$1" r=""
   if [[ -n "$hint" ]]; then
-    worktree_root_resolve "$hint" || true
+    WORKTREE_ROOT_SKIP_RETIRE=1 worktree_root_resolve "$hint" || true
     r="${WORKTREE_ROOT_VALUE:-}"
   fi
   if [[ -z "$r" ]]; then
