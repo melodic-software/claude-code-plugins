@@ -1,5 +1,18 @@
 # Changelog — discovery plugin
 
+## [0.19.8]
+
+### Added
+
+- **`research`:** an Effort subsection that reads the caller's effort level through the
+  `${CLAUDE_EFFORT}` substitution and uses it to scale source breadth. `low` runs Phase 0 when
+  the corpus is bounded, Phase 1 at the existing floors, and Phase 2 as the mandatory falsification
+  query only, skipping Phase 3 and Phase 4. `medium` runs Phase 0 through Phase 2 in full and
+  skips Phase 3 and Phase 4. `high` and above keep the current full workflow, so behavior at the
+  default is unchanged. Outcome-gate criteria that require a skipped phase are N/A; criteria that
+  still apply still bite, including the coverage-ledger script verdict and the Phase 2
+  falsification query. A narrower run names the skipped phases in the artifact.
+
 ## [0.19.7]
 
 ### Added

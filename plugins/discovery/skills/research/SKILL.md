@@ -103,6 +103,27 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 13. **Outcome gate before presenting**, the run self-checks its own evidence table + written gap lists + fetch log against binary criteria; any FAIL returns to the named phase (see "Outcome gate")
 14. **Bounded corpora are enumerated before they are searched**, when the topic has a finite, knowable set of things to cover, Phase 0 writes `research-checklist.md` naming every item and its per-item depth criterion BEFORE any query runs, and the gate fails on any unmarked row. Distinct from discipline 9: the gap list chases *unknowns* surfaced by searching, this enforces exhaustive coverage of a set that was knowable up front. Recipe: the discipline file's "Corpus enumeration"
 
+### Effort, source breadth
+
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
+one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+skill-loaded, so the substitution never ran: treat the run as `high` and run every phase below.
+
+Effort scales **source breadth**, not outcome-gate honesty. Default `high` (and `xhigh` / `max`)
+is the current full Phase 0 through Phase 3 workflow, plus conditional Phase 4. Task size never
+trims phases; only this table does.
+
+| Effort | Source breadth |
+|---|---|
+| `low` | Phase 0 if bounded, Phase 1 at existing floors, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
+| `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
+| `high`, `xhigh`, `max` | Current full workflow |
+
+Criteria that need a skipped phase are N/A at that effort. Criteria that still apply still bite,
+including the coverage-ledger script verdict when Phase 0 wrote a ledger, and Phase 2
+falsification at every level that runs Phase 2. Name skipped phases in the artifact and report so
+a narrower run is not mistaken for a complete one.
+
 ## Phase 0: Corpus enumeration (before any query)
 
 **Ask first: is the corpus bounded?** Bounded means finite and enumerable *before* the first query. Every skill in a plugin, every endpoint in an API reference, every release between two versions. An unbounded topic ("is this approach sound?") has no such set; record that verdict in one line and go to Phase 1. When it IS bounded, **enumerate from a surface that is exhaustive by construction**, never from search results or a curated index that is partial by design. Write `research-checklist.md` into the artifact's memory slice **in exactly this shape**. Criterion 11's gate parses it and fails closed on a table it cannot read, so a renamed column or a prose status is a FAIL:
@@ -214,7 +235,7 @@ Present research findings as, and if invoked standalone present them directly, w
 5. **Gaps**. Claims not at ≥1 primary + 2 independent corroborators, OR LOW confidence (flagged for follow-up). A gap asserting absence names the sources checked AND the sources left unchecked, never a bare "not found"
 6. **Recency status**. Primary-source age per tool/library claim
 7. **Project fit**. How findings align with the consuming project's conventions and stated direction
-8. **Outcome gate result**. Pass, or which criterion failed and what was re-run
+8. **Outcome gate result**. Pass, or which criterion failed and what was re-run, plus effort and any skipped phases
 
 ## Final step: persist artifact for handoff
 
@@ -232,7 +253,7 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 - **Does not make decisions**. Presents verified evidence; the planning step (or user) decides
 - **Does not write code**. Researches only; execution is a separate step
-- **Does not skip phases for "simple" topics**. Task size does not reduce depth; all phases run
+- **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
 
 ## See also

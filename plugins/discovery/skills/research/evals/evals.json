@@ -277,6 +277,21 @@
         "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing topic_as_received",
         "check-coverage-complete.sh is NOT run — the recovered index records the corpus as unbounded, so no ledger is owed"
       ]
+    },
+    {
+      "id": 20,
+      "name": "low-effort-skips-phase-3",
+      "prompt": "Research the current connection-pooling defaults in Npgsql 8. [Caller effort for this run is low.]",
+      "expected_output": "Reads caller effort as low and scales source breadth: Phase 0 if the corpus is bounded, Phase 1 at the existing floors, and Phase 2 only the mandatory falsification query. It skips Phase 3 preferred-sources / tool-ecosystem fallback and Phase 4. It names those skipped phases in the artifact so the narrower run is not mistaken for a complete one. Outcome-gate criteria that require a skipped phase are N/A; the Phase 2 falsification criterion still applies, as does the coverage-ledger script verdict when Phase 0 wrote a ledger.",
+      "files": [],
+      "expectations": [
+        "Treats caller effort as low rather than running the default full workflow",
+        "Runs Phase 1 at the existing floors and Phase 2 only as the mandatory falsification query, without one-query-per-gap expansion",
+        "Does NOT run Phase 3 preferred-sources / tool-ecosystem fallback",
+        "Does NOT run Phase 4",
+        "Names the skipped phases in the artifact or report",
+        "Still records the Phase 2 falsification query and still cites the coverage-ledger script verdict when Phase 0 wrote a ledger"
+      ]
     }
   ]
 }
