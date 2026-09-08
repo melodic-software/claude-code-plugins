@@ -1675,9 +1675,7 @@ def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str
         + grammar
         + " Supporting inspection may use that small Bash allowlist or "
         "non-Bash read-only tools; everything else stays denied. Recovery: "
-        "start a new session. A subagent does not inherit this belt; that "
-        "non-inheritance is undocumented and build-specific, so it is not a "
-        "reliable recovery lane."
+        "start a new session."
     )
 
 

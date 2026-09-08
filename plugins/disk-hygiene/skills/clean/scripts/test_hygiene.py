@@ -5706,10 +5706,7 @@ class GuardTests(unittest.TestCase):
         self.assertIn("persists until the session ends", belt)
         self.assertIn("Bash is restricted", belt)
         self.assertIn("start a new session", belt)
-        self.assertIn("subagent does not inherit", belt)
-        self.assertIn("undocumented", belt)
-        self.assertIn("build-specific", belt)
-        self.assertIn("not a reliable recovery", belt)
+        self.assertNotIn("subagent does not inherit", belt)
         self.assertNotIn("this specific engine invocation", belt)
         self.assertNotIn("need not have been invoked", belt)
 

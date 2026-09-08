@@ -13,9 +13,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   restricted to the skill's scan/preview/handoff-verify/apply shapes. Each mode now
   explains its own scope: the engine gate says this invocation is gated and the rest
   of the Bash lane is unaffected; the belt says the skill was invoked, that the belt
-  persists until the session ends, and names recovery (a new session; subagent
-  non-inheritance caveated as undocumented and build-specific). Allow/deny decisions
-  and the classifier allow-list disclosure are unchanged.
+  persists until the session ends, and names recovery as a new session). Skill
+  frontmatter hooks stay registered for the rest of the session and plugin hooks
+  run inside subagents, so the belt is not a subagent-escape hatch. Allow/deny
+  decisions and the classifier allow-list disclosure are unchanged.
 
 ## [0.23.3]
 
