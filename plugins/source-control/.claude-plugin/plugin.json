@@ -43,7 +43,7 @@
     "worktree_add_containment_gate_enabled": {
       "type": "boolean",
       "title": "worktree-add-containment-gate hook",
-      "description": "Block a raw Bash `git worktree add` whose resolved target lands inside a git repository \u2014 a working tree, or a .git / bare directory \u2014 with a message naming the configured external root (melodic.worktreeroot git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\".",
+      "description": "Block a raw Bash `git worktree add` whose resolved target lands inside a git repository \u2014 a working tree, or a .git / bare directory \u2014 with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` \u00a7 \"The nesting invariant, verified\".",
       "default": true
     },
     "worktree_add_claim_gate_enabled": {

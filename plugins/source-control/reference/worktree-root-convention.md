@@ -24,9 +24,8 @@ places is the drift a git-config-readable convention exists to prevent.
   org-agnosticism defect, and a plugin-named key still couples consumers to
   this marketplace. This section is the *capability*, and it collides with
   neither Git's `worktree.*` nor git-wt's `wt.*`.
-  `melodic.worktreeroot` is the shipped spelling; dual-read of both keys is
-  the migration peel, and until that peel the shipped readers still consult
-  the legacy key.
+  `melodic.worktreeroot` is a legacy alias: readers try `worktreeroot.path`
+  first and fall through to the alias when the current key is unset.
 - **Type:** path (read with `--type=path`, which expands a leading `~`).
 - **Multi-valued, last value wins** — an include can *append* rather than
   override, which is what makes the `includeIf` layering below work.
@@ -40,7 +39,7 @@ places is the drift a git-config-readable convention exists to prevent.
 ```sh
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || exit  # mandatory gate
 root=$(git -C "$repo" config --get-all --type=path worktreeroot.path | tail -n 1)
-# Legacy alias, accepted until the dual-read peel lands:
+# Legacy alias, still read when worktreeroot.path is unset:
 # root=$(git -C "$repo" config --get-all --type=path melodic.worktreeroot | tail -n 1)
 ```
 

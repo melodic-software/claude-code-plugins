@@ -87,18 +87,39 @@ REPO="$(mkrepo plain)"
 run "$EMPTY_GCFG" "$REPO"
 assert_exit "a clean repo with no key exits 0" 0 "$RC"
 assert_contains "an unset key is reported as info, with the set command" "$OUT" \
-  "melodic.worktreeroot is unset"
+  "worktreeroot.path is unset"
 assert_contains "the unset finding names the fallthrough rungs" "$OUT" "worktree_root plugin option"
 
 # --- A set key: named with its origin, exit 0 ------------------------------------
 
 KEYED="$(mkrepo keyed)"
-fgit -C "$KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root"
+fgit -C "$KEYED" config worktreeroot.path "$TEST_TMPDIR/wt-root"
 run "$EMPTY_GCFG" "$KEYED"
 assert_exit "a conforming keyed repo exits 0" 0 "$RC"
 assert_contains "the winning value is reported ok with its value" "$OUT" \
-  "melodic.worktreeroot = $TEST_TMPDIR/wt-root"
+  "worktreeroot.path = $TEST_TMPDIR/wt-root"
 assert_contains "the winner names the file that supplied it" "$OUT" "supplied by"
+
+# Legacy alias still answers when the current key is unset.
+LEGACY_KEYED="$(mkrepo legacykeyed)"
+fgit -C "$LEGACY_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-legacy"
+run "$EMPTY_GCFG" "$LEGACY_KEYED"
+assert_exit "a legacy-keyed repo exits 0" 0 "$RC"
+assert_contains "the legacy winning value is reported ok" "$OUT" \
+  "melodic.worktreeroot = $TEST_TMPDIR/wt-root-legacy"
+assert_contains "a legacy-only repo names the migrate command" "$OUT" \
+  "git config --global worktreeroot.path"
+
+# Both keys set: the current key wins.
+BOTH_KEYED="$(mkrepo bothkeyed)"
+fgit -C "$BOTH_KEYED" config worktreeroot.path "$TEST_TMPDIR/wt-root-new"
+fgit -C "$BOTH_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-old"
+run "$EMPTY_GCFG" "$BOTH_KEYED"
+assert_exit "both keys set exits 0" 0 "$RC"
+assert_contains "the current key wins when both are set" "$OUT" \
+  "worktreeroot.path = $TEST_TMPDIR/wt-root-new"
+assert_not_contains "the outranked legacy value is not the ok line" "$OUT" \
+  "melodic.worktreeroot = $TEST_TMPDIR/wt-root-old"
 
 # --- includeIf attribution: the winner names WHICH condition fired ---------------
 # The include is anchored by repository NAME (**/<name>/.git) so the pattern is

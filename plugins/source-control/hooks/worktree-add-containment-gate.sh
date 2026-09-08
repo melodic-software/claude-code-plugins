@@ -51,7 +51,7 @@
 # Kill switch: worktree_add_containment_gate_enabled userConfig option.
 #
 # BLOCKING: exits 2 naming the resolved target, what encloses it, and the
-# configured root (melodic.worktreeroot key, then the worktree_root plugin
+# configured root (worktreeroot.path key, then the worktree_root plugin
 # option, then the plugin data dir) so the remedy is concrete.
 
 set -uo pipefail
@@ -73,6 +73,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=../scripts/worktree-root-resolve.sh
+source "$HOOK_DIR/../scripts/worktree-root-resolve.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
@@ -239,27 +241,19 @@ repo_enclosing() {
 }
 
 # configured_root <repo-hint-dir> — the root the block message names, resolved
-# with the same precedence the creation helper uses: the melodic.worktreeroot
-# key from the repository the command targets (includes on, last value wins,
-# gated on the repository actually resolving — never the silent
-# dubious-ownership global fallback), then the plugin option, then the plugin
-# data dir. Echoes empty when nothing is configured.
+# with the same precedence the creation helper uses: worktreeroot.path (legacy
+# alias melodic.worktreeroot) from the repository the command targets (includes
+# on, last value wins, gated on the repository actually resolving — never the
+# silent dubious-ownership global fallback), then the plugin option, then the
+# plugin data dir. Echoes empty when nothing is configured. Empty last value
+# on a key is unusable and falls through — same contract as
+# scripts/worktree-root-resolve.sh / worktree-create.sh.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 configured_root() {
   local hint="$1" r=""
-  if [[ -n "$hint" ]] && git -C "$hint" rev-parse --git-dir >/dev/null 2>&1; then
-    # Last-wins without `tail`: a sentinel is captured inside the substitution
-    # so command substitution cannot strip a blank final record (an empty last
-    # `melodic.worktreeroot` value must stay empty, matching
-    # `scripts/worktree-create.sh`'s `tail -n 1`, which then falls through to
-    # the plugin option). Strip the sentinel, then one trailing newline (the
-    # last record's terminator), then take the last line. CR strip stays a
-    # parameter expansion.
-    { r=$(git -C "$hint" config --get-all --type=path melodic.worktreeroot; printf x); } 2>/dev/null
-    r="${r%x}"
-    r="${r%$'\n'}"
-    r="${r##*$'\n'}"
-    r="${r//$'\r'/}"
+  if [[ -n "$hint" ]]; then
+    worktree_root_resolve "$hint" || true
+    r="${WORKTREE_ROOT_VALUE:-}"
   fi
   if [[ -z "$r" ]]; then
     r="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
@@ -289,7 +283,7 @@ block() {
     echo "  e.g. git worktree add \"$root/<owner>-<repo>-<slug>\" ..." >&2
   else
     echo "No external worktree root is configured. Set one every tool can read:" >&2
-    echo "  git config --global melodic.worktreeroot <dir-outside-every-repo>" >&2
+    echo "  git config --global worktreeroot.path <dir-outside-every-repo>" >&2
   fi
   echo "A worktree nested inside a checkout can pick up that checkout's path-scoped rules as well as its own, and a git-directory placement mixes the checkout into git metadata — measurement, disputed arms and expiry: skills/worktree/SKILL.md \"The nesting invariant, verified\"." >&2
   echo "Or use /source-control:worktree create, which places (and locks) the worktree for you. Convention: the source-control plugin's reference/worktree-root-convention.md. Kill switch: the worktree_add_containment_gate_enabled plugin option." >&2

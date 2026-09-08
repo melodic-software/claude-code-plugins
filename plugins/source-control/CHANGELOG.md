@@ -9,9 +9,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Worktree root convention:** the git config vendor section is
   `worktreeroot.path` (a capability section that collides with neither Git's
-  `worktree.*` nor git-wt's `wt.basedir`). `melodic.worktreeroot` remains the
-  shipped spelling current readers consult until the dual-read migration peel.
-  Owner doc: `reference/worktree-root-convention.md`. Ruling: ADR 0031.
+  `worktree.*` nor git-wt's `wt.basedir`). Readers try `worktreeroot.path`
+  first and fall through to the legacy alias `melodic.worktreeroot` when the
+  current key is unset (new key wins if both are set; never auto-write
+  config; a legacy hit prints a stderr migrate notice). Shared resolver:
+  `scripts/worktree-root-resolve.sh` (byte-identical copy in
+  `repo-fleet-hygiene`). Owner doc: `reference/worktree-root-convention.md`.
+  Ruling: ADR 0031.
 
 ## [0.55.70]
 
