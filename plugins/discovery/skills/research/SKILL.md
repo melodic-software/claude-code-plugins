@@ -30,7 +30,7 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 
 ## Routing. Dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** first, six fields (topic, reason, memory-slice path, memory root, budget, capability flags), written into the dispatch prompt as the labelled template in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open.
+**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** first, six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:`, written into the dispatch prompt as the labelled template in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open.
 
 **Run inline instead when any of these holds**, and inline runs the identical discipline; the escape hatch relaxes nothing below:
 
@@ -108,10 +108,9 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
 one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and run every phase below.
-
-Effort scales **source breadth**, not outcome-gate honesty. Default `high` (and `xhigh` / `max`)
-is the current full Phase 0 through Phase 3 workflow, plus conditional Phase 4. Task size never
-trims phases; only this table does.
+Dated record: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
+from this load, not the researcher pin. Missing line: `high`, named in the artifact.
 
 | Effort | Source breadth |
 |---|---|
@@ -119,10 +118,8 @@ trims phases; only this table does.
 | `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
 | `high`, `xhigh`, `max` | Current full workflow |
 
-Criteria that need a skipped phase are N/A at that effort. Criteria that still apply still bite,
-including the coverage-ledger script verdict when Phase 0 wrote a ledger, and Phase 2
-falsification at every level that runs Phase 2. Name skipped phases in the artifact and report so
-a narrower run is not mistaken for a complete one.
+The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
+file's "Effort, source breadth".
 
 ## Phase 0: Corpus enumeration (before any query)
 
@@ -258,4 +255,4 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 ## See also
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`. Source tiers, recency gates, broad-topic recipe, falsification recipe, tool-ecosystem fallback, confidence calibration, source-quality red flags, observed failure patterns
+- `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`. Source tiers, recency gates, broad-topic recipe, effort ceiling over that doubling, falsification recipe, tool-ecosystem fallback, confidence calibration, source-quality red flags, observed failure patterns

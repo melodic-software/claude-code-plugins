@@ -282,15 +282,30 @@
       "id": 20,
       "name": "low-effort-skips-phase-3",
       "prompt": "Research the current connection-pooling defaults in Npgsql 8. [Caller effort for this run is low.]",
-      "expected_output": "Reads caller effort as low and scales source breadth: Phase 0 if the corpus is bounded, Phase 1 at the existing floors, and Phase 2 only the mandatory falsification query. It skips Phase 3 preferred-sources / tool-ecosystem fallback and Phase 4. It names those skipped phases in the artifact so the narrower run is not mistaken for a complete one. Outcome-gate criteria that require a skipped phase are N/A; the Phase 2 falsification criterion still applies, as does the coverage-ledger script verdict when Phase 0 wrote a ledger.",
+      "expected_output": "On an inline run, reads caller effort as low and scales source breadth. On the default dispatch path, does NOT use the researcher's substituted effort (that lane is pinned high, and a disk fallback is unsubstituted): the parent writes Source breadth: low in the envelope and the worker follows that line. Either path runs Phase 0 if the corpus is bounded, Phase 1 at the existing floors, and Phase 2 only the mandatory falsification query. It skips Phase 3 preferred-sources / tool-ecosystem fallback and Phase 4. It names those skipped phases in the artifact so the narrower run is not mistaken for a complete one. Outcome-gate criteria that require a skipped phase are N/A; the Phase 2 falsification criterion still applies, as does the coverage-ledger script verdict when Phase 0 wrote a ledger.",
       "files": [],
       "expectations": [
         "Treats caller effort as low rather than running the default full workflow",
+        "On a dispatched run, writes Source breadth: low in the envelope and does not take the researcher lane's high pin as source breadth",
         "Runs Phase 1 at the existing floors and Phase 2 only as the mandatory falsification query, without one-query-per-gap expansion",
         "Does NOT run Phase 3 preferred-sources / tool-ecosystem fallback",
         "Does NOT run Phase 4",
         "Names the skipped phases in the artifact or report",
         "Still records the Phase 2 falsification query and still cites the coverage-ledger script verdict when Phase 0 wrote a ledger"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "low-effort-is-ceiling-over-broad-topic-doubling",
+      "prompt": "Research Dapper vs EF Core vs ADO.NET connection-pooling defaults. [Caller effort for this run is low.]",
+      "files": [],
+      "expected_output": "Broad-topic auto-detect fires (comparison, three tools named) but the Effort row is the ceiling: Phase 1 uses the doubled floor, Phase 2 is only the mandatory falsification query (not 6+ per-gap queries), and Phase 3 and Phase 4 are skipped. On a dispatched run the parent still writes Source breadth: low rather than following the researcher pin. Names the skipped phases. Does not treat discipline 8 as a licence to run a full doubled workflow at low.",
+      "expectations": [
+        "Treats caller effort as low rather than running the default full workflow",
+        "Recognizes a broad comparison topic so Phase 1 uses the doubled floor",
+        "Does NOT expand Phase 2 to 6+ queries: Phase 2 is the one falsification query",
+        "Does NOT run Phase 3 or Phase 4, even though discipline 8 would otherwise double every phase",
+        "Names the skipped phases in the artifact or report"
       ]
     }
   ]

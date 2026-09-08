@@ -135,6 +135,10 @@ assert_present 'the research parent-obligation table carries a Memory root row' 
   'skills/research/context/dispatch.md' '^\| Memory root \|'
 assert_present 'the parent contract ships a literal envelope template' \
   'reference/parent-contract.md' 'Memory root:'
+assert_present 'the parent contract ships a research Source breadth line' \
+  'reference/parent-contract.md' 'Source breadth:'
+assert_present 'the research parent-obligation table carries a Source breadth row' \
+  'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)

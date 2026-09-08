@@ -9,9 +9,15 @@
   the corpus is bounded, Phase 1 at the existing floors, and Phase 2 as the mandatory falsification
   query only, skipping Phase 3 and Phase 4. `medium` runs Phase 0 through Phase 2 in full and
   skips Phase 3 and Phase 4. `high` and above keep the current full workflow, so behavior at the
-  default is unchanged. Outcome-gate criteria that require a skipped phase are N/A; criteria that
-  still apply still bite, including the coverage-ledger script verdict and the Phase 2
-  falsification query. A narrower run names the skipped phases in the artifact.
+  default is unchanged. On the default dispatch path the parent writes `Source breadth:` from its
+  own `${CLAUDE_EFFORT}` load, because `discovery:researcher` is pinned `high` for reasoning and a
+  disk fallback of the skill body is unsubstituted. The substitution claim, and the frontmatter
+  `effort` pin overriding the session, live as a dated record in `reference/parent-contract.md`.
+  The Effort row is the ceiling over discipline 8's doubled floors: skipped phases stay skipped,
+  and Phase 2 at `low` stays the one falsification query. Outcome-gate criteria that require a
+  skipped phase are N/A; criteria that still apply still bite, including the coverage-ledger
+  script verdict and the Phase 2 falsification query. A narrower run names the skipped phases
+  in the artifact.
 
 ## [0.19.7]
 
