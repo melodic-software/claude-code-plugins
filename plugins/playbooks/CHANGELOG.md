@@ -8,8 +8,8 @@ only after that version increases.
 
 ### Added
 
-- **`skill-authoring`**: a `## Next` section naming the skill that normally runs after this one, in
-  the mention-only shape the skill-body rule describes.
+- **`skill-authoring`**: a `## Next` section (that exact heading) naming the skill that normally
+  runs after this one, in the mention-only shape the skill-body rule describes.
 
 ## [0.9.8]
 

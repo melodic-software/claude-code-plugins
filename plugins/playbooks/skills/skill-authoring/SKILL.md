@@ -175,7 +175,7 @@ documented prominence causes first, the blog's description diagnosis second. See
 
 ---
 
-## Next (Melodic Software addition)
+## Next
 
 `/skill-quality:check <skill>`. A skill just authored is checked before publication.
 

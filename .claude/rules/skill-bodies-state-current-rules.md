@@ -37,8 +37,10 @@ needs the archaeology finds it there; the model reading the skill does not need 
 ## Successor sections
 
 A skill that has a natural successor names it in a `## Next` section placed before `## Gotchas`
-(or before the last H2 when the file has none): one bare `/plugin:skill` token on a line, or two
-to four bullets of `<outcome>: /plugin:skill.` when the successor depends on the run's result. It
+(or before the last H2 when the file has none). The heading is exactly `## Next`. The body is
+either one `/plugin:skill` invocation on a line, with any arguments that skill takes, optionally
+followed by a sentence that names what the successor consumes or why it is next; or two to four
+bullets of `<outcome>: /plugin:skill [args].` when the successor depends on the run's result. It
 is a mention for the human, never an operative chain, so it carries no Skill-tool phrasing, no
 installed-ness gate, and no fallback clause. Keeping the graph current is authoring work:
 
