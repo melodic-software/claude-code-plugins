@@ -381,8 +381,12 @@ assert_eq "ask: nothing installed" "0" "$(grep -c 'plugin install' "$case_dir/cl
 assert_eq "ask: the checker still ran exactly once" "1" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 
 run_dir=$(jq -r '.run_dir' <<<"$out")
-out2=$(run_sync "$case_dir" --marketplace market1 --only-install beta@market1 --run-dir "$run_dir")
+# The documented form carries no marketplace argument: the re-entry takes its
+# marketplaces from the run directory's own snapshots.
+out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
 assert_exit "--only-install: exit 0" 0 $?
+assert_eq "--only-install: it covers the run's marketplace without being told" "market1" \
+  "$(jq -r '.marketplaces[0].name' <<<"$out2")"
 assert_eq "--only-install: the chosen id is installed" "1" \
   "$(grep -c 'plugin install beta@market1' "$case_dir/claude.log")"
 assert_eq "--only-install: reuses the same run directory" "$run_dir" "$(jq -r '.run_dir' <<<"$out2")"
@@ -394,6 +398,12 @@ assert_eq "--only-install: the checker is NOT run a second time" "1" \
   "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "--only-install: the cache finding survives into the second digest" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out2")"
+run_sync "$case_dir" --only-install beta@market2 --run-dir "$run_dir" --marketplace market2 >/dev/null
+assert_exit "--only-install: a marketplace the run never swept is exit 2" 2 $?
+assert_contains "--only-install: and says why" "$(cat "$case_dir/stderr.txt")" "no snapshot for marketplace"
+assert_eq "--only-install: the refusal installed nothing" "1" \
+  "$(grep -c 'plugin install' "$case_dir/claude.log")"
+
 assert_eq "--only-install: the normalizer wrote user scope once after the install" "1" \
   "$(grep -cv -- '--report-project' "$case_dir/normalize.log")"
 assert_eq "--only-install: and only INSPECTED the project-scope map" "1" \

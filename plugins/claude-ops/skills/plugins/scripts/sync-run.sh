@@ -1091,7 +1091,30 @@ setup_run_dir
 [[ -f "$JOURNAL_LOG" ]] || : >"$JOURNAL_LOG"
 
 MPS=()
-if ((ALL == 1)); then
+if ((ONLY_INSTALL_MODE == 1)); then
+  # The re-entry's marketplaces are the ones the first pass actually swept, read off
+  # its own snapshots. Resolving the default again would run Steps 4 and 5 against
+  # one marketplace and emit a one-block digest for a run that covered several,
+  # which is the silent partial sweep the marketplace-scoping rule exists to
+  # prevent.
+  for snapshot in "$RUN_DIR"/pre-refresh.*.json; do
+    [[ -f "$snapshot" ]] || continue
+    snapshot="${snapshot##*/pre-refresh.}"
+    MPS+=("${snapshot%.json}")
+  done
+  if [[ -n "$TARGET_MP" ]]; then
+    if [[ ! -f "$RUN_DIR/pre-refresh.$TARGET_MP.json" ]]; then
+      echo "ERROR: that run directory carries no snapshot for marketplace: $TARGET_MP" >&2
+      echo "  --only-install re-enters a run; it cannot start one for a new marketplace." >&2
+      exit 2
+    fi
+    MPS=("$TARGET_MP")
+  fi
+  if ((${#MPS[@]} == 0)); then
+    echo "ERROR: that run directory carries no marketplace snapshot: $RUN_DIR" >&2
+    exit 2
+  fi
+elif ((ALL == 1)); then
   # Names come from the script, never a hand-written jq over known_marketplaces.json:
   # enumerating names carries the same trailing-`\r` hazard as enumerating ids.
   if ! "$FLEET_STATE" --marketplaces >"$RUN_DIR/.marketplaces.txt" 2>"$RUN_DIR/.fs-err"; then
