@@ -3,6 +3,33 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0]
+
+### Changed
+
+- **The `plugins` skill's `sync` and `audit` run Steps 1-5b through one `sync-run.sh`
+  invocation with a JSON digest, instead of the model driving each step by hand.**
+  A current-fleet run now costs 2 model turns where it cost 14.
+- **`cache-content-check.sh` batches fleet-wide** instead of spawning per plugin: 400
+  spawns fall to 17, and the authoring host's wall clock drops from roughly 100 s to
+  roughly 15 s.
+- **Step 5b calls the checker once, not twice.**
+- **A journal-creation failure now exits 2 before any mutation, instead of degrading.**
+
+### Fixed
+
+- **`--only-install` keeps first-pass update and projection failures in the
+  replacement digest.** Successful moves already survived through the move
+  ledger; a failed `claude plugin update` or a failed projection did not, so the
+  digest that supersedes an `ask`-policy stop could report a successful sync
+  while a plugin remained stale.
+- **The batched cache-content join attaches a blob to every matching source
+  directory, not only the longest.** Nested marketplace sources such as
+  `plugins/alpha` and `plugins/alpha/nested` previously each received the blob
+  from their own `ls-tree`; longest-match-only dropped the nested subtree from
+  the ancestor's expected tree, so a healthy ancestor cache was reported
+  `stale-content` and a hole in that subtree was reported as a match.
+
 ## [0.44.6]
 
 ### Changed

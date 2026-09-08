@@ -74,6 +74,56 @@ arrive as a literal placeholder with no error to warn anyone. See
 Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
 action → show this table.
 
+## Running `sync` and `audit`
+
+Both actions execute Steps 1 through 5b as ONE bundled script call, then the model writes Step 6's
+report from the JSON digest that call prints. The step sequence, and the reason behind every step,
+stay in [context/sync.md](context/sync.md); the script is bound to that file.
+
+1. **Run it.** Substitute the marketplace target, the policy, and the flags into this command. The
+   journal root is written here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and
+   **not** in a `context/*.md` spoke, which is read raw:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
+     [--marketplace <name> | --all] \
+     --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
+     --install-new <policy> [--allow-downgrade]
+   ```
+
+   `audit` is the same command with `--audit` instead of `--journal-root` (it writes to a scratch
+   directory it deletes) and never `--allow-downgrade`, which it ignores and says so.
+
+   `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
+   below — `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
+   token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
+   error, not a policy. Any other value is treated as `ask` and named back in the digest's
+   `install_new_invalid` so the report can flag it.
+
+2. **Read the digest.** One compact JSON object on stdout, also written to `<run_dir>/digest.json`.
+   It carries everything the Report needs, per marketplace, plus a `run_dir` that holds every
+   snapshot and the journal.
+
+3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
+   `stopped_before_install: true`, run the batched multi-select from
+   [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and 5
+   against the same run:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
+     --only-install "<the ids the user picked, comma-separated>" --run-dir "<the digest's run_dir>"
+   ```
+
+   An empty id list is legal and means "install nothing, still complete Step 5". Report from the
+   digest that call prints; it supersedes the first one and reuses the same cache-content finding
+   rather than checking again.
+
+4. **Report.** Emit the Report section below.
+
+Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
+regression, or a cache-content finding, and when the user asks why a step behaved the way it did.
+A run with none of those has nothing in the file that changes the report.
+
 ## Marketplace resolution
 
 No hardcoded marketplace name anywhere in this skill. Every action resolves its target the same way:
@@ -106,9 +156,12 @@ The third form projects that same id list from a report already on disk rather t
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
 selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
 
+`sync-run.sh` above is what calls these scripts during `sync` and `audit`; the contracts below are
+what it and any other caller are bound to.
+
 A second read-only script answers the question `fleet-state.sh` structurally cannot: whether the
-files in a plugin's cache directory actually match the commit its install record claims. Run it as
-Step 5b of `sync` and of `audit`:
+files in a plugin's cache directory actually match the commit its install record claims. Step 5b of
+`sync` and of `audit` calls it ONCE per marketplace:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> [--scope user|project|all]
@@ -116,7 +169,9 @@ Step 5b of `sync` and of `audit`:
 ```
 
 `--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
-as `fleet-state.sh --ids`. The script never writes anything and never runs `git fetch`; a commit
+as `fleet-state.sh --ids`. Step 5b does not use it beside the JSON form: the ids are already in that
+JSON, and a second call would repeat the run's most expensive read. It is the fallback for a JSON
+that could not be produced. The script never writes anything and never runs `git fetch`; a commit
 that is not in the local marketplace clone is reported as `sha-not-local`, not fetched. See
 [context/sync.md](context/sync.md) Step 5b, and
 [context/scope-semantics.md](context/scope-semantics.md) for the mechanism that makes a cache
@@ -187,9 +242,9 @@ action.
 Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
   (repeat this line per marketplace in `all` mode — Steps 2–5 run once per marketplace)
 In-repo: <N> project/local install(s) updated in <project_root>
-  (N counts FORWARD moves only; an in-repo record moved backward, only possible under
-   --allow-downgrade or for an id whose catalog version could not be read, renders under
-   `Downgraded:` with its scope and is not counted here)
+  (N is `in_repo.updated | length`; it counts FORWARD moves only. An in-repo record moved
+   backward, only possible under --allow-downgrade or for an id whose catalog version could
+   not be read, renders under `Downgraded:` with its scope and is not counted here)
   | 0 — <project_root> has no project/local installs
   | skipped — no project context resolved from <cwd>
 Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
@@ -231,8 +286,16 @@ than a lookup:
 itself the primary value path, so a run in which it did nothing has to say so in the default output,
 not only when it succeeds. The three variants are not cosmetic: `skipped` and `0` answer genuinely
 different questions ("there was no *here* to update" versus "here has nothing installed"), and
-collapsing them is the whole defect this row exists to close. `fleet-state.sh`'s top-level
-`project_root` is what distinguishes them. See [context/sync.md](context/sync.md) Step 2.
+collapsing them is the whole defect this row exists to close. Two digest fields pick the variant,
+in this order:
+
+- `project_root` is `null` → `skipped`, naming the cwd.
+- `in_repo_records == 0` → `0 — <project_root> has no project/local installs`.
+- `in_repo_records > 0` → the counted variant, with N taken from `in_repo.updated | length`.
+
+`in_repo_records` counts the records belonging to this root whether or not any of them moved, so a
+root that HAS project/local installs and updated none of them reads `0` against a named root rather
+than claiming the root has nothing installed. See [context/sync.md](context/sync.md) Step 2.
 
 Add a self-update row when Step 3's sweep updated `claude-ops` itself:
 
@@ -295,6 +358,9 @@ Stale project records: <K> record(s) across <P> path(s) not present on this mach
    verdict that the directory is gone for good.)
 ```
 
+`K` is `stale_project_records.total` and `P` is the length of `stale_project_records.by_path`; each
+`by_path` entry is the `{path, count}` one row renders.
+
 A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
 only where the write is not team-shared state. Give each one its runnable command rather than a
 count, so acting on it is a copy, not a reconstruction:
@@ -348,6 +414,12 @@ Cache content: <N> install(s) whose cache files disagree with their recorded git
   Remediation: remove that version's directory under the plugin cache, then re-run
   `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
 ```
+
+`N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
+`id`, `version`, and `files_differ`, which sums every direction of disagreement — bytes that
+changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
+`files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
+ids and no per-file detail; report the ids alone then.
 
 **The check never repairs.** It does not delete a cache directory, does not re-run an update, and
 does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
