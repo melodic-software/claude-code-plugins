@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# worktree-root-doctor.sh — conformance check for the melodic.worktreeroot
-# convention (#2612). The includeIf machinery the convention leans on for
+# worktree-root-doctor.sh — conformance check for the worktreeroot.path
+# convention (#2612). The
+# includeIf machinery the convention leans on for
 # per-identity/per-repository roots fails UNIFORMLY QUIETLY: an unknown
 # condition keyword, a missing include file, a plain value parsed after an
 # includeIf, a scope flag skipping every include, and a 2.56-only condition on
@@ -27,8 +28,9 @@
 #   * which rule supplied the root — `--show-origin` per value; `--show-scope`
 #     is useless here (it collapses a conditionally-included file to `global`).
 #   * a plain value parsed after an include-supplied one — precedence is parse
-#     order, not specificity, so a `[melodic] worktreeroot` below the includeIf
-#     block silently overrides every identity include.
+#     order, not specificity, so a `[worktreeroot] path` below the includeIf
+#     block silently overrides
+#     every identity include.
 #   * declared-but-unfired includeIf conditions — `git config --list` emits
 #     `includeif.<condition>.path` for every DECLARED condition, matched or
 #     not, so declared can be diffed against what actually contributed values.
@@ -41,8 +43,8 @@
 #     author's spelling matters.
 #   * `hasconfig:` in use — libgit2 clients (gitui, TortoiseGit, bindings)
 #     implement gitdir/gitdir-i/onbranch but NOT hasconfig, and unrecognized
-#     conditions fail silently there; fine for melodic.* (CLI-only readers),
-#     fatal for an identity split.
+#     conditions fail silently there; fine for this convention's CLI-only
+#     readers, fatal for an identity split.
 #   * identity partials — an include that sets user.email but not
 #     user.signingkey while signing is configured globally leaks the global
 #     key into that identity's commits (and an SSH-signed mismatch verifies
@@ -60,6 +62,9 @@
 set -uo pipefail
 
 PROG=${0##*/}
+
+# shellcheck source=worktree-root-resolve.sh
+source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
 
 repo_dir="."
 while [[ $# -gt 0 ]]; do
@@ -133,7 +138,7 @@ canon() {
 # as though it were the repository's answer. Every read below is meaningless
 # until this gate passes, so a failure here is the whole report.
 if ! git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
-  err "repository unreadable at $repo_dir — not a git repository, or dubious ownership (safe.directory). Until this resolves, any 'git -C <here> config --get melodic.worktreeroot' silently returns the GLOBAL value as if it were this repository's answer (rc=0, no stderr). Fix: run from a repository, or 'git config --global --add safe.directory <path>'."
+  err "repository unreadable at $repo_dir — not a git repository, or dubious ownership (safe.directory). Until this resolves, any 'git -C <here> config --get worktreeroot.path' silently returns the GLOBAL value as if it were this repository's answer (rc=0, no stderr). Fix: run from a repository, or 'git config --global --add safe.directory <path>'."
   exit 1
 fi
 
@@ -242,20 +247,27 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   esac
 done
 
-# --- Resolution: which rule supplied melodic.worktreeroot ----------------------
+# --- Resolution: which rule supplied the worktree root ------------------------
+# Shared resolver picks worktreeroot.path (and rewrites a retired alias when
+# one is still present). Origin attribution then loops THAT key so empty-last
+# fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
-while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
-  # Same alternating -z framing as above, except --get-all emits the VALUE
-  # alone as the second record (no key<LF> prefix — measured, not assumed).
-  ofile=""
-  [[ "$origin" == file:* ]] && ofile="${origin#file:}"
-  val_origins+=("$ofile")
-  val_values+=("$val")
-done < <(git -C "$repo_dir" config --show-origin -z --get-all --type=path melodic.worktreeroot 2>/dev/null | tr -d '\r')
+winning_key=""
+if worktree_root_resolve "$repo_dir"; then
+  winning_key="$WORKTREE_ROOT_KEY_USED"
+  while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
+    # Same alternating -z framing as above, except --get-all emits the VALUE
+    # alone as the second record (no key<LF> prefix — measured, not assumed).
+    ofile=""
+    [[ "$origin" == file:* ]] && ofile="${origin#file:}"
+    val_origins+=("$ofile")
+    val_values+=("$val")
+  done < <(git -C "$repo_dir" config --show-origin -z --get-all --type=path "$winning_key" 2>/dev/null | tr -d '\r')
+fi
 
 nvals=${#val_values[@]}
-if ((nvals == 0)); then
-  note "melodic.worktreeroot is unset — the creation helper falls through to the worktree_root plugin option, then the plugin data directory. Set the key so every consumer can read the root: git config --global melodic.worktreeroot <dir-outside-every-repo>"
+if ((nvals == 0)) || [[ -z "$winning_key" ]]; then
+  note "worktreeroot.path is unset — the creation helper falls through to the worktree_root plugin option, then the plugin data directory. Set the key so every consumer can read the root: git config --global worktreeroot.path <dir-outside-every-repo>."
 else
   win_idx=$((nvals - 1))
   win_val="${val_values[win_idx]}"
@@ -271,7 +283,7 @@ else
       fi
     done
   fi
-  ok "melodic.worktreeroot = $win_val (supplied by $supplied_by)"
+  ok "$winning_key = $win_val (supplied by $supplied_by)"
 
   # Parse order is precedence: a plain value the parser meets AFTER an
   # include-supplied one silently overrides every identity include.
@@ -286,7 +298,7 @@ else
     done
     # shellcheck disable=SC2310  # pure predicate; both branches are handled
     if ((losing_include)) && ! is_include_file "$win_origin"; then
-      warn "a plain melodic.worktreeroot in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
+      warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
     elif is_include_file "$win_origin"; then
       # The recommended layout: a plain machine default parsed first, the
       # include's more-specific answer after it. Say so — the absence of a
@@ -297,9 +309,9 @@ else
 
   # Scoped-read divergence: a consumer passing a scope flag without --includes
   # gets a DIFFERENT answer than the correct all-files read.
-  scoped_val="$(git config --global --get --type=path melodic.worktreeroot 2>/dev/null | tail -n 1 | tr -d '\r')"
+  scoped_val="$(git config --global --get --type=path "$winning_key" 2>/dev/null | tail -n 1 | tr -d '\r')"
   if [[ "$scoped_val" != "$win_val" ]]; then
-    note "a scoped read ('git config --global --get melodic.worktreeroot', includes OFF by default when a scope flag is given) returns '${scoped_val:-<nothing>}' here, not '$win_val' — consumers must never pass a scope flag without --includes"
+    note "a scoped read ('git config --global --get $winning_key', includes OFF by default when a scope flag is given) returns '${scoped_val:-<nothing>}' here, not '$win_val' — consumers must never pass a scope flag without --includes"
   fi
 
   # The root must satisfy the invariant the key exists for.
