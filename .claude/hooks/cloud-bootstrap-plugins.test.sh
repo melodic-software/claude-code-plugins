@@ -204,6 +204,13 @@ run_case() {
     printf '%s\n' "$CASE_FLEET" >"$fx/fleet.json"
     fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/fleet.json")
   fi
+  # The catalog the block reads for `defaultEnabled`. Absent by default, which
+  # is the pre-existing shape every case below was written against: no catalog
+  # means no default-disabled ids, so disabled stays a failure.
+  if [[ -n "${CASE_MARKETPLACE:-}" ]]; then
+    mkdir -p "$fx/.claude-plugin"
+    printf '%s\n' "$CASE_MARKETPLACE" >"$fx/.claude-plugin/marketplace.json"
+  fi
   printf 'a\n' >"$fx/plugins/alpha/f.txt"
   printf 'b\n' >"$fx/plugins/beta/f.txt"
 
@@ -292,21 +299,21 @@ refute() {
 
 run_case steady "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a settled catalog reports no work and no failures" \
-  "plugins 2 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 run_case duplicated "$BOTH_DUPLICATED" "$BOTH_DUPLICATED" "$REG_BOTH_HEAD" NONE
 expect "the real project+user duplicate listing passes" \
-  "plugins 2 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 run_case fresh "$NONE" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a first-run install counts as installed, not failed" \
-  "plugins 2 enabled, 2 newly installed, 0 refreshed, 0 failed"
+  "plugins 2 declared, 2 newly installed, 0 refreshed, 0 failed"
 
 # The regression this whole change set exists for: the refresh chain's trailing
 # `plugin enable` exits 1 on the healthy path, and the stub reproduces that.
 run_case refreshed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" "$REG_BOTH_HEAD"
 expect "a healthy refresh is not a failure even though \`plugin enable\` exits 1" \
-  "plugins 2 enabled, 0 newly installed, 1 refreshed, 0 failed"
+  "plugins 2 declared, 0 newly installed, 1 refreshed, 0 failed"
 
 # --- broken end states must be named and counted -----------------------------
 
@@ -319,6 +326,43 @@ expect "and is named in the summary" \
 run_case disabled "$BETA_DISABLED" "$BETA_DISABLED" "$REG_BOTH_HEAD" NONE
 expect "a plugin installed at user scope but disabled is a failure" \
   "beta@melodic-software failed verification after no action: installed at user scope but not enabled"
+
+# --- a catalog `defaultEnabled: false` makes disabled the EXPECTED end state --
+# The fleet list and the settings block answer INSTALL; the catalog owns
+# enablement, and `plugin install --scope user -y` honours it (claude 2.1.263:
+# exit 0, "This plugin is disabled by default", `plugin list --json` reporting
+# scope=user with enabled=false). Scoring that as a failed install put a
+# standing nonzero failure count in every fresh snapshot's log. The pair below
+# is the point: the SAME disabled end state passes with the catalog entry and
+# fails without it, which pins the discriminator on the catalog rather than on
+# the disabled state.
+
+BETA_DEFAULT_DISABLED='{"plugins":[{"name":"alpha"},{"name":"beta","defaultEnabled":false}]}'
+
+CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
+  run_case default_disabled_fresh "$NONE" "$BETA_DISABLED" "$REG_BOTH_HEAD" NONE
+expect "a fresh install left disabled by the catalog counts as installed, not failed" \
+  "plugins 2 declared, 2 newly installed, 0 refreshed, 0 failed"
+refute "and is not named as a failure" \
+  "beta@melodic-software failed verification"
+
+CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
+  run_case default_disabled_steady "$BETA_DISABLED" "$BETA_DISABLED" "$REG_BOTH_HEAD" NONE
+expect "a settled catalog-disabled plugin reports no work and no failures" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+
+# Still held to the other two checks, so the exception cannot hide a real break.
+CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
+  run_case default_disabled_project_only "$BETA_PROJECT_ONLY" "$BETA_PROJECT_ONLY" "$REG_BOTH_HEAD" NONE
+expect "a catalog-disabled plugin missing from user scope is still a failure" \
+  "beta@melodic-software failed verification after no action: not installed at user scope"
+
+CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
+  run_case default_disabled_stale "$BETA_DISABLED" "$BETA_DISABLED" "$REG_BETA_SHA_NULL" NONE
+expect "a catalog-disabled plugin is still snapshot-verified" \
+  "beta@melodic-software failed verification after no action: cannot verify snapshot: no user-scope gitCommitSha recorded"
+
+# --- broken end states must be named and counted, continued ------------------
 
 run_case enabled_string "$BETA_ENABLED_STRING" "$BETA_ENABLED_STRING" "$REG_BOTH_HEAD" NONE
 expect "enabled as the string \"true\" is rejected, not accepted" \
@@ -354,7 +398,7 @@ refute "and a plugin whose own directory did not change is not called stale" \
 # one that can catch an id credited to `refreshed` (or `installed`) and to
 # `failed` at the same time. The counts must partition, not overlap.
 expect "an attempted plugin that failed is counted once, as failed only" \
-  "plugins 2 enabled, 0 newly installed, 0 refreshed, 1 failed: alpha@melodic-software"
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 1 failed: alpha@melodic-software"
 
 run_case unreadable "$BOTH_USER" 'not json at all' "$REG_BOTH_HEAD" NONE
 expect "an unreadable plugin list fails the whole batch" \
@@ -374,24 +418,24 @@ CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true,"gamma@elsewhere":true}}' \
   run_case fleet_union "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a fleet entry beyond the settings block counts as enabled" \
-  "plugins 2 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":false}}' \
   CASE_FLEET='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}' \
   run_case fleet_opt_out "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a settings false opts out of a fleet entry" \
-  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   run_case fleet_absent "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "without a fleet list the settings block is the only source" \
-  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='not json at all' \
   run_case fleet_malformed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a malformed fleet list degrades to the settings block, not to an empty set" \
-  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 # Valid JSON of the wrong shape (an error body, an array where the object
 # should be) would break the merge the same way a parse failure does.
@@ -399,13 +443,13 @@ CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='{"enabledPlugins":["alpha@melodic-software"]}' \
   run_case fleet_wrong_shape "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a wrong-shaped fleet list degrades to the settings block, not to an empty set" \
-  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='[]' \
   run_case fleet_array "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a fleet list that is a bare array degrades to the settings block" \
-  "plugins 1 enabled, 0 newly installed, 0 refreshed, 0 failed"
+  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 # --- report -------------------------------------------------------------------
 echo

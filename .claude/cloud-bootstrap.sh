@@ -152,7 +152,8 @@ fi
 # skills, not the session. Idempotent — installed plugins are skipped, so a
 # resume re-run costs two `claude plugin list` calls: one to see what is
 # installed, one to verify the end state afterwards. Measured on this VM with
-# nothing to do: 72 enabled, 0 installed, 0 refreshed, 0 failed.
+# nothing to do: 72 declared, 0 installed, 0 refreshed, 0 failed. The counts are
+# that measurement; only the first label changed with the summary line below.
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
 if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
@@ -202,6 +203,21 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       .claude/settings.json 2>/dev/null | tr -d '\r'
   )
   mapfile -t have < <("$claude_bin" plugin list --json 2>/dev/null | jq -r '.[].id' 2>/dev/null | tr -d '\r')
+
+  # Catalog entries this marketplace marks `defaultEnabled: false`. The two
+  # sources above answer INSTALL; enablement is the catalog's separate axis, and
+  # `plugin install --scope user -y` honours it — measured on claude 2.1.263
+  # against a throwaway marketplace: exit 0, the CLI printing "This plugin is
+  # disabled by default", and `plugin list --json` showing scope=user with
+  # enabled=false. So DISABLED is the EXPECTED end state for these ids, and
+  # scoring it as a failed install printed a standing failure count on every
+  # fresh snapshot — the shape that teaches operators to skip the log. This
+  # checkout is the registered marketplace (`marketplace add "$repo_root"`
+  # above), so the catalog reads off disk at no CLI or network cost.
+  mapfile -t default_disabled < <(
+    jq -r '.plugins[]? | select(.defaultEnabled == false) | .name' \
+      .claude-plugin/marketplace.json 2>/dev/null | tr -d '\r'
+  )
 
   # A directory-source install cache is keyed by the semver in plugin.json, not
   # by commit, so a later commit under the same version never replaces the
@@ -325,8 +341,13 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   #
   # A plugin passes only when it is installed at user scope, enabled there
   # (enabled must be the JSON boolean true, so a string "true" is rejected), and
-  # snapshot_problem finds nothing. Failures are NAMED, not just counted,
-  # because a bare count cannot be acted on.
+  # snapshot_problem finds nothing. The one exception is an id the catalog marks
+  # `defaultEnabled: false`, for which disabled IS the pass state; it is still
+  # held to the install and snapshot checks. The exception is deliberately keyed
+  # on the catalog rather than on the disabled state itself, so a plugin that is
+  # disabled and NOT default-disabled still fails, which is the fail-closed
+  # signal this block was given in the first place. Failures are NAMED, not just
+  # counted, because a bare count cannot be acted on.
   failed_ids=()
   end_state="$("$claude_bin" plugin list --json 2>/dev/null || true)"
   listed=1
@@ -347,7 +368,8 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       reason="not installed at user scope"
     elif ! jq -e --arg id "$id" \
       'any(.[]?; .id == $id and .scope == "user" and .enabled == true)' \
-      <<<"$end_state" >/dev/null 2>&1; then
+      <<<"$end_state" >/dev/null 2>&1 &&
+      [[ " ${default_disabled[*]} " != *" ${id%@*} "* ]]; then
       reason="installed at user scope but not enabled"
     else
       reason="$(snapshot_problem "$id")"
@@ -363,7 +385,10 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     fi
   done
 
-  plugin_summary="cloud-bootstrap: plugins ${#wanted[@]} enabled, $installed newly installed, $refreshed refreshed, ${#failed_ids[@]} failed"
+  # "declared", not "enabled": the count is of ids the two sources declare, and
+  # a catalog entry marked `defaultEnabled: false` is declared and installed
+  # without ever being enabled.
+  plugin_summary="cloud-bootstrap: plugins ${#wanted[@]} declared, $installed newly installed, $refreshed refreshed, ${#failed_ids[@]} failed"
   if [[ "$listed" -eq 0 ]]; then
     plugin_summary="$plugin_summary: none could be verified, see the warning above"
   elif ((${#failed_ids[@]} > 0)); then
