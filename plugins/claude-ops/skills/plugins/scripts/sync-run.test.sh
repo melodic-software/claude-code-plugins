@@ -102,6 +102,13 @@ case "$verb" in
     echo "Plugin \"$id\" not found"
     exit 1
   fi
+  if [[ -n "${CLAUDE_STUB_NOOP_ID:-}" && "$id" == "$CLAUDE_STUB_NOOP_ID" ]]; then
+    cur=$(jq -r --arg id "$id" --arg sc "$scope" \
+      'first(.plugins[$id][]? | select(.scope == $sc) | .version) // "0.0.0"' \
+      "$CLAUDE_STUB_INSTALLED_JSON")
+    echo "${id%@*} is already at the latest version ($cur)."
+    exit 0
+  fi
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
   old=$(jq -r --arg id "$id" --arg sc "$scope" \
     'first(.plugins[$id][]? | select(.scope == $sc) | .version) // "0.0.0"' \
@@ -352,7 +359,7 @@ assert_eq "--allow-downgrade: recorded in the digest" "true" \
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
-catalog_plugin "$case_dir" market1 alpha 0.1.0
+catalog_plugin "$case_dir" market1 alpha 0.2.0
 catalog_plugin "$case_dir" market1 beta 0.2.0
 write "$case_dir/installed_plugins.json" '{
   "version": 1,
@@ -362,8 +369,10 @@ write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
-EXTRA_ENV=()
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_eq "ask: the sweep still ran before the stop" "1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "ask: stops before Step 4" "true" \
   "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
 assert_eq "ask: the gap is reported" "beta@market1" \
@@ -377,12 +386,18 @@ assert_exit "--only-install: exit 0" 0 $?
 assert_eq "--only-install: the chosen id is installed" "1" \
   "$(grep -c 'plugin install beta@market1' "$case_dir/claude.log")"
 assert_eq "--only-install: reuses the same run directory" "$run_dir" "$(jq -r '.run_dir' <<<"$out2")"
+assert_eq "--only-install: the first pass's sweep row survives into the second digest" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0].id' <<<"$out2")"
+assert_eq "--only-install: and its project_root does too" "$(jq -r '.marketplaces[0].project_root' <<<"$out")" \
+  "$(jq -r '.marketplaces[0].project_root' <<<"$out2")"
 assert_eq "--only-install: the checker is NOT run a second time" "1" \
   "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "--only-install: the cache finding survives into the second digest" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out2")"
-assert_eq "--only-install: the normalizer ran after the install" "1" \
-  "$(wc -l <"$case_dir/normalize.log" | tr -d ' ')"
+assert_eq "--only-install: the normalizer wrote user scope once after the install" "1" \
+  "$(grep -cv -- '--report-project' "$case_dir/normalize.log")"
+assert_eq "--only-install: and only INSPECTED the project-scope map" "1" \
+  "$(grep -c -- '--report-project' "$case_dir/normalize.log")"
 
 # ============================================================================
 # Case: `none` reports the gap and installs nothing; `all` installs it
@@ -417,7 +432,7 @@ write "$case_dir2/known_marketplaces.json" "{\"market1\": {\"source\": {\"source
 out=$(run_sync "$case_dir2" --marketplace market1 --install-new all --journal-root "$case_dir2/journal")
 assert_eq "all: the gap is installed" "1" "$(grep -c 'plugin install beta@market1' "$case_dir2/claude.log")"
 assert_eq "all: the normalizer heals the key order the install disturbed" "1" \
-  "$(wc -l <"$case_dir2/normalize.log" | tr -d ' ')"
+  "$(grep -cv -- '--report-project' "$case_dir2/normalize.log")"
 
 # ============================================================================
 # Case: an empty projection that EXITED 2 is an error, never "nothing to do"
@@ -511,8 +526,18 @@ write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "delta", "source": "delta"}]}'
 write "$case_dir/user_settings.json" '{"enabledPlugins": {}}'
 setup_case "$case_dir"
-EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir")
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=delta@market1)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "no-op update: the in-repo sweep called the CLI for the record" "1" \
+  "$(grep -c 'plugin update delta@market1' "$case_dir/claude.log")"
+assert_eq "no-op update: an already-current id is NOT an Updated row" "0" \
+  "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
+assert_eq "no-op update: and is not a downgrade either" "0" \
+  "$(jq -r '.marketplaces[0].downgraded | length' <<<"$out")"
+assert_eq "report inputs: the marketplace's autoUpdate rides the digest" "null" \
+  "$(jq -r '.marketplaces[0] | has("auto_update") | if . then "null" else "missing" end' <<<"$out")"
+assert_eq "report inputs: the stale-project-record count rides the digest" "0" \
+  "$(jq -r '.marketplaces[0].stale_project_records.records' <<<"$out")"
 assert_eq "enable gap: the user-scope id is enabled" "1" \
   "$(grep -c 'plugin enable alpha@market1 -s user' "$case_dir/claude.log")"
 assert_eq "enable gap: no project-scope enable is ever issued" "0" \

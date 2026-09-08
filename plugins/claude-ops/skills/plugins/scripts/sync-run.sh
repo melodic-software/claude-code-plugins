@@ -46,12 +46,15 @@
 # Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`.
 #   {run_dir, mode, allow_downgrade, install_new, install_new_invalid,
 #    marketplaces:[…], errors:[…]}
-#   Each marketplace block: {name, catalog_last_updated, refresh:{rc,output,predicted},
-#    project_root, in_repo:{updated,failed,would_update},
+#   Each marketplace block: {name, catalog_last_updated, auto_update,
+#    refresh:{rc,output,predicted}, project_root, in_repo:{updated,failed,would_update},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, install_gap, installed, install_enable_deferred,
 #    stopped_before_install, enable_gap, enabled, project_enable_rows, normalize,
-#    cache_content, catalog_regression, divergences, self_updated, errors}
+#    cache_content, catalog_regression, divergences, divergences_here,
+#    stale_project_records, user_scope_orphans, self_updated, errors}
+#   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
+#   local scope, and `project_enable_rows` is what it reports rather than writes.
 #   `updated` carries forward moves and unreadable-direction moves (flagged
 #   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
 #   instead, which is what keeps a backward move off the report's `Updated:` line
@@ -347,6 +350,23 @@ cli_reported_version() {
   fi
 }
 
+# What the CLI said it did, classified at capture time, because the outcome is not
+# recoverable later: an id the CLI reported as ALREADY CURRENT and an id whose
+# update the state write has not landed for both read as "no version change" from a
+# post-sweep snapshot. Reporting the first as an update with an unknown version
+# would put most of an already-current fleet under `Updated:`.
+#   updated  the CLI named a version pair
+#   noop     the CLI said the id is already at the latest version
+#   other    the CLI named neither; the post-sweep read decides
+cli_move_result() {
+  local __var="$1" text="$2"
+  case "$text" in
+  *"updated from"*) printf -v "$__var" '%s' "updated" ;;
+  *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
+  *) printf -v "$__var" '%s' "other" ;;
+  esac
+}
+
 # --- projection ----------------------------------------------------------------
 # Redirect the selector to a file and hand back the exit status. An empty
 # projection is ambiguous: every `--from` rejection exits 2 with EMPTY stdout so a
@@ -503,9 +523,13 @@ reset_marketplace_state() {
 run_marketplace() {
   local mp="$1"
   reset_marketplace_state
-  : >"$RUN_DIR/moves.$mp.tsv"
+  # The `--only-install` re-entry APPENDS to the same move ledger. Truncating it
+  # would drop the sweep's `<old> → <new>` pairs from the digest that supersedes
+  # the first one, and the report would then show an empty `Updated:` for a run
+  # that updated plugins.
+  ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
 
-  local rc dg_rc id scope old new row text out
+  local rc dg_rc id scope old new result row text out
 
   local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
 
@@ -541,7 +565,22 @@ run_marketplace() {
       fi
     fi
   else
+    # The re-entry reports the whole run, so the fields Steps 1-3 filled come back
+    # off their saved snapshots rather than reading as absent.
     [[ -f "$pre_refresh" ]] && jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$pre_refresh"
+    if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
+      jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
+      [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
+    fi
+    if ((ALLOW_DOWNGRADE == 0)) && [[ -f "$RUN_DIR/downgrades.$mp.txt" ]]; then
+      while IFS=$'\t' read -r id scope old new; do
+        id="${id//$'\r'/}"
+        [[ -n "$id" ]] || continue
+        WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "${scope//$'\r'/}" \
+          --arg o "${old//$'\r'/}" --arg n "${new//$'\r'/}" \
+          '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+      done <"$RUN_DIR/downgrades.$mp.txt"
+    fi
   fi
 
   # ---- Step 2 — in-repo update (the primary value path) ------------------------
@@ -582,7 +621,9 @@ run_marketplace() {
           continue
         fi
         cli_reported_version new "$CLI_OUT"
-        printf 'in_repo\t%s\t%s\t%s\t%s\n' "$id" "$scope" "$old" "$new" >>"$RUN_DIR/moves.$mp.tsv"
+        cli_move_result result "$CLI_OUT"
+        printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
+          >>"$RUN_DIR/moves.$mp.tsv"
       done <"$RUN_DIR/ids.pre.$mp.txt"
     fi
   fi
@@ -629,7 +670,9 @@ run_marketplace() {
           continue
         fi
         cli_reported_version new "$CLI_OUT"
-        printf 'user_sweep\t%s\t%s\t%s\t%s\n' "$id" user "$old" "$new" >>"$RUN_DIR/moves.$mp.tsv"
+        cli_move_result result "$CLI_OUT"
+        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
+          >>"$RUN_DIR/moves.$mp.tsv"
       done <"$RUN_DIR/ids.mid.$mp.txt"
     fi
 
@@ -650,8 +693,14 @@ run_marketplace() {
             '{id: $id, rc: $rc, output: $out}')")
           continue
         fi
-        DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-          '{id: $id, scope: $sc, old: $o, new: $n}')")
+        # Through the move ledger like every other mutation, so the direction
+        # compare is the one that decides where it renders and the row survives an
+        # `--only-install` re-entry.
+        local applied=""
+        cli_reported_version applied "$CLI_OUT"
+        [[ -n "$applied" ]] || applied="$new"
+        printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
+          >>"$RUN_DIR/moves.$mp.tsv"
       else
         WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
           '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
@@ -773,8 +822,20 @@ run_install_step() {
     nout=$("$NORMALIZE" 2>&1) || nrc=$?
   fi
   trunc nout "${nout//$'\r'/}" 200
+
+  # The project-scope map is INSPECTED and never rewritten: `project-unsorted` is a
+  # report row, and `converge` remains the only action that may touch that file.
+  local prc=0 pout="" proot=""
+  jq_to proot -r '. // ""' <<<"$PROJECT_ROOT_JSON"
+  if [[ -n "$proot" && -f "$proot/.claude/settings.json" ]]; then
+    pout=$("$NORMALIZE" --report-project "$proot/.claude/settings.json" 2>&1) || prc=$?
+    trunc pout "${pout//$'\r'/}" 200
+  fi
+
   jq_to NORMALIZE_JSON -c -n --argjson rc "$nrc" --arg out "$nout" --arg mode "$MODE" \
-    '{rc: $rc, output: $out, checked_only: ($mode == "audit")}'
+    --argjson prc "$prc" --arg pout "$pout" \
+    '{rc: $rc, output: $out, checked_only: ($mode == "audit"),
+      project_report: (if $pout == "" then null else {rc: $prc, output: $pout} end)}'
 }
 
 # --- Step 5 — enabledPlugins completeness ----------------------------------------
@@ -884,10 +945,17 @@ cache_content_block() {
 # for a plugin that did.
 finalize_moves() {
   local mp="$1"
-  local kind id scope old new dir row post="$RUN_DIR/post.$mp.json"
+  local kind id scope old new result dir row post="$RUN_DIR/post.$mp.json"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
-  while IFS=$'\t' read -r kind id scope old new; do
+  while IFS=$'\t' read -r kind id scope old new result; do
     [[ -n "$id" ]] || continue
+    # A version field is written as `-` when it is empty, and read back the same
+    # way: tab is IFS WHITESPACE, so two adjacent tabs collapse into one delimiter
+    # and an empty interior field would shift every later column left by one.
+    [[ "$old" == "-" ]] && old=""
+    [[ "$new" == "-" ]] && new=""
+    # An id the CLI called already-current changed nothing and is not a report row.
+    [[ "$result" == "noop" ]] && continue
     if [[ -z "$new" && -f "$post" ]]; then
       version_at new "$post" "$id" "$scope"
       [[ "$new" == "$old" ]] && new=""
@@ -913,11 +981,39 @@ finalize_moves() {
   done <"$RUN_DIR/moves.$mp.tsv"
 }
 
+# --- report rows that live in the state, not in this run's actions ------------------
+# SKILL.md's Report has rows whose only source is a fleet-state report: the
+# marketplace's own autoUpdate, the stale project records, the user-scope orphans,
+# and the share of actionable divergences that belong to the repo the run stands in.
+# They ride the digest so the report costs no extra read.
+report_extras() {
+  local __var="$1" mp="$2" src=""
+  for src in "$RUN_DIR/post.$mp.json" "$RUN_DIR/pre-install.$mp.json" "$RUN_DIR/pre.$mp.json" \
+    "$RUN_DIR/pre-refresh.$mp.json"; do
+    [[ -f "$src" ]] && break
+    src=""
+  done
+  if [[ -z "$src" ]]; then
+    jq_to "$__var" -c -n '{auto_update: null, user_scope_orphans: [],
+      stale_project_records: {records: null, paths: []}, divergences_here: null}'
+    return 0
+  fi
+  jq_to "$__var" -c '
+    ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
+    | ([.installed[]? | select(.currentProject == true) | .id]) as $here
+    | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
+    | {auto_update: (.marketplace.autoUpdate // null),
+       user_scope_orphans: (.user_scope_orphans // []),
+       stale_project_records: {records: ($absent | length),
+                               paths: ([$absent[] | .projectPath] | unique)},
+       divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
+}
+
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
   local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs
-  local reg_interval reg_rows div block
+  local reg_interval reg_rows div extras block
 
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
@@ -939,6 +1035,12 @@ emit_marketplace_block() {
 
   catalog_regression_rows reg_interval reg_rows "$mp"
   divergence_block div "$mp"
+  report_extras extras "$mp"
+  # A field that could not be computed becomes an empty object, never an empty
+  # string: an empty --argjson would take the whole digest down with it.
+  [[ -n "$div" ]] || div='{}'
+  [[ -n "$extras" ]] || extras='{}'
+  [[ -n "$reg_rows" ]] || reg_rows='[]'
 
   jq_to block -c -n \
     --arg name "$mp" \
@@ -956,8 +1058,9 @@ emit_marketplace_block() {
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
+    --argjson extras "$extras" \
     --argjson errors "$errs" '
-    {name: $name,
+    $extras + {name: $name,
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      refresh: {rc: $refresh_rc, output: $refresh_out, predicted: $refresh_predicted},
      project_root: $project_root,
