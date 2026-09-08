@@ -105,7 +105,8 @@ REPO="$WORK/repo"
 mkdir -p "$REPO/.github/workflows"
 git -C "$REPO" init -q 2>/dev/null
 git -C "$REPO" remote add origin https://github.com/melodic-software/claude-code-plugins.git 2>/dev/null
-printf 'name: pr-issue-linkage\n' >"$REPO/.github/workflows/pr-issue-linkage.yml"
+printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-contract@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2\n' \
+  >"$REPO/.github/workflows/ci.yml"
 
 GOOD_BODY='Closes #1
 

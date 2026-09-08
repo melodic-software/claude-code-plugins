@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block an MCP-created PR whose BODY would fail the consuming
-# repository's own `pr-issue-linkage` CI gate.
+# repository's own PR-contract CI gate.
 #
 # WHY IT EXISTS — cloud/remote sessions have no `gh` CLI and create PRs through
 # the GitHub MCP server (`mcp__github__create_pull_request` /
@@ -12,8 +12,11 @@
 # field — so the extraction caveats (heredocs, dynamic values, directory
 # changes) don't exist on this surface, and the fail-open set is much smaller.
 #
-# WHAT IT ENFORCES — the five requirements the reusable
-# melodic-software/ci-workflows pr-issue-linkage validator requires: after
+# WHAT IT ENFORCES — the five requirements of the linkage contract. The
+# semantics were ported from the reusable melodic-software/ci-workflows
+# pr-issue-linkage validator, which is RETIRED (deleted in ci-workflows#569,
+# released as v0.23.0); the live artifact carrying the same contract is that
+# repo's `.github/actions/pr-contract` composite step. After
 # stripping HTML comments (terminated spans, then an unterminated `<!--`
 # swallowing the rest), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
@@ -24,8 +27,13 @@
 #
 # SCOPE GUARDS —
 #   - enforcement is keyed to the repository's OWN policy: the gate runs only
-#     when the repo root carries `.github/workflows/pr-issue-linkage.yml`
-#     (or `.yaml`), so a consumer without the check is never gated;
+#     when one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:`
+#     the `pr-contract` composite step (the SHA-pinned
+#     `melodic-software/ci-workflows/.github/actions/pr-contract@<sha>` form or
+#     ci-workflows' own local `./.github/actions/pr-contract`), so a consumer
+#     without the step is never gated. This is deliberately NOT the
+#     `pr_body_required_sections` seam (docs/conventions/pr-body-convention/),
+#     whose portable default excludes `Related` on purpose;
 #   - a call targeting a DIFFERENT repository (tool_input owner/repo not
 #     matching the repo's origin remote) is out of scope and allowed —
 #     this repo's policy is not another repo's;
@@ -169,15 +177,31 @@ esac
 
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 
-# The consuming repo's own gate definition is the authority; no gate, no
+# The consuming repo's own workflows are the authority: the gate runs only
+# where one of them wires in the `pr-contract` composite step. No step, no
 # enforcement.
 GATE_FILE=""
-for candidate in "$REPO_ROOT/.github/workflows/pr-issue-linkage.yml" \
-  "$REPO_ROOT/.github/workflows/pr-issue-linkage.yaml"; do
-  [[ -f "$candidate" ]] && {
-    GATE_FILE="$candidate"
-    break
-  }
+# Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
+# (`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`) and
+# ci-workflows' own local dogfood (`./.github/actions/pr-contract`). The
+# trailing class keeps a longer sibling directory (`pr-contract-foo`) out.
+gate_re='\.github/actions/pr-contract([@[:space:]]|$)'
+for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
+  # An unmatched glob is left as its literal pattern; skipping non-files is the
+  # local fix, because `shopt -s nullglob` would leak a shell option out of a
+  # hook that never set one.
+  [[ -f "$candidate" ]] || continue
+  # Fork-free read, not `grep`: one spawn per workflow file is exactly the cost
+  # pr-linkage-spawn-budget.test.sh fences (#3509). `read -r -d ''` returns 1
+  # at EOF with no NUL — the normal case — and `wf` holds the bytes either way.
+  # Cleared first: if the redirect itself fails (an unreadable file), `read`
+  # never runs and `wf` would otherwise still hold the PREVIOUS candidate's
+  # bytes, naming the wrong workflow as the gate.
+  wf=""
+  IFS= read -r -d '' wf <"$candidate"
+  [[ "$wf" =~ $gate_re ]] || continue
+  GATE_FILE="$candidate"
+  break
 done
 [[ -n "$GATE_FILE" ]] || exit 0
 
@@ -264,9 +288,9 @@ if linkage::problems "$BODY"; then
   exit 0
 fi
 
-echo "BLOCKED: PR body fails this repo's required pr-issue-linkage check." >&2
+echo "BLOCKED: PR body fails this repo's PR-contract check." >&2
 for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
-echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
+echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
 echo "Add to the body:" >&2
 echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
 echo "  ## Summary" >&2

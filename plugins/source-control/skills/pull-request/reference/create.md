@@ -339,7 +339,7 @@ A `Refs #N` line links an issue without closing it and never belongs on the clos
 
 Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
-A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own `pr-issue-linkage` check and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
+A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own PR-contract check (a workflow that `uses:` the `pr-contract` composite step) and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
 
 #### 2.4.2.1 Verify closing-keyword line
 
@@ -540,7 +540,7 @@ PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 
 `--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
 
-**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own `pr-issue-linkage` workflow is then the first thing that notices a missing closing keyword or an empty required section.
+**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
 
 PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file — `gh` is authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it with `gh api "repos/{owner}/{repo}/pulls/<n>" --jq '{number, html_url}'`.
 
