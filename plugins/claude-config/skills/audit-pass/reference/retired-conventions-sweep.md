@@ -14,7 +14,7 @@ that setup. A consumer who updates a plugin and never re-runs setup carries the 
 indefinitely, and nothing re-checks it. The sweep closes that gap at the fleet level without a
 generator or a committed aggregate: it reads the manifests that are installed at the moment it
 runs. The cross-plugin contract — schema, helper exit codes, severity map — is the marketplace's
-retired-conventions convention; this file states what the pass itself needs in order to run it.
+retired-conventions convention; this file states what the pass itself needs to run it.
 
 ## Discovering manifests
 

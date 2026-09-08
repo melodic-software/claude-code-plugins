@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.6.0]
+
+### Fixed
+
+- **`detect.sh`:** the quotation exemption now carries an open double-quoted span across a
+  soft line break. A span whose closing quote sat on the next line inverted the pairing on that
+  line, so the quoted text was scanned and the prose between quotes was stripped; the
+  plugin's own CHANGELOG produced two false `rule-challenges-conclusion` findings that way. The
+  carried state resets at a blank line and at the start of a heading, list item, or table row.
+- **`detect.sh`:** the bare singular `underscore` left the default vocabulary. The source entry
+  targets the verb, and in a programming-docs repository the singular is the `_` character in
+  a naming convention; a document about a leading-underscore convention fired the density
+  rule on six nouns. `underscores` stays.
+- **`emit-findings.sh`:** `--from` is repeatable, and per-rule counts are summed across the
+  chunk outputs a large run produces. Fed several chunks, the old script overwrote each
+  rule's declined count with the last chunk's and reported a rule as returning no result
+  whenever any single chunk had zero findings for it.
+- **`emit-findings.sh`:** the `## Surfaces` section now states the files scanned, the chunk
+  count, the whole files declined, and every rule the config disabled. The persist contract
+  asked for all four; the script wrote none of them.
+- **`audit`:** the pre-computed config block bounded `--show-config` at eight lines, which cut
+  off `disabled_rules` and every `rule_allowed_paths` entry. The bound is now forty lines and
+  the skill says why those trailing lines matter.
+
+### Changed
+
+- **`detect.sh`:** every `Summary` row splits its declined count by cause:
+  `declined_marker` (in-file ignore markers), `declined_quote` (the quotation exemption), and
+  `declined_config` (excluded paths and per-rule allowed paths), beside the unchanged
+  `declined` total. One number per rule told a reader nothing about what was exempted.
+- **`audit`:** the rubric pass covers every file in scope on a repo-wide run, and a new
+  `context/rubric-fanout.md` states how: word-budgeted batches, one fresh-context subagent per
+  batch, result files persisted in the findings home before the subagent reports, and a re-run
+  that skips completed batches. The previous wording let the rubric shrink to a priority subset
+  "as budget allows", and an unbatched pass lost its whole result to one rate limit.
+- **`persist-findings.md`:** the self-ignore guard file is created with the Write tool, because
+  a repository running the guardrails plugin blocks a shell redirect into the checkout, and the
+  `## Surfaces` description matches what the script now writes.
+- **README:** names `/ai-slop:audit` as the invocation and says a bare `/ai-slop` is not a
+  command.
+
 ## [0.5.13]
 
 ### Changed

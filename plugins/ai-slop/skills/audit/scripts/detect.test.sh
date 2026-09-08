@@ -508,7 +508,7 @@ EOF
 cp "$PHRASES_FIX" "$DISREPO/doc.md"
 out="$(CLAUDE_PROJECT_DIR="$DISREPO" bash "$DETECT" "$DISREPO/doc.md" 2>&1)"
 assert_not_contains "phrase config: disabled rule emits no findings" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
-assert_contains "phrase config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0 disabled=1"
+assert_contains "phrase config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1"
 
 # --show-config reports the effective roster.
 out="$(CLAUDE_PROJECT_DIR="$PREPO" bash "$DETECT" --show-config 2>&1)"
@@ -588,7 +588,7 @@ out="$(cd "$TEST_TMPDIR/repo" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$D
 assert_not_contains "config: em_dash_allowed_paths exempts the document" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 assert_not_contains "config: raised threshold silences vocabulary rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
 assert_not_contains "config: disabled rule emits no findings" "$out" "Finding: rule=ai-slop/audit/rule-significance-inflation"
-assert_contains "config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 disabled=1"
+assert_contains "config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1"
 
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "show-config: names the supplying layer" "$out" "$cfgdir/ai-slop.json"
@@ -654,8 +654,8 @@ out="$(cd "$TEST_TMPDIR/crlf-repo" && PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR=
 assert_not_contains "crlf jq: em_dash_allowed_paths still exempts the document" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
 # Positive pin alongside the absence check: on its own, `assert_not_contains`
 # would also be satisfied by an accidental whole-file exclusion.
-assert_contains "crlf jq: the em-dash exemption is a decline, not a dropped file" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 disabled=0"
-assert_contains "crlf jq: disabled_rules still applies" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 disabled=1"
+assert_contains "crlf jq: the em-dash exemption is a decline, not a dropped file" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1 disabled=0"
+assert_contains "crlf jq: disabled_rules still applies" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1"
 
 # rule_allowed_paths reads jq through `read`, not through cfg_array, so the CR
 # lands on the LAST glob of each entry rather than on every element. Its own
@@ -1241,6 +1241,94 @@ assert_contains "action: filler-phrases carries its substitution, not the generi
   "$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TIEROUT")" 'in order to'
 assert_contains "action: stacked-hedging names the one-hedge repair" \
   "$(LC_ALL=C grep -m1 'rule-stacked-hedging' "$TIEROUT")" "states the real uncertainty"
+
+# --- Quotation exemption across a soft line break -------------------------------
+# A double-quoted span whose closing quote sits on the next line: without the
+# carried open-span state, the pairing on the continuation line is off by one,
+# the quoted phrases survive and the prose between them is stripped, so a
+# changelog DOCUMENTING "challenges remained" fired the rule it described.
+# A stray unmatched quote inside one bullet must not blank the next bullet.
+
+WRAPQ="$TEST_TMPDIR/wrapq.md"
+cat >"$WRAPQ" <<'EOF'
+# Wrapped quotes
+
+The pattern fires on "challenges remained", "challenges
+remainder", "challenges remaining", "challenges persisted"; it does not
+fire on "challenges-adjacent".
+
+Plain prose written in order to trip the wording rule.
+
+- A bullet with an unmatched quote "here
+- The next bullet is written in order to stay scanned
+EOF
+out="$(bash "$DETECT" "$WRAPQ" 2>&1)"
+assert_contains "wrapped quote: documented phrases across a line break stay exempt" "$out" "rule=ai-slop/audit/rule-challenges-conclusion findings=0"
+assert_contains "wrapped quote: exempt candidates counted under the quote cause" "$out" "rule=ai-slop/audit/rule-challenges-conclusion findings=0 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
+assert_contains "wrapped quote: an unmatched quote resets at the next list item" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=2"
+
+# --- Vocabulary: the noun "underscore" is not a tell ------------------------------
+# Six nouns in a naming-convention doc must not reach the density rule.
+
+UNDERSCORE="$TEST_TMPDIR/underscore.md"
+cat >"$UNDERSCORE" <<'EOF'
+# Naming
+
+Private fields take a leading underscore. The underscore is the convention;
+one underscore per field, never two. A field with no underscore fails review,
+and a field whose underscore is trailing fails too. Count the underscore once.
+EOF
+out="$(bash "$DETECT" "$UNDERSCORE" 2>&1)"
+assert_contains "vocab: the noun underscore does not fire the density rule" "$out" "rule=ai-slop/audit/rule-ai-vocabulary findings=0"
+
+# --- Declined counts split by cause ------------------------------------------------
+# One total per rule said nothing about what was exempted. The split names the
+# marker, quote, and config shares; the total is unchanged.
+
+SPLITMARK="$TEST_TMPDIR/splitmark.md"
+cat >"$SPLITMARK" <<EOF
+# Split
+
+An em dash ${EM} with a marker. <!-- ai-slop-ignore: quoted example -->
+EOF
+out="$(bash "$DETECT" "$SPLITMARK" 2>&1)"
+assert_contains "split declined: a line marker counts under marker" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
+out="$(bash "$DETECT" "$QUOTED" 2>&1)"
+assert_contains "split declined: quote-exempt hits count under quote" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
+out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" 2>&1)"
+assert_contains "split declined: a rule_allowed_paths exemption counts under config" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1"
+
+# --- emit: chunked detector output is summed ---------------------------------------
+# A repo-scale run emits one Summary block per chunk. The old emitter kept the
+# LAST chunk's declined count and called a rule "no result" when any single
+# chunk reported zero for it; the sum is what the consumer needs.
+
+CHUNK_A="$TEST_TMPDIR/chunk-a.txt"
+CHUNK_B="$TEST_TMPDIR/chunk-b.txt"
+cat >"$CHUNK_A" <<'EOF'
+Finding: rule=ai-slop/audit/rule-em-dash file=a.md line=3 fired=zero-tolerance excerpt=one
+Summary rule=ai-slop/audit/rule-em-dash findings=1 declined=1 declined_marker=1 declined_quote=0 declined_config=0 disabled=0
+Summary rule=ai-slop/audit/rule-filler-phrases findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1
+Summary rule=ai-slop/audit/rule-utm-params findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=0
+Summary total: 1 findings across 3 files scanned (0 files declined)
+EOF
+cat >"$CHUNK_B" <<'EOF'
+Declined: file=vendor/x.md cause=excluded-glob
+Summary rule=ai-slop/audit/rule-em-dash findings=0 declined=2 declined_marker=0 declined_quote=2 declined_config=0 disabled=0
+Summary rule=ai-slop/audit/rule-filler-phrases findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=1
+Summary rule=ai-slop/audit/rule-utm-params findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0 disabled=0
+Summary total: 0 findings across 2 files scanned (1 files declined)
+EOF
+CHUNKOUT="$TEST_TMPDIR/findings/chunked.md"
+bash "$EMIT" --from "$CHUNK_A" --from "$CHUNK_B" --out "$CHUNKOUT" --branch test-branch >/dev/null 2>&1
+ccontent="$(cat "$CHUNKOUT")"
+assert_contains "emit chunked: files scanned and chunk count are summed" "$ccontent" "Scanned: 5 files in 2 chunk(s); 1 whole file(s) declined."
+assert_contains "emit chunked: declined counts sum across chunks with their split" "$ccontent" "Declined candidates: ai-slop/audit/rule-em-dash count=3 (marker=1, quote=2, config=0)"
+assert_contains "emit chunked: a config-disabled rule is named" "$ccontent" "Disabled by config: [ai-slop/audit/rule-filler-phrases]"
+assert_contains "emit chunked: a rule with zero findings in every chunk returns no result" "$ccontent" "Returned no result: [ai-slop/audit/rule-utm-params]"
+assert_not_contains "emit chunked: a rule that fired in one chunk is not called no-result" "$ccontent" "Returned no result: [ai-slop/audit/rule-em-dash"
+assert_contains "emit chunked: the declined-file row survives" "$ccontent" "Declined: file=vendor/x.md cause=excluded-glob"
+assert_contains "emit chunked: the finding row from the first chunk is present" "$ccontent" "a.md:3"
 
 # --- Result ---------------------------------------------------------------------
 

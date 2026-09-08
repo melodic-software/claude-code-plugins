@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.3]
+
+### Changed
+
+- **Changelog, in-place correction to the released `## [0.42.5]` entry:** its `--from` bullet
+  drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
+  Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
+  (#3987).
+
 ## [0.45.2]
 
 ### Fixed
@@ -750,7 +759,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   each mutating step, and every selector is derivable from it, so the separate
   live `--ids` process was paying a second process to re-parse
   `installed_plugins.json`, re-walk the catalog manifests, and re-run `realpath`
-  in order to recompute a block the caller was already holding. `--from` reads no
+  to recompute a block the caller was already holding. `--from` reads no
   Claude Code state file at all and runs the SAME jq projection the live mode
   runs, so the CR-free, TAB-separated output contract is unchanged, which is the
   reason the selector exists instead of a hand-written `jq` at each call site.

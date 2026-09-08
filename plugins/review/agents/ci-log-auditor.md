@@ -71,7 +71,7 @@ gh api --paginate "repos/<owner>/<repo>/check-runs/<check-run-id>/annotations?pe
 
 ## Output format
 
-Compact structured summary: the calling session reads this, and raw logs stay in YOUR context. Include every finding row. Keep evidence and recommendations to what the caller needs in order to act, and never omit a finding to shorten the summary.
+Compact structured summary: the calling session reads this, and raw logs stay in YOUR context. Include every finding row. Keep evidence and recommendations to what the caller needs to act, and never omit a finding to shorten the summary.
 
 ```markdown
 ## CI Run Audit — Run <run-id>

@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.6]
+
+### Changed
+
+- **`ci-log-auditor` agent:** the output-format instruction drops the filler phrase `in order to`
+  (`what the caller needs to act`); the instruction's meaning is unchanged. Found by the repo-wide
+  `/ai-slop:audit` run (#3987).
+
 ## [0.27.5]
 
 ### Added

@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.41]
+
+### Changed
+
+- **`audit-pass`:** `reference/retired-conventions-sweep.md` drops the filler phrase `in order to`
+  from its own prose; no rule or step changed. Found by the repo-wide `/ai-slop:audit` run
+  (#3987).
+
 ## [0.40.40]
 
 ### Added
