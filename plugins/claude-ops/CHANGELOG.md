@@ -16,6 +16,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Step 5b calls the checker once, not twice.**
 - **A journal-creation failure now exits 2 before any mutation, instead of degrading.**
 
+### Fixed
+
+- **`--only-install` keeps first-pass update and projection failures in the
+  replacement digest.** Successful moves already survived through the move
+  ledger; a failed `claude plugin update` or a failed projection did not, so the
+  digest that supersedes an `ask`-policy stop could report a successful sync
+  while a plugin remained stale.
+- **The batched cache-content join attaches a blob to every matching source
+  directory, not only the longest.** Nested marketplace sources such as
+  `plugins/alpha` and `plugins/alpha/nested` previously each received the blob
+  from their own `ls-tree`; longest-match-only dropped the nested subtree from
+  the ancestor's expected tree, so a healthy ancestor cache was reported
+  `stale-content` and a hole in that subtree was reported as a match.
+
 ## [0.44.6]
 
 ### Changed

@@ -531,6 +531,60 @@ reset_marketplace_state() {
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
 }
 
+# First-pass result rows that live only in these arrays. Successful moves ride
+# `moves.<mp>.tsv` and withheld downgrades ride `downgrades.<mp>.txt`, so an
+# `--only-install` re-entry can rebuild those; a failed update or a projection
+# error has no other store. Without this sidecar the replacement digest drops
+# them and a run that left a plugin stale can report as a successful sync.
+persist_first_pass_rows() {
+  local mp="$1" ir_f us_f errs persisted
+  json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
+  json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
+  if ((${#MP_ERRORS[@]} == 0)); then
+    errs='[]'
+  else
+    jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
+  fi
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to persisted -c -n \
+    --argjson errors "$errs" \
+    --argjson ir_failed "$ir_f" \
+    --argjson us_failed "$us_f" \
+    --arg refresh_rc "$REFRESH_RC" \
+    --arg refresh_out "$REFRESH_OUT" \
+    --arg refresh_predicted "$REFRESH_PREDICTED" \
+    '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed,
+      refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
+                     else ($refresh_rc | tonumber? // $refresh_rc) end),
+                output: $refresh_out,
+                predicted: ($refresh_predicted == "true")}}'
+  printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
+}
+
+restore_first_pass_rows() {
+  local mp="$1"
+  local sidecar="$RUN_DIR/first-pass.$mp.json" lines line
+  [[ -f "$sidecar" ]] || return 0
+  jq_to lines -r '.errors[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && MP_ERRORS+=("$line")
+  done <<<"$lines"
+  jq_to lines -c '.ir_failed[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && IR_FAILED+=("$line")
+  done <<<"$lines"
+  jq_to lines -c '.us_failed[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && US_FAILED+=("$line")
+  done <<<"$lines"
+  # Digest fields only. `REFRESH_FAILED` stays 0 so the re-entry can still run
+  # Steps 4 and 5: that flag is the first-pass defer gate, and restoring it
+  # would skip the install the caller just confirmed.
+  jq_to REFRESH_OUT -r '.refresh.output // ""' "$sidecar"
+  jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
+  jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
+}
+
 # --- the per-marketplace loop body (Steps 2-5b, plus Step 1's own refresh) -------
 run_marketplace() {
   local mp="$1"
@@ -593,6 +647,7 @@ run_marketplace() {
           '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
       done <"$RUN_DIR/downgrades.$mp.txt"
     fi
+    restore_first_pass_rows "$mp"
   fi
 
   # ---- Step 2 — in-repo update (the primary value path) ------------------------
@@ -1057,6 +1112,11 @@ report_extras() {
 emit_marketplace_block() {
   local mp="$1"
   local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs
+  # Written on the first pass only. The re-entry reads this sidecar; overwriting
+  # it after restore would drop the first-pass failures from a later re-entry.
+  if ((ONLY_INSTALL_MODE == 0)); then
+    persist_first_pass_rows "$mp"
+  fi
   local reg_interval reg_rows div extras block
 
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}

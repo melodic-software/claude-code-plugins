@@ -648,33 +648,34 @@ check_marketplace() {
       *" blob "*) ;;
       *) continue ;;
       esac
-      # Which source directory this entry belongs to. Longest match wins, and
-      # the path itself is tried first so a `source` naming a single file still
-      # resolves the way a single-pathspec call resolved it.
-      owner=""
+      # Which source directories this entry belongs to. Attach it to EVERY
+      # matching source, not only the longest: two marketplace entries can nest
+      # (`plugins/alpha` and `plugins/alpha/nested`), and the previous
+      # per-source `ls-tree` included the blob in both expected trees. The path
+      # itself is tried first so a `source` naming a single file still resolves
+      # the way a single-pathspec call resolved it.
       walk="$path_rel"
       while :; do
         gkey="$s"$'\x1f'"$walk"
         if [[ -n "${g_seen[$gkey]+set}" ]]; then
           owner="$walk"
-          break
+          rel="${path_rel#"$owner"/}"
+          idx=${#tree_rel[@]}
+          tree_rel+=("$rel")
+          tree_blob+=("$blob")
+          # Keyed by SHA as well as source directory, the way `owner_idx` and
+          # `g_seen` are. Two records can share one source directory at
+          # different shas — the same plugin id at user and project scope, same
+          # version, one installPath — and a map keyed by directory alone would
+          # merge their trees: a file present only at the newer sha would then
+          # read as in-tree for the older record, never reach `extras_idx`, and
+          # a stale cache would verdict `match`.
+          tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
+          owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
         fi
         [[ "$walk" == */* ]] || break
         walk="${walk%/*}"
       done
-      [[ -n "$owner" ]] || continue
-      rel="${path_rel#"$owner"/}"
-      idx=${#tree_rel[@]}
-      tree_rel+=("$rel")
-      tree_blob+=("$blob")
-      # Keyed by SHA as well as source directory, the way `owner_idx` and `g_seen`
-      # are. Two records can share one source directory at different shas — the
-      # same plugin id at user and project scope, same version, one installPath —
-      # and a map keyed by directory alone would merge their trees: a file present
-      # only at the newer sha would then read as in-tree for the older record,
-      # never reach `extras_idx`, and a stale cache would verdict `match`.
-      tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
-      owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
     done
   done
   # A multi-pathspec ls-tree cannot report "this one pathspec matched nothing",

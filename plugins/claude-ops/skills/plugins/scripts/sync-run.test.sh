@@ -323,6 +323,42 @@ assert_eq "failed update: the CLI's own status is kept" "1" \
   "$(jq -r '.marketplaces[0].user_sweep.failed[0].rc' <<<"$out")"
 
 # ============================================================================
+# Case: a first-pass update failure survives an `--only-install` re-entry. The
+# replacement digest is the whole-run report; dropping the failure would let a
+# plugin that never moved render as a successful sync.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.3.0
+catalog_plugin "$case_dir" market1 beta 0.2.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_STUB_UPDATE_FAIL_ID=alpha@market1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_eq "ask+fail: the update failure is recorded" "1" \
+  "$(jq -r '.marketplaces[0].user_sweep.failed | length' <<<"$out")"
+assert_eq "ask+fail: stops before Step 4" "true" \
+  "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
+assert_exit "ask+fail re-entry: exit 0" 0 $?
+assert_eq "ask+fail re-entry: the first-pass failure is still in the digest" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.failed[0].id' <<<"$out2")"
+assert_eq "ask+fail re-entry: its CLI status is kept" "1" \
+  "$(jq -r '.marketplaces[0].user_sweep.failed[0].rc' <<<"$out2")"
+assert_eq "ask+fail re-entry: the chosen id is still installed" "1" \
+  "$(grep -c 'plugin install beta@market1' "$case_dir/claude.log")"
+assert_eq "ask+fail re-entry: refresh output from the first pass is kept" \
+  "$(jq -r '.marketplaces[0].refresh.output' <<<"$out")" \
+  "$(jq -r '.marketplaces[0].refresh.output' <<<"$out2")"
+
+# ============================================================================
 # Case: a proven downgrade is WITHHELD by default and acted on only with
 # --allow-downgrade, where it renders as downgraded and never as updated
 # ============================================================================

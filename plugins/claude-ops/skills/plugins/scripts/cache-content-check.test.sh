@@ -761,6 +761,67 @@ assert_eq "shared source dir: and nothing else is reported against it" "0 0" \
 assert_eq "shared source dir: exactly one of the two is stale" "1" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
+# Case: two marketplace entries with nested source directories share one sha.
+# The batched ls-tree emits each blob once; the join must attach it to EVERY
+# matching source, the way a per-source ls-tree included it in both expected
+# trees. Longest-match-only drops the nested subtree from the ancestor, so a
+# healthy ancestor cache containing that subtree is reported stale-content
+# (cache-only extras) and an ancestor cache missing it is reported as a match.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+repo="$case_dir/market"
+mkdir -p "$repo"
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email fixture@example.invalid
+git -C "$repo" config user.name fixture
+git -C "$repo" config commit.gpgsign false
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha"},{"name":"nested","source":"./plugins/alpha/nested"}]}'
+write "$repo/plugins/alpha/root.sh" 'echo root'
+write "$repo/plugins/alpha/nested/inner.sh" 'echo inner'
+git -C "$repo" add -A
+git -C "$repo" commit -q -m nested-sources
+NESTED_SHA=$(git -C "$repo" rev-parse HEAD)
+mkdir -p "$case_dir/cache/alpha/1.0.0/nested" "$case_dir/cache/nested/1.0.0"
+write "$case_dir/cache/alpha/1.0.0/root.sh" 'echo root'
+write "$case_dir/cache/alpha/1.0.0/nested/inner.sh" 'echo inner'
+write "$case_dir/cache/nested/1.0.0/inner.sh" 'echo inner'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\":\"user\",\"version\":\"1.0.0\",\"gitCommitSha\":\"$NESTED_SHA\",\"installPath\":\"$case_dir/cache/alpha/1.0.0\"}
+    ],
+    \"nested@market1\": [
+      {\"scope\":\"user\",\"version\":\"1.0.0\",\"gitCommitSha\":\"$NESTED_SHA\",\"installPath\":\"$case_dir/cache/nested/1.0.0\"}
+    ]
+  }
+}"
+write "$case_dir/known_marketplaces.json" \
+  "{\"market1\": {\"installLocation\": \"$case_dir/market\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "nested sources: exit 0" 0 "$rc"
+assert_eq "nested sources: both records checked" "2" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
+assert_eq "nested sources: the ancestor cache that holds the nested subtree is a match" \
+  "match" "$(jq -r 'first(.installs[] | select(.id == "alpha@market1") | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "nested sources: the nested plugin is a match" \
+  "match" "$(jq -r 'first(.installs[] | select(.id == "nested@market1") | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "nested sources: neither is stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
+# Inverse: drop the nested file from the ancestor cache. Longest-match-only
+# would still call that a match (the blob never joined the ancestor's tree);
+# attaching it to every matching source makes the hole missing-from-cache.
+rm -f "$case_dir/cache/alpha/1.0.0/nested/inner.sh"
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "nested sources: an ancestor cache missing the nested file is stale-content" \
+  "stale-content" "$(jq -r 'first(.installs[] | select(.id == "alpha@market1") | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "nested sources: that hole is missing-from-cache, not a cache-only extra" \
+  "1 0" "$(jq -r 'first(.installs[] | select(.id == "alpha@market1") | "\(.missing_from_cache) \(.extra_in_cache)")' <<<"$out" 2>/dev/null)"
+assert_eq "nested sources: the nested plugin is unaffected" \
+  "match" "$(jq -r 'first(.installs[] | select(.id == "nested@market1") | .verdict)' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
 # Process budget: a clean install costs a FIXED number of process creations,
 # never one per file. Each creation is a fork() emulation plus a CreateProcess
 # on Windows Git Bash (roughly 120 ms on a quiet host, seconds on a contended
