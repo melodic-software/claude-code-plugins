@@ -242,9 +242,9 @@ action.
 Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
   (repeat this line per marketplace in `all` mode — Steps 2–5 run once per marketplace)
 In-repo: <N> project/local install(s) updated in <project_root>
-  (N counts FORWARD moves only; an in-repo record moved backward, only possible under
-   --allow-downgrade or for an id whose catalog version could not be read, renders under
-   `Downgraded:` with its scope and is not counted here)
+  (N is `in_repo.updated | length`; it counts FORWARD moves only. An in-repo record moved
+   backward, only possible under --allow-downgrade or for an id whose catalog version could
+   not be read, renders under `Downgraded:` with its scope and is not counted here)
   | 0 — <project_root> has no project/local installs
   | skipped — no project context resolved from <cwd>
 Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
@@ -286,8 +286,16 @@ than a lookup:
 itself the primary value path, so a run in which it did nothing has to say so in the default output,
 not only when it succeeds. The three variants are not cosmetic: `skipped` and `0` answer genuinely
 different questions ("there was no *here* to update" versus "here has nothing installed"), and
-collapsing them is the whole defect this row exists to close. `fleet-state.sh`'s top-level
-`project_root` is what distinguishes them. See [context/sync.md](context/sync.md) Step 2.
+collapsing them is the whole defect this row exists to close. Two digest fields pick the variant,
+in this order:
+
+- `project_root` is `null` → `skipped`, naming the cwd.
+- `in_repo_records == 0` → `0 — <project_root> has no project/local installs`.
+- `in_repo_records > 0` → the counted variant, with N taken from `in_repo.updated | length`.
+
+`in_repo_records` counts the records belonging to this root whether or not any of them moved, so a
+root that HAS project/local installs and updated none of them reads `0` against a named root rather
+than claiming the root has nothing installed. See [context/sync.md](context/sync.md) Step 2.
 
 Add a self-update row when Step 3's sweep updated `claude-ops` itself:
 
@@ -350,6 +358,9 @@ Stale project records: <K> record(s) across <P> path(s) not present on this mach
    verdict that the directory is gone for good.)
 ```
 
+`K` is `stale_project_records.total` and `P` is the length of `stale_project_records.by_path`; each
+`by_path` entry is the `{path, count}` one row renders.
+
 A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
 only where the write is not team-shared state. Give each one its runnable command rather than a
 count, so acting on it is a copy, not a reconstruction:
@@ -403,6 +414,12 @@ Cache content: <N> install(s) whose cache files disagree with their recorded git
   Remediation: remove that version's directory under the plugin cache, then re-run
   `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
 ```
+
+`N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
+`id`, `version`, and `files_differ`, which sums every direction of disagreement — bytes that
+changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
+`files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
+ids and no per-file detail; report the ids alone then.
 
 **The check never repairs.** It does not delete a cache directory, does not re-run an update, and
 does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as

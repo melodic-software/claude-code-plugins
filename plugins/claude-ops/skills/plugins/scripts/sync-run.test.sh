@@ -162,7 +162,10 @@ fi
 cat <<JSON
 {"marketplace":"$mp","scope":"user","checked":2,"match":1,"stale_content":1,
  "unverifiable":0,"skipped_absent_project_paths":0,
- "installs":[{"id":"alpha@$mp","verdict":"stale-content"},{"id":"beta@$mp","verdict":"match"}]}
+ "installs":[{"id":"alpha@$mp","version":"0.1.0","verdict":"stale-content",
+              "differing":2,"missing_from_cache":1,"extra_in_cache":1},
+             {"id":"beta@$mp","version":"0.1.0","verdict":"match",
+              "differing":0,"missing_from_cache":0,"extra_in_cache":0}]}
 JSON
 exit 0
 STUB
@@ -245,6 +248,10 @@ assert_eq "audit: nothing recorded as updated" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "audit: the scratch run directory is removed on exit" "absent" \
   "$([[ -d "$(jq -r '.run_dir' <<<"$out")" ]] && echo present || echo absent)"
+# The other half of the `In-repo:` row's input: no project context, so no
+# project/local record belongs to the root the run stands in.
+assert_eq "audit: a run with no project context reports zero in-repo records" "0" \
+  "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
 # ============================================================================
 # Case: sync calls the cache checker exactly ONCE per marketplace, and reads the
@@ -272,6 +279,12 @@ assert_eq "sync: stale ids came from the JSON" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out")"
 assert_eq "sync: cache source is the JSON" "json" \
   "$(jq -r '.marketplaces[0].cache_content.source' <<<"$out")"
+# The per-id row the `Cache content:` section renders: only the stale install, its
+# version, and one file count summing all three directions of disagreement.
+assert_eq "sync: only the stale install gets a per-id row" "1" \
+  "$(jq -r '.marketplaces[0].cache_content.stale | length' <<<"$out")"
+assert_eq "sync: that row carries the id, its version, and the file count" "alpha@market1 0.1.0 4" \
+  "$(jq -r '.marketplaces[0].cache_content.stale[0] | "\(.id) \(.version) \(.files_differ)"' <<<"$out")"
 assert_eq "sync: the update is reported as a forward move" "forward" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0].direction' <<<"$out")"
 assert_eq "sync: old version came from the pre-mutation snapshot" "0.1.0" \
@@ -351,6 +364,19 @@ assert_eq "--allow-downgrade: never as updated" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "--allow-downgrade: recorded in the digest" "true" \
   "$(jq -r '.allow_downgrade' <<<"$out")"
+
+# The flag belongs to the RUN. A re-entry that does not repeat it must not rebuild
+# the withheld list from the run's own downgrade projection and report a rollback
+# the first pass already applied.
+run_dir2=$(jq -r '.run_dir' <<<"$out")
+out2=$(run_sync "$case_dir2" --only-install '' --run-dir "$run_dir2")
+assert_exit "--only-install after --allow-downgrade: exit 0" 0 $?
+assert_eq "--only-install: the applied downgrade is not re-reported as withheld" "0" \
+  "$(jq -r '.marketplaces[0].user_sweep.withheld_downgrades | length' <<<"$out2")"
+assert_eq "--only-install: it still renders as downgraded" "1" \
+  "$(jq -r '.marketplaces[0].downgraded | length' <<<"$out2")"
+assert_eq "--only-install: and the run's flag is carried into the second digest" "true" \
+  "$(jq -r '.allow_downgrade' <<<"$out2")"
 
 # ============================================================================
 # Case: an install gap under the `ask` policy stops before Step 4, and the narrow
@@ -547,13 +573,72 @@ assert_eq "no-op update: and is not a downgrade either" "0" \
 assert_eq "report inputs: the marketplace's autoUpdate rides the digest" "null" \
   "$(jq -r '.marketplaces[0] | has("auto_update") | if . then "null" else "missing" end' <<<"$out")"
 assert_eq "report inputs: the stale-project-record count rides the digest" "0" \
-  "$(jq -r '.marketplaces[0].stale_project_records.records' <<<"$out")"
+  "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
+# The `In-repo:` row's own input. This root HAS a project-scope install and the
+# run moved none of it, which is exactly the case an intersection with the
+# divergences cannot tell from "this root has no project/local installs".
+assert_eq "report inputs: the in-repo record count rides the digest" "1" \
+  "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
+assert_eq "report inputs: and names the id" "delta@market1" \
+  "$(jq -r '.marketplaces[0].in_repo_ids[0]' <<<"$out")"
+assert_eq "report inputs: with nothing updated in it" "0" \
+  "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
 assert_eq "enable gap: the user-scope id is enabled" "1" \
   "$(grep -c 'plugin enable alpha@market1 -s user' "$case_dir/claude.log")"
 assert_eq "enable gap: no project-scope enable is ever issued" "0" \
   "$(grep -c 'plugin enable .* -s project' "$case_dir/claude.log")"
 assert_eq "enable gap: the project-scope row is reported with its path" "$ppath" \
   "$(jq -r '.marketplaces[0].project_enable_rows[0].project_path' <<<"$out")"
+
+# ============================================================================
+# Case: an in-repo record for the plugin providing this skill is a self-update
+# too, and the stale-project-record rows carry a count PER PATH
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 delta 0.2.0
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+catalog_plugin "$case_dir" market1 beta 0.1.0
+ppath=$(norm_path "$case_dir")
+gone_a=$(norm_path "$case_dir/gone-a")
+gone_b=$(norm_path "$case_dir/gone-b")
+# The manifest `own_plugin_name` reads. Naming the fixture's own plugin here is
+# what makes the assertion about the mechanism rather than about this
+# repository's plugin name.
+mkdir -p "$case_dir/self/.claude-plugin"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"delta","version":"0.1.0"}'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"delta@market1\": [{\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"d\", \"version\": \"0.1.0\"}],
+    \"alpha@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$gone_a\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"local\", \"projectPath\": \"$gone_a\", \"installPath\": \"a\", \"version\": \"0.1.0\"}
+    ],
+    \"beta@market1\": [{\"scope\": \"project\", \"projectPath\": \"$gone_b\", \"installPath\": \"b\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "delta", "source": "delta"}, {"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"delta@market1": true, "alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/self" CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "self-update: the in-repo record moved" "delta@market1" \
+  "$(jq -r '.marketplaces[0].in_repo.updated[0].id' <<<"$out")"
+assert_eq "self-update: an in-repo move of this plugin is a self-update" "true" \
+  "$(jq -r '.marketplaces[0].self_updated' <<<"$out")"
+assert_eq "stale project records: the total counts records, not paths" "3" \
+  "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
+assert_eq "stale project records: one row per distinct path" "2" \
+  "$(jq -r '.marketplaces[0].stale_project_records.by_path | length' <<<"$out")"
+assert_eq "stale project records: each row carries its own count" "2" \
+  "$(jq -r --arg p "$gone_a" 'first(.marketplaces[0].stale_project_records.by_path[] | select(.path == $p) | .count)' <<<"$out")"
+assert_eq "stale project records: and the single-record path reads 1" "1" \
+  "$(jq -r --arg p "$gone_b" 'first(.marketplaces[0].stale_project_records.by_path[] | select(.path == $p) | .count)' <<<"$out")"
+# An absent path is not "here": those records must not inflate the In-repo row.
+assert_eq "stale project records: they are not counted as in-repo records" "1" \
+  "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
 # ============================================================================
 # Case: sync mode without --journal-root is a usage error, not a silent scratch run

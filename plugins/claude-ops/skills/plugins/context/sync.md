@@ -409,6 +409,11 @@ report. They are categorically different answers and the user cannot tell them a
   which is an honest zero rather than an absent step.
 - **`project_root` is a path and records carry `currentProject: true`** — the success path below.
 
+`sync-run.sh` carries this branch into its digest as `project_root` plus `in_repo_records`, the
+count of records with `currentProject: true`. A report written over the digest branches on those
+two fields; the record-level read below is the same question asked of the `fleet-state.sh` report
+directly.
+
 Reading `project_root` costs nothing extra: this step already calls `fleet-state.sh` above, and the
 field is in the JSON it returned. Do not try to recover the distinction from
 `--ids update-candidates-project` alone: that selector emits nothing in both of the first two cases,

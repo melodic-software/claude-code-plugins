@@ -52,7 +52,12 @@
 #    downgraded, install_gap, installed, install_enable_deferred,
 #    stopped_before_install, enable_gap, enabled, project_enable_rows, normalize,
 #    cache_content, catalog_regression, divergences, divergences_here,
-#    stale_project_records, user_scope_orphans, self_updated, errors}
+#    in_repo_records, in_repo_ids, stale_project_records, user_scope_orphans,
+#    self_updated, errors}
+#   `in_repo_records` counts the project/local records belonging to the repo the
+#   run stands in, whether or not any of them moved; `stale_project_records` is
+#   `{total, by_path:[{path,count}]}`; `cache_content.stale[]` is
+#   `{id, version, files_differ}` per stale install.
 #   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
 #   local scope, and `project_enable_rows` is what it reports rather than writes.
 #   `updated` carries forward moves and unreadable-direction moves (flagged
@@ -378,12 +383,6 @@ project_ids() {
   return $?
 }
 
-proj_err() {
-  local text=""
-  [[ -f "$RUN_DIR/.proj-err" ]] && text=$(<"$RUN_DIR/.proj-err")
-  printf '%s' "${text//$'\r'/}"
-}
-
 # The digest is read by a model in one turn, so no single field may run away with
 # the window. Output is kept, bounded.
 trunc() {
@@ -393,6 +392,16 @@ trunc() {
   else
     printf -v "$__var" '%s' "$text"
   fi
+}
+
+# The selector's stderr, bounded HERE rather than at each call site: every caller
+# embeds it in a digest string, so the truncation belongs to the reader and not to
+# any one message.
+proj_err() {
+  local text="" bounded=""
+  [[ -f "$RUN_DIR/.proj-err" ]] && text=$(<"$RUN_DIR/.proj-err")
+  trunc bounded "${text//$'\r'/}"
+  printf '%s' "$bounded"
 }
 
 # --- run directory -------------------------------------------------------------
@@ -767,7 +776,11 @@ run_marketplace() {
   local own
   own=$(own_plugin_name)
   if [[ -n "$own" ]]; then
-    for row in ${US_UPDATED[@]+"${US_UPDATED[@]}"} ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
+    # Every scope, not just the user sweep: a project/local `claude-ops` record
+    # Step 2 moved is the same self-update, and the running algorithm is just as
+    # stale for it.
+    for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
+      ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
       case "$row" in
       *"\"id\":\"$own@"*) SELF_UPDATED="true" ;;
       esac
@@ -918,10 +931,18 @@ cache_content_block() {
     rc=$?
   fi
 
+  # `stale[]` carries the per-id row the report renders: the version the record
+  # names, and one file count. All three directions are summed, because the row
+  # says the cache DISAGREES with the recorded sha and a file only in the tree or
+  # only in the cache disagrees exactly as much as one whose bytes changed.
+  # `stale_ids` stays alongside it for readers that only need the ids.
   if ((rc == 0)) && jq -e 'has("checked")' "$report" >/dev/null 2>&1; then
     jq_to CACHE_JSON -c '{checked, match, stale_content, unverifiable,
       skipped_absent_project_paths,
       stale_ids: [.installs[]? | select(.verdict == "stale-content") | .id],
+      stale: [.installs[]? | select(.verdict == "stale-content")
+              | {id, version, files_differ: ((.differing // 0) + (.missing_from_cache // 0)
+                                             + (.extra_in_cache // 0))}],
       source: "json"}' "$report"
     return 0
   fi
@@ -932,9 +953,14 @@ cache_content_block() {
   rc=$?
   json_lines ids "$RUN_DIR/cache-stale-ids.$mp.txt"
   mp_error "cache-content JSON unusable; stale ids taken from the checker's --ids form (exit $rc)"
+  # Same shape either way, with the per-id detail the `--ids` form cannot know
+  # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
+  # tell an empty finding from a missing field.
   jq_to CACHE_JSON -c -n --argjson ids "$ids" \
     '{checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
-      skipped_absent_project_paths: null, stale_ids: $ids, source: "ids-fallback"}'
+      skipped_absent_project_paths: null, stale_ids: $ids,
+      stale: ($ids | map({id: ., version: null, files_differ: null})),
+      source: "ids-fallback"}'
 }
 
 # --- version capture --------------------------------------------------------------
@@ -995,17 +1021,27 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, user_scope_orphans: [],
-      stale_project_records: {records: null, paths: []}, divergences_here: null}'
+      stale_project_records: {total: null, by_path: []},
+      in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
   fi
+  # `in_repo_records` is the count of project/local records belonging to the repo
+  # the run stands in, independent of whether any of them diverged. The report's
+  # `In-repo:` row needs exactly that: `0` means this root has no project/local
+  # installs, and the intersection with the divergences answers a different
+  # question. `by_path` carries the per-path counts the stale-project-records
+  # section renders one row each from.
   jq_to "$__var" -c '
     ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     | {auto_update: (.marketplace.autoUpdate // null),
        user_scope_orphans: (.user_scope_orphans // []),
-       stale_project_records: {records: ($absent | length),
-                               paths: ([$absent[] | .projectPath] | unique)},
+       stale_project_records: {total: ($absent | length),
+                               by_path: ($absent | group_by(.projectPath)
+                                         | map({path: .[0].projectPath, count: length}))},
+       in_repo_records: ($here | length),
+       in_repo_ids: $here,
        divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
 }
 
@@ -1087,6 +1123,25 @@ emit_marketplace_block() {
 
 # --- main --------------------------------------------------------------------------
 setup_run_dir
+
+# `--allow-downgrade` belongs to the RUN, not to one invocation of it. A re-entry
+# that omitted the flag would otherwise rebuild the withheld list from
+# `downgrades.<mp>.txt` and report a downgrade the first pass already applied. The
+# flag is written once by the pass that starts the run and read back by the
+# re-entry, before anything branches on it; a run directory from an older version
+# carries no file and keeps the previous behaviour.
+SAVED_ALLOW_DOWNGRADE=""
+if ((ONLY_INSTALL_MODE == 1)); then
+  if [[ -f "$RUN_DIR/flags.json" ]]; then
+    jq_to SAVED_ALLOW_DOWNGRADE -r '.allow_downgrade // false' "$RUN_DIR/flags.json" 2>/dev/null
+    [[ "$SAVED_ALLOW_DOWNGRADE" != "true" ]] || ALLOW_DOWNGRADE=1
+  fi
+else
+  FLAG_AD="false"
+  ((ALLOW_DOWNGRADE == 0)) || FLAG_AD="true"
+  printf '{"allow_downgrade":%s}\n' "$FLAG_AD" >"$RUN_DIR/flags.json"
+fi
+
 : >"$RUN_DIR/.blocks.jsonl"
 [[ -f "$JOURNAL_LOG" ]] || : >"$JOURNAL_LOG"
 
