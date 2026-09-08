@@ -35,8 +35,15 @@ GATED="$WORK/gated"
 NOGATE="$WORK/nogate"
 NOORIGIN="$WORK/noorigin"
 mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows"
-: >"$GATED/.github/workflows/pr-issue-linkage.yml"
-: >"$NOORIGIN/.github/workflows/pr-issue-linkage.yml"
+# The scope guard keys on a workflow that `uses:` the pr-contract composite
+# step, so an EMPTY workflow file no longer satisfies it.
+PR_CONTRACT_WF='jobs:
+  ci-status:
+    steps:
+      - uses: melodic-software/ci-workflows/.github/actions/pr-contract@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2
+'
+printf '%s' "$PR_CONTRACT_WF" >"$GATED/.github/workflows/ci.yml"
+printf '%s' "$PR_CONTRACT_WF" >"$NOORIGIN/.github/workflows/ci.yml"
 git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q

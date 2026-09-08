@@ -173,7 +173,7 @@
       "id": 14,
       "name": "apply-interview-recommends-portable-default-not-org-specific-list",
       "prompt": "/source-control:setup apply\n\nRun the interactive interview for a repo with no existing source-control.md and no inferable convention signal.",
-      "expected_output": "When the interview reaches pr_body_required_sections, it recommends keeping the plugin's portable default (Summary, Test plan) and does NOT propose adding a Related/linked-issue section, or any other specific organization's convention, as if it were a universal default. It asks what the repo's actual convention requires (a PR template, a CI gate such as pr-issue-linkage, team practice) rather than inventing one, and omits the section from the written config when the user accepts the portable default.",
+      "expected_output": "When the interview reaches pr_body_required_sections, it recommends keeping the plugin's portable default (Summary, Test plan) and does NOT propose adding a Related/linked-issue section, or any other specific organization's convention, as if it were a universal default. It asks what the repo's actual convention requires (a PR template, a CI gate such as pr-contract, team practice) rather than inventing one, and omits the section from the written config when the user accepts the portable default.",
       "files": [],
       "expectations": [
         "Recommends the plugin's portable default (Summary, Test plan) for pr_body_required_sections",

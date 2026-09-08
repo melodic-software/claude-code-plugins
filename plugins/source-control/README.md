@@ -144,7 +144,7 @@ user decision to abandon the integration.
 
 A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it validates that body against
-the same contract the repository's required `pr-issue-linkage` check enforces,
+the same contract the repository's required PR-contract check enforces,
 a closing keyword (or an explicit no-linked-issue marker) plus four non-empty
 contract sections (`## Summary`, `## Fix`, `## Verification`, `## Related`),
 and blocks the call with every missing or empty requirement named, so the
@@ -153,11 +153,14 @@ failure surfaces before the PR exists rather than a CI round trip later.
 the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
-where `.github/workflows/pr-issue-linkage.yml` exists. A body the hook
+where one of the repo's `.github/workflows/*.yml` / `*.yaml` files `uses:` the
+`pr-contract` composite step (the SHA-pinned
+`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>` form, or
+ci-workflows' own local `./.github/actions/pr-contract`). A body the hook
 cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
-moves the directory the gate file and any relative `--body-file` resolved
+moves the directory the workflow scan and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
 The registration carries an `if` filter, `Bash(*gh *)`, the same shape as the
@@ -213,11 +216,11 @@ path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
 GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
 is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs.
-Same contract, same authority (the consuming repository's own
-`.github/workflows/pr-issue-linkage.yml`), same block-with-the-fix-named
-behavior. The MCP payload hands over the body as a plain JSON field, so the
+Same contract, same authority (a workflow in the consuming repository's own
+`.github/workflows/` that `uses:` the `pr-contract` composite step), same
+block-with-the-fix-named behavior. The MCP payload hands over the body as a plain JSON field, so the
 Bash sibling's static-readability caveats don't apply here; the scope guards
-that remain are the gate-file check, an origin-remote match on the call's
+that remain are the workflow scan above, an origin-remote match on the call's
 `owner`/`repo` (another repository's PR is not this repo's policy), and an
 `update_pull_request` that carries no `body` field, which changes nothing CI
 already validated and passes. A `create_pull_request` with no `body` at all
@@ -324,8 +327,8 @@ repo's owner.
 | Key | Type | Default / absent behavior |
 |---|---|---|
 | `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
-| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no `pr-issue-linkage` workflow) |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no `pr-issue-linkage` workflow) |
+| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `pr-contract` step) |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `pr-contract` step) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -379,8 +382,8 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments — set an opaque id if a machine name should not be published in a public tracker. |
-| `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required pr-issue-linkage check (missing a closing keyword, or a missing/empty `## Summary`, `## Fix`, `## Verification`, or `## Related` section). Enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml; a body the hook cannot read statically always passes. |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required pr-issue-linkage check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`) — the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository that carries .github/workflows/pr-issue-linkage.yml, and only for the repository the origin remote names. |
+| `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required PR-contract check (missing a closing keyword, or a missing/empty `## Summary`, `## Fix`, `## Verification`, or `## Related` section). Enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step; a body the hook cannot read statically always passes. |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required PR-contract check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`) — the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step, and only for the repository the origin remote names. |
 | `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository — a working tree, or a .git / bare directory — with a message naming the configured external root (melodic.worktreeroot git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
 | `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled. |
 | `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel — measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation — so `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`. |

@@ -48,8 +48,10 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# new_repo <dir> <yml|yaml|plain> — a throwaway repo, optionally carrying the
-# gate workflow under either spelling the hook accepts.
+# new_repo <dir> <yml|yaml|nostep|plain> — a throwaway repo. `yml`/`yaml` carry
+# a workflow wiring in the `pr-contract` composite step, under either extension
+# the hook's glob accepts; `nostep` carries a workflow with no such step;
+# `plain` carries no workflows at all.
 new_repo() {
   local r="$1" gated="$2"
   mkdir -p "$r"
@@ -57,7 +59,13 @@ new_repo() {
   case "$gated" in
   yml | yaml)
     mkdir -p "$r/.github/workflows"
-    printf 'name: pr-issue-linkage\n' >"$r/.github/workflows/pr-issue-linkage.$gated"
+    printf 'jobs:\n  ci-status:\n    steps:\n      - uses: melodic-software/ci-workflows/.github/actions/pr-contract@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2\n' \
+      >"$r/.github/workflows/ci.$gated"
+    ;;
+  nostep)
+    mkdir -p "$r/.github/workflows"
+    printf 'jobs:\n  ci-status:\n    steps:\n      - uses: actions/checkout@v5\n' \
+      >"$r/.github/workflows/ci.yml"
     ;;
   *) ;;
   esac
@@ -65,10 +73,12 @@ new_repo() {
 
 GATED="$WORK/gated"
 UNGATED="$WORK/ungated"
+NOSTEP="$WORK/nostep"
 GATED_YAML="$WORK/gated-yaml"
 OTHER="$WORK/other"
 new_repo "$GATED" yml
 new_repo "$UNGATED" plain
+new_repo "$NOSTEP" nostep
 new_repo "$GATED_YAML" yaml
 new_repo "$OTHER" yml
 
@@ -119,6 +129,7 @@ NESTED=$'Closes #5\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody
 # --- Scope guard -------------------------------------------------------------
 
 assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$NO_RELATED")"
+assert_allow "workflows present but none wires pr-contract: bad body allowed" "$NOSTEP" "$(gh_body "$NO_RELATED")"
 assert_allow "non-gh command allowed" "$GATED" "git commit -m 'x'"
 assert_allow "gh command that is not pr create/edit allowed" "$GATED" "gh pr view 5"
 

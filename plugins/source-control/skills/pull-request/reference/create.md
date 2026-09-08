@@ -205,7 +205,7 @@ Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); c
 1. `Closes #<N>` — provide a number to auto-close on merge
 2. `No related issue: <reason>` — orphan PR, no linkage
 
-To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
+To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the repository's own `pr-contract` check's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -333,13 +333,13 @@ BODY+="$TEMPLATE"
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
 - **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist — sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
-A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
+A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the repository's own `pr-contract` check — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
 
 ### 2.4.2 Pre-create gate
 
 Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
-A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own `pr-issue-linkage` check and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
+A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own PR-contract check (a workflow that `uses:` the `pr-contract` composite step) and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
 
 #### 2.4.2.1 Verify closing-keyword line
 
@@ -352,7 +352,7 @@ Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
 # Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
-# satisfy the real pr-issue-linkage validator's closing-keyword half, so accepting
+# satisfy the pr-contract check's closing-keyword half, so accepting
 # it here would clear a body the CI gate then rejects.
 OPTOUT_REGEX='^No related issue:'
 
@@ -540,7 +540,7 @@ PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 
 `--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
 
-**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own `pr-issue-linkage` workflow is then the first thing that notices a missing closing keyword or an empty required section.
+**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
 
 PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file — `gh` is authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it with `gh api "repos/{owner}/{repo}/pulls/<n>" --jq '{number, html_url}'`.
 

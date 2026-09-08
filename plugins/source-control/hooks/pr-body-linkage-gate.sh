@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block a bare `gh pr create` / `gh pr edit` whose PR BODY
-# would fail the consuming repository's own `pr-issue-linkage` CI gate.
+# would fail the consuming repository's own PR-contract CI gate.
 #
 # WHY IT EXISTS — the gate is a REQUIRED check, so a body missing any of the
 # five requirements blocks the merge; but nothing enforced the contract at
@@ -9,11 +9,15 @@
 # create` runs the equivalent pre-create gate (skills/pull-request/reference/
 # create.md §2.4.2); this hook covers the calls that never go through the skill.
 #
-# WHAT IT ENFORCES — the five requirements the reusable
-# melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml validator
-# requires, mirrored: after stripping HTML comments (terminated ones, then an
-# unterminated `<!--` swallowing the rest — both, in that order, exactly as the
-# validator does), the body must carry
+# WHAT IT ENFORCES — the five requirements of the linkage contract, mirrored.
+# The semantics were ported from the reusable
+# melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml
+# validator, which is RETIRED (deleted in ci-workflows#569, released as
+# v0.23.0); the live artifact carrying the same contract is that repo's
+# `.github/actions/pr-contract` composite step, which consumers run inside
+# their own `ci-status` job. After stripping HTML comments (terminated ones,
+# then an unterminated `<!--` swallowing the rest — both, in that order,
+# exactly as the validator does), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
 #       `owner/repo#N`) OR the literal `No linked issue` / `No related issue:`;
 #   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
@@ -21,16 +25,20 @@
 #       that section's content, not its terminator.
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
-# runs only when the repo root carries `.github/workflows/pr-issue-linkage.yml`
-# (or `.yaml`). A repo that does not run the check is never gated, so the hook
-# cannot drift away from what its consumer actually enforces. This is
-# deliberately NOT the `pr_body_required_sections` seam
-# (docs/conventions/pr-body-convention/): that key is the repo's configurable
-# section scaffold, whose portable default excludes `Related` on purpose. The
-# authority for THIS gate is the workflow file that defines it.
+# runs only when one of the repo's `.github/workflows/*.yml` / `*.yaml` files
+# `uses:` the `pr-contract` composite step, in either fleet form (the
+# SHA-pinned `melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`,
+# or ci-workflows' own local `./.github/actions/pr-contract`). The first
+# matching file, in sorted glob order, becomes GATE_FILE. A repo that does not
+# run the step is never gated, so the hook cannot drift away from what its
+# consumer actually enforces. This is deliberately NOT the
+# `pr_body_required_sections` seam (docs/conventions/pr-body-convention/): that
+# key is the repo's configurable section scaffold, whose portable default
+# excludes `Related` on purpose. The authority for THIS gate is the workflow
+# that wires the step in.
 #
-# WHICH DIRECTORY — the gate file and any relative `--body-file` resolve against
-# the payload's `cwd`. A `cd`/`pushd`/`popd` earlier in the same command line
+# WHICH DIRECTORY — the workflow scan and any relative `--body-file` resolve
+# against the payload's `cwd`. A `cd`/`pushd`/`popd` earlier in the same command line
 # moves the directory `gh` actually runs in, and the segment tokenizer discards
 # that segment, so neither resolution would be knowable: the call goes OUT OF
 # SCOPE from that point on, exactly as a `--repo`-targeted one does. Only the
@@ -162,15 +170,32 @@ while [[ "$HOOK_CWD" == *$'\n' ]]; do HOOK_CWD="${HOOK_CWD%$'\n'}"; done
 
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 
-# The consuming repo's own gate definition is the authority; no gate, no
+# The consuming repo's own workflows are the authority: the gate runs only
+# where one of them wires in the `pr-contract` composite step. No step, no
 # enforcement.
 GATE_FILE=""
-for candidate in "$REPO_ROOT/.github/workflows/pr-issue-linkage.yml" \
-  "$REPO_ROOT/.github/workflows/pr-issue-linkage.yaml"; do
-  [[ -f "$candidate" ]] && {
-    GATE_FILE="$candidate"
-    break
-  }
+# Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
+# (`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`) and
+# ci-workflows' own local dogfood (`./.github/actions/pr-contract`). The
+# trailing class keeps a longer sibling directory (`pr-contract-foo`) out.
+gate_re='\.github/actions/pr-contract([@[:space:]]|$)'
+for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
+  # An unmatched glob is left as its literal pattern; skipping non-files is the
+  # local fix, because `shopt -s nullglob` would leak a shell option out of a
+  # hook that never set one.
+  [[ -f "$candidate" ]] || continue
+  # Fork-free read, not `grep`: this scan is on the path of every `gh pr` call,
+  # and one spawn per workflow file is exactly the cost
+  # pr-linkage-spawn-budget.test.sh fences (#3509). `read -r -d ''` returns 1
+  # at EOF with no NUL — the normal case — and `wf` holds the bytes either way.
+  # Cleared first: if the redirect itself fails (an unreadable file), `read`
+  # never runs and `wf` would otherwise still hold the PREVIOUS candidate's
+  # bytes, naming the wrong workflow as the gate.
+  wf=""
+  IFS= read -r -d '' wf <"$candidate"
+  [[ "$wf" =~ $gate_re ]] || continue
+  GATE_FILE="$candidate"
+  break
 done
 [[ -n "$GATE_FILE" ]] || exit 0
 
@@ -261,9 +286,9 @@ is_dynamic() {
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block() {
   local p
-  echo "BLOCKED: PR body fails this repo's required pr-issue-linkage check." >&2
+  echo "BLOCKED: PR body fails this repo's PR-contract check." >&2
   for p in "$@"; do echo "  - $p" >&2; done
-  echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
+  echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
   echo "Add to the body:" >&2
   echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
   echo "  ## Summary" >&2
