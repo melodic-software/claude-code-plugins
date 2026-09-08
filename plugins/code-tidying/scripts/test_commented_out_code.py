@@ -151,6 +151,20 @@ class Toml(unittest.TestCase):
         self.assertEqual(lines(rows), {3}, rows)
         self.assertEqual(rows[0]["end"], 4)
 
+    def test_prose_vs_pair(self):
+        # The bare-word comment is the third case: TOML parses a lone key as an
+        # ERROR, so it must stay unflagged even though it is one token, not prose.
+        src = (
+            "# retries are capped at 3\n"
+            "timeout = 30\n"
+            "# retries = 3\n"
+            "verbose = true\n"
+            "# enabled\n"
+        )
+        code, rows, err = scan(src, ".toml")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {3}, rows)
+
 
 class Degradation(unittest.TestCase):
     def test_missing_tree_sitter_exits_3(self):

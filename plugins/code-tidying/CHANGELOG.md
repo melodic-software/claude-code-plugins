@@ -3,6 +3,53 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.1]
+
+### Changed
+
+- **`dissolve-comments` step 4 self-parses before it counts.** Each scoped file is run through
+  `change-shape.py <file> <file>` ahead of the census; a file that cannot prove itself unchanged
+  against itself carries a construct its grammar rejects, so no deletion or rename anywhere in it
+  can ever carry a proof. Those files are named and counted in the report up front and triaged as
+  proposals only, instead of the closed gate surfacing one comment at a time at step 6.
+- **`allowed-tools` grants every script the workflow runs** through skill-local
+  exec wrappers (`change-shape.sh`, `comment-census.sh`, `commented-out-code.sh`,
+  `rank-comment-targets.sh` under `${CLAUDE_SKILL_DIR}/scripts/`), alongside the
+  two skill-directory scripts it already granted. The implementations stay
+  single-source at the plugin root; the wrappers exist so the grants use the
+  skill-local path whose runtime matching is already exercised.
+- **The census temp path falls back as `${TEMP:-${TMPDIR:-/tmp}}`.** Git Bash on Windows sets
+  `TMPDIR=/tmp`, which resolves to the drive root rather than the platform temp directory and
+  accumulates there silently, so `TEMP` is consulted first.
+- **Step 1 states the SSOT propagation cost.** Where a source has synced copies, the run reports
+  how many and whether the sync gate demands a version bump per consuming plugin; a comment-only
+  edit that would force those bumps is proposed, never applied, unless the user named the source
+  as the target.
+- **Step 5 settles the indented usage example.** A line demonstrating how to call the thing a
+  documentation block documents is prose whatever it parses as, so `commented-out-code.py` calling
+  it a statement does not make it a class-A deletion.
+- **Step 7 groups keeps under a whole-file verdict.** Class-C keeps are reported as a count per
+  reason group rather than a line each; the per-keep criterion-2 evidence line is owed only for
+  keeps the run actually searched.
+- **`dissolving-moves.md` keeps a file-level divider as navigation.** A divider between top-level
+  groups restates nothing and has nothing to dissolve into, so it stays class C without a
+  criterion-2 search, which asks whether rationale is recoverable elsewhere and has no rationale
+  to ask about.
+- **`tooling.md` records the grammar limit behind the self-parse**: tree-sitter-bash 0.25.1
+  rejects base-N arithmetic (`N#$var` inside `$(( ))`), producing ERROR nodes that make
+  `change-shape.py` return UNPROVABLE for the whole file.
+
+### Fixed
+
+- **`dissolve-comments` workflow step 1 names the ranker flag the action router names.** It passes
+  `--allow-path <glob>` per lifted path and reserves `--override-exclusions` for
+  `hard_exclusions=advisory`, matching the ranker's own argument surface.
+- **`exclusions.md` states that the enumeration gate reaches only argument-lifted paths**, so a
+  path lifted by the repository overrides file or by `hard_exclusions=advisory` proceeds without a
+  go-ahead, and drops the last release-narration phrase from the precedence list.
+- **`rank-comment-targets.py` and `test_rank_comment_targets.py` pass `ruff format --check`.** Two
+  lines shipped in 0.18.0 were not formatter-clean.
+
 ## [0.18.0]
 
 ### Added

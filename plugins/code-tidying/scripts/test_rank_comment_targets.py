@@ -185,7 +185,10 @@ class Ranking(unittest.TestCase):
         self.assertNotIn(guard, default_paths)
         self.assertNotIn(other, default_paths)
 
-        named = [r["path"] for r in json.loads(self.run_rank("--allow-path", guard).stdout)["rows"]]
+        named = [
+            r["path"]
+            for r in json.loads(self.run_rank("--allow-path", guard).stdout)["rows"]
+        ]
         self.assertIn(guard, named)
         self.assertNotIn(other, named)
         self.assertNotIn("gen.sh", named)
