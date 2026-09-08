@@ -12,9 +12,12 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   against itself carries a construct its grammar rejects, so no deletion or rename anywhere in it
   can ever carry a proof. Those files are named and counted in the report up front and triaged as
   proposals only, instead of the closed gate surfacing one comment at a time at step 6.
-- **`allowed-tools` grants every script the workflow runs**: `change-shape.py`,
-  `comment-census.py`, `commented-out-code.py`, and `rank-comment-targets.py` under
-  `${CLAUDE_PLUGIN_ROOT}/scripts/`, alongside the two skill-directory scripts it already granted.
+- **`allowed-tools` grants every script the workflow runs** through skill-local
+  exec wrappers (`change-shape.sh`, `comment-census.sh`, `commented-out-code.sh`,
+  `rank-comment-targets.sh` under `${CLAUDE_SKILL_DIR}/scripts/`), alongside the
+  two skill-directory scripts it already granted. The implementations stay
+  single-source at the plugin root; the wrappers exist so the grants use the
+  skill-local path whose runtime matching is already exercised.
 - **The census temp path falls back as `${TEMP:-${TMPDIR:-/tmp}}`.** Git Bash on Windows sets
   `TMPDIR=/tmp`, which resolves to the drive root rather than the platform temp directory and
   accumulates there silently, so `TEMP` is consulted first.

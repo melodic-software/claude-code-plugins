@@ -22,7 +22,10 @@
 # runtime on every host, and this repo does not ship a grant on docs alone
 # (`plugins/discovery/reference/parent-contract.md`). Until a runtime check
 # exists, the skill-local path is the exercised shape — reachable from a shared
-# `scripts/` location through a thin exec wrapper.
+# `scripts/` location through a thin exec wrapper. dissolve-comments ships four
+# of those wrappers beside the skill, named so this suite covers them:
+# change-shape.sh, comment-census.sh, commented-out-code.sh,
+# rank-comment-targets.sh.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those

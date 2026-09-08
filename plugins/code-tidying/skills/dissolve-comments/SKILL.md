@@ -1,7 +1,7 @@
 ---
 description: "Enforce self-describing code over a diff, branch, or ranked repository: a three-way comment triage that deletes zero-information comments, dissolves code-expressible ones into names and structure by behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express. Deletions and local renames apply behind a token-level proof, other refactors behind a test net, else proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), structural tidyings (tidy), simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
 argument-hint: "[safe] [override] [target]"
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/comment-census.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commented-out-code.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/rank-comment-targets.py:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
 shell: bash
@@ -116,7 +116,7 @@ from them.
   output as a proposed commit-message block for `/source-control:commit`. Text is never silently
   destroyed.
 - **Every applied edit passes the gate its tier names; lint never opens one.** Deletions and
-  function-local renames are certified by `${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py`
+  function-local renames are certified by `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh`
   (COMMENT-ONLY, RENAME-ONLY); additive and interface-creating moves need a discovered test net.
   Any other verdict reverts the edit and demotes it to a proposal.
 - **RENAME-ONLY is a shape claim, not a safety claim.** It rejects a rename that misses a
@@ -150,7 +150,7 @@ from them.
    the pre-computed scope line is void, `scope-code-files.sh` is not run, and no file outside the
    target is triaged or reported. Empty argument: run `scope-code-files.sh` (never the truncated
    preview), confirm a widening to the repository rung interactively, and take any widened rung in
-   safe mode when non-interactive. On the repository rung, run `rank-comment-targets.py` and triage
+   safe mode when non-interactive. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
    in its order. When an override channel is active, hand its resolved reach to the ranker so the
    administrative gate does not re-drop a lifted path: `--allow-path <glob>` per path the `override`
    argument or the repository overrides file lifted, and `--override-exclusions` only for
@@ -184,12 +184,12 @@ from them.
    deletion or rename carries a proof, and the 12 extensions no grammar covers stay proposals even
    when it is present ([reference/safety.md](reference/safety.md)). Name each absent layer's lost
    capability as the probe phrases it. Done when it is in the report.
-4. **Self-parse, then baseline the census.** First run `change-shape.py <file> <file>` on each
+4. **Self-parse, then baseline the census.** First run `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh <file> <file>` on each
    scoped file. A file that cannot prove itself unchanged against itself (exit 21, UNPROVABLE) has a
    construct the grammar rejects, so no deletion or rename anywhere in it can ever carry a proof.
    Name those files and their count in the report **now**, and triage them as proposals only, rather
-   than discovering the closed gate one comment at a time at step 6. Then run `comment-census.py
-   --json` over the scope, writing it to
+   than discovering the closed gate one comment at a time at step 6. Then run
+   `${CLAUDE_SKILL_DIR}/scripts/comment-census.sh --json` over the scope, writing it to
    `${TEMP:-${TMPDIR:-/tmp}}/dissolve-comments/<run-id>/baseline.json` with `<run-id>` unique per
    run; step 7 reads that exact path back. `TEMP` comes first because Git Bash on Windows sets
    `TMPDIR=/tmp`, which resolves to the drive root rather than the platform temp directory and
@@ -198,7 +198,7 @@ from them.
    quote the script's install hint, and stop; an all-zero baseline reports every later count as an
    improvement. Done when the file exists, or the run has stopped with the missing layer named.
 5. **Triage.** Classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
-   Run `commented-out-code.py` (and Ruff ERA001 on Python, via the repository's pinned wrapper where
+   Run `${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh` (and Ruff ERA001 on Python, via the repository's pinned wrapper where
    one exists) for **candidates, each verified by reading it before deletion**, never as settled
    class-A input: it calls a comment code whenever the body reparses, so prose carrying
    backtick-quoted identifiers hits. A hit whose text is a sentence, not a statement, is prose. That
