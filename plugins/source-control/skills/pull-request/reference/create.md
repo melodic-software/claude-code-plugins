@@ -205,7 +205,7 @@ Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); c
 1. `Closes #<N>` — provide a number to auto-close on merge
 2. `No related issue: <reason>` — orphan PR, no linkage
 
-To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
+To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the repository's own `pr-contract` check's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -333,7 +333,7 @@ BODY+="$TEMPLATE"
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
 - **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist — sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
-A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
+A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the repository's own `pr-contract` check — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
 
 ### 2.4.2 Pre-create gate
 
@@ -352,7 +352,7 @@ Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
 # Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
-# satisfy the real pr-issue-linkage validator's closing-keyword half, so accepting
+# satisfy the pr-contract check's closing-keyword half, so accepting
 # it here would clear a body the CI gate then rejects.
 OPTOUT_REGEX='^No related issue:'
 
