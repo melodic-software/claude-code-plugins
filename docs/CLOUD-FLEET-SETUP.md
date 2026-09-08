@@ -49,9 +49,11 @@ Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` â€
 
 Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
 melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
-`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, declare the
-`melodic-software` marketplace, and enable the catalog. Read adoption state from the repos
-rather than from a table here; a per-repo enumeration in this doc can only lag them.
+`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, and declare the
+`melodic-software` marketplace. Enabling the catalog is not among the per-repo steps: the standards
+fleet list does that for every repo, and a repo's own block carries only deltas
+([Step 2](#step-2--per-repo-wiring)). Read adoption state from the repos rather than from a table
+here; a per-repo enumeration in this doc can only lag them.
 
 The script is owned upstream, not per repo: standards
 [`components/cloud-bootstrap`](https://github.com/melodic-software/standards/blob/main/components/cloud-bootstrap/README.md)
