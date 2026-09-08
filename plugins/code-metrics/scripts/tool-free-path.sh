@@ -101,8 +101,8 @@ PY
 _cm_is_python_interp() {
   case "$1" in
     python|python[0-9]|python[0-9].*|python3|python3.*|pypy|pypy3|pypy3.*) return 0 ;;
+    *) return 1 ;;
   esac
-  return 1
 }
 
 _cm_nonmutating_python() {
