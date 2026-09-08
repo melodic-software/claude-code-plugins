@@ -53,6 +53,40 @@ if ln -s "$OUTSIDE" "$PROJECT/escape" 2>/dev/null && [[ -L "$PROJECT/escape" ]];
   fi
 fi
 
+# --- Ancestor walk terminates at a dirname fixed point -----------------------
+# `dirname C:` answers `C:` on Git Bash, so a walk-up from a drive path whose
+# ancestors do not exist never reaches `/` or `.`. The shim reproduces that fixed
+# point on hosts whose own dirname answers `.`, so the case discriminates
+# everywhere rather than only on Windows. Gated on `timeout` per the precedent in
+# fleet-state.test.sh; stock macOS ships `gtimeout` and skips.
+if command -v timeout >/dev/null 2>&1; then
+  SHIM_DIR="$TEST_TMPDIR/shim"
+  mkdir -p "$SHIM_DIR"
+  REAL_DIRNAME="$(command -v dirname)"
+  cat >"$SHIM_DIR/dirname" <<EOF
+#!/usr/bin/env bash
+p="\${*: -1}"
+case "\$p" in
+[A-Za-z]:) printf '%s\n' "\$p" ;;
+*) exec "$REAL_DIRNAME" "\$@" ;;
+esac
+EOF
+  cat >"$SHIM_DIR/run-walkup.sh" <<EOF
+#!/usr/bin/env bash
+source "$HOOK_DIR/hook-utils.sh"
+source "$HOOK_DIR/claude-ops-paths.sh"
+claude_ops::resolve_project_relative_dir 'Q:/no-such-ancestor' 'telemetry/skills'
+EOF
+  chmod +x "$SHIM_DIR/dirname"
+  timeout 10 env PATH="$SHIM_DIR:$PATH" bash "$SHIM_DIR/run-walkup.sh" >/dev/null 2>&1
+  walkup_rc=$?
+  if [[ "$walkup_rc" -eq 124 ]]; then
+    bad "ancestor walk returns from a dirname fixed point"
+  else
+    ok "ancestor walk returns from a dirname fixed point"
+  fi
+fi
+
 # --- Scope-selected skill-usage destination ---------------------------------
 FAKE_HOME="$TEST_TMPDIR/home"
 mkdir -p "$FAKE_HOME"
