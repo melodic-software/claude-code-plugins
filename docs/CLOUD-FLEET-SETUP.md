@@ -15,8 +15,12 @@ recorded in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was v
 [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
 Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
 repo changes its toolchain pins (`global.json`, `.node-version`, `.python-version`, lockfiles)
-or its `.claude/` config, or a verification session (see [checklist](#verification-checklist))
-contradicts a claim here.
+or its `.claude/` config; or `melodic-software/standards`
+`components/cloud-environment/setup.sh` changes (that file owns
+`DOTNET_FALLBACK_VERSIONS` and `NODE_FALLBACK_VERSION`, the numbers copied into the
+inventory below); or a verification session (see [checklist](#verification-checklist))
+contradicts a claim here. The .NET and Node fallback numbers were re-read from that
+setup.sh on 2026-09-08 (`origin/main` at `3ea3e96`; the file last touched by `1cafb61`).
 
 ## The design in one paragraph
 
