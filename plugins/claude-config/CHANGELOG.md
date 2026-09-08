@@ -3,6 +3,48 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0]
+
+### Added
+
+- **audit:** `scripts/audit-engine.sh`, a deterministic engine for every check that needs no
+  reasoning: scope discovery, JSON validity, `$schema`, baseline deny and ask patterns against
+  `reference/required-permissions.md`, the three narrowings, hook inventory, plugin drift, skill
+  listing budget from the session debug log, and the env-vars page cross-check. It prints a table
+  or JSON and, with `--out`, writes a findings artifact in the `audit-pass` identity shape
+  (`check`, `claim`, `sites` with `anchor/v1`, `finding_id`), with `anchor` and `finding-id`
+  subcommands so a judged finding gets the same identity the engine would derive. Scopes the
+  engine cannot read are reported as not inspectable, never as clean.
+- **audit:** the engine reads the `.claude/audit-pass.md` suppression record through the
+  config-cascade layers. Only the team layer suppresses; a personal-only entry is reported as not
+  applied and a malformed entry never suppresses. Every table finding carries a paste-ready
+  `suppress:` line.
+- **audit:** `scripts/check-doc-citations.sh` and `reference/doc-citations.tsv`, which verify that
+  every doc span the skill's references quote still appears on the live upstream page. The
+  permissions page had already moved under one quoted span, which this checker now catches.
+- **audit:** the hook-coverage narrowing consumes a plugin's `hooks/coverage.json` manifest, so a
+  live hook that declares a baseline family turns that family's missing pattern into `info`
+  without the model guessing what the hook covers.
+- **audit-pass:** `/claude-config:audit` is a delegated lane. Its rows append unchanged, engine
+  rows carry the `derived` tier and model rows the `judged` tier, and both skills share one
+  suppression record.
+
+### Changed
+
+- **audit:** `check-plugin-drift.sh` resolves a marketplace with a directory source against
+  `<path>/.claude-plugin/marketplace.json` instead of the registry cache, and reports the source in
+  its JSON. `check-hook-coverage.sh` resolves plugins marketplace-directory first, reports a
+  `DIVERGENCE` when the cache copy differs, and widens its `--json` with the project root, hook
+  timeout and type, plugin paths, and the divergence list.
+- **audit:** the SKILL.md phases run the engine first and reserve the model for judgment: Phase 3
+  runs the citation checker, points every settings key at `settings-reference`, and degrades the
+  known-issues check from the API to `/claude-ops:known-issues` to an unverified statement dated
+  from the row's `Last verified` column. Phase 4 reports suppressed and undecided rows and persists
+  the findings artifact. A `## Next` section names the successor skill.
+- **audit:** B.5 rows in the checklist are `info`, the debug-log check reads the existing log
+  before creating one, and `required-permissions.md` quotes the current permissions page wording
+  in place of the retired word-boundary sentence.
+
 ## [0.40.40]
 
 ### Added

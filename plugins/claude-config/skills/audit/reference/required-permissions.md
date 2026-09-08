@@ -139,7 +139,8 @@ saying so ships the false confidence the `sensitive-file-deny` section refuses t
 
 **The concrete hole is prefix anchoring, and it is worth stating in the finding.** Matching is
 prefix-based: *"`Bash(npm run test *)` matches Bash commands starting with `npm run test`"*, and a
-trailing `*` with a space before it *"enforces a word boundary"* (same page). So
+*"The space before a trailing `*` is part of the rule"* (same page), so `Bash(ls *)` does not
+match `lsof`. So
 `Bash(git push --force *)` matches `git push --force origin main` and does **not** match
 `git push origin main --force`, which is the ordinary spelling. Flag-position variants, `--force-with-lease`,
 `-f` bundled into another short-flag cluster, and `git push` aliases all pass the same way. These

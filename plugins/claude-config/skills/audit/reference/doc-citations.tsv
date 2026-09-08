@@ -1,0 +1,39 @@
+# Upstream citations the audit skill's checklist and references depend on.
+# One row per <page slug><TAB><literal text the page must carry>. The page is
+# https://code.claude.com/docs/en/<slug>.md, fetched verbatim. Keys are cited
+# as their `### `heading` row on settings-reference; prose claims are cited by
+# a short literal span. check-doc-citations.sh greps each row and fails when a
+# fetched page no longer carries its span, which is the moment the checklist
+# row that cites it has to be re-derived.
+settings-reference	### `skillListingBudgetFraction`
+settings-reference	### `skillListingMaxDescChars`
+settings-reference	### `skillOverrides`
+settings-reference	### `disableDeepLinkRegistration`
+settings-reference	### `autoMemoryEnabled`
+settings-reference	### `enabledPlugins`
+settings-reference	### `extraKnownMarketplaces`
+settings-reference	### `disableAllHooks`
+settings-reference	### `allowManagedHooksOnly`
+settings-reference	### `strictPluginOnlyCustomization`
+settings-reference	### `effortLevel`
+settings-reference	### `fallbackModel`
+settings-reference	### `availableModels`
+settings-reference	### `enforceAvailableModels`
+settings-reference	### `enableAllProjectMcpServers`
+settings-reference	### `disabledMcpjsonServers`
+settings	"$schema"
+permissions	are fragile
+permissions	The space before a trailing `*` is part of the rule
+permissions	such as `cat`
+permissions	arbitrary subprocesses
+hooks	Seconds before canceling
+hooks	exec form requires
+env-vars	`SLASH_COMMAND_TOOL_CHAR_BUDGET`
+env-vars	`CLAUDE_CODE_DEBUG_LOGS_DIR`
+env-vars	`CLAUDE_CODE_DISABLE_AUTO_MEMORY`
+skills	Skill descriptions are cut short
+skills	skillOverrides
+model-config	ultracode
+cli-reference	`--debug-file
+deep-links	disableDeepLinkRegistration
+deep-links	user-level locations
