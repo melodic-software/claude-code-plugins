@@ -667,7 +667,13 @@ check_marketplace() {
       idx=${#tree_rel[@]}
       tree_rel+=("$rel")
       tree_blob+=("$blob")
-      tree_hash["$owner"$'\x1f'"$rel"]="$blob"
+      # Keyed by SHA as well as source directory, the way `owner_idx` and `g_seen`
+      # are. Two records can share one source directory at different shas — the
+      # same plugin id at user and project scope, same version, one installPath —
+      # and a map keyed by directory alone would merge their trees: a file present
+      # only at the newer sha would then read as in-tree for the older record,
+      # never reach `extras_idx`, and a stale cache would verdict `match`.
+      tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
       owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
     done
   done
@@ -781,7 +787,7 @@ check_marketplace() {
     for cache_i in ${root_files[$rt]:-}; do
       f="${cache_full[cache_i]}"
       rel="${cache_rel[cache_i]}"
-      src_key="$src_dir"$'\x1f'"$rel"
+      src_key="${i_sha[k]}"$'\x1f'"$src_dir"$'\x1f'"$rel"
       if [[ -z "${tree_hash[$src_key]+set}" ]]; then
         extras_idx[$k]+=" $cache_i"
         probe_key="$src_dir/$rel"
