@@ -26,7 +26,7 @@ context, read the file directly.
 | `.claude/rules/catalog-taxonomy.md` | `.claude-plugin/marketplace.json` | Where the marketplace category taxonomy lives; read before adding or changing a plugin's category |
 | `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
-| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it; read before editing any skill body |
+| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it, and name their successor in a `## Next` section; read before editing any skill body |
 | `.claude/rules/worktree-base-ref.md` | `.claude/settings.json, .claude/settings.local.json` | This repository sets no worktree.baseRef and never adds one back, even when a review says a merge dropped it; read before editing either settings file |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
