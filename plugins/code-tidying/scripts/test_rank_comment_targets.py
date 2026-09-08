@@ -110,6 +110,11 @@ def build(repo: Path) -> None:
     (repo / ".claude" / "hooks" / "guard.sh").write_text(
         commented(40, 11) + "# guard\n"
     )
+    # A second administrative code file, so a --lift glob naming only the first
+    # can be seen leaving this one gated. All-or-nothing lifting cannot.
+    (repo / ".claude" / "hooks" / "other.sh").write_text(
+        commented(40, 10) + "# other\n"
+    )
     (repo / "copy-a.sh").write_text(commented(40, 6))
     (repo / "copy-b.sh").write_text(commented(40, 6))  # byte-identical to copy-a
     (repo / "user.sh").write_text(
@@ -174,6 +179,33 @@ class Ranking(unittest.TestCase):
         self.assertNotIn("gen.sh", lifted_paths)
         self.assertNotIn("tiny.sh", lifted_paths)
         self.assertNotIn("CHANGELOG.md", lifted_paths)
+
+    def test_lift_glob_lifts_only_the_matching_administrative_paths(self):
+        guard = os.path.normpath(".claude/hooks/guard.sh")
+        other = os.path.normpath(".claude/hooks/other.sh")
+
+        both = [
+            r["path"]
+            for r in json.loads(self.run_rank("--override-exclusions").stdout)["rows"]
+        ]
+        self.assertIn(guard, both)
+        self.assertIn(other, both)
+
+        rep = json.loads(self.run_rank("--lift", ".claude/hooks/guard.sh").stdout)
+        paths = [r["path"] for r in rep["rows"]]
+        self.assertIn(guard, paths)
+        self.assertNotIn(other, paths)
+        self.assertGreaterEqual(rep["gated"]["administrative path"], 1)
+
+    def test_lift_glob_wins_over_the_bare_all_paths_flag(self):
+        rep = json.loads(
+            self.run_rank(
+                "--override-exclusions", "--lift", ".claude/hooks/guard.sh"
+            ).stdout
+        )
+        paths = [r["path"] for r in rep["rows"]]
+        self.assertIn(os.path.normpath(".claude/hooks/guard.sh"), paths)
+        self.assertNotIn(os.path.normpath(".claude/hooks/other.sh"), paths)
 
     def test_ordering_needs_both_exposure_and_payload(self):
         rep = json.loads(self.run_rank().stdout)

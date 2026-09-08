@@ -185,7 +185,12 @@ short-circuit is about the install, not the config write. Pass the scope `claude
 The value is stored immediately, but the running session is not re-read, so start a fresh session
 before expecting the new behavior. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
 entry blocks) or `advisory` (every one is reported and none blocks); any other value is read as
-`enforce`. The full option table is in the plugin README.
+`enforce`. The full option table is in the plugin README. Never `claude plugin uninstall` to
+reconfigure: that drops the plugin's whole stored `pluginConfigs` entry. The `--config` flags, the
+scope rule, and the verified-version record behind the `already installed`-still-writes claim are
+owned by the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md),
+which names the release the claim was verified on, what its probe did not cover, and when to
+re-verify; read it before relying on this route outside the covered conditions.
 
 ## Output
 

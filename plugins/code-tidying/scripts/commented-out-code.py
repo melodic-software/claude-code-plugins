@@ -131,6 +131,16 @@ EVIDENCE = {
         "flow_mapping",
         "flow_sequence",
     },
+    # tree-sitter-toml's three statement-level kinds. A bare word (`# enabled`)
+    # and a prose line (`# retries are capped at 3`) both parse as an ERROR
+    # wrapping bare_key nodes, which looks_like_code rejects before it consults
+    # this set; `array` and `inline_table` are omitted because neither can occur
+    # outside a `pair`.
+    "toml": {
+        "pair",
+        "table",
+        "table_array_element",
+    },
 }
 EVIDENCE["typescript"] = EVIDENCE["javascript"] | {
     "type_alias_declaration",

@@ -37,20 +37,27 @@ this signal. git blame is O(file x history), so it never runs repo-wide.
 Reading layers come from comment-census.py (scc, pygments). A shallow clone
 cannot rank by history: the run says so and ranks by fan-in and payload only.
 
-The administrative gate is the one gate a caller can lift: --override-exclusions
-ranks those paths too, for a run whose HARD-exclusion override already resolved.
+The administrative gate is the one gate a caller can lift, for a run whose
+HARD-exclusion override already resolved. Lift it to the exact paths that
+override covers with --lift GLOB, repeatable: only administrative paths matching
+a glob are ranked, and the rest stay gated, so a repository override naming
+ruff.toml alone does not hand the whole .claude tree a share of the --top cutoff.
+Bare --override-exclusions keeps the all-paths meaning, which is what
+hard_exclusions=advisory resolves to. Globs are fnmatch patterns matched against
+the slash-normalized path, so * crosses / and `.claude/*` reaches nested files.
 The other gates stay (an untracked, generated, or sub-floor file is not a target
 whatever the exclusions say).
 
 Usage: rank-comment-targets.py [--top N] [--window-months M] [--half-life-days D]
                                [--min-lines L] [--drift-top K]
-                               [--override-exclusions] [--json]
+                               [--override-exclusions] [--lift GLOB]... [--json]
 Exit: 0 ranked; 1 not a git repository; 3 no reading layer; 2 usage.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import math
 import os
@@ -287,8 +294,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--override-exclusions",
         action="store_true",
-        help="rank administrative paths too (.claude, CI workflows, lockfiles, changelogs) "
-        "instead of gating them out; the caller resolved a HARD-exclusion override",
+        help="rank every administrative path (.claude, CI workflows, lockfiles, changelogs) "
+        "instead of gating them out; the all-paths form, for hard_exclusions=advisory",
+    )
+    ap.add_argument(
+        "--lift",
+        action="append",
+        metavar="GLOB",
+        default=[],
+        help="rank only the administrative paths matching this fnmatch glob (repeatable); "
+        "given at all, it replaces --override-exclusions' all-paths meaning",
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
@@ -318,6 +333,18 @@ def main(argv: list[str] | None = None) -> int:
     tracked = [os.path.normpath(p) for p in git("ls-files", "-z").split("\0") if p]
     gated: dict[str, int] = defaultdict(int)
     generated = generated_paths(tracked)
+
+    def lifted(slashed: str) -> bool:
+        """Is this administrative path exempt from the gate for this run?
+
+        --lift is the specific form and wins whenever it is present: a caller
+        that named globs asked for those paths and no others, so a stray
+        --override-exclusions beside them cannot widen the set back to all.
+        """
+        if args.lift:
+            return any(fnmatch.fnmatch(slashed, g) for g in args.lift)
+        return args.override_exclusions
+
     candidates = []
     for p in tracked:
         r = records.get(p)
@@ -327,7 +354,8 @@ def main(argv: list[str] | None = None) -> int:
         # ADMIN is written with `/` separators, and os.path.normpath yields `\`
         # on Windows, so the gate must match against a slash-normalized copy or
         # it silently passes every administrative path on that platform.
-        if ADMIN.search(p.replace(os.sep, "/")) and not args.override_exclusions:
+        slashed = p.replace(os.sep, "/")
+        if ADMIN.search(slashed) and not lifted(slashed):
             gated["administrative path"] += 1
             continue
         if p in generated:

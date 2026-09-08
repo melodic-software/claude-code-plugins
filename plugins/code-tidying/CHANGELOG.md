@@ -29,10 +29,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
     loses to the protection with both declarations named.
 - **`exclusions.md` section 4** carries the whole contract: the three channels, the file shape, the
   per-path precedence, the reviewability requirement, and what no channel lifts.
-- **`rank-comment-targets.py --override-exclusions`** ranks administrative paths (`.claude/**`, CI
-  workflows, lockfiles, changelogs) instead of gating them out, so the repository-rung ordering does
-  not silently re-drop a path an override already lifted. The untracked, generated, and size-floor
-  gates are unaffected.
+- **`rank-comment-targets.py --lift GLOB` (repeatable) and `--override-exclusions`** lift the
+  administrative gate (`.claude/**`, CI workflows, lockfiles, changelogs) so the repository-rung
+  ordering does not silently re-drop a path an override already lifted. `--lift` is the specific
+  form and wins wherever it appears: only administrative paths matching a glob are ranked, matched
+  with `fnmatch` against the slash-normalized path, so a repository override naming `ruff.toml`
+  alone does not hand the whole administrative tree a share of the `--top` cutoff. The bare flag
+  keeps the all-paths meaning, which is what `hard_exclusions=advisory` resolves to. The untracked,
+  generated, and size-floor gates are unaffected.
 - **TOML grammar:** `change-shape.py` and `commented-out-code.py` map `.toml` to the
   `tree-sitter-toml` grammar, and the tooling probe reports it, so a class-A deletion in a lifted
   `ruff.toml` or `pyproject.toml` is certified COMMENT-ONLY instead of falling to a proposal. The
@@ -88,6 +92,17 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `hooks` blocks, not only `.claude/settings*.json`. Section 4 states that the `override` token is
   honored non-interactively on `dissolve-comments` and `batch-simplify`, whose target is already the
   enumeration.
+- **`dissolve-comments` run economics, from a fourth test run:** step 4 self-parses each scoped file
+  with `change-shape.py <file> <file>` before the census, so a file whose grammar rejects a
+  construct it contains is named as proposals-only up front instead of failing the proof one comment
+  at a time at step 6; the temp-path fallback is `${TEMP:-${TMPDIR:-/tmp}}`, since Git Bash on
+  Windows sets `TMPDIR=/tmp`; `allowed-tools` grants all four workflow scripts, not two; step 1
+  reports an SSOT source's synced-copy count and whether the sync gate demands a version bump per
+  consumer, proposing rather than applying a comment-only edit that would force them; step 5 states
+  that an indented usage example under a documentation block is prose whatever it parses as; step 7
+  reports class-C keeps as counts per reason group under a whole-file verdict; and
+  `dissolving-moves.md` keeps a file-level section divider as class C navigation with no criterion-2
+  search. `tooling.md` records the grammar limit behind it.
 
 ### Fixed
 

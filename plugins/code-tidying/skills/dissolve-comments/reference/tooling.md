@@ -50,6 +50,7 @@ pass.
 | `tree-sitter-language-pack` first-use download behind the cloud proxy | HTTP 502; per-language wheels unaffected | 2026-09-04 |
 | Both `sg` binaries present on the cloud image | `/usr/bin/sg -> newgrp` and `/usr/local/bin/sg` (ast-grep shim) | 2026-09-04 |
 | Versions pinned for CI | tree-sitter 0.26.0; grammars python 0.25.0, c-sharp 0.23.5, typescript 0.23.2, bash 0.25.1, javascript 0.25.0, yaml 0.7.2, toml 0.7.0 | 2026-09-07 |
+| tree-sitter-bash 0.25.1 rejects base-N arithmetic (`N#$var` inside `$(( ))`) | ERROR nodes, one spanning a third of `lib/hook-utils.sh`, so `change-shape.py` returns UNPROVABLE for the file against itself and no deletion or rename in it can carry a proof; 35 `.sh` files in this tree carry the form | 2026-09-08 |
 
 ## What no tool covers
 
