@@ -19,8 +19,7 @@ or its `.claude/` config; or `melodic-software/standards`
 `components/cloud-environment/setup.sh` changes (that file owns
 `DOTNET_FALLBACK_VERSIONS` and `NODE_FALLBACK_VERSION`, the numbers copied into the
 inventory below); or a verification session (see [checklist](#verification-checklist))
-contradicts a claim here. The .NET and Node fallback numbers were re-read from that
-setup.sh on 2026-09-08 (`origin/main` at `3ea3e96`; the file last touched by `1cafb61`).
+contradicts a claim here.
 
 ## The design in one paragraph
 
@@ -42,7 +41,9 @@ and a repo's own steps live beside it in `.claude/cloud-bootstrap.local.sh`.
 
 The pins found across the fleet — the one input to
 [Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) that lives nowhere else. The .NET
-and Node numbers below are what the setup script carries as fleet *fallbacks*; a checked-out repo
+and Node numbers below are fleet *fallbacks* owned by `DOTNET_FALLBACK_VERSIONS` and
+`NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` (values as read
+2026-09-08 — that script, not this list, is the source of truth); a checked-out repo
 that pins a version in `global.json` or `.node-version` replaces that lane's fallback for the
 cache build rather than adding to it, so a snapshot need not hold all of them at once.
 
@@ -267,9 +268,12 @@ session on this repo in the new environment and ask Claude to verify:
    script's pinned-tarball step actually failed (`grep gh /var/log/melodic-env-setup.log` for
    its `WARN`), leaving scripts that shell out to `gh` running against a CLI 53 minor versions
    behind the other two lanes.
-   Then `pwsh --version`, `dotnet --list-sdks` (expect the repo's `global.json` pin, or both
-   fleet fallbacks when the repo declares none — this repo declares none), `node --version`
-   (expect the `.node-version` pin), `check-tools` for the VM inventory.
+   Then `pwsh --version`, `dotnet --list-sdks` (expect the repo's `global.json` pin, or, when it
+   declares none — as this repo does — the SDKs `DOTNET_FALLBACK_VERSIONS` lists), `node
+   --version` (expect the `.node-version` pin, or `NODE_FALLBACK_VERSION` when the repo declares
+   none). Read both variables from standards `components/cloud-environment/setup.sh` at check
+   time rather than expecting the numbers recorded above. Then `check-tools` for the VM
+   inventory.
 2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
    `actionlint`), and re-running the bootstrap is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
