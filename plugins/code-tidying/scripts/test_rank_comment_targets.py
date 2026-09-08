@@ -101,6 +101,15 @@ def build(repo: Path) -> None:
     (repo / "tiny.sh").write_text(commented(5, 3))  # below the size floor
     (repo / "gen.sh").write_text(commented(40, 12))  # generated: gated
     (repo / "CHANGELOG.md").write_text("# log\n")
+    # A code file on the administrative path list: gated by default, ranked
+    # under --override-exclusions. CHANGELOG.md cannot prove that branch,
+    # because the not-a-code-file gate drops it before ADMIN is consulted.
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    # Content is deliberately unique: a byte-identical twin would collapse into
+    # another row's instance count and perturb the collapse assertions.
+    (repo / ".claude" / "hooks" / "guard.sh").write_text(
+        commented(40, 11) + "# guard\n"
+    )
     (repo / "copy-a.sh").write_text(commented(40, 6))
     (repo / "copy-b.sh").write_text(commented(40, 6))  # byte-identical to copy-a
     (repo / "user.sh").write_text(
@@ -152,6 +161,19 @@ class Ranking(unittest.TestCase):
         self.assertEqual(copy["instances"], 2)
         self.assertEqual(rep["gated"]["byte-identical copies collapsed"], 1)
         self.assertGreaterEqual(rep["gated"]["generated"], 1)
+
+    def test_override_exclusions_lifts_only_the_administrative_gate(self):
+        admin = os.path.normpath(".claude/hooks/guard.sh")
+        default_paths = [r["path"] for r in json.loads(self.run_rank().stdout)["rows"]]
+        self.assertNotIn(admin, default_paths)
+
+        rep = json.loads(self.run_rank("--override-exclusions").stdout)
+        lifted_paths = [r["path"] for r in rep["rows"]]
+        self.assertIn(admin, lifted_paths)
+        # The other gates are untouched by the flag.
+        self.assertNotIn("gen.sh", lifted_paths)
+        self.assertNotIn("tiny.sh", lifted_paths)
+        self.assertNotIn("CHANGELOG.md", lifted_paths)
 
     def test_ordering_needs_both_exposure_and_payload(self):
         rep = json.loads(self.run_rank().stdout)

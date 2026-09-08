@@ -50,7 +50,9 @@ Six skills, one capability:
   writes nothing and deletes nothing.
 - **`/code-tidying:setup`**. `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
-  sections, leftover placeholders, tracked-not-ignored); `apply` interviews the
+  sections, leftover placeholders, tracked-not-ignored), validates the optional
+  `.claude/code-tidying/exclusion-overrides.md`, and reports the stored
+  `hard_exclusions` posture; `apply` interviews the
   repo and scaffolds those lane files from the bundled templates, so `tidy`
   resolves project-specific scope globs deterministically instead of falling back
   to the generic bundled lanes. Re-runnable to add or retune lanes.
@@ -78,9 +80,20 @@ personal variation is limited to lane names the team does not track: an uncommit
 - **Structure-only, always.** A "tidying" that breaks a test was secretly
   behavioral. It gets backed out, not shipped.
 - **Hard/soft exclusions** gate every run: agent and CI configuration, hook
-  chains, and lint configs are never touched; unverifiable areas (browser UI,
-  auth flows, DB migrations) are deferred, not edited. Your project's own
-  `CLAUDE.md` / rules extend both lists.
+  chains, and lint configs are not touched by default; unverifiable areas
+  (browser UI, auth flows, DB migrations) are deferred, not edited. Your
+  project's own `CLAUDE.md` / rules extend both lists.
+- **The hard path list is overridable**, through three channels that only ever
+  subtract from it: an `override` argument on `tidy`, `dissolve-comments`, and
+  `batch-simplify` (this run), the `hard_exclusions` option below (this
+  operator), and a tracked `.claude/code-tidying/exclusion-overrides.md` of
+  root-relative globs (this repository), resolved per path in that order. So
+  `/code-tidying:dissolve-comments override ruff.toml` triages a file the list
+  would otherwise drop. Every lifted path is named in the run's report beside
+  the channel that lifted it. What no channel lifts: the behavioral guards
+  (structure-only is the skills' contract, not a path limit), the work-tracking
+  exclusions, and the self-update lane's protection of this plugin's own
+  contract surface.
 - **Backlog throttle**: ≥3 open `chore/tidy-*` PRs stops the run instead of
   piling on (bundled `open-pr-count.sh`, network access via your own `gh`
   auth).
@@ -113,19 +126,24 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Configuration
 
-Three `userConfig` options, all for `dissolve-comments`; none loosens a gate:
+Four `userConfig` options. Three tune `dissolve-comments` and loosen nothing;
+the fourth is the personal-posture channel of the exclusion override above, and
+loosening is its whole job:
 
 | Option | Default | Effect |
 |---|---|---|
+| `hard_exclusions` | `enforce` | `enforce` keeps every GLOBAL HARD **path** entry blocking, the behavior every earlier release shipped; `advisory` reports each match and blocks nothing, so runs may reach lint config, agent config, CI workflows, and hook chains. Path entries only: the behavioral guards, the work-tracking entries, and the self-update protections hold at either value. |
 | `comment_posture` | `strict` | `strict` rewrites an over-budget kept comment terser and stages the removed narrative; `balanced` reports it instead; `conservative` applies class-A deletions only and proposes everything else. Doubt keeps the comment in every posture. |
 | `class_c_max_lines` | `2` | Line budget for a kept (class-C) comment before it is rewritten. |
 | `apply_local_renames` | `true` | Apply a function-local rename that `change-shape.py` certifies as RENAME-ONLY even with no test net; `false` proposes it. |
 
 Everything else routes through
-`.claude/tidy-lanes/` lane files and your project's own `CLAUDE.md` /
+`.claude/tidy-lanes/` lane files, the optional
+`.claude/code-tidying/exclusion-overrides.md`, and your project's own `CLAUDE.md` /
 `.claude/rules` (protected paths, verification commands). Run
 **`/code-tidying:setup apply`** to interview your repo and scaffold those lane files
-from the bundled templates (or `check` to inspect existing lanes read-only). It is
+from the bundled templates (or `check` to inspect existing lanes, validate the
+overrides file, and report the stored `hard_exclusions` posture read-only). It is
 idempotent and safe to re-run to add or retune lanes.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
@@ -139,6 +157,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
+| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list in skills/tidy/reference/exclusions.md. enforce (default): a path on that list is dropped before triage, the behavior every earlier release shipped; advisory: the list is reported per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. advisory is the standing form of the per-run override argument and is lifted for path entries only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold under every value. Any other value is read as enforce. |
 | `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed. Doubt keeps the comment in every posture. Any other value is read as strict. |
 | `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
 | `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
@@ -153,7 +172,7 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install code-tidying@<marketplace> -s <scope> --config comment_posture=<value>
+   claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -177,7 +196,7 @@ Three supported routes, in the order most people want them:
      "pluginConfigs": {
        "code-tidying@<marketplace>": {
          "options": {
-           "comment_posture": <value>
+           "hard_exclusions": <value>
          }
        }
      }

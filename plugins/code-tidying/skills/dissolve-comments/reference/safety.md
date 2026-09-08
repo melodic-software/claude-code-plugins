@@ -43,9 +43,9 @@ revert, never a pass, and so is exit 2: an unmapped extension is an *unproven* e
 tacit pass.
 
 **Exit 2 is the common case on a mixed-language repository, not an edge case.** `CODE_EXT` in
-`scope-code-files.sh` admits 28 extensions; `change-shape.py` maps 15 of them and
-`commented-out-code.py` 11, and their union is 15. The 13 with no grammar in either —
-`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql .toml` — reach triage normally and then
+`scope-code-files.sh` admits 28 extensions; `change-shape.py` maps 16 of them and
+`commented-out-code.py` 12, and their union is 16. The 12 with no grammar in either —
+`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql` — reach triage normally and then
 have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.
 Say so in the report rather than reporting those files as clean: a file nothing could prove is not
 a file with nothing to fix.
@@ -69,14 +69,22 @@ tier's proof did not pass.
    project/module). A repo-wide suite that cannot reach the touched file is not a net for it.
 3. **Run before and after** the move. Red before the move → stop, report (the skill never fixes
    tests). Red after the move → revert the move, demote the item to a proposal.
-4. **No discoverable command, or the run cannot execute** → class B is proposed, never applied.
+4. **No discoverable command, or the run cannot execute** → class B is proposed, never applied. "Cannot
+   execute" covers a suite that starts but does **not finish inside the tool's timeout**, not only a
+   command that is missing or errors out: a net that cannot be run to completion attests nothing, so
+   it counts as absent. Say so in the report with the measured time the run reached before it was
+   cut off, so the reader can tell a timed-out suite from a missing one.
 
 Lint and formatters are supplementary hygiene (run them if the repo has them wired) — they never
 open the apply path, because they cannot attest behavior preservation.
 
 ## Exempt surfaces (never touched, any mode)
 
-- Public-API doc comments: docstrings, C# XML docs, JSDoc/TSDoc on exported/public surfaces
+- Public-API doc comments: docstrings, C# XML docs, JSDoc/TSDoc on exported/public surfaces. Python
+  has no export keyword, so the rule there is the leading underscore: a module docstring, and the
+  docstring of any module, class, function, method, or attribute whose name does not start with an
+  underscore, is public and exempt. A leading underscore marks it private, and a private docstring
+  gets the ordinary three-way triage. A name in a module's `__all__` is public whatever its spelling
 - Legal and license headers
 - Machine-read directives: shebangs, lint pragmas (`# noqa`, `// eslint-disable`,
   `#pragma warning`), region markers, editor folds, encoding cookies
@@ -163,12 +171,23 @@ default rather than betting deletion on a clean discovery pass.
 
 The canonical baseline is the plugin's standard tier — tidy's
 [exclusions reference](../../tidy/reference/exclusions.md), GLOBAL HARD
-list: the whole `.claude/**` tree plus any script wired as a hook command in
-`.claude/settings.json` or `.claude/settings.local.json` (wherever it lives), other agents'
+list: the whole `.claude/**` tree plus any script wired as a hook command **anywhere**, wherever the
+script itself lives, which includes `.claude/settings.json` and `.claude/settings.local.json`, a
+plugin's `hooks/hooks.json`, and a skill's or agent's frontmatter `hooks` block; other agents'
 config bundles, `.github/workflows/**` and CI surface, git-hook manager config, cross-ecosystem
 lint/style config. Consumer-declared
 protections in the target repo's `CLAUDE.md`/rules extend the list. Excluded paths are dropped at
 scoping time; they never reach triage.
+
+Every one of those path entries is overridable, through the three channels that reference's section
+4 defines: the `override` argument for one run's target, a root-relative glob in the target repo's
+tracked `.claude/code-tidying/exclusion-overrides.md`, or the `hard_exclusions: advisory` userConfig
+posture. Precedence per path is argument, then repository file, then userConfig, then enforced. A
+lifted path is triaged like any other file and is named in the run's report beside the channel that
+lifted it. Overriding reaches paths only: the behavioral guards, the work-tracking entries, and the
+SELF-UPDATE EXTRA HARD list are not path lists and no channel touches them. The gates in this file
+are unchanged on a lifted path, so a language `change-shape.py` cannot parse yields proposals rather
+than applied deletions, whatever lifted it.
 
 ## Narrative staging — text is never silently destroyed
 

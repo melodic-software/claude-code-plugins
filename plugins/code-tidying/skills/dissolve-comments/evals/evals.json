@@ -171,11 +171,11 @@
     },
     {
       "id": 15,
-      "name": "commented-out-code-detector-feeds-class-a",
+      "name": "commented-out-code-detector-yields-verified-candidates",
       "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell script with '# rm -rf \"$TMP\"' followed by '# if [[ -n \"$x\" ]]; then echo yes; fi' as two adjacent comment lines, and a prose comment '# cd into the dir and print the result'. The tooling probe reports tree-sitter present for bash and ruff absent.)",
       "narration": true,
       "expectations": [
-        "Runs commented-out-code.py and takes its finding for the two-line block as class-A input",
+        "Runs commented-out-code.py, reads its finding for the two-line block, and classes the block A because the text is statements rather than a sentence",
         "Does not flag the prose comment even though it parses as a command in Bash, because the reparse shows no structure prose cannot produce",
         "Deletes the two-line block with a COMMENT-ONLY verdict and keeps the prose comment for ordinary triage",
         "Notes ruff as absent with the capability lost, rather than failing"

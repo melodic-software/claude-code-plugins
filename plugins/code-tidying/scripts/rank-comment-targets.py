@@ -37,8 +37,14 @@ this signal. git blame is O(file x history), so it never runs repo-wide.
 Reading layers come from comment-census.py (scc, pygments). A shallow clone
 cannot rank by history: the run says so and ranks by fan-in and payload only.
 
+The administrative gate is the one gate a caller can lift: --override-exclusions
+ranks those paths too, for a run whose HARD-exclusion override already resolved.
+The other gates stay (an untracked, generated, or sub-floor file is not a target
+whatever the exclusions say).
+
 Usage: rank-comment-targets.py [--top N] [--window-months M] [--half-life-days D]
-                               [--min-lines L] [--drift-top K] [--json]
+                               [--min-lines L] [--drift-top K]
+                               [--override-exclusions] [--json]
 Exit: 0 ranked; 1 not a git repository; 3 no reading layer; 2 usage.
 """
 
@@ -278,6 +284,12 @@ def main(argv: list[str] | None = None) -> int:
         default=10,
         help="compute the blame drift column for this many top rows (0 disables)",
     )
+    ap.add_argument(
+        "--override-exclusions",
+        action="store_true",
+        help="rank administrative paths too (.claude, CI workflows, lockfiles, changelogs) "
+        "instead of gating them out; the caller resolved a HARD-exclusion override",
+    )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     if (
@@ -312,7 +324,10 @@ def main(argv: list[str] | None = None) -> int:
         if r is None:
             gated["not a code file"] += 1
             continue
-        if ADMIN.search(p):
+        # ADMIN is written with `/` separators, and os.path.normpath yields `\`
+        # on Windows, so the gate must match against a slash-normalized copy or
+        # it silently passes every administrative path on that platform.
+        if ADMIN.search(p.replace(os.sep, "/")) and not args.override_exclusions:
             gated["administrative path"] += 1
             continue
         if p in generated:
