@@ -122,13 +122,16 @@ What the canonical script does (details and lifecycle in the
 parallel tracks install `gh` (the pinned, checksum-verified `linux_amd64` release tarball from
 `github.com/cli/cli`, at the same version and SHA-256 the CI runner image and dotfiles' mise pin
 carry — Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .NET SDK into
-`/opt/dotnet` and Node via the VM's nvm at the versions the checked-out repo pins in `global.json`
-and `.node-version` (the fleet pins cover whichever of the two the repo does not pin); it then runs
-that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the snapshot; and then it
-fetches the standards fleet plugin list to `/opt/melodic-fleet-plugins.json` and installs every
-`true` entry in it at user scope. That plugin install is what makes the fleet's plugins live at
-turn one, because it runs before the session process launches and the plugin registry is read at
-process start. Every step logs with a timestamp to
+`/opt/dotnet` and Node via the VM's nvm. When the checked-out repo pins a version in
+`global.json` or `.node-version`, that pin replaces the matching fleet fallback for this
+cache build rather than unioning with it, so a repo that pins one .NET SDK does not also
+receive the other fallback SDK. The fleet pins cover whichever of those two the repo does
+not pin. The env copy is still a warm cache: each repo's bootstrap installs its exact pins
+repo-locally. The script then runs that repo's own `.claude/cloud-bootstrap.sh`, baking its
+results into the snapshot; and then it fetches the standards fleet plugin list to
+`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope. That
+plugin install is what makes the fleet's plugins live at turn one, because it runs before
+the session process launches and the plugin registry is read at process start. Every step logs with a timestamp to
 `/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
 written strictly last — so a missing stamp is the signature of an interrupted cache build
 ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
