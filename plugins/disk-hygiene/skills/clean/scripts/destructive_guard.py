@@ -1605,7 +1605,13 @@ def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]
     )
 
 
-def _bash_denial_guidance(authority: str | None) -> str:
+def _bash_allowlist_disclosure(authority: str | None) -> str:
+    """The classifier allow-list both denial bodies teach, named once.
+
+    ``_bash_denial_guidance`` prefixes this with each surface's own scope. The
+    shapes, paths, and supporting heads stay here so a subcommand added to one
+    body and not the other cannot drift (#1806).
+    """
     data_root = _display_data_root(authority)
     data_sentence = (
         f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
@@ -1620,12 +1626,12 @@ def _bash_denial_guidance(authority: str | None) -> str:
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
     supporting = ", ".join(sorted(_READONLY_SUPPORTING_BASH_HEADS | {"["}))
     return (
-        "Disk-hygiene fails closed: Bash is restricted to exact bundled "
-        f"{subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} invocations of "
-        f'"{_display_path(_engine_script_path())}", plus the argument-free '
-        f'read-only kill-switch probe "{_display_path(_probe_script_path())}", '
-        f"plus literal-form read-only supporting commands ({supporting}; find "
-        "without -delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
+        f"exact bundled {subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} "
+        f'invocations of "{_display_path(_engine_script_path())}", plus the '
+        "argument-free read-only kill-switch probe "
+        f'"{_display_path(_probe_script_path())}", plus literal-form read-only '
+        f"supporting commands ({supporting}; find without "
+        "-delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
         "absolute-path complete /usr/bin/[ ... ] expression with the closing ] "
         "bookend; every head, [ included, only as an absolute path under a "
         "trusted system directory — bare names are denied because exported "
@@ -1634,8 +1640,44 @@ def _bash_denial_guidance(authority: str | None) -> str:
         f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
         "commands are denied because shell functions and aliases can replace them."
         + data_sentence
-        + " Supporting inspection may use that small Bash allowlist or non-Bash "
-        "read-only tools; everything else stays denied."
+    )
+
+
+def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str:
+    """Explain a Bash deny in the words of the surface that issued it.
+
+    ``engine-gate`` (the plugin-level always-on hook) gates this engine
+    invocation only: the rest of the Bash lane is unaffected, and
+    ``/disk-hygiene:clean`` need not have been invoked. ``belt`` (the
+    skill-frontmatter registration, and the default) is session-wide after
+    that skill is invoked, and names how it clears. Both bodies disclose the
+    same classifier allow-list so the denial cannot teach a grammar the
+    classifier does not implement. Unrecognized ``mode`` values fall back to
+    ``belt``, matching ``resolve_mode``.
+    """
+    resolved = resolve_mode() if mode is None else mode
+    grammar = _bash_allowlist_disclosure(authority)
+    if resolved == _MODE_ENGINE_GATE:
+        return (
+            "Disk-hygiene engine gate: this specific engine invocation is "
+            "gated. The rest of the Bash lane is unaffected, and "
+            "/disk-hygiene:clean need not have been invoked for this to fire. "
+            "Allowed shapes for this invocation are "
+            + grammar
+            + " Supporting inspection of this invocation may use that small "
+            "Bash allowlist or non-Bash read-only tools; any other shape of "
+            "this engine invocation stays denied."
+        )
+    return (
+        "Disk-hygiene session belt: /disk-hygiene:clean was invoked in this "
+        "session, and this belt persists until the session ends. Bash is "
+        "restricted to "
+        + grammar
+        + " Supporting inspection may use that small Bash allowlist or "
+        "non-Bash read-only tools; everything else stays denied. Recovery: "
+        "start a new session. A subagent does not inherit this belt; that "
+        "non-inheritance is undocumented and build-specific, so it is not a "
+        "reliable recovery lane."
     )
 
 
