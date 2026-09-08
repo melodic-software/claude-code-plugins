@@ -342,9 +342,10 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   # A plugin passes only when it is installed at user scope, enabled there
   # (enabled must be the JSON boolean true, so a string "true" is rejected), and
   # snapshot_problem finds nothing. The one exception is an id the catalog marks
-  # `defaultEnabled: false`, for which disabled IS the pass state; it is still
-  # held to the install and snapshot checks. The exception is deliberately keyed
-  # on the catalog rather than on the disabled state itself, so a plugin that is
+  # `defaultEnabled: false` whose user-scope record has enabled as the JSON
+  # boolean false; a missing, null, or string enabled value still fails. It is
+  # still held to the install and snapshot checks. The exception is keyed on
+  # the catalog rather than on the disabled state itself, so a plugin that is
   # disabled and NOT default-disabled still fails, which is the fail-closed
   # signal this block was given in the first place. Failures are NAMED, not just
   # counted, because a bare count cannot be acted on.
@@ -369,7 +370,10 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     elif ! jq -e --arg id "$id" \
       'any(.[]?; .id == $id and .scope == "user" and .enabled == true)' \
       <<<"$end_state" >/dev/null 2>&1 &&
-      [[ " ${default_disabled[*]} " != *" ${id%@*} "* ]]; then
+      ! { jq -e --arg id "$id" \
+            'any(.[]?; .id == $id and .scope == "user" and .enabled == false)' \
+            <<<"$end_state" >/dev/null 2>&1 &&
+          [[ " ${default_disabled[*]} " == *" ${id%@*} "* ]]; }; then
       reason="installed at user scope but not enabled"
     else
       reason="$(snapshot_problem "$id")"

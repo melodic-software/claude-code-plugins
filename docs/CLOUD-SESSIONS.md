@@ -335,7 +335,9 @@ catalog on, and the cloud bootstrap installs from the two together (see
   the ones that run touched, since the plugins most likely to be wrong are the ones it decided to
   skip. A plugin counts as failed when any of these holds:
   - `claude plugin list --json` does not list it at user scope, or lists it there with `enabled`
-    anything other than the JSON boolean `true`;
+    anything other than the JSON boolean `true`, except a catalog entry marked
+    `defaultEnabled: false` whose user-scope record has `enabled` as the JSON boolean
+    `false` (a missing, null, or string `enabled` value still fails);
   - its own directory under `plugins/` changed between the `gitCommitSha` recorded for the
     user-scope install and `HEAD`, so the session would serve that plugin's older sources. A
     recorded sha that merely differs from `HEAD` is NOT a failure: the check is
@@ -347,10 +349,13 @@ catalog on, and the cloud bootstrap installs from the two together (see
     the same inputs and skips what it cannot judge.
 
   Each failure is named on stderr with its reason and the summary line appends the failing ids
-  after the count. So `0 failed` means every enabled plugin was checked and each one is installed
-  at user scope, enabled there, and serving sources that match `HEAD`; the one case where nothing
-  can be claimed, `claude plugin list --json` itself being unreadable, counts every plugin as
-  failed and says so in one line rather than one per plugin.
+  after the count. The leading count is `N declared` (ids the fleet list plus settings deltas
+  turn on), not `N enabled`, because a catalog `defaultEnabled: false` entry is declared and
+  installed without ever being enabled. So `0 failed` means every declared plugin was checked
+  and each one is installed at user scope, serving sources that match `HEAD`, and either enabled
+  there or (for a catalog-default-disabled id) explicitly JSON-`false` disabled; the one case
+  where nothing can be claimed, `claude plugin list --json` itself being unreadable, counts
+  every plugin as failed and says so in one line rather than one per plugin.
 - **Consumer repos** should declare the marketplace with a `github` source —
   `{"source": "github", "repo": "melodic-software/claude-code-plugins"}` — since the relative
   `directory` source is specific to this repo, whose reason to exist is validating in-flight
@@ -393,8 +398,8 @@ catalog on, and the cloud bootstrap installs from the two together (see
   decision where an absent key is drift. The entries that should not start on their own are not
   keyed here at all: the catalog ships them `defaultEnabled: false`, and `claude plugin install`
   honors that flag, so a raw install leaves them disabled. They still appear as `true` on the
-  fleet list, so this repo's cloud bootstrap includes them in its wanted set, treats a disabled
-  install as a verification failure, and runs `plugin enable` on a source-changing refresh.
+  fleet list, so this repo's cloud bootstrap includes them in its wanted set and treats an
+  explicit JSON-`false` disabled install as the expected end state, not a verification failure.
   Operator opt-in outside that path is `/plugin enable`. That covers the two whose bundled MCP
   servers need `userConfig` credentials this environment has no reason to hold — `miro`
   (`miro_api_token`) and `dometrain` (`dometrain_api_key`), set with `/plugin configure` —

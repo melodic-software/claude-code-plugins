@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract test for the plugin accounting in .claude/cloud-bootstrap.sh: the
 # block that installs/refreshes this repo's own catalog on a cloud VM and prints
-# `cloud-bootstrap: plugins N enabled, X newly installed, Y refreshed, Z failed`.
+# `cloud-bootstrap: plugins N declared, X newly installed, Y refreshed, Z failed`.
 #
 # That summary is the ONLY health signal a cloud session start emits for
 # plugins, and it has failed in both directions. It over-reported first: the
@@ -155,6 +155,8 @@ BETA_DISABLED='[{"id":"alpha@melodic-software","scope":"user","enabled":true},
                 {"id":"beta@melodic-software","scope":"user","enabled":false}]'
 BETA_ENABLED_STRING='[{"id":"alpha@melodic-software","scope":"user","enabled":true},
                       {"id":"beta@melodic-software","scope":"user","enabled":"true"}]'
+BETA_DISABLED_STRING='[{"id":"alpha@melodic-software","scope":"user","enabled":true},
+                       {"id":"beta@melodic-software","scope":"user","enabled":"false"}]'
 NONE='[]'
 
 REG_BOTH_HEAD='{"plugins":{
@@ -361,6 +363,14 @@ CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
   run_case default_disabled_stale "$BETA_DISABLED" "$BETA_DISABLED" "$REG_BETA_SHA_NULL" NONE
 expect "a catalog-disabled plugin is still snapshot-verified" \
   "beta@melodic-software failed verification after no action: cannot verify snapshot: no user-scope gitCommitSha recorded"
+
+# The exemption requires JSON boolean false. A string "false" is the same
+# malformed-output class as the string "true" case below, even when the
+# catalog marks the plugin default-disabled.
+CASE_MARKETPLACE="$BETA_DEFAULT_DISABLED" \
+  run_case default_disabled_enabled_string "$BETA_DISABLED_STRING" "$BETA_DISABLED_STRING" "$REG_BOTH_HEAD" NONE
+expect "a catalog-disabled plugin with enabled as the string \"false\" still fails" \
+  "beta@melodic-software failed verification after no action: installed at user scope but not enabled"
 
 # --- broken end states must be named and counted, continued ------------------
 
