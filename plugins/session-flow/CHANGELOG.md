@@ -4,11 +4,13 @@
 
 ### Added
 
-- **handoff:** the save-point checklist inventories named subagents this session spawned, stops
-  the ones with no pending work, and records any deliberately left running (with why) in the
-  handoff so the resuming session inherits the list. Named subagents stay live and addressable
-  across `/clear` and across sessions; an unreaped idle agent accumulates into later sessions.
-  (#3954)
+- **handoff:** the save-point checklist inventories named subagents this session spawned, reads
+  each one's actual output or transcript before judging idle (the inspect-real-state invariant in
+  `reference/off-thread-work.md`; a spawned subagent's internal task list is not visible to the
+  parent), stops the ones whose inspected output proves no pending work, and records any
+  deliberately left running (with why) in the handoff so the resuming session inherits the list.
+  Named subagents stay live and addressable across `/clear` and across sessions; an unreaped idle
+  agent accumulates into later sessions. (#3954)
 
 ## [0.35.6]
 

@@ -59,9 +59,12 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 - **Idle named subagents surviving `/clear`.** Named subagents stay live and addressable across
   `/clear` and across sessions, unlike `/loop` and `/goal`, which a fresh conversation clears. A
   save-point that captures TaskList but never reaps idle named agents leaves them resident for
-  later sessions. Inventory the named subagents this session spawned, stop the ones with no
-  pending work, and record any deliberately left running (with why) in the handoff so the
-  resuming session inherits the list.
+  later sessions. Inventory the named subagents this session spawned. For each one, read its
+  actual output or transcript per `reference/off-thread-work.md` (inspect real state, never
+  assume); the parent cannot see a spawned subagent's internal task list, so idleness is judged
+  only from that artifact. Stop the ones whose inspected output proves no pending work, and
+  record any deliberately left running (with why) in the handoff so the resuming session inherits
+  the list. Do not `TaskStop` on inferred idle.
 - **Saying nothing about the active `/loop`s on resume** — `/clear` starts a fresh conversation,
   which clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
   continuation runs once and silently drops the recurring behavior, with no error to signal it. Each
