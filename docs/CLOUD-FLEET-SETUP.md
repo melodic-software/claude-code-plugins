@@ -15,7 +15,10 @@ recorded in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was v
 [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
 Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
 repo changes its toolchain pins (`global.json`, `.node-version`, `.python-version`, lockfiles)
-or its `.claude/` config, or a verification session (see [checklist](#verification-checklist))
+or its `.claude/` config; or `melodic-software/standards`
+`components/cloud-environment/setup.sh` changes (that file owns
+`DOTNET_FALLBACK_VERSIONS` and `NODE_FALLBACK_VERSION`, the numbers copied into the
+inventory below); or a verification session (see [checklist](#verification-checklist))
 contradicts a claim here.
 
 ## The design in one paragraph
@@ -23,8 +26,10 @@ contradicts a claim here.
 Cloud environments are account-scoped and repo-agnostic, and each environment's setup script
 result is cached as a filesystem snapshot (the "warm boot": script runs once, later sessions boot
 from the snapshot; rebuilds only on script/network edits or ~7-day expiry). So the fleet uses
-**one shared environment** whose setup script installs the *union* of static toolchains the
-repos pin — .NET SDKs, Node 24, `gh`, PowerShell — inside the ~5-minute cache-build budget, while
+**one shared environment** whose setup script installs the static toolchains the repos pin —
+.NET SDK and Node at whatever the checked-out repo pins, with fleet fallbacks for whichever of
+those two lanes the repo does not pin, plus `gh` and PowerShell — inside the ~5-minute
+cache-build budget, while
 **each repo carries its own bootstrap**: a committed, idempotent, `CLAUDE_CODE_REMOTE`-guarded
 `.claude/cloud-bootstrap.sh` that installs manifest-driven dependencies (`npm ci`, repo-local
 .NET, `uv sync`), run by the environment's setup script pre-launch (the call that gets the repo's
@@ -34,13 +39,19 @@ and a repo's own steps live beside it in `.claude/cloud-bootstrap.local.sh`.
 
 ## Fleet toolchain inventory (2026-08-13)
 
-The union the shared environment's setup script installs — the one input to
-[Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) that lives nowhere else.
+The pins found across the fleet — the one input to
+[Step 1](#step-1--the-shared-environment-claudeai-ui-one-time) that lives nowhere else. The .NET
+and Node numbers below are fleet *fallbacks* owned by `DOTNET_FALLBACK_VERSIONS` and
+`NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` (values as read
+2026-09-08 — that script, not this list, is the source of truth); a checked-out repo
+that pins a version in `global.json` or `.node-version` replaces that lane's fallback for the
+cache build rather than adding to it, so a snapshot need not hold all of them at once.
 
 Pinned toolchains found: **.NET SDK 10.0.302** (medley, github-iac — `rollForward: disable`, so
-the exact patch is required) and **10.0.400** (ci-workflows); **Node 24.18.0**
-(medley, github-iac, provisioning, standards, dotfiles; codex-plugins pins major 24) — the cloud
-VM ships Node 20/21/22 only, so this is always an install; **Python 3.14** (medley,
+the exact patch is required) and **10.0.400** (ci-workflows) — the two fleet fallback SDKs;
+**Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
+`.node-version` (codex-plugins pins major 24) — the cloud VM ships Node 20/21/22 only, so this
+is always an install; **Python 3.14** (medley,
 claude-code-proxy — the VM has `uv`, see the caveat below); **Go 1.26.6** (ci-runner — the VM's
 Go plus the module `toolchain` mechanism covers this); **PowerShell** (`pwsh` — six repos carry
 `PSScriptAnalyzerSettings.psd1`; ci-workflows also runs Pester) — not pre-installed.
@@ -257,8 +268,12 @@ session on this repo in the new environment and ask Claude to verify:
    script's pinned-tarball step actually failed (`grep gh /var/log/melodic-env-setup.log` for
    its `WARN`), leaving scripts that shell out to `gh` running against a CLI 53 minor versions
    behind the other two lanes.
-   Then `pwsh --version`, `dotnet --list-sdks` (expect 10.0.302 and 10.0.400),
-   `node --version` (expect the `.node-version` pin), `check-tools` for the VM inventory.
+   Then `pwsh --version`, `dotnet --list-sdks` (expect the repo's `global.json` pin, or, when it
+   declares none — as this repo does — the SDKs `DOTNET_FALLBACK_VERSIONS` lists), `node
+   --version` (expect the `.node-version` pin, or `NODE_FALLBACK_VERSION` when the repo declares
+   none). Read both variables from standards `components/cloud-environment/setup.sh` at check
+   time rather than expecting the numbers recorded above. Then `check-tools` for the VM
+   inventory.
 2. The repo's bootstrap ran: `node_modules/.bin` populated, pinned lint tools present (`typos`,
    `actionlint`), and re-running the bootstrap is a fast no-op.
 3. `echo $GH_TOKEN` prints `proxy-injected` (GitHub proxy is authenticating).
