@@ -299,7 +299,7 @@
       "name": "low-effort-is-ceiling-over-broad-topic-doubling",
       "prompt": "Research Dapper vs EF Core vs ADO.NET connection-pooling defaults. [Caller effort for this run is low.]",
       "files": [],
-      "expected_output": "Broad-topic auto-detect fires (comparison, three tools named) but the Effort row is the ceiling: Phase 1 uses the doubled floor, Phase 2 is only the mandatory falsification query (not 6+ per-gap queries), and Phase 3 and Phase 4 are skipped. On a dispatched run the parent still writes Source breadth: low rather than following the researcher pin. Names the skipped phases. Does not treat discipline 8 as a licence to run a full doubled workflow at low.",
+      "expected_output": "Broad-topic auto-detect fires (comparison, three tools named) but the Effort row is the ceiling: Phase 1 uses the doubled floor, Phase 2 is only the mandatory falsification query (not 6+ per-gap queries), and Phase 3 and Phase 4 are skipped. On a dispatched run the parent still writes Source breadth: low rather than following the researcher pin. Names the skipped phases. Does not treat discipline 8 as a license to run a full doubled workflow at low.",
       "expectations": [
         "Treats caller effort as low rather than running the default full workflow",
         "Recognizes a broad comparison topic so Phase 1 uses the doubled floor",
