@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.9]
+
+### Fixed
+
+- **The tool-free PATH in the audit suites is derived from the collector ladder.** Each suite
+  that builds an environment with collectors removed used to keep a second, hardcoded list of
+  tool names off PATH. A collector added to `scripts/collector-ladder.tsv` stayed reachable
+  and the no-collector case stopped being tool-free. The excluded set is now the ladder's tool
+  column (skipping the reserved `none`, `n/a`, and `deferred` rungs) plus the PATH binaries those
+  adapters look up, and after that environment is built the suite asserts that none of those
+  collectors still resolves.
+
 ## [0.1.8]
 
 ### Added

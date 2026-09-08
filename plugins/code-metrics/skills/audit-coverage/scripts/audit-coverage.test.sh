@@ -85,18 +85,17 @@ chmod +x "$STUBS"/*
 
 # EMPTY_PATH is the caller's PATH with every collector removed, so a real
 # lizard, radon or multimetric on this machine cannot change the rows the
-# assertions read.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics eslint type-coverage mypy pmd "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# assertions read. The excluded set is the ladder, not a second list.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
 run_json() {
