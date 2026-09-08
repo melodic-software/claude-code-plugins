@@ -314,6 +314,7 @@ version_direction() {
 # report does not carry the record.
 version_at() {
   local __var="$1" report="$2" id="$3" scope="$4"
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -r --arg id "$id" --arg sc "$scope" \
     'first(.installed[]? | select(.id == $id and .scope == $sc) | .version) // ""' "$report"
 }
@@ -459,6 +460,7 @@ catalog_regression_rows() {
     a="$RUN_DIR/${snaps[i]}.$mp.json"
     b="$RUN_DIR/${snaps[i + 1]}.$mp.json"
     [[ -f "$a" && -f "$b" ]] || continue
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to rows -c --slurpfile a "$a" --slurpfile b "$b" -n '
       def triple:
         if type == "string" then
@@ -494,6 +496,7 @@ divergence_block() {
       note: "a snapshot was missing; the split could not be computed"}'
     return 0
   fi
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" '
     def act: [.divergences[]? | select(.versionsMatch == false) | .id];
@@ -783,6 +786,7 @@ run_marketplace() {
       ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
       case "$row" in
       *"\"id\":\"$own@"*) SELF_UPDATED="true" ;;
+      *) ;;
       esac
     done
   fi
@@ -845,6 +849,7 @@ run_install_step() {
     trunc pout "${pout//$'\r'/}" 200
   fi
 
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to NORMALIZE_JSON -c -n --argjson rc "$nrc" --arg out "$nout" --arg mode "$MODE" \
     --argjson prc "$prc" --arg pout "$pout" \
     '{rc: $rc, output: $out, checked_only: ($mode == "audit"),
@@ -876,6 +881,7 @@ run_enable_step() {
   while IFS= read -r id; do
     id="${id//$'\r'/}"
     [[ -n "$id" ]] || continue
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to row -r --arg id "$id" '
       [.installed[]? | select(.id == $id)] as $r
       | [(any($r[]; .scope == "user") | tostring),
@@ -956,6 +962,7 @@ cache_content_block() {
   # Same shape either way, with the per-id detail the `--ids` form cannot know
   # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
   # tell an empty finding from a missing field.
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to CACHE_JSON -c -n --argjson ids "$ids" \
     '{checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
       skipped_absent_project_paths: null, stale_ids: $ids,
@@ -1031,6 +1038,7 @@ report_extras() {
   # installs, and the intersection with the divergences answers a different
   # question. `by_path` carries the per-path counts the stale-project-records
   # section renders one row each from.
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c '
     ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
@@ -1078,6 +1086,7 @@ emit_marketplace_block() {
   [[ -n "$extras" ]] || extras='{}'
   [[ -n "$reg_rows" ]] || reg_rows='[]'
 
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to block -c -n \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
@@ -1223,6 +1232,7 @@ DIGEST=""
 ALLOW_DOWNGRADE_JSON="false"
 ((ALLOW_DOWNGRADE == 1)) && ALLOW_DOWNGRADE_JSON="true"
 
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 jq_to DIGEST -c -n \
   --arg run_dir "$RUN_DIR" \
   --arg mode "$MODE" \

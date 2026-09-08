@@ -233,10 +233,12 @@ EXTRA_ENV=()
 # The policy argument is deliberately the unset placeholder token here: it is the
 # one value a caller can pass by mistake, and it must fall back to `ask` and be
 # named rather than swallowed.
+# shellcheck disable=SC2016  # the unrendered placeholder token is the literal input under test
 out=$(run_sync "$case_dir" --marketplace market1 --audit --install-new '${user_config.install_new}')
 rc=$?
 assert_exit "audit: exit 0" 0 "$rc"
 assert_eq "invalid policy: falls back to ask" "ask" "$(jq -r '.install_new' <<<"$out")"
+# shellcheck disable=SC2016  # the unrendered placeholder token is the literal expected value
 assert_eq "invalid policy: the value is named, not swallowed" '${user_config.install_new}' \
   "$(jq -r '.install_new_invalid' <<<"$out")"
 assert_eq "audit: mode is audit" "audit" "$(jq -r '.mode' <<<"$out")"
