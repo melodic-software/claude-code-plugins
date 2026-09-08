@@ -10,8 +10,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **`lib/resolve-convention-home.sh`:** a UTF-8 BOM (U+FEFF encoded EF BB BF) immediately before
   the BEGIN marker is stripped when scanning the marker line. POSIX `[:space:]` does not include
   BOM, so a Windows-authored root file was reported as carrying no region (exit 1) and consuming
-  skills silently served the default. The same fixture now resolves at exit 0 with and without the
-  BOM.
+  skills silently served the default. `trim` strips the BOM once, then surrounding whitespace;
+  a second strip was unreachable because a file-start BOM can only be the first three bytes of
+  line 1. The same fixture now resolves at exit 0 with and without the BOM.
 
 ## [0.40.40]
 

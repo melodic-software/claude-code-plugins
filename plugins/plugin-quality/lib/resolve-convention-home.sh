@@ -141,13 +141,10 @@ explain() { [[ $EXPLAIN -eq 1 ]] && echo "$*" >&2; return 0; }
 
 trim() {
   local s="$1"
-  # UTF-8 BOM is U+FEFF encoded EF BB BF. POSIX [:space:] / isspace(3) is
-  # space, FF, NL, CR, HT, VT, not BOM, and Windows editors often write
-  # those three bytes immediately before the first character of a line.
+  # UTF-8 BOM is U+FEFF encoded EF BB BF at the start of the file, so on
+  # line 1 it is the first three bytes of this string. POSIX [:space:] /
+  # isspace(3) is space, FF, NL, CR, HT, VT, not BOM.
   # https://www.unicode.org/faq/utf_bom.html
-  s="${s#$'\xEF\xBB\xBF'}"
-  s="${s#"${s%%[![:space:]]*}"}"
-  s="${s%"${s##*[![:space:]]}"}"
   s="${s#$'\xEF\xBB\xBF'}"
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
