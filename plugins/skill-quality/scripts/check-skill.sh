@@ -826,13 +826,15 @@ fi
 # must ship evals/evals.json unless a recorded skip exists (#3135).
 
 evals_warrant_exemptions_file() {
-  local d="${1:-}"
+  local d="${1:-}" parent
   while [[ -n "$d" && "$d" != "/" ]]; do
     if [[ -f "$d/scripts/evals-warrant-exemptions.txt" ]]; then
       printf '%s\n' "$d/scripts/evals-warrant-exemptions.txt"
       return 0
     fi
-    d="$(dirname "$d")"
+    parent="$(dirname -- "$d")"
+    [[ "$parent" == "$d" ]] && break # reached a root: dirname is a fixed point
+    d="$parent"
   done
   return 1
 }

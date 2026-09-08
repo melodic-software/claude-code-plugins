@@ -3684,6 +3684,44 @@ else
   fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
+# 49. The evals-warrant walk stops at a filesystem root instead of spinning.
+# `dirname` is a fixed point at every root: `.` for a relative path on any
+# platform, and `<drive>:` on Git Bash, where `git rev-parse --show-toplevel`
+# hands back a drive-letter path. A walk that only stops on `/` never reaches
+# it from either, so the whole run hangs with no output. The fixture is
+# deliberately outside a git repo and anchored on a relative root, which is the
+# shape that reproduces the fixed point on Linux as well as Windows.
+WALK_TMP="$(mktemp -d)"
+# Nested trap: remove the walk fixture alongside the dirs the outer traps own.
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP"' EXIT
+mkdir -p "$WALK_TMP/plugins/p1/skills/walkroot"
+cat >"$WALK_TMP/plugins/p1/skills/walkroot/SKILL.md" <<'EOF'
+---
+description: "A walk fixture. Use when: 'testing exemptions-walk termination'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Fixture for the exemptions-walk termination check.
+
+## Gotchas
+
+None known.
+EOF
+if ! command -v timeout >/dev/null 2>&1; then
+  pass "timeout unavailable; skip exemptions-walk termination case"
+else
+  (cd "$WALK_TMP" && CLAUDE_PROJECT_DIR=. CHECK_SKILL_SKILLS_ROOT=plugins/p1/skills \
+    CHECK_SKILL_SKIP_MARKDOWNLINT=1 timeout 60 bash "$SUT" --require-evals walkroot) >/dev/null 2>&1
+  rc=$?
+  if [[ $rc -ne 124 ]]; then
+    pass "the evals-warrant walk terminates at a filesystem root"
+  else
+    fail "the evals-warrant walk never terminated (timed out at a dirname fixed point)"
+  fi
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
