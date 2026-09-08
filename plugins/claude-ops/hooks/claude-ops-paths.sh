@@ -6,7 +6,7 @@
 # Windows drive/UNC path, `..` traversal, or an existing symlink ancestor to
 # escape the physical project root. Prints the candidate on success.
 claude_ops::resolve_project_relative_dir() {
-  local project_dir="$1" configured="$2" normalized segment candidate ancestor
+  local project_dir="$1" configured="$2" normalized segment candidate ancestor parent
   local -a segments
 
   [[ -n "$project_dir" && -n "$configured" ]] || return 1
@@ -30,7 +30,9 @@ claude_ops::resolve_project_relative_dir() {
   # lexically in-project path whose existing symlink parent resolves outside.
   ancestor="$candidate"
   while [[ ! -e "$ancestor" && "$ancestor" != "/" && "$ancestor" != "." ]]; do
-    ancestor=$(dirname -- "$ancestor")
+    parent=$(dirname -- "$ancestor")
+    [[ "$parent" == "$ancestor" ]] && break # reached a root: dirname is a fixed point
+    ancestor="$parent"
   done
 
   local physical_project physical_ancestor

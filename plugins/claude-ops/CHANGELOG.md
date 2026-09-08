@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.2]
+
+### Fixed
+
+- **`claude-ops-paths.sh` nearest-existing-ancestor walk stops when `dirname` returns its
+  own input.** The loop ended only at `/` or `.`; on Git Bash `dirname C:` answers `C:`, so a
+  project directory whose ancestors do not exist spun forever, forking a `dirname` per pass.
+  Reached only when no ancestor of the configured destination exists, but the callers are the
+  skill-usage hooks, which fire on every `Skill` tool call and every prompt expansion, so the
+  cost is their 5s hook timeout paid on each one and the telemetry write lost.
+
 ## [0.45.1]
 
 ### Changed
