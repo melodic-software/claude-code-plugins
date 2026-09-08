@@ -57,10 +57,6 @@ const SCHEMA_VALIDATOR = new Ajv2020({
 });
 const validatePolicyStructure = SCHEMA_VALIDATOR.compile(POLICY_SCHEMA);
 const validateRepositoryPolicyStructure = SCHEMA_VALIDATOR.compile(REPOSITORY_POLICY_SCHEMA);
-const RUNNER_OUTPUT =
-  /^\s*\$\{\{\s*needs\.(?<selectorId>[A-Za-z0-9_-]+)\.outputs\.runner\s*\|\|\s*'(?<fallback>[^'\r\n]+)'\s*}}\s*$/;
-const REQUIRED_RUNNER_OUTPUT =
-  /^\s*\$\{\{\s*needs\.(?<selectorId>[A-Za-z0-9_-]+)\.outputs\.runner\s*}}\s*$/;
 const MATRIX_OUTPUT = /^\$\{\{ matrix\.([A-Za-z0-9_-]+) }}$/;
 const FULL_SHA = /^[0-9a-f]{40}$/i;
 const REUSABLE_WORKFLOW_PATH =
@@ -160,113 +156,16 @@ export function validatePolicy(value) {
     }
   }
 
-  const selectorWorkflowPaths = new Set(value.selectorWorkflowPaths);
-  const validateSelectorReference = (reference, location) => {
-    const parsed = parseReusableWorkflowReference(reference);
-    if (!parsed || !selectorWorkflowPaths.has(parsed.workflow) || !FULL_SHA.test(parsed.revision)) {
-      throw new ConfigurationError(
-        `${location} entry ${JSON.stringify(reference)} must be an approved selector path pinned to a full 40-character SHA`,
-      );
-    }
-  };
-  for (const reference of value.approvedSelectorReferences) {
-    validateSelectorReference(reference, "policy.approvedSelectorReferences");
-  }
-
-  const globallyApprovedSelectorReferences = new Set(value.approvedSelectorReferences);
-  const approvedSelectorReferencesByRepositoryOwner = new Map();
-  const scopedSelectorOwnersByReference = new Map();
-  for (const [owner, references] of Object.entries(
-    value.approvedSelectorReferencesByRepositoryOwner,
-  )) {
-    for (const reference of references) {
-      validateSelectorReference(
-        reference,
-        `policy.approvedSelectorReferencesByRepositoryOwner.${owner}`,
-      );
-      if (globallyApprovedSelectorReferences.has(reference)) {
-        throw new ConfigurationError(
-          `selector reference ${JSON.stringify(reference)} cannot be both globally and owner-scoped approved`,
-        );
-      }
-      const owners = scopedSelectorOwnersByReference.get(reference) ?? new Set();
-      owners.add(owner);
-      scopedSelectorOwnersByReference.set(reference, owners);
-    }
-    approvedSelectorReferencesByRepositoryOwner.set(owner, new Set(references));
-  }
-
-  const canonicalInputNames = new Set(Object.keys(value.canonicalSelectorInputs));
-  for (const name of Object.keys(value.optionalCanonicalSelectorInputs)) {
-    if (canonicalInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional selector input ${name} duplicates a required canonical input`,
-      );
-    }
-  }
-  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
-  const optionalBooleanInputNames = new Set(Object.keys(value.optionalBooleanSelectorInputs));
-  for (const name of optionalBooleanInputNames) {
-    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
-      throw new ConfigurationError(
-        `policy optional boolean selector input ${name} duplicates another selector input`,
-      );
-    }
-  }
-  const knownOptionalSelectorInputNames = new Set([
-    ...optionalStringInputNames,
-    ...optionalBooleanInputNames,
-  ]);
-
-  const approvedSelectorInputContracts = new Map();
-  for (const [reference, contract] of Object.entries(value.approvedSelectorInputContracts)) {
-    validateSelectorReference(reference, "policy.approvedSelectorInputContracts");
-    const unknownInputs = contract.allowedInputs.filter(
-      (name) => !knownOptionalSelectorInputNames.has(name),
-    );
-    if (unknownInputs.length > 0) {
-      throw new ConfigurationError(
-        `selector input contract ${reference}.allowedInputs has unregistered optional inputs: ${unknownInputs.join(", ")}`,
-      );
-    }
-    approvedSelectorInputContracts.set(reference, {
-      allowedInputs: new Set(contract.allowedInputs),
-      allowedInputNames: new Set([...canonicalInputNames, ...contract.allowedInputs]),
-    });
-  }
-
-  const approvedSelectorReferences = new Set([
-    ...value.approvedSelectorReferences,
-    ...[...approvedSelectorReferencesByRepositoryOwner.values()].flatMap((references) => [
-      ...references,
-    ]),
-  ]);
-  for (const reference of approvedSelectorReferences) {
-    if (!approvedSelectorInputContracts.has(reference)) {
-      throw new ConfigurationError(
-        `approved selector reference ${JSON.stringify(reference)} is missing an approvedSelectorInputContracts entry`,
-      );
-    }
-  }
-  for (const reference of approvedSelectorInputContracts.keys()) {
-    if (!approvedSelectorReferences.has(reference)) {
-      throw new ConfigurationError(
-        `selector input contract ${JSON.stringify(reference)} is not an approved selector reference`,
-      );
-    }
-  }
-
   const approvedReusableWorkflowContracts = new Map();
   for (const [reference, contract] of Object.entries(value.approvedReusableWorkflowContracts)) {
     const parsed = parseReusableWorkflowReference(reference);
     if (
       !parsed ||
       !REUSABLE_WORKFLOW_PATH.test(parsed.workflow) ||
-      !FULL_SHA.test(parsed.revision) ||
-      selectorWorkflowPaths.has(parsed.workflow)
+      !FULL_SHA.test(parsed.revision)
     ) {
       throw new ConfigurationError(
-        `policy.approvedReusableWorkflowContracts key ${JSON.stringify(reference)} must be a non-selector reusable workflow path pinned to a full 40-character SHA`,
+        `policy.approvedReusableWorkflowContracts key ${JSON.stringify(reference)} must be a reusable workflow path pinned to a full 40-character SHA`,
       );
     }
     if (contract.routing === "runner-input") {
@@ -274,18 +173,6 @@ export function validatePolicy(value) {
         throw new ConfigurationError(
           `reusable workflow contract ${reference}.allowedInputs must include ${contract.runnerInput}`,
         );
-      }
-      if (Object.hasOwn(contract, "selectorResultInput")) {
-        if (contract.selectorResultInput === contract.runnerInput) {
-          throw new ConfigurationError(
-            `reusable workflow contract ${reference}.selectorResultInput must be a canonical input name distinct from runnerInput`,
-          );
-        }
-        if (!contract.allowedInputs.includes(contract.selectorResultInput)) {
-          throw new ConfigurationError(
-            `reusable workflow contract ${reference}.allowedInputs must include ${contract.selectorResultInput}`,
-          );
-        }
       }
       if (
         Object.hasOwn(contract, "allowedCallerPermissions") &&
@@ -347,7 +234,7 @@ export function validatePolicy(value) {
         }
       }
       // Every runner-input contract's reviewed secret mapping feeds a
-      // selector-routed caller whose secrets: block the generic credential
+      // fleet-routed caller whose secrets: block the generic credential
       // scan then trusts, so each value must be one exact whole named-secret
       // expression (the workflow_call input name may differ from the
       // repository secret name) — a transformed or indirect expression would
@@ -372,9 +259,6 @@ export function validatePolicy(value) {
     approvedReusableWorkflowContracts.set(reference, {
       routing: contract.routing,
       ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
-      ...(contract.selectorResultInput
-        ? { selectorResultInput: contract.selectorResultInput }
-        : {}),
       allowedInputs: new Set(contract.allowedInputs),
       allowedSecrets: contract.allowedSecrets,
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
@@ -407,7 +291,7 @@ export function validatePolicy(value) {
       "policy.governedReusableRunnerInput.default must be in policy.fallbackLabelAllowlist",
     );
   }
-  // Every allowlist member is an executable selector-failure route, so each
+  // Every allowlist member is an executable fallback route, so each
   // must be a label this policy already recognizes as routable.
   for (const label of value.fallbackLabelAllowlist) {
     if (
@@ -445,13 +329,7 @@ export function validatePolicy(value) {
 
   return {
     ...value,
-    selectorWorkflowPaths,
-    approvedSelectorReferences: new Set(value.approvedSelectorReferences),
-    approvedSelectorReferencesByRepositoryOwner,
-    scopedSelectorOwnersByReference,
-    approvedSelectorInputContracts,
     approvedReusableWorkflowContracts,
-    canonicalSelectorSecretNames: new Set(Object.keys(value.canonicalSelectorSecrets)),
     approvedHostedRunnerLabels,
     hostedMatrixAxes,
     forbiddenHostedRunnerLabels,
@@ -479,7 +357,7 @@ function validateRepositoryConfig(value, policy) {
   for (const [key, grant] of Object.entries(value.localRoutingGrants ?? {})) {
     if (exceptions.has(key)) {
       throw new ConfigurationError(
-        `${key} cannot declare both a hosted exception and a local-routing grant; granted selector routing and excepted hosted execution are mutually exclusive`,
+        `${key} cannot declare both a hosted exception and a local-routing grant; granted fleet routing and excepted hosted execution are mutually exclusive`,
       );
     }
     const admitsAnything =
@@ -567,16 +445,6 @@ function stringsIn(value) {
   }
   if (isMapping(value)) {
     return Object.values(value).flatMap(stringsIn);
-  }
-  return [];
-}
-
-function normalizeNeeds(value) {
-  if (typeof value === "string") {
-    return [value];
-  }
-  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-    return value;
   }
   return [];
 }
@@ -724,16 +592,10 @@ function localWorkflowRoutingMode(record, policy, workflowIndex, visited = new S
   visited.add(record.file);
   let internalRouting = false;
   for (const job of Object.values(record.workflow.jobs)) {
-    if (selectorStatus(job, policy).isSelector) {
-      internalRouting = true;
-      continue;
-    }
     if (typeof job?.["runs-on"] === "string") {
       const runner = job["runs-on"];
-      const route = RUNNER_OUTPUT.exec(runner);
       if (
         runner === policy.governedReusableRunnerInput.expression ||
-        route !== null ||
         rawManagedLabel(runner, policy)
       ) {
         internalRouting = true;
@@ -810,14 +672,11 @@ function localReusableWorkflowStatus(callerFile, job, policy, workflowIndex) {
         "repository-local runner-input workflows must use workflow_call exclusively and declare either the governed optional runner default or a required runner with no default",
     };
   }
-  const runnerInput =
-    routing === "runner-input" ? governedReusableRunnerStatus(record.workflow, policy) : undefined;
   return {
     isLocal: true,
     approved: true,
     record,
     routing,
-    ...(runnerInput?.mode ? { runnerInputMode: runnerInput.mode } : {}),
   };
 }
 
@@ -877,28 +736,17 @@ function auditLocalPermissionFlow({
       continue;
     }
 
-    const selector = selectorStatus(job, policy);
-    const target = selector.isSelector
-      ? undefined
-      : runnerTargetStatus(
-          jobId,
-          job,
-          record.workflow.jobs,
-          record.workflow,
-          policy,
-          record.file,
-          workflowIndex,
-        );
-    // A called job that names the fleet label literally executes on the same
-    // persistent host as a selector-routed one. Before the fleet label was a
-    // routing target it classified `invalid` here, matching neither this test
-    // nor the hosted one below, so the whole flow pass fell through and emitted
-    // nothing: a called job inheriting write-capable caller permissions ran on
-    // the fleet with no finding at all.
+    const target = runnerTargetStatus(job, record.workflow, policy, record.file, workflowIndex);
+    // A called job that names the fleet label literally executes on the
+    // persistent host. Before the fleet label was a routing target it
+    // classified `invalid` here, matching neither this test nor the hosted one
+    // below, so the whole flow pass fell through and emitted nothing: a called
+    // job inheriting write-capable caller permissions ran on the fleet with no
+    // finding at all.
     const localExecution =
       locallyRoutedTarget(target) ||
-      target?.kind === "reusable-input" ||
-      target?.kind === "transparent-local-reusable";
+      target.kind === "reusable-input" ||
+      target.kind === "transparent-local-reusable";
     if (localExecution && capability !== "read-only") {
       findings.push(
         finding(
@@ -912,11 +760,10 @@ function auditLocalPermissionFlow({
     }
 
     const hostedExecution =
-      selector.approved ||
-      target?.kind === "hosted-literal" ||
-      target?.kind === "hosted-matrix" ||
-      target?.kind === "hosted-reusable" ||
-      target?.kind === "hosted-local-reusable";
+      target.kind === "hosted-literal" ||
+      target.kind === "hosted-matrix" ||
+      target.kind === "hosted-reusable" ||
+      target.kind === "hosted-local-reusable";
     if (hostedExecution && capability !== "read-only") {
       // The direct audit of this same job classifies a declared packages-only
       // write map (with no other privileged surface) as publication — with the
@@ -928,7 +775,6 @@ function auditLocalPermissionFlow({
       const declaredRequirement = privilegedHostedRequirement(
         record.workflow,
         job,
-        selector,
         target,
         policy,
         undefined,
@@ -1040,105 +886,6 @@ function minimumPermissionShortfall(permissions, minimum, location) {
     }
   }
   return undefined;
-}
-
-function selectorStatus(job, policy) {
-  const reference = parseReusableWorkflowReference(job?.uses);
-  if (!reference || !policy.selectorWorkflowPaths.has(reference.workflow)) {
-    return { isSelector: false, approved: false };
-  }
-  if (!FULL_SHA.test(reference.revision)) {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: "the selector reusable workflow must be pinned to a full 40-character SHA",
-    };
-  }
-  if (!policy.approvedSelectorReferences.has(job.uses)) {
-    const scopedOwners = policy.scopedSelectorOwnersByReference.get(job.uses);
-    if (scopedOwners) {
-      return {
-        approved: false,
-        isSelector: true,
-        reason: policy.repositoryOwner
-          ? `the selector path@SHA is not approved for repository owner ${policy.repositoryOwner}`
-          : "the selector path@SHA is owner-scoped, but trustworthy repository owner evidence is unavailable",
-      };
-    }
-    return {
-      approved: false,
-      isSelector: true,
-      reason:
-        policy.approvedSelectorReferences.size === 0
-          ? "no reviewed selector path@SHA is currently approved"
-          : "the selector path@SHA is not in the reviewed approval allowlist",
-    };
-  }
-  if (job.secrets === "inherit") {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: "the selector must not use secrets: inherit",
-    };
-  }
-  if (!isMapping(job.secrets)) {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: "the selector must receive an explicit observer-private-key secret",
-    };
-  }
-  const secretError = exactCanonicalMap(
-    job.secrets,
-    policy.canonicalSelectorSecrets,
-    {},
-    policy.canonicalSelectorSecretNames,
-    "selector secrets",
-  );
-  if (secretError) {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: secretError,
-    };
-  }
-  const inputContract = policy.approvedSelectorInputContracts.get(job.uses);
-  if (!inputContract) {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: "the selector path@SHA has no reviewed input contract",
-    };
-  }
-  const optionalCanonicalSelectorInputs = {};
-  const optionalBooleanSelectorInputs = {};
-  for (const name of inputContract.allowedInputs) {
-    if (Object.hasOwn(policy.optionalCanonicalSelectorInputs, name)) {
-      optionalCanonicalSelectorInputs[name] = policy.optionalCanonicalSelectorInputs[name];
-    } else if (Object.hasOwn(policy.optionalBooleanSelectorInputs, name)) {
-      optionalBooleanSelectorInputs[name] = policy.optionalBooleanSelectorInputs[name];
-    }
-  }
-  // Boolean opt-in inputs share the optional exact-match contract: present or
-  // absent, and when present the caller's parsed value must equal the reviewed
-  // literal (true). Merging them into the optional map reuses that fail-closed
-  // match; the load-time duplicate-name check forbids a key collision between
-  // the two optional maps, so the spread order cannot silently shadow.
-  const inputError = exactCanonicalMap(
-    job.with,
-    policy.canonicalSelectorInputs,
-    { ...optionalCanonicalSelectorInputs, ...optionalBooleanSelectorInputs },
-    inputContract.allowedInputNames,
-    "selector inputs",
-  );
-  if (inputError) {
-    return {
-      approved: false,
-      isSelector: true,
-      reason: inputError,
-    };
-  }
-  return { approved: true, isSelector: true };
 }
 
 function reusableWorkflowStatus(job, policy, workflow) {
@@ -1375,7 +1122,7 @@ function workflowCallSurface(workflow) {
 // unapproved credential expression to a called job's steps/env while leaving
 // permissions, workflow_call, and runs-on unchanged, and auto-approval would
 // never observe it. Applying privilegedHostedRequirement here, per job, with
-// no selector/target/localCall context (so the credential and environment
+// no target/localCall context (so the credential and environment
 // checks are not skipped), closes that gap using the exact same detection
 // logic already trusted for direct/local jobs.
 function jobCredentialSurface(workflow, policy) {
@@ -1385,14 +1132,7 @@ function jobCredentialSurface(workflow, policy) {
       .filter(([, job]) => isMapping(job))
       .map(([jobId, job]) => [
         jobId,
-        privilegedHostedRequirement(
-          workflow,
-          job,
-          { isSelector: false },
-          undefined,
-          policy,
-          undefined,
-        ) ?? null,
+        privilegedHostedRequirement(workflow, job, undefined, policy, undefined) ?? null,
       ])
       .sort(([left], [right]) => left.localeCompare(right)),
   );
@@ -1591,7 +1331,7 @@ function malformedJobIds(workflow) {
 // container/services/environment execution boundary). A fetched reusable
 // workflow's own job graph can route indirectly through another job's
 // `needs` context -- most commonly needs.<job-id>.outputs.<name>, the same
-// pattern this analyzer already trusts for local selector routing -- so a
+// pattern this analyzer already reads for local job wiring -- so a
 // job's routing field can stay a byte-identical expression across a SHA
 // bump while the producer side of that reference (an output value, a job
 // `result`, or an entire needs.<job-id>/needs object passed through a
@@ -1801,7 +1541,6 @@ function reviewedContractSurface(contract) {
   return normalizeStructuralValue({
     routing: contract.routing,
     ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
-    ...(contract.selectorResultInput ? { selectorResultInput: contract.selectorResultInput } : {}),
     allowedInputs: [...contract.allowedInputs].sort((left, right) => left.localeCompare(right)),
     allowedSecrets: contract.allowedSecrets,
     ...(contract.fixedRunsOn
@@ -1889,7 +1628,6 @@ async function resolveAutoApprovedContracts({
         !parsed ||
         !REUSABLE_WORKFLOW_PATH.test(parsed.workflow) ||
         !FULL_SHA.test(parsed.revision) ||
-        policy.selectorWorkflowPaths.has(parsed.workflow) ||
         policy.approvedReusableWorkflowContracts.has(job.uses) ||
         candidates.has(job.uses)
       ) {
@@ -2034,29 +1772,8 @@ async function resolveAutoApprovedContracts({
 
     const matchedBasis = matchingBases[0];
 
-    // The compared surface (workflow_call declaration, permissions, job
-    // routing, and credential use) proves the reusable workflow's caller-
-    // facing contract and execution boundary are unchanged, but a
-    // selectorResultInput contract is trusted for something this surface
-    // cannot observe: that the called workflow's own steps actually consume
-    // the forwarded needs.<selector>.result and fail the job when the
-    // selector did not succeed. failClosedSelectorConditionStatus only
-    // proves the caller passes that input; nothing here inspects the
-    // reusable workflow's steps to prove it still honors that input rather
-    // than, say, ignoring it and exiting 0. A bumped SHA could therefore
-    // keep every compared field identical while silently defeating the
-    // fail-closed guarantee a required check relies on. Auto-approval must
-    // decline every selector-result contract and require human review.
-    if (matchedBasis.contract.selectorResultInput) {
-      diagnostics.set(
-        reference,
-        `${parsed.workflow} is a fail-closed selector-result reporter; its required-check behavior cannot be proven unchanged by this surface diff, so auto-approval is declined`,
-      );
-      continue;
-    }
-
-    // allowedCallerPermissions is the same category of unobservable trust as
-    // selectorResultInput, with a larger blast radius. It exists specifically
+    // allowedCallerPermissions is a category of trust this surface diff cannot
+    // observe, with a large blast radius. It exists specifically
     // to let a caller's job keep a privileged, potentially self-hosted-
     // reachable grant (e.g. pull-requests:write, id-token:write) that
     // privilegedHostedRequirement would otherwise force hosted or reject
@@ -2085,7 +1802,7 @@ async function resolveAutoApprovedContracts({
     // workflow executing on a caller-chosen (potentially self-hosted) runner.
     // What the called workflow's steps do with a forwarded secret is content
     // this surface diff never inspects, the same unobservable trust as
-    // selectorResultInput and allowedCallerPermissions above, so a bumped SHA
+    // allowedCallerPermissions above, so a bumped SHA
     // must never inherit a secret-forwarding grant automatically. Hosted-only
     // contracts keep their existing eligibility: their secrets stay bound to
     // the fixed hosted runner recorded in the reviewed contract.
@@ -2107,311 +1824,6 @@ async function resolveAutoApprovedContracts({
   }
 
   return { approved, diagnostics };
-}
-
-function normalizedConditionExpression(value) {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const normalized = value.replace(/\s+/g, " ").trim();
-  const wrapper = /^\$\{\{ (.*) }}$/.exec(normalized);
-  return wrapper?.[1];
-}
-
-function selfHostedSelectorConditionStatus(job, selectorId) {
-  const cancellation = cancellationSafeConditionStatus(job.if);
-  if (!cancellation.approved) {
-    return cancellation;
-  }
-  const expression = normalizedConditionExpression(job.if);
-  const suffix = [
-    `needs.${selectorId}.result == 'success'`,
-    `needs.${selectorId}.outputs.route == 'self-hosted'`,
-    `needs.${selectorId}.outputs.runner != ''`,
-    `needs.${selectorId}.outputs.runner == vars.CI_SELF_HOSTED_LABEL`,
-  ].join(" && ");
-  if (expression !== `!cancelled() && ${suffix}` && !expression?.endsWith(` && ${suffix}`)) {
-    return {
-      approved: false,
-      reason:
-        "required local runner inputs must be guarded by selector success, the exact self-hosted route, a nonempty runner, and the governed self-hosted label",
-    };
-  }
-  return { approved: true };
-}
-
-function selectorFailureSentinelStepShape(step, policy, { requireMarkerName }) {
-  const stepKeys = isMapping(step) ? Object.keys(step) : [];
-  const allowedStepKeys = new Set(["name", "run", "shell"]);
-  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
-  if (
-    stepKeys.some((key) => !allowedStepKeys.has(key)) ||
-    typeof step?.name !== "string" ||
-    step.name.trim() === "" ||
-    (requireMarkerName && step.name !== policy.governedReusableRunnerInput.failureSentinelMarker) ||
-    (requireMarkerName && step.shell !== "bash") ||
-    (Object.hasOwn(step, "shell") && step.shell !== "bash") ||
-    lines.length !== 2 ||
-    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
-    lines[1].trim() !== "exit 1"
-  ) {
-    return {
-      approved: false,
-      reason: requireMarkerName
-        ? "the selector failure sentinel step must use the declared marker name, pin shell: bash, emit a static error annotation, and exit 1"
-        : "the legacy selector failure sentinel step must only emit a static error annotation and exit 1",
-    };
-  }
-  return { approved: true };
-}
-
-function selectorFailureSentinelStatus(jobId, target, job, jobs, policy) {
-  const { failureSentinel, failureSentinelMarker } = policy.governedReusableRunnerInput;
-  const legacySentinel = target === failureSentinelMarker;
-  const hostedSentinel = target === failureSentinel;
-  if (!legacySentinel && !hostedSentinel) {
-    return undefined;
-  }
-  const prerequisites = normalizeNeeds(job.needs);
-  if (hostedSentinel) {
-    const steps = Array.isArray(job.steps) ? job.steps : [];
-    const [step] = steps;
-    const hasMarkerStep =
-      steps.length === 1 && isMapping(step) && step.name === failureSentinelMarker;
-    if (!hasMarkerStep) {
-      return undefined;
-    }
-  }
-  if (prerequisites.length !== 1) {
-    return {
-      approved: false,
-      reason: `${jobId} must declare exactly one selector job in needs to use the selector failure sentinel`,
-    };
-  }
-  const [selectorId] = prerequisites;
-  const selector = jobs[selectorId];
-  const selectorResult = selectorStatus(selector, policy);
-  if (!selectorResult.isSelector || !selectorResult.approved) {
-    return {
-      approved: false,
-      reason: selectorResult.reason ?? `${selectorId} does not call an approved selector workflow`,
-    };
-  }
-  const expectedCondition =
-    `!cancelled() && (needs.${selectorId}.result != 'success' || ` +
-    `!(needs.${selectorId}.outputs.route == 'self-hosted' && ` +
-    `needs.${selectorId}.outputs.runner != '' && ` +
-    `needs.${selectorId}.outputs.runner == vars.CI_SELF_HOSTED_LABEL))`;
-  if (normalizedConditionExpression(job.if) !== expectedCondition) {
-    return {
-      approved: false,
-      reason:
-        "the selector failure sentinel requires the exact complement of a successful governed self-hosted selector route",
-    };
-  }
-  const allowedJobKeys = new Set([
-    "name",
-    "needs",
-    "if",
-    "runs-on",
-    "timeout-minutes",
-    "permissions",
-    "steps",
-  ]);
-  const extraJobKeys = Object.keys(job).filter((key) => !allowedJobKeys.has(key));
-  if (extraJobKeys.length > 0) {
-    return {
-      approved: false,
-      reason: `the selector failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
-    };
-  }
-  if (
-    job["timeout-minutes"] !== 1 ||
-    !isMapping(job.permissions) ||
-    Object.keys(job.permissions).length !== 0
-  ) {
-    return {
-      approved: false,
-      reason: "the selector failure sentinel job requires timeout-minutes: 1 and permissions: {}",
-    };
-  }
-  if (!Array.isArray(job.steps) || job.steps.length !== 1) {
-    return {
-      approved: false,
-      reason: "the selector failure sentinel job requires exactly one rejecting shell step",
-    };
-  }
-  const [step] = job.steps;
-  const stepShape = selectorFailureSentinelStepShape(step, policy, {
-    requireMarkerName: hostedSentinel,
-  });
-  if (!stepShape.approved) {
-    return stepShape;
-  }
-  return { approved: true, selectorId, legacy: legacySentinel };
-}
-
-function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRunnerInputMode) {
-  const fallbackMatch = RUNNER_OUTPUT.exec(target);
-  const requiredMatch = REQUIRED_RUNNER_OUTPUT.exec(target);
-  const allowedFallbacks = new Set(policy.fallbackLabelAllowlist);
-  const usesOptionalDefault =
-    fallbackMatch !== null && allowedFallbacks.has(fallbackMatch.groups.fallback);
-  const usesRequiredInput = requiredMatch !== null && localRunnerInputMode === "required";
-  if (!usesOptionalDefault && !usesRequiredInput) {
-    return {
-      attempted: target.includes("outputs.runner"),
-      approved: false,
-      reason: `runner routing must use exactly needs.<selector-job>.outputs.runner || '<fallback>' with a fallback from policy.fallbackLabelAllowlist (${[...policy.fallbackLabelAllowlist].map((label) => `'${label}'`).join(", ")}), or a raw selector output passed to a required no-default repository-local runner input`,
-    };
-  }
-
-  const selectorId = (fallbackMatch ?? requiredMatch).groups.selectorId;
-  if (!normalizeNeeds(job.needs).includes(selectorId)) {
-    return {
-      attempted: true,
-      approved: false,
-      reason: `${jobId} must declare ${selectorId} in needs`,
-    };
-  }
-  const selector = jobs[selectorId];
-  if (!isMapping(selector)) {
-    return { attempted: true, approved: false, reason: `${selectorId} is not a workflow job` };
-  }
-  const status = selectorStatus(selector, policy);
-  if (!status.isSelector) {
-    return {
-      attempted: true,
-      approved: false,
-      reason: `${selectorId} does not call an approved selector workflow`,
-    };
-  }
-  if (!status.approved) {
-    return { attempted: true, approved: false, reason: status.reason };
-  }
-  const condition = usesRequiredInput
-    ? selfHostedSelectorConditionStatus(job, selectorId)
-    : reusableContract?.selectorResultInput
-      ? failClosedSelectorConditionStatus(job, selectorId, reusableContract.selectorResultInput)
-      : cancellationSafeConditionStatus(job.if);
-  if (!condition.approved) {
-    return { attempted: true, approved: false, reason: condition.reason };
-  }
-  return {
-    attempted: true,
-    approved: true,
-    selectorId,
-    mode: usesRequiredInput ? "required-no-default" : "optional-default",
-  };
-}
-
-function failClosedSelectorConditionStatus(job, selectorId, selectorResultInput) {
-  const prerequisites = normalizeNeeds(job.needs);
-  if (prerequisites.length !== 1 || prerequisites[0] !== selectorId) {
-    return {
-      approved: false,
-      reason: `fail-closed selector-result reporters must declare exactly needs: ${selectorId} so the reported result covers every prerequisite`,
-    };
-  }
-  const alwaysCondition = `\${{ always() }}`;
-  if (job.if !== alwaysCondition) {
-    return {
-      approved: false,
-      reason: `fail-closed selector-result reporters must declare exactly if: ${alwaysCondition} so every prerequisite outcome materializes the required check`,
-    };
-  }
-  const expectedResult = `\${{ needs.${selectorId}.result }}`;
-  if (job.with?.[selectorResultInput] !== expectedResult) {
-    return {
-      approved: false,
-      reason: `fail-closed selector-result reporters must pass ${selectorResultInput}: ${expectedResult}`,
-    };
-  }
-  return { approved: true };
-}
-
-function cancellationSafeConditionStatus(value) {
-  if (typeof value !== "string") {
-    return {
-      approved: false,
-      reason: `selector-routed jobs must declare if: \${{ !cancelled() }} so selector failure falls back without overriding cancellation`,
-    };
-  }
-  const wrapper = /^\s*\$\{\{([\s\S]*)}}\s*$/.exec(value);
-  if (!wrapper) {
-    return {
-      approved: false,
-      reason: `selector-routed job conditions must use the exact \${{ !cancelled() }} expression contract`,
-    };
-  }
-  const expression = wrapper[1].trim();
-  if (expression === "!cancelled()") {
-    return { approved: true };
-  }
-  const prefix = "!cancelled()";
-  if (!expression.startsWith(prefix)) {
-    return {
-      approved: false,
-      reason:
-        "selector-routed job conditions must begin with !cancelled() as the first top-level conjunction",
-    };
-  }
-  const remainder = expression.slice(prefix.length).trim();
-  if (!remainder.startsWith("&&") || remainder.slice(2).trim() === "") {
-    return {
-      approved: false,
-      reason:
-        "selector-routed job conditions must be !cancelled() or combine an existing condition with top-level &&",
-    };
-  }
-
-  let depth = 0;
-  let quote;
-  for (let index = 2; index < remainder.length; index += 1) {
-    const character = remainder[index];
-    if (quote) {
-      if (character === quote) {
-        if (remainder[index + 1] === quote) {
-          index += 1;
-        } else {
-          quote = undefined;
-        }
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      continue;
-    }
-    if (character === "(") {
-      depth += 1;
-      continue;
-    }
-    if (character === ")") {
-      depth -= 1;
-      if (depth < 0) {
-        return {
-          approved: false,
-          reason: "selector-routed job condition has unbalanced parentheses",
-        };
-      }
-      continue;
-    }
-    if (depth === 0 && remainder.slice(index, index + 2) === "||") {
-      return {
-        approved: false,
-        reason:
-          "selector-routed job conditions cannot use top-level || because cancellation could start the workload",
-      };
-    }
-  }
-  if (quote || depth !== 0) {
-    return {
-      approved: false,
-      reason: "selector-routed job condition has an unbalanced quoted string or parentheses",
-    };
-  }
-  return { approved: true };
 }
 
 function governedReusableRunnerStatus(workflow, policy) {
@@ -2489,7 +1901,7 @@ function hostedMatrixStatus(job, target, policy) {
   return { approved: true };
 }
 
-function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIndex) {
+function runnerTargetStatus(job, workflow, policy, file, workflowIndex) {
   const local = localReusableWorkflowStatus(file, job, policy, workflowIndex);
   if (local.isLocal && !local.approved) {
     return { approved: false, kind: "invalid", reason: local.reason };
@@ -2503,19 +1915,6 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
   const reusable = reusableWorkflowStatus(job, policy, workflow);
   if (!local.approved && reusable.isReusable && !reusable.approved) {
     return { approved: false, kind: "invalid", reason: reusable.reason };
-  }
-  if (
-    !local.approved &&
-    reusable.approved &&
-    reusable.contract.selectorResultInput &&
-    workflowCallDeclaration(workflow) !== undefined
-  ) {
-    return {
-      approved: false,
-      kind: "invalid",
-      reason:
-        "repository-local reusable workflows cannot wrap a selector-result reporting contract; the selector-owning workflow must call that reviewed contract directly",
-    };
   }
   if (!local.approved && reusable.approved && reusable.contract.routing === "hosted-only") {
     return { approved: true, kind: "hosted-reusable" };
@@ -2531,33 +1930,6 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
       kind: "invalid",
       reason: "runs-on (or a reusable workflow runner input) must be a governed string target",
     };
-  }
-
-  const selectorFailureSentinel = selectorFailureSentinelStatus(jobId, target, job, jobs, policy);
-  if (selectorFailureSentinel) {
-    return {
-      approved: selectorFailureSentinel.approved,
-      kind: selectorFailureSentinel.approved ? "selector-failure-sentinel" : "invalid",
-      route: { attempted: true, selectorId: selectorFailureSentinel.selectorId },
-      ...(selectorFailureSentinel.legacy ? { legacySentinel: true } : {}),
-      ...(selectorFailureSentinel.reason ? { reason: selectorFailureSentinel.reason } : {}),
-    };
-  }
-
-  const route = routeStatus(
-    jobId,
-    target,
-    job,
-    jobs,
-    policy,
-    !local.approved && reusable.approved ? reusable.contract : undefined,
-    local.approved ? local.runnerInputMode : undefined,
-  );
-  if (route.approved) {
-    return { approved: true, kind: "selector-output", route };
-  }
-  if (route.attempted) {
-    return { approved: false, kind: "invalid", reason: route.reason, route };
   }
 
   if (target === policy.governedReusableRunnerInput.expression) {
@@ -2585,22 +1957,20 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
       reason: `runner expression ${JSON.stringify(target)} is not an approved routing contract`,
     };
   }
-  // A literal governed fleet label is a first-class routing target on an
-  // enrolled private repository: the selector job is no longer the only way to
-  // reach the managed fleet. Admission is exact membership in the reviewed
-  // `approvedManagedRunnerLabels` set, mirroring the hosted-literal check
-  // below, and deliberately NOT a `managedLabelPatterns` match: that pattern is
-  // a deliberately loose detection surface, so reusing it here would admit any
-  // unreviewed near-miss (`melodic-anything-ubuntu-24.04-x64`) or an
-  // adjacent-text string (`bogus/melodic-review-ubuntu-24.04-x64`) with the
-  // same trust as the real fleet label. The check also sits AFTER the
-  // expression catch-all above, so a `${{ … }}` expression that merely mentions
-  // the label is not a literal; an expression that is a governed route has
-  // already been admitted by routeStatus. Approval is unconditional here and
-  // the routing gate below (`routingEnabled`) refuses it on a public or
-  // non-enrolled repository, which is exactly how selector-output is handled,
-  // so the public case keeps reporting `public-self-hosted-routing` rather than
-  // a generic contract failure.
+  // A literal governed fleet label is the only routing target that reaches the
+  // managed fleet on an enrolled private repository. Admission is exact
+  // membership in the reviewed `approvedManagedRunnerLabels` set, mirroring the
+  // hosted-literal check below, and deliberately NOT a `managedLabelPatterns`
+  // match: that pattern is a deliberately loose detection surface, so reusing
+  // it here would admit any unreviewed near-miss
+  // (`melodic-anything-ubuntu-24.04-x64`) or an adjacent-text string
+  // (`bogus/melodic-review-ubuntu-24.04-x64`) with the same trust as the real
+  // fleet label. The check also sits AFTER the expression catch-all above, so a
+  // `${{ … }}` expression that merely mentions the label is not a literal.
+  // Approval is unconditional here and the routing gate below
+  // (`routingEnabled`) refuses it on a public or non-enrolled repository, so
+  // the public case keeps reporting `public-self-hosted-routing` rather than a
+  // generic contract failure.
   // Compared without trimming, exactly as the hosted-literal check below is, and
   // exactly as validatePolicy requires of every set entry: a padded label is a
   // different string from the reviewed one and is not admitted.
@@ -2617,15 +1987,12 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
   };
 }
 
-// The two ways a job reaches the managed fleet: the governed selector output
-// and, on an enrolled private repository, the governed fleet label written
-// literally. Every gate that used to test for `selector-output` alone tests
-// this instead, so a Phase 4 job that replaces its selector expression with the
-// label keeps the same reviewed permission treatment rather than silently
-// losing it. Keeping the two spellings in one predicate is what stops the
-// grant-applicability test and the grant-consumption test from drifting apart.
+// The one way a job reaches the managed fleet: on an enrolled private
+// repository, the governed fleet label written literally. Keeping it behind a
+// named predicate is what stops the grant-applicability test and the
+// grant-consumption test from drifting apart.
 function locallyRoutedTarget(target) {
-  return target?.kind === "selector-output" || target?.kind === "managed-literal";
+  return target?.kind === "managed-literal";
 }
 
 function rawRunnerStrings(job, includeReusableInputs) {
@@ -2639,9 +2006,6 @@ function rawRunnerStrings(job, includeReusableInputs) {
 function rawManagedLabel(value, policy) {
   const trimmed = value.trim();
   if (trimmed.toLowerCase().includes("self-hosted")) {
-    return true;
-  }
-  if (/CI_(?:SELF_HOSTED_LABEL|MANAGED_RUNNER)/i.test(trimmed)) {
     return true;
   }
   return policy.managedLabelRegexes.some((pattern) => pattern.test(trimmed));
@@ -3033,16 +2397,7 @@ function credentialActionUses(step, policy) {
   return policy.localCredentialActions.has(action) ? step.uses : undefined;
 }
 
-function privilegedHostedRequirement(
-  workflow,
-  job,
-  selector,
-  target,
-  policy,
-  localCall,
-  grant,
-  grantUsage,
-) {
+function privilegedHostedRequirement(workflow, job, target, policy, localCall, grant, grantUsage) {
   const reusable = reusableWorkflowStatus(job, policy, workflow);
   const reviewedCallerPermissions =
     locallyRoutedTarget(target) &&
@@ -3058,7 +2413,7 @@ function privilegedHostedRequirement(
   // auto-approval so every new SHA of such a workflow is human-reviewed.
   const reviewedSecretBoundary = locallyRoutedTarget(target) && reusable.approved;
   // A local-routing grant admits only a directly declared, genuinely
-  // selector-routed job: a fixed hosted target keeps the ordinary privileged
+  // fleet-routed job: a fixed hosted target keeps the ordinary privileged
   // rules and exception inventory, mirroring the allowedCallerPermissions
   // waiver's scope. A reusable-call job never takes the grant path — its
   // caller permissions flow into an external workflow whose behavior at the
@@ -3104,14 +2459,13 @@ function privilegedHostedRequirement(
     }
   }
 
-  // The selector's one exact observer secret is part of its reviewed hosted
-  // reusable-workflow contract. Exact hosted-only reusable secret mappings are
-  // likewise governed by approvedReusableWorkflowContracts rather than this
-  // local-workload boundary. A pending publication downgrade still scans the
-  // caller outside that reviewed secrets mapping first: a contract allowlists
-  // input names, not values, so a credential expression smuggled through a
-  // `with:` value would otherwise ride the weaker category.
-  if (selector.isSelector || target?.kind === "hosted-reusable") {
+  // Exact hosted-only reusable secret mappings are governed by
+  // approvedReusableWorkflowContracts rather than this local-workload
+  // boundary. A pending publication downgrade still scans the caller outside
+  // that reviewed secrets mapping first: a contract allowlists input names,
+  // not values, so a credential expression smuggled through a `with:` value
+  // would otherwise ride the weaker category.
+  if (target?.kind === "hosted-reusable") {
     if (publicationRequirement === undefined) {
       return undefined;
     }
@@ -3487,14 +2841,7 @@ export async function auditRepository({
     }
   }
   const repositoryOwner = resolveRepositoryOwner(config, githubRepository);
-  const policy = {
-    ...basePolicy,
-    repositoryOwner,
-    approvedSelectorReferences: new Set([
-      ...basePolicy.approvedSelectorReferences,
-      ...(basePolicy.approvedSelectorReferencesByRepositoryOwner.get(repositoryOwner) ?? []),
-    ]),
-  };
+  const policy = { ...basePolicy, repositoryOwner };
   const findings = [];
   const consumedExceptions = new Set();
   const consumedLocalRoutingGrants = new Set();
@@ -3541,8 +2888,6 @@ export async function auditRepository({
       continue;
     }
 
-    const requiredNoDefaultCallers = new Map();
-    const approvedFailureSentinels = new Map();
     for (const [jobId, job] of Object.entries(workflow.jobs)) {
       if (!isMapping(job)) {
         findings.push(finding("job-shape", file, jobId, "job must be a mapping"));
@@ -3552,48 +2897,14 @@ export async function auditRepository({
       const exception = config.exceptions.get(key);
       const grant = config.localRoutingGrants.get(key);
       const requiredCallInputs = config.requiredReusableCallInputs.get(key);
-      const selector = selectorStatus(job, policy);
-      const localCall = selector.isSelector
-        ? undefined
-        : localReusableWorkflowStatus(file, job, policy, workflowIndex);
-      const reusable = selector.isSelector
-        ? undefined
-        : reusableWorkflowStatus(job, policy, workflow);
-      const target = selector.isSelector
-        ? undefined
-        : runnerTargetStatus(jobId, job, workflow.jobs, workflow, policy, file, workflowIndex);
-      const attemptsSelectorRoute =
-        target !== undefined && Object.hasOwn(target, "route") && target.route.attempted === true;
-      const runnerStrings = rawRunnerStrings(job, !selector.isSelector);
+      const localCall = localReusableWorkflowStatus(file, job, policy, workflowIndex);
+      const reusable = reusableWorkflowStatus(job, policy, workflow);
+      const target = runnerTargetStatus(job, workflow, policy, file, workflowIndex);
+      const runnerStrings = rawRunnerStrings(job, true);
       const routingEnabled = config.visibility === "private" && config.selfHostedCi;
-      if (
-        routingEnabled &&
-        target?.kind === "selector-output" &&
-        target.approved &&
-        target.route.mode === "required-no-default"
-      ) {
-        const callers = requiredNoDefaultCallers.get(target.route.selectorId) ?? [];
-        callers.push(jobId);
-        requiredNoDefaultCallers.set(target.route.selectorId, callers);
-      }
-      if (routingEnabled && target?.kind === "selector-failure-sentinel" && target.approved) {
-        const sentinels = approvedFailureSentinels.get(target.route.selectorId) ?? [];
-        sentinels.push(jobId);
-        approvedFailureSentinels.set(target.route.selectorId, sentinels);
-        if (target.legacySentinel) {
-          findings.push(
-            finding(
-              "selector-failure-sentinel-legacy",
-              file,
-              jobId,
-              "the legacy unroutable runs-on sentinel shape is accepted during migration; migrate to the hosted failureSentinel label with the declared failureSentinelMarker step",
-            ),
-          );
-        }
-      }
       const seedLocalPermissionFlow =
         !isWorkflowCallExclusive(workflow) || !localIncomingFiles.has(file);
-      if (routingEnabled && localCall?.approved && seedLocalPermissionFlow) {
+      if (routingEnabled && localCall.approved && seedLocalPermissionFlow) {
         findings.push(
           ...auditLocalPermissionFlow({
             localStatus: localCall,
@@ -3608,16 +2919,7 @@ export async function auditRepository({
       }
       const grantUsage = grant ? { unused: [] } : undefined;
       const privilegedHosted = routingEnabled
-        ? privilegedHostedRequirement(
-            workflow,
-            job,
-            selector,
-            target,
-            policy,
-            localCall,
-            grant,
-            grantUsage,
-          )
+        ? privilegedHostedRequirement(workflow, job, target, policy, localCall, grant, grantUsage)
         : undefined;
       // A held publication downgrade must not mask the structural container
       // categories: a containerized packages-only publisher stays in the
@@ -3671,24 +2973,14 @@ export async function auditRepository({
       }
 
       for (const runner of runnerStrings) {
-        // A governed selector-output expression may carry an allowlisted
-        // managed fallback; the literal inside it is the reviewed recovery
-        // label, not a raw self-hosted pin.
-        const governedRoute = RUNNER_OUTPUT.exec(runner);
-        if (
-          governedRoute !== null &&
-          new Set(policy.fallbackLabelAllowlist).has(governedRoute.groups.fallback)
-        ) {
-          continue;
-        }
-        // The same skip for the label this job routes on, and only for that
+        // The one skip is the label this job routes on, and only for that
         // exact string. It is conditioned on routingEnabled so a public or
         // non-enrolled repository still reports the raw pin, and it covers a
         // `with:` runner value as well as a literal `runs-on` because
         // rawRunnerStrings reads both: without that, an approved reusable call
         // whose runner input is the fleet label would report its own admitted
         // target as a raw pin.
-        if (routingEnabled && target?.kind === "managed-literal" && runner === target.label) {
+        if (routingEnabled && target.kind === "managed-literal" && runner === target.label) {
           continue;
         }
         if (rawManagedLabel(runner, policy)) {
@@ -3698,17 +2990,15 @@ export async function auditRepository({
               "raw-self-hosted-label",
               file,
               jobId,
-              `raw managed runner target ${JSON.stringify(runner.trim())} is forbidden; consume the approved selector output`,
+              `raw managed runner target ${JSON.stringify(runner.trim())} is forbidden; name a label from policy.approvedManagedRunnerLabels`,
             ),
           );
         }
       }
 
       if (
-        target &&
         !target.approved &&
-        ((!hasForbiddenHostedLabel && !hasRawManagedLabel) || typeof job.uses === "string") &&
-        !attemptsSelectorRoute
+        ((!hasForbiddenHostedLabel && !hasRawManagedLabel) || typeof job.uses === "string")
       ) {
         findings.push(finding("runner-target-contract", file, jobId, target.reason));
       }
@@ -3717,7 +3007,7 @@ export async function auditRepository({
         // Required inputs govern the cross-repository contract call only. A
         // repository-local wrapper may accept the named input without
         // forwarding it to the reviewed external workflow.
-        if (reusable?.isReusable && !localCall?.isLocal) {
+        if (reusable.isReusable && !localCall.isLocal) {
           consumedRequiredReusableCallInputs.add(key);
           const contract = policy.approvedReusableWorkflowContracts.get(job.uses);
           if (contract) {
@@ -3781,11 +3071,10 @@ export async function auditRepository({
           }
         }
         if (
-          selector.isSelector ||
-          (target?.kind !== "hosted-literal" &&
-            target?.kind !== "hosted-matrix" &&
-            target?.kind !== "hosted-reusable" &&
-            target?.kind !== "hosted-local-reusable")
+          target.kind !== "hosted-literal" &&
+          target.kind !== "hosted-matrix" &&
+          target.kind !== "hosted-reusable" &&
+          target.kind !== "hosted-local-reusable"
         ) {
           // The suffix is per rule, not shared. A grant never suppresses a
           // structural requirement (THREAT-MODEL.md), so a job container or
@@ -3798,7 +3087,7 @@ export async function auditRepository({
               file,
               jobId,
               hostedRequirement.rule === "structural-hosted-only"
-                ? `${hostedRequirement.description} cannot use selector or fleet-label routing`
+                ? `${hostedRequirement.description} cannot use fleet-label routing`
                 : `${hostedRequirement.description} requires a reviewed localRoutingGrants entry or a hosted exception`,
             ),
           );
@@ -3806,7 +3095,7 @@ export async function auditRepository({
       }
 
       if (!routingEnabled) {
-        if (selector.isSelector || locallyRoutedTarget(target) || attemptsSelectorRoute) {
+        if (locallyRoutedTarget(target)) {
           findings.push(
             finding(
               config.visibility === "public"
@@ -3821,42 +3110,23 @@ export async function auditRepository({
         continue;
       }
 
-      if (selector.isSelector) {
-        if (!selector.approved) {
-          findings.push(finding("selector-pin", file, jobId, selector.reason));
-        }
-        continue;
-      }
-
-      if (target?.kind === "selector-failure-sentinel" && target.approved) {
-        continue;
-      }
-      if (target?.kind === "selector-output" && target.approved) {
-        continue;
-      }
       // An enrolled private repository may name the governed fleet label
       // directly. Everything that makes such a job privileged has already been
       // reported above through hostedRequirement, so an admitted fleet literal
-      // needs no exception entry, exactly as a selector-routed job needs none.
-      if (target?.kind === "managed-literal" && target.approved) {
+      // needs no exception entry.
+      if (target.kind === "managed-literal" && target.approved) {
         continue;
       }
-      if (attemptsSelectorRoute) {
-        findings.push(finding("selector-contract", file, jobId, target.reason));
-      }
-      if (target?.kind === "reusable-input") {
+      if (target.kind === "reusable-input") {
         continue;
       }
-      if (
-        target?.kind === "hosted-local-reusable" ||
-        target?.kind === "transparent-local-reusable"
-      ) {
+      if (target.kind === "hosted-local-reusable" || target.kind === "transparent-local-reusable") {
         continue;
       }
-      if (target?.kind === "invalid") {
+      if (target.kind === "invalid") {
         if (exception) {
           consumedExceptions.add(key);
-        } else if (!hostedRequirement && !attemptsSelectorRoute) {
+        } else if (!hostedRequirement) {
           findings.push(
             finding(
               "hosted-exception-required",
@@ -3879,23 +3149,6 @@ export async function auditRepository({
         );
       } else if (exception) {
         consumedExceptions.add(key);
-      }
-    }
-
-    for (const [selectorId, callerIds] of requiredNoDefaultCallers) {
-      const sentinelIds = approvedFailureSentinels.get(selectorId) ?? [];
-      if (sentinelIds.length === 1) {
-        continue;
-      }
-      for (const jobId of callerIds) {
-        findings.push(
-          finding(
-            "selector-failure-sentinel-required",
-            file,
-            jobId,
-            `required no-default local runner calls using ${selectorId} require exactly one approved selector failure sentinel for the same selector in this workflow; found ${sentinelIds.length}`,
-          ),
-        );
       }
     }
   }
