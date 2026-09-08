@@ -51,11 +51,13 @@
 #      plugin can be flipped to `false` without disturbing the rest, and an
 #      insertion at the wrong point is how a duplicate-looking near-miss hides.
 #
-# A key set to `false` PASSES. An explicit `false` is a recorded decision --
-# the documented off switch for the two entries whose MCP servers need
-# credentials this environment has no reason to hold (`miro`, `dometrain`) --
-# whereas an absent key is the drift this gate exists to name. The two are
-# different states and only one of them is silent.
+# A key set to `false` PASSES. An explicit `false` is a recorded decision:
+# the gate treats every matching settings key as coverage regardless of
+# value, so a disable of a plugin the fleet list never enabled still
+# passes. When the fleet list does enable that plugin, the bootstrap's
+# overlay honors the `false` as an opt-out (settings-wins). An absent key
+# is the drift this gate exists to name. The two are different states and
+# only one of them is silent.
 #
 # Exit codes: 0 clean, 1 drift, 2 fatal (inputs missing or unreadable).
 #
