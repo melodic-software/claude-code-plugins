@@ -37,7 +37,7 @@ else
 fi
 
 TS_LANGS=""
-for m in tree_sitter_python tree_sitter_c_sharp tree_sitter_typescript tree_sitter_bash tree_sitter_javascript tree_sitter_yaml; do
+for m in tree_sitter_python tree_sitter_c_sharp tree_sitter_typescript tree_sitter_bash tree_sitter_javascript tree_sitter_yaml tree_sitter_toml; do
   pyhas "$m" && TS_LANGS="${TS_LANGS}${TS_LANGS:+,}${m#tree_sitter_}"
 done
 if pyhas tree_sitter && [[ -n "$TS_LANGS" ]]; then

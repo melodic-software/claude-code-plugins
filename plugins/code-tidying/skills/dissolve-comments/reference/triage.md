@@ -1,8 +1,11 @@
 # The three-way triage
 
 Every comment in scope gets exactly one class, and every class has a treatment on **both** sides of
-its test — a comment that fails class C's test is deleted, not kept for want of a branch. The
-classes have **different tests** — class A is judged on information content, class B on
+its test — a comment that fails class C's test is deleted, not kept for want of a branch. On a data
+or config file (TOML, YAML, JSON) class B is empty by construction, because such a file has no
+naming or structure channel to dissolve a comment into; the triage there is class A or class C only.
+
+The classes have **different tests** — class A is judged on information content, class B on
 expressibility, class C on necessity — and conflating them applies the wrong treatment. The classic
 failure is deleting a class-B comment as if it were class A: that destroys information the code was
 supposed to absorb first.
@@ -20,6 +23,11 @@ Deletion is the complete treatment — no refactor needed, no information lost. 
 `/code-tidying:audit-comment-residue`'s four residue shapes (history narration, plan references,
 conversational antecedents, ticket back-references); when that skill has already produced findings,
 its Tier 1 rows are class-A input here.
+
+**Carve-out for issue references.** A comment is class A on the ticket-back-reference shape only
+when the reference is its **whole content**. An issue reference that is a citation inside a
+rationale sentence stays with the sentence and takes that sentence's class, because the citation is
+one half of a rationale-and-regression-test pair and deleting either half breaks the pair.
 
 ## Class B — real information the code could carry: refactor, then delete
 
@@ -59,17 +67,22 @@ A comment survives only if **all three** hold:
    clone, unreadable blame) is recorded as unavailable and the comment is kept. Note the carve-out
    in the sentence above is about *constraints*, not rationale: a silent-breakage constraint is
    restated here even when history also carries it, and rationale gets no such exception.
-3. **Within the line budget.** A kept comment is held to `class_c_max_lines` (default 2, from the
+3. **Within the line budget.** The exempt-surface list in [safety.md](safety.md) is checked
+   **before** the budget, and it wins outright: an exempt comment is never measured against
+   `class_c_max_lines` and is never rewritten to fit it, at any length. Only a comment that has
+   cleared the exempt check is held to `class_c_max_lines` (default 2, from the
    plugin's user config). Over budget, the treatment is Henney's second verb, *rewritten*: keep
    the durable constraint in one or two lines, stage the narrative for the commit message
    ([safety.md](safety.md)), delete the rest. A genuinely load-bearing multi-line contract (a regex
    explanation, a concurrency invariant, a rejected-alternative record paired with a regression
    test) may exceed the budget when the report says why in one line **for that comment**, naming
    it by file and line. A single reason covering a category, a file, or a batch does not satisfy
-   this and does not license the keeps under it: the per-comment sentence is the cost that keeps
-   the exception rare. What never survives is length spent on justification narrative. Posture
-   `balanced` reports an over-budget comment instead of rewriting it; `conservative` proposes the
-   rewrite.
+   this and does not license the keeps under it: naming every comment is the cost that keeps the
+   exception rare. Several comments in one file that share one reason may be reported under that
+   reason once, provided the group **enumerates every member by file and line**; the sentence is
+   what may be written once, never the naming. What never survives is length spent on
+   justification narrative. Posture `balanced` reports an over-budget comment instead of rewriting
+   it; `conservative` proposes the rewrite.
 
 **When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
 under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
@@ -81,6 +94,17 @@ Under `safe` mode and posture `conservative` this deletion is **proposed, never 
 modes apply class-A deletions only, and a comment that reached this branch is class C whatever its
 test returned — the mode ladder narrows what is applied, and it does not get to be widened by a
 verdict reached inside it.
+
+**Whole-file verdict.** Where the majority of a file's class-C comments carry contract, negative, or
+operational information, the file is contract-heavy rather than over-narrated. The report states
+that verdict once for the file, with the count of contract-carrying comments that produced it, and
+criterion 3 is suspended for that file: no comment in it is rewritten to fit `class_c_max_lines`.
+Three limits hold the verdict to what it is. It is reached by that majority test and reported with
+its count, never asserted, and below the threshold it does not exist: the per-comment escape clause
+above is the only route, and a whole-file claim never stands in for it. It suspends criterion 3
+alone, so criterion 2 still runs on every class-C comment in the file and a rationale recoverable
+where a reader would look is still deleted or proposed for deletion. And class A and class B are
+untouched; the suspension is of the budget, not of the triage.
 
 A rewrite is an edit with a gate: the comment's replacement text is checked by
 `change-shape.py` like any deletion (COMMENT-ONLY, since only comment tokens changed), and the

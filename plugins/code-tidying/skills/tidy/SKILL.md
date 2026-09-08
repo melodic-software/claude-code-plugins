@@ -1,6 +1,6 @@
 ---
 description: "Proactively hunt a rotated lane of the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler subset + prose tidyings), apply scope-budgeted edits, and ship one tight structure-only PR per invocation. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Actions: [<lane>] targeted lane run; [dry-run [<lane>]] plan-only, no edits; [help] print the lane catalog. Skip when: /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items. Tidy proactively hunts unfiled drift across a glob-scoped lane."
-argument-hint: "[<lane> | dry-run [<lane>] | self-update | help]"
+argument-hint: "[<lane> | dry-run [<lane>] | self-update | help] [override]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
@@ -38,6 +38,9 @@ Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/nul
 
 Arguments: `$ARGUMENTS`
 
+HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or any value outside
+`enforce` and `advisory` means `enforce`).
+
 ## Purpose
 
 Tidy is the proactive "Boy Scout in passing" loop. Step zero of the long-game improvement story. Answers: "What small structural improvements can I safely make to one slice of the codebase today, and ship as one tight PR, without mixing structural and behavioral changes?"
@@ -68,6 +71,7 @@ Parse `$ARGUMENTS` to determine the action:
 | `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. Do NOT make edits. Do NOT branch. Do NOT push. Do NOT file tracker items. The user reviews and decides whether to proceed. |
 | `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
+| `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this lane's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a lane is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
 
 ## Lane catalog
 
@@ -114,8 +118,9 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 1. Resolve lane from `$ARGUMENTS` per Action Router. Empty arg → infer from current branch / recent commits / git status; if ambiguous, ask the user.
 2. Load the lane per **Lane resolution** above. Read the full file(s). When a project lane declares `## Merge semantics`, read **both** the project and bundled layers and merge per that declaration (e.g. project `Scope` replaces bundled globs; project watch-for entries append to the bundled ones); otherwise read the single resolved file. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
-3. Backlog throttle, if ≥3 open PRs match `chore/tidy-*` (see pre-computed context above), STOP. Surface a one-line note to the user and exit cleanly. Do NOT pile on.
-4. Find anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if no merged PRs yet). The anchor establishes the "what's drifted since last sweep" baseline.
+3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
+4. Backlog throttle, if ≥3 open PRs match `chore/tidy-*` (see pre-computed context above), STOP. Surface a one-line note to the user and exit cleanly. Do NOT pile on.
+5. Find anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if no merged PRs yet). The anchor establishes the "what's drifted since last sweep" baseline.
 
 ### Phase B. Branch
 
@@ -134,7 +139,8 @@ Understand before changing.
 2. Hunt: walk the lane's scope globs, looking for instances of the lane's watch-for tidyings. For each candidate, classify: tidying type, file, line range, estimated LOC delta, confidence.
 3. Build a prioritized findings table.
 4. Apply the scope budget (`reference/scope-budget.md`): target ≤200 LOC + ≤8 files; hard cap ≤400 LOC + ≤15 files. Take the highest-priority subset that fits.
-5. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**
+5. **Override enumeration gate**, only for paths lifted by the `override` argument. List those specific HARD paths the surviving candidates would touch, each with its tidying, and take a go-ahead on that list before Phase E. Interactive: the user answers. Non-interactive: report the list and continue with those argument-lifted candidates dropped, since a blanket token is not a decision about the paths nobody has seen yet. Paths lifted by `hard_exclusions=advisory` or by `.claude/code-tidying/exclusion-overrides.md` skip this gate: those channels already are a standing decision, and a non-interactive run must honor them. A `dry-run` presents the argument-lifted enumeration and stops there. An argument-lifted path that no candidate touches never reaches this gate.
+6. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**
 
 If the hunt finds zero applicable improvements after thorough exploration: clean exit, NO PR. Do not produce empty-PR churn.
 
@@ -191,12 +197,16 @@ gh pr comment <pr_number> --body-file - <<'EOF'
 ## Deferred items
 
 <links to filed issue numbers, if the scope budget capped the run>
+
+## Lifted HARD exclusions
+
+<table: path → channel that lifted it (override argument | overrides file | hard_exclusions=advisory)>
 EOF
 ```
 
-The comment itself is never optional when a PR was created. "Tidyings applied" is never empty at that point, because Phase D's empty-PR-avoidance rule means no PR gets created when there is nothing to tidy, and the canonical body template has no slot for this content. Only the "Deferred items" subsection is conditional: omit it when nothing was deferred, and never post it as an empty table.
+The comment itself is never optional when a PR was created. "Tidyings applied" is never empty at that point, because Phase D's empty-PR-avoidance rule means no PR gets created when there is nothing to tidy, and the canonical body template has no slot for this content. Two subsections are conditional: omit "Deferred items" when nothing was deferred, and omit "Lifted HARD exclusions" when nothing was lifted. Never post either as an empty table. A run that lifted a path and cannot post that table has not met the override contract; back the lifted edits out rather than shipping them unnamed.
 
-If `source-control` isn't installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo, e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied/Deferred-items sections stay in the PR body itself (there is no canonical gate to conflict with).
+If `source-control` isn't installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo, e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied / Deferred-items / Lifted-HARD-exclusions sections stay in the PR body itself (there is no canonical gate to conflict with).
 
 Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code, fix the correct ones, rebut the incorrect ones with evidence. **Manual merge by a human**, this skill does NOT auto-merge.
 
@@ -204,7 +214,7 @@ Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot
 
 Three exclusion tiers gate every lane. The full lists live in `reference/exclusions.md`. Read it at the start of every run; the summary below is orientation only.
 
-1. **GLOBAL HARD EXCLUSIONS**. Paths NEVER touched, regardless of lane: agent/CI/hook configuration surfaces (`.claude/**` in full, any script wired as a hook command in `.claude/settings.json` or `.claude/settings.local.json` wherever it lives, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected (build/analyzer infrastructure, solution/workspace files, architecture-test suites, bootstrap scripts are typical).
+1. **GLOBAL HARD EXCLUSIONS**. Paths not touched by default, regardless of lane, and lifted only through the override channels below: agent/CI/hook configuration surfaces (`.claude/**` in full, any script wired as a hook command in `.claude/settings.json` or `.claude/settings.local.json` wherever it lives, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected (build/analyzer infrastructure, solution/workspace files, architecture-test suites, bootstrap scripts are typical).
 2. **GLOBAL SOFT EXCLUSIONS**. Areas where edits are technically allowed but an autonomous run cannot verify safely (browser-rendered UI, interactive auth flows, DB migrations against real instances, IDE-only flows, and any areas the consuming project marks as unverifiable). Routed to the deferred-items list during Phase D unless an interactive user explicitly overrides.
 3. **SELF-UPDATE EXTRA HARD**. Additional restrictions when `<lane>=self-update`. Protects the skill's contract surface: frontmatter, the Action Router / Workflow / Lane-catalog sections, lane-file `## Scope` / `## Watch-for patterns` / `## Lane-specific extra exclusions` blocks, and `reference/scope-budget.md` numeric values (research-derived).
 
@@ -221,7 +231,13 @@ Path lists above are glob-matchable. Behavioral concerns are agent-judgment guar
 
 If a candidate tidying would alter any of the above behaviors regardless of which path it edits, treat it as behavioral and file an issue instead.
 
-**Enforcement across phases:** Phase A seeds path-validation from the HARD list. Phase D classifies candidates against HARD (drop) and SOFT (defer). Phase E validates every Edit / Write target path against the HARD list. The self-update lane additionally applies the EXTRA HARD list during Phases D and E.
+### Overriding the HARD path list
+
+Every path entry in tier 1 is overridable through three channels, each owning one row of the config-ownership table: the `override` argument (this run), the `hard_exclusions` userConfig option above (this operator), and a tracked `.claude/code-tidying/exclusion-overrides.md` of root-relative globs (this repository). Precedence resolves per path: argument, then repository file, then userConfig, then enforced. Full contract, file shape, and collision rules: `reference/exclusions.md` section 4. Nothing outside the tier-1 **path** entries is reachable: the behavioral guards above, the work-tracking entries, tier 2 SOFT, and tier 3 EXTRA HARD hold at every setting.
+
+Lifting is not silent. A run that lifted anything names every lifted path and its channel in the Phase H report; a run that cannot produce that line enforces instead.
+
+**Enforcement across phases:** Phase A seeds path-validation from the HARD list and resolves the three override channels into a lifted set. Phase D classifies candidates against HARD (drop unless lifted) and SOFT (defer). Phase E validates every Edit / Write target path against the HARD list minus the lifted set. The self-update lane additionally applies the EXTRA HARD list during Phases D and E, and the override channels do not reach it.
 
 ## Deferred items contract
 

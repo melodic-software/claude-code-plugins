@@ -1,6 +1,6 @@
 ---
 description: "Enforce self-describing code over a diff, branch, or ranked repository: a three-way comment triage that deletes zero-information comments, dissolves code-expressible ones into names and structure by behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express. Deletions and local renames apply behind a token-level proof, other refactors behind a test net, else proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), structural tidyings (tidy), simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
-argument-hint: "[safe] [target]"
+argument-hint: "[safe] [override] [target]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
@@ -29,6 +29,9 @@ contains git. The dated record for that composition claim is the `source-control
 Scope (rung, base, count, then a 10-path preview; re-run the script without `--max` for the full set): !`${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh --max 10 2>/dev/null || echo "(not a git repository)"`
 Tooling layer (present/absent per analysis layer; an absent row names the capability lost): !`${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh 2>/dev/null || echo "(probe unavailable)"`
 
+Both run before the argument is read, so each is a preview: the scope line is **void whenever the
+argument names an explicit target**, and the tooling line is re-derived in step 3.
+
 ## Variables
 
 Arguments: `$ARGUMENTS`
@@ -38,6 +41,8 @@ Posture: `${user_config.comment_posture}` (unexpanded or empty means `strict`; a
 Kept-comment line budget: `${user_config.class_c_max_lines}` (unexpanded or empty means `2`).
 Apply proven local renames without a test net: `${user_config.apply_local_renames}` (unexpanded or
 empty means `true`).
+HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or any value outside
+`enforce` and `advisory` means `enforce`).
 
 ## Purpose
 
@@ -46,7 +51,9 @@ and reports, this one edits. It makes the code in scope self-describing and expr
 removes every comment there that does not earn its keep, with "earn its keep" defined by the floor
 the canonical sources jointly sign: *implementation code only needs comments when the code is
 nonobvious* (Martin ⇄ Ousterhout debate). The prime driver is agent-written code, which
-over-narrates by default; this is a **tidy-after-generation** pass, not a generation-time ban.
+over-narrates by default; this is a **tidy-after-generation** pass, not a generation-time ban. The
+target is over-narration, not density: a hand-written contract-heavy file is legitimately
+comment-dense, and a full pass over one can correctly end at zero edits.
 
 ## The three-way triage
 
@@ -56,8 +63,8 @@ line budget, and worked examples: [reference/triage.md](reference/triage.md).
 | Class | Test | Treatment |
 |---|---|---|
 | **A, zero/negative information** | Restates adjacent code, obsolete, commented-out code | Delete outright, certified by the token proof |
-| **B, information code could carry** | The comment compensates for a naming/structure deficiency | Refactor until the comment is superfluous, then delete, never delete first |
-| **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget, rewritten terser when over it, narrative staged |
+| **B, information code could carry** | The comment compensates for a naming/structure deficiency. Empty by construction on a data or config file (TOML, YAML, JSON), which has no naming channel, so the pass there degrades to A plus C | Refactor until the comment is superfluous, then delete, never delete first |
+| **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget once the exempt-surface check has cleared it, rewritten terser when over it, narrative staged |
 | **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted** under `strict`, certified by the same token proof class A uses, narrative staged before the deletion is final; **proposed** under `safe` and `conservative`, which apply class-A deletions only. The negative branch of the class-C test, not a fourth class |
 
 The two class-C rows are one class and one test — three criteria that must **all** hold — named on
@@ -70,9 +77,10 @@ Class-B moves and their tiers: [reference/dissolving-moves.md](reference/dissolv
 
 | Argument | Action |
 |---|---|
-| *(empty)* | Triage the code files of the narrowest scope that resolves: uncommitted diff → branch diff → whole repository, resolved by `scope-code-files.sh` ([reference/scope.md](reference/scope.md)). On the repository rung, order the files with `rank-comment-targets.py` first. |
-| `<path>` | Triage a single file or directory (already-committed code is fine here). |
+| *(empty)* | Triage the code files of the narrowest scope that resolves: uncommitted diff → branch diff → whole repository, resolved by `scope-code-files.sh` ([reference/scope.md](reference/scope.md)). On the repository rung, order the files with `rank-comment-targets.py` first. Pass `--allow-path <glob>` for each path the `override` argument or the repository overrides file lifted, so the administrative gate does not re-drop those files and does not ungate every other administrative path. Pass `--override-exclusions` only when `hard_exclusions` is `advisory`, which lifts the whole HARD path list. |
+| `<path>` | Triage a single file or directory (already-committed code is fine here). The pre-computed scope line above is **void** under an explicit target: that line runs the diff ladder unconditionally, so it names files this run is not triaging. Ignore it and do not run `scope-code-files.sh`. |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment and class-C rewrite is emitted as a proposal. For codebases whose guardrails you do not know. |
+| `override [target]` | **Lift the GLOBAL HARD path list** for this run's target, so `/code-tidying:dissolve-comments override ruff.toml` triages a file the list would otherwise drop. Combines with `safe`. Strip the token before reading the target; match it whole, and treat `./override` as a path. Path entries only, and every lifted path is named in the step 7 report with the channel that lifted it. |
 
 Posture `conservative` is safe mode as a standing default; `balanced` keeps the full contract but
 reports an over-budget class-C comment instead of rewriting it.
@@ -122,7 +130,15 @@ from them.
   Exempting the category outright would contradict this skill's own eval 13.
 - **Path exclusions are the plugin's standard tier**, tidy's
   [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) GLOBAL HARD
-  list. Agent/enforcement config, CI workflows, hook chains, lint config are never edited.
+  list. Agent/enforcement config, CI workflows, hook chains, lint config are not edited unless a
+  path is lifted through one of that reference's section 4 channels: the `override` argument above,
+  a glob in the repository's `.claude/code-tidying/exclusion-overrides.md`, or
+  `hard_exclusions: advisory`. Precedence per path is argument, then repository file, then
+  userConfig, then enforced. Lifting reaches path entries only; the behavioral guards below, the
+  work-tracking entries, and SELF-UPDATE EXTRA HARD hold at every setting, and a lifted path that is
+  edited without appearing in the report is the failure the channel exists to avoid.
+- **A comment shape the repository uses at scale is proposed, never applied.** A shape recurring
+  across dozens of files is a house convention one run does not overturn; propose it with the count.
 - **Code files only.** Markdown is `/docs-hygiene:audit-noise` territory.
 - **Never add comments, never flag missing ones.** The add-side is `/code-tidying:tidy` #14.
 - **Structure-only edits.** Class-B moves are behavior-preserving refactorings from the named
@@ -130,59 +146,74 @@ from them.
 
 ## Workflow
 
-1. **Scope.** Resolve targets from the action router. Empty argument: run `scope-code-files.sh`
-   (never the truncated preview), confirm a widening to the repository rung interactively, and
-   take any widened rung in safe mode when non-interactive. On the repository rung, run
-   `rank-comment-targets.py` and triage in its order; **exit 3 from it or from the census means the
-   analysis layer is missing, never that there is nothing to rank** — relay the script's stderr,
-   which names the install command, and stop rather than proceeding on an empty ranking. Drop
-   excluded paths and exempt surfaces, listing **every dropped path with its reason**, not only a
-   per-reason tally: a count cannot tell the user which file went, and a silently dropped file is
-   indistinguishable from one that was triaged and kept. Check survivors for SSOT/materialized-copy
-   declarations (triage the source, run its sync, never touch a copy). Done when the file list, the
-   per-path drop list, and the tally are written down.
+1. **Scope.** Resolve targets from the action router. An explicit `<path>` target is the whole scope:
+   the pre-computed scope line is void, `scope-code-files.sh` is not run, and no file outside the
+   target is triaged or reported. Empty argument: run `scope-code-files.sh` (never the truncated
+   preview), confirm a widening to the repository rung interactively, and take any widened rung in
+   safe mode when non-interactive. On the repository rung, run `rank-comment-targets.py` (adding
+   `--override-exclusions` when any override channel is active) and triage in its order; **exit 3
+   from it or from the census means the analysis layer is missing, never that there is nothing to
+   rank** — relay the script's stderr, which names the install command, and stop rather than
+   proceeding on an empty ranking. Resolve the section 4 override channels first, then drop excluded
+   paths and exempt surfaces, listing **every dropped path with its reason**, not only a per-reason
+   tally: a silently dropped file is indistinguishable from one triaged and kept. Check survivors for
+   SSOT/materialized-copy declarations (triage the source, run its sync, never touch a copy). Done
+   when the file list, the per-path drop list, the tally, and the lifted set with each entry's
+   channel are written down. A lifted file outside both grammar tables (`.json`) is neither scanned
+   for commented-out code nor certified for deletion.
 2. **Discover repo-local machine-read markers** before any comment is classified: a marker the
    repo's own gates read is compiler input that looks like prose. Whole-repository scan, test
    fixtures treated as live, query form varied before concluding absence
-   ([reference/safety.md](reference/safety.md)). Done when the discovered families, or an explicit
-   "none found", are in the report.
-3. **Read the tooling layer** from the probe and state it. The layer sets the ceiling: at grep
-   precision a language with heredocs or block comments gets no applied edits, with tree-sitter
-   absent no deletion or rename carries a proof, and the 13 extensions no grammar covers stay
-   proposals even when it is present ([reference/safety.md](reference/safety.md)). Name each absent
-   layer's lost capability as the probe phrases it. Done when the layer line is in the report.
-4. **Baseline the census.** Run `comment-census.py --json` over the scope and keep the output; it is
-   the before-figure for the delta in step 7 and for the next pass. **Exit 3 is a stop, not a
-   zero:** it means neither `scc` nor pygments resolved, so there is no baseline and step 7's delta
-   is unobtainable. Report the layer, quote the script's install hint, and stop; never continue with
-   an all-zero baseline, which would report every later count as an improvement. Done when the file
-   exists, or the run has stopped with the missing layer named.
+   ([reference/safety.md](reference/safety.md)). Then check whether an **external gate watches the
+   target's content**: grep the repository for its path and basename in gate scripts, CI config, and
+   incident or exemption lists. A gate pinning lines of it as exactly-once markers makes those lines
+   a per-line exempt surface. Done when the discovered families (or an explicit "none found") and
+   any pinning gate are in the report.
+3. **Re-run `comment-tooling-probe.sh`** here and state the layer it reports; the pre-computed line
+   is a preview taken before the scope was known. The layer sets the ceiling: at grep precision a
+   language with heredocs or block comments gets no applied edits, with tree-sitter absent no
+   deletion or rename carries a proof, and the 12 extensions no grammar covers stay proposals even
+   when it is present ([reference/safety.md](reference/safety.md)). Name each absent layer's lost
+   capability as the probe phrases it. Done when it is in the report.
+4. **Baseline the census.** Run `comment-census.py --json` over the scope, writing it to
+   `${TMPDIR:-${TEMP:-/tmp}}/dissolve-comments/<run-id>/baseline.json` with `<run-id>` unique per
+   run; step 7 reads that exact path back. **Exit 3 is a stop, not a zero:** neither `scc` nor
+   pygments resolved, so there is no baseline and step 7's delta is unobtainable. Report the layer,
+   quote the script's install hint, and stop; an all-zero baseline reports every later count as an
+   improvement. Done when the file exists, or the run has stopped with the missing layer named.
 5. **Triage.** Classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
-   Feed `commented-out-code.py` (and Ruff ERA001 on Python, via the repository's pinned wrapper
-   where one exists) as class-A input.
+   Run `commented-out-code.py` (and Ruff ERA001 on Python, via the repository's pinned wrapper where
+   one exists) for **candidates, each verified by reading it before deletion**, never as settled
+   class-A input: it calls a comment code whenever the body reparses, so prose carrying
+   backtick-quoted identifiers hits. A hit whose text is a sentence, not a statement, is prose.
    **Criterion 2 is decided on evidence, never on impression.** For every class-C candidate whose
    content is rationale, run `git log -L <start>,<end>:<file>` over its own lines and check the
    repo's ADR or decision-log directory where one is declared; recoverable there **fails** the
    criterion, absent from both **passes**, unreadable history is recorded as unavailable and keeps
    the comment. Full procedure: [reference/triage.md](reference/triage.md). Done when every comment
-   carries exactly one class and every class-C candidate carries a criterion-2 verdict with the
-   evidence that produced it.
+   carries one class and every class-C candidate a criterion-2 verdict with its evidence.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
    `change-shape.py` on before and after; anything but COMMENT-ONLY (exit 0) restores the comment.
-   Class B: apply the named move, run the tier's gate, then delete the comment. Class C that
-   **failed** the earn-its-keep test: under `strict`, stage the narrative then delete behind the
-   same COMMENT-ONLY proof class A uses; under `safe` or `conservative`, propose it instead — those
-   modes apply class-A deletions only, and a rationale comment is not class A however its test
-   resolved. Class C over budget: rewrite to the budget under `strict`,
-   stage the narrative; report only under `balanced`. A failed gate reverts, restores, and demotes
-   to a proposal quoting the verdict. Done when every item is either applied with its verdict or
-   listed as a proposal with its reason.
-7. **Report.** Tooling layer and discovered markers first, then the per-path drop list from step 1;
-   then per file: counts per class, applied versus proposed with each applied item's verdict (and
-   the mapping for every RENAME-ONLY), the staged commit-message block, the class-C keeps and
-   rewrites with one-line reasons, **each keep naming its criterion-2 evidence** from step 5; then
-   the census delta against step 4 (`comment-census.py --baseline`), in lines, bytes and estimated
-   tokens. A scope whose every file was dropped reports the tally instead of exiting silently. When
+   Class B: apply the named move, run the tier's gate, then delete the comment. Class C: check the
+   **exempt surfaces before the line budget**, never after, since an exempt comment is out of reach
+   at any length. A non-exempt comment that **failed** criterion 2 is, under `strict`, staged then
+   deleted behind the same COMMENT-ONLY proof class A uses; under `safe` or `conservative` it is
+   proposed instead — those modes apply class-A deletions only, and a rationale comment is not class
+   A however its test resolved. A non-exempt comment over budget is rewritten to the budget under
+   `strict` with the narrative staged, reported instead under `balanced`; its carve-out reason names
+   every kept comment by file and line, written once for a group that enumerates its members. Where
+   most of a file's class-C comments carry contract, negative, or operational information, say so
+   once as a whole-file verdict with its count and suspend the budget for that file — criterion 2
+   still runs on every comment in it. A failed gate reverts, restores, and demotes to a proposal
+   quoting the verdict. Done when every item is applied with its verdict or proposed with a reason.
+7. **Report.** Tooling layer, discovered markers, the per-path drop list from step 1, and every
+   lifted HARD path with the channel that lifted it first; then per file: counts per class, applied
+   versus proposed with each applied item's verdict (and the mapping for every RENAME-ONLY), the
+   staged commit-message block, the class-C keeps and rewrites with one-line reasons (grouped where
+   several share one, every member still named) and **each keep naming its criterion-2 evidence**
+   from step 5, plus any whole-file budget suspension; then the census delta, `comment-census.py
+   --baseline` pointed at the exact `baseline.json` step 4 wrote, in lines, bytes and estimated
+   tokens. A scope whose every file was dropped reports the tally rather than exiting silently. When
    the census could not run, say so in place of the delta line and name the missing layer — an
    absent delta is never reported as `+0`. The user reviews the diff; this skill does not commit.
    Done when the delta line, or the explicit reason there is none, is printed.

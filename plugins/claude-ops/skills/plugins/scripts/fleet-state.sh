@@ -319,8 +319,8 @@ esac
 
 # Native (drive-letter) spelling of an MSYS path, with no process when the
 # path is a plain `/<drive>/…` mount, the form `pwd -W` would print for it.
-# Any other spelling (a mount alias like /tmp, a POSIX host) falls back to the
-# subshell `pwd -W` this used to run unconditionally.
+# Any other spelling (a mount alias like /tmp, a POSIX host) falls back to a
+# `pwd -W` subshell.
 native_cwd_to() {
   local __nc_dir="$2" __nc_v=""
   if [[ "$case_insensitive_os" == "true" && "$__nc_dir" =~ ^/([a-zA-Z])(/.*)?$ ]]; then
@@ -1138,12 +1138,10 @@ emit_marketplace() {
 
   # --- Per-plugin catalog versions, for the Step 3 update pre-filter ---------
   # A marketplace.json ENTRY carries no version — only name/source/category/
-  # tags (and optionally defaultEnabled/displayName/relevance). That absence is
-  # why `sync` Step 3 historically called `claude plugin update` for every
-  # user-scope install and let the CLI decide: there was "no per-plugin catalog
-  # version to compare against". There is one, just not in that file — each
-  # plugin's own manifest sits in the marketplace checkout the entry's `source`
-  # points at, and reading it costs no network call and no CLI invocation.
+  # tags (and optionally defaultEnabled/displayName/relevance). The version is
+  # not in that file — each plugin's own manifest sits in the marketplace
+  # checkout the entry's `source` points at, and reading it costs no network
+  # call and no CLI invocation.
   #
   # FAIL OPEN is the contract here, not a defensive nicety. Measured across the
   # nine marketplaces registered on the authoring machine (Claude Code 2.1.240),

@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the code-tidying plugin for this repository. check inspects the tracked .claude/tidy-lanes/<lane>.md project lanes read-only (presence, required sections, unreplaced placeholders, tracked-not-ignored); apply interviews the repo, infers which lane patterns fit, and scaffolds project lane files from the bundled templates. Use when: 'set up code-tidying', 'is code-tidying configured', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', or the tidy skill reports no project lanes. Re-runnable. Safe to invoke again to add or retune lanes."
+description: "Verify and configure the code-tidying plugin for this repository. check inspects the tracked .claude/tidy-lanes/<lane>.md project lanes and the optional .claude/code-tidying/exclusion-overrides.md read-only (presence, required sections, unreplaced placeholders, override glob shape and protection collisions, tracked-not-ignored) and reports the stored hard_exclusions posture; apply interviews the repo, infers which lane patterns fit, and scaffolds project lane files from the bundled templates. Use when: 'set up code-tidying', 'is code-tidying configured', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', 'override the tidy exclusions for this repo', or the tidy skill reports no project lanes. Re-runnable. Safe to invoke again to add or retune lanes."
 argument-hint: "check | apply [<lane>]"
 user-invocable: true
 disable-model-invocation: true
@@ -35,6 +35,13 @@ against that baseline rather than overwriting a consumer lane blind.
 Never tell the user to "copy the bundled lanes." Scaffold from templates; override a bundled lane only
 when its defaults miss this repo's actual layout.
 
+The plugin's second tracked surface is `${CLAUDE_PROJECT_DIR}/.claude/code-tidying/exclusion-overrides.md`,
+optional and absent by default: root-relative globs that lift GLOBAL HARD **path** exclusions for every
+run in this repository, the subtracting mirror of the consumer-declared protections that add to them.
+`check` validates it; `apply` writes it only when the user asks. Contract, shape, precedence, and what
+no channel lifts: the `tidy` skill's
+[exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) section 4.
+
 ## `check` (read-only)
 
 Inspect the consumer's tracked lanes and report a PASS/FAIL/INFO table with one remediation line per
@@ -67,6 +74,24 @@ FAIL. Modify nothing, and do NOT run a tidy sweep. That is `/code-tidying:tidy`.
    uncommitted lane per the declared deviation below).
 5. **Bundled lanes and templates**. INFO: report the bundled lanes and templates available as scaffold
    sources, so the reader knows what `apply` can generate.
+6. **HARD-exclusion overrides**. Read `${CLAUDE_PROJECT_DIR}/.claude/code-tidying/exclusion-overrides.md`
+   if it exists. Absent is the normal state; report INFO naming the file and what it does. Present, then
+   check its shape against the `tidy` skill's
+   [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) section 4: an
+   `## Overrides` heading with one fenced block, one root-relative glob per line. FAIL an absolute path
+   or an entry containing `..`, naming the line. FAIL a glob matching the overrides file itself or the
+   `.claude/tidy-lanes/` definitions beside it: the file cannot lift its own protection, and a run is
+   never granted the switch that grants it. FAIL a glob that also matches a path this repo's own
+   `CLAUDE.md` / `.claude/rules` declare protected, naming both declarations: the protection wins and
+   the override is dead text. Run both halves of the tracked-file pair on it, exactly as for a lane
+   file: `git check-ignore -v <file>` must report no match, and `git ls-files --error-unmatch <file>`
+   must exit 0, since the file is a team statement that only counts when committed. Report the globs it
+   lifts, so the reader sees the loosening the repo is carrying.
+7. **`hard_exclusions` posture**. Report the stored `userConfig` value as observed. `enforce` (the
+   default) is PASS. `advisory` is INFO, not a FAIL: it is a deliberate operator posture, and the line
+   states what it does (every GLOBAL HARD **path** entry is reported instead of blocking, in every run
+   this operator makes). Name the running session's behavior as not yet established when the value was
+   changed this session; the stored value is current, the session lags.
 
 ## `apply` (idempotent)
 
@@ -133,13 +158,45 @@ only where a lane's scope genuinely needs the user's call.
    uncommitted (never add it to the index). Gitignoring a path the team already tracks does not make
    it personal. Indexed files remain visible to Git regardless of `.gitignore`.
 
+7. **Offer the HARD-exclusion overrides file, only when the repo asked for one.** Do not scaffold it by
+   default: absent is the correct state for almost every repository, and an empty overrides file is the
+   empty scaffold step 5 forbids. Offer it when the conversation named a path the plugin keeps dropping,
+   or when `check` reported a malformed existing file. Write
+   `${CLAUDE_PROJECT_DIR}/.claude/code-tidying/exclusion-overrides.md` in the section 4 shape (an
+   `## Overrides` heading, one fenced block, one root-relative glob per line, `#` comments), carrying
+   only globs the user named. Preserve any prose already in the file. Re-run the step 6 `check` probes
+   on what was written, including both halves of the tracked-file pair, and report it as written but
+   untracked until it is committed. State plainly what the file loosens.
+
 Re-running `apply` after everything passes changes nothing and reports "already configured".
+
+## Personal configuration (`userConfig`)
+
+Not `apply` surface. Claude Code owns the storage, and this contract forbids setup to write
+`pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure through
+Claude Code's native flow, per the marketplace's
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)
+(which owns the verified-version record): interactive `/plugin configure code-tidying@<marketplace>`
+any time, or headless:
+
+```shell
+claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=advisory
+```
+
+Against an already-installed plugin this prints `already installed` and still writes the value; the
+short-circuit is about the install, not the config write. Do **not** uninstall to reconfigure: that
+drops this plugin's entire stored `pluginConfigs` entry. Pass the scope `claude plugin list` reports.
+The value is stored immediately, but the running session is not re-read, so start a fresh session
+before expecting the new behavior. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
+entry blocks) or `advisory` (every one is reported and none blocks); any other value is read as
+`enforce`. The full option table is in the plugin README.
 
 ## Output
 
 Tracked `.claude/tidy-lanes/<lane>.md` file(s) in the consuming repo, plus a one-paragraph summary of which
 lanes were written, which source each came from (template or bundled lane), and how to re-run this setup
-to add or retune lanes.
+to add or retune lanes. When an overrides file was written or already exists, the summary names it and the
+globs it lifts.
 
 ## What this skill does NOT do
 

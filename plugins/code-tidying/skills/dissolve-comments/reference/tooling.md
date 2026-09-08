@@ -21,7 +21,7 @@ convention churn, and most repositories ship no such file.
 |---|---|---|
 | scc | a release binary from the project's GitHub releases; also `brew install scc`, `go install github.com/boyter/scc/v3@latest` | none, static Go binary |
 | pygments | `pip install pygments` | Python 3 |
-| tree-sitter | `pip install tree-sitter tree-sitter-python tree-sitter-c-sharp tree-sitter-typescript tree-sitter-bash tree-sitter-javascript tree-sitter-yaml` | Python 3; per-language wheels ship the grammar compiled in, so no network at run time |
+| tree-sitter | `pip install tree-sitter tree-sitter-python tree-sitter-c-sharp tree-sitter-typescript tree-sitter-bash tree-sitter-javascript tree-sitter-yaml tree-sitter-toml` | Python 3; per-language wheels ship the grammar compiled in, so no network at run time |
 | ruff | `pip install ruff`, or the pinned wrapper a repository provides | none, static binary |
 | ast-grep | `pip install ast-grep-cli`, `npm i -g @ast-grep/cli`, `brew install ast-grep`, `cargo install ast-grep --locked` | none, static Rust binary |
 
@@ -49,7 +49,7 @@ pass.
 | Shell files in this tree carrying a heredoc | 263 | 2026-09-04 |
 | `tree-sitter-language-pack` first-use download behind the cloud proxy | HTTP 502; per-language wheels unaffected | 2026-09-04 |
 | Both `sg` binaries present on the cloud image | `/usr/bin/sg -> newgrp` and `/usr/local/bin/sg` (ast-grep shim) | 2026-09-04 |
-| Versions pinned for CI | tree-sitter 0.26.0; grammars python 0.25.0, c-sharp 0.23.5, typescript 0.23.2, bash 0.25.1, javascript 0.25.0, yaml 0.7.2 | 2026-09-05 |
+| Versions pinned for CI | tree-sitter 0.26.0; grammars python 0.25.0, c-sharp 0.23.5, typescript 0.23.2, bash 0.25.1, javascript 0.25.0, yaml 0.7.2, toml 0.7.0 | 2026-09-07 |
 
 ## What no tool covers
 

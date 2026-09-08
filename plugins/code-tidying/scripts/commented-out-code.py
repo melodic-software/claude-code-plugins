@@ -43,6 +43,7 @@ EXT_LANG = {
     ".cs": ("csharp", "tree_sitter_c_sharp", "language"),
     ".yml": ("yaml", "tree_sitter_yaml", "language"),
     ".yaml": ("yaml", "tree_sitter_yaml", "language"),
+    ".toml": ("toml", "tree_sitter_toml", "language"),
 }
 
 # Node kinds that prose cannot produce. A reparse must contain at least one.
@@ -129,6 +130,13 @@ EVIDENCE = {
         "block_sequence_item",
         "flow_mapping",
         "flow_sequence",
+    },
+    "toml": {
+        "pair",
+        "table",
+        "table_array_element",
+        "array",
+        "inline_table",
     },
 }
 EVIDENCE["typescript"] = EVIDENCE["javascript"] | {

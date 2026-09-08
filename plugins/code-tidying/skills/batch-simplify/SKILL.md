@@ -2,7 +2,7 @@
 description: "Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a named scope such as a branch, a whole repository, or one directory, or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [path...] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
+argument-hint: "[time-window | branch | repo] [path...] [docs] [override] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
@@ -21,6 +21,11 @@ block as one shell invocation, and a worktree-isolated session refuses a compoun
 contains git. The dated record for that composition claim is the `source-control` plugin's
 [worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "The pre-compute block runs as one shell invocation".
+
+## Variables
+
+HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or any value outside
+`enforce` and `advisory` means `enforce`).
 
 ## Purpose
 
@@ -86,6 +91,14 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 
 Strip token-wise, never by substring: a substring strip mutates any argument that happens to contain those four letters, including a path such as `docs/`. Leaving a corrupted remainder for the mode parser to read.
 
+### Flag: `override`
+
+Append `override` to any mode to lift the **GLOBAL HARD path list** for this sweep, so the agent-and-enforcement-configuration class in Phase 2 becomes a reported class rather than an excluded one. Detected and stripped exactly like `docs`: token-wise equality, case-insensitive, dropped before the mode parser reads the remainder, with `./override` spelling the directory of that name.
+
+It reaches path entries only. The append-only / historical-record protection in Phase 2 is a separate contract that no channel lifts (a bulk edit there rewrites history), and so are the behavioral guards, the work-tracking entries, and SELF-UPDATE EXTRA HARD. Every lifted path is named in the Phase 8 report with the channel that lifted it.
+
+Two standing channels lift the same list without the flag: a root-relative glob in the repo's tracked `.claude/code-tidying/exclusion-overrides.md`, and the `hard_exclusions: advisory` userConfig posture. Precedence per path is argument, then repository file, then userConfig, then enforced. Full contract: the tidy skill's [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) section 4.
+
 ## Workflow
 
 ### Phase 1: Discover changed code files
@@ -126,7 +139,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 
 - `.md` files (documentation. Prose, not code). **Exception:** when the `docs` flag is set, include `.md` files that are NOT in the protected list below. The simplifier reviews docs for stale references, outdated library names, incorrect API examples, or references to renamed/removed code, not for prose quality
 - `.lock` files (`uv.lock`, `package-lock.json`. Auto-generated)
-- **Agent & enforcement configuration**. `.claude/hooks/**`, `.claude/settings*.json`, `.claude/agents/**`, `.mcp.json`, `.github/workflows/**`, git-hook manager config (`lefthook.yml`, `.husky/**`, `.pre-commit-config.yaml`): never handed to an autonomous simplifier (same safety model as this plugin's tidy skill). If they changed in the window, list them as read-only deferred items instead
+- **Agent & enforcement configuration**. `.claude/hooks/**`, `.claude/settings*.json`, `.claude/agents/**`, `.mcp.json`, `.github/workflows/**`, git-hook manager config (`lefthook.yml`, `.husky/**`, `.pre-commit-config.yaml`): not handed to an autonomous simplifier by default (same safety model as this plugin's tidy skill). If they changed in the window, list them as read-only deferred items instead. This is the one class here that the HARD list gates, so it is the class the three override channels lift; a lifted path is swept like any other file and reported with its channel in Phase 8. Lint and format config is **not** in this class for this skill (it is in the Include list above, and always has been)
 - Data files (fixtures, datasets, exported records. Anything that is content rather than logic)
 - Skill/agent definition prose (`SKILL.md`, agent markdown), `README.md`, `CLAUDE.md`
 - Generated or vendored code, and any directory the consuming repo documents as externally managed or sync-generated, a local edit there is silently overwritten on the next sync, so it is a read-only deferred class rather than a sweep target ([context/repo-mode.md](context/repo-mode.md))
@@ -209,6 +222,8 @@ Report the final verification results as a summary table.
 ### Phase 8: Summary report
 
 Present a final report. Scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + resolved-in-run and remaining-deferrals sections. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
+
+When any HARD path was lifted, add a `## Lifted HARD exclusions` section naming each path and the channel that lifted it (`override` flag, overrides file, or `hard_exclusions=advisory`). Omit the section when nothing was lifted; never print it empty.
 
 If zero items were deferred across all groups, state explicitly: *"No items deferred. All identified simplifications were applied or determined to be no-ops."*
 

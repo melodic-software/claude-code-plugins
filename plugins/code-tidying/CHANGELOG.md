@@ -3,6 +3,122 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **Exclusions contract:** the GLOBAL HARD **path** list is now overridable through three channels,
+  each owning one row of the config-ownership table, and each of which only ever subtracts from the
+  list. Precedence resolves per candidate path: the `override` argument, then the repository file,
+  then the userConfig posture, then enforced.
+  - **`override` argument** on `tidy`, `dissolve-comments`, and `batch-simplify`, lifting the path
+    list for that run's target. Detected as a whole token, stripped before the rest of the argument
+    grammar is read, with `./override` reserved for a path of that name. The motivating case,
+    `/code-tidying:dissolve-comments override ruff.toml`, now reaches a file the list dropped before
+    triage. On `tidy` the target is a lane of globs rather than a named file and the output is an
+    autonomous PR, so the token there is gated: Phase D enumerates the specific HARD paths it intends
+    to touch and takes a go-ahead before Phase E edits them, and a non-interactive run reports the
+    list and drops those candidates rather than acting on a blanket token. `dry-run override` yields
+    the enumeration alone.
+  - **`hard_exclusions` userConfig option**, a string enum mirroring `comment_posture`: `enforce`
+    (default, the behavior every earlier release shipped) or `advisory` (every HARD path match is
+    reported and none blocks). Any other value reads as `enforce`.
+  - **`.claude/code-tidying/exclusion-overrides.md`**, an optional tracked file of root-relative
+    globs, the subtracting mirror of the consumer-declared protections that add to the list.
+    Absolute paths and `..` entries are rejected, and a glob colliding with a same-repo protection
+    loses to the protection with both declarations named.
+- **`exclusions.md` section 4** carries the whole contract: the three channels, the file shape, the
+  per-path precedence, the reviewability requirement, and what no channel lifts.
+- **`rank-comment-targets.py --allow-path`** ranks named administrative paths
+  (repeatable globs); `--override-exclusions` remains the whole-list form for
+  `hard_exclusions=advisory`. The untracked, generated, and size-floor gates are
+  unaffected.
+- **TOML grammar:** `change-shape.py` and `commented-out-code.py` map `.toml` to the
+  `tree-sitter-toml` grammar, the tooling probe reports it, and `commented-out-code.py`
+  carries TOML evidence node kinds (`pair`, `table`, `array`, …), so a class-A deletion
+  in a lifted `ruff.toml` is certified COMMENT-ONLY and a commented-out assignment is a
+  candidate instead of a silent empty scan. The covered union rises from 15 of 28 in-scope
+  extensions to 16, and `safety.md` and `dissolve-comments` step 3 now state the 12 that
+  no grammar covers rather than 13.
+- **`setup`:** `check` gained two probes, the overrides file (shape, absolute-path and traversal
+  rejection, protection collisions, tracked-not-ignored) and the stored `hard_exclusions` posture;
+  `apply` writes the overrides file only when the user asks for it, never as a default scaffold. The
+  skill now documents the `claude plugin install --config` route for the new option, citing
+  the plugin-reconfiguration convention as the owner of the verified-version record.
+
+### Changed
+
+- **`dissolve-comments`:** the "lint config are never edited" hard rule now states the override
+  channels and their precedence, and the report names every lifted path beside the channel that
+  lifted it. A lifted path whose language `change-shape.py` cannot parse yields proposals rather
+  than applied deletions, which is the pre-existing gate rather than a new one. Repository-rung
+  ranking passes `--allow-path` per lifted glob, not `--override-exclusions` for a partial lift.
+- **`tidy`:** Phase A resolves the override channels into a lifted set before hunting, Phase E
+  validates against the HARD list minus that set, and Phase H's follow-up comment carries a
+  conditional `## Lifted HARD exclusions` table. A run that lifted a path and cannot post that table
+  backs the lifted edits out. Phase D's enumeration gate fires only for the `override`
+  argument; standing channels proceed without a go-ahead.
+- **`batch-simplify`:** Phase 2's agent-and-enforcement-configuration class names the cross-ecosystem
+  lint config it shares with tidy's canonical list, and every path in it is liftable. The
+  append-only / historical-record protection is explicitly not liftable by any channel.
+- **`dissolve-comments` scope and tooling contract:** the pre-computed scope line is stated void
+  under an explicit `<path>` target (action router and step 1), the tooling probe is re-run in
+  step 3 rather than read from the pre-compute, step 4 names the baseline census path that step 7
+  reads back, step 2 adds an external-gate check (a gate pinning lines of the target as
+  exactly-once markers makes those lines a per-line exempt surface), and the grammar ceiling is
+  stated for `commented-out-code.py` as well as `change-shape.py`.
+- **`dissolve-comments` triage precision:** `commented-out-code.py` output is candidates verified by
+  reading, not settled class-A input (a hit whose text is a sentence rather than a statement is
+  prose); an issue reference cited inside a rationale sentence stays with the sentence and only a
+  comment whose whole content is the reference is class A; exempt surfaces are checked before the
+  class-C line budget; class B is empty by construction on data and config files; a comment shape
+  the repository uses at scale is proposed, never applied; and Purpose states that a contract-heavy
+  file is legitimately comment-dense.
+- **`dissolve-comments` over-budget carve-out, refining the 0.17.0 per-comment rule:** the reason
+  still names every kept comment by file and line, and a bare category, file, or batch reason still
+  satisfies nothing. What is new is that the sentence may be written once for a group of comments
+  sharing it, provided the group enumerates its members, so six identical repetitions are not the
+  required form.
+- **`dissolve-comments` whole-file verdict:** a file whose class-C comments are mostly contract,
+  negative, or operational information is reported once as contract-heavy, with the count that
+  produced the verdict, and criterion 3 is suspended for it. Criterion 2 still runs on every class-C
+  comment in that file, so the verdict narrows the line budget and never the earn-its-keep test, and
+  below the majority threshold the per-comment carve-out above is the only route.
+- **Exempt surfaces and the test net:** `safety.md` gives the Python public-API rule (leading
+  underscore is private, module docstrings and non-underscore names are public), and a test suite
+  that cannot finish inside the tool's timeout now counts as an absent net, reported with the
+  measured time.
+- **Hook exclusion reach:** `exclusions.md` section 1 and `safety.md` now exclude any script wired
+  as a hook command anywhere, including a plugin's `hooks/hooks.json` and skill or agent frontmatter
+  `hooks` blocks, not only `.claude/settings*.json`. Section 4 states that the `override` token is
+  honored non-interactively on `dissolve-comments` and `batch-simplify`, whose target is already the
+  enumeration.
+
+### Fixed
+
+- **`rank-comment-targets.py` administrative gate on Windows:** the gate matched the `ADMIN` regex,
+  written with `/` separators, against `os.path.normpath` output, which yields `\` on Windows, so
+  every administrative path (`.claude/**`, CI workflows, lockfiles, changelogs) silently passed the
+  gate there. The match now runs against a slash-normalized copy, with a test that asserts the
+  gate both ways.
+
+### Not changed
+
+- The behavioral guards (DB migrations, breaking API changes, HTTP route signatures, MCP tool
+  schemas) are agent-judgment guards rather than path entries: they are the skills' structure-only
+  contract, so there is nothing for a path override to lift.
+- The work-tracking exclusions, which are tracker state rather than paths, and lifting them would
+  collide with another agent's claimed work.
+- SELF-UPDATE EXTRA HARD, which guards this plugin's own contract surface including the override
+  mechanism itself.
+- The override machinery wherever it lives: `exclusions.md`, the consumer's
+  `.claude/code-tidying/exclusion-overrides.md`, and the `.claude/tidy-lanes/` definitions beside it.
+  The overrides file sits inside the `.claude/**` tree it can lift, so a glob matching itself or the
+  lane files is rejected with that reason. A run may be granted the rest of that tree; it is never
+  granted the switch that grants it.
+- `audit-dead-code` takes no override argument: it never applied the GLOBAL HARD list, its only path
+  filter being the build-artifact and fixture hygiene in `dc_is_excluded_path`, and it is read-only.
+
 ## [0.17.1]
 
 ### Added

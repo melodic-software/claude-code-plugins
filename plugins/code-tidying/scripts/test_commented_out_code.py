@@ -137,6 +137,21 @@ class Yaml(unittest.TestCase):
         self.assertEqual(lines(rows), {3}, rows)
 
 
+@unittest.skipUnless(available(".toml"), "toml grammar not installed")
+class Toml(unittest.TestCase):
+    def test_prose_vs_assignment(self):
+        src = (
+            "# retries are capped per host\n"
+            "line-length = 100\n"
+            "# retries = 3\n"
+            "# timeout = 30\n"
+        )
+        code, rows, err = scan(src, ".toml")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {3}, rows)
+        self.assertEqual(rows[0]["end"], 4)
+
+
 class Degradation(unittest.TestCase):
     def test_missing_tree_sitter_exits_3(self):
         with tempfile.TemporaryDirectory() as tmp:
