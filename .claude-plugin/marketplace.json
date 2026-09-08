@@ -200,7 +200,7 @@
       "source": "./plugins/firecrawl",
       "category": "discovery",
       "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"],
-      "defaultEnabled": false,
+      "defaultEnabled": true,
       "relevance": {
         "topic": "Firecrawl",
         "signals": {
@@ -523,7 +523,7 @@
       "source": "./plugins/x",
       "category": "discovery",
       "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
-      "defaultEnabled": false,
+      "defaultEnabled": true,
       "relevance": {
         "topic": "X (Twitter) content",
         "signals": {
