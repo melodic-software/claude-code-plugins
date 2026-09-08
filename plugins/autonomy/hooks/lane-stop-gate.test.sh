@@ -936,6 +936,7 @@ else
   fail "gate_settings_options_to disagrees with the per-key reader (#3515)"
 fi
 
+# --- Case 49b: a CRLF-terminated option value chomps to the bare string -----
 # A value whose trailing whitespace is CRLF chomps to the bare string too. A jq
 # that writes stdout in text mode turns every LF inside a value into CRLF, so a
 # reader that chomps LF alone hands back a value with a CR still on the end.
