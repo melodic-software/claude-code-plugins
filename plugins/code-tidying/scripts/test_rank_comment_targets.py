@@ -304,5 +304,28 @@ class RankNormalisation(unittest.TestCase):
         )
 
 
+class CommentLineNumbers(unittest.TestCase):
+    """Drift extraction must use the census comment predicate, including String.Doc."""
+
+    @unittest.skipUnless(pygments_present(), "pygments not installed")
+    def test_docstring_lines_count_ordinary_strings_do_not(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        src = tmp / "mixed.py"
+        src.write_text(
+            'x = "not a comment"\n"""doc line"""\ndef f():\n    pass\n',
+            encoding="utf-8",
+        )
+        lines = mod.comment_line_numbers(str(src))
+        self.assertIn(2, lines)
+        self.assertNotIn(1, lines)
+        self.assertNotIn(3, lines)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

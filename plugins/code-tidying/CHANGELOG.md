@@ -15,7 +15,10 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   lexer that emits it, and still ignores ordinary `String` / `String.Double` /
   `String.Single` tokens. `dissolve-comments` steps 4 and 7 and
   `rank-comment-targets.py` read this figure, so a docstring-heavy Python file
-  is no longer under-counted or under-ranked.
+  is no longer under-counted or under-ranked. The ranker's drift extraction
+  (`comment_line_numbers`) uses the same `is_comment_token` predicate, so a
+  mixed file does not treat docstrings as code when computing
+  `comment_age_vs_code_days`.
 
 ## [0.18.1]
 

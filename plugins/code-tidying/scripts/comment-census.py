@@ -176,11 +176,25 @@ def scc_available() -> bool:
     return shutil.which("scc") is not None
 
 
+def is_comment_token(tok) -> bool:
+    """True for pygments tokens the census counts as comment burden.
+
+    Comment subtypes except Hashbang and Preproc, plus String.Doc (documentation
+    strings, including Python docstrings). Ordinary String / String.Double /
+    String.Single tokens are data. rank-comment-targets.comment_line_numbers
+    uses this same predicate so drift extraction cannot drift from the census.
+    """
+    from pygments.token import Comment, String
+
+    if tok in Comment and tok not in (Comment.Hashbang, Comment.Preproc):
+        return True
+    return tok in String.Doc
+
+
 def pygments_counts(path: Path) -> dict | None:
     try:
         from pygments import lex
         from pygments.lexers import get_lexer_for_filename
-        from pygments.token import Comment, String
         from pygments.util import ClassNotFound
     except ImportError:
         return None
@@ -199,11 +213,7 @@ def pygments_counts(path: Path) -> dict | None:
     comment_lines: set[int] = set()
     comment_bytes = 0
     for tok, text in lex(src, lexer):
-        # Comment subtypes stay comments. String.Doc is documentation (Python
-        # docstrings, and any other lexer that emits it). Ordinary String,
-        # String.Double, and String.Single tokens are data, not comments.
-        is_comment = tok in Comment and tok not in (Comment.Hashbang, Comment.Preproc)
-        if is_comment or tok in String.Doc:
+        if is_comment_token(tok):
             body = text.strip("\n")
             if body.strip():
                 comment_bytes += len(body.encode("utf-8"))
