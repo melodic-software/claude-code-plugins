@@ -31,6 +31,11 @@ net; interface-creating moves need a test net and stay proposals in non-interact
 
 ## Cautions
 
+- **A file-level divider is not a section marker.** The row above is about markers segmenting one
+  long function, which Extract Function dissolves. A divider between top-level groups
+  (`# --- Builtin JSON helpers ---`) restates nothing and there is nothing to dissolve it into: it
+  is navigation in a file too long to scan. Keep it as class C without running the criterion-2
+  search, which asks whether rationale is recoverable elsewhere and has no rationale to ask about.
 - **Extraction has a cost curve.** Each extraction adds an interface. A name that must grow
   megasyllabic to stay honest (`isLeastRelevantMultipleOfLargerPrimeFactor`) signals the
   information did not fit the name channel — short name + terse class-C comment, or Inline

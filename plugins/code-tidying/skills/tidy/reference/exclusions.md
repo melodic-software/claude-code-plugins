@@ -114,6 +114,8 @@ Its reach is the run's target, and the three skills' targets are not the same si
 
 That difference gets a gate rather than a caveat. On `tidy`, `override` **enumerates before it edits**: after Phase D's hunt, the run lists the specific HARD paths it now intends to touch and takes a go-ahead on that list, exactly as `batch-simplify`'s repo mode confirms its inventory. An interactive user answers. A non-interactive run has nobody to answer, so it does not proceed on a blanket token: it reports the enumerated list and continues with those candidates dropped, leaving the rest of the lane's tidyings to ship normally. The operator then re-runs interactively or puts the durable entries in the repository overrides file, which is the channel built for a standing decision. Combining `override` with `dry-run` produces that enumeration and nothing else, which is the cheap way to see the list first.
 
+The gate reaches only the paths this argument lifted. A path lifted by the repository overrides file or by `hard_exclusions=advisory` is already a standing decision the operator recorded outside the run, so it proceeds without a go-ahead in an interactive and a non-interactive run alike, and is named in the Phase H lifted table like every other lifted path. A non-interactive `tidy` therefore drops argument-lifted candidates and nothing else.
+
 The other two skills need no such gate: their target is already the enumeration.
 
 To operate on a directory genuinely named `override`, spell it `./override`.
@@ -152,7 +154,7 @@ The three channels only ever loosen, so precedence resolves per path rather than
 1. The `override` argument named this run's target → **lifted**.
 2. A glob in the repository overrides file matches → **lifted**, unless a consumer-declared protection also matches.
 3. `hard_exclusions` is `advisory` → **lifted, and reported as advisory**.
-4. Otherwise → **enforced**, dropped before triage exactly as before.
+4. Otherwise → **enforced**, dropped before triage.
 
 Argument beats repository file beats userConfig. Nothing here reaches a path that was never on the section 1 path list; every channel is subtraction from one fixed set.
 

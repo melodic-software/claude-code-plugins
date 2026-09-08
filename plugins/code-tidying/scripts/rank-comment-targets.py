@@ -283,9 +283,7 @@ def admin_gate_lifted(path: str, allow: list[str], lift_all: bool) -> bool:
         pat = raw.replace(os.sep, "/").lstrip("./")
         if posix == pat or fnmatch.fnmatch(posix, pat):
             return True
-        if pat.endswith("/**") and (
-            posix == pat[:-3] or posix.startswith(pat[:-2])
-        ):
+        if pat.endswith("/**") and (posix == pat[:-3] or posix.startswith(pat[:-2])):
             return True
     return False
 

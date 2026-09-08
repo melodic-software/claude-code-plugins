@@ -1,7 +1,7 @@
 ---
 description: "Enforce self-describing code over a diff, branch, or ranked repository: a three-way comment triage that deletes zero-information comments, dissolves code-expressible ones into names and structure by behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express. Deletions and local renames apply behind a token-level proof, other refactors behind a test net, else proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), structural tidyings (tidy), simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
 argument-hint: "[safe] [override] [target]"
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/change-shape.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/comment-census.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commented-out-code.py:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/rank-comment-targets.py:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
 shell: bash
@@ -150,14 +150,23 @@ from them.
    the pre-computed scope line is void, `scope-code-files.sh` is not run, and no file outside the
    target is triaged or reported. Empty argument: run `scope-code-files.sh` (never the truncated
    preview), confirm a widening to the repository rung interactively, and take any widened rung in
-   safe mode when non-interactive. On the repository rung, run `rank-comment-targets.py` (adding
-   `--override-exclusions` when any override channel is active) and triage in its order; **exit 3
+   safe mode when non-interactive. On the repository rung, run `rank-comment-targets.py` and triage
+   in its order. When an override channel is active, hand its resolved reach to the ranker so the
+   administrative gate does not re-drop a lifted path: `--allow-path <glob>` per path the `override`
+   argument or the repository overrides file lifted, and `--override-exclusions` only for
+   `hard_exclusions=advisory`, whose reach genuinely is every path. The all-paths flag for a
+   specific lift lets the whole administrative tree compete for the `--top` cutoff against the one
+   file the operator named. **Exit 3
    from it or from the census means the analysis layer is missing, never that there is nothing to
    rank** — relay the script's stderr, which names the install command, and stop rather than
    proceeding on an empty ranking. Resolve the section 4 override channels first, then drop excluded
    paths and exempt surfaces, listing **every dropped path with its reason**, not only a per-reason
    tally: a silently dropped file is indistinguishable from one triaged and kept. Check survivors for
-   SSOT/materialized-copy declarations (triage the source, run its sync, never touch a copy). Done
+   SSOT/materialized-copy declarations (triage the source, run its sync, never touch a copy). Where
+   a source has synced copies, report how many and whether the sync gate demands a version bump per
+   consuming plugin; a comment-only edit that would force version bumps on consumers is **proposed,
+   never applied**, unless the user named the source as the target. The propagation cost is the
+   decision, and it is the user's, not the run's. Done
    when the file list, the per-path drop list, the tally, and the lifted set with each entry's
    channel are written down. A lifted file outside both grammar tables (`.json`) is neither scanned
    for commented-out code nor certified for deletion.
@@ -175,17 +184,28 @@ from them.
    deletion or rename carries a proof, and the 12 extensions no grammar covers stay proposals even
    when it is present ([reference/safety.md](reference/safety.md)). Name each absent layer's lost
    capability as the probe phrases it. Done when it is in the report.
-4. **Baseline the census.** Run `comment-census.py --json` over the scope, writing it to
-   `${TMPDIR:-${TEMP:-/tmp}}/dissolve-comments/<run-id>/baseline.json` with `<run-id>` unique per
-   run; step 7 reads that exact path back. **Exit 3 is a stop, not a zero:** neither `scc` nor
-   pygments resolved, so there is no baseline and step 7's delta is unobtainable. Report the layer,
+4. **Self-parse, then baseline the census.** First run `change-shape.py <file> <file>` on each
+   scoped file. A file that cannot prove itself unchanged against itself (exit 21, UNPROVABLE) has a
+   construct the grammar rejects, so no deletion or rename anywhere in it can ever carry a proof.
+   Name those files and their count in the report **now**, and triage them as proposals only, rather
+   than discovering the closed gate one comment at a time at step 6. Then run `comment-census.py
+   --json` over the scope, writing it to
+   `${TEMP:-${TMPDIR:-/tmp}}/dissolve-comments/<run-id>/baseline.json` with `<run-id>` unique per
+   run; step 7 reads that exact path back. `TEMP` comes first because Git Bash on Windows sets
+   `TMPDIR=/tmp`, which resolves to the drive root rather than the platform temp directory and
+   accumulates there silently. **Exit 3 is a stop, not a zero:** neither `scc` nor pygments
+   resolved, so there is no baseline and step 7's delta is unobtainable. Report the layer,
    quote the script's install hint, and stop; an all-zero baseline reports every later count as an
    improvement. Done when the file exists, or the run has stopped with the missing layer named.
 5. **Triage.** Classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
    Run `commented-out-code.py` (and Ruff ERA001 on Python, via the repository's pinned wrapper where
    one exists) for **candidates, each verified by reading it before deletion**, never as settled
    class-A input: it calls a comment code whenever the body reparses, so prose carrying
-   backtick-quoted identifiers hits. A hit whose text is a sentence, not a statement, is prose.
+   backtick-quoted identifiers hits. A hit whose text is a sentence, not a statement, is prose. That
+   test does not settle an indented usage example under a documentation block
+   (`#   hook::require_jq PostToolUse my-plugin "$INPUT"`), which is a statement and still
+   documentation. Reading decides: a line demonstrating how to call the thing the block documents is
+   prose, whatever it parses as.
    **Criterion 2 is decided on evidence, never on impression.** For every class-C candidate whose
    content is rationale, run `git log -L <start>,<end>:<file>` over its own lines and check the
    repo's ADR or decision-log directory where one is declared; recoverable there **fails** the
@@ -211,7 +231,9 @@ from them.
    versus proposed with each applied item's verdict (and the mapping for every RENAME-ONLY), the
    staged commit-message block, the class-C keeps and rewrites with one-line reasons (grouped where
    several share one, every member still named) and **each keep naming its criterion-2 evidence**
-   from step 5, plus any whole-file budget suspension; then the census delta, `comment-census.py
+   from step 5, plus any whole-file budget suspension. Under a whole-file verdict, report that
+   file's class-C keeps as a count per reason group rather than a line each; the per-keep evidence
+   line is owed only for keeps the run actually searched. Then the census delta, `comment-census.py
    --baseline` pointed at the exact `baseline.json` step 4 wrote, in lines, bytes and estimated
    tokens. A scope whose every file was dropped reports the tally rather than exiting silently. When
    the census could not run, say so in place of the delta line and name the missing layer — an
