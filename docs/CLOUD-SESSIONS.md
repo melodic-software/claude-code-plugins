@@ -358,8 +358,9 @@ catalog on, and the cloud bootstrap installs from the two together (see
   cloud session; verify in a fresh session and add the same bootstrap-plus-hook setup if the
   catalog does not load.
 - The whole catalog is installed here, so this repo dogfoods everything it publishes and a
-  regression in any plugin surfaces here first — bar what a repo delta opts out of and what the
-  catalog ships `defaultEnabled: false`, which installs without being enabled (below). The enabling
+  regression in any plugin surfaces here first — bar what a repo delta opts out of. Catalog
+  entries that ship `defaultEnabled: false` install disabled on a raw `claude plugin install`;
+  this repo's cloud bootstrap still treats fleet-list `true` as wanted (below). The enabling
   list is the fleet cloud plugin list in standards
   ([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json)),
   which the shared environment fetches at cache build, writes into the snapshot at
@@ -390,12 +391,14 @@ catalog on, and the cloud bootstrap installs from the two together (see
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
   without disturbing the rest — a state the gate accepts, since an explicit `false` is a recorded
   decision where an absent key is drift. The entries that should not start on their own are not
-  keyed here at all: the catalog ships them `defaultEnabled: false` and `claude plugin install`
-  honors that flag, so the fleet list's `true` installs them without enabling them and they stay
-  off until someone opts in with `/plugin enable`. That covers the two whose bundled MCP servers
-  need `userConfig` credentials this environment has no reason to hold — `miro` (`miro_api_token`)
-  and `dometrain` (`dometrain_api_key`), set with `/plugin configure` — alongside `songwriting`,
-  `kindle-dedrm`, and `ai-briefing`.
+  keyed here at all: the catalog ships them `defaultEnabled: false`, and `claude plugin install`
+  honors that flag, so a raw install leaves them disabled. They still appear as `true` on the
+  fleet list, so this repo's cloud bootstrap includes them in its wanted set, treats a disabled
+  install as a verification failure, and runs `plugin enable` on a source-changing refresh.
+  Operator opt-in outside that path is `/plugin enable`. That covers the two whose bundled MCP
+  servers need `userConfig` credentials this environment has no reason to hold — `miro`
+  (`miro_api_token`) and `dometrain` (`dometrain_api_key`), set with `/plugin configure` —
+  alongside `songwriting`, `kindle-dedrm`, and `ai-briefing`.
 
 ### GitHub MCP tools vs the gh CLI
 
