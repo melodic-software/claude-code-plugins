@@ -1,11 +1,11 @@
 """Path spelling between an MSYS shell and a native Windows interpreter.
 
-harness-integrity.md rule 6 says a `D:/...` path handed to bash resolves
-nowhere. The MIRROR of that hazard is what this file exists for, and it is just
+harness-integrity.md rule 6 covers the hazards a Windows path spelling carries
+into bash. The MIRROR of that rule is what this file exists for, and it is just
 as live on a mixed host: the `python3` on PATH here is a NATIVE Windows build,
 so an MSYS `/d/worktrees/repo/x.py` handed to it is read as a path relative to
 the current drive root and resolves to `D:\\d\\worktrees\\repo\\x.py`. That is
-nowhere, exactly as the bash case is nowhere.
+nowhere.
 
 Left alone, a bash-driven harness passing MSYS paths to a Python probe reports
 "target is not a file" for a file that plainly exists, and the next person edits

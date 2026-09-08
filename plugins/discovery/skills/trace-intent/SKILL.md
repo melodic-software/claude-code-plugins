@@ -3,7 +3,6 @@ description: "Reconstruct WHY something was built the way it was, from evidence 
 argument-hint: "<target> (e.g., /discovery:trace-intent the retry backoff in api/client.ts, /discovery:trace-intent why we chose the local-markdown adapter)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: explore
   summary: Reconstruct why a thing was built this way, from evidence outside the code
@@ -20,7 +19,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
@@ -54,7 +55,10 @@ All three reasons in full, and the halt rule: [`context/dispatch.md`](context/di
 
 **Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload,
 and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere
-else. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.
+else. The dated record for that harness behavior is
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on".
+The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.
 
 ```text
 discovery-trace-intent-preload-7b3e2d

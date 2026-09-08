@@ -15,7 +15,7 @@ it:
 |---|---|---|
 | spawn census via a PATH shim | "no improvement" | `mktemp -d` put a fresh path on `PATH` every run; the subject cached on `PATH`, so every run was a forced cache miss. It measured its own randomization. |
 | hard-link identity probe | "0 divergences" | `os.link` failed cross-volume on Windows and fell back to `shutil.copyfile`. A copy is a different file, so the probe never exercised the case it reported on. |
-| discrimination check (shell) | "NOT DISCRIMINATING" | A `D:/...` path handed to bash resolves nowhere under MSYS, so both arms exited 127 and the grep found nothing in either. |
+| discrimination check (shell) | "NOT DISCRIMINATING" | A Windows path spelling handed to bash left both arms exiting 127, so neither arm ever reached the subject and the grep found nothing in either. |
 | discrimination check (repeat) | "NOT DISCRIMINATING" | Same trap, second harness. |
 | discrimination check (python) | "NOT DISCRIMINATING" | Restored via `git checkout --` while the fix under test was uncommitted. The restore silently reverted the fix, so the "with fix" arm ran without it, and the work was destroyed. |
 

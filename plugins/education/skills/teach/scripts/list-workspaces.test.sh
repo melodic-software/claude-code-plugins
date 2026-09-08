@@ -41,7 +41,14 @@ assert_contains() {
 # the script, so a drifting implementation fails rather than agreeing with itself.
 expected_slug() {
   local canonical basename_slug path_hash
-  canonical="$(realpath "$1" 2>/dev/null || readlink -f "$1" 2>/dev/null || printf '%s' "$1")"
+  # Mirrors `canonicalize` in list-workspaces.sh; SKILL.md "Workspace layout" is
+  # normative for both. `pwd -P` leads for the reason stated there.
+  canonical="$(
+    (cd "$1" 2>/dev/null && pwd -P) ||
+      realpath "$1" 2>/dev/null ||
+      readlink -f "$1" 2>/dev/null ||
+      printf '%s' "$1"
+  )"
   basename_slug="$(basename "$canonical" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')"
   path_hash="$(printf '%s' "$canonical" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"
   printf '%s-%s' "$basename_slug" "$path_hash"

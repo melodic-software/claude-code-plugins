@@ -210,17 +210,24 @@ constraint, and owing unanimity. It is a different governance object from this l
 counted by nothing and owes nothing. The measurements below bear on both, and a class declaring such
 a slot should read them — but only the lane is structurally incapable of gating.
 
-**Why the lane is shaped this way — measured, not assumed.** Model judgment over rendered UI
-artifacts tops out below the precision a gate needs, and its characteristic error is declaring
-broken things fine: the wrong direction for a check whose purpose is catching breakage. Its verdict
-on identical input also varies run to run at a rate well above the level at which a suite stops
-being believed, and that variance is a property of hosted inference the operator cannot tune away —
-no temperature setting or seed removes it. Recall is where it is strong, which is precisely what
-makes narration its job rather than judgment. Every established comparison product surveyed reaches
-the same arrangement independently: detect the difference deterministically, narrate it with a
-model, route acceptance to a person. Per-request image caps and per-frame metering make a lane's
-artifact volume a cost bound the runner resolves against the bound instance's declared limits, never
-a policy axis.
+**Why the lane is shaped this way.** The reasoning is a design argument, not a measurement this
+contract holds. A gate's verdict has to be reproducible, because a check that answers differently
+on identical input cannot be the thing a merge waits on; model judgment over rendered artifacts
+carries no such reproducibility guarantee, so it is disqualified from the gating slot on
+structure rather than on a score. Recall is what the lane is for, which is why narration is its
+job. The arrangement that follows is the one the topology fixes: detect the difference
+deterministically, narrate it with a model, route acceptance to a person. Per-request image caps
+and per-frame metering make a lane's artifact volume a cost bound the runner resolves against the
+bound instance's declared limits, never a policy axis.
+
+Two claims previously carried here were removed on **2026-09-06** rather than restated: a
+precision-and-error-direction figure for model judgment over rendered artifacts, and a survey
+asserting that every established comparison product reaches this arrangement independently.
+Neither named a source, a date, or a method, and neither is settleable from this contract, so
+neither could be verified or corrected. The structural argument above and the runtime note below
+carry the rule without them. Recheck trigger: a maintainer who can cite a dated, sourced
+measurement adds it here as a record; until then the rule stands on structure, and a reader must
+not reintroduce a figure this contract cannot source.
 
 **Not demonstrated at runtime.** With no runner built there is no runtime in which to exercise the
 ordering, so the property claimed here is structural: no cell exists through which authority could

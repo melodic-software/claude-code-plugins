@@ -29,6 +29,11 @@ instead).
 | `--disallowedTools` exists as a per-invocation CLI flag; there is **no** `disallowedTools` settings key — persistent config uses `permissions.deny` | [CLI reference — flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings](https://code.claude.com/docs/en/settings) |
 | The Agent SDK exposes structured context usage over the control protocol (`getContextUsage()`) | [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) |
 
+Every row above is verified 2026-09-06 against Claude Code 2.1.263, by reading the cited page and
+matching the claim to its text. Recheck a row when its page stops carrying the statement, or when
+a release note names deny rules, deferred tool loading, the `--disallowedTools` flag, or the Agent
+SDK control protocol.
+
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats` — reported,
 never silently assumed durable.
@@ -53,7 +58,7 @@ never silently assumed durable.
 4. **Headline semantics.** `totalTokens` excludes the deferred pools, free space, and the
    autocompact buffer in both modes, matching the renderer's own headline. Deferred pools are
    plural: built-in and MCP deferred tools are accounted in separate `... (deferred)` categories
-   (measured at the verified version), and both are excluded from the *headline*, not from the
+   (measured on the binary and version each run stamps), and both are excluded from the *headline*, not from the
    *request* — see the deferral citation above.
 
 ## Record schemas

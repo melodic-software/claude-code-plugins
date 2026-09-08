@@ -3,7 +3,6 @@ description: "Explore the local codebase before making changes. Read code, trace
 argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: explore
   summary: Explore code, history, tests, and config before changing anything
@@ -25,7 +24,9 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 These values orient this session only. The project root is an absolute machine path. Use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
 
@@ -43,7 +44,7 @@ These values orient this session only. The project root is an absolute machine p
 
 **One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md`. Pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
 
-**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
+**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
 
 ```text
 discovery-explore-preload-8e2b7d
@@ -88,7 +89,7 @@ Read the code before changing it. This skill builds the local knowledge a change
 
 Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what IS, `/discovery:research` for what SHOULD BE.
 
-**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
+**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
 ## Scope
 
@@ -188,7 +189,7 @@ Present exploration findings as:
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution
 6. **Planned direction alignment**. How findings relate to any direction the project documents
-7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. `AskUserQuestion` is filtered out of every non-fork subagent, so the payload is how they reach a human at all. Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
+7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. `AskUserQuestion` is filtered out of every non-fork subagent, so the payload is how they reach a human at all; the dated record is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
 
 If invoked standalone, present findings directly. If invoked as part of a larger workflow, findings feed into subsequent research and planning steps.
 

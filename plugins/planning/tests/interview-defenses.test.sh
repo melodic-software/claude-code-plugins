@@ -218,6 +218,16 @@ sha256_stdin() {
   fi
 }
 
+# sha256 of jq's stdout. A Windows jq writes through a text-mode stdout, so every record
+# it prints ends CRLF where the same jq on Linux ends LF — which moves every case and
+# roster digest below on that host alone, for a file nobody touched. The only literal CR
+# jq can emit is a line terminator (a CR inside a JSON string is escaped `\r`), so
+# dropping it is the identity wherever stdout is already LF. Deliberately NOT folded into
+# `sha256_stdin`: `pin_file` hashes a fixture's own bytes and must keep hashing them raw.
+sha256_jq_stdin() {
+  tr -d '\r' | sha256_stdin
+}
+
 # section_digest <file> <open heading line> <close heading line>
 # sha256 of everything strictly BETWEEN the two heading lines, each matched as a WHOLE
 # LINE. Whole-line matching is load-bearing, not tidiness: a prefix match let a crafted
@@ -298,7 +308,7 @@ pin_frontmatter() {
 # survives. Digesting the whole case object closes that.
 pin_case_digest() {
   local label="$1" name="$2" want="$3" got
-  got="$(jq -S -c --arg n "$name" '.evals[] | select(.name == $n)' "$EVALS" | sha256_stdin)"
+  got="$(jq -S -c --arg n "$name" '.evals[] | select(.name == $n)' "$EVALS" | sha256_jq_stdin)"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the case pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -335,13 +345,13 @@ pin_file() {
 # below.
 pin_case_set() {
   local label="$1" want="$2" got
-  got="$(jq -r '.evals[] | "\(.id):\(.name)"' "$EVALS" | sort | sha256_stdin)"
+  got="$(jq -r '.evals[] | "\(.id):\(.name)"' "$EVALS" | sort | sha256_jq_stdin)"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the roster pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest with: jq -r '.evals[] | \"\\(.id):\\(.name)\"' <evals.json> | sort | sha256sum"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest with: jq -r '.evals[] | \"\\(.id):\\(.name)\"' <evals.json> | sort | tr -d '\\r' | sha256sum"
   fi
 }
 
@@ -460,9 +470,23 @@ declares_both_fixtures B "$CASE_B"
 #
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
+# Re-pinned when follow-up F12 dropped the inert `shell: bash` key (planning 0.36.5).
+# That key selects the shell for a `!`-injection in a pre-compute block; this file has no
+# injection and no pre-compute block, so it selected nothing. Both defenses are body
+# prose — the STOP-on-gap halt in Step 1.5 and Step 3, the auto-guard in Step 1.5 and
+# "What this skill does NOT do" — each covered by its own section digest below, and
+# neither is stated or qualified in any frontmatter key. Removing a key adds no qualifier
+# to any other.
+#
+# Re-pinned a second time when this branch merged origin/main, which had rewritten
+# `description:` to add the always-on unwanted-behaviour coverage prompt's trigger
+# phrases ("acceptance criteria", "how will we know this is done"). Both changes land in
+# the digested block, and the value below is recomputed over the merged file so each side
+# is graded, not one of them. Added triggers widen when the skill fires; they state no
+# rule and qualify no defense, and every defense stays covered by its section digest.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "e1329ca67129a474aa8bb1f02f491d6c7d5bbc9d83216b4693fc79eff5907f6a"
+  "4b5a32a41e797942dd400feb1a0f45d136de8d1ab5f0ceb490d8455ce04c6cd5"
 
 # The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
 # question to its recommendation — the auto-guard applies inside rounds too"), and the
@@ -474,7 +498,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2afe32087a435f200b95034560139624e537b3031d261fe7d269219a26c24d81"
+  "e85557db3e8b58ec0ec60a0604e648e3e6bf4f6e89566fe0bfefc9a4e4cf72c0"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -484,7 +508,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "c57ced20ba0776a394244dfe81dd6535ea1fae428d3bd16bb23e5375c82e8e44"
+  "867623e80981e92dfd902759ab398568d68c63b8ea2455cc125fce3ee8a26c72"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -652,6 +676,32 @@ pin "the register carve-out stays scoped to the absence of questions" "$SKILL" \
   "The carve-out is about the absence of questions, never about which action produced it"
 pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
   "a gap surfaced mid-synthesis is registered \`open\` when it goes to the user"
+
+# A7b. The drift check fires on a USER reply, so a round overtaken by non-user output —
+#      a sub-agent return, a background notification, a team report — falls outside it and
+#      goes un-restated. These pins are the out-of-band rule's own defense: the trigger,
+#      relevance vs arrival, the superseded-recommendation outcome, the environment-resolve
+#      outcome, the narrow re-presentation, the hold-refusal, the floor, the same-turn
+#      queued-output-first order, and the SKILL.md pointer. Drop any one and the rule
+#      reads as advisory.
+pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
+  "non-user content reaching the transcript while a round is open"
+pin "loop.md keys the out-of-band check on relevance, not arrival" "$LOOP" \
+  "The trigger is RELEVANCE, not arrival"
+pin "loop.md names a contradicted recommendation as superseded" "$LOOP" \
+  "naming the superseded recommendation as superseded"
+pin "loop.md resolves an environment-answered open row" "$LOOP" \
+  "Resolve it and STATE the answer"
+pin "loop.md restates only the moved row, never the whole round" "$LOOP" \
+  "**Re-present narrowly.**"
+pin "loop.md refuses to hold the round for a pending dispatch" "$LOOP" \
+  "**This does not hold the round.**"
+pin "loop.md floors the out-of-band restate on the next user reply" "$LOOP" \
+  "The floor is the next user reply."
+pin "loop.md processes queued out-of-band output before the same-turn reply" "$LOOP" \
+  "When a user reply and queued out-of-band output share a turn, process the queued output first."
+pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
+  "**Out-of-band output gets the same check, keyed on relevance.**"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

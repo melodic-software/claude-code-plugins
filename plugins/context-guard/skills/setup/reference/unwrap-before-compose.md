@@ -1,104 +1,104 @@
-# Unwrap before you compose — shared peel and wrap rules
+# Unwrap before you compose: the statusline wiring transform
 
 The shared, plugin-name-free half of the two statusline guard plugins' compose
 rules. The hub setup skill supplies every concrete shim path for the printed
 edit. These rules target machine-scope surfaces under `~/.claude/` and are
 deduplicated here.
 
-## Unwrap before you compose
+`scripts/compose-statusline-wiring.sh` is the whole transform. Run it and
+substitute what it prints. Never peel or wrap by hand: the composed value has to
+be byte-identical across re-runs, and a hand-composed edit double-wraps a
+sibling tee and stacks another `sh -c` layer every time, at a further 0.6 to
+0.9 s per refresh for each duplicated tee.
 
-`<current statusline command>` below means the operator's own
-renderer, never the raw effective `command` string. Recover it by peeling off the wrapping this
-skill itself prints, applying both rules repeatedly until a pass strips nothing:
+## Invocation
 
-1. **Guard-shim prefixes**. Every leading `bash <path>/context-guard/bin/statusline-shim.sh` and
-   `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
-   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix.
-2. **A generated `sh -c` adapter**, when what remains is exactly `sh -c '<single-quoted string>'`
-   with nothing after the closing quote, and, once that string is unescaped, any of the following
-   holds, that is an adapter a previous run printed, not the renderer. Unescape it back: drop the
-   leading `sh -c` and the outer quotes, then replace every `'\''` with `'`.
+Feed it the effective `statusLine` value resolved in the settings-scope step,
+and one `--wrap` per shim the wiring should carry, outermost first:
 
-   - **A. It is itself exactly `sh -c '<single-quoted string>'`, nothing after the closing
-     quote.** A nested `sh -c` is always a layer some run added: an operator's own renderer is at
-     most one `sh -c` deep. Apply the same strictness here as to the outer shape, so two readers
-     peel the same number of layers.
-   - **B. It begins with a guard-shim prefix from rule 1.** This skill never puts a shim inside
-     an adapter, and an operator would not write one inside their own `sh -c`. Leaving it sealed
-     there hides it from rule 1, which strips only leading prefixes, and the composed wiring then
-     names that shim a second time.
-   - **C. It is a command the guard below would send for wrapping.** That is the only shape this
-     skill's own adapter ever carries.
+```bash
+jq '.statusLine' ~/.claude/settings.json |
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+    --wrap 'bash ~/.claude/<this plugin>/bin/statusline-shim.sh' --block --explain
+```
 
-   Branches A and B must not inherit the guard's top-level scoping. Their evidence is the shape
-   of the carried string, not the syntax in it. Absent all three, the `sh -c` was written by the
-   operator and must be preserved: peeling `sh -c 'ulimit -n'` to `ulimit -n` would leave the
-   shim `exec`-ing a shell builtin that no longer has a shell, and the statusline would exit 127
-   instead of rendering. A trailing word (`sh -c '…' extra`) makes it a real command, not an
-   adapter. Leave that alone too.
+`--command '<string>'` replaces the piped JSON when the operator quoted their
+command in chat rather than pointing at a settings file.
 
-   One shape stays ambiguous on purpose: a single `sh -c` over a merely-quoted command. Nothing in
-   it distinguishes a generated adapter from an operator's own, so it is preserved. The cost is one
-   spurious shell per refresh; peeling on a guess costs a broken statusline.
+## Contract
 
-One pass is not enough: an operator may already carry several layers from earlier reruns, and a
-single peel over three layers leaves two.
+Arguments:
 
-Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
-sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
-and writes on every refresh and costs another 0.6–0.9 s. Skipping rule 2 compounds the
-shell-syntax guard instead, the leftover adapter still contains shell syntax, so it is wrapped in
-another `sh -c` layer, one more on every run. Unwrapping both makes the printed edit idempotent:
-re-running `check` on already-correct wiring prints byte-identical wiring, with exactly one shim
-invocation per plugin and at most one `sh -c` layer.
+| Argument | Effect |
+|---|---|
+| `--wrap <prefix>` | A shim prefix the composed wiring carries, outermost first, repeatable. Each value is `bash` plus a path ending in `/statusline-shim.sh`. |
+| `--command <string>` | The current `statusLine` command as a raw string, instead of JSON. |
+| `--input <file>` | Read the current `statusLine` value as JSON from a file. |
+| `-` | Read that JSON from stdin. This is the default. |
+| `--block` | Print a paste-ready `{ "statusLine": ... }` settings fragment. |
+| `--command-only` | Print the bare composed command string. |
+| `--explain` | Write the recovered renderer, the layers peeled, and the wrap decision to stderr. |
 
-## The shell-syntax guard
+`--explain` writes four `key: value` lines to stderr and leaves stdout alone. Those lines are
+where a report's reasons come from, so quote them rather than re-deriving the same facts:
 
-The wrapped form passes the user's command as ARGV, the shell that runs
-the `statusLine` command splits the whole line into words and consumes its quotes, and the shim
-`exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. Test
-the unwrapped renderer, never the raw effective `command` string, the rules above run first.
-Print the shell-wrapped variant instead when either of these holds:
+```text
+renderer: THEME=dark my-statusline
+layers-peeled: 3
+wrap: shell (unquoted top-level shell syntax)
+idempotent: yes
+```
 
-- It carries, unquoted, at the top level, shell syntax no ARGV word can express: an inline env
-  assignment like `THEME=dark my-statusline`, a redirection, or any control operator (`|`, `|&`,
-  `&&`, `||`, `;`, `&`, a newline).
-- **Its command word is not an executable**, a shell builtin, function, or alias, which `exec`
-  cannot run because there is no file to exec. `ulimit '-n'` is the standing example: `ulimit`
-  exists only as a builtin, so the plain wrapped form reaches `exec ulimit -n` and the statusline
-  dies with exit 127 on every refresh. Resolve it the way the shim will: `type -P <word>` finding nothing while `type -t <word>` reports `builtin`, `function`, or
-  `alias` is the test, not by matching a hardcoded list of builtin names.
+`wrap:` is `standalone`, `plain`, or `shell`, each followed by its reason in parentheses. The
+four reasons are `no statusline configured`, `command word resolves as an executable`,
+`unquoted top-level shell syntax`, and `command word is a builtin, not an executable` (with
+`function` or `alias` in place of `builtin` where that is what the command word resolved to).
+`layers-peeled: 0` means the value carried no wrapping from an earlier run.
 
-  This trigger is load-bearing precisely because it is *not* about syntax. Such a renderer often
-  carries none at all, so a syntax-only guard would leave it unwrapped and the statusline would
-  exit 127.
+Exit codes:
 
-The hub prints this plugin's own shim path around `sh -c '<escaped renderer>'` when the guard
-fires, and around the renderer verbatim when it does not.
+| Code | Meaning |
+|---|---|
+| 0 | Composed. The value is on stdout. |
+| 1 | A round-trip check failed. One line names the check on stderr and stdout stays empty. |
+| 2 | Usage error: unknown argument, missing `--wrap`, or a `--wrap` prefix the peel would not recognize. |
+| 3 | The input could not be read, parsed as JSON, or scanned, which includes unbalanced quoting in the current command. |
+| 4 | jq is required for the selected input or output mode and is not on PATH. |
 
-`<escaped renderer>` is that same unwrapped renderer, POSIX-escaped for single-quote
-embedding: replace every `'` in it with `'\''` before substituting (then JSON-escape the whole
-`command` string as usual). Show the final, fully escaped line, never hand the operator a
-template with raw quotes left to fix. Verify your printed edit round-trips: run
-`printf '%s\n' '<escaped renderer>'` and confirm the output matches the renderer
-byte-for-byte. The single-quoted argument reproduces exactly the quoting context the emitted
-`sh -c '<escaped renderer>'` uses; a double-quoted wrapper would instead let the outer shell
-expand any `$(...)` or backticks in the operator's own renderer before the check ever ran.
+A non-zero exit is never something to work around by composing the edit by
+hand. Report the reason it printed and stop: exit 2 means the invocation named
+a prefix the next run would not peel, and exit 3 means the current `statusLine`
+is a command no shell would run, which is a finding for the operator rather
+than an input to wrap.
 
-**Syntax inside a quoted argument does not count, and bare quoting is never itself a trigger.**
-The quotes make it one ordinary ARGV word that reaches the renderer intact through the plain
-wrapped form. So an operator's own `sh -c '<string>'`, the one shape rule 2 preserves, is
-already a plain `executable arg…` command: `sh` is the executable, `-c` and the carried string
-are two ordinary ARGV words. Substitute it verbatim.
+## What the script decides, and what you still do
 
-For an input that is itself `sh -c '<string>'`, rule 2 and this guard therefore never both wrap
-it, and leave exactly one layer: rule 2 peels every generated layer before the guard runs, and
-what rule 2 preserves is a renderer this guard declines. Do not generalize that to a layer count
-for every input, the guard adds whatever the renderer genuinely needs, which is none for a plain
-command and one for top-level syntax, and that one is a layer more when the operator's own
-`sh -c` sits inside it. `sh -c 'ulimit -n' && echo ok` correctly prints two: the `&&` cannot be an
-ARGV word, so the adapter is mandatory, and peeling the inner `sh -c` would strand the builtin.
-What is invariant is that peel and wrap are inverses, which is what makes a re-run byte-identical
-at whatever count the renderer needs. Firing on the quotes instead turns an operator's
-`sh -c 'ulimit -n'` into `sh -c 'sh -c '\''ulimit -n'\'''`, one more shell on every refresh, the
-same compounding rule 2 exists to prevent.
+The script owns the arithmetic. It peels every shim prefix and every adapter a
+previous run generated, decides whether the recovered renderer needs an `sh -c`
+adapter, escapes it, and asserts before printing that re-composing its own
+output reproduces it byte for byte. `--explain` reports each of those decisions
+so the report can name the reason rather than the result alone.
+
+Three judgments stay with the skill, because none of them is a function of the
+command string:
+
+- **Which `--wrap` prefixes to pass.** Every shim the wiring should carry has to
+  be listed, because the peel strips every shim prefix it finds. Name a sibling
+  plugin's shim only when that shim is present on disk: `bash <missing-path>`
+  exits 127 and takes the whole statusline down before the operator's renderer
+  runs.
+- **Which settings file the edit targets**, and whether the branches the check
+  already suppressed forbid printing an edit at all.
+- **Whether the composed value differs from what is already configured.**
+  Identical means the wiring is already correct and there is nothing to apply,
+  not a change to present.
+
+## The one shape that stays ambiguous
+
+A single `sh -c` over a merely-quoted command is preserved rather than peeled.
+Nothing in it distinguishes an adapter a previous run generated from an
+operator's own, and `sh -c 'ulimit -n'` peeled to `ulimit -n` would leave the
+shim `exec`-ing a shell builtin that no longer has a shell, so the statusline
+exits 127 instead of rendering. The cost of preserving is one spurious shell per
+refresh; peeling on a guess costs a broken statusline. Report the preserved
+layer as the operator's own renderer, because that is how the script treats it.

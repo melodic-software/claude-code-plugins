@@ -3,7 +3,6 @@ description: "Iteratively reduce coupling at any altitude — documents, code mo
 argument-hint: "[<scope> | dry-run [<scope>] | status | help]"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: anytime
   summary: Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest

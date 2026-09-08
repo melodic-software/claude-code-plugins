@@ -3,6 +3,22 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.4]
+
+### Changed
+
+- setup and the reference contracts: the AGENTS.md platform bound gains one dated owner record with two sites citing it; the telemetry, escalation, routines, trigger-dispatch, and verification-topology claims are verified, corrected, dated, or removed (prompt-audit follow-up F6)
+
+## [0.23.3]
+
+### Changed
+
+- **reference/autonomous-pipeline-reminder.md:** a long session or context is not a reason to stop (prompt-audit follow-up F18).
+- **guardrails, prerequisite-resolution, setup:** name the marketplace's liveness-assertion and seam-phrasing conventions and the `source-control` config-resolution reference by class in words, replacing six relative links that resolve only in the marketplace checkout and that the plugin's org- and vendor-agnostic contract forbids writing as URLs (prompt-audit follow-up F8).
+- **reference/autonomous-pipeline-reminder.md, README:** the pasted block now tells a run to check that its evidence supports a state-changing command before running it, and to recover from an error or a gap rather than end the turn on one; the README provenance stamp carries the new source, its fetch date, and a widened recheck trigger (prompt-audit follow-up F2).
+- **reference prose:** dropped the sampling-parameter rebuttal from the verification-topology lane rationale, the drafting history from the reminder's applicability section, and two sentences restating rules their own files state elsewhere (prompt-audit follow-up F2).
+- Hook prompt text: drop the issue number from the two lane-stop-gate skip notices that reach model context (prompt-audit follow-up F2)
+
 ## [0.23.2]
 
 ### Changed

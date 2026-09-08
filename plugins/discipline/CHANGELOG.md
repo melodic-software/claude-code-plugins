@@ -5,6 +5,19 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.2]
+
+### Fixed
+
+- Restored `hold-my-hand` in the plugin description so the catalog names a skill this plugin still
+  ships.
+
+## [0.14.1]
+
+### Changed
+
+- sweep-all, scrutinize-dont-coast, and use-your-skills: the fork-mode and subagent-preload harness claims carry a dated record with a recheck trigger, and the explicit fork-off wording follows the current documented default (prompt-audit follow-up F6)
+
 ## [0.14.0]
 
 ### Added

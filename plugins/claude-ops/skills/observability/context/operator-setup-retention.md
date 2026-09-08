@@ -12,8 +12,8 @@ bodies — so retention is also a privacy bound (see [operator-setup-emission-pr
   `cc-traces.json`), kept byte-compatible with Collector appends, bounded by two per-class windows (knob table
   below). Batch lines past the body window but still inside the structure window get
   **record-granular jq surgery**: their `api_*_body` logRecords are stripped while sibling
-  structure records survive in place (97% of body-bearing lines also carry structure events,
-  so whole-line dropping would forfeit one class or the other).
+  structure records survive in place (most body-bearing lines also carry structure events, so
+  whole-line dropping would forfeit one class or the other).
 - **Cold tier** — `cold/*.parquet` (ZSTD, structure-only). Lines aged past the structure
   window are compacted to a new cold file **before** the hot trim drops them — one file per
   prune run, append-only, so a failed compaction can never corrupt prior cold history and

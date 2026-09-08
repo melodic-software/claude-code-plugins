@@ -45,6 +45,27 @@ lags once the base branch advances past the PR's last sync, and a compare agains
 silently understates or hides real divergence (verified empirically — see the single-PR
 diagnostic below).
 
+### Verification record for the two GitHub claims
+
+**Claims.** GitHub reports `BLOCKED` in preference to `BEHIND` when both apply, and a PR's
+`baseRefOid` lags the base branch's live tip once the base advances past the PR's last sync.
+
+**Basis.** Two parts, split by what GitHub publishes and what it does not. The field shapes are
+documented: [GraphQL Pulls reference](https://docs.github.com/en/graphql/reference/pulls) carries
+the `MergeStateStatus` values quoted above, `BEHIND` as "The head ref is out of date." and
+`BLOCKED` as "The merge is blocked.", and defines `baseRefOid` as "Identifies the oid of the base
+ref associated with the pull request, even if the ref has been deleted." Neither the precedence
+nor a refresh guarantee for `baseRefOid` appears anywhere on that page, so both remain live
+observations, reproducible with the single-PR diagnostic below: read `mergeStateStatus` and
+`baseRefName` with `gh pr view`, then compare the same head SHA against each of the two bases with
+`gh api repos/{owner}/{repo}/compare/{basehead}` and read `behind_by`.
+
+**Verified.** 2026-09-06, against the GraphQL Pulls reference as fetched that day.
+
+**Recheck trigger.** The Pulls reference gaining a precedence rule for `mergeStateStatus` or a
+refresh guarantee for `baseRefOid`, a GitHub changelog entry naming either, or a diagnostic run
+where `BLOCKED` no longer co-occurs with a positive `behind_by`.
+
 ## Orchestrator-Only Refresh Procedure
 
 Only the orchestrator may refresh a branch:

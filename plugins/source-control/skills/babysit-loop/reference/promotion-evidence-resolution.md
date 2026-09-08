@@ -6,7 +6,7 @@ only** — consumers must resolve each promotable cell's **effective** state aga
 promotion-evidence telemetry before every autonomous merge decision, fail-closing to unpromoted
 when evidence is unavailable, untrusted, partial, or forgeable
 (`/autonomy:setup` owns the security binding and the `promotion_state` field this reads;
-[`verification-topology.md`](../../../../autonomy/reference/guardrails/verification-topology.md)
+[`verification-topology.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/verification-topology.md)
 "Consumers resolve both"). Reading the bound state alone is non-conforming.
 
 ## Promotable cells and rung mapping
@@ -25,14 +25,14 @@ when evidence is unavailable, untrusted, partial, or forgeable
 Promotion evidence MUST be resolved through a **trusted seam** — an agent-unwritable bootstrap
 outside the target repository's blast radius, the same class of surface the autonomy setup skill
 names for security-binding resolution
-([`setup/SKILL.md`](../../../../autonomy/skills/setup/SKILL.md) "Agent-unwritable bootstrap for
+([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md) "Agent-unwritable bootstrap for
 security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
 surfaces does **not** qualify: partial reads, stale snapshots, and operator-supplied JSON without
 provenance are treated as **unavailable** and fail-closed.
 
 The canonical resolution algorithm — bound ceiling, epoch-scoped contrary events
 (`gate-failure`, `reverted-merge`, `verification-divergence`), prerequisite propagation — is owned
-by [`check-security-binding.mjs`](../../../../autonomy/skills/setup/scripts/check-security-binding.mjs)
+by [`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)
 evaluation mode (`--evidence`). The loop lane invokes that resolution **through the trusted seam
 only**, never by re-deriving a subset in prose.
 
@@ -41,7 +41,7 @@ only**, never by re-deriving a subset in prose.
 classes regardless of tracked rung. Operators keep `--merge human-only` on launch lines. Recheck
 trigger: `check-security-binding.mjs --evidence` returning a qualified read through the trusted
 seam, and the repository's evidence predicates being met
-([`loop-lane-prompts.md`](../../../../../prompts/loops/loop-lane-prompts.md) merge-lane
+([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md) merge-lane
 copy-blocks); until then this paragraph is the rule, and the fail-closed table below is how it is
 applied.
 

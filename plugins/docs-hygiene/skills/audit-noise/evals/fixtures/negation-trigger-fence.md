@@ -6,7 +6,7 @@ description: "Fixture for the quoted-trigger-phrase fence. Use when: 'sweep the 
 
 The body line below carries a real negation AND quotes a trigger phrase that
 appears verbatim in this file's own `description`. Remediating it risks the
-dropped-trigger regression `check-skill.sh` hard-FAILs on, so the writer
+dropped-trigger regression `check-skill.sh` warns on, so the writer
 declines it to the human report rather than routing it to the apply relay.
 
 Never run 'sweep the negation fence' against an unreviewed corpus.

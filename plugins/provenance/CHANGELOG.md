@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.8]
+
+### Changed
+
+- **audit:** the neutral tier is published as `not-found` everywhere; `source-not-identified` stays readable as its former name (prompt-audit follow-up F20).
+- **setup:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+- **audit:** `list-corpus.sh` reads a target's repo-relative position from `git rev-parse --show-prefix` instead of subtracting the corpus root as a string, so a directory, file, `.` or `--paths-file` target no longer reports an empty corpus on a host where one directory has several absolute spellings (prompt-audit follow-up F10).
+- **audit:** `list-corpus.sh` keeps a corpus path git cannot place as it was written, so a `--paths-file` entry under a missing directory declines instead of collapsing onto a same-named file at the repository root, and a nested checkout no longer reads as the whole corpus (prompt-audit follow-up F10).
+
 ## [0.5.7]
 
 ### Fixed

@@ -8,6 +8,19 @@ cited section.
 Guide root: <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 (sections cited by heading). Model subpages cited by page + heading where a row needs one.
 
+Two model subpages exist, and a row that names the "Fable 5 subpage" means
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>.
+Its sibling
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>
+covers Claude Fable 5.1 and Claude Mythos 5.1 and carries its own headings, among them "Consider
+all effort levels", "Finish the whole task", "Keep changes and tests to what the task asks for",
+and "Let the lead agent keep working while subagents run". When the audited component targets
+Fable 5.1, read the 5.1 sibling as well as the heading a row names, and cite whichever page
+carries the wording the proposal uses. Every heading the rows below name is present on the Fable 5
+page. Verified 2026-09-06 against Claude Code 2.1.263 and both subpages as fetched that day.
+Recheck when a row's cited heading disappears from the Fable 5 page, when a newer model subpage
+appears beside these two, or when the best-practices page's model-guidance table gains a row.
+
 ## Purpose classification vocabulary
 
 Classify each component by what its body has the model DO (multiple or none):

@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.22]
+
+### Changed
+
+- Hook prompt text: drop the past-run arithmetic and model-tier pins from the workflow-resilience advisory and replace the hallucination framing in cli-flag-verify with the detect-then-judge framing its sibling hooks use (prompt-audit follow-up F2)
+
 ## [0.32.21]
 
 ### Fixed

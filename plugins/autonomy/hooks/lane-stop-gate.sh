@@ -465,7 +465,7 @@ if [[ "$ENABLED" != "true" ]]; then
       # legitimately-armed-then-stale case; do NOT blame a repo env block.
       if hook::notice_once "autonomy-lane-stop-gate-stale-arm" "$INPUT"; then
         hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off (#1784). Relaunch the lane through the claude-ops lane launcher to re-arm it."
+          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off. Relaunch the lane through the claude-ops lane launcher to re-arm it."
       fi
     elif [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
       # Enablement claimed on the untrusted env channel with no arm id at all —
@@ -473,7 +473,7 @@ if [[ "$ENABLED" != "true" ]]; then
       # env block attempting the pre-#1784 attack. Surfacing it beats silence.
       if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
         hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off (#1784). A lane launched expecting the gate needs the current claude-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
+          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off. A lane launched expecting the gate needs the current claude-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
       fi
     fi
   fi

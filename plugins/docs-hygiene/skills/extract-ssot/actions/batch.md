@@ -32,7 +32,7 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface —
 | Single candidate | NO — use `/docs-hygiene:extract-ssot plan <name>` directly |
 | < 3 candidates | NO — manual sequential dispatch is simpler |
 
-This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` is polyglot worktree-parallelized refactor per [code.claude.com/docs/en/commands](https://code.claude.com/docs/en/commands); this `batch` action is local SSOT-cluster orchestration.
+This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` orchestrates large-scale changes across a codebase in parallel: it decomposes the work into 5 to 30 independent units and spawns one background subagent per unit in an isolated git worktree, each opening its own pull request. This `batch` action is local SSOT-cluster orchestration instead. Basis: [the slash-command reference](https://code.claude.com/docs/en/commands), whose `/batch` entry carries that description and gives `migrate src/ from JavaScript to TypeScript` as its example. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when the reference drops the `/batch` entry, changes what it does, or when a release note names the bundled `/batch` skill.
 
 ## Inputs
 
@@ -278,4 +278,4 @@ Keep side notes to the ones a reader must act on now:
 - `context/anti-patterns.md` #11 / #12 / #13 — REFUSE patterns the verify filter encodes
 - SKILL.md "Evidence discipline" — subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
 - `/docs-hygiene:extract-ssot identify` — produces the ranked candidate list this batch action consumes
-- Bundled Claude Code `/batch` skill — distinct concern (worktree-parallelized polyglot refactor); see SKILL.md "What this skill does NOT do"
+- Bundled Claude Code `/batch` skill — distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary

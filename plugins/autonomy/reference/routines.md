@@ -46,8 +46,7 @@ Determinism is a per-portion verdict, so a deterministic portion is rarely a rea
 classifying a class. A class whose detection is judgment-free but whose disposition is not
 splits rather than exits: the detection portion carries the same no-agent-session property,
 and the judgment portion is the routine, deriving its row through the `AGT` rules below.
-The catalog carries this split on more rows than it flags `not-a-routine`; reading
-the paragraph above as a categorical exit is the error it is worded to prevent.
+The catalog carries this split on more rows than it flags `not-a-routine`.
 
 ## Two families of repetition
 
@@ -371,6 +370,14 @@ exhaustive, and a row's absence from it is not a claim that no pattern exists. `
 carry their precedent in their leaf documents; the classes recorded as unbuilt carry the state
 of their evidence in their class parameters instead.
 
+**The survey behind this list is undated, and this review does not date it.** Reviewed
+**2026-09-06** and left as written: the survey was not re-run, and the file records no date for
+when it was taken, so the vintage of every pointer below is unknown. Read the list as
+illustration of a pattern's existence at some past point and never as evidence of what a
+product ships today. The same caution covers the survey-backed sentences in the class parameters
+above. Recheck trigger: a re-survey that records its own date, which supersedes this note, or a
+row whose pointer a reader finds no longer describes the named product.
+
 - `alert-triage` — per-alert investigation agents shipped across observability platforms,
   event-triggered today
 - `anomaly-detection` — continuous statistical/ML detectors built into monitoring platforms
@@ -445,9 +452,24 @@ Hosting stance below. The following are illustrative bindings, not fixed require
 - A cloud scheduling surface whose runs clone selected repositories: the artifact is a
   skill committed to a selected repository's skills directory, and the stored prompt
   points to it. The transfer path is the surface's documented clone-and-load: each run
-  clones the selected repositories from their default branch and loads their committed
-  skills, so a skill living only in a personal store does not reach the run and must be
-  committed to the repository (or declared as a repository plugin) to bind.
+  loads the skills committed to the cloned repository's skills directory, or shipped in a
+  plugin the repository declares in its own settings file, and it does not read the machine's
+  user-scope skills directory. A skill living only on the operator's machine therefore does
+  not reach the run and must be committed to the repository, or declared as a repository
+  plugin, to bind.
+
+  **Dated record for that transfer path.** *Basis:* the harness documentation page for skills,
+  section on skills in cloud sessions, which states that cloud sessions do not read the
+  machine's user-scope skills directory, that they additionally load project skills committed
+  to the cloned repository's skills directory, and that a plugin declared in the repository's
+  settings installs at session start while a plugin enabled only in user settings does not
+  transfer. *Verified:* 2026-09-06, against harness version 2.1.263 and that page as fetched
+  the same day. *One correction the record carries:* the same section states that these
+  sessions also load the skills enabled for the operator's hosted account, so an
+  account-enabled skill does reach the run even though a machine-local one does not; the
+  committed-artifact rule above is the binding path this contract requires, not the only path
+  that exists. *Recheck trigger:* that section stops naming the cloned repository's skills
+  directory, or a release note names skill loading in cloud or scheduled sessions.
 - A desktop scheduling surface with per-task instruction files: the artifact is the
   task's instruction file tracked under the deployment's version-controlled dotfiles, and
   the task's prompt points to it.

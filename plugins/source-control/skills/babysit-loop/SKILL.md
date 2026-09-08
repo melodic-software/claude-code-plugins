@@ -25,8 +25,9 @@ claims backlog items or authors work-item PRs (the worker lane's authority), and
 Every shared cross-lane concern, topology, the autonomy merge ladder, the escalation contract,
 capability tiers, stop shapes, telemetry and durable loop state, the no-progress detector's counter
 semantics, the headless-config floor, the subagent discipline preamble, is owned by the loop-lane
-convention, `docs/conventions/loop-lane/README.md` in this plugin's marketplace repository, and held
-here **by citation**. Where this document says "per the convention", that file is the contract.
+convention,
+[`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md),
+and held here **by citation**. Where this document says "per the convention", that file is the contract.
 Three of its rules bite hardest here and are never re-derived locally: the C4/C5 floor bounds every
 rung including the explicit-`autopilot` exception, capability tiers resolve by model alias and never
 a hard-coded model ID, and a cycle-budget hit restarts the session rather than ending the loop
@@ -155,6 +156,8 @@ the lane-telemetry contract below. Seam keys and defaults in the config referenc
 toward the one-hour `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
 the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
 
+Both harness bounds are verified 2026-09-06 against Claude Code 2.1.263. The one-hour ceiling comes from the [tools reference](https://code.claude.com/docs/en/tools-reference), where `ScheduleWakeup` picks the next self-paced iteration "between one minute and one hour out". The seven-day expiry comes from [Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry): "Recurring tasks automatically expire 7 days after creation. The task fires one final time, then deletes itself." Recheck when either page names a different bound, or when a release note names `ScheduleWakeup` or scheduled-task expiry.
+
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
 issues** in the target repository. Deliberately outliving the worker lane's own exit (all issues
 closed or PR'd): the merge lane finishes merging the tail. Lane-infrastructure issues never gate
@@ -192,7 +195,9 @@ persisted.
 
 ## Escalation
 
-Escalation is the convention's contract (`docs/conventions/loop-lane/README.md` §2), held by
+Escalation is the convention's contract
+([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+§2), held by
 citation: a tracker item carrying the human-gated role label. Resolved from the consumer's
 `.work-item-tracker.json` `config.role_labels` map, never compared as a literal; when that file is
 absent, the canonical `needs-human` default applies with a loud notice, plus a machine-marked

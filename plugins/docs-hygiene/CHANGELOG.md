@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.42]
+
+### Changed
+
+- Date the bundled `/batch` claim, the SkillsBench and MDEval evidence, and the public-surface-contract basis; drop the unsourced practitioner-skill failure figure; point five gather blocks at the composition record (prompt-audit follow-up F6)
+
+## [0.21.41]
+
+### Changed
+
+- **audit-noise:** the emit-findings comment and the negation-trigger-fence fixture no longer describe check-skill check 3 as a hard-FAIL gate (prompt-audit follow-up F5).
+- **audit-progressive-disclosure, compress, rename-references:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.21.40]
 
 ### Changed

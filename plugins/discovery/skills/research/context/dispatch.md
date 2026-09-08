@@ -40,7 +40,9 @@ none delegable (the gate runs first: every one of them acts on an artifact, so a
 against a run that produced none):
 
 1. **Re-surface `open_questions`.** `AskUserQuestion` is filtered out of every non-fork subagent, so
-   the agent returns questions as text. If the parent does not surface them, the anti-pattern the
+   the agent returns questions as text. The dated record for that harness behavior is
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+   "Harness facts the dispatch design rests on". If the parent does not surface them, the anti-pattern the
    skill guards against — silent downstream resolution — happens anyway, one level up.
 2. **Dispatch the sibling verifier** for the outcome-gate rows the producer may not self-grade.
    Sibling, not child: independence is a property of *context provenance*, not of spawn parentage. A
@@ -70,7 +72,9 @@ against a run that produced none):
 ## Discipline liveness — why a token at all
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
-the debug log and starts the agent regardless. The resulting run has no disciplines, no phase
+the debug log and starts the agent regardless. The dated record for that harness behavior is
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on". The resulting run has no disciplines, no phase
 structure, and no gate — and it still writes an artifact, still returns a payload, and still reports
 `coverage: complete`. At every seam this design builds, that failure is indistinguishable from
 success.
@@ -274,6 +278,9 @@ in
   lists are on disk. For *process*, only as far as those artifacts capture it, which is why the fetch
   log and the gap lists are written outputs rather than working notes.
 - **Debuggability** — worse, and worth stating plainly. Background is the default execution mode, so
-  a failed run's transcript is not in the conversation at all. The artifact and the payload are the
+  a failed run's transcript is not in the conversation at all. The dated record for that harness
+  behavior is
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "Harness facts the dispatch design rests on". The artifact and the payload are the
   evidence; that is why `status`, `coverage`, `preload_token`, and `preload` are mandatory fields
   rather than nice-to-haves. `preload_token` is file-identity; `preload` is provenance.

@@ -48,5 +48,31 @@ skills/setup/reference/legacy-statusline-detect.md
 # Dedicated check: scripts/sync-unwrap-before-compose.sh --check (CI: unwrap-before-compose-sync)
 skills/setup/reference/unwrap-before-compose.md
 
+# No dedicated check: the statusline compose transform the reference above
+# names, carried only by the two statusline guard plugins, so this script's own
+# --check is the gate. Canonical copy:
+# plugins/context-guard/scripts/compose-statusline-wiring.sh; copy it into
+# plugins/rate-limit-guard/scripts/ to fix a drift failure.
+scripts/compose-statusline-wiring.sh
+
+# No dedicated check: that transform's test, enforced the same way.
+# Canonical copy: plugins/context-guard/scripts/compose-statusline-wiring.test.sh;
+# copy it into plugins/rate-limit-guard/scripts/ to fix a drift failure.
+scripts/compose-statusline-wiring.test.sh
+
 # Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
 lib/resolve-convention-home.sh
+
+# Dedicated check: scripts/sync-context-zone.sh --check. Canonical copy:
+# plugins/context-guard/scripts/context-zone.sh. The plugin-quality audit and
+# setup skills call their own copy because plugin caches are per-plugin
+# isolated, which is the "same-plugin or path-provisioned callers" case the
+# context-guard reader contract scopes its resolver-invocation block to. No CI
+# step runs the dedicated check yet; this script's own --check is the live gate
+# until one is wired.
+scripts/context-zone.sh
+
+# No dedicated check: the resolver's contract test, which travels with it.
+# Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
+# into plugins/plugin-quality/scripts/ to fix a drift failure.
+scripts/context-zone.test.sh

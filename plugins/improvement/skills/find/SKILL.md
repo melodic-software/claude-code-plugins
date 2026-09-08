@@ -3,7 +3,6 @@ description: "Evidence-first, cross-dimension improvement finder: scans code/arc
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path]"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: anytime
   summary: Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline
@@ -25,7 +24,10 @@ anything to decide about.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
 worktree-isolated session refuses a compound command that contains git, which is why each call
-above stays on its own.
+above stays on its own. The dated record for that refusal, and for the pre-compute composition that
+makes it bite, is the `source-control` plugin's
+[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 
@@ -233,9 +235,10 @@ Known traps, seeded from the research this skill was grounded on:
   (context/hotspots.md) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. It is deprecating. CI health iterates
-  `/actions/runs` by `created` date windows (never deep pagination) and derives failure ratios,
-  duration trends, and `run_attempt` retries per context/ci-health.md.
+- **Never call the Actions `/timing` endpoint**. GitHub marks it as closing down; the dated record
+  for that, and for the documented 1,000-result bound behind the windowing rule, is in
+  context/ci-health.md. CI health iterates `/actions/runs` by `created` date windows (never deep
+  pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe
   non-interactivity; guessing it converts an interactive user's session into a silent filing run.
 - **No access path ≠ healthy CI.** A missing GitHub access path is an evidence-gap line, not a

@@ -3,7 +3,6 @@ description: "Delegate the task to a fresh background agent that continues it NO
 argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: session
   summary: Delegate the task to a fresh background agent now

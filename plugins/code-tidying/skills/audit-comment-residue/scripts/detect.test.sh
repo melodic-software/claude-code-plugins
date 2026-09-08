@@ -294,9 +294,14 @@ PREVIEW_SCRIPT="$SCRIPT_DIR/../../../scripts/changed-code-files.sh"
 if [[ ! -f "$SKILL_MD" || ! -f "$PREVIEW_SCRIPT" ]]; then
   fail "preview surfaces located for parity check" "SKILL.md and scripts/changed-code-files.sh" "missing"
 else
-  # shellcheck disable=SC2016  # fixed-string match for the literal ${CLAUDE_PLUGIN_ROOT} in SKILL.md; no expansion wanted.
-  if ! grep -qF '!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh"' "$SKILL_MD"; then
-    fail "SKILL.md preview line calls the shared script" "a call through \${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh" "line shape changed"
+  # shellcheck disable=SC2016  # fixed-string match for the literal ${CLAUDE_SKILL_DIR} in SKILL.md; no expansion wanted.
+  # The line now goes through the skill-local exec wrapper, not the shared path
+  # directly: ${CLAUDE_PLUGIN_ROOT} is never substituted in `allowed-tools`, so
+  # the grant covering this injection can only name ${CLAUDE_SKILL_DIR}, and an
+  # injection no grant can match aborts under default permissions. The wrapper
+  # execs the same shared script this parity check runs, so parity is unchanged.
+  if ! grep -qF '!`${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh' "$SKILL_MD"; then
+    fail "SKILL.md preview line calls the shared script" "a call through \${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh" "line shape changed"
   else
     pass "SKILL.md preview line calls the shared script"
 

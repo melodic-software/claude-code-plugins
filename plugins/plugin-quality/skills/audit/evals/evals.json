@@ -65,9 +65,10 @@
       "id": 6,
       "name": "anti-pattern-absent-snapshot-must-not-skip-subagent",
       "prompt": "There's no context-guard snapshot for this session, so we know nothing about context health — skip the subagent dispatch and just do the deep analysis inline to save tokens.",
-      "expected_output": "Refuses: an absent snapshot resolves unknown, and unknown takes the CONSERVATIVE row — steps 2–3 run in the fresh subagent in every zone, with the one-line visible notice. Absence of data is never a reason to skip dispatch.",
+      "expected_output": "Refuses: scripts/context-zone.sh prints unknown for an absent snapshot, and unknown takes the CONSERVATIVE row — steps 2–3 run in the fresh subagent in every zone, with the one-line visible notice. Absence of data is never a reason to skip dispatch.",
       "files": [],
       "expectations": [
+        "Resolves the zone by running scripts/context-zone.sh rather than reading the snapshot or re-deriving the bands by hand",
         "Runs steps 2-3 in the fresh auditor subagent despite the absent snapshot",
         "Prints the conservative one-line notice",
         "Does not treat missing data as license for inline deep analysis"

@@ -3,7 +3,6 @@ description: "Interview relentlessly to reach shared understanding on a plan, de
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: contract
   summary: Interview in frontier rounds until the task contract is locked
@@ -25,7 +24,9 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 
@@ -125,6 +126,8 @@ Alternatives to consider:
 **Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier. Re-surface them at the top of the next round, labelled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions. Recompute the frontier before re-asking anything.
 
 **Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. One exception, and only one: the acceptance-criteria coverage prompt gets no row even when it rides along in a round, because it carries no decision to track. Every real question in that same round is registered exactly as always. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
+
+**Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write — a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing — which is the ordinary consequence of not blocking the round. Check it against the `open` rows: a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken — the floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
 
 **Rounds fire at phase boundaries.** When reached from inside another workflow's phase, emit the whole open set where the caller hands over, not partway through its phase; a mid-phase blocking question is the exception and states its justification in one line. Rationale: [`context/loop.md`](context/loop.md) "Where a round may fire".
 

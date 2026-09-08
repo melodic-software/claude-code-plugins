@@ -1,116 +1,104 @@
 # Telemetry comment upsert (per-instance singleton, race-converging)
 
-The exact upsert this lane runs to maintain its ONE sentinel-identified status comment **for this
+The upsert this lane runs to maintain its ONE sentinel-identified status comment **for this
 lane instance**. [`../SKILL.md`](../SKILL.md)'s "Telemetry" section owns that the comment exists and
-when it is written; this file owns how the singleton is resolved, validated, built, and converged.
+when it is written; this file owns the contract of the script that maintains the singleton.
 
-The upsert is inlined in this plugin rather than invoked from `claude-ops` because an installed
-plugin cannot invoke a sibling plugin's scripts.
+The mechanism lives in this plugin rather than in `claude-ops` because an installed plugin cannot
+invoke a sibling plugin's scripts.
 
 Per the convention, this lane too maintains exactly ONE sentinel-identified status comment **per
 lane instance** on its per-lane tracking issue in the target repository (default title
 `Lane telemetry: attend-queue`, created through the seam `create-item` verb when absent), edited in
-place each pass with the rows handled, the answers written, and the guard mode. Same inlined upsert
-as the worker loop, including the lane-instance resolution and validation that runs before the
-marker is built, the marker names the writer, not the lane type, so two attended sessions
-on one repository never overwrite each other's pass record:
+place each pass with the rows handled, the answers written, and the guard mode. Same script as the
+worker loop, including the lane-instance validation that runs before the marker is built. The
+marker names the writer, not the lane type, so two attended sessions on one repository never
+overwrite each other's pass record. Resolve the instance from `${user_config.lane_instance}` and
+pass it through; the script owns everything after that, including the hostname fallback for an
+unset key and the validation that rejects a non-conforming id.
+
+## Invocation
 
 ```bash
-INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
-[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-# ^[a-z0-9][a-z0-9-]{0,31}$ — rejected, never sanitized-and-continued.
-case "$INSTANCE" in
-"" | -* | *[!a-z0-9-]*)
-  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
-  exit 1
-  ;;
-esac
-[ "${#INSTANCE}" -le 32 ] || {
-  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
-  exit 1
-}
-MARKER="work-items:attend-queue@$INSTANCE"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
-LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow
-  [ "$(printf '%s' "$1" | head -c ${#SENT})" = "$SENT" ] &&
-    [ "$(printf '%s' "$1" | tail -n +2 | wc -c | tr -d ' ')" -ge 16 ]
-}
-VERIFY() { # $1 = comment id; re-read what LANDED, whatever form the write took
-  BACK="$(gh api "repos/$REPO/issues/comments/$1" --jq '.body' 2>/dev/null | tr -d '\r')" &&
-    SENTINEL_OK "$BACK"
-}
-if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ]; then
-  echo "telemetry: body is empty or a literal @path - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! SENTINEL_OK "$(cat "$BODY_FILE")"; then
-  echo "telemetry: body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! LIST=$(LOOKUP); then
-  echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
-else
-  if [ -z "$LIST" ]; then
-    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null || true
-    LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
-  fi
-  CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
-  if [ -z "$CANON" ]; then
-    echo "telemetry: no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle" >&2
-  elif ! gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE" >/dev/null; then
-    echo "telemetry: the PATCH of comment $CANON failed - treat the lane as UNREPORTED and carry that forward to the next cycle; the comment holds an earlier body, not this cycle's write" >&2
-  elif ! VERIFY "$CANON"; then
-    echo "telemetry: comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp" >&2
-  else
-    for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
-      gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
-        -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
-    done
-  fi
-fi
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh" \
+  --lane attend-queue --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE"
 ```
 
-**`$BODY_FILE` contract.** The file's FIRST line must be exactly `$SENT`, with the pass report below
-it. The lookup matches on that prefix, so a body composed without it is not merely rejected here. It
-would never be found again, and the next pass would post a second comment. Compose the sentinel into
-the file; do not rely on anything downstream to add it.
+| Argument | Value |
+| --- | --- |
+| `--lane` | `attend-queue` for this lane. Names the marker's lane half. |
+| `--instance` | The resolved lane instance. An empty value, or a surviving literal `${user_config.…}` placeholder, means the key is unset and takes the sanitized-hostname fallback (headless-config floor: the script logs the assumption). |
+| `--repo` | The target repository as `owner/name`. |
+| `--issue` | The lane's tracking issue number. |
+| `--body-file` | The file holding this pass's composed body. |
 
-**Body gate, write check, and read-back (encoded above).** Three checks, because they catch
-different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
-that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
-below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes
-skill, `/claude-ops:lanes` ("Never pass a body as an `@path` string"). The floor is measured on
-everything below line 1, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte whether that
-line ends in LF or CRLF. The **write's own exit status** is checked next: a PATCH that fails leaves
-the previous cycle's body in place, which a read-back running regardless would happily accept. The
-**post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
-reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
-comment. It is also the only check that catches a correct body sent with the wrong flag:
-`-f body=@FILE` transmits the literal path, which is why this block only ever uses `-F body=@`.
+## What the upsert writes
 
-Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
-cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that
-does land still moves the comment's timestamp, so any consumer keying on that timestamp rather than
-on the body reads the lane as **fresh** while it carries nothing, which is why a refusal, a failed
-write, and a failed verification all have to be carried forward: stderr does not survive the session,
-and the next cycle must see that this one did not report. A lane with durable loop state records it
-there; a lane without one carries it in the cycle's own summary.
+The marker is `work-items:attend-queue@<instance>` and the comment's first line is the sentinel
+`<!-- claude-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
+rendered and distinct per writer, so sibling instances each own one comment on the same issue.
+The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
+sentinel is never adopted. Where the lookup finds nothing the script creates the comment; where it
+finds one it edits that comment in place; where it finds several the LOWEST id is canonical
+(numeric sort, deterministic for every session), the canonical comment receives this pass's full
+state, and every other sentinel comment is edited to a one-line tombstone, but only once the
+canonical write verifies, so a pass whose own write is unproven never tombstones a racing
+session's comment. That converges the fork two sessions create when both race the first-ever
+upsert. A crashed racer's unmerged counters are an accepted loss; nothing is deleted. A sibling
+instance's comment carries a different marker, never enters the list, and is neither made canonical
+nor tombstoned.
 
-Known limits, inherited from the wrapper: a PATCH that succeeds while storing the previous body still
-verifies, and `VERIFY` asserts that *some* well-formed telemetry is present, not that *this* cycle's
-write is what is present. Not replicated at all: the 64 KiB cap, the body-file containment checks,
-retries, and the wrapper's distinct non-zero exit codes. Every branch here exits 0 and reports
-through stderr alone.
+**`$BODY_FILE` contract.** The file's FIRST line must be exactly the sentinel above, with the pass
+report below it and at least 16 payload bytes there. The lookup matches on that prefix, so a body
+composed without it is not merely rejected. It would never be found again, and the next pass would
+post a second comment. Compose the sentinel into the file; do not rely on anything downstream to
+add it.
 
-**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
-see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
-duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
-every session), the canonical comment receives the current cycle's full state, and every other
-sentinel comment is edited to a one-line tombstone, only once the canonical write verifies, so
-it never matches a lookup again. This covers a racer that died between its POST and its own
-re-list, because the NEXT session's ordinary upsert performs the same reconcile. A crashed
-racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing
-is deleted. The reconcile converges duplicates **within one instance's own sentinel set**; a
-sibling instance's comment carries a different marker and never enters `$LIST`, so it is neither
-made canonical nor tombstoned.
+**Three checks, because they catch different failures.** The pre-write body gate runs before any
+API call and rejects a body that is empty, opens with a literal `@`, is not sentinel-prefixed, or
+carries under 16 payload bytes below the sentinel. The write's own exit status is checked next: a
+PATCH that fails leaves the previous pass's body in place, which a read-back running regardless
+would happily accept. The post-write read-back then re-reads what the write stored, the only check
+that sees a write which reported success and stored something else. Create and update use
+`-F body=@`, because `-f body=@FILE` transmits the literal path.
+
+## Exit codes
+
+Every refusal is a distinct code with a one-line stderr reason. A non-zero exit is never a reason
+to end the pass: the lane records the outcome and continues.
+
+| Code | Meaning | What the lane does |
+| --- | --- | --- |
+| 0 | Upserted and verified; duplicates superseded | Report the pass normally. |
+| 2 | Missing, repeated, or unknown argument | Fix the invocation. |
+| 3 | `--lane` is not `work-loop` or `attend-queue` | Fix the invocation. |
+| 4 | The resolved instance is empty, starts with a hyphen, or carries a character outside `[a-z0-9-]` | Stop the lane rather than write under a marker nobody chose. |
+| 5 | The resolved instance exceeds 32 characters (the length half of `^[a-z0-9][a-z0-9-]{0,31}$`; code 4 enforces the shape half) | Same as code 4. |
+| 6 | `--repo` is not `owner/name` | Fix the invocation. |
+| 7 | `--issue` is not a positive integer | Fix the invocation. |
+| 8 | `gh` or `jq` is not on PATH | Carry the telemetry in the pass report instead. |
+| 9 | The body file is missing, empty, or opens with a literal `@` | NOTHING was written. Fix the body composition; do not re-run blind. |
+| 10 | The body is not sentinel-prefixed, or carries under 16 payload bytes | Same as code 9. |
+| 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
+| 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
+| 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this pass's write. |
+| 14 | The canonical comment does not carry a well-formed telemetry body after the write | Treat the lane as UNREPORTED; do not trust the timestamp. |
+
+An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
+posts a second comment, the exact failure the singleton exists to prevent.
+
+**Carry every UNREPORTED outcome forward.** A degraded body that does land still moves the
+comment's timestamp, so a consumer keying on that timestamp rather than on the body reads the lane
+as **fresh** while it carries nothing. Stderr does not survive the session, so a refusal, a failed
+write, and a failed verification all have to reach the next pass, which for this lane means the
+pass's own summary.
+
+## Known limits
+
+A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that
+*some* well-formed telemetry is present, not that *this* pass's write is what is present. Not
+implemented at all: the 64 KiB cap, body-file containment, and read retries that the `claude-ops`
+lanes wrapper carries.
 
 Report the instance on its own `instance:` line in the pass report, never appended to `lane:`, the
 telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix. This lane carries no

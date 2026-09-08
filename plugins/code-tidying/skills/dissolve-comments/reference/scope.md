@@ -1,7 +1,12 @@
 # Scope — the empty-argument ladder, resolved by script
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/scope-code-files.sh` resolves the ladder deterministically and prints
-the rung it landed on, the base it compared against, the count, and the paths:
+The plugin's `scripts/scope-code-files.sh` (`../../../scripts/scope-code-files.sh` from this file)
+resolves the ladder deterministically and prints the rung it landed on, the base it compared
+against, the count, and the paths:
+
+> Paths in this file are written relative to the plugin, not as `${CLAUDE_PLUGIN_ROOT}`. That token
+> is substituted in `SKILL.md`, which Claude Code loads as skill content, but **not** in a reference
+> file, which arrives through the Read tool with the placeholder intact.
 
 ```text
 rung=<uncommitted|branch|repository> base=<ref|none> files=<n>
@@ -30,7 +35,7 @@ get read, and the tier-0 proof in [safety.md](safety.md) makes each deletion saf
 which commit introduced the comment.
 
 On the `repository` rung, order the files with
-`${CLAUDE_PLUGIN_ROOT}/scripts/rank-comment-targets.py` before triage. Its ranking is a reading
+`../../../scripts/rank-comment-targets.py` before triage. Its ranking is a reading
 order and never evidence: a high rank says look here first, not that a comment there is wrong.
 Byte-identical files collapse to one row with an `instances` count; triage the canonical copy and
 run its declared sync afterwards, never a copy.

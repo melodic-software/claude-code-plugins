@@ -3,6 +3,25 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Fixed
+
+- Restored the justification-lane sentence in the plugin description so the catalog names a skill
+  this plugin still ships.
+
+## [0.4.6]
+
+### Changed
+
+- Date the /loop scheduling claims in recurring-wiring, narrow the ten-minute fallback to its documented conditions, and point the three gather blocks at the composition record (prompt-audit follow-up F6)
+
+## [0.4.5]
+
+### Changed
+
+- **audit, delta:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.4.4]
 
 ### Fixed

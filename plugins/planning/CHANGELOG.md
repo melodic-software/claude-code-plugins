@@ -3,6 +3,39 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.4]
+
+### Fixed
+
+- **`interview`:** a question round overtaken by non-user output is now checked and re-presented.
+  The skill dispatches slow lookups without blocking the round, but its only re-surfacing rule
+  fired on a user reply, so a sub-agent return, background task notification, team report, or
+  Monitor firing that landed before the user answered left the round displaced and could leave a
+  recommendation standing that the return had just contradicted. `context/loop.md` gains an
+  "Out-of-band drift" rule keyed on relevance rather than arrival: a return touching no open row
+  gets one line, a return contradicting an asked question forces a restate naming the superseded
+  recommendation, and a return that answers an open row from the environment resolves it.
+  Re-presentation is narrow (a one-line pointer for the untouched rows, the full shape only for
+  the row that moved), the round is never held, and the floor is the user's next reply rather than
+  the async wake. When a reply and queued out-of-band output share a turn, the queued output is
+  applied against the pre-reply register first so a contradicting return cannot miss a row the
+  reply just marked answered. `SKILL.md` carries the summary and a pointer.
+
+## [0.39.3]
+
+### Changed
+
+- plan and interview: the agent-teams experimental default-off status carries a dated record, the session-config advisory framing is corrected because effort is readable while advisor state is not, and the gather-block claim points at the worktree skill's record (prompt-audit follow-up F6)
+- **interview:** the defense suite hashes jq's output with the CR a Windows jq appends stripped, so the eight eval-case digests and the roster digest grade the same on either host (prompt-audit follow-up F10)
+- **interview:** the defense suite's SKILL.md frontmatter digest is re-pinned for follow-up F12's removal of the inert `shell: bash` key, which selected the shell for an injection this file does not have (prompt-audit follow-up F10)
+
+## [0.39.2]
+
+### Changed
+
+- **wayfind:** the pre-compute reports a non-string `config.container_label` as an ERROR line instead of silently defaulting to `work-map` (prompt-audit follow-up F9).
+- **audit-answers, design, design-handoff, devils-advocate, interview, plan, prd:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.39.1]
 
 ### Fixed

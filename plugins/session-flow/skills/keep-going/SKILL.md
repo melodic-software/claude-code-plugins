@@ -163,10 +163,15 @@ For any "is it stuck / check the monitor / poke it":
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
   failure rather than treating the message as unparsable. In a single
   interactive session, if you are running, the answer is already GO.
-- Reset information available in-session is the limit **message text**
-  only (e.g. `resets 3:45pm`) and the interactive `/usage` view. There is
-  no environment variable, file, or API that exposes it. Read the reset
-  from the message; never invent a window.
+- Reset information reaches a session through the limit **message text**
+  (e.g. `resets 3:45pm`) and the interactive `/usage` and `/rate-limit-options`
+  views. Read the reset from the message; never invent a window. Verified
+  2026-09-06 against Claude Code 2.1.263 and
+  [Manage costs effectively](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit),
+  which states that the limit message shows when the window resets and points
+  at `/rate-limit-options` for the wait. Recheck when that page stops carrying
+  that statement, or when a release note names another surface for the reset
+  time.
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 

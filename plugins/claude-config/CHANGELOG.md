@@ -3,6 +3,26 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.39]
+
+### Changed
+
+- **audit-instructions:** criteria I30 to I34 state the current rule and its reason. The
+  prompt-audit provenance that named how those rows were added is not loaded with the criteria.
+
+## [0.40.38]
+
+### Changed
+
+- **audit, audit-permission-state, audit-permission-grants, audit-instructions, audit-prompting-postures:** the `pre-v2.1.211` start-directory boundary has one dated owner record under the Scopes table in `audit-permission-state/reference/criteria.md`, with five body sites pointing at it in one clause; the `conflict-scan.sh` figures in `conflict-criteria.md` are re-measured against this repository; the posture catalog names both model subpages, says which one a row means, and says to read the Fable 5.1 sibling when the audited component targets that model (prompt-audit follow-up F6).
+- **audit-instructions:** `restatement-scan.test.sh` resolves its fixture directory to the host's native spelling and folds separators before comparing, so the two I29 rows `restatement-scan.py` prints through `pathlib` match on Windows as well as Linux (prompt-audit follow-up F10).
+
+## [0.40.37]
+
+### Changed
+
+- **audit-instructions:** criteria I30 to I34 (dated stamp without recheck trigger, migration-relative phrasing in spokes, routing to an absent skill, sibling-file meta-commentary, maintainer rationale in model-facing YAML) from the 2026-09 prompt-audit's catalog gaps (follow-up F24).
+
 ## [0.40.36]
 
 ### Changed

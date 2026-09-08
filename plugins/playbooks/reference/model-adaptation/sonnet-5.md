@@ -232,13 +232,5 @@ Live fetches at authoring time (2026-08-04), for the harness-side thinking facts
 - <https://platform.claude.com/docs/en/about-claude/models/migration-guide> — the Sonnet 4.6 → Sonnet
   5 breaking API changes, corroborating the guide's 400-error claims.
 
-Quotation note: this repository is public. Roughly a dozen short verbatim spans above — among them
-the low-effort under-thinking clause, the literalism sentence, the cross-model effort mapping, the
-raise-effort steer, the tokenizer clause, the recall/precision sentence, and the concrete-severity
-bar — are de-minimis quotations from Anthropic's published documentation, reproduced with
-attribution and marked with quotation marks at each site. The severity bar and the effort steers are
-quoted rather than paraphrased because they are tested phrasing whose effectiveness may not survive
-rewording; every unquoted claim is paraphrase with citation.
-
 Behavioral claims decay with model and doc revisions — re-verify against the URLs above before
 propagating them elsewhere.

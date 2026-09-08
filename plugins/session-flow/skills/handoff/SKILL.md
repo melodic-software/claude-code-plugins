@@ -3,7 +3,6 @@ description: "Write a mid-session save-point for /clear-and-resume, a durable ha
 argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: session
   summary: Write a mid-session save-point for clear-and-resume

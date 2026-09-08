@@ -4,7 +4,6 @@ argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
-shell: bash
 ---
 
 ## Repository context. Gather first

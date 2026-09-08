@@ -22,7 +22,7 @@
     {
       "id": 5,
       "prompt": "My arid record has an entry with sites, reason and date but no check or claim. Does it suppress?",
-      "expected_output": "No. Reports it as malformed and FAIL, naming the missing required keys. States that all five keys (check, claim, sites, reason, date) are required and that an entry missing any is malformed and does not suppress -- a partial parse would let the audit suppress a mutant on a location match the contract never authorized. Also checks that the stored constituents hash to the entry's own finding_id and flags a mismatch as malformed for the same reason.",
+      "expected_output": "No. Grades the record by running `bash \"${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh\" .claude/mutation-testing-arid.md` rather than deriving anything by hand, and reports that entry's `malformed` line and the missing required keys it names, as a FAIL. States that all five keys (check, claim, sites, reason, date) are required and that an entry missing any is malformed and does not suppress -- a partial parse would let the audit suppress a mutant on a location match the contract never authorized. Reads the probe's outcome from the lint's exit code: 1 because an entry failed, with 0 for a record whose every entry passes (an absent record and an empty suppressions mapping included) and 2 for a record it cannot grade at all. Does not re-derive the finding_id by hand either; the same run reports a `mismatch` line naming the id the constituents actually hash to.",
       "files": []
     },
     {

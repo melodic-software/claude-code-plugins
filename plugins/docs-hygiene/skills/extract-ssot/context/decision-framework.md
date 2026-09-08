@@ -24,10 +24,17 @@ Two different questions ride on one threshold if they are not separated. They ar
 - **Abstraction gate** — *may a NEW SSOT artifact be minted for it?* Rule of Three, plus
   the full 6-test gate below.
 
-Rule of Three gates the second question only. The evidence it rests on — ~19% failure on curated
-skills, ~50% on practitioner-authored ones — is evidence about the cost of *creating* a shared
-artifact too early. It is not evidence that a maintainer should be kept from seeing a drifting pair
-of files.
+Rule of Three gates the second question only. The evidence it rests on is evidence about the cost of
+*creating* a shared artifact too early. It is not evidence that a maintainer should be kept from
+seeing a drifting pair of files.
+
+**The SkillsBench record.** SkillsBench comprises 84 tasks across 11 domains, and 16 of those 84
+come out worse with a curated skill than without one, about 19 percent. The same paper reports that
+self-generated skills provide no benefit on average, which is the basis for anti-pattern #8. Basis:
+[SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks](https://arxiv.org/abs/2602.12670),
+read 2026-09-06. Recheck when a revision of that paper moves the task count or the negative-delta
+count, or when a later benchmark supersedes it. No comparable figure for practitioner-authored
+skills is stated here, because no reachable publication establishes one.
 
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|
@@ -53,11 +60,28 @@ Two constraints keep the rule-of-one default honest:
 | # | Test | Why | Evidence |
 |---|------|-----|----------|
 | 1 | **Rule of Three** — duplication appears in 3+ places | Premature abstraction creates the wrong-abstraction trap; 1-2 instances are usually coincidence, not pattern — and when they are not, the N=1 / N=2 buckets remedy them in place instead of minting an artifact. Same principle whether the duplicated unit is a markdown heading, a string constant, a helper function, or a CI step | Don Roberts / Fowler *Refactoring* §1; Sandi Metz "The Wrong Abstraction" |
-| 2 | **Namable as a stable canonical unit** — the cluster has an identity that can be given one name and referenced by that name | For markdown: a heading or rule name. For code: a function/constant/type identifier. For config: an anchor/include/`$ref` target. Without a stable name, callers can't cite/import unambiguously and the SSOT becomes a grab-bag. For markdown specifically, the unit should also be categorical (vocabulary, constraints, IF-THEN) rather than nuanced reasoning — MDEval finding: providing an external markdown reference does NOT improve a model's Markdown Awareness vs well-designed inline rules ("feeding a reference to an LLM does not bring any benefit for Markdown Awareness; this unexpected finding challenges prevalent assumptions") | Anthropic best-practices "Avoid offering too many options"; MDEval arxiv 2501.15000; Endor Labs anti-pattern avoidance (64% reduction with categorical extraction) |
+| 2 | **Namable as a stable canonical unit** — the cluster has an identity that can be given one name and referenced by that name | For markdown: a heading or rule name. For code: a function/constant/type identifier. For config: an anchor/include/`$ref` target. Without a stable name, callers can't cite/import unambiguously and the SSOT becomes a grab-bag. For markdown specifically, the unit should also be categorical (vocabulary, constraints, IF-THEN) rather than nuanced reasoning — MDEval finding: providing an external markdown reference does NOT improve a model's Markdown Awareness vs well-designed inline rules ("feeding a reference to an LLM does not bring any benefit for Markdown Awareness; this unexpected finding challenges prevalent assumptions") | Anthropic best-practices "Avoid offering too many options"; MDEval arxiv 2501.15000; Endor Labs anti-pattern avoidance. See "The external-evidence records" below |
 | 3 | **Stable** — content does NOT change more than 1×/quarter | High churn drives heading/identifier rename frequency, which compounds the citation-rot risk captured in test #6 below; and every edit to an always-loaded file reaches sessions already running only at the next `/clear`, `/compact`, or restart, so a volatile SSOT ships corrections its live consumers do not see (anti-pattern #9). Not a caching cost — a mid-session edit to an always-loaded file keeps the cached prefix. Code-side equivalent: high churn means callers chase signature changes constantly | Claude Code prompt caching, [editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session) (verified 2026-08-04); Sandi Metz wrong-abstraction (volatile = signal that the abstraction shape is not yet stable) |
 | 4 | **Self-contained** — content has no implicit dependency on caller context | Leaky abstraction = silent failure. For markdown: the extracted block must not say "the prior step" or "as discussed earlier". For code: the helper must not depend on global state the caller happens to set. For config: the include must not reference variables the includer happens to define | Joel Spolsky "Law of Leaky Abstractions"; elements.cloud agent-instruction antipatterns |
 | 5 | **Bounded size** — extracted markdown file < 500 lines; extracted code module sized per language idiom | Anthropic's documented best-practice guideline ("Keep SKILL.md body under 500 lines for optimal performance"); over-long files force partial reads and downstream-session cache pressure. For code: each language has its own conventions (small composable modules over monoliths) | Anthropic best-practices "Keep SKILL.md body under 500 lines for optimal performance"; GitHub Copilot 4000-char hard truncation |
 | 6 | **One level deep** — referenced directly from caller, never via another reference | Markdown: A.md → B.md → C.md chains compound failure rates (5-20% per step). Code/config: the equivalent rule is no transitive re-export chains; the call site imports/cites the canonical SSOT directly | Anthropic best-practices "Avoid deeply nested references" |
+
+### The external-evidence records
+
+**MDEval.** The quoted span in test #2, "feeding a reference to an LLM (i.e., R-LLM) does not bring
+any benefit for Markdown Awareness", is the paper's own wording, and it calls the result an
+unexpected finding that challenges prevalent assumptions about external references. Basis:
+[MDEval: Evaluating and Enhancing Markdown Awareness in Large Language
+Models](https://arxiv.org/abs/2501.15000), read 2026-09-06 in the full text. Recheck when a revision
+of that paper drops the R-LLM comparison, or when a later benchmark measures the same thing.
+
+**Endor Labs.** That study measures a different thing from markdown extraction: it reports that
+anti-pattern-avoidance prompting lowers weakness density in AI-generated code. It supports the
+categorical, prohibition-shaped framing this test asks for, and nothing about extraction ratios, so
+no percentage is carried here. Basis:
+[Anti-Pattern Avoidance: A Simple Prompt Pattern for Safer AI-Generated
+Code](https://www.endorlabs.com/learn/anti-pattern-avoidance-a-simple-prompt-pattern-for-safer-ai-generated-code),
+read 2026-09-06. Recheck when that post is revised or withdrawn.
 
 ALL six must pass — and they gate ONE thing: creating a new SSOT artifact (`rule-file` /
 `new-skill` / `new-action`). They do not gate reporting, and they do not gate the non-abstracting

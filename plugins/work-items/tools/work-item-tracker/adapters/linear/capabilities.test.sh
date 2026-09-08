@@ -79,6 +79,11 @@ for k in sub_items_per_parent sub_item_depth dependencies_per_type list_items_ma
 done
 
 # --- the manifest agrees with the filesystem ---
+# `tr -d '\r'` on the verb names, not decoration: a Windows jq writes through a
+# text-mode stdout, so each key arrives as `get-item\r`. Every lookup then misses, every
+# verb falls to the declared-false arm, and `$SCRIPT_DIR/get-item\r.sh` is absent — so
+# the whole loop passes without inspecting anything, which is the one outcome a check
+# that exists to catch a disagreement may never have.
 while IFS= read -r v; do
   [[ "$v" == "capabilities" ]] && continue
   declared="$(jq -r --arg v "$v" '.verbs[$v]' <<<"$out")"
@@ -97,6 +102,6 @@ while IFS= read -r v; do
       pass "undeclared verb $v has no script"
     fi
   fi
-done < <(jq -r '.verbs | keys[]' <<<"$out")
+done < <(jq -r '.verbs | keys[]' <<<"$out" | tr -d '\r')
 
 [[ $FAILED -eq 0 ]] || exit 1

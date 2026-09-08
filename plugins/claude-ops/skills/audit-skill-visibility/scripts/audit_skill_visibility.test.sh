@@ -57,16 +57,32 @@ echo "ok: fresh-install fixture withheld every cold verdict ($UNOBS/$TOTAL)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"
+
+# A path this fixture EMBEDS -- in the two JSON files and in CLAUDE_PROJECT_DIR
+# -- is read verbatim by the engine, while the `--installed` ARGUMENT is
+# rewritten to the host's native form on the way in (Git Bash rewrites a POSIX
+# argument for a native interpreter; an environment variable and a file's
+# contents it leaves alone). Embedding `/tmp/...` therefore hands a native
+# Python a path it cannot open, so the marketplace catalog reads empty and the
+# fleet resolves to nothing. `cygpath -m` produces the same forward-slash
+# spelling the argument arrives in, and is absent (so this is the identity) on
+# a host that needs no rewrite.
+host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
+REPO="$(host_path "$WORK/repo")"
+
 printf -- '---\nname: one\ndescription: "does a thing"\n---\n' \
   >"$WORK/repo/plugins/alpha/skills/one/SKILL.md"
 printf '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}\n' \
   >"$WORK/repo/.claude-plugin/marketplace.json"
 printf '{"mkt":{"source":{"source":"directory","path":"%s"},"installLocation":"%s"}}\n' \
-  "$WORK/repo" "$WORK/repo" >"$WORK/cfg/known_marketplaces.json"
+  "$REPO" "$REPO" >"$WORK/cfg/known_marketplaces.json"
 printf '{"version":2,"plugins":{"alpha@mkt":[{"scope":"project","version":"1.0.0","installPath":"/nowhere","projectPath":"%s"},{"scope":"user","version":"2.0.0","installPath":"/nowhere-else"}]}}\n' \
-  "$WORK/repo" >"$WORK/cfg/installed_plugins.json"
+  "$REPO" >"$WORK/cfg/installed_plugins.json"
 
-INST="$(CLAUDE_PROJECT_DIR="$WORK/repo" "$PYTHON" "$ENGINE" --installed "$WORK/cfg" --render json)"
+# `projectPath` and CLAUDE_PROJECT_DIR are compared to each other, so both use
+# the one spelling; converting only one turns the project-scope record
+# not-applicable and changes what the assertion below measures.
+INST="$(CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$WORK/cfg" --render json)"
 read -r ENTRIES PLUGINS SKILLS <<EOF
 $(printf '%s' "$INST" | "$PYTHON" -c 'import json,sys; m=json.load(sys.stdin); f=m["fleet"]; print(f["manifest_entries"], f["plugins_resolved"], len(m["skills"]))')
 EOF

@@ -3,7 +3,6 @@ description: "Navigate a staged development workflow (explore → research → p
 argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: anytime
   summary: Navigate the staged dev workflow and suggest the next stage

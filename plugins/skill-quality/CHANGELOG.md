@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Changed
+
+- check, setup: dated records for the listing-budget and Skill-tool claims, and a recheck trigger on the pluginConfigs stamp (prompt-audit follow-up F6)
+
 ## [0.21.0]
 
 ### Changed

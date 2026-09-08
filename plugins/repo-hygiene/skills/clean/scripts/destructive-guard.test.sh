@@ -113,9 +113,9 @@ if command -v pwsh >/dev/null 2>&1; then
   assert_exit "pwsh cannot execute the Bash ack spelling" 1 $?
 
   # The stash selector needs quoting on the PowerShell lane. Bare `stash@{0}` is
-  # splatting syntax to pwsh, so git receives a mangled argument and reports
-  # "unknown switch `e'" without dropping anything. The guard accepts either
-  # spelling (the ack prefix is identical), so only a live run tells them apart.
+  # splatting syntax to pwsh, so git receives a mangled argument and drops
+  # nothing. The guard accepts either spelling (the ack prefix is identical),
+  # so only a live run tells them apart.
   PS_FIX="$(mktemp -d)"
   ps_git=(git -C "$PS_FIX" -c user.email=t@example.invalid -c user.name=t)
   if git init -q "$PS_FIX" 2>/dev/null &&
@@ -130,15 +130,22 @@ if command -v pwsh >/dev/null 2>&1; then
     make_stash two
     before="$(stash_count)"
 
+    # pwsh is a native process: it resolves the host's own path spelling, not
+    # the POSIX emulation layer's. Handing it the fixture path unconverted makes
+    # `git -C` fail on "cannot change to", which is not the quoting difference
+    # these two pairs exist to tell apart. `cygpath` is absent off Windows, so
+    # the fallback is the fixture path itself.
+    PS_FIX_NATIVE="$(cygpath -m "$PS_FIX" 2>/dev/null || printf '%s' "$PS_FIX")"
+
     pwsh -NoProfile -NonInteractive -Command \
-      "\$env:CLEAN_GUARD_ACK=1; git -C '$PS_FIX' stash drop stash@{0}" >/dev/null 2>&1
+      "\$env:CLEAN_GUARD_ACK=1; git -C '$PS_FIX_NATIVE' stash drop stash@{0}" >/dev/null 2>&1
     unquoted_rc=$?
     assert_exit "pwsh: unquoted stash selector fails" nonzero \
       "$([[ $unquoted_rc -ne 0 ]] && echo nonzero || echo "zero")"
     assert_exit "pwsh: unquoted stash selector drops nothing" "$before" "$(stash_count)"
 
     pwsh -NoProfile -NonInteractive -Command \
-      "\$env:CLEAN_GUARD_ACK=1; git -C '$PS_FIX' stash drop 'stash@{0}'" >/dev/null 2>&1
+      "\$env:CLEAN_GUARD_ACK=1; git -C '$PS_FIX_NATIVE' stash drop 'stash@{0}'" >/dev/null 2>&1
     assert_exit "pwsh: quoted stash selector succeeds" 0 $?
     assert_exit "pwsh: quoted stash selector drops one stash" "$((before - 1))" "$(stash_count)"
   else

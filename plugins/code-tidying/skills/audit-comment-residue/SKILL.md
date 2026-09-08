@@ -3,7 +3,7 @@ description: "Classify code comments for four residue shapes. History narration 
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -20,11 +20,13 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the `source-control` plugin's
+[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Pre-computed context
 
-Uncommitted code files (empty = none matched or the probe returned nothing): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh" 10 2>/dev/null || echo "(git status unavailable)"`
+Uncommitted code files (empty = none matched or the probe returned nothing): !`${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh 10 2>/dev/null || echo "(git status unavailable)"`
 Residue findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose

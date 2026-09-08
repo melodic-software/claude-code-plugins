@@ -27,9 +27,10 @@ context, read the file directly.
 | `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it; read before editing any skill body |
-| `.claude/rules/worktree-base-ref.md` | `.claude/settings.json, .claude/settings.local.json` | This repository sets no worktree.baseRef; new worktrees branch from the remote default branch (Claude Code's default). Never add worktree.baseRef: head back, even when a reviewer says a merge dropped it |
+| `.claude/rules/worktree-base-ref.md` | `.claude/settings.json, .claude/settings.local.json` | This repository sets no worktree.baseRef and never adds one back, even when a review says a merge dropped it; read before editing either settings file |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
+| `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |
 | `plugins/provenance/skills/audit/AGENTS.md` | `plugins/provenance/skills/audit/**` | Editing the provenance audit skill: contributor conventions |
 | `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 

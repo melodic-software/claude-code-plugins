@@ -164,12 +164,23 @@ repository content cannot reveal, so the reported figure is an upper bound for a
 A missing explicit root and a nonnumeric override are both environment errors (exit 2), never a
 silent skip or a coerced-to-zero budget.
 
+Both claims are verified 2026-09-06 against Claude Code 2.1.263 and the skills page
+(<https://code.claude.com/docs/en/skills>, the invocation-mode table row for
+`disable-model-invocation: true`, "Description not in context", and "Skill descriptions are cut
+short", which names `"name-only"` as the way to free budget). Recheck when either section stops
+carrying its statement, or when a release note names skill listing budget or `skillOverrides`.
+
 ## Cross-skill invocation (doctrine)
 
-The Skill tool takes one skill per call; a step needing two skills is two calls. Do not instruct
-Skill-tool invocation of a `disable-model-invocation: true` (user-invoked-only) target. Tell the
-user to run `/plugin:skill` instead. This gate does not automate that reachability check; author
-and review against the invariant.
+The Skill tool executes one skill within the main conversation, so a step needing two skills is two
+calls. Do not instruct Skill-tool invocation of a `disable-model-invocation: true`
+(user-invoked-only) target. Tell the user to run `/plugin:skill` instead. Verified 2026-09-06
+against Claude Code 2.1.263 and two pages: the tools reference
+(<https://code.claude.com/docs/en/tools-reference>, the `Skill` row) and the skills page
+(<https://code.claude.com/docs/en/skills>, "to keep Claude from invoking it through the Skill tool,
+set `disable-model-invocation: true`"). Recheck when the `Skill` row describes more than one skill
+per call, when the skills page stops carrying that sentence, or when a release note names the Skill
+tool. This gate does not automate that reachability check; author and review against the invariant.
 
 ## Gotchas
 

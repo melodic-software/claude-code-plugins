@@ -65,7 +65,10 @@ single appended JSONL file. Reads follow the same key: serving another project's
 exact failure keying exists to prevent — if nothing exists at the derived key, say "no prior
 report for this project"; never fall back to an unkeyed or differently-keyed path. Note once,
 for operators: uninstalling the plugin from its last scope deletes this whole tree unless
-`--keep-data` is passed — these reports have no other copy.
+`--keep-data` is passed, and these reports have no other copy. Basis: `claude plugin uninstall
+--help`, which documents `--keep-data` as "Preserve the plugin's persistent data directory
+(~/.claude/plugins/data/{id}/)". Verified 2026-09-06 against Claude Code 2.1.263. Recheck when that
+help text drops the flag or changes what it preserves.
 
 ## Persisted report shape
 

@@ -47,8 +47,10 @@ The discipline, at each of the three surfaces where skills apply:
 - **Delegated (subagent) work.** A fresh non-fork subagent does **not** inherit
   your skill listing. It discovers project, user, and plugin skills on disk
   through the Skill tool during execution
-  ([Subagents docs](https://code.claude.com/docs/en/sub-agents), fetched
-  2026-08-10). So **name the relevant skills in the delegation prompt** so the
+  ([Subagents docs](https://code.claude.com/docs/en/sub-agents), re-verified
+  2026-09-06 against Claude Code 2.1.263; recheck when that page stops stating
+  that a subagent can invoke unlisted project, user, and plugin skills through
+  the Skill tool, or a release note names skill preloading). So **name the relevant skills in the delegation prompt** so the
   subagent knows to reach for them. For a custom subagent that should always
   carry a discipline, recommend its `skills:` frontmatter, which **preloads the
   full skill content** into the subagent at startup (preload, not access. The

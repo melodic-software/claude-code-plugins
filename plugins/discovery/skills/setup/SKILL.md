@@ -51,7 +51,10 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    - **Harness version against the 2.1.219 floor** (`claude --version`). Below it, several behaviors
      the dispatch design relies on are false rather than merely absent: background became the default
      subagent execution mode in **2.1.198**, and below **2.1.218** a `context: fork` skill always
-     blocked the invoking turn and the narrow background tool set did not apply to it. Report the
+     blocked the invoking turn and the narrow background tool set did not apply to it. The dated
+     record for background as the default is
+     [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+     "Harness facts the dispatch design rests on". Report the
      observed version and, when it is under the floor, name which of those the session does not have.
      The skills still run, inline is always available, so this is INFO, not FAIL.
    - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`**. Report the value, present or absent, and say what
@@ -70,11 +73,16 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
      **sibling** rather than the agent as a child. Note that env vars are read at session start, so a
      value set now takes effect next session.
-   - **Fork availability.** Report it as a control, not a gate: `CLAUDE_CODE_FORK_SUBAGENT=1` forces fork
-     mode on and `=0` forces it off; when unset, server-side rollout may still enable or disable the
-     `fork` subagent type, the only authoritative probe is a live inheritance check (see
-     `discipline:sweep-all`'s preflight). Report the env var when set; never claim forks are
-     unconditionally available on every build. The user-facing command is `/subtask` as of **2.1.212**.
+   - **Fork availability.** Report it as a control, not a gate: `CLAUDE_CODE_FORK_SUBAGENT=1` turns fork
+     mode on in non-interactive mode and the SDK as well, and `=0` turns it off in every kind of
+     session. When the variable is unset, the documented default is on in interactive sessions and
+     off in non-interactive mode and the SDK, and the interactive default needs **2.1.232** or
+     later. A default is not a runtime guarantee, so the only authoritative probe is still a live
+     inheritance check (see `discipline:sweep-all`'s preflight). Report the env var when set; never
+     claim forks are unconditionally available on every build. The user-facing command is
+     `/subtask` as of **2.1.212**. Verified 2026-09-06 against Claude Code 2.1.263, the subagents
+     documentation page and the environment-variables page as fetched that day; recheck when either
+     page states a different default or a release note names fork mode.
 
 ## `apply` (idempotent)
 

@@ -36,7 +36,12 @@ Every shape below invokes the same line, and the two arguments are not optional 
 ```
 
 `/loop` is a bundled skill and needs no install. Supplying an interval converts it to a cron
-expression and fires on that fixed schedule, subject to the scheduler's jitter.
+expression and fires on that fixed schedule, subject to the scheduler's jitter. Basis:
+[Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks), which states that
+supplying an interval has Claude convert it to a cron expression and schedule the job, and which
+documents the jitter the scheduler adds to a recurring fire time. Verified 2026-09-06 against
+Claude Code 2.1.263 and that page as fetched that day. Recheck when that page drops the fixed-interval
+or jitter section, or when a release note names `/loop` scheduling.
 
 **A fixed interval is the right shape here, and the reason is specific.** The self-paced shape — an
 omitted interval, with the model choosing each delay — earns its keep for a *drain* loop, where what
@@ -49,9 +54,18 @@ self-paced schedule to consume.
 be nice. A surface whose last four cycles were quiet is telling you the interval is too short. Weekly
 or fortnightly suits an actively developed repository; monthly or quarterly suits a stable one.
 
-**Known constraint.** A loop launched this way expires after seven days and must be relaunched;
-on some providers an omitted interval silently becomes a fixed ten-minute schedule instead of a
-self-paced one, which is one more reason to name the interval explicitly.
+**Known constraint.** A loop launched this way expires after seven days and must be relaunched. The
+ten-minute fallback is narrower than it once read here: an omitted interval runs on a fixed
+ten-minute schedule only on Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform,
+and Microsoft Foundry, or with feature-flag fetching turned off, and only on Claude Code before
+v2.1.248. Elsewhere an omitted interval is self-paced. Naming the interval explicitly is still the
+safer form, because it makes the cadence policy readable rather than inferred. Basis:
+[Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks), whose seven-day-expiry
+section states that recurring tasks expire seven days after creation and fire one final time, and
+whose provider note carries the version floor and the provider list above. Verified 2026-09-06
+against Claude Code 2.1.263 and that page as fetched that day. Recheck when that page moves the
+expiry window, changes the provider list or the version floor, or when a release note names
+scheduled-task expiry or self-paced `/loop` scheduling.
 
 ## Shape 2 — a scheduled task (headless)
 

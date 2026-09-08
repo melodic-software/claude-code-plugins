@@ -3,7 +3,6 @@ description: "Dispatch deep external research to the heaviest isolated execution
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: research
   summary: Dispatch deep multi-topic research to the heaviest isolated tier
@@ -19,13 +18,15 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
 `/discovery:research-deep` is the **dispatcher** for deep external research, a depth/execution variant of the sibling `/discovery:research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
 
-This skill runs **inline (main context)**. It dispatches; the chosen tier provides the context isolation. It must run in main context because that is the only place both of its requirements hold, the `Workflow` tool, absent from every non-fork subagent, and a dependable `Agent` spawn, which no subagent is guaranteed to hold: see the *Dispatching this skill itself* gotcha.
+This skill runs **inline (main context)**. It dispatches; the chosen tier provides the context isolation. It must run in main context because that is the only place both of its requirements hold, the `Workflow` tool, absent from every non-fork subagent, and a dependable `Agent` spawn, which no subagent is guaranteed to hold: see the *Dispatching this skill itself* gotcha. The dated record for the tool-filter behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on".
 
 ## Topic
 

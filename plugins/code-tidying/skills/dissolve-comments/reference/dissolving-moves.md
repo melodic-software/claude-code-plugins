@@ -43,3 +43,24 @@ net; interface-creating moves need a test net and stay proposals in non-interact
 - **Renames have blast radius.** Change Function Declaration / Rename on anything referenced
   outside the run's scope needs every call site updated in the same pass; if references cannot be
   fully resolved (dynamic dispatch, reflection, string-based lookup), demote to a proposal.
+
+## Apply capacity — what class B can actually change on a given repository
+
+Class B reads like the skill's main engine. On many repositories it turns over nothing, and a run
+planned around it should know the three limits up front. All three are deliberate.
+
+- **2 of the 15 moves need no test net.** Only Rename Variable and Rename Field are tier 1, and
+  only on a *function-local* identifier. Every other move adds tokens, so the token proof reports
+  CODE-CHANGED by construction ([safety.md](safety.md)) and a discovered test net is required;
+  without one they are proposed, never applied.
+- **0 of 15 apply with tree-sitter absent.** The proof is unavailable, so "tier 1 without its proof
+  is tier 2" ([safety.md](safety.md)) demotes the two renames into the test-net tier with
+  everything else. On a repository with neither a runnable test net nor tree-sitter, a class-B pass
+  produces a proposal list and no edits.
+- **No move dissolves a why.** Names carry what and how, not why — the cost curve above says a name
+  that grows to carry rationale is a dishonest name. Rationale therefore never leaves through
+  class B; it is decided by the class-C earn-its-keep test, which `SKILL.md` step 5 evaluates on
+  evidence.
+
+The consequence worth stating plainly: on a rationale-dense codebase a class-B count of zero is the
+expected result, not a sign the pass failed to look.

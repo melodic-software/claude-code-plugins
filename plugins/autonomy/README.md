@@ -73,11 +73,15 @@ state and records that binding.
   Fable 5 prompting guide, section "Rare cases of early stopping", folded together with the
   companion checkpoint instruction that section asks to be paired with it
   (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>,
-  fetched 2026-08-08). It is authored locally rather than reproduced, per this repository's rule
+  fetched 2026-08-08). The evidence-before-a-state-changing-command sentence and the
+  recover-instead-of-stopping sentence carry the two behaviors the Claude Fable 5.1 prompting guide
+  adds in its section "Finish the whole task"
+  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>,
+  fetched 2026-09-06). Both are authored locally rather than reproduced, per this repository's rule
   against hand-copying upstream content. The citation lives here rather than in the contract file
   because `reference/` docs are written in surface classes and may not name vendors.
-  **Recheck trigger:** that section changing its clause set, or a second model guide stating the same
-  guidance in materially different terms.
+  **Recheck trigger:** either section changing its clause set, a later model guide restating this
+  guidance in materially different terms, or a model release that supersedes Claude Fable 5.1.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state,
   covering role homes, substrate availability, and budget posture, that writes a schema-versioned
   binding under

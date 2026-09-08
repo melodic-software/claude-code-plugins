@@ -123,7 +123,8 @@ binding layer, never unioned).
 Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
 autonomy table (`/source-control:babysit-prs`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
-ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository).
+ladder ([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+§1 in the marketplace repository).
 
 **Precedence: invocation arguments win — except the two policy-floor keys.** For every loop key
 above but `babysit_loop_merge` and `babysit_loop_trusted_internal_bot_logins`, an invocation

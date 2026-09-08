@@ -17,15 +17,28 @@ ineffective remediation those branches exist to withhold.
 
 ## Unwrap and wrap rules
 
-Read [`unwrap-before-compose.md`](unwrap-before-compose.md) now, before composing. It owns
-the peel rules and the shell-syntax guard, shared byte-identical with rate-limit-guard.
-Composing without those rules double-wraps a sibling tee and stacks another `sh -c`
-layer on every re-run. The JSON blocks below are this plugin's printed paths only.
+[`unwrap-before-compose.md`](unwrap-before-compose.md) owns the transform, shared byte-identical
+with rate-limit-guard, and `scripts/compose-statusline-wiring.sh` performs it. Run the script over
+the effective value resolved in step 3 and substitute what it prints:
+
+```bash
+jq '.statusLine' <the settings file that owns the effective command> |
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+    --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' --block --explain
+```
+
+Read that reference for the argument and exit-code contract and for the three judgments the script
+does not make. Composing by hand instead double-wraps a sibling tee and stacks another `sh -c`
+layer on every re-run. The JSON blocks below are this plugin's printed paths only; the script emits
+whichever of them the current value selects.
 
 ## The edit blocks
 
-Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
-trailing arguments):
+The angle-bracket placeholders below show each form's shape. The script fills them and prints the
+finished `command` string; substituting into one by hand is the arithmetic it exists to replace.
+
+Wrapping an existing statusline command (the script substitutes the operator's own renderer,
+recovered by the peel, as the trailing arguments):
 
 ```json
 {
@@ -47,7 +60,8 @@ No statusline configured (standalone minimal statusline):
 }
 ```
 
-When the shared guard selects the shell-wrapped form:
+When the script selects the shell-wrapped form, `<escaped renderer>` is already escaped in its
+output and needs no further editing:
 
 ```json
 {
@@ -79,13 +93,19 @@ installed but its shim is absent, print the single-shim form above and say that
 }
 ```
 
-The shell-syntax guard in [`unwrap-before-compose.md`](unwrap-before-compose.md) applies
-UNCHANGED to this form: `<current statusline command>` is the innermost ARGV here too, so run
-that test on the same unwrapped renderer and substitute whichever of the two forms it selects,
-never the raw string. Substituting `THEME=dark my-statusline` raw
-makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
-variable. The shim paths are the only part that nests; the innermost substitution rule never
-changes:
+The combined form is one invocation, not a second transform: pass both shims as `--wrap` prefixes
+in the order they nest, this plugin's first.
+
+```bash
+jq '.statusLine' <the settings file that owns the effective command> |
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+    --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' \
+    --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' --block --explain
+```
+
+Naming only one shim drops the other, because the peel strips every shim prefix it finds. The shim
+paths are the only part that nests; whether the innermost command takes an `sh -c` adapter is the
+same decision the script already made:
 
 ```json
 {
@@ -105,7 +125,11 @@ the cost is display latency, not typing latency.
 
 The command must run under Git Bash. `bash` is invoked explicitly for exactly
 that reason (the script's stated shell requirement); with Git Bash absent Claude Code routes
-statusline commands through PowerShell and this wiring does not apply (statusline reference,
-"Windows configuration"). State this with the printed edit: the wiring is applied ONCE and
+statusline commands through PowerShell and this wiring does not apply. The routing claim is
+verified 2026-09-06 against Claude Code 2.1.263 and the statusline reference
+(<https://code.claude.com/docs/en/statusline>, "Windows configuration": Claude Code runs status
+line commands through Git Bash when Git Bash is installed, or through PowerShell when Git Bash is
+absent). Recheck when that section stops naming both shells, or when a release note names
+statusline routing on Windows. State this with the printed edit: the wiring is applied ONCE and
 survives every later plugin update, because the shim, not the version-pinned cache path, is
 what the settings file names.

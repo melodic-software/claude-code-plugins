@@ -2,7 +2,7 @@
 
 Every measured claim this plugin makes about how Claude Code treats worktrees is recorded here with
 the script that produced it, so a recheck is one command rather than a re-derivation. Stamps follow
-[the upstream-drift convention](../../../../../docs/conventions/upstream-drift/README.md): claim,
+[the upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md): claim,
 basis, as-of date, recheck trigger.
 
 A record whose script cannot be re-run is not a fixture — it is a memory. If you change a probe,
@@ -16,7 +16,7 @@ all of it — and is dropped on exit 0.
 
 **Basis.** Four arms of `claude -p "…" --worktree <name> [--settings <file>]` in throwaway git
 repositories, plus <https://code.claude.com/docs/en/hooks> read as raw markdown (`hooks.md`) per the
-convention's [rung 1 fetch route](../../../../../docs/conventions/upstream-drift/README.md#the-rungs).
+convention's [rung 1 fetch route](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md#the-rungs).
 
 **As-of.** 2026-08-11, Claude Code **2.1.228**, Windows (Git Bash).
 

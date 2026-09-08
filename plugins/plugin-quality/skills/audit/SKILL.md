@@ -53,41 +53,39 @@ All sources absent → every key unset → defaults apply exactly as written bel
 This skill consumes the `context-guard` plugin's per-session snapshots as a **soft dependency**.
 No manifest dependency; fresh data informs dispatch, absence degrades conservatively.
 `zone_behavior: always-conservative` from the resolved config short-circuits this gate to the
-unknown row (with the notice naming the config, not a missing snapshot, as the reason).
+unknown row before the resolver runs, and wins over any word the resolver would have returned,
+including a fresh `smart` (the notice names the config, not a missing snapshot, as the reason).
 
-Resolve the zone with `jq` (a data seam, never invoke another plugin's scripts from the cache):
+Resolve the zone by running this plugin's own copy of the resolver, never by re-deriving the
+bands here and never by invoking another plugin's script from the cache.
+`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` is byte-identical to the context-guard canonical it
+is synced from, which is what makes this skill the same-plugin caller the context-guard reader
+contract scopes its resolver invocation to.
 
 1. This session's id is `${CLAUDE_SESSION_ID}`. If that literal string appears unexpanded, the
-   substitution is unavailable → zone = `unknown`.
-2. Read the snapshot at `~/.claude/context-guard/context/<session_id>.json`. Absent, unparsable,
-   or `captured_at` older than **10 minutes** (stale) → `unknown`. Null/missing `current_usage`
-   → `unknown`. `jq` unavailable → `unknown`.
-3. Bands come from `~/.claude/context-guard/zones.json` **read directly** when present and valid,
-   per shape (percentage keys: both `smart_max_used_percentage` and
-   `acceptable_max_used_percentage` numeric, `0 < smart < acceptable ≤ 100`; optional
-   `token_bands`: every class key decimal, every row's `smart_max_tokens` /
-   `acceptable_max_tokens` numeric with `0 < smart < acceptable ≤ class`. Absent `token_bands`
-   is valid zero-config); a malformed shape falls back to that shape's inlined defaults below.
-4. **Inlined default bands** (fallback only; byte-identical to the context-guard reader contract,
-   which owns them): percentage `smart` ≤ **50** < `acceptable` ≤ **75** < `dumb`, over
-   `context_window.used_percentage`; token bands over occupancy =
-   `total_input_tokens` + `total_output_tokens`, window class **200000**: `smart` ≤ **100000** <
-   `acceptable` ≤ **160000** < `dumb`, window class **1000000**: `smart` ≤ **200000** <
-   `acceptable` ≤ **400000** < `dumb` (class = largest key ≤ `context_window_size`; occupancy >
-   `context_window_size`, or a window below every class, makes the token shape not computable).
-   The token shape also requires the snapshot's `cli_version` to be present, purely numeric dotted,
-   and **≥ 2.1.132**, before that release the token fields were cumulative session totals, and a
-   cumulative value below the window size is indistinguishable from a real occupancy, so an absent,
-   malformed, or older version makes the token shape not computable.
-5. **Combination rule** (verbatim from the reader contract): when both shapes are computable, the
-   worse zone wins (conservative-min); when only one is computable, it stands alone; when neither
-   is, the zone is unknown. Null/missing/out-of-range `used_percentage` therefore drops only the
-   percentage shape, not the whole reading.
-6. **Compaction overrides zone:** if the main thread knows this session was compacted or
-   summarized, including when the context-guard evidence-degraded marker
+   substitution is unavailable → zone = `unknown`, and you never guess a session id.
+2. Otherwise run the resolver:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" "${CLAUDE_SESSION_ID}"
+   ```
+
+   **Contract.** One argument, the session id. Exit code is always **0**: the single word on
+   stdout is the whole answer, one of `smart` / `acceptable` / `dumb` / `unknown`. Empty stdout,
+   or any other word, is `unknown`. stderr carries band-configuration notices only and never
+   changes the word. The resolver owns the snapshot read, the `zones.json` band override, the
+   staleness window, the token-shape version floor, and the two-shape combination rule, whose
+   values the context-guard reader contract owns.
+3. **`unknown` takes the conservative row.** It is the conservative word and it carries no
+   direction: not evidence of a full window, not evidence of an empty one. Report it as "no fresh
+   context snapshot", never as a defect, a broken install, or a reason to ask the operator to fix
+   something, and never synthesize a zone from another source to replace it.
+4. **Compaction overrides the resolved word:** if the main thread knows this session was compacted
+   or summarized, including when the context-guard evidence-degraded marker
    `~/.claude/context-guard/context/<session_id>.compacted` exists. Treat it as
    evidence-degraded: the dumb row applies regardless of a green zone (a compacted session's
-   numbers reset while its evidence is already gone).
+   numbers reset while its evidence is already gone). The resolver does not read that marker;
+   this check is the consumer's.
 
 The gate is re-evaluated at each dispatch point (steps 2 and 5), not once at invocation.
 

@@ -734,7 +734,9 @@ Every dispatched subagent runs at a **capability tier** defined by the loop-lane
 convention: order-defined, resolved at runtime by model alias only, never a
 hard-coded model ID. A run that cannot establish which alias currently satisfies
 the required tier escalates rather than dispatching. Tier assignment follows the
-convention's capability table (`docs/conventions/loop-lane/README.md` §3):
+convention's capability table
+([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+§3):
 
 - **Routine per-PR fix workers** use the **strong** tier — the default
   implementer/worker tier for non-complex queue work.

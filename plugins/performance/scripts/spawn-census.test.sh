@@ -124,7 +124,7 @@ assert_contains "the refusal explains the undercount" "undercounts" "$RUN_OUT"
 # --- 7. a Windows drive-letter subject path is refused ---
 run_census --shim-dir "$SHIM" --label winpath --tool sed -- bash 'D:/worktrees/repo/hook.sh'
 assert_eq "a drive-letter subject path is refused" "2" "$RUN_RC"
-assert_contains "the refusal names the MSYS trap" "resolves nowhere" "$RUN_OUT"
+assert_contains "the refusal names the 127 shape" "exits 127 in both arms" "$RUN_OUT"
 
 run_census --shim-dir "$SHIM" --label winpathok --tool sed --allow-windows-paths \
   -- bash -c 'printf %s "D:/native/tool.exe"'

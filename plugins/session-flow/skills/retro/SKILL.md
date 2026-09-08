@@ -3,7 +3,6 @@ description: "Run a structured session retrospective: extract transcript metrics
 argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: retro
   summary: Structured session retrospective with codified learnings
@@ -115,7 +114,12 @@ one.
 
 **Offer a durable copy when the session was worth retrospecting.** The transcripts this retro reads
 are retention-swept (`cleanupPeriodDays`, default 30 days), and the conversation itself has no
-durable artifact; a session interesting enough to retrospect is the one worth keeping. When the
+durable artifact; a session interesting enough to retrospect is the one worth keeping. The default
+is verified 2026-09-06 against Claude Code 2.1.263 and
+[Data usage](https://code.claude.com/docs/en/data-usage#data-retention), which states that clients
+store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
+`cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
+release note names `cleanupPeriodDays`. When the
 built-in `export` command resolves in your session, close by offering the one-line export
 `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after verifying the memory root's
 self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Offer only,

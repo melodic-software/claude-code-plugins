@@ -12,7 +12,14 @@ metadata:
 
 Org-owned security review logic for the `claude-security-review` reusable
 workflow. Built-in `/security-review` is unusable in CI
-(origin/HEAD unresolvable under the Actions checkout action; cannot post). This org-authored skill is the CI path. The lane wrapper supplies `REPO` /
+(origin/HEAD unresolvable under the Actions checkout action; cannot post). The vendor's error
+reference carries the mechanism: that command builds its review context by diffing the branch
+against `origin/HEAD`, and when the ref does not exist the git commands that gather the diff fail
+and the review stops before it starts. The same entry names CI checkouts as a case that fetches
+too narrow a refspec for git to create the ref. Verified 2026-09-06 against Claude Code 2.1.263
+and <https://code.claude.com/docs/en/errors> as fetched that day; recheck when that entry stops
+naming CI checkouts, when the command gains a diff base that does not need `origin/HEAD`, or when
+a release note names `/security-review`. This org-authored skill is the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
 

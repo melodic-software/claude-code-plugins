@@ -1,9 +1,11 @@
 # The three-way triage
 
-Every comment in scope gets exactly one class. The classes have **different tests** — class A is
-judged on information content, class B on expressibility, class C on necessity — and conflating
-them applies the wrong treatment. The classic failure is deleting a class-B comment as if it were
-class A: that destroys information the code was supposed to absorb first.
+Every comment in scope gets exactly one class, and every class has a treatment on **both** sides of
+its test — a comment that fails class C's test is deleted, not kept for want of a branch. The
+classes have **different tests** — class A is judged on information content, class B on
+expressibility, class C on necessity — and conflating them applies the wrong treatment. The classic
+failure is deleting a class-B comment as if it were class A: that destroys information the code was
+supposed to absorb first.
 
 ## Class A — zero or negative information: delete outright
 
@@ -49,14 +51,36 @@ A comment survives only if **all three** hold:
    *at this location*. Rationale discoverable from context or version control does not need
    restating here; a constraint whose violation silently breaks something does, because blame
    trails are fragile across refactors.
+   **Decide this on evidence, not impression.** Step 5 of the workflow runs
+   `git log -L <start>,<end>:<file>` over the comment's own lines (or `git log -S` on a distinctive
+   phrase) and checks the repo's ADR or decision-log directory where one is declared. A rationale a
+   reader would find there **fails** this criterion; one absent from both, or whose commit trail
+   restates only what the diff already shows, **passes**. History that cannot be read (shallow
+   clone, unreadable blame) is recorded as unavailable and the comment is kept. Note the carve-out
+   in the sentence above is about *constraints*, not rationale: a silent-breakage constraint is
+   restated here even when history also carries it, and rationale gets no such exception.
 3. **Within the line budget.** A kept comment is held to `class_c_max_lines` (default 2, from the
    plugin's user config). Over budget, the treatment is Henney's second verb, *rewritten*: keep
    the durable constraint in one or two lines, stage the narrative for the commit message
    ([safety.md](safety.md)), delete the rest. A genuinely load-bearing multi-line contract (a regex
    explanation, a concurrency invariant, a rejected-alternative record paired with a regression
-   test) may exceed the budget when the report says why in one line. What never survives is
-   length spent on justification narrative. Posture `balanced` reports an over-budget comment
-   instead of rewriting it; `conservative` proposes the rewrite.
+   test) may exceed the budget when the report says why in one line **for that comment**, naming
+   it by file and line. A single reason covering a category, a file, or a batch does not satisfy
+   this and does not license the keeps under it: the per-comment sentence is the cost that keeps
+   the exception rare. What never survives is length spent on justification narrative. Posture
+   `balanced` reports an over-budget comment instead of rewriting it; `conservative` proposes the
+   rewrite.
+
+**When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
+under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
+first per [safety.md](safety.md). It is not reclassified as class A — class A is redundancy with
+code that is present, and this comment is not redundant — and it is not kept for want of a branch.
+Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a comment to deletion.
+
+Under `safe` mode and posture `conservative` this deletion is **proposed, never applied**. Those
+modes apply class-A deletions only, and a comment that reached this branch is class C whatever its
+test returned — the mode ladder narrows what is applied, and it does not get to be widened by a
+verdict reached inside it.
 
 A rewrite is an edit with a gate: the comment's replacement text is checked by
 `change-shape.py` like any deletion (COMMENT-ONLY, since only comment tokens changed), and the
@@ -88,4 +112,6 @@ before the deletion is final — see [safety.md](safety.md).
 | `// check if the order qualifies for the discount` above 6 lines of conditions | B | Extract Function `QualifiesForDiscount(order)`, test, delete |
 | `// 86400 = seconds per day` | B | Replace Magic Literal `SecondsPerDay`, delete |
 | `// items must stay sorted; binary search below depends on it` | C | Keep (constraint, load-bearing, terse) |
-| 12-line comment explaining why approach X was chosen over Y | C-adjacent narrative | Extract any durable constraint to one line; stage the narrative for the commit message; delete the rest |
+| `// we retry twice here because the upstream 502s on cold start`, and the commit that added it says exactly that | C, criterion 2 fails | Stage the narrative, delete behind the COMMENT-ONLY proof (recoverable where a reader would look) |
+| `// this is NOT thread-safe; callers serialize`, recorded nowhere else | C | Keep (negative information, load-bearing, terse — not exempt, but it passes the test) |
+| 12-line comment explaining why approach X was chosen over Y | C, criterion 3 fails | Extract any durable constraint to one line; stage the narrative for the commit message; delete the rest |

@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.4]
+
+### Changed
+
+- Dated the six harness and gh claims, with the permission-preflight reference owning the classifier record and the other sites pointing at it (prompt-audit follow-up F6)
+- **onboard-adapter:** the generated capabilities suite drops the CR a Windows jq appends to each verb name, so its manifest-versus-filesystem check inspects the adapter instead of passing on ten lookups that missed; the vendored gitea and linear copies take the same fix (prompt-audit follow-up F10)
+
+## [0.40.3]
+
+### Changed
+
+- work-loop, attend-queue: the lane-telemetry upsert moved out of the transcribed shell block in both `reference/telemetry-upsert.md` files into `scripts/lane-telemetry-upsert.sh`, which takes lane, instance, repo, issue, and body-file arguments and gives every refusal branch its own non-zero exit code; the references now state the contract and invoke the script (prompt-audit follow-up F11)
+- work-loop: eval case 6 asserts the instance is passed to the upsert script rather than hand-validated (prompt-audit follow-up F11)
+- work-loop, attend-queue: both SKILL.md bodies name the upsert script and describe what the reference now owns; the shared-tracker note says the `gh` call comes from this plugin's own script instead of an inlined block (prompt-audit follow-up F11)
+
 ## [0.40.2]
 
 ### Changed

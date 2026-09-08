@@ -3,6 +3,39 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.5]
+
+### Fixed
+
+- **`ab.test.sh`**: the unread stdin arm is `sleep 0.01` instead of `exit 0`, so a host whose
+  millisecond clock records `exit 0` as 0ms still produces a defined paired ratio. Sleep does
+  not drain stdin, so the 141-fabrication assertion still holds.
+
+## [0.1.4]
+
+### Fixed
+
+- **`ab.test.sh`**: the plumbing no-op is `sleep 0.01` instead of `printf ok`, so a host whose
+  millisecond clock records `printf` as 0ms still produces a defined paired ratio rather than
+  fail-closing every comparison-arm sample.
+
+## [0.1.3]
+
+### Changed
+
+- **`harness-integrity.md` rule 6**: corrected the Windows path-spelling claim and every restatement
+  of it across the plugin. A drive-letter path in forward-slash form does resolve when bash reads it.
+  What collapses is the backslash form interpolated unquoted into a command string, which then exits
+  127. The rule now carries a dated verification and a recheck trigger, and the
+  `harness_require_posix_path` refusal with its `--allow-windows-paths` escape hatch is unchanged.
+  (prompt-audit follow-up F2)
+- **`harness-integrity.md` framing**: restated the failure table's introduction, the rule prose, and
+  the two section headings in the present tense, dropping the session narration, the "four of the
+  five" and "three of the five" counts, and the standalone-skill aside. Prose now points at
+  "failure N" rather than "case N", and no table row, rule, or assertion was renumbered or
+  reordered. (prompt-audit follow-up F2)
+- Dated the benchstat flag-set claim in the snapshot skill against the tool's own documentation (prompt-audit follow-up F6)
+
 ## [0.1.2]
 
 ### Changed

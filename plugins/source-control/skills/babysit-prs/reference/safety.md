@@ -387,8 +387,9 @@ Two facts about the wrappers' bare names, both load-bearing:
   ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
   loss is per-session and silent, so a bare name that resolves today can be gone next session.
 - **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
-  strips only a fixed wrapper set — `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
-  `builtin`, `noglob`, and bare `xargs` ([permissions](https://code.claude.com/docs/en/permissions)).
+  strips only a fixed wrapper set — `timeout`, `time`, `nice`, `nohup`, `stdbuf`, the shell
+  builtins `command` and `builtin`, and zsh's `noglob`
+  ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers)).
   `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
   not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
@@ -399,9 +400,9 @@ Two facts about the wrappers' bare names, both load-bearing:
   CLI also accepts `manual` as an alias wherever the value is typed
   ([permission modes](https://code.claude.com/docs/en/permission-modes#available-modes)). An
   uncovered wrapper call lands three ways:
-  - **`default` and `acceptEdits` prompt.** `acceptEdits` auto-approves file edits and a fixed
-    filesystem command set (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) that `bash` is not
-    in; every other Bash command outside the built-in read-only set still prompts. A per-call
+  - **`default` and `acceptEdits` prompt.** `acceptEdits` auto-approves file edits and common
+    filesystem commands (`mkdir`, `touch`, `mv`, `cp`, and others) that `bash` is not among; every
+    other Bash command outside the built-in read-only set still prompts. A per-call
     permission prompt is expected behavior here, not a misconfiguration.
   - **`plan` prompts only on its no-classifier branch.** Plan mode still *runs* shell commands (it
     blocks source edits, not commands). When auto mode is available and `useAutoModeDuringPlan` is
@@ -424,6 +425,20 @@ Two facts about the wrappers' bare names, both load-bearing:
   into auto mode and resolve before the classifier, but `autoMode.classifyAllShell: true` suspends
   every one of them while auto mode is active
   ([auto-mode config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)).
+
+**Verification record for this block.** The claims above are verified 2026-09-06 against Claude
+Code 2.1.263. The wrapper-strip list and the read-only carve-out come from
+[permissions](https://code.claude.com/docs/en/permissions#process-wrappers), which states that the
+list "is built in and is not configurable". `xargs` is not on it, so a bare `xargs` prefix is not
+stripped and a rule written for the inner command does not match. The mode names, the `manual` alias from v2.1.200, the `acceptEdits`
+filesystem set, and the plan-mode branch on `useAutoModeDuringPlan` being on by default come from
+[permission modes](https://code.claude.com/docs/en/permission-modes#available-modes). The plugin
+`bin/` PATH claim rests on
+[anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
+`gh api repos/anthropics/claude-code/issues/68066` reports closed as not planned, so the behavior
+stands unfixed and the path form below stays the safe one. Recheck when either docs page stops
+carrying the quoted spans, when a release note names permission modes, `classifyAllShell`, plugin
+`bin/` PATH handling, or the wrapper-strip list, or when that issue reopens or closes as completed.
 
 The `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
 `${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is nonetheless the form to use: it is the only

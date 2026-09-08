@@ -15,8 +15,8 @@ fixed semantics are these, and each one is a defect that shipped:
 
 2. THE SIGNAL MUST APPEAR IN AT LEAST ONE ARM. A pattern that matches in
    neither arm is not a negative result, it is a check that never ran. This is
-   the assertion that catches source failures 3 and 4, where a `D:/...` path
-   handed to bash resolved nowhere and the grep found nothing in either arm.
+   the assertion that catches source failures 3 and 4, where a Windows path
+   spelling left both arms at 127 and the grep found nothing in either arm.
 
 3. THE PATCH MUST HAVE APPLIED. The anchor must occur exactly once, the patched
    bytes must differ from the original, and the patched bytes must be what is
@@ -363,7 +363,7 @@ def main() -> int:
             2,
             "HARNESS BROKEN",
             f"the check command exited 127 (command not found) in the {', '.join(arms)} arm(s). "
-            f"Under MSYS that is what a D:/... path handed to bash produces, and it is how "
+            f"A Windows path spelling handed to bash is one way to produce that, and it is how "
             f"four of the five source-run harnesses reported a confident verdict for a check "
             f"that never ran. Hand bash a /d/... path.",
         )

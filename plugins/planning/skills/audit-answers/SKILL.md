@@ -3,7 +3,6 @@ description: "Adversarially validate a completed /planning:interview's answers w
 argument-hint: "[topic] (no args reads the current topic's interview ledger)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: contract
   summary: Adversarially validate interview answers with fresh-context agents
@@ -19,7 +18,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 

@@ -56,7 +56,8 @@ The check is **report-only** and always exits `0`. On any `GAP`, surface the exa
 and continue per this lane's report-only posture, the fix is **operator-side** (the standards
 permission floor and the local `additionalDirectories` seam) and is **never self-applied**: the
 classifier blocks an agent broadening its own `permissions.allow`, and a plugin `settings.json`
-grant is inert. Never retry a permission denial into broader grants. The full contract, remediation,
+grant is inert. Never retry a permission denial into broader grants. The dated record for both
+claims, the full contract, remediation,
 and the `/source-control:babysit-prs` applicability note live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md`](${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md).
 
@@ -92,7 +93,8 @@ produced (CONTRACT.md "Exit codes"). This is a known harness condition, and it c
 while allowing a sibling verb on the same script moments later. Do not retry
 the denied call, do not treat it as a hard failure, and do not attempt to self-widen permissions to
 work around it (the classifier blocks an agent broadening its own grants. See
-`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer"). Report
+`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer", whose
+"The dated record for both claims" carries the dated basis for this refusal). Report
 it once for the cycle (not once per id), skip this step entirely, and proceed to Selection
 Priority, the same posture as
 exit `6`. Stale leases from crashed/abandoned sessions will accumulate under this condition until an

@@ -3,7 +3,6 @@ description: "Multi-source external research in chained phases, corpus enumerati
 argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: research
   summary: Multi-source external research with source tiers and a coverage ledger
@@ -19,7 +18,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
@@ -39,7 +40,7 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 
 **Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker and the coverage checker; before an **inline** research run, probe the coverage checker (criterion 11 still applies inline). A denied or errored probe **halts**. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
-**Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired.
+**Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired.
 
 ```text
 discovery-research-preload-4c1f9a

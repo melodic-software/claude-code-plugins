@@ -285,6 +285,18 @@ PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_contains "a missing entry declines with a reason" \
   "$(echo "$PF_OUT" | jq -r '.declined[].reason')" "does not exist"
 
+# A missing DIRECTORY component, not just a missing leaf. The repo-relative
+# position of an entry is what git can place, and git can place nothing here,
+# so the entry has to survive as written. Reduced to its basename it would name
+# the fixture's root README.md, which exists: the run would report a file the
+# caller never asked for and count it as a hit.
+printf '%s\n' "no-such-dir/README.md" >"$PATHS"
+PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
+assert_eq "an entry under a missing directory lists nothing" \
+  "$(echo "$PF_OUT" | jq -r '.files | length')" "0"
+assert_contains "and it declines under the name it was given" \
+  "$(echo "$PF_OUT" | jq -r '.declined[].path_pattern')" "no-such-dir/README.md"
+
 run_default --paths-file "$TEST_TMPDIR/absent.txt" >/dev/null 2>&1
 assert_exit "an unreadable --paths-file exits 2" "$?" "2"
 

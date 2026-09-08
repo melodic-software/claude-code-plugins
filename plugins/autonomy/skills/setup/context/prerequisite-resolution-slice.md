@@ -7,9 +7,9 @@ declared scheduling surface, and why.
 
 ## Liveness
 
-This slice's `check` is an **engine health-check** surface under
-[`liveness-assertion`](../../../../../docs/conventions/liveness-assertion/README.md): it
-invokes the deterministic resolver end-to-end and fails loud on internal failure. It never
+This slice's `check` is an **engine health-check** surface under the marketplace's
+liveness-assertion convention: it invokes the deterministic resolver end-to-end and fails
+loud on internal failure. It never
 reports "healthy" from configuration alone, and never invents a verdict-shaped fallback.
 
 ## `check` (read-only)
@@ -35,7 +35,9 @@ Wrapper:
    declaration; the identity stays `unsupported` while the finding is open.
 2. **Prose-context pass (proposal only).** Read host instruction files (`CLAUDE.md`),
    secondary agent-instruction files (`AGENTS.md` — reaches a session only through a
-   reference), and `README` for *proposed* declarations into **non-security keys only**.
+   reference; the dated record for that platform bound is the prerequisite-resolution
+   contract in this plugin's reference tree), and `README` for *proposed* declarations into
+   **non-security keys only**.
    The deterministic resolver never parses prose; prose is never runtime authority.
 3. **Human ratifies.** Interactive contexts present proposals one at a time. Non-interactive
    and forked contexts skip ask-and-persist rungs and report assumptions (topic-docs rule).

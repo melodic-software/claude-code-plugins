@@ -5,7 +5,7 @@ review reports and enforcement-rung proposal stubs land in a consuming repo. All
 this one document; none bakes its own paths.
 
 Implements the topic-docs convention:
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
 The contract owns the tier table, concern-file schema, slug spec, and lifecycle; this document binds
 this plugin's artifacts to it.
 

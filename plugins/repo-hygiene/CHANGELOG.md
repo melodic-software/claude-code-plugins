@@ -3,6 +3,24 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.39]
+
+### Changed
+
+- **clean:** the `destructive-guard`, `git-branch-audit` and `git-branch-delete` suites resolve their fixture roots to the physical path the scripts report, hand a native path to `pwsh`, and ask for a real symlink where the host would otherwise copy, so all three grade on this host what they already graded on Linux (prompt-audit follow-up F10)
+
+## [0.10.38]
+
+### Changed
+
+- Date the `${CLAUDE_SKILL_DIR}` substitution-scope claim and its unverified-scope hedge, and point the clean gather block at the composition record (prompt-audit follow-up F6)
+
+## [0.10.37]
+
+### Changed
+
+- **clean:** the inert `shell: bash` frontmatter key is dropped, since no injection remains in the file (prompt-audit follow-up F12).
+
 ## [0.10.36]
 
 ### Added

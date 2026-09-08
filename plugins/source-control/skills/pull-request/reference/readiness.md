@@ -37,8 +37,7 @@ Reference shapes — the discovery logic above is authoritative, not this table.
 | Actor | Reports as | Notes |
 |-------|-----------|-------|
 | CI workflows | Check runs (names vary by ecosystem) | Repos often aggregate into a single required gateway check |
-| Claude review | Check run + may post comments | May fail on usage limits — classify from logs |
-| Codex | Commit status (`codex-review`) + PR review | Posts via the Reviews API (not issue comments). Trigger configurable: "On every push" recommended for re-review after fixes. **Emoji signals:** 👀 (eyes) = reviewing, will post comments — MUST wait for comments before declaring ready; 👍 (thumbs-up) = approves, no findings, no comments coming. **Comment timing:** the `codex-review` check can pass BEFORE inline comments are posted — check-run `pass` does NOT mean "no comments." When the 👀 emoji is present, poll for codex bot comments until they arrive or a 3-min timeout elapses. **May not auto-fire** — if no reaction after ~3 min, post `@codex review` as a PR comment to trigger manually. Codex reacts to the trigger comment (not the PR body) |
+| AI reviewers | Check run, PR review, or both — varies by reviewer | Where a reviewer's round lands, which push its comments belong to, and how long it takes are per-reviewer facts. Look the discovered login up in [reviewer-shapes.md](reviewer-shapes.md); a reviewer with no record there gets the Gate 5 cooldown and no reviewer-specific wait |
 | Security scanners (GitGuardian, Snyk, CodeQL, …) | Check run + comment | Mandatory triage per Gate 3 when present |
 
 ### When actors change
@@ -80,11 +79,11 @@ gh pr checks <pr_number> --json name,state,bucket
 - [ ] Every check run is in a terminal state (`SUCCESS`, `FAILURE`, `SKIPPED`) — none `PENDING` or `IN_PROGRESS`
 - [ ] No unexpected checks missing (compare against expected actors table)
 
-**Gotcha — `codex-review` may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses. `codex-review.yml` workflow posts a real check-run that resolves cleanly; the external Codex bot ALSO posts a redundant commit status that may never finalize (sits at `PENDING` indefinitely). When you see two `codex-review` rows — one `pass|SUCCESS` with a `link`, one `pending|PENDING` with no link — treat check-run as authoritative. Verify via:
+**Gotcha — one name may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses, so a workflow and an external app posting under the same name produce two rows: the workflow's check-run resolves cleanly, while the app's redundant commit status may never finalize and sits at `PENDING` indefinitely. When you see two rows for one name — one `pass|SUCCESS` with a `link`, one `pending|PENDING` with no link — treat the check-run as authoritative. Verify with the duplicated name in place of `<name>`:
 
 ```bash
 gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
-  --jq '.check_runs[] | select(.name | test("codex"; "i")) | "\(.status) \(.conclusion)"'
+  --jq '.check_runs[] | select(.name | test("<name>"; "i")) | "\(.status) \(.conclusion)"'
 ```
 
 If `completed success`, the stuck commit-status is the redundant external bot — classify as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
@@ -118,7 +117,7 @@ Identify all security-related actors (check runs with "security", "guardian", "C
 ### Gate 4: All comments processed
 
 ```bash
-# PR reviews (review body — bots like Codex post here)
+# PR reviews (review body — a reviewer that posts no issue comment lands here)
 gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/reviews?per_page=100" \
   | jq -r '.[] | "\(.user.login): \(.state) — \(.body[:100])"'
 
@@ -137,23 +136,26 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
   - Reacted to (thumbs up/down for bots, user approval for humans)
   - Replied to with evidence
 - [ ] No unprocessed comments exist
-- [ ] Comment-only actors (Codex) waited for per timeout in expected actors table
+- [ ] Every discovered comment-only actor waited for on the terms Gate 5 sets for it
 
 ### Gate 5: Cooldown period
 
 - [ ] **Minimum 2 minutes** have elapsed since last check-run completion or comment arrival
 - [ ] Prevents race condition where an actor hasn't posted yet but will shortly
 - [ ] If a new comment or check result arrives during cooldown, **restart cooldown**
-- [ ] **Codex comment wait:** if `codex-review` check passed AND codex reacted with 👀 (eyes), wait for codex inline comments to arrive — up to 3-min timeout after check completion. 👍 (thumbs-up) without 👀 = no comments expected, skip wait. **Scope to current push:** filter by `commit_id` matching current HEAD SHA (codex comments carry the reviewed commit's SHA). On PRs with prior codex comments from earlier pushes, unscoped poll short-circuits on stale comments:
+- [ ] **Per-reviewer wait:** take the reviewer logins discovery produced — the `[bot]` authors across the three comment surfaces and the reviewers on the reviews endpoint — and look each one up in [reviewer-shapes.md](reviewer-shapes.md). A login with a recorded shape is waited for on that record's terms, which distinguish a round that finished with findings, a round that finished with none, and a round that never started. A login with no record, or whose signal that file records as not observed, gets the cooldown above and nothing further: never hold the gate open for a signal no record says arrives, and never treat a check-run `pass` as "no comments coming" unless that reviewer's record says its check run is posted after its comments
+- [ ] **A reviewer that posted nothing has not passed the gate, and the wait for it is bounded.** Silence is a round that never started as often as it is a round with no findings, and the two are told apart by the reviewer's own record, not by the clock. End the wait for a reviewer on the first of three events: its record's no-findings signal appears; findings appear from it on **any** of the three surfaces, not inline comments alone, since a reviewer that posts its findings only in a review body would otherwise read as still working forever; or the wait passes the bound below. Then, and only then, the gate moves on
+- [ ] **The bound is the reviewer's recorded round latency plus the cooldown above, and at least five minutes.** Past it, stop holding the gate: name that reviewer in the readiness verdict as not yet responded, say which of its artifacts are missing, and let the human weigh the missing review against merging. A reviewer with no recorded latency gets the same five-minute floor. Reaching the bound is a reported outcome, never a silent pass and never a reason to keep re-firing the trigger phrase in a loop
+- [ ] **Scope the wait to the current push.** Comments from an earlier round are not evidence that this round finished, and each surface carries a different field for "which commit was this written against". Inline review comments (`pulls/<pr>/comments`) carry both `original_commit_id` and `commit_id`; select on `original_commit_id`. The reviews endpoint (`pulls/<pr>/reviews`) carries `commit_id` alone, frozen at the reviewed commit. Issue-level comments (`issues/<pr>/comments`) carry no commit field at all, so scope those by `created_at` against the push time. For the inline surface, against the current HEAD SHA, one reviewer per run with its discovered login in the `--arg login` value:
 
   ```bash
   HEAD_SHA=$(git rev-parse HEAD)
   gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" \
-    | jq -s --arg sha "$HEAD_SHA" \
-      '[.[][] | select(.user.login == "chatgpt-codex-connector[bot]" and .commit_id == $sha)] | length'
+    | jq -s --arg sha "$HEAD_SHA" --arg login "<discovered reviewer login>" \
+      '[.[][] | select(.user.login == $login and .original_commit_id == $sha)] | length'
   ```
 
-  Unpaginated this undercounts — the codex comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
+  `commit_id` is the wrong field for this question: it re-anchors to the newest head while a comment's hunk still applies, so it counts surviving prior-round comments as current and short-circuits the wait. Unpaginated the count also undercounts — the comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
 
 ### Gate 6: No pending work
 
@@ -173,6 +175,7 @@ Only when ALL gates pass, present:
 **Security:** GitGuardian [evaluated — N findings: X false positive, Y not applicable]
 **Comments:** X from N reviewers — Y fixed, Z deferred, W incorrect
 **Cooldown:** 2+ min since last activity
+**Reviewers:** [each discovered reviewer — responded, no-findings signal, or not yet responded at the bound with its missing artifacts named]
 **Failures classified:**
 - `review`: FAILURE — usage limit (informational, safe to proceed)
 - [any other failures with classification]

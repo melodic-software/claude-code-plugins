@@ -1398,6 +1398,11 @@ class HygieneTests(unittest.TestCase):
                     side_effect=lambda path, *a, **k: (is_target(path), None),
                 ),
                 mock.patch.object(hygiene, "system_roots", return_value=[]),
+                # The mutation lane is proven only on Linux, so off Linux the
+                # real call returns execution-platform-unsupported and blocks
+                # every candidate. This case is about the root-children +
+                # os-managed pairing; the platform gate has its own case above.
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
             ):
                 result = hygiene.preview(snapshot, plan)
             self.assertEqual("ready-for-explicit-approval", result["status"])
@@ -3946,8 +3951,12 @@ class HandoffVerifyTests(unittest.TestCase):
                 "all-stashes-duplicated"
             ]
             self.assertEqual("passed", stash_gate["status"])
+            # The engine reports the path it resolved, so compare the resolved
+            # spelling: tempfile inherits %TEMP% in 8.3 short form on Windows,
+            # and /var over /private/var on macOS. Both sides still name one
+            # exact directory.
             self.assertEqual(
-                [str(duplicate)], stash_gate["stashes"][0]["duplicated_at"]
+                [str(duplicate.resolve())], stash_gate["stashes"][0]["duplicated_at"]
             )
 
     @unittest.skipUnless(

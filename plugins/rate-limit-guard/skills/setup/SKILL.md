@@ -106,16 +106,28 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    just means no rate-limit stop has been recorded yet.
 6. **Print the operator edit.** Always print the applicable `settings.json` statusline edit,
    marked clearly as the operator's to apply. The wiring target is the shim's fixed path, never
-   `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file:
+   `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file.
 
-   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) now, before
-   composing: it owns the peel rules and the shell-syntax guard, shared byte-identical with
-   context-guard. Bare quoting is never a wrap trigger; `type -P` / `type -t` is how a builtin
-   renderer is detected. Composing without those rules double-wraps a sibling tee and stacks
-   another `sh -c` layer on every re-run.
+   Compose the value by running
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh"` over the effective
+   `statusLine` value from step 3, never by peeling and wrapping the string yourself:
 
-   Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
-   trailing arguments):
+   ```bash
+   jq '.statusLine' <the settings file that owns the effective command> |
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+       --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' --block --explain
+   ```
+
+   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) for that
+   script's argument and exit-code contract and the judgments it leaves to you, shared
+   byte-identical with context-guard. Composing by hand double-wraps a sibling tee and stacks
+   another `sh -c` layer on every re-run. The blocks below are this plugin's printed paths; the
+   script emits whichever one the current value selects, and its angle-bracket placeholders show
+   each form's shape. The script fills them; substituting into one by hand is the arithmetic it
+   exists to replace.
+
+   Wrapping an existing statusline command (the script substitutes the operator's own renderer,
+   recovered by the peel, as the trailing arguments):
 
    ```json
    {
@@ -137,7 +149,8 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   When the shared guard selects the shell-wrapped form:
+   When the script selects the shell-wrapped form, `<escaped original command>` is already escaped
+   and JSON-escaped in its output and needs no further editing:
 
    ```json
    {
@@ -147,13 +160,6 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      }
    }
    ```
-
-   `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
-   replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
-   string as usual). Show the final, fully escaped line. Never hand the operator a template with
-   raw quotes left to fix. Verify your printed edit round-trips: run
-   `printf '%s\n' '<escaped original command>'` and confirm the output matches the original
-   command.
 
    Sibling tees compose by nesting, each through its own shim. The tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form (its tee outermost,
@@ -174,13 +180,19 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   The shell-syntax guard in [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md)
-   applies unchanged to this form: `<current statusline command>` is the innermost ARGV here too,
-   so run that test on the same unwrapped renderer and substitute whichever of the two forms it
-   selects, never raw. Substituting `THEME=dark my-statusline` raw
-   makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
-   variable. The shim paths are the only part that nests; the innermost substitution rule never
-   changes:
+   The combined form is one invocation, not a second transform: pass both shims as `--wrap`
+   prefixes in the order they nest, context-guard's first.
+
+   ```bash
+   jq '.statusLine' <the settings file that owns the effective command> |
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+       --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' \
+       --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' --block --explain
+   ```
+
+   Naming only one shim drops the other, because the peel strips every shim prefix it finds. The
+   shim paths are the only part that nests; whether the innermost command takes an `sh -c` adapter
+   is the same decision the script already made:
 
    ```json
    {

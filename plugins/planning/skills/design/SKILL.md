@@ -3,7 +3,6 @@ description: "Explore and resolve design decisions. Types, contracts, package to
 argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: plan
   summary: Resolve types, contracts, and module boundaries before planning
@@ -19,7 +18,9 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 
