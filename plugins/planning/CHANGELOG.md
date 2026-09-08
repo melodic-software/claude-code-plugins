@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.6]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** synced from claude-config. A UTF-8 BOM immediately before
+  the BEGIN marker is stripped when scanning the marker line, so a Windows-authored pointer region
+  still resolves.
+
+### Changed
+
+- **`interview`, `prd`, `design`:** ladder step 3 now says the printed home is repo-relative and
+  must be joined to the root resolved in step 1 before reading `<home>/authoring-formats/README.md`.
+  The restated exit contract says exit 0 prints the home on stdout, and exit 3 is a FAIL that
+  includes a pointer whose target directory does not exist, not only grammar failures.
+
 ## [0.39.5]
 
 ### Fixed

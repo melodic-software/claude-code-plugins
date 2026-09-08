@@ -3,6 +3,14 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.7]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** synced from claude-config. A UTF-8 BOM immediately before
+  the BEGIN marker is stripped when scanning the marker line, so a Windows-authored pointer region
+  still resolves.
+
 ## [0.8.6]
 
 ### Changed

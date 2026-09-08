@@ -159,8 +159,9 @@ verbatim, with only the key name and the emitting behaviour substituted:
    `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
    (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
    bundled resolver where the plugin ships one; never hand-parse the root file.
-3. Read `<home>/authoring-formats/README.md` and take the key's value from its fenced
-   YAML block.
+3. The printed home is repo-relative: join it to the root resolved in step 1,
+   then read `<home>/authoring-formats/README.md` from that path and take the
+   key's value from its fenced YAML block.
 4. Layer order is one layer deep: an explicit invocation argument, where the skill has
    one, then the team convention doc, then the documented default. A convention-doc
    surface has no personal overlay, so there is no further layer to consult.

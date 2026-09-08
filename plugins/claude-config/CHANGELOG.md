@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.41]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** a UTF-8 BOM (U+FEFF encoded EF BB BF) immediately before
+  the BEGIN marker is stripped when scanning the marker line. POSIX `[:space:]` does not include
+  BOM, so a Windows-authored root file was reported as carrying no region (exit 1) and consuming
+  skills silently served the default. The same fixture now resolves at exit 0 with and without the
+  BOM.
+
 ## [0.40.40]
 
 ### Added
