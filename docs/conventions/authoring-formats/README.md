@@ -86,13 +86,17 @@ values. The claim rests on an upstream fact and therefore carries a four-part re
   ladder — `curl` of the rendered page to a local file, 111,058 bytes, the page arrived whole and
   the quote above was matched in the local copy rather than in a summarizer's span.
 - **As-of date.** 2026-09-06.
-- **Recheck trigger.** That page dropping the experimental banner (the quoted sentence no longer
-  appearing on it). On firing, re-derive whether `mermaid` becomes an allowed value for
-  `diagram_dialect.system` and record the outcome in this convention's `CHANGELOG.md`. The same
-  firing also re-derives whether `landscape_dialect`'s mermaid default (owned by the architecture
-  plugin's `reference/config.md`) should change, and records that outcome in the architecture
-  plugin's `CHANGELOG.md`. This record is the single recheck trigger for every surface whose
-  default depends on mermaid's experimental status.
+- **Recheck trigger.** Either of these observable events on the basis page, or on a sibling
+  mermaid C4 syntax page linked from it: the quoted experimental sentence no longer appearing;
+  or mermaid documenting a dedicated landscape diagram type. On firing, re-derive whether
+  `mermaid` becomes an allowed value for `diagram_dialect.system` and record the outcome in
+  this convention's `CHANGELOG.md`. The same firing also re-derives whether
+  `landscape_dialect`'s mermaid default (owned by the architecture plugin's
+  `reference/config.md`) should change, and whether `/architecture:map-landscape`'s mermaid
+  output should use a dedicated landscape type instead of a `C4Context` diagram without a
+  focal system, and records those outcomes in the architecture plugin's `CHANGELOG.md`. This
+  record is the single recheck trigger for every surface whose mermaid default or mermaid
+  output shape depends on mermaid's C4 status.
 
 Nothing here restricts mermaid for the `data` key, where it is the default and is not experimental.
 Nothing here restricts mermaid for the architecture plugin's `landscape_dialect` either; see
@@ -122,7 +126,8 @@ not a claim that mermaid is unfit for the landscape surface, whose allowed set i
 `structurizr | mermaid`. The four-part record in
 [Why mermaid is not offered for the system key](#why-mermaid-is-not-offered-for-the-system-key)
 is the single recheck trigger for both surfaces: when it fires, re-derive the system-key allowed
-set and whether the landscape key's mermaid default should change.
+set, whether the landscape key's mermaid default should change, and whether the landscape
+emitter's mermaid output should use a dedicated landscape type.
 
 ## The consumer surface
 

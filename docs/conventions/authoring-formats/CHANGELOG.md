@@ -17,8 +17,10 @@ Clarification patch: no key, allowed value, or default changes.
   mermaid; it is not a claim that mermaid is unfit for the landscape surface.
 - **Recheck-trigger consequence extended.** The existing four-part mermaid-C4 record (as-of
   2026-09-06, not refreshed) now also covers whether `landscape_dialect`'s mermaid default should
-  change when the experimental banner drops. Architecture cites that record rather than carrying a
-  second stamp.
+  change, and whether `/architecture:map-landscape`'s mermaid output should use a dedicated
+  landscape type instead of a `C4Context` diagram without a focal system. The trigger fires on
+  either the experimental banner dropping or mermaid documenting a dedicated landscape type.
+  Architecture cites that record rather than carrying a second stamp.
 
 ## 1.0.0 — 2026-09-06
 

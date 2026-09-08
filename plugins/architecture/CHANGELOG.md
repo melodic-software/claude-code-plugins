@@ -12,6 +12,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `diagram_dialect.system` (opt-in C4 container view from `/planning:design`, no default). The two
   keys stay separate. The mermaid-C4 experimental record and recheck trigger stay in
   authoring-formats; this document cites that record instead of adding a second stamp (#3910).
+  The shared trigger also fires when mermaid documents a dedicated landscape type, and
+  `map-landscape` points at this document rather than carrying its own dated stamp.
 
 ## [0.8.5]
 

@@ -84,8 +84,11 @@ is not a claim that mermaid is unfit for this landscape surface, whose allowed s
 
 The mermaid-C4 experimental fact and its recheck trigger live in the authoring-formats convention
 ([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
-This document does not carry a second stamp. When that trigger fires, re-derive whether this key's
-mermaid default should change and record the outcome in this plugin's `CHANGELOG.md`.
+This document does not carry a second stamp. That trigger fires when the experimental banner
+drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
+key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
+should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
+and record the outcomes in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface
 
