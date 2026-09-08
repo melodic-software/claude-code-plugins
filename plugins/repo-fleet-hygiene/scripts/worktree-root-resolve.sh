@@ -25,6 +25,26 @@
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 WORKTREE_ROOT_LEGACY_KEY="melodic.worktreeroot"
 
+# Copy-pasteable write of the current key. With an origin file, --file
+# preserves local / includeIf / global rather than promoting into --global.
+# The value is shell-quoted so whitespace is not a second git-config argument.
+worktree_root_migrate_cmd() {
+  local origin="" value qfile="" qval=""
+  if [[ $# -eq 2 ]]; then
+    origin="$1"
+    value="$2"
+  else
+    value="${1:-}"
+  fi
+  printf -v qval '%q' "$value"
+  if [[ -n "$origin" ]]; then
+    printf -v qfile '%q' "$origin"
+    printf 'git config --file %s %s %s' "$qfile" "$WORKTREE_ROOT_CURRENT_KEY" "$qval"
+  else
+    printf 'git config %s %s' "$WORKTREE_ROOT_CURRENT_KEY" "$qval"
+  fi
+}
+
 worktree_root_git() {
   if declare -F _worktree_root_git >/dev/null 2>&1; then
     _worktree_root_git "$@"
@@ -69,10 +89,10 @@ worktree_root_resolve() {
     [[ -n "$raw" ]]; then
     WORKTREE_ROOT_VALUE="$raw"
     WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_LEGACY_KEY"
-    printf '%s: %s is unset; using legacy %s. Migrate with: git config %s %s\n' \
+    printf '%s: %s is unset; using legacy %s. Migrate with: %s\n' \
       "${PROG:-worktree-root-resolve.sh}" \
       "$WORKTREE_ROOT_CURRENT_KEY" "$WORKTREE_ROOT_LEGACY_KEY" \
-      "$WORKTREE_ROOT_CURRENT_KEY" "$raw" >&2
+      "$(worktree_root_migrate_cmd "$raw")" >&2
     return 0
   fi
   return 1

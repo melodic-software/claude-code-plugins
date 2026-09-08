@@ -298,6 +298,8 @@ assert_exit "legacy melodic.worktreeroot plus --fallback-root creates (exit 0)" 
 assert_eq "legacy melodic.worktreeroot wins over --fallback-root" \
   "$legacy_root/acme-widget-feat-legacykey" "$out"
 assert_contains "legacy key prints a stderr migrate notice" "$err" "worktreeroot.path is unset; using legacy"
+legacy_quoted=$(printf '%q' "$legacy_root")
+assert_contains "legacy migrate quotes the root" "$err" "$legacy_quoted"
 
 # --- Case: both keys set — worktreeroot.path wins --------------------------
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")

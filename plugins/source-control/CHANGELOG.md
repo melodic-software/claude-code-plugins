@@ -12,7 +12,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `worktree.*` nor git-wt's `wt.basedir`). Readers try `worktreeroot.path`
   first and fall through to the legacy alias `melodic.worktreeroot` when the
   current key is unset (new key wins if both are set; never auto-write
-  config; a legacy hit prints a stderr migrate notice). Shared resolver:
+  config; a legacy hit prints a stderr migrate notice that quotes the
+  value and, in the doctor, writes `--file` of the winning origin rather
+  than promoting into `--global`). Shared resolver:
   `scripts/worktree-root-resolve.sh` (byte-identical copy in
   `repo-fleet-hygiene`). Owner doc: `reference/worktree-root-convention.md`.
   Ruling: ADR 0031.

@@ -108,7 +108,21 @@ assert_exit "a legacy-keyed repo exits 0" 0 "$RC"
 assert_contains "the legacy winning value is reported ok" "$OUT" \
   "melodic.worktreeroot = $TEST_TMPDIR/wt-root-legacy"
 assert_contains "a legacy-only repo names the migrate command" "$OUT" \
-  "git config --global worktreeroot.path"
+  "git config --file"
+assert_contains "a legacy-only migrate writes the current key into the origin file" "$OUT" \
+  "worktreeroot.path"
+
+# A space in the root must be quoted so git config does not take a value-pattern.
+SPACE_ROOT="$TEST_TMPDIR/wt root space"
+mkdir -p "$SPACE_ROOT"
+SPACE_KEYED="$(mkrepo spacekeyed)"
+fgit -C "$SPACE_KEYED" config melodic.worktreeroot "$SPACE_ROOT"
+run "$EMPTY_GCFG" "$SPACE_KEYED"
+assert_exit "a space-bearing legacy root exits 0" 0 "$RC"
+space_quoted=$(printf '%q' "$SPACE_ROOT")
+assert_contains "a space-bearing migrate command quotes the value" "$OUT" "$space_quoted"
+assert_contains "a space-bearing migrate still uses --file of the origin" "$OUT" \
+  "git config --file"
 
 # Both keys set: the current key wins.
 BOTH_KEYED="$(mkrepo bothkeyed)"

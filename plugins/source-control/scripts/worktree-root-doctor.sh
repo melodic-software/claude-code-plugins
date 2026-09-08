@@ -285,7 +285,7 @@ else
   fi
   ok "$winning_key = $win_val (supplied by $supplied_by)"
   if [[ "$winning_key" == "$WORKTREE_ROOT_LEGACY_KEY" ]]; then
-    note "worktreeroot.path is unset; using legacy $WORKTREE_ROOT_LEGACY_KEY. Migrate with: git config --global worktreeroot.path $win_val"
+    note "worktreeroot.path is unset; using legacy $WORKTREE_ROOT_LEGACY_KEY. Migrate with: $(worktree_root_migrate_cmd "$win_origin" "$win_val")"
   fi
 
   # Parse order is precedence: a plain value the parser meets AFTER an
