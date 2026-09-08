@@ -3,6 +3,23 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Fixed
+
+- **`comment-census.py` counts documentation strings.** Pygments lexes Python
+  docstrings as `String.Doc`, not `Comment`, so a file whose prose is mostly
+  docstrings reported hash comments only and a dissolve-comments pass that
+  rewrote every private docstring could still print `comment_lines +0`. The
+  pygments layer now counts `String.Doc` as comment lines and bytes for any
+  lexer that emits it, and still ignores ordinary `String` / `String.Double` /
+  `String.Single` tokens. `dissolve-comments` steps 4 and 7 and
+  `rank-comment-targets.py` read this figure, so a docstring-heavy Python file
+  is no longer under-counted or under-ranked. The ranker's drift extraction
+  (`comment_line_numbers`) uses the same `is_comment_token` predicate, so a
+  mixed file does not treat docstrings as code when computing
+  `comment_age_vs_code_days`.
+
 ## [0.18.1]
 
 ### Changed
