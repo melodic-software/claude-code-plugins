@@ -6,8 +6,11 @@
 # left on the current key. Fleet audit is read-only: when _worktree_root_git is
 # defined, this file dual-reads and does not write.
 
+# Delete this file after 2026-12-31.
+
 WORKTREE_ROOT_LEGACY_KEY="melodic.worktreeroot"
-WORKTREE_ROOT_LEGACY_REMOVE_AFTER="2026-12-31"
+# Assigned by worktree-root-resolve.sh before this file is sourced.
+: "${WORKTREE_ROOT_CURRENT_KEY:=worktreeroot.path}"
 
 worktree_root_legacy_read_only() {
   declare -F _worktree_root_git >/dev/null 2>&1

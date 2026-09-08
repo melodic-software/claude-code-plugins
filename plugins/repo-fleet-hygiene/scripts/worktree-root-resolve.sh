@@ -24,8 +24,10 @@
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 
+# Command-substitution `$(cd && pwd)` would add a fork on every source, including
+# the containment-gate hot path. Keep the same `%/*` form the other callers use.
 # shellcheck source=worktree-root-legacy.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-root-legacy.sh"
+source "${BASH_SOURCE[0]%/*}/worktree-root-legacy.sh"
 
 worktree_root_git() {
   if declare -F _worktree_root_git >/dev/null 2>&1; then
