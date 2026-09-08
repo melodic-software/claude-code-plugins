@@ -3,6 +3,25 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Fixed
+
+- **`check`: the evals-warrant exemptions walk now stops at a filesystem root instead of
+  spinning forever.** The walk looking for `scripts/evals-warrant-exemptions.txt` terminated
+  only on `/`, but `dirname` is a fixed point at every root, so that condition is unreachable
+  from the two path shapes the checker actually receives: a drive-letter path, which is what
+  `git rev-parse --show-toplevel` returns on Git Bash (`dirname C:` is `C:`), and a relative
+  path, which is what a non-git run anchored on a relative root produces (`dirname .` is `.`).
+  With no exemptions file anywhere up the chain the loop never exited, forking `dirname` each
+  iteration, so the run produced no further output and no CPU worth noticing.
+
+  Real checkouts never saw it because the file sits at the repo root and the walk returns on
+  its first iteration. Only fixture trees without the file reached the fixed point, which is
+  why `scripts/check-changed-skills.test.sh` hung on Windows while Linux CI stayed green: on
+  Linux the walk does reach `/` and stops. The loop now breaks when `dirname` stops changing
+  the path, the same guard the format hooks in this marketplace already carry.
+
 ## [0.21.1]
 
 ### Changed
