@@ -148,6 +148,12 @@ rules that keep an item reachable, the comment bodies including the needs-info t
 each outcome does to the item's labels. Every outcome is a transition off raw intake, never a layer
 on top of it.
 
+## Next
+
+- An autonomous-eligible item: `/work-items:work`.
+- A human-gated item lands in the operator's queue: `/work-items:attend-queue`.
+- A briefed item too large for one slice: `/work-items:decompose`.
+
 ## AI disclaimer
 
 When creating comments or items during autonomous/agent triage sessions, prefix with the canonical

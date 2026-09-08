@@ -108,6 +108,11 @@ overrides are validated against the ladder file and an unknown name is dropped w
   skills in this plugin, and `/code-metrics:principles` explains what each number can and cannot
   tell you.
 
+## Next
+
+- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
+- A surviving clone is about to be called debt: `/code-metrics:principles`.
+
 ## Gotchas
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a

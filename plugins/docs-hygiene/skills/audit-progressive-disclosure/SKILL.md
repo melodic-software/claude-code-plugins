@@ -134,6 +134,13 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 `shape` values: `oversize`, `mixed-concerns`, `tier-mismatch`, `blind-pointer`, `orphan-spoke`,
 `deep-nesting`, `missing-toc`.
 
+## Next
+
+- A split is agreed and the new hub and spoke text needs writing:
+  `/docs-hygiene:write-for-agents`.
+- The file is long on flavor rather than structure: `/docs-hygiene:compress`.
+- A pointer no longer resolves: `/docs-hygiene:rename-references`.
+
 ## Gotchas
 
 - The 500/200 numbers are **ceilings, not targets**; the official split trigger is *approaching*

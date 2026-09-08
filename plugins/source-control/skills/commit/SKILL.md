@@ -364,6 +364,10 @@ documented contract (e.g. `/source-control:pull-request create`) composes this o
 - **No `--no-verify` or hook bypass**, if the project's `commit-msg` hook rejects the message,
   surface the error and re-draft; never bypass.
 
+## Next
+
+`/source-control:pull-request create`. Its precondition is a branch carrying the work to ship.
+
 ## Reference index. Load on demand
 
 | File | Load when |

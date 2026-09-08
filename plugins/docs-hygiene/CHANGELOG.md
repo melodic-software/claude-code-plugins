@@ -1,5 +1,12 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.43]
+
+### Added
+
+- **`audit-noise`, `audit-progressive-disclosure`**: a `## Next` section naming the skill that
+  normally runs after this one, in the mention-only shape the skill-body rule describes.
+
 ## [0.21.42]
 
 ### Changed

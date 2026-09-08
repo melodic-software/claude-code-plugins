@@ -307,6 +307,10 @@ surface, and this is the only skill in the plugin that mutates that surface, so 
 close. **Never fall back to `HEAD`, to the commit sha, or to the home's slug to manufacture the
 missing side of the comparison.**
 
+## Next
+
+`/verification:confirm`. The finding stays open until the landed change is verified.
+
 ## Gotchas
 
 - **`HEAD` is not a branch name.** A detached checkout makes `rev-parse --abbrev-ref` answer `HEAD`,

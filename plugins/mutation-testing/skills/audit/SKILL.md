@@ -317,6 +317,11 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
   An **equivalent** mutant is never recorded here; the convention's record is not for a finding that
   is simply wrong.
 
+## Next
+
+- Survivors remain and the killing tests are due: `/testing:write`.
+- A survivor is about to be called arid or equivalent: `/mutation-testing:principles`.
+
 ## Gotchas
 
 Failure modes documented from the literature and from measurement, not anticipated in the abstract.

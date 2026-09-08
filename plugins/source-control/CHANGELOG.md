@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.69]
+
+### Added
+
+- **`commit`, `resolve-conflicts`**: a `## Next` section naming the skill that normally runs after
+  this one, in the mention-only shape the skill-body rule describes.
+
 ## [0.55.68]
 
 ### Changed

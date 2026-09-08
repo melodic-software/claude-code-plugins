@@ -223,6 +223,13 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
 - **Not a content deduplicator.** When the noise is the same concept repeated across files, that is the sibling `/docs-hygiene:extract-ssot`'s territory at any multiplicity. Sub-three repetition lands in its non-abstracting buckets, and only minting a new SSOT artifact waits for 3+.
 
+## Next
+
+- Findings are persisted with `--persist-findings`: `/review:fanout fix`.
+- A page failed the existence pre-check and needs the four-factor ruling:
+  `/docs-hygiene:audit-derivability`.
+- What is left is flavor rather than noise: `/docs-hygiene:compress`.
+
 ## Sources
 
 - [Diataxis Explanation](https://diataxis.fr/explanation/), the Diataxis classifier behind the preamble treatment

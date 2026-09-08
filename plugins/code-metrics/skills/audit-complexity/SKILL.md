@@ -100,6 +100,13 @@ collectors.
 - It does not measure lines, duplication, coverage, or type debt; those are the sibling `audit-*`
   skills in this plugin.
 
+## Next
+
+- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
+- A complex function's coverage and CRAP score are the real question:
+  `/code-metrics:audit-coverage`.
+- A number is about to be quoted at someone: `/code-metrics:principles`.
+
 ## Gotchas
 
 - The two ESLint-based rungs resolve only when the repository already wires ESLint (`eslint` on

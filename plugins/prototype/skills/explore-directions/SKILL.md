@@ -260,6 +260,11 @@ not written down now is gone.
 
 Don't leave variant components or the switcher lying around. They rot fast.
 
+## Next
+
+- A direction wins and is folded in: `/planning:plan`.
+- The open question is logic or state rather than appearance: `/prototype:pressure-test`.
+
 ## Anti-patterns
 
 - **Variants differing only in color or copy.** That's a tweak, not a prototype. Real variants

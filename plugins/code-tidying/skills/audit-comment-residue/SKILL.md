@@ -107,6 +107,11 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 - **Not `/code-tidying:tidy`.** `tidy` APPLIES structural tidyings (including Beck's "Delete Redundant Comment" for comments that restate the code); `audit-comment-residue` is a read-only CLASSIFIER for the out-of-context residue class. Different concern, different mode.
 - **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
 
+## Next
+
+- The findings are agreed and ready to apply: `/code-tidying:dissolve-comments`.
+- The surviving comments restate the code rather than narrate its past: `/code-tidying:tidy`.
+
 ## Sources
 
 - [Ousterhout ⇄ Clean Code debate](https://github.com/johnousterhout/aposd-vs-clean-code). Why the positive rule is "capture what code can't," not "comments are rare"

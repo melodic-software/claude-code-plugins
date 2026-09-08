@@ -88,6 +88,10 @@ When resolution stalls (intent unrecoverable from history, both sides' authors u
 
 Everything runs on plain `git`. Adjacent capabilities are optional: `gh` enriches intent archaeology with PR/issue context (skipped with a note when unavailable); build/test/lint gates use your verification skills when installed, or the project's documented commands inline. The consuming project's `CLAUDE.md` and rules win on integration convention (merge vs rebase, conflict style), this skill reads them, never overrides them.
 
+## Next
+
+`/source-control:pull-request`. Its precondition is a concluded operation with green gates.
+
 ## What this skill does NOT do
 
 - **Does not choose merge vs rebase**, that call belongs to the caller (`/source-control:pull-request` branch-freshness, project convention, or the user); this skill resolves whatever operation is already in progress.

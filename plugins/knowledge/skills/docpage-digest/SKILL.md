@@ -221,6 +221,10 @@ gate. Phrase-greps miss fluent-prose instances entirely.
 - **Presence-non-empty / parity:** unsubstituted placeholders pass; blank inventories can print
   OK.
 
+## Next
+
+`/planning:interview`. Its input is `interview-handoff.md`.
+
 ## Gotchas
 
 - **Verify the fetch channel per page.** A raw-markdown channel that worked for one doc can 404

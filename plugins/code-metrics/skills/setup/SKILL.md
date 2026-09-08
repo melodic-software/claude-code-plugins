@@ -96,6 +96,10 @@ bundled default.
 - Edit the consumer's `.gitignore`; it recommends the one recursive line.
 - Run an audit. The audit skills read the same resolved document at run time.
 
+## Next
+
+`/code-metrics:audit-complexity`. The sibling `audit-*` skills cover the other measures.
+
 ## Gotchas
 
 - The team file must be committed to reach the team; `apply` leaves it untracked on purpose and

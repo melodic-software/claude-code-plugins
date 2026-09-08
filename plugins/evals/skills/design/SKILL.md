@@ -95,6 +95,10 @@ Before finishing, confirm and record in the criteria doc:
   explicit confirmation.
 - Does not invent baselines — a target with no anchor is recorded as provisional.
 
+## Next
+
+`/skill-quality:check validate-evals <skill>`. An emitted `evals.json` is what it validates.
+
 ## Gotchas
 
 - A consumer saying "just write some tests" still gets Phase 1 — criteria first is the method, not

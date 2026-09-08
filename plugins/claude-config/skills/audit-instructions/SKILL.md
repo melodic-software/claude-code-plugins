@@ -302,6 +302,13 @@ catalog).
 carve-out drop preceding the write. Report the path and the emitted/declined counts, and say
 plainly that nothing has been applied.
 
+## Next
+
+- A proposed diff is accepted and the delete-and-watch loop is the next question:
+  `/claude-config:unhobble`.
+- A finding lands on the memory layer: `/claude-memory:audit`.
+- Posture guidance is absent rather than wrong: `/claude-config:audit-prompting-postures`.
+
 ## Gotchas
 
 - **Examples are not scaffolding.** Keep the 3–5 format/tone/structure-steering examples the docs

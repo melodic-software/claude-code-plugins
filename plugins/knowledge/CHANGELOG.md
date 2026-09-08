@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.49]
+
+### Added
+
+- **`docpage-digest`**: a `## Next` section naming the skill that normally runs after this one, in
+  the mention-only shape the skill-body rule describes.
+
 ## [0.13.48]
 
 ### Changed
