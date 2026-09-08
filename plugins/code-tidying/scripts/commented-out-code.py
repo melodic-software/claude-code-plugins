@@ -131,6 +131,13 @@ EVIDENCE = {
         "flow_mapping",
         "flow_sequence",
     },
+    "toml": {
+        "pair",
+        "table",
+        "table_array_element",
+        "array",
+        "inline_table",
+    },
 }
 EVIDENCE["typescript"] = EVIDENCE["javascript"] | {
     "type_alias_declaration",

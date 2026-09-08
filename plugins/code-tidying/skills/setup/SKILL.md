@@ -173,15 +173,19 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## Personal configuration (`userConfig`)
 
 Not `apply` surface. Claude Code owns the storage, and this contract forbids setup to write
-`pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure interactively
-with `/plugin configure code-tidying@<marketplace>`, or headless:
+`pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure through
+Claude Code's native flow, per the marketplace's
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)
+(which owns the verified-version record): interactive `/plugin configure code-tidying@<marketplace>`
+any time, or headless:
 
 ```shell
 claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=advisory
 ```
 
 Against an already-installed plugin this prints `already installed` and still writes the value; the
-short-circuit is about the install, not the config write. Pass the scope `claude plugin list` reports.
+short-circuit is about the install, not the config write. Do **not** uninstall to reconfigure: that
+drops this plugin's entire stored `pluginConfigs` entry. Pass the scope `claude plugin list` reports.
 The value is stored immediately, but the running session is not re-read, so start a fresh session
 before expecting the new behavior. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
 entry blocks) or `advisory` (every one is reported and none blocks); any other value is read as

@@ -24,7 +24,7 @@
     "hard_exclusions": {
       "type": "string",
       "title": "GLOBAL HARD path exclusions",
-      "description": "How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list in skills/tidy/reference/exclusions.md. enforce (default): a path on that list is dropped before triage, the behavior every earlier release shipped; advisory: the list is reported per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. advisory is the standing form of the per-run override argument and is lifted for path entries only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold under every value. Any other value is read as enforce.",
+      "description": "How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list in skills/tidy/reference/exclusions.md. enforce (default): a path on that list is dropped before triage; advisory: the list is reported per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. advisory is the standing form of the per-run override argument and is lifted for path entries only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold under every value. Any other value is read as enforce.",
       "default": "enforce"
     },
     "comment_posture": {

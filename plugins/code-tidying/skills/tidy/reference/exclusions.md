@@ -120,7 +120,7 @@ To operate on a directory genuinely named `override`, spell it `./override`.
 
 ### The `hard_exclusions` userConfig option
 
-`enforce` (default) keeps the section 1 path list blocking, which is the behavior every earlier release shipped. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: `userConfig` types are `string`, `number`, `boolean`, `directory`, and `file`, so a per-path list cannot live there and belongs in the repository file below. Any value outside the two is read as `enforce`.
+`enforce` (default) keeps the section 1 path list blocking. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: `userConfig` types are `string`, `number`, `boolean`, `directory`, and `file`, so a per-path list cannot live there and belongs in the repository file below. Any value outside the two is read as `enforce`.
 
 ### The consumer-declared overrides file
 

@@ -110,6 +110,9 @@ def build(repo: Path) -> None:
     (repo / ".claude" / "hooks" / "guard.sh").write_text(
         commented(40, 11) + "# guard\n"
     )
+    (repo / ".claude" / "hooks" / "other.sh").write_text(
+        commented(40, 10) + "# other\n"
+    )
     (repo / "copy-a.sh").write_text(commented(40, 6))
     (repo / "copy-b.sh").write_text(commented(40, 6))  # byte-identical to copy-a
     (repo / "user.sh").write_text(
@@ -174,6 +177,18 @@ class Ranking(unittest.TestCase):
         self.assertNotIn("gen.sh", lifted_paths)
         self.assertNotIn("tiny.sh", lifted_paths)
         self.assertNotIn("CHANGELOG.md", lifted_paths)
+
+    def test_allow_path_lifts_only_named_admin_files(self):
+        guard = os.path.normpath(".claude/hooks/guard.sh")
+        other = os.path.normpath(".claude/hooks/other.sh")
+        default_paths = [r["path"] for r in json.loads(self.run_rank().stdout)["rows"]]
+        self.assertNotIn(guard, default_paths)
+        self.assertNotIn(other, default_paths)
+
+        named = [r["path"] for r in json.loads(self.run_rank("--allow-path", guard).stdout)["rows"]]
+        self.assertIn(guard, named)
+        self.assertNotIn(other, named)
+        self.assertNotIn("gen.sh", named)
 
     def test_ordering_needs_both_exposure_and_payload(self):
         rep = json.loads(self.run_rank().stdout)

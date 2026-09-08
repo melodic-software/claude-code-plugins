@@ -37,20 +37,22 @@ this signal. git blame is O(file x history), so it never runs repo-wide.
 Reading layers come from comment-census.py (scc, pygments). A shallow clone
 cannot rank by history: the run says so and ranks by fan-in and payload only.
 
-The administrative gate is the one gate a caller can lift: --override-exclusions
-ranks those paths too, for a run whose HARD-exclusion override already resolved.
+The administrative gate is the one gate a caller can lift. --allow-path GLOB
+(repeatable) ranks matching administrative paths; --override-exclusions ranks
+every administrative path, for a run whose HARD-exclusion posture is advisory.
 The other gates stay (an untracked, generated, or sub-floor file is not a target
 whatever the exclusions say).
 
 Usage: rank-comment-targets.py [--top N] [--window-months M] [--half-life-days D]
                                [--min-lines L] [--drift-top K]
-                               [--override-exclusions] [--json]
+                               [--allow-path GLOB] [--override-exclusions] [--json]
 Exit: 0 ranked; 1 not a git repository; 3 no reading layer; 2 usage.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import math
 import os
@@ -272,6 +274,22 @@ def drift_days(path: str) -> float | None:
     return (codet[len(codet) // 2] - ct[len(ct) // 2]) / 86400
 
 
+def admin_gate_lifted(path: str, allow: list[str], lift_all: bool) -> bool:
+    """True when this administrative path may enter ranking."""
+    if lift_all:
+        return True
+    posix = path.replace(os.sep, "/").lstrip("./")
+    for raw in allow:
+        pat = raw.replace(os.sep, "/").lstrip("./")
+        if posix == pat or fnmatch.fnmatch(posix, pat):
+            return True
+        if pat.endswith("/**") and (
+            posix == pat[:-3] or posix.startswith(pat[:-2])
+        ):
+            return True
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--top", type=int, default=25)
@@ -285,10 +303,18 @@ def main(argv: list[str] | None = None) -> int:
         help="compute the blame drift column for this many top rows (0 disables)",
     )
     ap.add_argument(
+        "--allow-path",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="rank this administrative path or glob too (repeatable); "
+        "use when only some HARD paths were lifted",
+    )
+    ap.add_argument(
         "--override-exclusions",
         action="store_true",
-        help="rank administrative paths too (.claude, CI workflows, lockfiles, changelogs) "
-        "instead of gating them out; the caller resolved a HARD-exclusion override",
+        help="rank every administrative path too (.claude, CI workflows, lockfiles, changelogs) "
+        "instead of gating them out; the caller resolved hard_exclusions=advisory",
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
@@ -327,7 +353,9 @@ def main(argv: list[str] | None = None) -> int:
         # ADMIN is written with `/` separators, and os.path.normpath yields `\`
         # on Windows, so the gate must match against a slash-normalized copy or
         # it silently passes every administrative path on that platform.
-        if ADMIN.search(p.replace(os.sep, "/")) and not args.override_exclusions:
+        if ADMIN.search(p.replace(os.sep, "/")) and not admin_gate_lifted(
+            p, args.allow_path, args.override_exclusions
+        ):
             gated["administrative path"] += 1
             continue
         if p in generated:

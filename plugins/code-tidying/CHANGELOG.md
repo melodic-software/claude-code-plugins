@@ -29,30 +29,35 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
     loses to the protection with both declarations named.
 - **`exclusions.md` section 4** carries the whole contract: the three channels, the file shape, the
   per-path precedence, the reviewability requirement, and what no channel lifts.
-- **`rank-comment-targets.py --override-exclusions`** ranks administrative paths (`.claude/**`, CI
-  workflows, lockfiles, changelogs) instead of gating them out, so the repository-rung ordering does
-  not silently re-drop a path an override already lifted. The untracked, generated, and size-floor
-  gates are unaffected.
+- **`rank-comment-targets.py --allow-path`** ranks named administrative paths
+  (repeatable globs); `--override-exclusions` remains the whole-list form for
+  `hard_exclusions=advisory`. The untracked, generated, and size-floor gates are
+  unaffected.
 - **TOML grammar:** `change-shape.py` and `commented-out-code.py` map `.toml` to the
-  `tree-sitter-toml` grammar, and the tooling probe reports it, so a class-A deletion in a lifted
-  `ruff.toml` or `pyproject.toml` is certified COMMENT-ONLY instead of falling to a proposal. The
-  covered union rises from 15 of 28 in-scope extensions to 16, and `safety.md` and
-  `dissolve-comments` step 3 now state the 12 that no grammar covers rather than 13.
+  `tree-sitter-toml` grammar, the tooling probe reports it, and `commented-out-code.py`
+  carries TOML evidence node kinds (`pair`, `table`, `array`, …), so a class-A deletion
+  in a lifted `ruff.toml` is certified COMMENT-ONLY and a commented-out assignment is a
+  candidate instead of a silent empty scan. The covered union rises from 15 of 28 in-scope
+  extensions to 16, and `safety.md` and `dissolve-comments` step 3 now state the 12 that
+  no grammar covers rather than 13.
 - **`setup`:** `check` gained two probes, the overrides file (shape, absolute-path and traversal
   rejection, protection collisions, tracked-not-ignored) and the stored `hard_exclusions` posture;
   `apply` writes the overrides file only when the user asks for it, never as a default scaffold. The
-  skill now documents the `claude plugin install --config` route for the new option.
+  skill now documents the `claude plugin install --config` route for the new option, citing
+  the plugin-reconfiguration convention as the owner of the verified-version record.
 
 ### Changed
 
 - **`dissolve-comments`:** the "lint config are never edited" hard rule now states the override
   channels and their precedence, and the report names every lifted path beside the channel that
   lifted it. A lifted path whose language `change-shape.py` cannot parse yields proposals rather
-  than applied deletions, which is the pre-existing gate rather than a new one.
+  than applied deletions, which is the pre-existing gate rather than a new one. Repository-rung
+  ranking passes `--allow-path` per lifted glob, not `--override-exclusions` for a partial lift.
 - **`tidy`:** Phase A resolves the override channels into a lifted set before hunting, Phase E
   validates against the HARD list minus that set, and Phase H's follow-up comment carries a
   conditional `## Lifted HARD exclusions` table. A run that lifted a path and cannot post that table
-  backs the lifted edits out.
+  backs the lifted edits out. Phase D's enumeration gate fires only for the `override`
+  argument; standing channels proceed without a go-ahead.
 - **`batch-simplify`:** Phase 2's agent-and-enforcement-configuration class names the cross-ecosystem
   lint config it shares with tidy's canonical list, and every path in it is liftable. The
   append-only / historical-record protection is explicitly not liftable by any channel.
