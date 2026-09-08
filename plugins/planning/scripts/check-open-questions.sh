@@ -222,8 +222,9 @@ while IFS= read -r line; do
 done <<<"$section"
 
 if [[ "$registered" -eq 0 ]]; then
-  die_ungradeable "the register section holds no question rows in: $ledger"
+  die_ungradeable "the register section holds no question rows in: $ledger (rows inside a fenced block are ignored by design; register rows must be unfenced)"
 fi
+
 
 brief_state="unchecked"
 if [[ "$brief_named" -eq 1 ]]; then
