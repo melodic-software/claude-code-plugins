@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.71]
+
+### Changed
+
+- **Worktree root convention:** the git config vendor section is
+  `worktreeroot.path` (a capability section that collides with neither Git's
+  `worktree.*` nor git-wt's `wt.basedir`). `melodic.worktreeroot` remains the
+  shipped spelling current readers consult until the dual-read migration peel.
+  Owner doc: `reference/worktree-root-convention.md`. Ruling: ADR 0031.
+
 ## [0.55.70]
 
 ### Fixed

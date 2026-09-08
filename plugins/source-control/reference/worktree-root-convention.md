@@ -1,27 +1,32 @@
-# Worktree root convention — `melodic.worktreeroot`
+# Worktree root convention — `worktreeroot.path`
 
-Owner doc for the fleet's worktree-placement convention (#2610, #2612). The
-machine truth is a **git config key**, so the convention is readable by
-anything that can run `git config --get` — humans, scripts, CI, and every
-agent, not just this plugin. Prose surfaces (a repository's `AGENTS.md` /
-`CLAUDE.md`, skill text) should **cite this key, never copy the path**:
-restating the path in several places is exactly the drift the fleet
-measurement in #2610 found on disk (292 linked worktrees across ten
-conventions, zero at the configured root).
+Owner doc for the fleet's worktree-placement convention. The machine truth is
+a **git config key**, so the convention is readable by anything that can run
+`git config --get` — humans, scripts, CI, and every agent, not just this
+plugin. Prose surfaces (a repository's `AGENTS.md` / `CLAUDE.md`, skill text)
+should **cite this key, never copy the path**: restating the path in several
+places is the drift a git-config-readable convention exists to prevent.
 
 ## The key
 
 ```ini
-[melodic]
-  worktreeroot = ~/worktrees
+[worktreeroot]
+  path = ~/worktrees
 ```
 
-- **Name:** `melodic.worktreeroot`. Deliberately NOT under `worktree.*` — git
-  owns that namespace (`worktree.guessRemote`, `worktree.useRelativePaths`,
-  and 2.56 extends `includeIf` into `worktree:` conditions). `melodic.*`
-  collides with nothing; the vendor-section pattern matches `ghq.root`,
-  `git-town.*`, and git-wt's `wt.basedir`, all of which store placement in
-  git config.
+- **Name:** `worktreeroot.path`. Deliberately NOT under `worktree.*`
+  — git owns that namespace (`worktree.guessRemote`,
+  `worktree.useRelativePaths`; git-worktree(1) Configuration). git-config(1)
+  Variables invites third-party tools to invent their own variables, provided
+  they do not collide with Git or other popular tools and are documented.
+  Popular tools typically name the section after the tool (`ghq.root`,
+  `git-town.*`, `lfs.*`, `wt.basedir`); a publisher-named key is an
+  org-agnosticism defect, and a plugin-named key still couples consumers to
+  this marketplace. This section is the *capability*, and it collides with
+  neither Git's `worktree.*` nor git-wt's `wt.*`.
+  `melodic.worktreeroot` is the shipped spelling; dual-read of both keys is
+  the migration peel, and until that peel the shipped readers still consult
+  the legacy key.
 - **Type:** path (read with `--type=path`, which expands a leading `~`).
 - **Multi-valued, last value wins** — an include can *append* rather than
   override, which is what makes the `includeIf` layering below work.
@@ -34,7 +39,9 @@ conventions, zero at the configured root).
 
 ```sh
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || exit  # mandatory gate
-root=$(git -C "$repo" config --get-all --type=path melodic.worktreeroot | tail -n 1)
+root=$(git -C "$repo" config --get-all --type=path worktreeroot.path | tail -n 1)
+# Legacy alias, accepted until the dual-read peel lands:
+# root=$(git -C "$repo" config --get-all --type=path melodic.worktreeroot | tail -n 1)
 ```
 
 Two hazards, both verified on git 2.55 in #2610 and both silent:
@@ -55,9 +62,9 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
 `WorktreeCreate` hook) resolves the root most specific first:
 
 1. Explicit `--root` / `--root-file` — a per-invocation caller decision.
-2. **`melodic.worktreeroot`**, read from the *target repository* with
-   includes on. `includeIf` supplies per-identity and per-repository answers
-   with no new machinery (below).
+2. **`worktreeroot.path`** (legacy alias `melodic.worktreeroot`),
+   read from the *target repository* with includes on. `includeIf` supplies
+   per-identity and per-repository answers with no new machinery (below).
 3. `--fallback-root` / `--fallback-root-file` — the machine-global
    `worktree_root` **plugin option**, ranked below the key because only this
    plugin can read the option while every consumer can read the key.
@@ -88,8 +95,8 @@ machine default goes first and each more-specific include after it:
 [user]
   name = <name>
   useConfigOnly = true            # NO user.email here — see hazards
-[melodic]
-  worktreeroot = <machine-default>  # plain default FIRST — below an includeIf it would win
+[worktreeroot]
+  path = <machine-default>  # plain default FIRST — below an includeIf it would win
 
 [includeIf "gitdir/i:<work-tree-root>/"]
   path = ~/.config/git/identity-work.inc
@@ -100,9 +107,9 @@ machine default goes first and each more-specific include after it:
   path = ~/.config/git/repo-dotfiles.inc
 ```
 
-Each `.inc` sets `melodic.worktreeroot` (appending after the default, so
-last-wins picks it up) alongside the identity keys. Verified properties
-(hermetic lab, git 2.55, #2612):
+Each `.inc` sets `worktreeroot.path` (appending after the default,
+so last-wins picks it up) alongside the identity keys. Verified properties
+(hermetic lab, git 2.55):
 
 - `includeIf` splices whole files and is not key-aware, so a custom key
   resolves exactly as `user.email` does.
@@ -122,11 +129,11 @@ last-wins picks it up) alongside the identity keys. Verified properties
   clients (gitui, TortoiseGit, git2/nodegit/pygit2) implement `gitdir:`,
   `gitdir/i:`, `onbranch:` but NOT `hasconfig:` — and fail unrecognized
   conditions silently; JGit and go-git resolve no `includeIf` at all.
-  `hasconfig:` is fine for `melodic.*`, which only CLI-shelling tools read.
+  `hasconfig:` is fine for `worktreeroot.*`, which only CLI-shelling tools read.
 - **`gitdir:` is case-sensitive even on case-insensitive NTFS.** Only the
   pattern author's spelling matters. Always `gitdir/i:` on Windows.
 - **Precedence is parse order, not specificity.** A plain
-  `[melodic] worktreeroot` *below* the `includeIf` block silently overrides
+  `[worktreeroot] path` *below* the `includeIf` block silently overrides
   every identity include. Two matching conditions: last parsed wins.
 - **Attribution needs `--show-origin`.** `--show-scope` collapses a
   conditionally-included file to `global`.
@@ -171,7 +178,7 @@ its configuration-health step.
 Add a pointer, not a path, e.g.:
 
 > Worktrees live under the root named by
-> `git config --get-all --type=path melodic.worktreeroot | tail -n 1`
+> `git config --get-all --type=path worktreeroot.path | tail -n 1`
 > (never scope the read without `--includes`; gate on `rev-parse --git-dir`
 > first). Convention: the source-control plugin's
 > `reference/worktree-root-convention.md`.
