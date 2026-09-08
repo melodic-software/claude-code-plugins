@@ -53,8 +53,9 @@ worktree_root_last_raw() {
 # when tail -n 1 is blank).
 worktree_root_resolve() {
   local repo="$1" raw=""
-  WORKTREE_ROOT_VALUE=""
-  WORKTREE_ROOT_KEY_USED=""
+  # Exported: sourced callers (create, doctor, containment, fleet audit) read these.
+  export WORKTREE_ROOT_VALUE=""
+  export WORKTREE_ROOT_KEY_USED=""
   [[ -n "$repo" ]] || return 1
   worktree_root_git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || return 1
 
