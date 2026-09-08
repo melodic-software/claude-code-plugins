@@ -5236,7 +5236,7 @@ class GuardTests(unittest.TestCase):
         recorded = entry["reason"]
         self.assertTrue(recorded.endswith("..."), recorded)
         self.assertTrue(host_reason.startswith(recorded[:-3]), recorded)
-        self.assertIn("fails closed", recorded)
+        self.assertIn("this specific engine invocation", recorded)
         self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
 
     def test_allow_and_ask_verdicts_are_recorded_with_distinct_rules(self) -> None:
@@ -5664,20 +5664,73 @@ class GuardTests(unittest.TestCase):
         # reaches the classifier — so a consumer learning the allow-list from
         # the denial never learned the probe is permitted, and the probe is the
         # step that lets the model state the kill-switch value honestly instead
-        # of assuming the default.
-        guidance = guard._bash_denial_guidance("/data/root")
-        for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
-            self.assertIn(subcommand, guidance, subcommand)
-        self.assertIn("kill_switch_probe.py", guidance)
-        # The engine's own path: without it, a body whose ${CLAUDE_PLUGIN_ROOT}
-        # arrived unexpanded leaves no disclosed route to the engine, and the
-        # exact-path identity check denies every guess.
-        self.assertIn(guard._display_path(guard._engine_script_path()), guidance)
-        for head in guard._READONLY_SUPPORTING_BASH_HEADS:
-            self.assertIn(head, guidance, head)
-        self.assertIn("[", guidance)
-        self.assertIn("absolute path", guidance)
-        self.assertIn("bare names are denied", guidance)
+        # of assuming the default. Both surfaces share that list; only the
+        # scope framing differs (#3348).
+        for mode in (guard._MODE_BELT, guard._MODE_ENGINE_GATE):
+            with self.subTest(mode=mode):
+                guidance = guard._bash_denial_guidance("/data/root", mode=mode)
+                for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
+                    self.assertIn(subcommand, guidance, subcommand)
+                self.assertIn("kill_switch_probe.py", guidance)
+                # The engine's own path: without it, a body whose
+                # ${CLAUDE_PLUGIN_ROOT} arrived unexpanded leaves no disclosed
+                # route to the engine, and the exact-path identity check denies
+                # every guess.
+                self.assertIn(
+                    guard._display_path(guard._engine_script_path()), guidance
+                )
+                for head in guard._READONLY_SUPPORTING_BASH_HEADS:
+                    self.assertIn(head, guidance, head)
+                self.assertIn("[", guidance)
+                self.assertIn("absolute path", guidance)
+                self.assertIn("bare names are denied", guidance)
+
+    def test_bash_denial_modes_frame_opposite_scopes(self) -> None:
+        """Each guard explains itself; the always-on gate does not claim the belt's lockout."""
+        belt = guard._bash_denial_guidance("/data/root", mode=guard._MODE_BELT)
+        gated = guard._bash_denial_guidance(
+            "/data/root", mode=guard._MODE_ENGINE_GATE
+        )
+        self.assertNotEqual(belt, gated)
+        self.assertEqual(
+            belt, guard._bash_denial_guidance("/data/root"), "default is belt"
+        )
+
+        self.assertIn("this specific engine invocation", gated)
+        self.assertIn("rest of the Bash lane is unaffected", gated)
+        self.assertIn("/disk-hygiene:clean need not have been invoked", gated)
+        self.assertNotIn("Bash is restricted", gated)
+        self.assertNotIn("was invoked in this session", gated)
+
+        self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
+        self.assertIn("persists until the session ends", belt)
+        self.assertIn("Bash is restricted", belt)
+        self.assertIn("start a new session", belt)
+        self.assertNotIn("subagent does not inherit", belt)
+        self.assertNotIn("this specific engine invocation", belt)
+        self.assertNotIn("need not have been invoked", belt)
+
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        command = f'python "{script}" scan --target t --output s'
+        belt_result = self.run_guard(command)
+        gated_result = self.run_guard_engine_gate(command)
+        assert gated_result is not None
+        self.assertEqual(
+            "deny", belt_result["hookSpecificOutput"]["permissionDecision"]
+        )
+        self.assertEqual(
+            "deny", gated_result["hookSpecificOutput"]["permissionDecision"]
+        )
+        belt_reason = belt_result["hookSpecificOutput"]["permissionDecisionReason"]
+        gated_reason = gated_result["hookSpecificOutput"][
+            "permissionDecisionReason"
+        ]
+        self.assertNotEqual(belt_reason, gated_reason)
+        self.assertIn(
+            "/disk-hygiene:clean was invoked in this session", belt_reason
+        )
+        self.assertIn("this specific engine invocation", gated_reason)
+        self.assertNotIn("Bash is restricted", gated_reason)
 
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
