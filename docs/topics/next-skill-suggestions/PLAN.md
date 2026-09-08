@@ -10,7 +10,7 @@
 > dropped from this PR, because it would fire on 44 stage-bearing skills after merge and the
 > same convention records that a check firing on most of the fleet is how check output gets
 > ignored; (3) `docs-hygiene:rename-references` leaves scope, because it already routes onward
-> in its `## Integration with workflow` table. Scope is now 29 skills across 17 plugins.
+> in its `## Integration with workflow` table. Scope is now 29 skills across 18 plugins.
 
 ### TLDR
 
@@ -102,7 +102,9 @@ staged spine already routes; this closes the gap in the skills that forgot to.
   siblings' routing tables, drafted before approval and read in full by the main session
   before commit.
 - `review:audit-enforceability` (198 lines) and `playbooks:skill-authoring` (196 lines) use the
-  one-line shape so neither crosses the 200-line soft cap.
+  one-line shape. A section is four lines minimum, so `audit-enforceability` lands at 202 and
+  carries the advisory soft-cap WARN; accepted, since trimming unrelated body text to dodge a
+  WARN is outside this change's scope.
 - CHANGELOG conflict exposure is accepted: `source-control` sees roughly four CHANGELOG commits
   a day and `work-items`, `claude-config`, `knowledge`, `docs-hygiene` are close behind. Cost is
   a rebase before ready-for-review; versions are re-read from `plugin.json` at that point.
@@ -154,7 +156,7 @@ The per-skill successor text is drafted and token-verified in the memory slice
 plan applies it, adds the rule, and verifies with tracked, pasteable commands so a reviewer on
 any checkout can rerun them.
 
-### Phase 1: Authoring rule [TODO]
+### Phase 1: Authoring rule [DONE]
 
 File: `.claude/rules/skill-bodies-state-current-rules.md`. Append one H2 `## Successor sections`
 with four bullets (new skill: write `## Next`, edit the predecessor whose `## Next` should now
@@ -168,7 +170,7 @@ returns 1; `grep -c 'rename-references' .claude/rules/skill-bodies-state-current
 returns 1; `grep -c 'session-flow:workflow' .claude/rules/skill-bodies-state-current-rules.md`
 returns 1; `head -3 .claude/rules/skill-bodies-state-current-rules.md | grep -c 'Next'` returns 1.
 
-### Phase 2: Insert `## Next` in 29 skills, bump 17 plugins [TODO]
+### Phase 2: Insert `## Next` in 29 skills, bump 18 plugins [DONE]
 
 Source of truth: `.work/next-skill-suggestions/successors.md` (memory slice). Each block names
 the H2 to insert before and the exact section text.
@@ -178,7 +180,7 @@ on each side. Per plugin: read the current `version` from `.claude-plugin/plugin
 patch, and add a `## [<new>]` / `### Added` entry at the top of `CHANGELOG.md` naming the skills
 that gained a `## Next` section.
 
-File inventory (29 SKILL.md + 17 plugin.json + 17 CHANGELOG.md = 63 files):
+File inventory (29 SKILL.md + 18 plugin.json + 18 CHANGELOG.md = 65 files):
 
 | Plugin | Skills |
 |---|---|
@@ -208,14 +210,14 @@ a first column of `1` for 28 rows and `2` for `discovery:trace-intent` (its disp
 printing 29.
 **Sanity Check:** the token-resolution one-liner in the Brief prints nothing.
 **Sanity Check:** the operative-phrasing one-liner in the Brief prints nothing.
-**Sanity Check:** `wc -l plugins/review/skills/audit-enforceability/SKILL.md plugins/playbooks/skills/skill-authoring/SKILL.md`
-both stay at or under 200.
-**Sanity Check:** `git diff --stat origin/main | grep -c 'plugin.json'` prints 17 and
-`git diff --stat origin/main | grep -c 'CHANGELOG.md'` prints 17.
+**Sanity Check:** `wc -l plugins/playbooks/skills/skill-authoring/SKILL.md` prints 200 or less;
+`wc -l plugins/review/skills/audit-enforceability/SKILL.md` prints 202 (accepted soft-cap WARN).
+**Sanity Check:** `git diff --stat origin/main | grep -c 'plugin.json'` prints 18 and
+`git diff --stat origin/main | grep -c 'CHANGELOG.md'` prints 18.
 **Sanity Check:** `bash scripts/check-changed-skills.sh origin/main` exits 0 and
 `bash scripts/check-changelog-parity.sh --check-bump origin/main` exits 0.
 
-### Phase 3: Verify and open the draft PR [TODO]
+### Phase 3: Verify and open the draft PR [DOING]
 
 1. `bash scripts/affected-tests.sh --run` exits 0.
 2. `npx markdownlint-cli2 <the 29 SKILL.md files> .claude/rules/skill-bodies-state-current-rules.md`
@@ -223,7 +225,7 @@ both stay at or under 200.
 3. Commit per phase (two commits), push, open a **draft** PR with body per
    `.claude/rules/pr-body-contract.md` opening `Closes #3947`; `## Verification` carries the two
    Brief one-liners and their empty output plus the two gate commands and their exit codes.
-4. File the follow-up work item for the dropped WARN via `/work-items:track add`, naming the
+4. File the follow-up work item for the dropped WARN (filed as #3959), naming the
    residual stage-bearing set (measured: 44 with `^## Next` only, 29 with a widened regex).
 
 **Sanity Check:** `gh pr view --json isDraft -q .isDraft` prints `true`;
@@ -284,14 +286,14 @@ condition); derive the stage list from `cheatsheet-config.mjs` (moot, WARN dropp
 
 ## Execution shape
 
-Phase 1 is three lines of judgment in a rules file: main session. Phase 2 is 63 mechanical,
+Phase 1 is three lines of judgment in a rules file: main session. Phase 2 is 65 mechanical,
 file-disjoint edits from a verified draft: four Sonnet workers in one wave, each owning a plugin
 group, then a main-session read of every inserted section before commit. Phase 3 main session.
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 1 | main session | four bullets and a description edit in a rules file |
-| 2 | 4 sub-agent workers (Sonnet), one wave | 63 mechanical edits from a verified source; disjoint files per plugin |
+| 2 | 4 sub-agent workers (Sonnet), one wave | 65 mechanical edits from a verified source; disjoint files per plugin |
 | 3 | main session | verification, PR, follow-up item |
 
 Worker scope fences (Phase 2):
