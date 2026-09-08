@@ -1,10 +1,21 @@
 # CI runner routing
 
 This repository is public, so every lane runs on GitHub-hosted
-`ubuntu-24.04` — free for public repositories — and the organization's
-runner-policy engine forbids local-runner selector routing here outright
-(`public-self-hosted-routing`). There is no selector preflight, no observer
-credential, and no self-hosted exception inventory in this repository.
+`ubuntu-24.04`, free for public repositories, and the organization's
+runner-policy engine refuses a governed fleet label here outright, reporting
+`public-self-hosted-routing`. There is no observer credential and no
+self-hosted exception inventory in this repository.
+
+There is no selector preflight anywhere in the organization any more. ci-perf
+Phase 7 deleted the `select-runner` reusable workflow (ci-workflows#569, merged
+as `541ee4e90d12d77a90a3ddd72a3af9bc78634ea7`, released as v0.23.0) and
+melodic-software/standards#556 (merged as
+`771a796628f325c3c418c7b397d09fb7211e2972`) removed its grammar from the
+`runner-policy` component. Private repositories now name the governed fleet
+label as a literal and nothing routes at run time; this repository is
+unaffected, because it was never eligible for the fleet in the first place.
+The decision is recorded in melodic-software/github-iac#466, which adds
+`docs/adr/0014-fleet-first-ci-for-private-repositories.md`.
 
 ## Configuration contract
 
