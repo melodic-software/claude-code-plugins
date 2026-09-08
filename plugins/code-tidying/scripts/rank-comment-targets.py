@@ -124,10 +124,15 @@ def census_records() -> tuple[dict[str, dict], dict]:
         text=True,
         check=False,
     )
+    # Relay the census's stderr on the no-layer path too. It names the missing
+    # layer and the install command, and this branch exits with no stdout, so
+    # dropping stderr as well left the caller nothing to act on and made a
+    # missing analyser indistinguishable from a tree with nothing to rank.
     if proc.returncode == EXIT_NO_LAYER:
+        print(proc.stderr, file=sys.stderr, end="")
         raise SystemExit(EXIT_NO_LAYER)
     if proc.returncode != 0:
-        print(proc.stderr, file=sys.stderr)
+        print(proc.stderr, file=sys.stderr, end="")
         raise SystemExit(proc.returncode)
     rep = json.loads(proc.stdout)
     return {os.path.normpath(r["path"]): r for r in rep["files"]}, rep["sources"]
