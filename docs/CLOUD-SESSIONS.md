@@ -325,15 +325,15 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `claude --plugin-dir ./plugins/<name>`, which takes session precedence over the cached install.
 - **Reading the summary line's `failed` count (corrected 2026-08-28).** That count used to be the
   exit status of the refresh chain, and the chain's tail step is nonzero on the healthy path:
-  `claude plugin install --scope user` already leaves the plugin enabled, so the following
+  `claude plugin install --scope user` already leaves the plugin enabled — unless the catalog entry
+  sets `defaultEnabled: false`, which the install honors — so the following
   `claude plugin enable --scope user` exits 1 with `Plugin "<id>" is already enabled at user
   scope`. Startup lines like `plugins 71 enabled, 5 newly installed, 0 refreshed, 65 failed` were
   therefore false alarms, and dozens of them per session start buried the only health signal this
   block emits. The script now runs the chain for effect and verifies the end state once per run,
   over every plugin the fleet list plus this repo's `enabledPlugins` deltas turn on rather than only
   the ones that run touched, since the plugins most likely to be wrong are the ones it decided to
-  skip. A plugin counts as failed
-  when any of these holds:
+  skip. A plugin counts as failed when any of these holds:
   - `claude plugin list --json` does not list it at user scope, or lists it there with `enabled`
     anything other than the JSON boolean `true`;
   - its own directory under `plugins/` changed between the `gitCommitSha` recorded for the
