@@ -1,126 +1,5 @@
 {
-  "schemaVersion": 3,
-  "selectorWorkflowPaths": ["melodic-software/ci-workflows/.github/workflows/select-runner.yml"],
-  "approvedSelectorReferences": [
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c",
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@029a1c37a9b86f8200ef03f6f0c54fb1e7e6cdb1",
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3"
-  ],
-  "approvedSelectorReferencesByRepositoryOwner": {
-    "melodic-software": [
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e77f0126b474144708719f99795e44d0ffe2541d",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ee96bd28a43eebfa06b61aee8b518cc5b1b195b3",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@734158c4cb6e67b0b99fd703045ac0f7f9f042d5",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@62bef7bab01e8532fedfa739879034a210e9e67d",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@d26c750691b5498fab529d115b63f84aa7aecebe",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@0f8176e87e0be518f382664779655011bf95784a"
-    ]
-  },
-  "approvedSelectorInputContracts": {
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@029a1c37a9b86f8200ef03f6f0c54fb1e7e6cdb1": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
-      "allowedInputs": ["self-hosted-labels-json"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e77f0126b474144708719f99795e44d0ffe2541d": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ee96bd28a43eebfa06b61aee8b518cc5b1b195b3": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@734158c4cb6e67b0b99fd703045ac0f7f9f042d5": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@62bef7bab01e8532fedfa739879034a210e9e67d": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@d26c750691b5498fab529d115b63f84aa7aecebe": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    },
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@0f8176e87e0be518f382664779655011bf95784a": {
-      "allowedInputs": [
-        "self-hosted-labels-json",
-        "admits-ancillary-events",
-        "admits-comment-events"
-      ]
-    }
-  },
+  "schemaVersion": 4,
   "approvedReusableWorkflowContracts": {
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@1d3762c2ace413db0f347048307946c46850161c": {
       "routing": "hosted-only",
@@ -137,12 +16,6 @@
       "fixedRunsOn": ["ubuntu-latest"]
     },
     "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@1d3762c2ace413db0f347048307946c46850161c": {
-      "routing": "hosted-only",
-      "allowedInputs": [],
-      "allowedSecrets": {},
-      "fixedRunsOn": ["ubuntu-latest"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@1d3762c2ace413db0f347048307946c46850161c": {
       "routing": "hosted-only",
       "allowedInputs": [],
       "allowedSecrets": {},
@@ -215,36 +88,11 @@
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/pester.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
-      "routing": "hosted-only",
-      "allowedInputs": [
-        "run",
-        "pester-version",
-        "working-directory",
-        "sparse-checkout",
-        "sparse-checkout-cone-mode"
-      ],
-      "allowedSecrets": {},
-      "fixedRunsOn": ["windows-2025"]
-    },
     "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@15aefd8799e8a8b5ffdfcc183dcbfcbf58044481": {
       "routing": "hosted-only",
       "allowedInputs": [],
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
-    },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "allowedInputs": ["runner"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@51012e2c7b8bf74bc26e08c6446b488254a8770f": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
     },
     "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@35f2684ac953794b854bac1959df00e74eeca1d9": {
       "routing": "hosted-only",
@@ -371,20 +219,6 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "label"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@f7e94a80254fdca0aa85a600a07d784753b090e3": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -415,27 +249,6 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "label"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
     "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -445,18 +258,6 @@
         "contents": "read",
         "issues": "write"
       }
-    },
-    "melodic-software/ci-workflows/.github/workflows/pester.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
-      "routing": "hosted-only",
-      "allowedInputs": [
-        "run",
-        "pester-version",
-        "working-directory",
-        "sparse-checkout",
-        "sparse-checkout-cone-mode"
-      ],
-      "allowedSecrets": {},
-      "fixedRunsOn": ["windows-2025"]
     },
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
@@ -488,20 +289,6 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
     "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -511,18 +298,6 @@
         "contents": "read",
         "issues": "write"
       }
-    },
-    "melodic-software/ci-workflows/.github/workflows/pester.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
-      "routing": "hosted-only",
-      "allowedInputs": [
-        "run",
-        "pester-version",
-        "working-directory",
-        "sparse-checkout",
-        "sparse-checkout-cone-mode"
-      ],
-      "allowedSecrets": {},
-      "fixedRunsOn": ["windows-2025"]
     },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
@@ -555,34 +330,6 @@
         "id-token": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d7734df8c557084edc2df7cf578cf62ad2f261e4": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@2b14f0c06e497e4bfbe14f2792b222822b789a65": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d25b689c1b8509c63d6516bcbe72cedb8511cc2f": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {}
-    },
     "melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@c5e729c0af0e55ffed4675ec85c1b57356fef79e": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -591,27 +338,6 @@
       "allowedCallerPermissions": {
         "issues": "write"
       }
-    },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "label"],
-      "allowedSecrets": {}
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {}
     },
     "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@43bc8d0f4b328cba9c579039955b93259b6cc6bf": {
       "routing": "runner-input",
@@ -991,39 +717,6 @@
       "allowedCallerPermissions": {
         "contents": "read",
         "issues": "write"
-      }
-    },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result"],
-      "allowedSecrets": {},
-      "minimumCallerPermissions": {
-        "pull-requests": "read",
-        "actions": "read"
-      }
-    },
-    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "label"],
-      "allowedSecrets": {},
-      "minimumCallerPermissions": {
-        "pull-requests": "read",
-        "actions": "read"
-      }
-    },
-    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "selectorResultInput": "prerequisite-result",
-      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
-      "allowedSecrets": {},
-      "minimumCallerPermissions": {
-        "pull-requests": "read",
-        "actions": "read"
       }
     },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@7107b34832a7b6db5d08d3b132621c599fbe5e50": {
@@ -1411,27 +1104,6 @@
         "issues": "write"
       }
     }
-  },
-  "canonicalSelectorInputs": {
-    "policy": "${{ vars.CI_RUNNER_POLICY }}",
-    "self-hosted-label": [
-      "${{ vars.CI_SELF_HOSTED_LABEL }}",
-      "${{ vars.CI_REVIEW_SELF_HOSTED_LABEL }}"
-    ],
-    "hosted-runner": "${{ vars.CI_HOSTED_RUNNER }}",
-    "scope": "${{ vars.CI_RUNNER_SCOPE }}",
-    "managed-runner-prefix": "${{ vars.CI_MANAGED_RUNNER_PREFIX }}",
-    "observer-client-id": "${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}"
-  },
-  "optionalCanonicalSelectorInputs": {
-    "self-hosted-labels-json": "${{ vars.CI_SELF_HOSTED_LABELS_JSON }}"
-  },
-  "optionalBooleanSelectorInputs": {
-    "admits-ancillary-events": true,
-    "admits-comment-events": true
-  },
-  "canonicalSelectorSecrets": {
-    "observer-private-key": "${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}"
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],
   "hostedMatrixExpressions": ["${{ matrix.os }}", "${{ matrix.runner }}"],

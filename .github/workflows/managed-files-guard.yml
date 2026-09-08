@@ -21,11 +21,10 @@ name: managed-files-guard
 # `ci-status` and is not a required context. Promotion is a per-target
 # decision taken after a clean soak, recorded in the component README.
 #
-# Hosted-only shape: `runs-on` is the approved hosted label directly, with no
-# select-runner indirection, so the same bytes serve public and un-enrolled
-# private targets. A private target enrolled for local CI routing needs a
-# selector-routed sibling instead (see the component README) and is not a
-# consumer of this file.
+# Hosted-only shape: `runs-on` names the approved hosted label directly, so the
+# same bytes serve public and un-enrolled private targets. A private target
+# enrolled for local CI routing needs a sibling that names the managed fleet
+# label instead (see the component README) and is not a consumer of this file.
 
 on:
   pull_request:
@@ -54,10 +53,10 @@ jobs:
           fetch-depth: 0
       - name: Guard managed files
         # Pinned to the ci-workflows release that carries the close of the
-        # guard's fail-open on an unreadable diff (ci-workflows#530). v0.22.0
-        # is the first release containing that commit, so the pin-comment now
-        # takes the convention's release-tag form rather than the short-SHA
-        # fallback (components/managed-files-guard/README.md).
+        # guard's fail-open on an unreadable diff (ci-workflows#530). A release
+        # now contains that commit, so the pin-comment takes the convention's
+        # release-tag form rather than the short-SHA fallback
+        # (components/managed-files-guard/README.md).
         uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
