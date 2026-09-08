@@ -5,8 +5,6 @@ Fix-time guidance for `/ai-slop:audit fix`: what to write INSTEAD of a flagged t
 step 1, applied under the same semantic-diff guard as every rewrite (meaning over style: a
 rewrite that changes what a sentence asserts is skipped and recorded).
 
-<!-- ai-slop-ignore-file: this guide quotes the tells it rewrites; scanning it flags its own examples -->
-
 Inspired by
 [Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md).
 
@@ -35,7 +33,7 @@ rewrite:
 2. **Text that documents the tell it bans** (style guides, forbidden-phrase lists, detection
    criteria, before/after examples, changelog entries citing the phrase a fix removed). The
    use/mention boundary: mentioning a tell is not using it. Marker-free closure: backtick or
-   double-quote the mention — inline code spans and quoted spans are exempt for wording rules.
+   double-quote the mention, since inline code spans and quoted spans are exempt for wording rules.
 3. **Generated files** whose prose is owned by a generator. Fix the generator or its source,
    never the output; closure is the config path exclude (`excluded_paths`) or, for one rule,
    `rule_allowed_paths`.
@@ -126,13 +124,13 @@ not only to the flagged words:
   what actually depends on the thing ("three consumers parse this line" beats "this line is
   load-bearing"); "seam" becomes the concrete interface, file, or boundary it stands in for.
   A Feathers seam in refactoring prose and a deliberately named load-bearing invariant are
-  terms of art — leave them.
+  terms of art. Leave them.
 - **Model-era phrases** (`rule-model-era-phrases`): state the point without the stock
   construction. "That's the unlock" becomes the mechanism it gestures at ("caching the parse
   is what makes this fast"); "the honest take is" is deleted, the take standing on its own;
   "X is the part most people skip" becomes why X matters ("X fails silently when skipped").
   The ranked-punchline closer ("two observations, and one is load-bearing") becomes the
-  observations themselves, ordered by importance — the ranking shows in the order, not in a
+  observations themselves, ordered by importance. The ranking shows in the order, not in a
   self-grading clause.
 
 ## Adding voice

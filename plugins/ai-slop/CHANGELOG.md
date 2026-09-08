@@ -40,6 +40,16 @@
   `## Surfaces` description matches what the script now writes.
 - **README:** names `/ai-slop:audit` as the invocation and says a bare `/ai-slop` is not a
   command.
+- **The plugin's own prose passes its own audit.** Every em dash in the plugin's authored
+  markdown (README, both skill bodies, the persist and rubric context files, the catalog, the
+  rewrite guide, and this changelog) is rewritten, and reflexive uses of `load-bearing` are
+  replaced by the concrete word. The whole-file ignore markers on `catalog.md` and
+  `rewrite-guide.md` are removed; the tells those files quote are already exempt under the
+  quotation exemption, and any example the exemption misses sits in a block marker with a
+  reason. The tree is declared in `scripts/em-dash-purged-paths.txt` so the purge gate defends
+  it. In-place corrections to released entries of this changelog, wording only, facts
+  unchanged: `0.5.3`, `0.5.0`, `0.4.1`, `0.4.0`, `0.3.7`, `0.3.4`, `0.3.3`, `0.3.2`, `0.3.1`,
+  `0.3.0`, `0.2.2`, `0.2.1`, `0.2.0`, `0.1.0`.
 
 ## [0.5.13]
 
@@ -231,7 +241,7 @@
 - **Findings-file producer preamble normalized against its contract.** The four
   `persist-findings.md` preambles this sweep touched now carry byte-identical text apart from the
   run-name slot. `testing:audit` states the same contract as a numbered `apply` step, keeps that
-  form by design, and regains the three load-bearing clauses it had dropped, including that the
+  form by design, and regains the three required clauses it had dropped, including that the
   contract wins where the two disagree. `provenance:audit`'s preamble landed later and is outside
   this set: it opens on "this plugin's read" rather than "this skill's" and carries a resolution
   list the four do not, so it is a sixth surface, not a fifth copy. Whole-repo extract-ssot sweep.
@@ -252,7 +262,7 @@
 
 ### Added
 
-- **The catalog gained a repo-owned "Model-era additions" section** — an evolving,
+- **The catalog gained a repo-owned "Model-era additions" section**: an evolving,
   evidence-graded inventory of 2025-2026 model-vocabulary tells (the Claude-ism layer neither
   Wikipedia's source page nor Cursor's unslop skill carries yet): four entries with era,
   model-attribution, and evidence-grade fields, a dated model-era record in the
@@ -262,7 +272,7 @@
   deliberately broad literal-sense boundaries; base rates on this repo's own corpus are
   recorded in the calibration record's fourth pass.
 
-- **New script rule `rule-model-era-phrases`** — per-occurrence detection of distinctive
+- **New script rule `rule-model-era-phrases`**: per-occurrence detection of distinctive
   model stock constructions, shipped as three anchored ERE fragments (`the part most people
   skip`, `(the|my) honest take`, `that.s the unlock`; the bare bigrams are recorded-only, one
   on a measured domain-literal false positive). Measured 0 findings across this repo's 1,361
@@ -271,9 +281,10 @@
   2.7.0) and `emit-findings.sh` the rule's rewrite action.
 
 - **New config keys `phrase_add` / `phrase_remove`** tune the phrase roster per layer
-  (replace-wholesale, the `vocab_add` precedent). Fragments are whole EREs — spaces allowed,
-  apostrophes spelled `.` — read through a separator-preserving reader, and validated at
-  config-read time: an empty element is dropped (an empty alternation branch would match
+  (replace-wholesale, the `vocab_add` precedent). Fragments are whole EREs, so a space is
+  allowed and an apostrophe is spelled `.`. They are read through a separator-preserving
+  reader and validated at config-read time: an empty element is dropped (an empty alternation
+  branch would match
   every line) and an invalid ERE is skipped with a stderr note naming it (an unbalanced
   paren would otherwise error every grep for the rule into a `findings=0` row
   indistinguishable from a clean corpus). Removing every phrase leaves the rule inert.
@@ -281,7 +292,7 @@
   `"phrase_add": []` in a later layer clears an inherited list instead of reading as an
   absent key, and a config layer that fails to parse whole (for example one caught
   mid-write, a valid object followed by truncated bytes) is refused for these keys rather
-  than partially applied — jq's own exit status guards the read, the `cfg_scalar` posture.
+  than partially applied. jq's own exit status guards the read, the `cfg_scalar` posture.
 
 - **`pre-existing` joined the shipped vocabulary list** on the leverage precedent: 61 files
   in this corpus contain the word and the density gate fired on none. The rest of the
@@ -292,12 +303,12 @@
 
 - **`rule_allowed_paths` exemptions no longer break when the detector runs from a directory
   where the configured glob expands.** `rule_allowed()` passed its globs unquoted, so the
-  shell pathname-expanded them against the caller's cwd before matching — from a cwd with
+  shell pathname-expanded them against the caller's cwd before matching. From a cwd with
   matching files (the repo root being the worst case), the configured pattern was replaced by
   a local file listing and the exemption silently failed. Behavior change to know about: the
   fix applies to `em_dash_allowed_paths` too (same code path), and these are shell
-  case-match globs — `*` and `**` both cross `/` — now stated in the README and pinned by
-  regression tests.
+  case-match globs, where `*` and `**` both cross `/`, a rule now stated in the README and
+  pinned by regression tests.
 
 ## [0.4.2]
 
@@ -327,11 +338,11 @@
   more carried the same defect from the same source: `rule_allowed_paths`, the
   per-rule exemption added in 0.4.0, reads jq through `read`, which splits on
   the line feed, so the CR landed on the last glob of every entry and that key
-  never applied on Windows either — this suite's own `rule_allowed_paths` cases
+  never applied on Windows either; this suite's own `rule_allowed_paths` cases
   already fail on a Windows workstation against the released 0.4.0, with no shim
-  involved, and go green here; and `cfg_scalar`, which Git Bash masks —
-  its command substitution strips one trailing CRLF pair — but which on a bash
-  that strips only the line feed carries the CR into the emitted threshold text,
+  involved, and go green here. The second is `cfg_scalar`. Git Bash masks it,
+  because its command substitution strips one trailing CRLF pair, but on a bash
+  that strips only the line feed it carries the CR into the emitted threshold text,
   in `--show-config` and in the density finding's label. CI cannot observe any
   of these conditions, because it runs on Linux, where jq emits LF, so the new
   cases force them with a shim ahead of jq on PATH that appends a CR to every
@@ -391,7 +402,8 @@ catalog's Wikipedia source, prior-art suppression design, and humanization craft
 ### Changed
 
 - **`rule-rule-of-three` demoted from script to judgment rubric**, per its own calibration
-  clause: the dogfood pass ended with 18 of 18 residual findings on load-bearing enumerations,
+  clause: the dogfood pass ended with 18 of 18 residual findings on enumerations whose items
+  were each needed,
   the ERE matched only single-word triads, and a verified survey of comparable prose linters
   (Vale, textlint, proselint, write-good, alex, markdownlint) found no tricolon implementation
   anywhere. The crosswalk row is now a no-row disposition; the script roster is 14.
@@ -448,8 +460,8 @@ catalog's Wikipedia source, prior-art suppression design, and humanization craft
   and `git check-ref-format --branch` accepts `@foo`, `!foo`, `#foo` and `&foo`. Emitted bare,
   `#foo` and `&foo` parse to null and `@foo`/`!foo` are outright YAML parse errors, so the
   `branch:` value a consumer reads is not the branch name. The consumer admits a findings file
-  only when that value matches the current branch exactly, so the whole file went unmatched — with
-  no error, and nothing distinguishing it from "no findings". Frontmatter now goes through a
+  only when that value matches the current branch exactly, so the whole file went unmatched, with
+  no error and nothing distinguishing it from "no findings". Frontmatter now goes through a
   `yaml_scalar()` helper that quotes only when the plain form would misparse, so an ordinary branch
   name stays a byte-identical unquoted scalar and the wire format for the common path does not
   move. The predicate is deliberately identical to the one `claude-config`'s and `testing`'s
@@ -479,8 +491,8 @@ catalog's Wikipedia source, prior-art suppression design, and humanization craft
 
 - **The README now points back at the upstream ledger.** `docs/upstream/cursor-pstack.md` names
   this plugin's catalog and rewrite guide as where the Cursor `unslop` skill landed, but nothing
-  under `plugins/ai-slop/` pointed the other way — the only derived plugin in the marketplace with
-  no citation of that file, so a reader who arrived at the catalog through the README had no route
+  under `plugins/ai-slop/` pointed the other way. It was the only derived plugin in the marketplace
+  with no citation of that file, so a reader who arrived at the catalog through the README had no route
   to what the port took, deduplicated, or rejected, nor to the row that decides the next drift
   recheck. The README's existing sentence naming Cursor's skill now carries that link. The pointer
   belongs here rather than appended to the earlier entry that recorded the port, because a published
@@ -492,12 +504,12 @@ Three corrections found by re-reading what 0.3.1 and the 2.4.0 contract release 
 None changes what the detector finds or what the fix flow rewrites.
 
 - **`emit-findings.sh` stamped a `date:` that is ISO-8601 in neither profile.** The format string
-  was `%Y-%m-%dT%H-%M-%SZ` — an extended-form date joined to a hyphenated time — so every emitted
+  was `%Y-%m-%dT%H-%M-%SZ`, an extended-form date joined to a hyphenated time, so every emitted
   file carried `date: 2026-08-21T13-24-36Z`. The consumer parses this field:
   `fix-pass-mode.md` "Step 1" reads a value only when it is a full ISO-8601 date-time with an
   explicit UTC designator or numeric offset, and classes anything else UNREADABLE. Nothing was
-  dropped, because every clause on that path fails open — an unreadable `date:` keeps the candidate,
-  at a bounded cost of one extra pass — but the staleness note Step 4's cleanup route asks for was
+  dropped, because every clause on that path fails open: an unreadable `date:` keeps the candidate,
+  at a bounded cost of one extra pass. But the staleness note Step 4's cleanup route asks for was
   degrading silently, since it judges age only from files that declare a readable one. Now
   `%Y-%m-%dT%H:%M:%SZ`.
 - **The unit suite had pinned the malformed shape as the contract.** `detect.test.sh` asserted the
@@ -508,8 +520,8 @@ None changes what the detector finds or what the fix flow rewrites.
   assertion now pins the extended form and says which document it answers to.
 - **The Purpose section described the relay's cleanup route as `/simplify`-only.** Step 4 of
   `fix-pass-mode.md` reads "Invoke the `/simplify` skill when available in the session; otherwise
-  apply the cleanup findings directly, one file at a time" — two branches, and the Purpose section
-  named one. The paragraph's conclusion is unchanged and was never at risk: what makes routing these
+  apply the cleanup findings directly, one file at a time". That is two branches, and the Purpose
+  section named one. The paragraph's conclusion is unchanged and was never at risk: what makes routing these
   rows to `/ai-slop:audit fix` correct is that *neither* branch loads this skill's rewrite guide, so
   the omitted branch strengthens the argument rather than weakening it. This is a precision fix to
   rationale, not a behavior change; the audit flow's step 6 already carried the two-branch wording,
@@ -526,7 +538,7 @@ None changes what the detector finds or what the fix flow rewrites.
   **The fix flow's re-emit wording is left alone here, and the question stays open.** It states
   re-emission without repeating step 5's gate. `persist-findings.md` "Surfaces, and when the file is
   written at all" enumerates when a file is written and tracked-ness is not on that list, which is
-  the reading under which the two never conflict — but that reading is not established, and this
+  the reading under which the two never conflict. But that reading is not established, and this
   entry does not claim it is. Against it: step 1 scopes "the repo's tracked markdown" to the
   **empty-target** branch, while every eval case passes a path argument, so "examined tracked files"
   and "nothing scanned" are not obviously the same condition; and cases 4 and 5 word tracked-ness as
@@ -541,7 +553,7 @@ None changes what the detector finds or what the fix flow rewrites.
 
 ## [0.3.2]
 
-The catalog's cited source page lists an **Ineffective indicators** section — signals that
+The catalog's cited source page lists an **Ineffective indicators** section: signals that
 page's own editors consider unreliable for LLM detection. Until this release both that
 section and **Comment-specific indicators** were a recorded fetch gap (the catalog-time
 window ran out before those headings). That left a guardrail question unanswered: if a
@@ -578,31 +590,31 @@ ineffective.
 
 The audit skill told operators to keep this plugin's findings away from the very relay route that
 now remediates them. Both statements were true when 0.2.0 wrote them and neither survives `review`
-0.26.0, which teaches the fix relay to honor a producer-declared remediation owner — but they fail
+0.26.0, which teaches the fix relay to honor a producer-declared remediation owner. But they fail
 differently, and the entry says which is which: step 6's steer is now **flatly false**, while the
 Purpose statement **draws a real distinction in the wrong place** rather than being false.
 
 - **Step 6 of the audit flow no longer steers users off the route.** It said: "Recommend
-  `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can apply
+  `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can apply <!-- ai-slop-ignore: verbatim quote of the retired step 6 wording -->
   meaning-preservingly; routing prose rewrites there retires the findings without fixing them."
   The second half is now flatly wrong. The crosswalk declares `/ai-slop:audit fix` as the
   remediation owner for the other fourteen rules, so the relay hands those rows to this skill
   instead of retiring them unfixed. This mattered more than an ordinary stale sentence because
-  **the audit flow is the normal entry point that recommends remediation** — leaving it in place
+  **the audit flow is the normal entry point that recommends remediation**. Leaving it in place
   would have made the new route unreachable through the documented flow while the contract
   advertised it, and handed the model directly contradictory instructions.
 - Step 6 now recommends `review:fanout fix` for the whole file when the operator is already
   running a fix pass, and this skill's own `fix` directly when they are not, and it names the one
   condition that changes the answer: the relay can only hand the rows over when `/ai-slop:audit`
   is available in that session, and surfaces them otherwise.
-- **The Purpose section's detection-layer paragraph** drew the same line in the wrong place —
+- **The Purpose section's detection-layer paragraph** drew the same line in the wrong place:
   "What the relay can actually apply is narrow… the findings file is how a consumer *sees* them,
   not how they get rewritten". The narrowness is real but it is about what the relay **applies**,
   not what it **routes**: `rule-utm-params` is still the only row the relay is *capable* of
-  applying meaning-preservingly — it reaches the cleanup route, which prefers `/simplify` and
-  applies rows itself only when `/simplify` is absent, so nothing promises it lands — and the
+  applying meaning-preservingly. That row reaches the cleanup route, which prefers `/simplify`
+  and applies rows itself only when `/simplify` is absent, so nothing promises it lands. The
   other fourteen are now handed to this skill rather than left unrouted. The paragraph says
-  that distinction explicitly, and keeps the true half — the cleanup route is a
+  that distinction explicitly, and keeps the true half: the cleanup route is a
   code-simplification skill that never loads this skill's rewrite guide, which is exactly why the
   declaration exists.
 
@@ -613,7 +625,7 @@ honors. Detector, emitter, catalog, and evals are untouched.
 
 The audit eval cases described their input in prose. Nothing checked that the described input
 produced the finding the case graded, and it drifted from the detector three times in one PR
-(#3041) — each time a golden answer the scenario could not produce. Seven of the nine cases now
+(#3041), each time a golden answer the scenario could not produce. Seven of the nine cases now
 name a committed fixture instead.
 
 - **Six eval fixtures ship under `skills/audit/evals/fixtures/`**, referenced from each case's
@@ -623,7 +635,7 @@ name a committed fixture instead.
   `triads.md` (rule-of-three at 3 hits in 69 words) and `knowledge-cutoff-prose.md` (the recorded
   false-positive class). Every case's `expected_output` now names the rules, lines and fired
   thresholds the detector actually emits, measured rather than asserted.
-- **A case names its fixture through `files[]` and in prose, the way every sibling suite does** —
+- **A case names its fixture through `files[]` and in prose, the way every sibling suite does**:
   `mcp-tools:audit` and `docs-hygiene:compress` both read "`evals/fixtures/<name>.md` relative to the
   skill directory", and none of the eighteen fixture-backed suites here builds a repository to audit
   in. These prompts are a *specification* of expected skill behavior, not a script: this repo has 200
@@ -631,11 +643,11 @@ name a committed fixture instead.
   eval` consumes, no manifest declares `experimental.evals`, and the only things that read
   `evals.json` are lint scripts. Nothing executes a prompt, so a prompt must be readable by a human
   or an agent working by hand, and environment control belongs nowhere in it. If this repo ever
-  adopts the CLI's format, per-case setup has a first-class home there — a `scaffold_script` run
+  adopts the CLI's format, per-case setup has a first-class home there: a `scaffold_script` run
   under `--scaffold`.
 - **Cases 2, 6 and 7 tell the reader to work on a copy.** They invoke `fix`, and the fix flow
   rewrites each flagged line in place, so running one by hand against the committed fixture
-  remediates it and dirties the repo — and a later run then grades already-fixed input, where the
+  remediates it and dirties the repo, and a later run then grades already-fixed input, where the
   declared findings no longer fire. One sentence in the prompt and one expectation per case, both
   about the outcome rather than the mechanism: the committed fixture is byte-identical after the run,
   and how the copy gets made is the reader's business. An instruction a case states but never checks
@@ -643,11 +655,11 @@ name a committed fixture instead.
 - **Cases 4 and 5 state their premise instead of constructing it.** Both grade the persistence step,
   which `SKILL.md` gates on the audit having "examined tracked files", so each prompt says the
   audited file is tracked in the repo under audit and the expectations grade the skill's *decision*:
-  that it treats persistence as applicable, fetches the producer contract first, and — case 4 —
+  that it treats persistence as applicable, fetches the producer contract first, and, in case 4,
   refuses to write when that fetch fails, rather than refusing because the target was out of tracked
   space. A case cannot verify real repository state, and pretending otherwise is what made case 4
-  pass for the wrong reason. Case 5 also asserts the positive half — that the findings file is
-  actually written — because `context/persist-findings.md` permits reporting without writing when the
+  pass for the wrong reason. Case 5 also asserts the positive half, that the findings file is
+  actually written, because `context/persist-findings.md` permits reporting without writing when the
   destination cannot be proven outside tracked space, so a negative-only case would be satisfied by a
   run that persists nothing at all.
 - **This reverses 0.1.0's no-fixtures decision, which was recorded in `detect.test.sh`'s header.**
@@ -672,7 +684,7 @@ The in-file suppression the fix flow and the catalog both tell operators to reac
 the two forms they reach for first. Only `ai-slop-ignore-file` parsed the documented `: reason`;
 the line and block forms did not, and each failed differently and without saying so.
 
-- **Every marker form takes the optional `: reason`** — `<!-- ai-slop-ignore -->`,
+- **Every marker form takes the optional `: reason`**: `<!-- ai-slop-ignore -->`,
   `-start`, `-end`, and `-file`. Previously a line marker carrying a reason did not match, so the
   finding was still reported and the operator's own reason text was quoted back inside its excerpt;
   an `ai-slop-ignore-start` carrying one never opened the block, so every line meant to be exempt
@@ -686,12 +698,12 @@ the line and block forms did not, and each failed differently and without saying
   generalized alongside them, so a backticked mention carrying a reason is still a mention. The
   guard **mirrors the line-marker pattern exactly** rather than matching any string starting with
   the marker prefix. Matching the prefix would let a backticked mention of `-start`, `-end`, or
-  `-file` veto a genuine line marker sharing that line — reintroducing, in a new shape, the same
-  failure this release removes: the suppression is rejected and the operator's own marker text is
+  `-file` veto a genuine line marker sharing that line. That would reintroduce, in a new shape, the
+  same failure this release removes: the suppression is rejected and the operator's own marker text is
   quoted back inside the excerpt.
 - **Six new detector cases** (86 → 92) covering a reasoned line marker, a reasoned block, the
-  `-end` close, the declined counts, and a line that mentions one marker form while using another
-  — plus the marker-documentation fixture extended with a reasoned mention.
+  `-end` close, the declined counts, and a line that mentions one marker form while using another,
+  plus the marker-documentation fixture extended with a reasoned mention.
 - Calibration record: the knowledge-cutoff false-positive class measured on the 1214-file dogfood
   corpus. All 8 findings fall in the recorded class, none was genuine assistant-frame residue.
 
@@ -715,13 +727,14 @@ over all 15 script rules; the judgment side had none, which is the half that onl
 - Two eval scenarios corrected in review, both cases of a golden answer the scenario could not
   produce: the rubric-boundary case used promotional words that are themselves in the mechanical
   vocabulary list, so a second script finding fired and contradicted its own "one script finding"
-  answer (measured: 3 hits, density 142.9/1000); and the triad case demanded a load-bearing triad
-  be kept while supplying only rhetorical ones.
-- The triad case needed a second correction, caught in review after the first: its load-bearing
-  example used multi-word items ("project settings"), which `rule-rule-of-three`'s ERE
+  answer (measured: 3 hits, density 142.9/1000); and the triad case demanded that a triad with
+  three needed items be kept while supplying only rhetorical ones.
+- The triad case needed a second correction, caught in review after the first: its example of a
+  triad whose three members were each needed used multi-word items ("project settings"), which
+  `rule-rule-of-three`'s ERE
   (`[A-Za-z]+, [A-Za-z]+, and [A-Za-z]+`) requires to be single tokens, so the detector never
   surfaced it and the fix flow had nothing to judge. Each scenario is now verified by running the
-  detector over it — the triad case measures 3 hits at 60.0/1000 words, with all three triads
+  detector over it: the triad case measures 3 hits at 60.0/1000 words, with all three triads
   reaching the finding.
 
 ## [0.2.0]
@@ -732,7 +745,7 @@ over all 15 script rules; the judgment side had none, which is the half that onl
 - Three new detector rules, calibrated against this marketplace's corpus: `rule-chatbot-artifacts`
   (chat-turn residue and sycophancy phrases; IMPORTANT in the severity crosswalk),
   `rule-filler-phrases` (`in order to`, `due to the fact that`, deletable note-phrases), and
-  `rule-stacked-hedging` (`could potentially` and kin) — both SUGGESTION.
+  `rule-stacked-hedging` (`could potentially` and kin), both SUGGESTION.
 - Four new rubric tells: false ranges, colon crutches, abstract metaphor jargon (kept out of the
   script layer by calibration: "substrate" alone had 114 legitimate uses on the calibration
   corpus), and mechanism-free claims.
@@ -761,8 +774,8 @@ over all 15 script rules; the judgment side had none, which is the half that onl
   when `detect.sh`'s registry no longer matches the tabled set, so a rule added without a
   crosswalk row can no longer emit SUGGESTION by silent fall-through.
 - **Test config isolation**: the suite pins `HOME` and `CLAUDE_PROJECT_DIR` to empty directories
-  so fixtures grade against shipped defaults. Found by dogfooding — a consuming repo disabling a
-  rule for its own house style turned nine unrelated cases red.
+  so fixtures grade against shipped defaults. Found by dogfooding, when a consuming repo disabling
+  a rule for its own house style turned nine unrelated cases red.
 - Relay expectations narrowed to what is true: `rule-utm-params` is the one relay-applicable rule;
   every other rule is `/ai-slop:audit fix` work.
 - **Phrase rules match on whole words.** Without it, "These are great questions for the reviewer"
@@ -777,7 +790,7 @@ over all 15 script rules; the judgment side had none, which is the half that onl
   deterministic detector with the mechanical rule roster, judgment rubric, and the
   Signs-of-AI-writing catalog (revision-pinned, CC BY-SA 4.0).
 - Hardened by the first dogfood run (pre-release, folded in): ignore markers must be
-  well-formed comment markers, not prose mentions — a document that documents the markers no
+  well-formed comment markers, not prose mentions, so a document that documents the markers no
   longer exempts itself, and a mid-file `ai-slop-ignore-file` declines the whole file instead
   of silently truncating the scan; declined files are named in output (`Declined:` rows with
   cause), not just counted; `emit-findings.sh` composes the findings file deterministically
@@ -785,4 +798,4 @@ over all 15 script rules; the judgment side had none, which is the half that onl
   owns row assembly at repo scale), writing coverage-only files on zero findings and refusing
   non-detector input.
 - Fix guidance: `rule-of-three` rewrites collapse toward the single strongest item unless
-  every element is load-bearing.
+  every element is needed.
