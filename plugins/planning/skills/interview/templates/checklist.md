@@ -15,6 +15,12 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 
 **Write a row the moment a round is ASKED — before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked`. `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
 
+Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions; keep every live row unfenced.
+
+- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
+- Q2 | open | round 1 | What content format? |
+- Q3 | deferred | round 2 | Moderation model? | post-V1 — also in the Brief's Deferred questions
+
 ```text
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
 - Q2 | open | round 1 | What content format? |
