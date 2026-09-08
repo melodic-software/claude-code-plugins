@@ -95,9 +95,26 @@ PY
 
 # Fill dest with symlinks to every PATH executable except the ladder's
 # collectors, so git, the coreutils, and the interpreter stay reachable.
+# Python interpreters are resolved to a non-mutating executable: a pyenv
+# (or similar) shim that prepends its version bin would put skipped
+# collectors back on PATH when the adapter probe runs.
+_cm_is_python_interp() {
+  case "$1" in
+    python|python[0-9]|python[0-9].*|python3|python3.*|pypy|pypy3|pypy3.*) return 0 ;;
+  esac
+  return 1
+}
+
+_cm_nonmutating_python() {
+  local exe="$1" resolved
+  resolved="$("$exe" -c 'import os, sys; print(os.path.realpath(sys.executable))' 2>/dev/null)" || return 1
+  [[ -n "$resolved" && -f "$resolved" && -x "$resolved" ]] || return 1
+  printf '%s\n' "$resolved"
+}
+
 cm_fill_tool_free_path() {
   local dest="$1"
-  local name dir exe
+  local name dir exe target resolved
   mkdir -p "$dest"
   declare -A skip=()
   while IFS= read -r name; do
@@ -113,7 +130,12 @@ cm_fill_tool_free_path() {
       [[ -f "$exe" && -x "$exe" ]] || continue
       name="${exe##*/}"
       [[ -n "${skip[$name]:-}" ]] && continue
-      [[ -e "$dest/$name" ]] || ln -s "$exe" "$dest/$name"
+      [[ -e "$dest/$name" ]] && continue
+      target="$exe"
+      if _cm_is_python_interp "$name"; then
+        resolved="$(_cm_nonmutating_python "$exe")" && target="$resolved"
+      fi
+      ln -s "$target" "$dest/$name"
     done
   done
 }

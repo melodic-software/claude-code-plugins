@@ -89,5 +89,34 @@ case " $leaked " in
   ;;
 esac
 
+# 5. A python shim that prepends a directory containing mypy must not make
+#    mypy-report resolvable. pyenv shims do this; the filled PATH must point
+#    at a non-mutating interpreter instead.
+REAL_PY="$(command -v python3 || command -v python)"
+REAL_PY="$("$REAL_PY" -c 'import os, sys; print(os.path.realpath(sys.executable))')"
+mkdir -p "$WORK/shimdir" "$WORK/version-bin"
+cat >"$WORK/version-bin/mypy" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$WORK/version-bin/mypy"
+cat >"$WORK/shimdir/python3" <<EOF
+#!/usr/bin/env bash
+export PATH="$WORK/version-bin:\$PATH"
+exec "$REAL_PY" "\$@"
+EOF
+chmod +x "$WORK/shimdir/python3"
+EMPTY_SHIM="$WORK/empty-shim"
+PATH="$WORK/shimdir:$PATH" cm_fill_tool_free_path "$EMPTY_SHIM"
+shim_target="$(readlink "$EMPTY_SHIM/python3" 2>/dev/null || true)"
+if [[ "$shim_target" == "$REAL_PY" ]]; then
+  pass "python3 on the tool-free PATH is the non-mutating interpreter"
+else
+  fail "python3 on the tool-free PATH is the non-mutating interpreter" "$REAL_PY" "$shim_target"
+fi
+leftover_shim="$(cm_resolvable_ladder_collectors "$EMPTY_SHIM" | sort -u | tr '\n' ' ')"
+leftover_shim="${leftover_shim% }"
+assert_eq "a PATH-mutating python3 shim does not restore mypy-report" "" "$leftover_shim"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
