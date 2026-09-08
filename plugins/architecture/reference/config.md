@@ -83,7 +83,7 @@ is not a claim that mermaid is unfit for this landscape surface, whose allowed s
 `structurizr | mermaid`.
 
 The mermaid-C4 experimental fact and its recheck trigger live in the authoring-formats convention
-([Why mermaid is not offered for the system key](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
+([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. When that trigger fires, re-derive whether this key's
 mermaid default should change and record the outcome in this plugin's `CHANGELOG.md`.
 
