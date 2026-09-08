@@ -276,7 +276,9 @@ gate_managed_settings_files() {
 # redirections left to right, so an existing-but-unreadable settings file would
 # otherwise print "Permission denied" before stderr is silenced.
 # Trailing newlines are removed from each value as the former `$(jq -r …)`
-# capture removed them, so a value reads the same on either path.
+# capture removed them, so a value reads the same on either path. A trailing CR
+# goes with them: a jq that writes stdout in text mode turns every LF inside a
+# value into CRLF, which would otherwise leave a CR embedded in the value.
 #   gate_settings_options_to <file> <key>...
 # shellcheck disable=SC2034 # result arrays are consumed by the sourcing hook
 gate_settings_options_to() {
@@ -303,7 +305,7 @@ gate_settings_options_to() {
   local rec
   {
     while IFS= read -r -d '' rec; do
-      while [[ "$rec" == *$'\n' ]]; do rec="${rec%$'\n'}"; done
+      while [[ "$rec" == *[$'\r\n'] ]]; do rec="${rec%?}"; done
       recs+=("$rec")
     done < <(jq -j --arg id "$GATE_PLUGIN_ID" --arg n "$GATE_PLUGIN_NAME" --argjson keys "[$keys]" '
       [ (.pluginConfigs // {}) | to_entries[]

@@ -35,6 +35,16 @@
 # suite it selected but ALSO selected suites in other ecosystems, whose runner
 # it deliberately will not guess (see the --run note at the foot of this file).
 #
+# HOST: --run IS A LINUX GATE. On a Windows Git Bash host a standing set of
+# suites fails for reasons that belong to the host and not to the tree: text-mode
+# CRLF translation (a native jq and Git Bash line-ending handling), no
+# unprivileged symlink right, MSYS drive-letter paths against the POSIX form in
+# fixture assertions, and a missing `scc`. Its exit code there reports host
+# capability, so it cannot say whether a change is good, and the repo does not
+# support it as a local gate on Windows. Selection itself is host-neutral: use
+# the listing forms to see what a change affects and run individual suites by
+# hand. CI's Linux lanes are the gate that decides.
+#
 # DIRECTION: over-selection is safe, under-selection is not. Every rule below is
 # deliberately generous — a basename match counts even when it lands in a
 # comment — because a suite that runs needlessly costs seconds, while a suite

@@ -3,6 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5]
+
+### Fixed
+
+- **The multi-key settings reader chomps a trailing CR as well as a trailing
+  newline.** A jq that writes stdout in text mode (the native Windows build)
+  turns every LF inside a string value into CRLF, so a string option whose value
+  carries a newline came back with a CR left embedded on the end. Both the
+  multi-key and the single-key print form read through this one reader, so both
+  are corrected.
+
 ## [0.23.4]
 
 ### Changed
