@@ -1,10 +1,23 @@
 # CI runner routing
 
-This repository is public, so every lane runs on GitHub-hosted
-`ubuntu-24.04` — free for public repositories — and the organization's
-runner-policy engine forbids local-runner selector routing here outright
-(`public-self-hosted-routing`). There is no selector preflight, no observer
-credential, and no self-hosted exception inventory in this repository.
+This repository is public, so every lane runs on GitHub-hosted runners, free for
+public repositories: `ubuntu-24.04` for all of them except the two informational
+Windows lanes, `test-windows` in `ci.yml` and `windows` in
+`hook-utils-timing.yml`, which run `windows-2025`. The organization's
+runner-policy engine refuses a governed fleet label here outright, reporting
+`public-self-hosted-routing`. There is no observer credential and no
+self-hosted exception inventory in this repository.
+
+There is no selector preflight anywhere in the organization any more. ci-perf
+Phase 7 deleted the `select-runner` reusable workflow (ci-workflows#569, merged
+as `541ee4e90d12d77a90a3ddd72a3af9bc78634ea7`, released as v0.23.0) and
+melodic-software/standards#556 (merged as
+`771a796628f325c3c418c7b397d09fb7211e2972`) removed its grammar from the
+`runner-policy` component. Private repositories now name the governed fleet
+label as a literal and nothing routes at run time; this repository is
+unaffected, because it was never eligible for the fleet in the first place.
+The decision is recorded in melodic-software/github-iac#466, which adds
+`docs/adr/0014-fleet-first-ci-for-private-repositories.md`.
 
 ## Configuration contract
 
@@ -25,10 +38,13 @@ reviewed pull request.
 
 ## Routing and failure behavior
 
-The `ci-status` required check depends on every workload lane and requires
+The `ci-status` required check depends on every **required** workload lane
+(`changes`, `lint`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). The metadata checks (Conventional Commits title,
+success to branch protection). `test-windows` is deliberately outside that
+aggregate, as an informational platform lane; `ci.yml` says so at the job and
+warns against adding it to `ci-status.needs`. The metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `pr-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
