@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0]
+
+### Changed
+
+- **The `plugins` skill's `sync` and `audit` run Steps 1-5b through one `sync-run.sh`
+  invocation with a JSON digest, instead of the model driving each step by hand.**
+  A current-fleet run now costs 2 model turns where it cost 14.
+- **`cache-content-check.sh` batches fleet-wide** instead of spawning per plugin: 400
+  spawns fall to 17, and the authoring host's wall clock drops from roughly 100 s to
+  roughly 15 s.
+- **Step 5b calls the checker once, not twice.**
+- **A journal-creation failure now exits 2 before any mutation, instead of degrading.**
+
 ## [0.44.3]
 
 ### Fixed
