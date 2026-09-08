@@ -1,5 +1,12 @@
 # Changelog — discovery plugin
 
+## [0.19.7]
+
+### Added
+
+- **`trace-intent`**: a `## Next` section naming the skill that normally runs after this one, in
+  the mention-only shape the skill-body rule describes.
+
 ## [0.19.6]
 
 ### Changed

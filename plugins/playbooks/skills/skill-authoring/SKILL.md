@@ -175,6 +175,10 @@ documented prominence causes first, the blog's description diagnosis second. See
 
 ---
 
+## Next
+
+`/skill-quality:check <skill>`. A skill just authored is checked before publication.
+
 ## Skill-tool composition (Melodic Software addition)
 
 The Skill tool takes one skill per call; a step needing two skills is two calls. A skill with

@@ -204,6 +204,11 @@ option per question, with the cost the driver accepted, is the record of what wa
 decided. The logic module behind the shell is often worth keeping; the shell, TUI or HTML page,
 is not: lift the validated module into production and delete the shell.
 
+## Next
+
+- The model holds and the logic module is ready to lift: `/implementation:implement`.
+- The prototype invalidates the model: `/planning:design`.
+
 ## Anti-patterns
 
 - **Adding tests.** A prototype needing tests is no longer a prototype.

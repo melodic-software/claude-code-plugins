@@ -159,6 +159,12 @@ Load these based on the mode being run:
 
 ---
 
+## Next
+
+- Bounded contexts are settled and their canonical terms need curating:
+  `/domain-driven-design:curate-language`.
+- A context is ready to design against: `/planning:design`.
+
 ## Cross-run state
 
 Persist all generated state, session archives, board URLs, version metrics, run findings, under

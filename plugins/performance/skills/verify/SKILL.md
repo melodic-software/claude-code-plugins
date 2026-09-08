@@ -84,6 +84,12 @@ Rules that bind the report:
   claim.
 - **Does not merge.** Under any autonomy setting this plugin may open a PR and never merge one.
 
+## Next
+
+- Target met: `/source-control:pull-request`.
+- Target not met, and another candidate is due: `/performance:target`.
+- Behavior changed: `/debugging:debug`.
+
 ## Gotchas
 
 - **A green CI run is not verification.** CI stays green while blocking defects are live, because it

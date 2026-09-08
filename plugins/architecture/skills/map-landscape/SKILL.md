@@ -156,6 +156,11 @@ to 10 with a trailing `(+N)`.
   `/architecture:setup apply`.
 - Invent a home. No declared and no confirmed `architecture_dir` is a stop, not a default.
 
+## Next
+
+- One repository on the landscape needs its own module-level pass: `/architecture:improve`.
+- The landscape settles a decision worth keeping: `/architecture:record-decision`.
+
 ## Gotchas
 
 - **The two dialects are not symmetric, and mermaid is the loose one.** Structurizr has a dedicated

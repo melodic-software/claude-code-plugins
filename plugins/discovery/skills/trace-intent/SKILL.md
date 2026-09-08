@@ -208,6 +208,10 @@ Check these against the written output, not against recollection:
 - Every skip carries one of the two permitted reasons.
 - Hedged claims are hedged in the output, not flattened into confident prose.
 
+## Next
+
+`/planning:plan`. Its input is the Preserve / Change / Avoid / Risk set.
+
 ## Gotchas
 
 See [`context/gotchas.md`](context/gotchas.md).

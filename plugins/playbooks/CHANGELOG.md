@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.9]
+
+### Added
+
+- **`skill-authoring`**: a `## Next` section (that exact heading) naming the skill that normally
+  runs after this one, in the mention-only shape the skill-body rule describes.
+
 ## [0.9.8]
 
 ### Changed

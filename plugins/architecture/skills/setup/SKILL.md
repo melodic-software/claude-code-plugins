@@ -95,6 +95,10 @@ Converge, in order:
   retired layers, no dual-read window, and no cleanup step.
 - Create, modify, or inspect any repository outside the consumer repository.
 
+## Next
+
+`/architecture:map-landscape`. Both `architecture_dir` and `landscape_dialect` are declared by now.
+
 ## Gotchas
 
 - **The pointer line is the binding, and the region is machine-owned.** Everything outside

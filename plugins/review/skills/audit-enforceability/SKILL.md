@@ -179,6 +179,10 @@ with its gate and its fallback:
 - **It never implements a rung.** No analyzer, rule, architecture test, or hook is written here.
   Asked to "just write the analyzer", decline and hand over the rung's pointer.
 
+## Next
+
+`/review:fanout fix`. The persisted findings are its input.
+
 ## Gotchas
 
 - **`## By dimension` repeats every row.** The section re-renders the same findings under

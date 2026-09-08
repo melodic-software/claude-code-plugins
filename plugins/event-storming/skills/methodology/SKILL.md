@@ -195,6 +195,10 @@ When using this skill for domain modeling, read the consuming project's own arch
 language conventions (its `CLAUDE.md` / `.claude/rules` or equivalent) and map the tactical
 patterns onto that stack's building blocks rather than assuming a particular framework.
 
+## Next
+
+`/event-storming:simulation`. This reference selects its format.
+
 ## Export options
 
 When the user wants shareable artifacts from EventStorming output, and the `document-skills` plugin

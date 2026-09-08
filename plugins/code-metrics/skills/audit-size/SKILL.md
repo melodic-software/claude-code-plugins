@@ -82,6 +82,11 @@ changed. `/code-metrics:setup` writes the team file and probes the collectors.
   `audit-*` skills in this plugin, and `/code-metrics:principles` explains what each number can and
   cannot tell you.
 
+## Next
+
+- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
+- A file is about to be called too long: `/code-metrics:principles`.
+
 ## Gotchas
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a

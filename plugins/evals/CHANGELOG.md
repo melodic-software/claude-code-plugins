@@ -1,5 +1,12 @@
 # Changelog — evals
 
+## [0.2.2]
+
+### Added
+
+- **`design`**: a `## Next` section naming the skill that normally runs after this one, in
+  the mention-only shape the skill-body rule describes.
+
 ## [0.2.1]
 
 ### Changed

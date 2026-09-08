@@ -133,6 +133,12 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 - It does not measure branch, condition, or MC/DC coverage. Those records are parsed past, not
   reported, because the join is a line-level one.
 
+## Next
+
+- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
+- Coverage looks healthy but the tests may assert nothing: `/mutation-testing:audit`.
+- A number is about to be quoted at someone: `/code-metrics:principles`.
+
 ## Gotchas
 
 - The complexity collector decides which functions can carry CRAP at all. With no collector

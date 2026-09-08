@@ -117,6 +117,11 @@ line above it, or inside the body, the same recorded-decision shape as the repo 
 - **Audit bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
 - **Write anything on bare invocation**. Persisting is only ever behind `--persist-findings`.
 
+## Next
+
+- A finding names a test that needs a real assertion: `/testing:write`.
+- Findings are persisted with `--persist-findings`: `/review:fanout fix`.
+
 ## Gotchas
 
 - **Interaction-style tests trip `mock-only-oracle` by design**. That is why it is advisory in

@@ -82,6 +82,11 @@ the collectors.
 - It does not measure complexity, size, duplication, or coverage; those are the sibling `audit-*`
   skills in this plugin, and `/code-metrics:principles` explains what each number means.
 
+## Next
+
+- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
+- A percentage is about to be read as a bar: `/code-metrics:principles`.
+
 ## Gotchas
 
 - `type-coverage` needs a resolvable `typescript` in the project it runs against, and crashes

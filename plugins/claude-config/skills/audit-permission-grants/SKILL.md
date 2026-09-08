@@ -117,6 +117,12 @@ yet reachable on the measured platform. Add an **Operator setup** note wherever 
 A clean scan ("No fragile permission grants found.") is a valid outcome. Report it as such, with
 the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Report the denominator".
 
+## Next
+
+- A finding needs its operative rule located across scopes:
+  `/claude-config:audit-permission-state`.
+- The question is config-file correctness rather than grant portability: `/claude-config:audit`.
+
 ## Consumer conventions
 
 A consuming repo may declare, in its own `CLAUDE.md` / `.claude/rules/`, additional interpreter tokens
