@@ -1,5 +1,15 @@
 # Changelog — session-flow plugin
 
+## [0.35.7]
+
+### Added
+
+- **handoff:** the save-point checklist inventories named subagents this session spawned, stops
+  the ones with no pending work, and records any deliberately left running (with why) in the
+  handoff so the resuming session inherits the list. Named subagents stay live and addressable
+  across `/clear` and across sessions; an unreaped idle agent accumulates into later sessions.
+  (#3954)
+
 ## [0.35.6]
 
 ### Changed

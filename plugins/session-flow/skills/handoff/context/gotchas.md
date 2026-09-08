@@ -56,6 +56,12 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   verifiable evidence (a grep hit, a test exit code), not "looks good."
 - **Continuing after the user says stop** — a handoff is a save-point, never permission to keep
   implementing. Respect explicit pause/stop.
+- **Idle named subagents surviving `/clear`.** Named subagents stay live and addressable across
+  `/clear` and across sessions, unlike `/loop` and `/goal`, which a fresh conversation clears. A
+  save-point that captures TaskList but never reaps idle named agents leaves them resident for
+  later sessions. Inventory the named subagents this session spawned, stop the ones with no
+  pending work, and record any deliberately left running (with why) in the handoff so the
+  resuming session inherits the list.
 - **Saying nothing about the active `/loop`s on resume** — `/clear` starts a fresh conversation,
   which clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
   continuation runs once and silently drops the recurring behavior, with no error to signal it. Each
