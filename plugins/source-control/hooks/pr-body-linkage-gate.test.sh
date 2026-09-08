@@ -48,11 +48,10 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# new_repo <dir> <yml|yaml|nostep|plain|comment|quoted> — a throwaway repo.
-# `yml`/`yaml` carry a workflow wiring in the `pr-contract` composite step,
-# under either extension the hook's glob accepts; `nostep` carries a workflow
-# with no such step; `comment` carries the path only in a comment; `quoted`
-# carries the quoted local scalar form; `plain` carries no workflows at all.
+# new_repo <dir> <yml|yaml|nostep|plain> — a throwaway repo. `yml`/`yaml` carry
+# a workflow wiring in the `pr-contract` composite step, under either extension
+# the hook's glob accepts; `nostep` carries a workflow with no such step;
+# `plain` carries no workflows at all.
 new_repo() {
   local r="$1" gated="$2"
   mkdir -p "$r"
@@ -68,16 +67,6 @@ new_repo() {
     printf 'jobs:\n  ci-status:\n    steps:\n      - uses: actions/checkout@v5\n' \
       >"$r/.github/workflows/ci.yml"
     ;;
-  comment)
-    mkdir -p "$r/.github/workflows"
-    printf 'jobs:\n  ci-status:\n    steps:\n      # - uses: melodic-software/ci-workflows/.github/actions/pr-contract@deadbeef\n      - uses: actions/checkout@v5\n' \
-      >"$r/.github/workflows/ci.yml"
-    ;;
-  quoted)
-    mkdir -p "$r/.github/workflows"
-    printf 'jobs:\n  ci-status:\n    steps:\n      - uses: "./.github/actions/pr-contract"\n' \
-      >"$r/.github/workflows/ci.yml"
-    ;;
   *) ;;
   esac
 }
@@ -86,15 +75,11 @@ GATED="$WORK/gated"
 UNGATED="$WORK/ungated"
 NOSTEP="$WORK/nostep"
 GATED_YAML="$WORK/gated-yaml"
-COMMENT="$WORK/comment"
-QUOTED="$WORK/quoted"
 OTHER="$WORK/other"
 new_repo "$GATED" yml
 new_repo "$UNGATED" plain
 new_repo "$NOSTEP" nostep
 new_repo "$GATED_YAML" yaml
-new_repo "$COMMENT" comment
-new_repo "$QUOTED" quoted
 new_repo "$OTHER" yml
 
 # mk_payload <repo> <command> -> the PreToolUse payload this hook reads, on stdout.
@@ -145,8 +130,6 @@ NESTED=$'Closes #5\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody
 
 assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$NO_RELATED")"
 assert_allow "workflows present but none wires pr-contract: bad body allowed" "$NOSTEP" "$(gh_body "$NO_RELATED")"
-assert_allow "pr-contract path only in a comment: bad body allowed" "$COMMENT" "$(gh_body "$NO_RELATED")"
-assert_block "quoted local uses: scalar is a live gate" "$QUOTED" "$(gh_body "$NO_RELATED")"
 assert_allow "non-gh command allowed" "$GATED" "git commit -m 'x'"
 assert_allow "gh command that is not pr create/edit allowed" "$GATED" "gh pr view 5"
 

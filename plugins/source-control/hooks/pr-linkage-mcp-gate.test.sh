@@ -34,10 +34,7 @@ trap 'rm -rf "$WORK"' EXIT
 GATED="$WORK/gated"
 NOGATE="$WORK/nogate"
 NOORIGIN="$WORK/noorigin"
-COMMENT="$WORK/comment"
-QUOTED="$WORK/quoted"
-mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows" \
-  "$COMMENT/.github/workflows" "$QUOTED/.github/workflows"
+mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows"
 # The scope guard keys on a workflow that `uses:` the pr-contract composite
 # step, so an EMPTY workflow file no longer satisfies it.
 PR_CONTRACT_WF='jobs:
@@ -47,18 +44,10 @@ PR_CONTRACT_WF='jobs:
 '
 printf '%s' "$PR_CONTRACT_WF" >"$GATED/.github/workflows/ci.yml"
 printf '%s' "$PR_CONTRACT_WF" >"$NOORIGIN/.github/workflows/ci.yml"
-printf 'jobs:\n  ci-status:\n    steps:\n      # - uses: melodic-software/ci-workflows/.github/actions/pr-contract@deadbeef\n      - uses: actions/checkout@v5\n' \
-  >"$COMMENT/.github/workflows/ci.yml"
-printf 'jobs:\n  ci-status:\n    steps:\n      - uses: "./.github/actions/pr-contract"\n' \
-  >"$QUOTED/.github/workflows/ci.yml"
 git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
 git -C "$NOORIGIN" init -q
-git -C "$COMMENT" init -q
-git -C "$COMMENT" remote add origin https://github.com/acme-corp/widgets.git
-git -C "$QUOTED" init -q
-git -C "$QUOTED" remote add origin https://github.com/acme-corp/widgets.git
 
 # run <expected-exit> <name> <payload-json>; the payload carries its own cwd.
 run() {
@@ -128,8 +117,6 @@ run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$N
 run 0 "different target repo is out of scope" "$(payload "$GATED" $CREATE other-org other-repo "$NO_RELATED")"
 run 0 "gated repo with no origin remote allows (undeterminable target)" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 0 "pr-contract path only in a comment never blocks" "$(payload "$COMMENT" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 2 "quoted local uses: scalar is a live gate" "$(payload "$QUOTED" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" ""
 

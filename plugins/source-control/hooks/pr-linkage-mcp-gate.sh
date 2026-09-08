@@ -181,39 +181,27 @@ REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 # where one of them wires in the `pr-contract` composite step. No step, no
 # enforcement.
 GATE_FILE=""
-# An uncommented YAML `uses:` of pr-contract, including quoted local scalars
-# (`uses: "./.github/actions/pr-contract"`). A path that appears only in a
-# comment does not count. The trailing class keeps `pr-contract-foo` out.
-# Fork-free: line `read`, no grep, so the spawn budget is unchanged.
-uses_re='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*(.*)$'
-path_re='\.github/actions/pr-contract([@[:space:]]|$)'
+# Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
+# (`melodic-software/ci-workflows/.github/actions/pr-contract@<sha>`) and
+# ci-workflows' own local dogfood (`./.github/actions/pr-contract`). The
+# trailing class keeps a longer sibling directory (`pr-contract-foo`) out.
+gate_re='\.github/actions/pr-contract([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
   # An unmatched glob is left as its literal pattern; skipping non-files is the
   # local fix, because `shopt -s nullglob` would leak a shell option out of a
   # hook that never set one.
   [[ -f "$candidate" ]] || continue
-  found=0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    stripped="${line#"${line%%[![:space:]]*}"}"
-    [[ -z "$stripped" || "$stripped" == \#* ]] && continue
-    [[ "$stripped" =~ $uses_re ]] || continue
-    rest="${BASH_REMATCH[2]}"
-    rest="${rest%%#*}"
-    rest="${rest%"${rest##*[![:space:]]}"}"
-    if [[ ${#rest} -ge 2 ]]; then
-      first="${rest:0:1}"
-      last="${rest: -1}"
-      if [[ ( "$first" == '"' && "$last" == '"' ) || ( "$first" == "'" && "$last" == "'" ) ]]; then
-        rest="${rest:1:${#rest}-2}"
-      fi
-    fi
-    [[ "$rest" =~ $path_re ]] || continue
-    GATE_FILE="$candidate"
-    found=1
-    break
-  done <"$candidate"
-  [[ "$found" -eq 1 ]] && break
+  # Fork-free read, not `grep`: one spawn per workflow file is exactly the cost
+  # pr-linkage-spawn-budget.test.sh fences (#3509). `read -r -d ''` returns 1
+  # at EOF with no NUL — the normal case — and `wf` holds the bytes either way.
+  # Cleared first: if the redirect itself fails (an unreadable file), `read`
+  # never runs and `wf` would otherwise still hold the PREVIOUS candidate's
+  # bytes, naming the wrong workflow as the gate.
+  wf=""
+  IFS= read -r -d '' wf <"$candidate"
+  [[ "$wf" =~ $gate_re ]] || continue
+  GATE_FILE="$candidate"
+  break
 done
 [[ -n "$GATE_FILE" ]] || exit 0
 

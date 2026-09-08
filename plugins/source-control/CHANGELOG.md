@@ -10,10 +10,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`pr-body-linkage-gate`, `pr-linkage-mcp-gate`**: the scope guard is retargeted from the retired
   `.github/workflows/pr-issue-linkage.yml` reusable (deleted in `melodic-software/ci-workflows#569`,
   released as v0.23.0) to a scan of the repo's `.github/workflows/*.yml` / `*.yaml` for a workflow
-  that `uses:` the `pr-contract` composite step, in both fleet forms (the SHA-pinned)
+  that `uses:` the `pr-contract` composite step, in both fleet forms (the SHA-pinned
   `melodic-software/ci-workflows/.github/actions/pr-contract@<sha>` and ci-workflows' own local
-  `./.github/actions/pr-contract`, including the quoted local scalar). A path that appears only
-  in a comment is not a gate. The scan is fork-free (line `read` + `[[ =~ ]]`, not one `grep` per
+  `./.github/actions/pr-contract`). No repository still carries the old file, so both hooks had gone
+  silently inert everywhere. The scan is fork-free (`read` + `[[ =~ ]]`, not one `grep` per
   workflow) so the spawn budget is unchanged.
 - **`pr-body-linkage-gate`, `pr-linkage-mcp-gate`**: the BLOCKED output no longer names the
   `pr-issue-linkage / pr-issue-linkage` required check, which no longer exists; it names the
