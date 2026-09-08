@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6]
+
+### Changed
+
+- **`reference/config.md`:** maps this plugin's `landscape_dialect` (C4 system landscape from
+  `/architecture:map-landscape`, mermaid default) against `authoring-formats`'s
+  `diagram_dialect.system` (opt-in C4 container view from `/planning:design`, no default). The two
+  keys stay separate. The mermaid-C4 experimental record and recheck trigger stay in
+  authoring-formats; this document cites that record instead of adding a second stamp (#3910).
+  The shared trigger also fires when mermaid documents a dedicated landscape type, and
+  `map-landscape` points at this document rather than carrying its own dated stamp.
+
 ## [0.8.5]
 
 ### Added
