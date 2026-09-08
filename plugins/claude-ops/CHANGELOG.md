@@ -3,6 +3,13 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1]
+
+### Changed
+
+- **`plugins` `fleet-state.sh` comments** state the current `pwd -W` fallback and
+  the catalog-version lookup without past-tense narration of earlier implementations.
+
 ## [0.45.0]
 
 ### Changed
