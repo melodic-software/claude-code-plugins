@@ -121,10 +121,14 @@ What the canonical script does (details and lifecycle in the
 [component README](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/README.md)):
 parallel tracks install `gh` (the pinned, checksum-verified `linux_amd64` release tarball from
 `github.com/cli/cli`, at the same version and SHA-256 the CI runner image and dotfiles' mise pin
-carry — Ubuntu's archive `gh` is years stale) and PowerShell (apt), the fleet's exact .NET SDK pins into
-`/opt/dotnet`, and Node 24.18.0 via the VM's nvm; it then runs the checked-out repo's own
-`.claude/cloud-bootstrap.sh` — baking its results into the snapshot, and, because it runs before
-the session process launches, making the repo's plugins live at turn one. Every step logs with a timestamp to
+carry — Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .NET SDK into
+`/opt/dotnet` and Node via the VM's nvm at the versions the checked-out repo pins in `global.json`
+and `.node-version` (the fleet pins cover whichever of the two the repo does not pin); it then runs
+that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the snapshot; and then it
+fetches the standards fleet plugin list to `/opt/melodic-fleet-plugins.json` and installs every
+`true` entry in it at user scope. That plugin install is what makes the fleet's plugins live at
+turn one, because it runs before the session process launches and the plugin registry is read at
+process start. Every step logs with a timestamp to
 `/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
 written strictly last — so a missing stamp is the signature of an interrupted cache build
 ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
@@ -176,9 +180,11 @@ fleet list
 ([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json))
 into every snapshot, and the bootstrap reads that list overlaid with the repo's own block. So a
 repo's `enabledPlugins` carries only deltas: an explicit `false` to opt out of a fleet entry, or
-a `true` for a plugin beyond the fleet. A block that mirrors the whole catalog still works (the
-overlay is a union) but writes one project-scope install record per entry per checkout on every
-local session start, which is the accumulation #3688 removed.
+a `true` for a plugin beyond the fleet. The overlay is settings-wins: where both files name the
+same plugin the repo's value takes precedence, which is what makes the `false` an opt-out. A
+block that mirrors the whole catalog still works — a repeated `true` agrees with the fleet
+entry it overrides — but writes one project-scope install record per entry per checkout
+on every local session start, which is the accumulation #3688 removed.
 
 **`.claude/cloud-bootstrap.sh`** — do not author one. The canonical script is generic and
 manifest-driven (it carries no repo names, no marketplace identifiers, and no pinned versions),
