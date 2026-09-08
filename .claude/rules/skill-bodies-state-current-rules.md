@@ -1,5 +1,5 @@
 ---
-description: "Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it; read before editing any skill body"
+description: "Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it, and name their successor in a `## Next` section; read before editing any skill body"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -33,3 +33,19 @@ Keep in the body:
 
 History belongs in the plugin's `CHANGELOG.md`, the commit message, and `docs/adr/`. A reader who
 needs the archaeology finds it there; the model reading the skill does not need it to act.
+
+## Successor sections
+
+A skill that has a natural successor names it in a `## Next` section placed before `## Gotchas`
+(or before the last H2 when the file has none): one bare `/plugin:skill` token on a line, or two
+to four bullets of `<outcome>: /plugin:skill.` when the successor depends on the run's result. It
+is a mention for the human, never an operative chain, so it carries no Skill-tool phrasing, no
+installed-ness gate, and no fallback clause. Keeping the graph current is authoring work:
+
+- A new skill writes its own `## Next` and edits the predecessor whose `## Next` should now name
+  it.
+- A renamed skill is swept with `/docs-hygiene:rename-references audit` (when that plugin is
+  installed; otherwise grep the old token).
+- A removed skill's token is grepped and every `## Next` that carried it is edited.
+- `/session-flow:workflow` owns stage routing. A `## Next` states the typical successor; when the
+  two disagree, the workflow skill's ladder wins.
