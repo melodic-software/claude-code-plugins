@@ -273,7 +273,9 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
     # and `scc_counts` returns None on an empty file list even when the binary is
     # present, so using either as the proxy reports an installed analyser as
     # missing and turns an empty scope into a false hard stop.
-    have_layer = (use_scc and scc_available()) or (use_pygments and pygments_available())
+    have_layer = (use_scc and scc_available()) or (
+        use_pygments and pygments_available()
+    )
     if sources["lines"] is None and not have_layer:
         return [], {
             "error": "neither scc nor pygments is available (install scc, or pip install pygments)"
