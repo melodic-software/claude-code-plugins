@@ -12,7 +12,9 @@ was made:
             pass over 300+ languages. No byte counts.
   pygments  per-file comment BYTES and lines from the token stream, so the
             token estimate is real text, not a line-count multiplied by a
-            guess. Correct on heredocs, trailing comments and block comments.
+            guess. Correct on heredocs, trailing comments, block comments, and
+            documentation strings (`String.Doc`, including Python docstrings).
+            Ordinary string literals are not comments.
 
 Both present: lines and complexity from scc, bytes from pygments. Neither
 present: exit 3 naming what to install. A line-prefix grep is never used,
@@ -178,7 +180,7 @@ def pygments_counts(path: Path) -> dict | None:
     try:
         from pygments import lex
         from pygments.lexers import get_lexer_for_filename
-        from pygments.token import Comment
+        from pygments.token import Comment, String
         from pygments.util import ClassNotFound
     except ImportError:
         return None
@@ -197,7 +199,11 @@ def pygments_counts(path: Path) -> dict | None:
     comment_lines: set[int] = set()
     comment_bytes = 0
     for tok, text in lex(src, lexer):
-        if tok in Comment and tok not in (Comment.Hashbang, Comment.Preproc):
+        # Comment subtypes stay comments. String.Doc is documentation (Python
+        # docstrings, and any other lexer that emits it). Ordinary String,
+        # String.Double, and String.Single tokens are data, not comments.
+        is_comment = tok in Comment and tok not in (Comment.Hashbang, Comment.Preproc)
+        if is_comment or tok in String.Doc:
             body = text.strip("\n")
             if body.strip():
                 comment_bytes += len(body.encode("utf-8"))
