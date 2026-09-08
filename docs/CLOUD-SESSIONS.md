@@ -180,7 +180,7 @@ The environment side stays generic (Default environment, **All** network access,
 | shellcheck, actionlint, typos, editorconfig-checker, gitleaks | pinned in the bootstrap (GitHub release binaries → `~/.local/bin`) | best effort — warns and continues |
 | check-jsonschema | pinned in the bootstrap (uv tool / pip `--user`) | best effort |
 | full git history + `origin/main` | `git fetch` | best effort — the base-ref diff gates need it |
-| the enabled plugin catalog | `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
+| the enabled plugin catalog | the snapshot's fleet list (`/opt/melodic-fleet-plugins.json`) overlaid with `enabledPlugins` in `.claude/settings.json` | best effort — a plugin that fails to install costs its skills, not the session |
 
 The bootstrap's startup `report_tool` resolves each binary under a **hook-safe PATH**
 (the process PATH with the nvm prefix stripped) and prints the resolved path, so an
@@ -206,8 +206,9 @@ Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
 ### Plugins in sessions on this repo
 
 Being the marketplace doesn't make this repo's plugins active in a session — plugins load only
-when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares and
-enables; the cloud bootstrap installs (see
+when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares the
+marketplace and carries this repo's deltas, the fleet list baked into the snapshot turns the
+catalog on, and the cloud bootstrap installs from the two together (see
 [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
 [extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings#plugin-settings)):
 
@@ -329,8 +330,9 @@ enables; the cloud bootstrap installs (see
   scope`. Startup lines like `plugins 71 enabled, 5 newly installed, 0 refreshed, 65 failed` were
   therefore false alarms, and dozens of them per session start buried the only health signal this
   block emits. The script now runs the chain for effect and verifies the end state once per run,
-  over every plugin `enabledPlugins` turns on rather than only the ones that run touched, since
-  the plugins most likely to be wrong are the ones it decided to skip. A plugin counts as failed
+  over every plugin the fleet list plus this repo's `enabledPlugins` deltas turn on rather than only
+  the ones that run touched, since the plugins most likely to be wrong are the ones it decided to
+  skip. A plugin counts as failed
   when any of these holds:
   - `claude plugin list --json` does not list it at user scope, or lists it there with `enabled`
     anything other than the JSON boolean `true`;
@@ -355,9 +357,10 @@ enables; the cloud bootstrap installs (see
   plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
   cloud session; verify in a fresh session and add the same bootstrap-plus-hook setup if the
   catalog does not load.
-- The whole catalog is enabled here, so this repo dogfoods everything it publishes and a
-  regression in any plugin surfaces here first. The enabling list is the fleet cloud plugin list
-  in standards
+- The whole catalog is installed here, so this repo dogfoods everything it publishes and a
+  regression in any plugin surfaces here first — bar what a repo delta opts out of and what the
+  catalog ships `defaultEnabled: false`, which installs without being enabled (below). The enabling
+  list is the fleet cloud plugin list in standards
   ([`components/cloud-environment/fleet-plugins.json`](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/fleet-plugins.json)),
   which the shared environment fetches at cache build, writes into the snapshot at
   `/opt/melodic-fleet-plugins.json`, and installs at user scope; `cloud-bootstrap.sh` reads that
@@ -386,10 +389,13 @@ enables; the cloud bootstrap installs (see
   is precisely this repo's relative `directory` source.
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
   without disturbing the rest — a state the gate accepts, since an explicit `false` is a recorded
-  decision where an absent key is drift. Two entries carry required `userConfig` credentials that are unset
-  here — `miro` (`miro_api_token`) and `dometrain` (`dometrain_api_key`) — so their bundled MCP
-  servers exit at startup until configured; set them with `/plugin configure`, or flip those two
-  to `false` if a session shouldn't try.
+  decision where an absent key is drift. The entries that should not start on their own are not
+  keyed here at all: the catalog ships them `defaultEnabled: false` and `claude plugin install`
+  honors that flag, so the fleet list's `true` installs them without enabling them and they stay
+  off until someone opts in with `/plugin enable`. That covers the two whose bundled MCP servers
+  need `userConfig` credentials this environment has no reason to hold — `miro` (`miro_api_token`)
+  and `dometrain` (`dometrain_api_key`), set with `/plugin configure` — alongside `songwriting`,
+  `kindle-dedrm`, and `ai-briefing`.
 
 ### GitHub MCP tools vs the gh CLI
 
