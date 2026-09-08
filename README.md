@@ -96,6 +96,17 @@ scripts/affected-tests.sh --explain       # ... and say why each one was selecte
 scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
 ```
 
+`--run` is a Linux gate. On a Windows Git Bash host a standing set of suites
+fails for reasons that belong to the host rather than to the tree: text-mode
+CRLF translation (a native jq and Git Bash line-ending handling), no
+unprivileged symlink right, MSYS drive-letter paths against the POSIX form in
+fixture assertions, and a missing `scc`. Its exit code there reports host
+capability, not whether your change is good, so Windows is not a supported host
+for the full `--run` gate ([#3966](https://github.com/melodic-software/claude-code-plugins/issues/3966)).
+Selection itself is host-neutral: on Windows, use the listing forms above to see
+what your change affects and run individual suites by hand. CI's Linux lanes are
+the gate that decides.
+
 It maps a changed file to its co-located suite, to any suite that names it, and
 to its dependents transitively, and it fans a shared-lib change out to every
 carrying plugin by reading the `copies=(...)` array out of that lib's

@@ -936,6 +936,24 @@ else
   fail "gate_settings_options_to disagrees with the per-key reader (#3515)"
 fi
 
+# --- Case 49b: a CRLF-terminated option value chomps to the bare string -----
+# A value whose trailing whitespace is CRLF chomps to the bare string too. A jq
+# that writes stdout in text mode turns every LF inside a value into CRLF, so a
+# reader that chomps LF alone hands back a value with a CR still on the end.
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_resolve_install "$STAGED_DIR/.." || exit 1
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_sentinel":"Y\\r\\n"}}}}\n' >"$OPTS_STUB"
+  gate_settings_options_to "$OPTS_STUB" lane_stop_gate_sentinel || exit 1
+  [[ "${GATE_FILE_OPT_VALUE[0]}" == "Y" ]] || exit 1
+  exit 0
+); then
+  ok "a CRLF-terminated option value chomps to the bare string"
+else
+  fail "gate_settings_options_to left a trailing CR on a CRLF-terminated value"
+fi
+
 # --- Case 50: a sentinel that holds a newline matches only as a whole block --
 # The shell's regex match replaced `grep -qE` over a here-string. grep read a
 # newline inside the configured token as a PATTERN SEPARATOR and authorized a
