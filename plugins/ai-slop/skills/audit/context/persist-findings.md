@@ -70,8 +70,9 @@ illustrative row or carry one forward.
 
 `## Surfaces` names `ai-slop:audit` once, states what was scanned (files scanned, chunk count,
 whole files declined), names every rule the config disabled, and carries the declined counts per
-rule id straight from the detector's `Summary` rows (`declined=` with its `marker`, `quote`, and
-`config` split), in the section's line form. The script writes all of it. Omit `tier:`,
+rule id straight from the detector's `Summary` rows (`declined=` with its `declined_marker=`,
+`declined_quote=`, and `declined_config=` split, and `disabled=` for the disabled-rule list), in
+the section's line form. The script writes all of it. Omit `tier:`,
 `## By dimension`, and `## Unparsed` (one dimension; nothing unparsed).
 
 - Findings to emit → write.

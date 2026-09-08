@@ -594,9 +594,11 @@ now remediates them. Both statements were true when 0.2.0 wrote them and neither
 differently, and the entry says which is which: step 6's steer is now **flatly false**, while the
 Purpose statement **draws a real distinction in the wrong place** rather than being false.
 
+<!-- ai-slop-ignore-start: verbatim quote of the retired step 6 wording, which carried an em dash -->
 - **Step 6 of the audit flow no longer steers users off the route.** It said: "Recommend
-  `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can apply <!-- ai-slop-ignore: verbatim quote of the retired step 6 wording -->
+  `review:fanout fix` only for `rule-utm-params` findings — it is the one rule the relay can apply
   meaning-preservingly; routing prose rewrites there retires the findings without fixing them."
+  <!-- ai-slop-ignore-end -->
   The second half is now flatly wrong. The crosswalk declares `/ai-slop:audit fix` as the
   remediation owner for the other fourteen rules, so the relay hands those rows to this skill
   instead of retiring them unfixed. This mattered more than an ordinary stale sentence because

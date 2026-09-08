@@ -55,6 +55,11 @@ plugins/actionlint/README.md
 plugins/adhd/README.md
 plugins/adhd/skills/*/SKILL.md
 plugins/ai-briefing/README.md
+plugins/ai-slop/CHANGELOG.md
+plugins/ai-slop/README.md
+plugins/ai-slop/skills/*/SKILL.md
+plugins/ai-slop/skills/audit/context/*.md
+plugins/ai-slop/skills/audit/reference/*.md
 plugins/architecture/README.md
 plugins/autonomy/README.md
 plugins/bash-format/README.md
