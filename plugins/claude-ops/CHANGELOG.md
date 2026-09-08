@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.3]
+
+### Fixed
+
+- **`observability` loads when no `session_event_log_*` option is configured.** The two
+  pre-compute lines passed `${user_config.*}` placeholders double-quoted; a placeholder the
+  harness leaves unrendered is a bash `bad substitution`, and one failed pre-compute line aborts
+  the whole invocation. They are single-quoted now, so the literal reaches the probe's existing
+  fallback, and a regression test runs the skill's own pre-compute lines through bash with every
+  placeholder unrendered.
+- **The pipeline line names its two tiers.** `envelope:` counts the rows the telemetry sink wrote
+  for the audit hooks, which the event-log switch never governed, beside `event log: on|off`, so
+  `off` next to a populated `sessions/` no longer reads as a contradiction.
+
 ## [0.45.2]
 
 ### Fixed

@@ -49,7 +49,9 @@
 #   sessions: <S> file(s), newest <id> | none
 #   shared: <L> event(s) in hook-events.jsonl | absent
 #   prune-pending: none | <D> dir(s), <O> older than 24 h[ WARN: an archiver is not finishing]
-#   logging: on|off; categories: all|<v>; keep: <n> sessions or <n> days; pre-prune: none|set
+#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
+#        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
+#        pre-prune: none|set
 #
 # Store resolution:
 #   --hook-events  <git toplevel, or the working directory when not inside a
@@ -263,6 +265,16 @@ case "$MODE" in
     printf 'prune-pending: %s dir(s), %s older than 24 h\n' "$pending_total" "$pending_old"
   fi
 
+  # Two tiers share the root. The telemetry sink writes envelope rows for the
+  # audit hooks whenever it is wired, so they exist while the event-log switch
+  # is off; naming them apart keeps "off" beside a populated sessions/ from
+  # reading as a contradiction. The count is observed, never a toggle.
+  envelope="none"
+  if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then
+    envelope_rows="$(cat "$ABS_ROOT"/sessions/*.jsonl 2>/dev/null | grep -c '"source":"envelope"')"
+    ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
+  fi
+
   # The six options as rendered, defaults applied where unset.
   logging="off"
   ! unset_value "$ENABLED_ARG" && [[ "$ENABLED_ARG" == "true" ]] && logging="on"
@@ -274,8 +286,8 @@ case "$MODE" in
   unset_value "$KEEP_DAYS_ARG" || keep_days="$KEEP_DAYS_ARG"
   pre_prune="none"
   unset_value "$PRE_PRUNE_ARG" || pre_prune="set (runs detached at SessionEnd)"
-  printf 'logging: %s; categories: %s; keep: %s sessions or %s days; pre-prune: %s\n' \
-    "$logging" "$categories" "$keep_sessions" "$keep_days" "$pre_prune"
+  printf 'envelope: %s; event log: %s; categories: %s; keep: %s sessions or %s days; pre-prune: %s\n' \
+    "$envelope" "$logging" "$categories" "$keep_sessions" "$keep_days" "$pre_prune"
   ;;
 *)
   err "unhandled mode: $MODE"
