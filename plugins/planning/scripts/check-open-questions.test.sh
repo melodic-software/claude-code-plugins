@@ -115,6 +115,12 @@ _No questions asked yet._
 EOF
 )"
 expect_exit "empty register -> 2" 2 --ledger "$empty"
+empty_err="$(bash "$SUT" --ledger "$empty" 2>&1 >/dev/null || true)"
+if [[ "$empty_err" == *"rows inside a fenced block are ignored by design"* ]]; then
+  fail "empty register without a fence keeps the generic zero-rows message (stderr: '$empty_err')"
+else
+  pass "empty register without a fence keeps the generic zero-rows message"
+fi
 
 # 10b. Rows only inside a fence are documentation, so the register is empty
 #      and the error names that cause.

@@ -8,12 +8,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Fixed
 
 - **`interview`:** the checklist template's open-question register now carries unfenced
-  example rows, and `check-open-questions.sh` names the fenced-block skip when it finds
-  none. The template showed the row shape only inside a fenced code block, which the gate
-  ignores by design (documentation, not data), so copying that visible shape produced an
-  empty ungradeable ledger (exit 2) with no discoverable remedy. The fenced block stays as
-  the schema illustration. `context/loop.md`'s fenced example is left as prose
-  documentation, not a copy-me template.
+  example rows, and `check-open-questions.sh` names the fenced-block skip when it skipped
+  a row-shaped line inside a fence. The template showed the row shape only inside a fenced
+  code block, which the gate ignores by design (documentation, not data), so copying that
+  visible shape produced an empty ungradeable ledger (exit 2) with no discoverable remedy.
+  A genuinely empty register (no fence) still gets the generic zero-rows message. The
+  fenced block stays as the schema illustration. `context/loop.md`'s fenced example is
+  left as prose documentation, not a copy-me template.
 
 ## [0.39.4]
 
