@@ -43,6 +43,8 @@ DETECT="$PLUGIN_ROOT/scripts/detect-lanes.sh"
 LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
 RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
 PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
+SCOPE_FILTER="$PLUGIN_ROOT/scripts/scope-filter.py"
+COLLAPSE="$PLUGIN_ROOT/scripts/replica-collapse.py"
 CONFIG=""
 
 usage() {
@@ -157,6 +159,20 @@ trap 'rm -rf "$WORK"' EXIT
 FILES_LIST="$WORK/files"
 : >"$FILES_LIST"
 
+json_str() {
+  "${PY[@]}" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+}
+
+# Progress goes to stderr, and only for a run long enough to wonder about: a
+# whole tree of a few thousand files runs for a minute or more, while the
+# change scope finishes in a second or two and would only gain noise.
+# CODE_METRICS_PROGRESS=1 forces it on and =0 off.
+PROGRESS=0
+progress() {
+  [[ "$PROGRESS" -eq 1 ]] && printf 'code-metrics: %s\n' "$*" >&2
+  return 0
+}
+
 # ---- configuration -----------------------------------------------------------
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
@@ -203,6 +219,28 @@ LADDER_OVERRIDES="$WORK/ladder-overrides.tsv"
 resolver_format ladder-overrides "$LADDER_OVERRIDES"
 resolver_format excludes "$WORK/excludes"
 mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
+# Sanctioned-replication registries apply to every audit's file and function
+# rows here (clone groups are audit-duplication's own pass). A registry path
+# is taken as given, else under the repository root, because a team file
+# names it root-relative and the audit may run from a subdirectory; one that
+# exists nowhere is a configuration error, not an empty registry.
+resolver_format registries "$WORK/registries"
+mapfile -t REGISTRY_LIST <"$WORK/registries"
+REGISTRIES=()
+if [[ ${#REGISTRY_LIST[@]} -gt 0 ]]; then
+  REPO_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$REPO_TOP" ]] || REPO_TOP="$PWD"
+  for registry in "${REGISTRY_LIST[@]}"; do
+    [[ -n "$registry" ]] || continue
+    if [[ -f "$registry" ]]; then
+      REGISTRIES+=("$registry")
+    elif [[ -f "$REPO_TOP/$registry" ]]; then
+      REGISTRIES+=("$REPO_TOP/$registry")
+    else
+      die_usage "scope.registries: registry not found: $registry"
+    fi
+  done
+fi
 
 # ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
@@ -378,20 +416,16 @@ change)
 esac
 
 # Normalize: forward slashes, drop `./`, dedupe, keep existing regular files
-# that are not binary.
+# that are not binary. One process over the list rather than a shell loop
+# with two subprocesses per file, which was most of a whole-tree run's time.
 SCOPED="$WORK/scoped"
-tr -d '\r' <"$FILES_LIST" | sed 's#\\#/#g; s#^\./##' | awk 'NF && !seen[$0]++' >"$WORK/dedup"
-: >"$SCOPED"
-while IFS= read -r f; do
-  [[ -f "$f" ]] || continue
-  # Binary sniff without GNU grep -I: a NUL in the first 8000 bytes.
-  head_bytes="$(head -c 8000 "$f" | wc -c | tr -d ' ')"
-  text_bytes="$(head -c 8000 "$f" | LC_ALL=C tr -d '\000' | wc -c | tr -d ' ')"
-  [[ "$head_bytes" == "$text_bytes" ]] || continue
-  printf '%s\n' "$f" >>"$SCOPED"
-done <"$WORK/dedup"
-# scope.exclude: drop every file a configured glob matches, counting them.
+if ! "${PY[@]}" "$SCOPE_FILTER" --paths-from "$FILES_LIST" >"$SCOPED"; then
+  die_usage "the scope listing could not be filtered (see the message above)"
+fi
+# scope.exclude: drop every file a configured glob matches, counting them, and
+# counting per pattern so the report can say which exclusion did what.
 EXCLUDED=0
+EXCLUSION_ROWS=()
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
   : >"$WORK/excluded-rootrel"
   # Matched against root-relative paths, then mapped back, so an exclusion a
@@ -403,8 +437,13 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
     # An exclusion the matcher cannot use is a configuration error, not an
     # exclusion that matched nothing: continuing would measure the very files
     # the consumer asked to leave out and still exit 0.
-    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$WORK/scoped-rootrel" >>"$WORK/excluded-rootrel"; then
+    if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$WORK/scoped-rootrel" >"$WORK/excluded-hits"; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
+    fi
+    if [[ -s "$WORK/excluded-hits" ]]; then
+      hits="$(wc -l <"$WORK/excluded-hits" | tr -d ' ')"
+      EXCLUSION_ROWS+=("$(printf '{"pattern": %s, "files": %s}' "$(json_str "$pattern")" "$hits")")
+      cat "$WORK/excluded-hits" >>"$WORK/excluded-rootrel"
     fi
   done
   awk -F'\t' 'NR == FNR { hit[$0] = 1; next } hit[$1] { print $2 }' \
@@ -419,6 +458,10 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
   fi
 fi
 FILE_COUNT="$(wc -l <"$SCOPED" | tr -d ' ')"
+if [[ "${CODE_METRICS_PROGRESS:-}" == "1" || ("${CODE_METRICS_PROGRESS:-}" != "0" && "$FILE_COUNT" -gt 200) ]]; then
+  PROGRESS=1
+fi
+progress "$SKILL: $FILE_COUNT file(s) in scope ($MODE), $EXCLUDED excluded"
 
 # ---- lanes -------------------------------------------------------------------
 LANES_TSV="$WORK/lanes"
@@ -459,46 +502,92 @@ ROWS="$WORK/measures.jsonl"
 : >"$ROWS"
 COLLECT_FAILED=0
 
-json_str() {
-  "${PY[@]}" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
-}
-
 run_row() {
-  # run_row <lane> <measure> <collector-or-empty> <status> <reason-or-empty>
+  # run_row <slot> <lane> <measure> <collector-or-empty> <status> <reason-or-empty>
+  #
+  # One file per slot, concatenated in slot order once every collector has
+  # finished, so the run table reads lane by lane and measure by measure
+  # whatever order the parallel collectors happened to complete in.
   local collector reason
-  if [[ -n "$3" ]]; then collector="$(json_str "$3")"; else collector=null; fi
-  if [[ -n "$5" ]]; then reason="$(json_str "$5")"; else reason=null; fi
+  if [[ -n "$4" ]]; then collector="$(json_str "$4")"; else collector=null; fi
+  if [[ -n "$6" ]]; then reason="$(json_str "$6")"; else reason=null; fi
   printf '{"lane": %s, "measure": %s, "collector": %s, "status": %s, "reason": %s}\n' \
-    "$(json_str "$1")" "$(json_str "$2")" "$collector" "$(json_str "$4")" "$reason" >>"$RUN"
+    "$(json_str "$2")" "$(json_str "$3")" "$collector" "$(json_str "$5")" "$reason" >"$WORK/run.$1"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
 mapfile -t LANES < <(cut -f1 "$LANES_TSV" | awk 'NF && !seen[$0]++' | sort)
 
+SLOT=0
 if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
-  run_row '*' '*' '' not-applicable 'no measurable files in scope'
+  # An empty change scope is the one a reader most often wonders about, so
+  # the reason says why it is empty and what widens it.
+  reason='no measurable files in scope'
+  if [[ "$FILE_COUNT" -gt 0 ]]; then
+    reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no lane"
+  elif [[ "$MODE" == "change" ]]; then
+    reason="no measurable files in scope: the branch is at its merge-base with ${default_ref:-$BASE} (${BASE_SHA:0:12}) and the working tree holds no changed or untracked file; pass explicit paths or --all to measure the tree"
+  fi
+  run_row "$SLOT" '*' '*' '' not-applicable "$reason"
+  SLOT=$((SLOT + 1))
 fi
+
+# Collectors run in parallel, one process per lane and measure, because they
+# are independent processes reading disjoint file lists and a whole-tree run
+# is otherwise the sum of their run times. The ladder walk and the probes stay
+# sequential: they are cheap and decide which process to launch. JOBS caps the
+# concurrency (CODE_METRICS_JOBS, else the CPU count).
+JOBS="${CODE_METRICS_JOBS:-}"
+if [[ -z "$JOBS" ]]; then
+  JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+fi
+[[ "$JOBS" =~ ^[0-9]+$ && "$JOBS" -ge 1 ]] || JOBS=4
+RUNNING=0
+COLLECT_SLOTS=()
+S_LANE=()
+S_MEASURE=()
+S_TOOL=()
+S_VERSION=()
+
+launch_collect() {
+  # launch_collect <slot> <adapter> <lane> <measure> <files...>
+  local slot="$1" adapter="$2" lane="$3" measure="$4"
+  shift 4
+  (
+    started="$(date +%s)"
+    "${PY[@]}" "$adapter" collect "$lane" "$measure" "$@" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+    rc=$?
+    printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
+  ) &
+  RUNNING=$((RUNNING + 1))
+  if [[ "$RUNNING" -ge "$JOBS" ]]; then
+    wait -n
+    RUNNING=$((RUNNING - 1))
+  fi
+}
 
 for lane in "${LANES[@]}"; do
   mapfile -t lane_files < <(awk -F'\t' -v l="$lane" '$1 == l { print $2 }' "$LANES_TSV")
   for measure in "${MEASURE_LIST[@]}"; do
+    slot=$SLOT
+    SLOT=$((SLOT + 1))
     resolved=0
     reasons=""
     while IFS=$'\t' read -r tool note; do
       [[ -n "$tool" ]] || continue
       case "$tool" in
       none)
-        run_row "$lane" "$measure" '' unavailable "${note:-no collector}"
+        run_row "$slot" "$lane" "$measure" '' unavailable "${note:-no collector}"
         resolved=1
         break
         ;;
       n/a)
-        run_row "$lane" "$measure" '' not-applicable "${note:-not applicable}"
+        run_row "$slot" "$lane" "$measure" '' not-applicable "${note:-not applicable}"
         resolved=1
         break
         ;;
       deferred)
-        run_row "$lane" "$measure" '' deferred "${note:-deferred}"
+        run_row "$slot" "$lane" "$measure" '' deferred "${note:-deferred}"
         resolved=1
         break
         ;;
@@ -519,24 +608,43 @@ for lane in "${LANES[@]}"; do
         reasons+="${reasons:+; }$tool: ${why:-not found}${hint:+ ($hint)}"
         continue
       fi
-      errf="$WORK/err.$lane.$measure.$tool"
-      outf="$WORK/out.$lane.$measure.$tool"
-      "${PY[@]}" "$adapter" collect "$lane" "$measure" "${lane_files[@]}" >"$outf" 2>"$errf"
-      rc=$?
-      if [[ $rc -eq 0 ]]; then
-        cat "$outf" >>"$ROWS"
-        run_row "$lane" "$measure" "$tool $version" ok ''
-      else
-        COLLECT_FAILED=1
-        run_row "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(tr '\n' ' ' <"$errf" | cut -c1-500)"
-      fi
+      S_LANE[slot]="$lane"
+      S_MEASURE[slot]="$measure"
+      S_TOOL[slot]="$tool"
+      S_VERSION[slot]="$version"
+      COLLECT_SLOTS+=("$slot")
+      progress "$lane/$measure: running $tool $version over ${#lane_files[@]} file(s)"
+      launch_collect "$slot" "$adapter" "$lane" "$measure" "${lane_files[@]}"
       resolved=1
       break
     done < <(ladder_tools "$lane" "$measure")
     if [[ $resolved -eq 0 ]]; then
-      run_row "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}"
+      run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}"
     fi
   done
+done
+wait
+
+for slot in "${COLLECT_SLOTS[@]}"; do
+  rc=1
+  elapsed=""
+  read -r rc elapsed <"$WORK/rc.$slot" || rc=1
+  lane="${S_LANE[slot]}"
+  measure="${S_MEASURE[slot]}"
+  tool="${S_TOOL[slot]}"
+  version="${S_VERSION[slot]}"
+  if [[ "${rc:-1}" -eq 0 ]]; then
+    cat "$WORK/out.$slot" >>"$ROWS"
+    run_row "$slot" "$lane" "$measure" "$tool $version" ok ''
+    progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
+  else
+    COLLECT_FAILED=1
+    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+    progress "$lane/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
+  fi
+done
+for ((i = 0; i < SLOT; i++)); do
+  [[ -f "$WORK/run.$i" ]] && cat "$WORK/run.$i" >>"$RUN"
 done
 
 # ---- assemble ----------------------------------------------------------------
@@ -547,8 +655,15 @@ base_json=null
 # belong to no lane (a markdown file in a source tree), so `files` minus
 # `unclassified` reconciles with the measured file count.
 CLASSIFIED="$(cut -f2 "$LANES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
-printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": %s}\n' \
-  "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" "$EXCLUDED" >"$SCOPE_JSON"
+exclusions_json="[]"
+if [[ ${#EXCLUSION_ROWS[@]} -gt 0 ]]; then
+  exclusions_json="[$(
+    IFS=,
+    printf '%s' "${EXCLUSION_ROWS[*]}"
+  )]"
+fi
+printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": %s, "exclusions": %s}\n' \
+  "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" "$EXCLUDED" "$exclusions_json" >"$SCOPE_JSON"
 
 THRESHOLDS="$WORK/thresholds.json"
 # The ladder's `halstead` measure reports several values; the reference is on
@@ -561,7 +676,19 @@ for measure in "${MEASURE_LIST[@]}"; do
 done
 "${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures "$threshold_measures" >"$THRESHOLDS" || exit 2
 
-"${PY[@]}" "$REPORT" assemble --skill "$SKILL" --scope "$SCOPE_JSON" --run "$RUN" --measures "$ROWS" --thresholds "$THRESHOLDS" || exit 2
+"${PY[@]}" "$REPORT" assemble --skill "$SKILL" --scope "$SCOPE_JSON" --run "$RUN" --measures "$ROWS" --thresholds "$THRESHOLDS" >"$WORK/assembled.json" || exit 2
+
+if [[ ${#REGISTRIES[@]} -gt 0 ]]; then
+  # Rows for a file the registry names collapse to one row per function with
+  # a replica count, and the summary is recomputed from what survived so the
+  # over-reference count stops counting one function once per copy.
+  collapse_args=(--prefix "$(git rev-parse --show-prefix 2>/dev/null || true)")
+  for registry in "${REGISTRIES[@]}"; do collapse_args+=(--registry "$registry"); done
+  "${PY[@]}" "$COLLAPSE" "${collapse_args[@]}" <"$WORK/assembled.json" >"$WORK/collapsed.json" || exit 2
+  "${PY[@]}" "$REPORT" resummarize <"$WORK/collapsed.json" || exit 2
+else
+  cat "$WORK/assembled.json"
+fi
 
 [[ $COLLECT_FAILED -eq 0 ]] || exit 3
 exit 0

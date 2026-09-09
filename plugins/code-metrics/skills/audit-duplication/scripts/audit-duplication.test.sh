@@ -59,6 +59,7 @@ STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$WORK"' EXIT
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 cat >"$STUBS/jscpd" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then

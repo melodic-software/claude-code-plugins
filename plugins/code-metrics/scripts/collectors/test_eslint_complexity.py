@@ -46,8 +46,11 @@ def make_stub(
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
+def run(
+    *args: str, path_prefix: Path | None = None, cwd: Path | str | None = None
+) -> subprocess.CompletedProcess:
     env = dict(os.environ)
+    env.pop("ESLINT_USE_FLAT_CONFIG", None)
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
     else:
@@ -59,9 +62,17 @@ def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProc
         capture_output=True,
         text=True,
         env=env,
-        cwd=REPO_ROOT,
+        cwd=cwd or REPO_ROOT,
         check=False,
     )
+
+
+def configured(directory: Path, name: str = "eslint.config.js") -> Path:
+    """A working directory that carries an ESLint configuration file."""
+    project = directory / "project"
+    project.mkdir(exist_ok=True)
+    (project / name).write_text("export default [];\n", encoding="utf-8")
+    return project
 
 
 class EslintComplexityAdapterTests(unittest.TestCase):
@@ -70,11 +81,39 @@ class EslintComplexityAdapterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("eslint", result.stderr)
 
-    def test_probe_prints_the_version_when_the_stub_resolves(self) -> None:
+    def test_probe_prints_the_version_when_the_stub_resolves_under_a_config(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
-            result = run("probe", path_prefix=Path(tmp))
+            project = configured(Path(tmp))
+            nested = project / "src" / "deep"
+            nested.mkdir(parents=True)
+            result = run("probe", path_prefix=Path(tmp), cwd=nested)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "10.1.0"))
+
+    def test_probe_fails_when_a_flat_config_eslint_has_no_config_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp))
+            bare = Path(tmp) / "bare"
+            bare.mkdir()
+            result = run("probe", path_prefix=Path(tmp), cwd=bare)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("eslint.config.*", result.stderr)
+            self.assertIn("10.1.0", result.stderr)
+
+    def test_probe_accepts_an_eslintrc_for_an_eslint_before_9(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp), version_line="v8.57.0")
+            project = configured(Path(tmp), name=".eslintrc.json")
+            result = run("probe", path_prefix=Path(tmp), cwd=project)
+            self.assertEqual((result.returncode, result.stdout.strip()), (0, "8.57.0"))
+            bare = Path(tmp) / "bare"
+            bare.mkdir()
+            refused = run("probe", path_prefix=Path(tmp), cwd=bare)
+            self.assertEqual(refused.returncode, 1)
+            self.assertIn(".eslintrc.*", refused.stderr)
 
     def test_measures_lists_the_single_pair_it_serves(self) -> None:
         self.assertEqual(run("measures").stdout.split(), ["typescript/cyclomatic"])

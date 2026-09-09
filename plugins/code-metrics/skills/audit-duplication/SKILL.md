@@ -80,9 +80,10 @@ Everything tunable resolves through `.claude/code-metrics.yaml` (user-global, te
 overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 `duplication.min_tokens` (default 50), `duplication.min_lines` (default 5),
 `duplication.ignore` (globs handed to the detector's own ignore option), and
-`duplication.registries` (sanctioned-replication registries, each path relative to the repository
-root, and each also nameable on the command line with `--registry`). `/code-metrics:setup` writes
-the team file and probes the collectors.
+`scope.registries` (sanctioned-replication registries, each path relative to the repository root,
+each also nameable on the command line with `--registry`, and read by every audit in this plugin;
+`duplication.registries` is the older name and still resolves when the scope-level list is
+empty). `/code-metrics:setup` writes the team file and probes the collectors.
 
 This script exports the three tunables to the collector adapters as
 `CODE_METRICS_DUP_MIN_TOKENS`, `CODE_METRICS_DUP_MIN_LINES`, and `CODE_METRICS_DUP_IGNORE`, which
@@ -117,7 +118,7 @@ overrides are validated against the ladder file and an unknown name is dropped w
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a
   branch with no default-branch ancestor, pass paths or `--all` (the usage error says which).
-- A registry named on the command line or in `duplication.registries` that does not exist is a
+- A registry named on the command line or in `scope.registries` that does not exist is a
   usage error, not a silent no-op: a stale registry path would otherwise turn every exclusion off
   without saying so.
 - Clone detection compares the files in scope with each other. A default-scope run sees only the

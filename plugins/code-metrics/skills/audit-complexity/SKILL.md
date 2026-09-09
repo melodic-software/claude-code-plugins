@@ -50,10 +50,15 @@ carry `function: null`, and are labelled `file-level`. Its Bash cyclomatic figur
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
 this run" table (lane, measure, collector, status, reason), then the references with their
-provenance and layer, then one row per function or file. Keep the `--json` document when the
-numbers feed a comparison: pass it to `/verification:measure metrics` when the `verification`
-plugin is installed, treating `status: empty` on either side as INCONCLUSIVE; otherwise keep the
-JSON beside your notes and compare by hand.
+provenance and layer, then one row per function or file: every collector's numbers for a function
+sit on that one line, a Labels column carries `start-line-only`, `file-level`, and
+`multimetric-approximation` where they apply, and rows over a reference come first, the furthest
+past it at the top. The table stops at 200 rows; its last line and the summary name the file the
+whole `code-metrics/v1` document was written to (under `CLAUDE_PLUGIN_DATA`, else
+`~/.claude/plugins/data/code-metrics/reports`), so the numbers past the cap are on disk without a
+second run. Pass that document, or a `--json` run's output, to `/verification:measure metrics`
+when the `verification` plugin is installed, treating `status: empty` on either side as
+INCONCLUSIVE; otherwise keep it beside your notes and compare by hand.
 
 ## Reading the numbers
 
@@ -69,7 +74,14 @@ JSON beside your notes and compare by hand.
   `complexity.halstead.difficulty` makes the report count against your own number, labelled with
   the layer that supplied it.
 - A `null` value means the resolved collector did not produce that number for that row. It is
-  never zero, and a zero in the report is a measurement.
+  never zero, and a zero in the report is a measurement: a Halstead difficulty of 0 is a function
+  in which the collector found no operators or operands, and the table says so under it.
+- A row marked `replicated` stands for every copy of a file the repository's
+  sanctioned-replication registry names (`scope.registries`), with the copy count beside the
+  path; the copies were measured, the function is shown once, and the over-reference count
+  counts it once.
+- An empty change scope is reported with its cause: the branch sits at its merge-base with a
+  clean tree, or the changed files belong to no lane. Explicit paths or `--all` measure the tree.
 - `status` is `complete` when every lane and measure in scope ran, `partial` when one did not, and
   `empty` when nothing was measured; the run table says why for every non-`ok` row.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
@@ -83,11 +95,18 @@ you, and why no threshold here is a verdict.
 
 Everything tunable resolves through `.claude/code-metrics.yaml` (user-global, team, local
 overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the three
-references above, scope exclusions (`scope.exclude`), the base ref (`scope.base`), and the
+references above, scope exclusions (`scope.exclude`, which by default drops `node_modules`,
+`vendor`, `dist`, and `build` directories at any depth and reports each pattern's count),
+sanctioned-replication registries (`scope.registries`), the base ref (`scope.base`), and the
 per-lane collector order (`lanes.<lane>.collectors.<measure>`, validated against
 `${CLAUDE_PLUGIN_ROOT}/scripts/collector-ladder.tsv`). The report names the layer that supplied
 any value a personal layer changed. `/code-metrics:setup` writes the team file and probes the
 collectors.
+
+A whole-tree run launches one collector process per lane and measure in parallel, capped at the
+CPU count or `CODE_METRICS_JOBS`, and prints a progress line per collector on stderr once the
+scope passes a few hundred files (`CODE_METRICS_PROGRESS=1` forces it, `=0` silences it). Its
+wall clock is the slowest collector's own, which the plugin does not control.
 
 ## What this skill does not do
 
@@ -110,9 +129,13 @@ collectors.
 ## Gotchas
 
 - The two ESLint-based rungs resolve only when the repository already wires ESLint (`eslint` on
-  `PATH` or in `node_modules/.bin`), and the cognitive rung also needs `eslint-plugin-sonarjs` in
-  `node_modules`. Otherwise the row is `unavailable` with that reason; `lizard` still covers
-  TypeScript cyclomatic complexity.
+  `PATH` or in `node_modules/.bin`, and an `eslint.config.*` from the working directory upward,
+  since ESLint 9 and later load nothing else), and the cognitive rung also needs
+  `eslint-plugin-sonarjs` in `node_modules`. Otherwise the row is `unavailable` with that
+  reason; `lizard` still covers TypeScript cyclomatic complexity.
+- `multimetric` and `gocognit` have no version flag. The run table carries the version their
+  package metadata or `go version -m` reports, and reads `version unavailable` when neither
+  answers, so two reports can still be compared by tool.
 - Python and Bash have no maintained cognitive-complexity collector, so those rows read
   `unavailable` with that reason rather than reporting a substitute measure. The claim, what it
   rests on, when it was checked, and what should send you to check again are recorded in

@@ -81,7 +81,9 @@ if [[ -z "$CONFIG" ]]; then
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
 fi
 
-# Three tunables and then one line per configured registry, in that order.
+# The three tunables, then the registries from the resolver's own format
+# (`scope.registries`, or `duplication.registries` as its older name), so this
+# script and the dispatcher read the same list the same way.
 mapfile -t DUP < <("${PY[@]}" -c '
 import json, sys
 
@@ -97,8 +99,6 @@ print(number("min_tokens", 50))
 print(number("min_lines", 5))
 ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
-for registry in section.get("registries") or []:
-    print(str(registry))
 ' "$CONFIG")
 if [[ ${#DUP[@]} -lt 3 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
@@ -107,6 +107,11 @@ fi
 export CODE_METRICS_DUP_MIN_TOKENS="${DUP[0]}"
 export CODE_METRICS_DUP_MIN_LINES="${DUP[1]}"
 export CODE_METRICS_DUP_IGNORE="${DUP[2]}"
+if ! "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --from-json "$CONFIG" --format registries >"$WORK/registries"; then
+  echo "audit-duplication.sh: the configured registries could not be read (see the message above)" >&2
+  exit 2
+fi
+mapfile -t CONFIGURED_REGISTRIES <"$WORK/registries"
 
 FILTER_ARGS=(--root "$ROOT")
 resolve_registry() {
@@ -119,7 +124,7 @@ resolve_registry() {
     return 1
   fi
 }
-for registry in "${REGISTRY_ARGS[@]:-}" "${DUP[@]:3}"; do
+for registry in "${REGISTRY_ARGS[@]:-}" "${CONFIGURED_REGISTRIES[@]:-}"; do
   [[ -n "$registry" ]] || continue
   if ! resolved="$(resolve_registry "$registry")"; then
     echo "audit-duplication.sh: registry not found: $registry" >&2
@@ -141,6 +146,12 @@ rc=$?
 if [[ $JSON -eq 1 ]]; then
   cat "$WORK/final.json"
 else
-  "${PY[@]}" "$REPORT" render <"$WORK/final.json" || exit 2
+  # shellcheck source=../../../scripts/persist-report.sh
+  source "$PLUGIN_ROOT/scripts/persist-report.sh"
+  render_args=()
+  if document="$(cm_persist_report audit-duplication "$WORK/final.json")"; then
+    render_args=(--document "$document")
+  fi
+  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/final.json" || exit 2
 fi
 exit "$rc"

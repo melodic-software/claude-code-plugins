@@ -12,7 +12,7 @@ read, so its shape is stable within the `v1` schema string.
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
 | `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
-| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count), `excluded` (count dropped by scope exclusions) |
+| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`) |
 | `measures` | array | The rows, see below |
@@ -24,14 +24,32 @@ read, so its shape is stable within the `v1` schema string.
 rows and counts once. Rows are grouped by file and name, and a group counts as many functions as it
 has distinct `start_line` values, or as one when no row in it reports a start line. So two `render`
 methods in one file count as two, while a cyclomatic row and a Halstead row for the same function
-count as one even though only the first reports where it begins.
+count as one even though only the first reports where it begins. `summary.files` counts every
+file a row stands for, the copies behind a `replicas` row included.
+
+The markdown rendering joins the rows the same way the count does: one line per function with
+every collector's values, a row with no start line joining the one function of its name in the
+file, and never two rows whose values disagree. The JSON keeps one row per collector, because each
+row names the tool that produced it.
+
+## Sanctioned replication
+
+When the resolved `scope.registries` names a registry (one path-within-plugin per line), the
+per-file and per-function rows for every copy of a listed file that carry the same function, line
+range, collector, lane, and values collapse into one row: the first by path, with the label
+`replicated` and a `replicas` object (`count`, the files the row stands for including itself;
+`registry`; `line`; `path`, the registry line's text; `files`). Rows whose values differ are
+different files whatever the registry says, and all of them stay. Clone-group rows are
+`audit-duplication`'s own pass and go to `excluded[]` instead.
 
 ## `run[]` rows
 
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
 (`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`). A
-run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and the
-reason `no measurable files in scope`.
+run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and a
+reason that opens with `no measurable files in scope` and, under `change`, says why: the branch is
+at its merge-base with a clean working tree (naming the ref and the `--all` alternative), or the
+changed files belong to no lane.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
 `audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it
@@ -42,8 +60,10 @@ read as complete while one of its own rows says `N of M`.
 ## `measures[]` rows
 
 Common fields: `file`, `function` (`null` for a per-file row), `lane`, `values` (measure name to
-number or `null`), `collector`, `labels` (strings such as `comment-agnostic`), `over_reference`
-(the measures whose reference the row is at or beyond). Granularity by skill:
+number or `null`), `collector`, `labels` (strings such as `comment-agnostic`, `start-line-only`,
+`file-level`, `replicated`), `over_reference` (the measures whose reference the row is at or
+beyond), and `replicas` on a collapsed row only (see "Sanctioned replication"). Granularity by
+skill:
 
 | Skill | One row per | Extra fields |
 |---|---|---|

@@ -70,6 +70,7 @@ STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$SCRATCH"' EXIT
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 
 cat >"$STUBS/lizard" <<EOF
 #!/usr/bin/env bash

@@ -62,6 +62,50 @@ def resolve_eslint() -> str | None:
     return None
 
 
+FLAT_CONFIG_NAMES = (
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
+    "eslint.config.ts",
+    "eslint.config.mts",
+    "eslint.config.cts",
+)
+LEGACY_CONFIG_NAMES = (
+    ".eslintrc",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.yaml",
+    ".eslintrc.yml",
+    ".eslintrc.json",
+)
+
+
+def find_config(major: int | None, start: str | None = None) -> str | None:
+    """The ESLint configuration file the run would load, or None.
+
+    ESLint 9 and later load only a flat `eslint.config.*` (unless
+    ESLINT_USE_FLAT_CONFIG=false restores the eslintrc files), and exit with
+    no report at all when none exists from the working directory upward. A
+    binary on PATH with no configuration is not a resolvable collector: it
+    would resolve, run, and produce nothing parseable, failing the whole run,
+    when the honest row is `unavailable` with this reason.
+    """
+    legacy = (major is not None and major < 9) or os.environ.get(
+        "ESLINT_USE_FLAT_CONFIG", ""
+    ).lower() == "false"
+    names = LEGACY_CONFIG_NAMES if legacy else FLAT_CONFIG_NAMES
+    here = os.path.abspath(start or os.getcwd())
+    while True:
+        for name in names:
+            candidate = os.path.join(here, name)
+            if os.path.isfile(candidate):
+                return candidate
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        here = parent
+
+
 def probe() -> int:
     exe = resolve_eslint()
     if not exe:
@@ -75,7 +119,21 @@ def probe() -> int:
         print(f"eslint --version failed: {exc}", file=sys.stderr)
         return 1
     match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    version = match.group(1) if match else "unknown-version"
+    major = int(version.split(".", 1)[0]) if match else None
+    if find_config(major) is None:
+        wanted = (
+            "eslint.config.*"
+            if not (major is not None and major < 9)
+            else ".eslintrc.*"
+        )
+        print(
+            f"eslint {version} is on PATH but no {wanted} was found from {os.getcwd()} upward, "
+            "so the complexity rule has no configuration to run under",
+            file=sys.stderr,
+        )
+        return 1
+    print(version)
     return 0
 
 
