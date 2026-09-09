@@ -5,11 +5,12 @@ dispatched run **that is specific to research**, and why each obligation exists.
 is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).
 
 Everything the parent owes that is **identical for exploration and research** — the envelope's six
-fields as a literal template, the pre-dispatch baseline in both shell forms, what is and is not
+shared fields as a literal template, the pre-dispatch baseline in both shell forms, what is and is not
 documented about argument substitution on the preload path, why the gate ships no permission grant
 and what to do when it cannot run, and the resume-before-discard ordering — is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-This file does not restate it.
+Research also writes `Source breadth:` on that same template. This file does not restate the shared
+six.
 
 ## The orchestration boundary
 
@@ -19,8 +20,8 @@ that surrounds the reading, and the failures worth guarding against are all at t
 **The parent owns the pre-dispatch envelope** — everything that must be resolved in main context
 before the agent starts, because the agent cannot resolve it once started:
 
-The literal envelope template is in the parent contract. All six fields are owed; this table says
-why each is the parent's to supply.
+The literal envelope template is in the parent contract. All six shared fields are owed; research
+also owes `Source breadth:`. This table says why each is the parent's to supply.
 
 | Field | Why the agent cannot supply it |
 |---|---|
@@ -29,6 +30,7 @@ why each is the parent's to supply.
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
 | Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root — but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labelled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's |
+| Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
 | Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag — the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
 
 The agent **refuses to guess** any of these rather than inventing one — memory root excepted above —

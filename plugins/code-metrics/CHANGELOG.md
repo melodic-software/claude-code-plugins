@@ -59,6 +59,19 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   version -m`, and both read `version unavailable (<tool> has no version flag)` rather than
   `unknown-version` when nothing answers.
 
+## [0.1.9]
+
+### Fixed
+
+- **The tool-free PATH in the audit suites is derived from the collector ladder.** Each suite
+  that builds an environment with collectors removed used to keep a second, hardcoded list of
+  tool names off PATH. A collector added to `scripts/collector-ladder.tsv` stayed reachable
+  and the no-collector case stopped being tool-free. The excluded set is now the ladder's tool
+  column (skipping the reserved `none`, `n/a`, and `deferred` rungs) plus the PATH binaries those
+  adapters look up, and after that environment is built the suite asserts that none of those
+  collectors still resolves. Python interpreters on that PATH are resolved to a non-mutating
+  executable so a pyenv (or similar) shim cannot prepend skipped collectors back onto PATH.
+
 ## [0.1.8]
 
 ### Added

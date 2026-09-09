@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## [0.35.7]
+
+### Added
+
+- **handoff:** the save-point checklist inventories named subagents this session spawned and
+  leftover names the previous handoff recorded, reads each one's actual output or transcript
+  before judging idle (the inspect-real-state invariant in `reference/off-thread-work.md`),
+  asks the operator to cancel idle ones with `x` in `/tasks` (user-cancel; `TaskStop` still
+  auto-resumes on `SendMessage`, per the verified snapshot in
+  `skills/orchestrate/context/sources.md`), and records any still running (with why) so the
+  resuming session inherits the list. Named subagents stay live and addressable across
+  `/clear` and across sessions; an unreaped idle agent accumulates into later sessions.
+  (#3954)
+
 ## [0.35.6]
 
 ### Changed
