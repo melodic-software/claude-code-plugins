@@ -47,6 +47,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **audit:** the readability probe in `check-structure.sh` and the engine silences its own
   stderr before opening the file, so an unreadable scope no longer prints a shell
   permission-denied line ahead of the report.
+- **audit:** `check-plugin-drift.sh` no longer exits fatally when curl is absent. Directory-sourced
+  marketplaces need no network, so they still audit, and each repo-sourced one is recorded as a
+  fetch failure instead.
+- **audit:** `check-doc-citations.sh` checks the last manifest row even when the file has no
+  trailing newline.
 
 ## [0.40.41]
 

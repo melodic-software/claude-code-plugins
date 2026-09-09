@@ -315,7 +315,7 @@ assert_eq "case 10: deep-link boolean is a warning" "warning" "$(jq -r '.finding
 m="$(make_machine env)"
 mkdir -p "$m/docs"
 printf '%s\n' '| `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | documented |' >"$m/docs/env-vars.md"
-printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{CLAUDE_CODE_DISABLE_AUTO_MEMORY:"1",MY_SINK:"C:\\tools\\sink.sh",GH:"ghp_abcdefghijklmnopqrstuvwxyz0123"}}' >"$m/project/.claude/settings.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{CLAUDE_CODE_DISABLE_AUTO_MEMORY:"1",MY_SINK:"C:\\tools\\sink.sh",GH:"ghp_abcdefghijklmnopqrstuvwxyz0123"}}' >"$m/project/.claude/settings.json" # portability-ok: a Windows path inside a JSON string, not a regex escape
 rc=0
 out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || rc=$?
 assert_exit "case 11: secret-shaped value exits 1" 1 "$rc"

@@ -106,7 +106,9 @@ page_file() {
 MISSING=0
 SKIPPED=0
 CHECKED=0
-while IFS=$'\t' read -r slug span; do
+# `|| [[ -n "$slug" ]]` keeps a final row that has no trailing newline: read
+# returns nonzero at EOF even when it filled the variables.
+while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
   [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue
   span="${span%$'\r'}"
   if [[ -z "${PAGE_STATE[$slug]:-}" ]]; then

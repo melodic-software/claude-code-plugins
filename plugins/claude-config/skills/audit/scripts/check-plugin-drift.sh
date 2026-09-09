@@ -32,7 +32,9 @@
 # Exit codes:
 #   0  no drift detected
 #   1  drift detected (advisory, the invoker decides whether to fix)
-#   2  fatal (settings.json missing/invalid, jq/curl missing)
+#   2  fatal (settings.json missing/invalid, jq missing). A missing curl is
+#      not fatal: directory-sourced catalogs still audit, and each
+#      repo-sourced one is recorded as a fetch failure.
 #
 # Env overrides (for testing):
 #   CLAUDE_SETTINGS_FILE        path to project settings.json
@@ -65,11 +67,6 @@ fi
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
-  exit 2
-fi
-
-if [[ -z "${SETTINGS_AUDIT_FIXTURE_DIR:-}" ]] && ! command -v curl >/dev/null 2>&1; then
-  echo "ERROR: curl required when SETTINGS_AUDIT_FIXTURE_DIR is unset" >&2
   exit 2
 fi
 
@@ -127,6 +124,13 @@ fetch_upstream() {
     return 1
   fi
 
+  # curl is needed only here, for a repo-sourced catalog. A machine without
+  # it still audits every directory-sourced marketplace; this one is
+  # recorded as a fetch failure rather than aborting the run.
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "WARN: curl not found; cannot fetch $market_key from $repo" >&2
+    return 1
+  fi
   local url="https://raw.githubusercontent.com/$repo/HEAD/.claude-plugin/marketplace.json"
   curl -fsSL --max-time 15 "$url" 2>/dev/null
 }

@@ -477,12 +477,14 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
 project_dir=$(make_project_dir "$case_dir")
 
+# The path spells each backslash as the JSON escape \u005c, so the fixture
+# decodes to a Windows path without the source carrying a regex-looking escape.
 write_settings "$project_dir/.claude/settings.json" '{
   "enabledPlugins": {
     "alpha@sub-market": true
   },
   "extraKnownMarketplaces": {
-    "sub-market": {"source": {"source": "directory", "path": ".\\catalogs\\sub/"}}
+    "sub-market": {"source": {"source": "directory", "path": ".\u005ccatalogs\u005csub/"}}
   }
 }'
 write_directory_catalog "$project_dir/catalogs/sub" '{

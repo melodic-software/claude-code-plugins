@@ -103,6 +103,18 @@ rc=0
 bad=$(grep -vE '^(#|$)' "$MANIFEST" | grep -vcE $'^[a-z-]+\t.+$' || true)
 if [[ "$bad" == "0" ]]; then pass "case 6: every manifest row is slug<TAB>span"; else fail "case 6: every manifest row is slug<TAB>span" "$bad malformed row(s)"; fi
 
+# --- Case 7: a manifest with no trailing newline still checks its last row ------
+fx="$TEST_TMPDIR/lastrow"
+mkdir -p "$fx"
+man="$TEST_TMPDIR/manifest-lastrow.tsv"
+printf 'alpha\t### `keyOne`\nalpha\t### `keyGone`' >"$man"
+printf '%s\n' '### `keyOne`' >"$fx/alpha.md"
+rc=0
+out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 7: the unterminated last row is checked and fails" 1 "$rc"
+assert_contains "case 7: MISS names the last row" "$out" "MISS  alpha: ### \`keyGone\`"
+assert_contains "case 7: both rows counted" "$out" "Checked 2 citation(s), 1 missing"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
