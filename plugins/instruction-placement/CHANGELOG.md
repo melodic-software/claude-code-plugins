@@ -3,6 +3,13 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **render-index:** a `wiring` subcommand reports, for every nested `AGENTS.md` the index lists, whether a `CLAUDE.md` or `CLAUDE.local.md` beside it imports or symlinks it, and exits 1 on any `UNWIRED` row. Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so an indexed nested file with no such sibling was in sync, reachable, and never loaded, and `check` could not tell because it compares text. `write` now warns on stderr for each unwired file it indexes; the row stays, since the shim is the fix.
+- **check:** the gate's table and running steps carry the wiring row beside sync and reachability.
+
 ## [0.12.2]
 
 ### Changed

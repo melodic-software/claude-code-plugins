@@ -341,6 +341,56 @@ out="$(run reachable --file "$unwired/CLAUDE.md" --root "$unwired")"
 assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
 
 # --------------------------------------------------------------------------
+# wiring — an indexed nested AGENTS.md that no sibling imports never loads
+# --------------------------------------------------------------------------
+wiring="$(mktemp -d)"
+git -C "$wiring" init -q .
+mkdir -p "$wiring/shimmed" "$wiring/bare" "$wiring/linked" "$wiring/localonly"
+printf '@AGENTS.md\n' >"$wiring/CLAUDE.md"
+printf '# Root\n' >"$wiring/AGENTS.md"
+printf '# Shimmed\n' >"$wiring/shimmed/AGENTS.md"
+printf '@AGENTS.md\n' >"$wiring/shimmed/CLAUDE.md"
+printf '# Bare\n' >"$wiring/bare/AGENTS.md"
+printf '# Linked\n' >"$wiring/linked/AGENTS.md"
+ln -s AGENTS.md "$wiring/linked/CLAUDE.md"
+printf '# Local only\n' >"$wiring/localonly/AGENTS.md"
+printf '@AGENTS.md\n' >"$wiring/localonly/CLAUDE.local.md"
+printf 'CLAUDE.local.md\n' >"$wiring/.gitignore"
+commit_all "$wiring"
+
+out="$(run wiring --root "$wiring")"
+assert_contains "wiring reports the bare nested AGENTS.md as UNWIRED" "$out" "UNWIRED	bare/AGENTS.md"
+assert_contains "wiring reports the shimmed one as WIRED" "$out" "WIRED	shimmed/AGENTS.md"
+assert_contains "a symlinked CLAUDE.md counts as wired" "$out" "WIRED	linked/AGENTS.md"
+assert_contains "a gitignored CLAUDE.local.md shim counts as wired" "$out" "WIRED	localonly/AGENTS.md"
+assert_not_contains "the root AGENTS.md is not a wiring row" "$out" "	AGENTS.md	"
+run wiring --root "$wiring" >/dev/null 2>&1
+assert_eq "any UNWIRED row exits 1" "1" "$?"
+
+# The index still lists the unwired file (the shim is the fix, not the row's
+# removal), and write says so on stderr, once per unwired file.
+warn="$(warn_only write --file "$wiring/AGENTS.md" --root "$wiring")"
+assert_contains "write warns about the unwired nested AGENTS.md" "$warn" "bare/AGENTS.md is indexed but"
+assert_not_contains "write does not warn about the wired one" "$warn" "shimmed/AGENTS.md"
+assert_contains "the unwired file keeps its index row" "$(cat "$wiring/AGENTS.md")" '`bare/AGENTS.md`'
+
+printf '@AGENTS.md\n' >"$wiring/bare/CLAUDE.md"
+commit_all "$wiring"
+out="$(run wiring --root "$wiring")"
+assert_not_contains "adding the shim clears the UNWIRED row" "$out" "UNWIRED"
+run wiring --root "$wiring" >/dev/null 2>&1
+assert_eq "all wired exits 0" "0" "$?"
+
+nonested="$(mktemp -d)"
+git -C "$nonested" init -q .
+printf '# Root only\n' >"$nonested/CLAUDE.md"
+commit_all "$nonested"
+out="$(run wiring --root "$nonested")"
+assert_eq "no nested AGENTS.md prints no rows" "" "$out"
+run wiring --root "$nonested" >/dev/null 2>&1
+assert_eq "no nested AGENTS.md exits 0" "0" "$?"
+
+# --------------------------------------------------------------------------
 # Size posture — the index must not become the bloat it exists to remove
 # --------------------------------------------------------------------------
 many="$(mktemp -d)"
