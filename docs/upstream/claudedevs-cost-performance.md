@@ -62,6 +62,14 @@ evidence) as each lane's interview closes.
      cache diagnostics API, and turn-scoped system messages are betas with headers; plain
      mid-conversation system messages are GA on six models (not Sonnet 5). Adopted guidance
      carries the qualifiers.
+  5. **Corroboration verdict (fresh-context verifier, 2026-09-09).** Every accepted claim is
+     HIGH confidence and five live spot checks matched current sources verbatim; four claims
+     rest on a single evidence pool because no independent second pool exists publicly:
+     automatic-caching breakpoint movement (docs plus a restatement page; substance
+     re-confirmed live), cost-optimize behavior (skill source only; the skill's docs page does
+     not document the command), hillclimb-bundled and hillclimb-absent (binary extraction and
+     an exhaustive clone grep, both direct observations). Rows built on these carry the
+     qualification rather than a second citation.
 
 ## Row schema
 
