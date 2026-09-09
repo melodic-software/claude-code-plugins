@@ -112,7 +112,7 @@ guard: ok
 sessions: 12 file(s), newest <session_id>
 shared: 340 event(s) in hook-events.jsonl
 prune-pending: none
-envelope: 340 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
+envelope: 1210 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
 ```
 
 The last section is the six lines of `probe-observability-state.sh --pipeline`, verbatim. A

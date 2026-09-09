@@ -218,13 +218,13 @@ assert_contains "pipeline: session count and newest by mtime" "sessions: 2 file(
 assert_contains "pipeline: shared file count" "shared: 4 event(s) in hook-events.jsonl" "$P_OUT"
 assert_contains "pipeline: no pending prune" "prune-pending: none" "$P_OUT"
 assert_contains "pipeline: options rendered with defaults filled in" \
-  "envelope: none; event log: on; categories: all; keep: 5 sessions or 14 days; pre-prune: none" "$P_OUT"
+  "envelope: 4 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 5 sessions or 14 days; pre-prune: none" "$P_OUT"
 
 P_OUT="$(bash "$SCRIPT" --pipeline --enabled '${user_config.session_event_log_enabled}' \
   --categories '${user_config.session_event_log_categories}' --keep-days '${user_config.session_log_keep_days}' \
   --pre-prune-command 'archive.sh' 2>/dev/null)"
 assert_contains "pipeline: unexpanded placeholders read as the manifest defaults" \
-  "envelope: none; event log: off; categories: all; keep: 30 sessions or 14 days; pre-prune: set (runs detached at SessionEnd)" "$P_OUT"
+  "envelope: 4 row(s) from the audit hooks, outside the switch; event log: off; categories: all; keep: 30 sessions or 14 days; pre-prune: set (runs detached at SessionEnd)" "$P_OUT"
 if [[ "$P_OUT" != *"archive.sh"* ]]; then
   pass "pipeline: the pre-prune command text is never echoed"
 else
@@ -272,35 +272,46 @@ printf '{"source":"envelope","hook":"a"}\n{"source":"envelope","hook":"b"}\n' >"
 printf '{"source":"envelope","hook":"c"}\n{"hook_event_name":"Stop"}\n' >"$ENVELOPED/.observability/claude/sessions/s2.jsonl"
 export STUB_GIT_TOPLEVEL="$ENVELOPED"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
-assert_contains "pipeline: envelope rows are counted apart from the event-log switch" \
+assert_contains "pipeline: per-session envelope rows are counted apart from the event-log switch" \
   "envelope: 3 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
+# Every line of the shared file is a sink envelope in the legacy shape (no
+# `source` marker), so the tier counts the file whole.
+printf '{"event":"PostToolUse","hook":"d"}\n{"event":"Stop","hook":"e"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl"
+P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
+assert_contains "pipeline: the shared file's legacy envelopes join the count" \
+  "envelope: 5 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
 unset STUB_GIT_TOPLEVEL
 
 # --- The skill's own pre-compute lines -----------------------------------------
-# The harness renders ${CLAUDE_PLUGIN_ROOT} before any shell sees a pre-compute
-# line and leaves a ${user_config.*} placeholder as written when its option is
-# unset, and one failed line aborts the whole invocation. Each line that carries
-# a placeholder is run under exactly that substitution and must exit 0 with the
-# probe's own output, never the `unknown` fallback.
+# A ${user_config.*} value renders in plain skill content only; a shell line
+# that carries one either re-parses the rendered value or, left unrendered,
+# fails on the `.` in the parameter name, and one failed line aborts the whole
+# invocation. So no pre-compute command may reference user_config at all, and
+# each command that invokes the probe must exit 0 with the probe's own output
+# under the one substitution the harness does make, ${CLAUDE_PLUGIN_ROOT}.
 SKILL_MD="$SCRIPT_DIR/../SKILL.md"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# shellcheck disable=SC2016  # the literal placeholder text is the thing matched
+assert_eq "SKILL.md pre-compute lines reference no user_config placeholder" "0" \
+  "$(grep -cE '!`[^`]*\$\{user_config\.' "$SKILL_MD")"
 export STUB_GIT_TOPLEVEL="$WIRED"
-precompute_lines=0
+probe_lines=0
+# shellcheck disable=SC2016  # a literal backtick pattern, no expansion wanted
 while IFS= read -r line; do
-  precompute_lines=$((precompute_lines + 1))
+  probe_lines=$((probe_lines + 1))
   cmd="${line#*!\`}"
   cmd="${cmd%\`}"
   cmd="${cmd//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}"
   out="$(bash -c "$cmd" 2>&1)"
   rc=$?
-  label="SKILL.md pre-compute line ${line%%:*} runs with every user_config placeholder unrendered"
+  label="SKILL.md pre-compute line ${line%%:*} runs to the probe's own output"
   if [[ $rc -eq 0 && -n "$out" && "$out" != "unknown" ]]; then
     pass "$label"
   else
     fail "$label" "exit 0 with probe output" "rc=$rc out=$out"
   fi
-done < <(grep -E '!`.*\$\{user_config\.' "$SKILL_MD")
-assert_eq "SKILL.md carries the two placeholder-bearing pre-compute lines this case guards" "2" "$precompute_lines"
+done < <(grep -E '!`[^`]*probe-observability-state\.sh' "$SKILL_MD")
+assert_eq "SKILL.md carries the three probe-invoking pre-compute lines this case guards" "3" "$probe_lines"
 unset STUB_GIT_TOPLEVEL
 
 # --- Mode validation ----------------------------------------------------------
