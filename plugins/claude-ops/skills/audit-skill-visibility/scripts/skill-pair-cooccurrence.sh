@@ -28,9 +28,27 @@
 # rather than a small number: a store younger than the exposure floor cannot
 # distinguish "CALLEE never fired" from "nothing was observed yet".
 #
+# WHERE THE STORE IS — the hooks decide, this script asks them:
+#
+#   The writers select the store through claude_ops::resolve_skill_usage_dir
+#   in ../../../hooks/claude-ops-paths.sh (skill_usage_scope: repo, user or
+#   data-dir; skill_usage_dir under the scope root). Without --store this script
+#   sources that same resolver and feeds it the same options, so the file it
+#   opens is the file the hooks wrote for every scope. A restated default here
+#   would be one branch of that policy, correct only until the policy moved.
+#   The hooks read their options from CLAUDE_PLUGIN_OPTION_* in the hook
+#   environment; a skill subprocess inherits none of those, so the skill body
+#   passes the rendered ${user_config.*} values through --scope / --dir. The
+#   data-dir root arrives the same way, through --data-root: a skill
+#   subprocess was observed carrying an UNRELATED plugin's CLAUDE_PLUGIN_DATA
+#   (docs/conventions/plugin-data-report-keying/README.md rule 2), so this
+#   script never reads that variable and the sibling pruner
+#   (skills/observability/scripts/clean.sh) refuses to either.
+#
 # Exit:
-#   0  a reading was produced — a VERDICT or an honest WITHHELD
-#   2  the store is missing or unreadable
+#   0  a reading was produced — a VERDICT or an honest WITHHELD — or, with
+#      --print-store, the resolved store path was printed
+#   2  the store is missing, unreadable, or its destination cannot be resolved
 #   3  invoked with bad arguments
 set -uo pipefail
 
@@ -38,11 +56,35 @@ EX_OK=0
 EX_NO_STORE=2
 EX_USAGE=3
 
-USAGE='usage: skill-pair-cooccurrence.sh [--store PATH] [--pair CALLER,CALLEE]
-                                  [--floor-days N] [--floor-groups N] [--json]
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The plugin is cache-isolated and the hooks ship inside it, so the resolver is
+# reachable by a path relative to this script: skills/<skill>/scripts -> hooks.
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-  --store PATH        skill-usage.jsonl to read. Default: the repo-scope store,
-                      <git toplevel>/.claude/observability/skill-usage.jsonl
+DEFAULT_SCOPE="repo"
+DEFAULT_REL_DIR=".claude/observability"
+STORE_FILE="skill-usage.jsonl"
+
+# shellcheck disable=SC2016  # the ${...} tokens are literal help text, never expansions
+USAGE='usage: skill-pair-cooccurrence.sh [--store PATH | --scope SCOPE --dir REL --data-root PATH]
+                                  [--pair CALLER,CALLEE] [--floor-days N]
+                                  [--floor-groups N] [--json] [--print-store]
+
+  --store PATH        skill-usage.jsonl to read; an explicit override that skips the
+                      scope resolution below
+  --scope SCOPE       skill_usage_scope the hooks write under: repo (default), user,
+                      or data-dir. Resolved by the resolver the hooks themselves
+                      call, so the store read is the store written. Empty or an
+                      unrendered ${user_config.*} placeholder reads as the default,
+                      as it does in the hooks
+  --dir REL           skill_usage_dir: the contained relative directory under the
+                      scope root (default .claude/observability; ignored by data-dir)
+  --data-root PATH    the plugin data root the hooks write under. REQUIRED by the
+                      data-dir scope and ignored by the others; never read from
+                      CLAUDE_PLUGIN_DATA, which a skill subprocess was observed
+                      carrying for an unrelated plugin
+  --print-store       print the resolved store path and exit 0. Hand it to
+                      audit_skill_visibility.py --skill-usage so both read ONE store
   --pair A,B          ordered pair. Default: implementation:implement,tdd:principles
   --floor-days N      minimum observed span before any rate is reportable (default 30,
                       matching audit_skill_visibility.py exposure_floor_days)
@@ -55,7 +97,16 @@ die_usage() {
   exit "$EX_USAGE"
 }
 
+# An option the skill body passed through unrendered (`${user_config.x}`) or
+# empty is an unset option, and reads as its default.
+# shellcheck disable=SC2016  # the literal placeholder text is the thing matched
+unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
+
 STORE=""
+SCOPE=""
+REL_DIR=""
+DATA_ROOT=""
+PRINT_STORE=0
 PAIR="implementation:implement,tdd:principles"
 FLOOR_DAYS=30
 FLOOR_GROUPS=5
@@ -71,6 +122,25 @@ while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || die_usage "--store needs a value"
     STORE="$2"
     shift 2
+    ;;
+  --scope)
+    [[ $# -ge 2 ]] || die_usage "--scope needs a value"
+    SCOPE="$2"
+    shift 2
+    ;;
+  --dir)
+    [[ $# -ge 2 ]] || die_usage "--dir needs a value"
+    REL_DIR="$2"
+    shift 2
+    ;;
+  --data-root)
+    [[ $# -ge 2 ]] || die_usage "--data-root needs a value"
+    DATA_ROOT="$2"
+    shift 2
+    ;;
+  --print-store)
+    PRINT_STORE=1
+    shift
     ;;
   --pair)
     [[ $# -ge 2 ]] || die_usage "--pair needs a value"
@@ -111,15 +181,78 @@ command -v jq >/dev/null 2>&1 || {
   exit "$EX_NO_STORE"
 }
 
-if [[ -z "$STORE" ]]; then
-  TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null || printf '.')"
-  STORE="$TOPLEVEL/.claude/observability/skill-usage.jsonl"
+# Resolve the store the way the writers do. Sets STORE and STORE_ORIGIN (the
+# phrase the missing-store message names, so a wrong-scope run says which scope
+# it looked in). Exits 2 when the destination itself cannot be resolved: that
+# is a configuration answer, not "nothing observed".
+resolve_store_from_scope() {
+  local project_dir store_dir rc
+  # shellcheck source=../../../hooks/hook-utils.sh
+  . "$PLUGIN_ROOT/hooks/hook-utils.sh"
+  # shellcheck source=../../../hooks/claude-ops-paths.sh
+  . "$PLUGIN_ROOT/hooks/claude-ops-paths.sh"
+
+  unset_value "$SCOPE" && SCOPE="$DEFAULT_SCOPE"
+  unset_value "$REL_DIR" && REL_DIR="$DEFAULT_REL_DIR"
+  # DATA_ROOT has no environment fallback on purpose: an inherited
+  # CLAUDE_PLUGIN_DATA in a skill subprocess can name another plugin's data
+  # directory, so an unpassed --data-root is an unanswerable data-dir scope
+  # rather than a guess at one.
+  unset_value "$DATA_ROOT" && DATA_ROOT=""
+  case "$SCOPE" in
+  repo | user | data-dir) ;;
+  *)
+    # The same fallback the writers apply to an unknown scope, so the reader
+    # still lands on the file they wrote.
+    printf 'skill-pair-cooccurrence.sh: unknown skill_usage_scope "%s" (valid: repo, user, data-dir); reading the default %s scope, as the hooks write to it\n' \
+      "$SCOPE" "$DEFAULT_SCOPE" >&2
+    SCOPE="$DEFAULT_SCOPE"
+    ;;
+  esac
+
+  # Same project root the writers key on: CLAUDE_PROJECT_DIR in a hook or
+  # skill subprocess, the working directory otherwise. An unresolved root
+  # (not a git checkout) falls back to the hint, as it does for the writers.
+  project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}") || true
+  store_dir=$(CLAUDE_PLUGIN_DATA="$DATA_ROOT" claude_ops::resolve_skill_usage_dir "$SCOPE" "$project_dir" "$REL_DIR")
+  rc=$?
+  case "$rc" in
+  0) ;;
+  1)
+    printf 'skill-pair-cooccurrence.sh: the skill-usage destination is invalid for scope "%s": skill_usage_dir "%s" must be a contained relative path (no absolute, drive, UNC, traversal, or escaping symlink path), so the hooks write nothing there either\n' \
+      "$SCOPE" "$REL_DIR" >&2
+    exit "$EX_NO_STORE"
+    ;;
+  *)
+    if [[ "$SCOPE" == "data-dir" ]]; then
+      printf 'skill-pair-cooccurrence.sh: scope "data-dir" needs the plugin data root: pass --data-root <the claude-ops plugin data directory>. It is not taken from CLAUDE_PLUGIN_DATA, which a skill subprocess can carry for an unrelated plugin\n' >&2
+    else
+      printf 'skill-pair-cooccurrence.sh: scope "%s" needs HOME to name an existing directory\n' "$SCOPE" >&2
+    fi
+    exit "$EX_NO_STORE"
+    ;;
+  esac
+  STORE="${store_dir}/${STORE_FILE}"
+  STORE_ORIGIN="scope ${SCOPE}"
+}
+
+if [[ -n "$STORE" ]]; then
+  STORE_ORIGIN="explicit --store"
+else
+  resolve_store_from_scope
+fi
+
+if ((PRINT_STORE)); then
+  printf '%s\n' "$STORE"
+  exit "$EX_OK"
 fi
 
 if [[ ! -r "$STORE" ]]; then
   # Absent store is not a crash: it is the commonest state on a fresh install,
-  # and the honest answer is "nothing observed", said out loud.
-  printf 'skill-pair-cooccurrence.sh: no readable skill-usage store at %s\n' "$STORE" >&2
+  # and the honest answer is "nothing observed", said out loud, with the scope
+  # it was said about — a store written under another scope is the other
+  # common reason for this branch.
+  printf 'skill-pair-cooccurrence.sh: no readable skill-usage store at %s (%s)\n' "$STORE" "$STORE_ORIGIN" >&2
   printf 'Nothing has been observed. This is the normal state before the claude-ops skill-usage hooks have run in this repo; it is not evidence about %s or %s.\n' \
     "$CALLER" "$CALLEE" >&2
   exit "$EX_NO_STORE"
