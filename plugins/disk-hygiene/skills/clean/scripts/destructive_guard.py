@@ -54,6 +54,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
 import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
@@ -165,10 +166,6 @@ def _display_python() -> str:
     except OSError:
         runtime = Path(sys.executable).absolute()
     return os.fspath(runtime).replace("\\", "/")
-
-
-def _argument(value: str) -> bool:
-    return bool(value) and not value.startswith("-")
 
 
 def _literal_shell_words(
@@ -350,12 +347,13 @@ def _within_plugin_cache_family(value: str) -> bool:
         return False
 
 
-# The subcommands `classify_exact_engine_command` accepts, named once so the
-# denial text cannot teach a grammar the classifier does not implement. The
-# classifier rejects anything outside this tuple before its own dispatch, so a
-# subcommand added to one and not the other fails closed rather than drifting
-# (#1806).
-_ALLOWED_ENGINE_SUBCOMMANDS = ("scan", "preview", "handoff-verify", "apply")
+# The subcommands `classify_exact_engine_command` accepts, read from the one
+# grammar declaration the engine's own parser is built from
+# (`lib/engine_grammar.py`), so the denial text cannot teach a grammar the
+# classifier does not implement and the classifier cannot admit a shape the
+# engine does not parse. The classifier rejects anything outside this tuple
+# before it matches flags, so an unknown subcommand fails closed.
+_ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 
 
 def _engine_script_path() -> Path:
@@ -884,36 +882,15 @@ def _display_data_root(authority: str | None) -> str | None:
     )
 
 
-def _valid_optional_value(flag: str, value: str, authority: str | None) -> bool:
-    if not _argument(value):
-        return False
-    if flag == "--max-depth":
-        return re.fullmatch(r"[1-9][0-9]{0,3}", value) is not None
-    if flag == "--data-root":
-        return _is_authorized_data_root(value, authority)
-    return True
-
-
-def _consume_optional_pairs(
-    tokens: list[str], allowed: frozenset[str], authority: str | None
-) -> bool:
-    seen: list[str] = []
-    while tokens:
-        flag = tokens[0]
-        if (
-            flag not in allowed
-            or flag in seen
-            or len(tokens) < 2
-            or not _valid_optional_value(flag, tokens[1], authority)
-        ):
-            return False
-        seen.append(flag)
-        tokens = tokens[2:]
-    return True
-
-
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
-    """Return scan/preview/handoff-verify/apply for one canonical invocation."""
+    """Return the subcommand name for one canonical engine invocation, else None.
+
+    The interpreter must be this hook's own absolute Python and the script the
+    bundled engine; everything after the subcommand is matched against the
+    engine's declared grammar (``lib/engine_grammar.py``), which the engine's
+    own parser is built from. The one value that grammar cannot judge alone is
+    ``--data-root``: only the authorized root this hook resolved is admitted.
+    """
     tokens = _literal_shell_words(command)
     if tokens is None:
         return None
@@ -921,102 +898,16 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
         return None
     if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
         return None
-    if tokens[2] not in _ALLOWED_ENGINE_SUBCOMMANDS:
+    subcommand = tokens[2]
+    if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
-
-    if tokens[2] == "scan":
-        if (
-            len(tokens) < 7
-            or tokens[3] != "--target"
-            or not _argument(tokens[4])
-            or tokens[5] != "--output"
-            or not _argument(tokens[6])
-        ):
-            return None
-        # --confirmed-large-scan, --quiet and --root-children are the valueless
-        # scan flags; strip at most one of each so the remainder is the pure
-        # flag/value-pair grammar every other optional follows. --root-child
-        # is repeatable (one basename per occurrence) and is stripped next.
-        # --quiet only shapes the engine's stdout, so admitting it widens no
-        # capability: it cannot reach a path the same invocation without it
-        # could not already reach.
-        optionals = list(tokens[7:])
-        for valueless in ("--confirmed-large-scan", "--quiet"):
-            occurrences = optionals.count(valueless)
-            if occurrences > 1:
-                return None
-            if occurrences:
-                optionals.remove(valueless)
-        root_children = optionals.count("--root-children")
-        if root_children > 1:
-            return None
-        if root_children:
-            optionals.remove("--root-children")
-        root_child_names: list[str] = []
-        remaining: list[str] = []
-        index = 0
-        while index < len(optionals):
-            if optionals[index] == "--root-child":
-                if index + 1 >= len(optionals) or not _argument(optionals[index + 1]):
-                    return None
-                name = optionals[index + 1]
-                # Immediate basename only — no separators, no . / ..
-                if "/" in name or "\\" in name or name in {".", ".."} or not name:
-                    return None
-                root_child_names.append(name)
-                index += 2
-                continue
-            remaining.append(optionals[index])
-            index += 1
-        if root_child_names and not root_children:
-            return None
-        if len(remaining) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
-            remaining,
-            frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
-            authority,
-        ):
-            return None
-        return "scan"
-    # preview and handoff-verify share the two required pairs. Handoff verify
-    # alone may also name a read-only VCS evidence file.
-    second_flag = {"preview": "--plan", "handoff-verify": "--paths"}.get(tokens[2])
-    if second_flag is not None:
-        optional_flags = {"--data-root"}
-        if tokens[2] == "handoff-verify":
-            optional_flags.add("--vcs-evidence")
-        valid = (
-            len(tokens) in {7, 9, 11}
-            and tokens[3] == "--snapshot"
-            and _argument(tokens[4])
-            and tokens[5] == second_flag
-            and _argument(tokens[6])
-            and _consume_optional_pairs(
-                tokens[7:], frozenset(optional_flags), authority
-            )
-        )
-        return tokens[2] if valid else None
-    if tokens[2] == "apply":
-        if len(tokens) not in {14, 16}:
-            return None
-        valid = all(
-            (
-                tokens[3] == "--execute",
-                tokens[4] == "--snapshot",
-                _argument(tokens[5]),
-                tokens[6] == "--plan",
-                _argument(tokens[7]),
-                tokens[8] == "--confirm-tier",
-                tokens[9] in {"high", "medium", "low"},
-                tokens[10] == "--approval-token",
-                re.fullmatch(r"[0-9a-f]{24}", tokens[11]) is not None,
-                tokens[12] == "--report",
-                _argument(tokens[13]),
-                _consume_optional_pairs(
-                    tokens[14:], frozenset({"--data-root"}), authority
-                ),
-            )
-        )
-        return "apply" if valid else None
+    external_checks = {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+    }
+    if engine_grammar.match_invocation(subcommand, tokens[3:], external_checks):
+        return subcommand
     return None
 
 
