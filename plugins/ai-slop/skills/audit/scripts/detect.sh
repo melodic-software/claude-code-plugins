@@ -779,7 +779,22 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
       }
       gsub(/"[^"]*"/, "", text)
       q = index(text, "\"")
-      if (q > 0) { text = substr(text, 1, q - 1); open = 1 }
+      if (q > 0) {
+        # A lone quote opens a span only when it sits where an opening quote
+        # sits: after the line start, whitespace, or an opening bracket, and
+        # directly before a non-space character. An inch or second mark
+        # (6", 30") or a stray closing quote fails that test, so it is
+        # dropped and the prose on both sides stays scanned instead of
+        # blanking the rest of the paragraph.
+        before = (q > 1) ? substr(text, q - 1, 1) : " "
+        after = substr(text, q + 1, 1)
+        if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
+          text = substr(text, 1, q - 1)
+          open = 1
+        } else {
+          text = substr(text, 1, q - 1) substr(text, q + 1)
+        }
+      }
       printf "%s\t%s\n", lineno, text
     }')"
 

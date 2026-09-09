@@ -77,8 +77,9 @@ removed, stay marker-free by construction.
    [`context/rubric-fanout.md`](context/rubric-fanout.md): pack the ordered list into batches of
    roughly 50,000 words, dispatch one fresh-context subagent per batch with the rubric text and
    the batch list, and have each subagent write its result file into the findings home before
-   it reports. A batch whose result file already exists is skipped on a re-run, so a rate limit
-   or a crash costs one batch, not the pass.
+   it reports. A batch whose result file is bound to the current batch list (its digest and
+   file count match) is skipped on a re-run, so a rate limit or a crash costs one batch, not
+   the pass, and a leftover result from an earlier scope is never accepted.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules

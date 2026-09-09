@@ -9,6 +9,9 @@
   line, so the quoted text was scanned and the prose between quotes was stripped; the
   plugin's own CHANGELOG produced two false `rule-challenges-conclusion` findings that way. The
   carried state resets at a blank line and at the start of a heading, list item, or table row.
+  A lone quote opens a span only where an opening quote sits (after the line start, whitespace,
+  or an opening bracket, and directly before a non-space character); an inch or second mark
+  such as `6"` and a stray closing quote are dropped so the prose around them stays scanned.
 - **`detect.sh`:** the bare singular `underscore` left the default vocabulary. The source entry
   targets the verb, and in a programming-docs repository the singular is the `_` character in
   a naming convention; a document about a leading-underscore convention fired the density
@@ -33,8 +36,11 @@
 - **`audit`:** the rubric pass covers every file in scope on a repo-wide run, and a new
   `context/rubric-fanout.md` states how: word-budgeted batches, one fresh-context subagent per
   batch, result files persisted in the findings home before the subagent reports, and a re-run
-  that skips completed batches. The previous wording let the rubric shrink to a priority subset
-  "as budget allows", and an unbatched pass lost its whole result to one rate limit.
+  that skips completed batches. A result file is bound to its batch list by the list's digest
+  and file count, and every path it names must sit in that list, so a leftover result from an
+  earlier run with the same batch number is redone rather than accepted. The previous wording
+  let the rubric shrink to a priority subset "as budget allows", and an unbatched pass lost its
+  whole result to one rate limit.
 - **`persist-findings.md`:** the self-ignore guard file is created with the Write tool, because
   a repository running the guardrails plugin blocks a shell redirect into the checkout, and the
   `## Surfaces` description matches what the script now writes.

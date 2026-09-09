@@ -1261,11 +1261,14 @@ Plain prose written in order to trip the wording rule.
 
 - A bullet with an unmatched quote "here
 - The next bullet is written in order to stay scanned
+
+A 6" bolt is written in order to stay scanned, and so is
+the line after the inch mark, written in order to stay scanned.
 EOF
 out="$(bash "$DETECT" "$WRAPQ" 2>&1)"
 assert_contains "wrapped quote: documented phrases across a line break stay exempt" "$out" "rule=ai-slop/audit/rule-challenges-conclusion findings=0"
 assert_contains "wrapped quote: exempt candidates counted under the quote cause" "$out" "rule=ai-slop/audit/rule-challenges-conclusion findings=0 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
-assert_contains "wrapped quote: an unmatched quote resets at the next list item" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=2"
+assert_contains "wrapped quote: an unmatched quote resets at the next list item; an inch mark opens nothing" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=4"
 
 # --- Vocabulary: the noun "underscore" is not a tell ------------------------------
 # Six nouns in a naming-convention doc must not reach the density rule.
