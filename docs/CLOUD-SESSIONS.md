@@ -395,7 +395,10 @@ catalog on, and the cloud bootstrap installs from the two together (see
   is precisely this repo's relative `directory` source.
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
   without disturbing the rest — a state the gate accepts, since an explicit `false` is a recorded
-  decision where an absent key is drift. The entries that should not start on their own are not
+  decision where an absent key is drift. The one opt-out recorded today is `playgrounds`: its
+  skill is a wrapper over the first-party `playground` plugin on `claude-plugins-official`, which
+  the cloud bootstrap does not install, so enabled here it could only ever print install commands.
+  The entries that should not start on their own are not
   keyed here at all: the catalog ships them `defaultEnabled: false`, and `claude plugin install`
   honors that flag, so a raw install leaves them disabled. They still appear as `true` on the
   fleet list, so this repo's cloud bootstrap includes them in its wanted set and treats an
