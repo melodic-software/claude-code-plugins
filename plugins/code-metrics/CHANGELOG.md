@@ -49,11 +49,11 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 - **An empty change scope says why.** The `*/*` run row's reason names the merge-base ref and
   the `--all` alternative when the branch sits at it with a clean tree, or says the changed files
   belong to no lane.
-- **ESLint resolves only under a configuration.** The `eslint-complexity` probe fails, and the
-  row reads `unavailable` with the reason, when ESLint 9 or later is on `PATH` with no
-  `eslint.config.*` from the working directory upward (an eslintrc file satisfies an older
-  ESLint, or any ESLint under `ESLINT_USE_FLAT_CONFIG=false`); before, the collector resolved,
-  produced nothing, and failed the whole run with exit 3.
+- **ESLint with no configuration is `unavailable`, not a failed run.** The adapter contract
+  gains exit 4, "resolved but cannot run here": `eslint-complexity` returns it when ESLint
+  reports that it found no configuration for the files, and the dispatcher writes an
+  `unavailable` row carrying ESLint's own message instead of failing the run with exit 3. The
+  adapter does not look for a configuration file itself; ESLint resolves it per target file.
 - **Version probes for tools with no version flag.** `multimetric` reports the distribution
   version from the interpreter its launcher names, `gocognit` the module version from `go
   version -m`, and both read `version unavailable (<tool> has no version flag)` rather than

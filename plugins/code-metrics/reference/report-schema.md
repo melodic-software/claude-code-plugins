@@ -102,6 +102,10 @@ function's range.
 | 2 | Usage error, including an explicitly named path, artifact, or registry that does not exist, or a missing Python 3.9 |
 | 3 | A resolved collector ran and produced no parseable output; the document is still produced and the failure is in `run[]` |
 
+An adapter's own `collect` exits 4 when its tool resolved but cannot run in this repository at
+all (ESLint reporting that it found no configuration for the files). That is not a run failure:
+the entry script exits 0, and the lane's run row reads `unavailable` with the tool's own reason.
+
 ## The reference semantics
 
 A reference is a value to count against, never a bar. `over_reference` counts values at or above

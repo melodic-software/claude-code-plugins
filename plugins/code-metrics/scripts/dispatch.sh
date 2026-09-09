@@ -7,7 +7,7 @@
 #   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
 #               [--config <resolved.json>] [--ladder <file.tsv>]
 #               [--lane-globs <lane>=<glob>[,<glob>...]]... [--disable-lane <lane>]...
-#               [--scope-file <file>] [--print-scope] [--] [<path>...]
+#               [--scope-file <file>] [--print-scope] [--no-collapse] [--] [<path>...]
 #
 # Scope: `<path>...` measures those files and directories (an explicitly named
 # path that does not exist is a usage error, exit 2); `--all` measures every
@@ -33,6 +33,11 @@
 # Exit: 0 the document was produced (including an `empty` run); 2 usage or
 # environment error; 3 a resolved collector ran and produced no parseable
 # output (the document is still produced, with the failure in `run[]`).
+#
+# An adapter's `collect` exits 4 when the tool resolved but cannot run in
+# this repository at all (ESLint with no configuration it can find for the
+# files): the row reads `unavailable` with the tool's own reason, and the run
+# is not a failure, because nothing was measured and no number is wrong.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -44,7 +49,6 @@ LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
 RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
 PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
 SCOPE_FILTER="$PLUGIN_ROOT/scripts/scope-filter.py"
-COLLAPSE="$PLUGIN_ROOT/scripts/replica-collapse.py"
 CONFIG=""
 
 usage() {
@@ -66,6 +70,7 @@ BASE="auto"
 MODE_SET=0
 BASE_SET=0
 PRINT_SCOPE=0
+NO_COLLAPSE=0
 SCOPE_FILE=""
 DETECT_ARGS=()
 PATHS=()
@@ -93,6 +98,14 @@ while [[ $# -gt 0 ]]; do
     # on exactly the set the audits measure, and learns each file's lane
     # without waiting on a complexity collector that may not be installed.
     PRINT_SCOPE=1
+    shift
+    ;;
+  --no-collapse)
+    # Leave every copy's rows in the document. The coverage skill joins its
+    # artifacts against the complexity rows and collapses the joined document
+    # itself, so collapsing here would drop the copies before their coverage
+    # was ever looked up. The registries are still validated.
+    NO_COLLAPSE=1
     shift
     ;;
   --config)
@@ -220,27 +233,12 @@ resolver_format ladder-overrides "$LADDER_OVERRIDES"
 resolver_format excludes "$WORK/excludes"
 mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
 # Sanctioned-replication registries apply to every audit's file and function
-# rows here (clone groups are audit-duplication's own pass). A registry path
-# is taken as given, else under the repository root, because a team file
-# names it root-relative and the audit may run from a subdirectory; one that
-# exists nowhere is a configuration error, not an empty registry.
-resolver_format registries "$WORK/registries"
-mapfile -t REGISTRY_LIST <"$WORK/registries"
-REGISTRIES=()
-if [[ ${#REGISTRY_LIST[@]} -gt 0 ]]; then
-  REPO_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  [[ -n "$REPO_TOP" ]] || REPO_TOP="$PWD"
-  for registry in "${REGISTRY_LIST[@]}"; do
-    [[ -n "$registry" ]] || continue
-    if [[ -f "$registry" ]]; then
-      REGISTRIES+=("$registry")
-    elif [[ -f "$REPO_TOP/$registry" ]]; then
-      REGISTRIES+=("$REPO_TOP/$registry")
-    else
-      die_usage "scope.registries: registry not found: $registry"
-    fi
-  done
-fi
+# rows (clone groups are audit-duplication's own pass). They are validated
+# here, before any collector runs, so a registry that exists nowhere is a
+# usage error rather than a document that silently counted every copy.
+# shellcheck source=replica-collapse.sh
+source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
+cm_registry_paths "$CONFIG" >/dev/null || exit 2
 
 # ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
@@ -543,11 +541,25 @@ if [[ -z "$JOBS" ]]; then
 fi
 [[ "$JOBS" =~ ^[0-9]+$ && "$JOBS" -ge 1 ]] || JOBS=4
 RUNNING=0
+PIDS=()
 COLLECT_SLOTS=()
 S_LANE=()
 S_MEASURE=()
 S_TOOL=()
 S_VERSION=()
+
+reap_one() {
+  # Block until one collector finishes. `wait -n` needs bash 4.3; on an older
+  # bash the plugin still supports, wait for the oldest job instead, which
+  # holds the concurrency cap at the cost of finishing in launch order.
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3))); then
+    wait -n
+  else
+    wait "${PIDS[0]}"
+  fi
+  PIDS=("${PIDS[@]:1}")
+  RUNNING=$((RUNNING - 1))
+}
 
 launch_collect() {
   # launch_collect <slot> <adapter> <lane> <measure> <files...>
@@ -559,10 +571,10 @@ launch_collect() {
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &
+  PIDS+=("$!")
   RUNNING=$((RUNNING + 1))
   if [[ "$RUNNING" -ge "$JOBS" ]]; then
-    wait -n
-    RUNNING=$((RUNNING - 1))
+    reap_one
   fi
 }
 
@@ -637,6 +649,9 @@ for slot in "${COLLECT_SLOTS[@]}"; do
     cat "$WORK/out.$slot" >>"$ROWS"
     run_row "$slot" "$lane" "$measure" "$tool $version" ok ''
     progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
+  elif [[ "${rc:-1}" -eq 4 ]]; then
+    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+    progress "$lane/$measure: $tool cannot run here (see the run table)"
   else
     COLLECT_FAILED=1
     run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
@@ -678,16 +693,14 @@ done
 
 "${PY[@]}" "$REPORT" assemble --skill "$SKILL" --scope "$SCOPE_JSON" --run "$RUN" --measures "$ROWS" --thresholds "$THRESHOLDS" >"$WORK/assembled.json" || exit 2
 
-if [[ ${#REGISTRIES[@]} -gt 0 ]]; then
+if [[ "$NO_COLLAPSE" -eq 1 ]]; then
+  cat "$WORK/assembled.json"
+else
   # Rows for a file the registry names collapse to one row per function with
   # a replica count, and the summary is recomputed from what survived so the
   # over-reference count stops counting one function once per copy.
-  collapse_args=(--prefix "$(git rev-parse --show-prefix 2>/dev/null || true)")
-  for registry in "${REGISTRIES[@]}"; do collapse_args+=(--registry "$registry"); done
-  "${PY[@]}" "$COLLAPSE" "${collapse_args[@]}" <"$WORK/assembled.json" >"$WORK/collapsed.json" || exit 2
-  "${PY[@]}" "$REPORT" resummarize <"$WORK/collapsed.json" || exit 2
-else
-  cat "$WORK/assembled.json"
+  cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/collapsed.json" || exit 2
+  cat "$WORK/collapsed.json"
 fi
 
 [[ $COLLECT_FAILED -eq 0 ]] || exit 3

@@ -15,6 +15,14 @@ N` message with its `line`. ESLint exits 1 whenever it reports, which at a
 maximum of 0 is every run: that exit code is the success path, because a
 collector succeeds when it produced parseable output (design T1).
 
+ESLint runs only under a configuration it resolves for the target files, and
+refuses the run (exit 2, no report) when it finds none. `collect` recognizes
+that refusal and exits 4, the adapter contract's "resolved but cannot run
+here": the dispatcher writes an `unavailable` row carrying ESLint's own
+reason and the run is not a failure. The probe does not predict the
+refusal, because which file ESLint loads depends on its version, its
+environment, and each target file's directory; ESLint itself decides.
+
 The rule reports the line a function starts on and no end line, so rows carry
 `end_line: null` and the label `start-line-only`; `audit-coverage` reads that
 label and reports `crap: not-applicable` for the lane rather than a null
@@ -62,50 +70,6 @@ def resolve_eslint() -> str | None:
     return None
 
 
-FLAT_CONFIG_NAMES = (
-    "eslint.config.js",
-    "eslint.config.mjs",
-    "eslint.config.cjs",
-    "eslint.config.ts",
-    "eslint.config.mts",
-    "eslint.config.cts",
-)
-LEGACY_CONFIG_NAMES = (
-    ".eslintrc",
-    ".eslintrc.js",
-    ".eslintrc.cjs",
-    ".eslintrc.yaml",
-    ".eslintrc.yml",
-    ".eslintrc.json",
-)
-
-
-def find_config(major: int | None, start: str | None = None) -> str | None:
-    """The ESLint configuration file the run would load, or None.
-
-    ESLint 9 and later load only a flat `eslint.config.*` (unless
-    ESLINT_USE_FLAT_CONFIG=false restores the eslintrc files), and exit with
-    no report at all when none exists from the working directory upward. A
-    binary on PATH with no configuration is not a resolvable collector: it
-    would resolve, run, and produce nothing parseable, failing the whole run,
-    when the honest row is `unavailable` with this reason.
-    """
-    legacy = (major is not None and major < 9) or os.environ.get(
-        "ESLINT_USE_FLAT_CONFIG", ""
-    ).lower() == "false"
-    names = LEGACY_CONFIG_NAMES if legacy else FLAT_CONFIG_NAMES
-    here = os.path.abspath(start or os.getcwd())
-    while True:
-        for name in names:
-            candidate = os.path.join(here, name)
-            if os.path.isfile(candidate):
-                return candidate
-        parent = os.path.dirname(here)
-        if parent == here:
-            return None
-        here = parent
-
-
 def probe() -> int:
     exe = resolve_eslint()
     if not exe:
@@ -119,22 +83,29 @@ def probe() -> int:
         print(f"eslint --version failed: {exc}", file=sys.stderr)
         return 1
     match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    version = match.group(1) if match else "unknown-version"
-    major = int(version.split(".", 1)[0]) if match else None
-    if find_config(major) is None:
-        wanted = (
-            "eslint.config.*"
-            if not (major is not None and major < 9)
-            else ".eslintrc.*"
-        )
-        print(
-            f"eslint {version} is on PATH but no {wanted} was found from {os.getcwd()} upward, "
-            "so the complexity rule has no configuration to run under",
-            file=sys.stderr,
-        )
-        return 1
-    print(version)
+    print(match.group(1) if match else "unknown-version")
     return 0
+
+
+# ESLint's own wording when it resolves no configuration for the files it was
+# given; it prints this and exits 2 without a report.
+NO_CONFIGURATION = re.compile(
+    r"couldn't find an eslint\.config|No ESLint configuration found",
+    re.IGNORECASE,
+)
+
+
+def no_configuration(result: subprocess.CompletedProcess) -> bool:
+    """True when ESLint refused the run for want of a configuration.
+
+    Which file ESLint loads depends on its version, its environment, and the
+    directory of each target file, so the adapter does not predict it: it
+    lets ESLint resolve configuration for the actual files, and reads the
+    refusal from its output.
+    """
+    return result.returncode == 2 and bool(
+        NO_CONFIGURATION.search(result.stderr + result.stdout)
+    )
 
 
 def match_path(location: str, wanted_norm: dict[str, str]) -> str | None:
@@ -205,6 +176,23 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         text=True,
         check=False,
     )
+    if no_configuration(result):
+        # Not a failure: the tool resolved and nothing was measured, so the
+        # dispatcher writes an `unavailable` row with this reason (exit 4).
+        said = next(
+            (
+                line.strip()
+                for line in (result.stderr + result.stdout).splitlines()
+                if NO_CONFIGURATION.search(line)
+            ),
+            "no ESLint configuration was found",
+        )
+        print(
+            "eslint found no configuration for the files, so the complexity "
+            f"rule could not run: {said}",
+            file=sys.stderr,
+        )
+        return 4
     try:
         rows = translate(result.stdout, lane, files)
     except (json.JSONDecodeError, ValueError, TypeError) as exc:

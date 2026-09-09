@@ -128,11 +128,14 @@ wall clock is the slowest collector's own, which the plugin does not control.
 
 ## Gotchas
 
-- The two ESLint-based rungs resolve only when the repository already wires ESLint (`eslint` on
-  `PATH` or in `node_modules/.bin`, and an `eslint.config.*` from the working directory upward,
-  since ESLint 9 and later load nothing else), and the cognitive rung also needs
-  `eslint-plugin-sonarjs` in `node_modules`. Otherwise the row is `unavailable` with that
-  reason; `lizard` still covers TypeScript cyclomatic complexity.
+- The two ESLint-based rungs run only where the repository already wires ESLint: `eslint` on
+  `PATH` or in `node_modules/.bin`, a configuration ESLint itself resolves for the files in
+  scope, and, for the cognitive rung, `eslint-plugin-sonarjs` in `node_modules`. The adapter
+  does not predict which configuration file ESLint will load; ESLint decides, and when it
+  reports that it found none the row reads `unavailable` with ESLint's own words and the run
+  is not a failure. `lizard` still covers TypeScript cyclomatic complexity. Which file names
+  ESLint accepts is recorded in
+  [`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`](../../reference/collectors.md).
 - `multimetric` and `gocognit` have no version flag. The run table carries the version their
   package metadata or `go version -m` reports, and reads `version unavailable` when neither
   answers, so two reports can still be compared by tool.

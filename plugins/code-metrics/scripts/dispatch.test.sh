@@ -453,6 +453,9 @@ rc=$?
 assert_eq "a registry run exits 0" 0 "$rc"
 assert_doc "the two shared-utils copies collapse to one labelled row standing for both files" "$out" \
   'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2 and "replicated" in next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["labels"] and d["summary"]["files"]==7'
+out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --no-collapse --all "$SOURCES")"
+assert_doc "--no-collapse keeps one row per copy, for a caller that collapses after its own join" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==2 and not any("replicas" in r for r in d["measures"]) and d["summary"]["files"]==7'
 printf 'scope:\n  registries: [nope/missing-registry.txt]\n' >"$team/missing.yaml"
 "$PY" "$SCRIPT_DIR/resolve-config.py" "$team/missing.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/missing.json"
 PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/missing.json" --all "$SOURCES" >/dev/null 2>&1
@@ -482,6 +485,26 @@ case "$err" in
 esac
 err="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
 assert_eq "a small run prints no progress by default" "" "$err"
+
+# 24. An adapter whose collect exits 4 (the tool resolved but cannot run
+# here: ESLint with no configuration for the files) gets an unavailable row
+# carrying the tool's reason, and the run is not a failure.
+noconf="$(mktemp -d)"
+cat >"$noconf/eslint" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'v10.1.0\n'; exit 0; fi
+cat "$SCRIPT_DIR/fixtures/tool-output/eslint-no-config.txt" >&2
+exit 2
+EOF
+chmod +x "$noconf/eslint"
+ladder="$(mktemp)"
+printf 'typescript\tcyclomatic\teslint-complexity\n' >"$ladder"
+out="$(PATH="$noconf:$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --ladder "$ladder" "$SOURCES/cm-sample.ts")"
+rc=$?
+assert_eq "a collector that cannot run here exits 0" 0 "$rc"
+assert_doc "the row is unavailable with the tool's own reason and no 'collect failed'" "$out" \
+  'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
+rm -rf "$noconf" "$ladder"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
