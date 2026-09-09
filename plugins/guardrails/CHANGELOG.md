@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Added
+
+- **block-hook-bypass:** the plugin data directory (`<config dir>/plugins/data`, the config dir being `CLAUDE_CONFIG_DIR` or `~/.claude`) is a second shipped scratch-root default beside the host temp trees. A plugin persisting its report there via a shell redirect was blocked as a Write|Edit bypass, yet the Write|Edit content gates decline every file outside the project root, so the redirect bypassed nothing. Gated on `CLAUDE_PROJECT_DIR` naming a project root that does not contain the directory (a `~`-rooted project keeps the block), and confirmed through symlink resolution of the target, the directory, and the project root, so a project root symlinked into the directory keeps the block too; the configured `block_hook_bypass_scratch_roots` list still adds to it.
+
 ## [0.32.23]
 
 ### Added
