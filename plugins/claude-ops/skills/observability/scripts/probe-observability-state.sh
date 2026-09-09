@@ -28,8 +28,9 @@
 # every --pipeline value: an unexpanded placeholder reads as the option's
 # manifest default. The skill's pre-compute lines pass no option at all (a
 # `${user_config.*}` value belongs in no shell-executing content: the shell
-# would re-parse whatever it holds), so they report the defaults; the skill
-# body re-runs the probe with the options it rendered as plain content, and a
+# would re-parse whatever it holds) and run --pipeline with --observed, which
+# prints no option tier; the skill body re-runs the probe with the options it
+# rendered as plain content, the one call that prints the option tier, and a
 # skill subprocess inherits no CLAUDE_PLUGIN_OPTION_* to read instead (the
 # hooks read theirs from the session environment).
 #
@@ -55,6 +56,11 @@
 #   envelope: <E> row(s) from the audit hooks, outside the switch | none;
 #        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
 #        pre-prune: none|set
+# With --observed the sixth line stops at the observed count and names the
+# call that renders the option tier; any option flag passed alongside is
+# ignored:
+#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
+#        options: rendered by the section 2.6 re-run, not here
 #
 # Store resolution:
 #   --hook-events  <git toplevel, or the working directory when not inside a
