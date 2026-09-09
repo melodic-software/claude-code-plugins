@@ -28,11 +28,12 @@
 # The supported deliberate bypasses are the kill switch
 # (block_hook_bypass_enabled set to false) and the scratch-root exemption
 # (block_hook_bypass_scratch_roots). The option's own list is still empty by
-# default; since #3719 it composes with ONE root the guard ships exempt — the
-# host temp trees, which the harness scratchpad sits under — gated on a project
-# root outside the temp tree and confirmed through symlink resolution. See the
-# block above scratch_target_exempt for why exempting that gives up no
-# protection, and why the memory tier is deliberately not a second one.
+# default; since #3719 it composes with the roots the guard ships exempt — the
+# host temp trees, which the harness scratchpad sits under, and the plugin data
+# directory, where plugins persist their reports — each gated on a project root
+# that does not contain it and confirmed through symlink resolution. See the
+# block above scratch_target_exempt for why exempting those gives up no
+# protection, and why the memory tier is deliberately not one of them.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -922,6 +923,19 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # to the skill (fix the procedure to use Write, which is scanned) rather than to
 # the guard, which is where the filed issue puts it.
 #
+# THE PLUGIN DATA DIRECTORY (`<config dir>/plugins/data`, the config dir being
+# CLAUDE_CONFIG_DIR or `~/.claude`) IS a second default, on the same argument
+# as the temp tree. It is where a plugin persists its reports, and it lies
+# outside every project root that is not `~` or an ancestor of it.
+# hook::read_file_path declines a file outside the project root, so no Write|Edit
+# content gate ever processes a report written there: exempting the Bash
+# redirect removes no protection. The memory-tier counterexample does not carry
+# over, since `.work/` is inside the project and the gates do scan it. The
+# default is gated on the project root NOT containing the directory (a
+# `~`-rooted project makes it project content, and the gates process it), and
+# confirmed through symlink resolution on both sides, as the temp default is.
+# Its spelling is environment, not a literal, so it too resolves at run time.
+#
 # THE TEMP DEFAULT is not spelled as a static plugin.json default, because it has
 # no fixed spelling: the scratchpad path carries a session id. It resolves at run
 # time instead, and the option's own default stays empty — it configures
@@ -999,6 +1013,43 @@ _bbh_temp_default_applies() {
     hook::under_temp_root "$_BBH_PROJECT_NORM" || _BBH_TEMP_DEFAULT=0
   fi
   return "$_BBH_TEMP_DEFAULT"
+}
+
+# The plugin data directory, `<config dir>/plugins/data`, lexically normalized
+# and lowercased for the compare, or empty when it cannot be placed. The config
+# dir is CLAUDE_CONFIG_DIR when set, else `$HOME/.claude`, the same resolution
+# the harness applies. Computed once at load: both inputs are environment, not
+# per-call state.
+_BBH_PLUGIN_DATA_NORM=""
+_bbh_plugin_data_dir=""
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  _bbh_plugin_data_dir="${CLAUDE_CONFIG_DIR}/plugins/data"
+elif [[ -n "${HOME:-}" ]]; then
+  _bbh_plugin_data_dir="${HOME}/.claude/plugins/data"
+fi
+if [[ -n "$_bbh_plugin_data_dir" ]] && _norm_path "$_bbh_plugin_data_dir" && [[ -n "$_NORM_PATH" ]]; then
+  _BBH_PLUGIN_DATA_NORM="${_NORM_PATH,,}"
+fi
+
+# 0 when the plugin-data default applies to this session: a project root that is
+# known and does NOT contain the plugin data directory. hook::read_file_path
+# declines every file outside the project root, so a Write|Edit into the plugin
+# data directory of a project elsewhere runs no content gate, and a Bash
+# redirect there bypasses nothing. When the project root is `~`, `~/.claude`, or
+# any ancestor of the directory, the directory IS project content and the gates
+# do process it, so the default stands down. Component-boundary compare, both
+# sides case-folded.
+_BBH_PLUGIN_DATA_DEFAULT=-1
+_bbh_plugin_data_default_applies() {
+  ((_BBH_PLUGIN_DATA_DEFAULT >= 0)) && return "$_BBH_PLUGIN_DATA_DEFAULT"
+  _BBH_PLUGIN_DATA_DEFAULT=1
+  local project="${_BBH_PROJECT_NORM,,}"
+  if [[ -n "$project" && -n "$_BBH_PLUGIN_DATA_NORM" ]]; then
+    if [[ "$_BBH_PLUGIN_DATA_NORM" != "$project" && "$_BBH_PLUGIN_DATA_NORM" != "$project"/* ]]; then
+      _BBH_PLUGIN_DATA_DEFAULT=0
+    fi
+  fi
+  return "$_BBH_PLUGIN_DATA_DEFAULT"
 }
 
 # Echo the ABSOLUTE spelling of a redirect target, or nothing when it cannot be
@@ -1082,6 +1133,19 @@ _bbh_default_confirmed() {
   # hook::under_temp_root resolves its own candidates, so both sides are physical
   # here and a symlinked temp root (macOS /tmp) still matches.
   hook::under_temp_root "$phys"
+}
+
+# 0 when <lexically-matched target> really lands under the plugin data directory
+# once both are resolved through symlinks. The directory is resolved too, so a
+# config dir that is itself a symlink (a relocated `~/.claude`) still matches,
+# and a symlink under the directory that escapes it does not.
+_bbh_plugin_data_confirmed() {
+  local target="$1" phys root
+  _bbh_physical_path "$target" || return 1
+  phys="${_BBH_PHYS,,}"
+  _bbh_physical_path "$_BBH_PLUGIN_DATA_NORM" || return 1
+  root="${_BBH_PHYS,,}"
+  [[ -n "$root" && "$phys" == "$root"/* ]]
 }
 
 _scratch_abs_target() {
@@ -1170,6 +1234,15 @@ scratch_target_exempt() {
   if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_temp_default_applies &&
     hook::under_temp_root "$norm_target"; then
     _bbh_default_confirmed "$norm_target" && return 0
+  fi
+  # THE SECOND SHIPPED DEFAULT — the plugin data directory, once this session is
+  # one it applies to. Lexically matched first, then confirmed through symlink
+  # resolution on both sides, for the same reason as the temp default: a symlink
+  # under the directory pointing into the repository must not exempt a write the
+  # direct path blocks.
+  if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_plugin_data_default_applies &&
+    [[ "$norm_target" == "$_BBH_PLUGIN_DATA_NORM"/* ]]; then
+    _bbh_plugin_data_confirmed "$norm_target" && return 0
   fi
   roots="$_SCRATCH_ROOTS"
   while [[ -n "$roots" ]]; do

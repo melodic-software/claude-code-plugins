@@ -231,13 +231,18 @@ out of scope until such a signal exists.
   `hardcoded-path-check` still resolves its scan root, which is the most
   valuable half of the lane — it catches this machine's own checkout path
   appearing verbatim in content being pushed.
-- **`block-hook-bypass` ships one scratch root exempt, and takes more by
+- **`block-hook-bypass` ships two scratch roots exempt, and takes more by
   configuration.** Since **0.32.0** the guard exempts the host temp trees, which
-  the harness's own per-session scratchpad sits under. It is gated on
-  `CLAUDE_PROJECT_DIR` naming a project root **outside** the temp tree: with no
-  project root it does not fire, and when the project root is itself temp-rooted
-  a temp file is project content, so the default stands down. It is not spelled
-  as a static default, because it has no fixed spelling — the scratchpad path
+  the harness's own per-session scratchpad sits under, and since **0.33.0** the
+  plugin data directory (`<config dir>/plugins/data`, the config dir being
+  `CLAUDE_CONFIG_DIR` or `~/.claude`), where a plugin persists its reports. Each
+  is gated on `CLAUDE_PROJECT_DIR` naming a project root that does **not** contain
+  it: with no project root neither fires; when the project root is itself
+  temp-rooted a temp file is project content, and when it is `~` or an ancestor
+  of the config dir the plugin data directory is, so the default stands down.
+  Neither removes protection: the Write|Edit content gates decline a file outside
+  the project root, so a redirect there bypasses nothing. Neither is spelled
+  as a static default, because neither has a fixed spelling — the scratchpad path
   carries a session id — so it resolves at run time.
 
   **Exempting it gives up no protection**, which is the only reason a default is
@@ -1177,7 +1182,7 @@ reads it from.
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the one root the guard already ships exempt — the host temp trees, which the harness scratchpad sits under — gated on CLAUDE_PROJECT_DIR naming a project root outside the temp tree. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt — the host temp trees, which the harness scratchpad sits under, and the plugin data directory (`<config dir>/plugins/data`), where plugins persist their reports — each gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block |
 
 ### How to set these
