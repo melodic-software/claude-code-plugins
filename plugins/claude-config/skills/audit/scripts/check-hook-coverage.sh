@@ -161,6 +161,7 @@ add_scope() {
 
 PARTIAL=0
 UNREADABLE=()
+declare -A BAD_CATALOG=()
 
 add_scope "$PROJECT_ROOT/.claude/settings.json" "project"
 add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
@@ -216,7 +217,7 @@ HOOK_ROWS_JQ='
              type: ((.type // "command") | tostring),
              if: ((.if // "") | tostring),
              shell: ((.shell // "") | tostring),
-             args: ((.args // []) | tojson)
+             args: (.args // [])
            } | tojson)
         ]
     ]
@@ -403,6 +404,12 @@ resolve_marketplace_plugin_path() {
   [[ -n "$mdir" ]] || return 1
   catalog="$mdir/.claude-plugin/marketplace.json"
   [[ -f "$catalog" ]] || return 1
+  # A catalog that does not parse is exit 2, distinct from "plugin absent"
+  # (exit 1): the caller records it, since this function runs in a command
+  # substitution where a global assignment would be lost.
+  if ! tr -d '\r' <"$catalog" | jq empty 2>/dev/null; then
+    return 2
+  fi
   # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
   src="$(jqs -r --arg n "$plugin" '
     (.plugins // []) | if type == "array" then . else [] end
@@ -425,6 +432,18 @@ REGISTRY_FALLBACKS=0
 
 for key in ${ENABLED+"${ENABLED[@]}"}; do
   mpath="$(resolve_marketplace_plugin_path "$key")"
+  mrc=$?
+  if [[ $mrc -eq 2 ]]; then
+    # What the session loads from an unparsable catalog is unknown, so the
+    # inventory is partial even though the registry route still resolves the
+    # plugin. Reported once per marketplace.
+    bad_mkt="${key##*@}"
+    if [[ -z "${BAD_CATALOG[$bad_mkt]:-}" ]]; then
+      BAD_CATALOG[$bad_mkt]=1
+      UNREADABLE+=("marketplace:$bad_mkt: its .claude-plugin/marketplace.json is not valid JSON; plugins it lists resolve through the registry cache instead")
+      PARTIAL=1
+    fi
+  fi
   rpath="$(norm_path "$(resolve_install_path "$key")")"
   loaded_note=""
   if [[ -n "$mpath" ]]; then

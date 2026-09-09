@@ -522,6 +522,12 @@ if [[ -f "$BASELINE_FILE" ]]; then
       if (line ~ /^[A-Za-z]+\(.*\)$/) printf "%s\t%s\n", fam, line
     }
   ' "$BASELINE_FILE" | tr -d '\r')
+  if [[ ${#BASELINE_ORDER[@]} -eq 0 ]]; then
+    # Present but yielding nothing is a parse failure, not an empty baseline:
+    # a renamed family heading or a reshaped table would otherwise make every
+    # category B row vanish and the report read as clean.
+    row B baseline-reference skip none "$SURF_SETTINGS" "reference-unparsed" "required-permissions.md at $BASELINE_FILE yielded no Tool(...) pattern under its family headings; baseline presence not decided" -
+  fi
 else
   row B baseline-reference skip none "$SURF_SETTINGS" "reference-missing" "required-permissions.md not found at $BASELINE_FILE; baseline presence not decided" -
 fi
@@ -700,13 +706,29 @@ fi
 
 # --- Category D: hooks ---------------------------------------------------------
 
+# Token shapes that never belong in a claim or detail. Used here to redact a
+# hook command and in category F to flag a tracked settings value.
+SECRET_RE='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
+
 resolve_hook_path() {
   # resolve_hook_path <source> <command> <plugin-path> -> the first token with placeholders expanded
-  local src="$1" cmd="$2" ppath="$3" first
-  first="$(printf '%s' "$cmd" | awk '{print $1}')"
-  # Shell-form hooks quote the placeholder, "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh,
-  # so the quotes sit inside the token; the shell would remove them all.
-  first="${first//\"/}"
+  local src="$1" cmd="$2" ppath="$3" first="" c i inq=0
+  # The first shell word, read the way the shell would: whitespace ends it
+  # only outside quotes, so "$CLAUDE_PROJECT_DIR/my hooks/x.sh" and the
+  # common "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh both stay whole, and the quote
+  # characters themselves are dropped as the shell drops them.
+  for ((i = 0; i < ${#cmd}; i++)); do
+    c="${cmd:i:1}"
+    if [[ "$c" == '"' || "$c" == "'" ]]; then
+      inq=$((1 - inq))
+      continue
+    fi
+    if [[ $inq -eq 0 && "$c" == [[:space:]] ]]; then
+      [[ -n "$first" ]] && break
+      continue
+    fi
+    first+="$c"
+  done
   first="${first//\$\{CLAUDE_PROJECT_DIR\}/$PROJECT_ROOT}"
   first="${first//\$CLAUDE_PROJECT_DIR/$PROJECT_ROOT}"
   if [[ -n "$ppath" ]]; then
@@ -726,19 +748,31 @@ done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$IN
 
 while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   [[ -n "$src" ]] || continue
+  [[ "$timeout" == "-" ]] && timeout=""
+  [[ "$hif" == "-" ]] && hif=""
   surface="$src"
   [[ "$src" == "settings:project" ]] && surface="$SURF_SETTINGS"
   [[ "$src" == "settings:local" ]] && surface="$SURF_LOCAL"
   [[ "$src" == "settings:user" ]] && surface="$SURF_USER"
+  # A command from a personal scope, or one carrying a token-shaped value in
+  # any scope, is named by its excerpt hash in every claim and detail: the
+  # claim is what an operator pastes into the tracked suppression record. The
+  # raw command still feeds the anchor, which stores only a hash.
+  cmd_ref="$cmd"
+  cmd_public=1
+  if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || printf '%s' "$cmd" | grep -Eq "$SECRET_RE"; then
+    cmd_ref="cmd:$(anchor_for_excerpt "$cmd")"
+    cmd_public=0
+  fi
   key="$src|$event|$matcher|$cmd|$hif"
   if [[ -n "${HOOK_SEEN[$key]:-}" ]]; then
-    row D duplicate-hook finding info "$surface" "duplicate-hook:$event:$matcher:$cmd" "the same command is registered twice for $event/$matcher" "$event/$matcher/$cmd"
+    row D duplicate-hook finding info "$surface" "duplicate-hook:$event:$matcher:$cmd_ref" "the same command is registered twice for $event/$matcher" "$event/$matcher/$cmd"
   fi
   HOOK_SEEN[$key]=1
   [[ "$htype" == "command" || -z "$htype" ]] || continue
   # Timeout shape: a round thousands multiple reads as milliseconds.
   if [[ -n "$timeout" && "$timeout" =~ ^[0-9]+$ && $timeout -ge 1000 && $((timeout % 1000)) -eq 0 ]]; then
-    row D timeout-unit finding warning "$surface" "millisecond-timeout:$event:$cmd" "timeout $timeout reads as milliseconds; the field is seconds" "$event/$matcher/$cmd"
+    row D timeout-unit finding warning "$surface" "millisecond-timeout:$event:$cmd_ref" "timeout $timeout reads as milliseconds; the field is seconds" "$event/$matcher/$cmd"
   fi
   # Matcher class: only letters, digits, _ - space , | is an exact-string list.
   # One row per matcher, not per command under it.
@@ -752,27 +786,32 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   # Shell form (no args) with an unquoted placeholder.
   if [[ "$hargs" == "[]" || -z "$hargs" ]]; then
     if printf '%s' "$cmd" | grep -Eq '(^|[^"])\$(\{CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA)\}|CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA))'; then
-      row D placeholder-quoting finding warning "$surface" "unquoted-placeholder:$event:$cmd" "a path placeholder in shell form is not wrapped in double quotes; a space in the path breaks the hook" "$event/$matcher/$cmd"
+      row D placeholder-quoting finding warning "$surface" "unquoted-placeholder:$event:$cmd_ref" "a path placeholder in shell form is not wrapped in double quotes; a space in the path breaks the hook" "$event/$matcher/$cmd"
     fi
   fi
   # Path resolution for the first token when it is a path.
   ppath="${PLUGIN_PATH[$src]:-}"
   first="$(resolve_hook_path "$src" "$cmd" "$ppath")"
+  first_shown="$first"
+  [[ $cmd_public -eq 1 ]] || first_shown="the resolved first token"
   case "$first" in
   */*)
     if [[ "$first" == *'$'* ]]; then
-      row D hook-path skip none "$surface" "unexpanded-placeholder:$cmd" "first token still carries a placeholder this engine cannot expand; the model resolves it" -
+      row D hook-path skip none "$surface" "unexpanded-placeholder:$cmd_ref" "first token still carries a placeholder this engine cannot expand; the model resolves it" -
     elif [[ ! -e "$first" ]]; then
-      row D hook-path finding error "$surface" "hook-path-missing:$event:$cmd" "$first does not exist" "$event/$matcher/$cmd"
+      row D hook-path finding error "$surface" "hook-path-missing:$event:$cmd_ref" "$first_shown does not exist" "$event/$matcher/$cmd"
     elif [[ ! -r "$first" ]]; then
-      row D hook-path finding error "$surface" "hook-path-unreadable:$event:$cmd" "$first is not readable" "$event/$matcher/$cmd"
+      row D hook-path finding error "$surface" "hook-path-unreadable:$event:$cmd_ref" "$first_shown is not readable" "$event/$matcher/$cmd"
     else
-      row D hook-path ok none "$surface" "hook-path-resolves:$event:$cmd" "$first exists and is readable" -
+      row D hook-path ok none "$surface" "hook-path-resolves:$event:$cmd_ref" "$first_shown exists and is readable" -
     fi
     ;;
   *) ;;
   esac
-done < <(jqs -r '.hooks[]? | [.source, .event, .matcher, .command, ((.timeout // "") | tostring), (.type // "command"), (.if // ""), ((.args // []) | tojson)] | @tsv' <<<"$INVENTORY_JSON")
+  # Empty middle fields carry a "-" sentinel: `read` with a tab IFS folds
+  # consecutive tabs, so a hook with no timeout would otherwise shift its type
+  # into the timeout column and drop out of every check above.
+done < <(jqs -r '.hooks[]? | [.source, .event, .matcher, .command, ((.timeout // "-") | tostring), (.type // "command"), ((.if // "-") | if . == "" then "-" else . end), ((.args // []) | tojson)] | @tsv' <<<"$INVENTORY_JSON")
 
 # Lever state is reported, never judged.
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
@@ -811,7 +850,7 @@ check_plugin_keys() {
   while IFS=$'\t' read -r pk pv; do
     [[ -n "$pk" ]] || continue
     market="${pk##*@}"
-    if ! grep -qx -- "$market" <<<"$known_markets"; then
+    if ! grep -qxF -- "$market" <<<"$known_markets"; then
       row E marketplace-known finding error "$surface" "unknown-marketplace:$pk" "$pk names marketplace $market, which no scope registers" "/enabledPlugins/$pk"
     fi
     if [[ "$pv" == "false" ]]; then
@@ -824,17 +863,18 @@ check_plugin_keys() {
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
+# The drift script runs whether or not curl is present: a directory-sourced
+# marketplace is read from disk, and a repo-sourced one it cannot fetch comes
+# back as a skipped marketplace with its reason, reported below.
 if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f "$SCRIPT_DIR/check-plugin-drift.sh" ]]; then
-  if command -v curl >/dev/null 2>&1 || [[ -n "${SETTINGS_AUDIT_FIXTURE_DIR:-}" ]]; then
-    drift_tmp="$(mktemp)"
-    NO_COLOR=1 CLAUDE_SETTINGS_FILE="$SETTINGS" SETTINGS_AUDIT_OUTPUT_JSON="$drift_tmp" \
-      bash "$SCRIPT_DIR/check-plugin-drift.sh" >/dev/null 2>&1
-    if [[ -s "$drift_tmp" ]] && jq empty "$drift_tmp" 2>/dev/null; then
-      DRIFT_JSON="$(tr -d '\r' <"$drift_tmp")"
-      DRIFT_STATE=ran
-    fi
-    rm -f "$drift_tmp"
+  drift_tmp="$(mktemp)"
+  NO_COLOR=1 CLAUDE_SETTINGS_FILE="$SETTINGS" SETTINGS_AUDIT_OUTPUT_JSON="$drift_tmp" \
+    bash "$SCRIPT_DIR/check-plugin-drift.sh" >/dev/null 2>&1
+  if [[ -s "$drift_tmp" ]] && jq empty "$drift_tmp" 2>/dev/null; then
+    DRIFT_JSON="$(tr -d '\r' <"$drift_tmp")"
+    DRIFT_STATE=ran
   fi
+  rm -f "$drift_tmp"
 fi
 if [[ "$DRIFT_STATE" == "ran" ]]; then
   while IFS=$'\t' read -r mk st reason; do
@@ -861,7 +901,7 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
   )"
   while IFS=$'\t' read -r name mk; do
     [[ -n "$name" ]] || continue
-    grep -qx -- "$name@$mk" <<<"$merged_keys" && continue
+    grep -qxF -- "$name@$mk" <<<"$merged_keys" && continue
     row E drift-new finding info "$SURF_SETTINGS" "new-upstream:$name@$mk" "$name@$mk is in the $mk catalog and has no enabledPlugins entry in any scope; record an explicit true or false" "/enabledPlugins/$name@$mk"
   done < <(jqs -r '.[] | .new_upstream[]? | [.name, .marketplace] | @tsv' <<<"$DRIFT_JSON")
   while IFS=$'\t' read -r from to mk; do
@@ -869,12 +909,11 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
     row E drift-rename finding warning "$SURF_SETTINGS" "possible-rename:$from->$to@$mk" "$from may have been renamed to $to in $mk; confirm before editing the key" "/enabledPlugins/$from@$mk"
   done < <(jqs -r '.[] | .renames[]? | [.from, .to, .marketplace] | @tsv' <<<"$DRIFT_JSON")
 else
-  row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (curl absent, skipped, or no project settings)" -
+  row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (skipped, no project settings, or the drift script produced no document)" -
 fi
 
 # --- Category F: environment variables -----------------------------------------
 
-SECRET_RE='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 if [[ $PROJECT_OK -eq 1 ]]; then
   if tr -d '\r' <"$SETTINGS" | grep -Eq "$SECRET_RE"; then
     row F secrets finding error "$SURF_SETTINGS" "secret-shaped-value" "a token-shaped value is present in the tracked settings file; move it to settings.local.json or a credential store" /env

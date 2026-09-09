@@ -52,6 +52,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   fetch failure instead.
 - **audit:** `check-doc-citations.sh` checks the last manifest row even when the file has no
   trailing newline.
+- **audit:** `check-hook-coverage.sh` encodes a hook's `args` once, so the engine's
+  placeholder-quoting check sees an array and fires for a shell-form hook again. A
+  directory-source catalog that does not parse is reported as unreadable and leaves the inventory
+  partial instead of reading as "plugin absent".
+- **audit:** the engine reads a hook command's first word the way the shell does, so a quoted
+  path with a space resolves whole. A hook command from a personal scope, or one carrying a
+  token-shaped value in any scope, is named by its excerpt hash in every claim and detail, so the
+  suppression stanza an operator pastes never carries the command. A baseline reference that
+  parses to no pattern is reported as unparsed rather than producing no category B rows.
+  Marketplace names are matched as strings, not patterns, and the drift script runs without curl.
+  A hook with no timeout is checked like any other: the inventory read carries a sentinel for an
+  empty field, where a folded tab used to shift the hook's type into the timeout column and skip
+  it.
 
 ## [0.40.41]
 

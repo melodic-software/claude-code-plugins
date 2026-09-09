@@ -253,7 +253,7 @@ assert_contains "case 9: hook timeout carried as a number" "$(json_field "$out" 
 assert_contains "case 9: hook type carried" "$(json_field "$out" '.hooks[0].type')" "command"
 assert_contains "case 9: hook if carried" "$(json_field "$out" '.hooks[0].if')" "Bash(git *)"
 assert_contains "case 9: hook shell carried" "$(json_field "$out" '.hooks[0].shell')" "bash"
-assert_contains "case 9: hook args carried as JSON text" "$(json_field "$out" '.hooks[0].args')" '["-x","--y"]'
+assert_contains "case 9: hook args carried as an array" "$(json_field "$out" '.hooks[0].args | tojson')" '["-x","--y"]'
 assert_contains "case 9: plugin path carried" "$(json_field "$out" '.plugins[0].path')" "$m/plugins/guard"
 assert_contains "case 9: divergence array present" "$(json_field "$out" '.divergence | type')" "array"
 
@@ -395,6 +395,22 @@ assert_contains "case 18: divergence loaded path" "$(json_field "$out" '.diverge
 assert_contains "case 18: divergence cached path" "$(json_field "$out" '.divergence[0].cached')" "$m/cache/guard"
 assert_contains "case 18: plugin path is the loaded directory" "$(json_field "$out" '.plugins[0].path')" "$m/mkt/plugins/guard"
 assert_contains "case 18: inventory complete despite divergence" "$(json_field "$out" '.inventory')" "complete"
+assert_contains "case 18: args is an array, encoded once" "$(json_field "$out" '.hooks[0].args | type')" "array"
+
+# --- Case 19: an unparsable directory catalog is reported, not treated as absent
+m="$(make_machine mkt-badcatalog)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkdir -p "$m/mkt/.claude-plugin"
+printf '{"name":"mkt","plugins":[\n' >"$m/mkt/.claude-plugin/marketplace.json"
+hook_file "$m/plugins/guard/hooks/hooks.json" PreToolUse Bash "registry-hook.sh"
+reg "$m" "guard@mkt" "$m/plugins/guard"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 19: an unparsable catalog leaves the inventory partial" 1 "$rc"
+assert_contains "case 19: the catalog is named as unreadable" "$out" "marketplace:mkt"
+assert_contains "case 19: the reason is the parse failure" "$out" "not valid JSON"
+assert_contains "case 19: the registry route still enumerates the plugin" "$out" "registry-hook.sh"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

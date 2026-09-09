@@ -264,10 +264,14 @@ assert_eq "case 7: unknown listed server is an error" "error" "$(jq -r '.finding
 # --- Case 8: hook rows from the inventory --------------------------------------
 m="$(make_machine hooks)"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$m/project/fmt.sh"
-printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"hooks":{"PostToolUse":[{"matcher":"Edit.*","hooks":[{"type":"command","command":"$CLAUDE_PROJECT_DIR/fmt.sh","timeout":30000},{"type":"command","command":"$CLAUDE_PROJECT_DIR/fmt.sh","timeout":30000}]}],"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/gone.sh","timeout":10}]}]}}' >"$m/project/.claude/settings.json"
+mkdir -p "$m/project/my hooks"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$m/project/my hooks/space.sh"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"hooks":{"PostToolUse":[{"matcher":"Edit.*","hooks":[{"type":"command","command":"$CLAUDE_PROJECT_DIR/fmt.sh","timeout":30000},{"type":"command","command":"$CLAUDE_PROJECT_DIR/fmt.sh","timeout":30000}]}],"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/gone.sh","timeout":10},{"type":"command","command":"\"$CLAUDE_PROJECT_DIR/my hooks/space.sh\" --strict","timeout":10}]}]}}' >"$m/project/.claude/settings.json"
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 8: exit 1 on the missing hook path" 1 "$rc"
+assert_eq "case 8: a quoted path with a space resolves whole" "ok" "$(jq -r '[.rows[] | select(.claim | startswith("hook-path-resolves:PreToolUse:"))] | .[0].status' <<<"$out")"
+assert_eq "case 8: only the absent path is missing" "1" "$(jq '[.findings[] | select(.identity.claim | startswith("hook-path-missing:"))] | length' <<<"$out")"
 assert_eq "case 8: millisecond timeout flagged" "2" "$(jq '[.findings[] | select(.identity.claim | startswith("millisecond-timeout:"))] | length' <<<"$out")"
 assert_eq "case 8: unanchored regex matcher flagged" "1" "$(jq '[.findings[] | select(.identity.claim=="unanchored-regex-matcher:PostToolUse:Edit.*")] | length' <<<"$out")"
 assert_eq "case 8: unquoted placeholder flagged" "2" "$(jq '[.findings[] | select(.identity.claim | startswith("unquoted-placeholder:"))] | length' <<<"$out")"
@@ -382,6 +386,44 @@ m="$(make_machine nosettings)"
 rc=0
 run "$m" --json >/dev/null 2>&1 || rc=$?
 assert_exit "case 15: no project settings exits 2" 2 "$rc"
+
+# --- Case 16: a personal or token-bearing hook command is never echoed ---------
+m="$(make_machine redact)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/gone.sh ghp_zyxwvutsrqponmlkjihgfedcba9876"}]}]}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/gone.sh --token ghp_abcdefghijklmnopqrstuvwxyz0123","timeout":5000}]}]}}' >"$m/project/.claude/settings.local.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 16: missing hook paths exit 1" 1 "$rc"
+if [[ "$out" != *"ghp_abcdefghijklmnopqrstuvwxyz0123"* && "$out" != *"ghp_zyxwvutsrqponmlkjihgfedcba9876"* ]]; then
+  pass "case 16: no token-shaped value reaches the document"
+else
+  fail "case 16: no token-shaped value reaches the document" "a hook command was echoed verbatim"
+fi
+assert_eq "case 16: the local hook is named by its excerpt hash" "1" "$(jq '[.findings[] | select(.identity.sites[0].surface==".claude/settings.local.json") | select(.identity.claim | startswith("hook-path-missing:PreToolUse:cmd:e:"))] | length' <<<"$out")"
+assert_eq "case 16: the local timeout claim is redacted too" "1" "$(jq '[.findings[] | select(.identity.claim | startswith("millisecond-timeout:PreToolUse:cmd:e:"))] | length' <<<"$out")"
+assert_eq "case 16: a token-bearing project hook is redacted" "1" "$(jq '[.findings[] | select(.identity.sites[0].surface==".claude/settings.json") | select(.identity.claim | startswith("hook-path-missing:PreToolUse:cmd:e:"))] | length' <<<"$out")"
+assert_eq "case 16: the project detail names no path" "the resolved first token does not exist" "$(jq -r '.findings[] | select(.identity.sites[0].surface==".claude/settings.json") | select(.identity.claim | startswith("hook-path-missing:")) | .detail' <<<"$out")"
+
+# --- Case 17: a baseline reference that parses to nothing is a skip, not clean --
+m="$(make_machine unparsed)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+printf '%s\n' '# Baseline' '' '## Sensitive File Deny' '' '| Pattern | Why |' '| --- | --- |' '| `Read(./.env)` | secrets |' >"$m/baseline-renamed.md"
+rc=0
+out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
+  SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$m/baseline-renamed.md" \
+  SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
+  bash "$SCRIPT" --json 2>&1) || rc=$?
+assert_exit "case 17: an unparsed baseline is not an error" 0 "$rc"
+assert_eq "case 17: the reference is reported unparsed" "skip" "$(jq -r '.rows[] | select(.claim=="reference-unparsed") | .status' <<<"$out")"
+assert_eq "case 17: no baseline pattern row is emitted" "0" "$(jq '[.rows[] | select(.check | test("/B/baseline-(sensitive|destructive|ask)"))] | length' <<<"$out")"
+
+# --- Case 18: a marketplace name is matched as a string, not a pattern ---------
+m="$(make_machine regexmkt)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {enabledPlugins:{"mine@.*":true}}' >"$m/project/.claude/settings.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 18: an unregistered marketplace exits 1" 1 "$rc"
+assert_eq "case 18: a pattern-shaped name does not match the empty registry" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:mine@.*") | .severity' <<<"$out")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
