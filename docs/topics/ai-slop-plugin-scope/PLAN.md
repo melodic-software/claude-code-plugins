@@ -48,9 +48,13 @@ The plugin that ships the em-dash rule passes its own audit, its detector and em
 - "seam" keeps a use only where the surrounding text defines it as a term of art (Feathers-style code seams, the songwriting author seam). Revisit if the sweep finds the definition itself is the only use.
 - Unwanted-behaviour and state-driven coverage were examined: both criteria above came from that check.
 
+### Scope change (2026-09-09)
+
+The maintainer reversed the tranche decision after the first pull request opened: the whole corpus purge (#2891) lands in this one branch and pull request, every plugin touched gets its version bump and changelog entry here, and the purge list declares every cleaned path. Worst-first order holds (instruction surfaces, then the rest), and each area is committed as it closes so progress is never stranded. `docs/adr/**` and `docs/upstream/**` stay untouched per the purge list's own header: decision records are a historical account and upstream text is not this repo's prose.
+
 ### Out-of-scope
 
-- Rewriting the 27,177 em-dash lines outside `plugins/ai-slop/` in this branch. They are #2891 tranches, one pull request per plugin or docs directory.
+- Rewriting `docs/adr/**` and `docs/upstream/**`, and any vendored tree.
 - A `rubric_terms_of_art` config key. The repo decided to sweep the jargon rather than allowlist it.
 - A bare `/ai-slop` command alias. Plugin commands are namespaced, so the fix is documentation.
 - Re-enabling the curly-quote or emoji rules.
