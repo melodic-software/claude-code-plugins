@@ -350,7 +350,7 @@ m="$(make_machine unreadable)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
 printf '%s\n' '{"permissions":{"deny":["Bash(rm -rf *)"]}}' >"$m/project/.claude/settings.local.json"
 chmod 000 "$m/project/.claude/settings.local.json"
-if : <"$m/project/.claude/settings.local.json" 2>/dev/null; then
+if : 2>/dev/null <"$m/project/.claude/settings.local.json"; then
   echo "SKIP: case 13 needs a non-root user (the file stays readable)" >&2
 else
   rc=0

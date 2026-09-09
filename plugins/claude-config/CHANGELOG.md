@@ -44,6 +44,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **audit:** B.5 rows in the checklist are `info`, the debug-log check reads the existing log
   before creating one, and `required-permissions.md` quotes the current permissions page wording
   in place of the retired word-boundary sentence.
+- **audit:** the readability probe in `check-structure.sh` and the engine silences its own
+  stderr before opening the file, so an unreadable scope no longer prints a shell
+  permission-denied line ahead of the report.
 
 ## [0.40.41]
 

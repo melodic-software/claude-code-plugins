@@ -345,7 +345,7 @@ probe_scope() {
   local label="$1" path="$2" state
   if [[ ! -f "$path" ]]; then
     state=absent
-  elif ! : <"$path" 2>/dev/null; then
+  elif ! : 2>/dev/null <"$path"; then
     state=unreadable
   elif ! tr -d '\r' <"$path" | jq empty 2>/dev/null; then
     state=invalid
