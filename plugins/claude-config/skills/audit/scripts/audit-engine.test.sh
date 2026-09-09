@@ -293,7 +293,12 @@ assert_eq "case 9: numbers parsed" "211 155730 150000 5730" "$(jq -r '.skill_lis
 assert_eq "case 9: overflow finding" "warning" "$(jq -r '.findings[] | select(.identity.claim=="listing-over-budget") | .severity' <<<"$out")"
 printf '%s\n' 'no warning here' >"$m/debug/session.txt"
 out=$(run "$m" --json 2>&1) || true
-assert_eq "case 9: a log without the warning reads as fits" "false" "$(jq '.skill_listing.overflow' <<<"$out")"
+assert_eq "case 9: a discovered log that names no project is unverified, not clean" "skip" "$(jq -r '.rows[] | select(.check | endswith("/listing-budget")) | .status' <<<"$out")"
+assert_eq "case 9: an unverified log is not counted as measured" "false" "$(jq '.skill_listing.measured' <<<"$out")"
+printf '%s\n' "cwd: $m/project" 'no warning here' >"$m/debug/session.txt"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 9: a log naming this project reads as fits" "false" "$(jq '.skill_listing.overflow' <<<"$out")"
+assert_eq "case 9: its provenance is the project" "project" "$(jq -r '.skill_listing.provenance' <<<"$out")"
 rm -rf "$m/debug"
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 9: no log means not measured, never clean" "skip" "$(jq -r '.rows[] | select(.check | endswith("/listing-budget")) | .status' <<<"$out")"
@@ -424,6 +429,38 @@ rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 18: an unregistered marketplace exits 1" 1 "$rc"
 assert_eq "case 18: a pattern-shaped name does not match the empty registry" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:mine@.*") | .severity' <<<"$out")"
+
+# --- Case 19: a manifest naming a hook the plugin does not register ------------
+# The narrowing rests on enforcement code that actually runs, so an entry whose
+# hook is absent from the inventory is reported and takes no narrowing.
+m="$(make_machine stale-manifest)"
+mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)"],"ask":["Bash(git push *)"]},"enabledPlugins":{"guard@mkt":true},"extraKnownMarketplaces":{"mkt":{"source":{"source":"directory","path":"../mkt"}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Read","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/read.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/read.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 19: an uncorroborated manifest keeps the error" 1 "$rc"
+assert_eq "case 19: severity stays error" "error" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+assert_eq "case 19: the unmatched manifest entry is reported" "1" "$(jq '[.findings[] | select(.identity.claim | startswith("manifest-hook-not-inventoried:"))] | length' <<<"$out")"
+
+# --- Case 20: an unreadable scope makes the narrowing unavailable --------------
+m="$(make_machine lever-unknown)"
+mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)"],"ask":["Bash(git push *)"]},"enabledPlugins":{"guard@mkt":true},"extraKnownMarketplaces":{"mkt":{"source":{"source":"directory","path":"../mkt"}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{not json' >"$m/project/.claude/settings.local.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash|PowerShell","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/git.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash|PowerShell","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 20: an unread lever keeps the error" 1 "$rc"
+assert_eq "case 20: severity stays error" "error" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+assert_contains "case 20: the detail names the unread levers" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "could not be read"
+assert_eq "case 20: the lever state is reported not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="lever-state-unknown") | .status' <<<"$out")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

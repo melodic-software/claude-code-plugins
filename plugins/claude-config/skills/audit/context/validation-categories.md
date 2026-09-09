@@ -171,8 +171,10 @@ budget". What governs the category:
   a headless run.** The engine looks for a debug log this session already wrote, at the path
   `--debug-log` names, else `CLAUDE_CODE_DEBUG_LOGS_DIR`, else the newest file under
   `<user dir>/debug/`, and parses the over-budget warning from it: skill count, characters, and the
-  budget in one line, which is everything the category needs. A log with no warning reads as
-  fitting; no log at all reads as not measured, never as clean. Only then: `/doctor` estimates the
+  budget in one line, which is everything the category needs. A log the operator named reads as
+  fitting when it carries no warning; a log the engine merely found, newest-first, decides only
+  when it names this project root, since the debug directory also holds other sessions' logs.
+  Anything else reads as not measured, never as clean. Only then: `/doctor` estimates the
   listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
   run it. When this audit runs headless — `-p`, a spawned agent, a background job — use the documented
   debug route instead: *"When the listing exceeds its budget, Claude Code also writes a warning to the

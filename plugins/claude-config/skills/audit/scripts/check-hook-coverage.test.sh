@@ -396,6 +396,22 @@ assert_contains "case 18: divergence cached path" "$(json_field "$out" '.diverge
 assert_contains "case 18: plugin path is the loaded directory" "$(json_field "$out" '.plugins[0].path')" "$m/mkt/plugins/guard"
 assert_contains "case 18: inventory complete despite divergence" "$(json_field "$out" '.inventory')" "complete"
 assert_contains "case 18: args is an array, encoded once" "$(json_field "$out" '.hooks[0].args | type')" "array"
+assert_contains "case 18: lever state is complete when every scope parsed" "$(json_field "$out" '.lever_state')" "complete"
+
+# --- Case 20: a scope that does not parse leaves the lever state unknown -----
+m="$(make_machine lever-unknown)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+printf '{not json\n' >"$m/project/.claude/settings.local.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkt_catalog "$m/mkt" "mkt" "guard" "./plugins/guard"
+hook_file "$m/mkt/plugins/guard/hooks/hooks.json" PreToolUse Bash "loaded-hook.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 20: an unparsed scope leaves the inventory partial" 1 "$rc"
+assert_contains "case 20: lever state is unknown" "$(json_field "$out" '.lever_state')" "unknown"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_contains "case 20: the text report says the lever state is unknown" "$out" "lever state: UNKNOWN"
 
 # --- Case 19: an unparsable directory catalog is reported, not treated as absent
 m="$(make_machine mkt-badcatalog)"

@@ -547,11 +547,23 @@ if [[ -x "$SCRIPT_DIR/check-hook-coverage.sh" || -f "$SCRIPT_DIR/check-hook-cove
 fi
 INVENTORY_STATE="$(jqs -r '.inventory // "none"' <<<"$INVENTORY_JSON")"
 
-# Lever reading: a hook one of these has switched off is not coverage.
+# Lever reading: a hook one of these has switched off is not coverage. An
+# unread lever is not an unset lever: when a settings scope did not parse, the
+# inventory reports the lever state unknown and the narrowing is unavailable,
+# because a lever that disables every hook may be sitting in the file nothing
+# could read.
 LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and .value=="true")] | length' <<<"$INVENTORY_JSON")"
 LEVER_MANAGED="$(jqs -r '[.levers[]? | select((.key=="allowManagedHooksOnly" or .key=="strictPluginOnlyCustomization") and .value=="true")] | length' <<<"$INVENTORY_JSON")"
+LEVER_STATE="$(jqs -r '.lever_state // "complete"' <<<"$INVENTORY_JSON")"
 HOOKS_LIVE=1
-[[ "${LEVER_DISABLE_ALL:-0}" != "0" || "${LEVER_MANAGED:-0}" != "0" ]] && HOOKS_LIVE=0
+HOOKS_LIVE_REASON="a suppression lever is set, so the hook is not live"
+if [[ "$LEVER_STATE" != "complete" ]]; then
+  HOOKS_LIVE=0
+  HOOKS_LIVE_REASON="a settings scope did not parse, so the suppression levers could not be read and the hook cannot be assumed live"
+  row D lever-state not-inspectable none "settings" "lever-state-unknown" "a settings scope did not parse, so disableAllHooks and the managed levers were not read; hook coverage cannot narrow any baseline family" -
+elif [[ "${LEVER_DISABLE_ALL:-0}" != "0" || "${LEVER_MANAGED:-0}" != "0" ]]; then
+  HOOKS_LIVE=0
+fi
 
 # --- Coverage manifests (hooks/coverage.json shipped by an enabled plugin) ----
 
@@ -571,6 +583,23 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
     COVERAGE_JSON="$(jq -c --argjson e "$entry" '. + [$e]' <<<"$COVERAGE_JSON")"
+    # A manifest entry narrows only when the hook it names is one this plugin
+    # actually registers on that event and matcher. An entry naming a hook
+    # that is not there would otherwise demote a missing deny on the strength
+    # of enforcement code that does not exist.
+    m_hook="$(jqs -r '.hook' <<<"$entry")"
+    m_matcher="$(jqs -r '.matcher' <<<"$entry")"
+    # The command is matched on the hook's file name, not its manifest path: a
+    # plugin may register one dispatcher that runs the named guard as an
+    # argument, and that dispatcher is the enforcement the manifest claims.
+    m_base="${m_hook##*/}"
+    live_match=0
+    [[ -n "$m_base" ]] && live_match="$(jqs -r --arg s "plugin:$pkey" --arg m "$m_matcher" --arg h "$m_base" \
+      '[.hooks[]? | select(.source==$s and .event=="PreToolUse" and .matcher==$m and (.command | contains($h)))] | length' <<<"$INVENTORY_JSON")"
+    if [[ "${live_match:-0}" == "0" ]]; then
+      row D coverage-manifest finding warning "plugin:$pkey" "manifest-hook-not-inventoried:$m_hook:$m_matcher" "coverage.json names $m_hook on PreToolUse/$m_matcher, but no enumerated hook of this plugin matches; no narrowing taken from this entry" hooks/coverage.json
+      continue
+    fi
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
       # The tool surface the pattern defends must be on the matcher: a Read
@@ -618,7 +647,7 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
         row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it" "/permissions/$target"
       else
-        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but a suppression lever is set, so the hook is not live" "/permissions/$target"
+        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON" "/permissions/$target"
       fi
       continue
     fi
@@ -940,11 +969,17 @@ fi
 # --- Category G: skill-listing measurement from an existing debug log ----------
 
 DEBUG_LOG=""
+# explicit: named by the operator or the session (a file path, per env-vars).
+# discovered: the newest log in the debug directory, which may belong to an
+# earlier session or another project; it decides only when it names this
+# project root, and otherwise a clean read is reported as unverified.
+DEBUG_LOG_PROVENANCE="explicit"
 if [[ -n "$DEBUG_LOG_ARG" && -f "$DEBUG_LOG_ARG" ]]; then
   DEBUG_LOG="$DEBUG_LOG_ARG"
 elif [[ -n "${CLAUDE_CODE_DEBUG_LOGS_DIR:-}" && -f "${CLAUDE_CODE_DEBUG_LOGS_DIR}" ]]; then
   DEBUG_LOG="$CLAUDE_CODE_DEBUG_LOGS_DIR"
 else
+  DEBUG_LOG_PROVENANCE="discovered"
   debug_dir="${SETTINGS_AUDIT_ENGINE_DEBUG_DIR:-}"
   [[ -z "$debug_dir" && -n "$USER_DIR" ]] && debug_dir="$USER_DIR/debug"
   if [[ -d "$debug_dir" ]]; then
@@ -963,17 +998,23 @@ else
 fi
 G_JSON='{"measured":false}'
 if [[ -n "$DEBUG_LOG" ]]; then
+  if [[ "$DEBUG_LOG_PROVENANCE" == "discovered" ]] && grep -qF -- "$PROJECT_ROOT" "$DEBUG_LOG" 2>/dev/null; then
+    DEBUG_LOG_PROVENANCE="project"
+  fi
   gline="$(grep -E 'Skill listing over budget: [0-9]+ skills, [0-9]+ chars > [0-9]+ budget' "$DEBUG_LOG" 2>/dev/null | tail -n 1 || true)"
   if [[ -n "$gline" ]]; then
     g_skills="$(sed -E 's/.*over budget: ([0-9]+) skills.*/\1/' <<<"$gline")"
     g_chars="$(sed -E 's/.*skills, ([0-9]+) chars.*/\1/' <<<"$gline")"
     g_budget="$(sed -E 's/.*chars > ([0-9]+) budget.*/\1/' <<<"$gline")"
-    G_JSON="$(jq -cn --arg log "$DEBUG_LOG" --argjson s "$g_skills" --argjson c "$g_chars" --argjson b "$g_budget" \
-      '{measured:true,route:"debug-log",log:$log,skills:$s,chars:$c,budget:$b,over_by:($c-$b),overflow:true}')"
-    row G listing-budget finding warning "settings" "listing-over-budget" "debug log $DEBUG_LOG: $g_skills skills, $g_chars chars against a $g_budget budget, over by $((g_chars - g_budget)); descriptions of the least-used skills are cut" "skill-listing"
+    G_JSON="$(jq -cn --arg log "$DEBUG_LOG" --arg p "$DEBUG_LOG_PROVENANCE" --argjson s "$g_skills" --argjson c "$g_chars" --argjson b "$g_budget" \
+      '{measured:true,route:"debug-log",provenance:$p,log:$log,skills:$s,chars:$c,budget:$b,over_by:($c-$b),overflow:true}')"
+    row G listing-budget finding warning "settings" "listing-over-budget" "debug log $DEBUG_LOG ($DEBUG_LOG_PROVENANCE): $g_skills skills, $g_chars chars against a $g_budget budget, over by $((g_chars - g_budget)); descriptions of the least-used skills are cut" "skill-listing"
+  elif [[ "$DEBUG_LOG_PROVENANCE" == "discovered" ]]; then
+    G_JSON="$(jq -cn --arg log "$DEBUG_LOG" '{measured:false,route:"debug-log",provenance:"discovered",log:$log}')"
+    row G listing-budget skip none "settings" "listing-unverified" "newest debug log $DEBUG_LOG carries no over-budget warning but does not name this project root, so it may be another session's; pass --debug-log with a log from a session in this project to decide" -
   else
-    G_JSON="$(jq -cn --arg log "$DEBUG_LOG" '{measured:true,route:"debug-log",log:$log,overflow:false}')"
-    row G listing-budget ok none "settings" "listing-fits" "debug log $DEBUG_LOG carries no over-budget warning; the listing fit its budget in that session" -
+    G_JSON="$(jq -cn --arg log "$DEBUG_LOG" --arg p "$DEBUG_LOG_PROVENANCE" '{measured:true,route:"debug-log",provenance:$p,log:$log,overflow:false}')"
+    row G listing-budget ok none "settings" "listing-fits" "debug log $DEBUG_LOG ($DEBUG_LOG_PROVENANCE) carries no over-budget warning; the listing fit its budget in that session" -
   fi
 else
   row G listing-budget skip none "settings" "listing-not-measured" "no debug log found (--debug-log, CLAUDE_CODE_DEBUG_LOGS_DIR, or <user dir>/debug/*.txt); measure with /doctor interactively or a --debug relaunch, never report clean" -

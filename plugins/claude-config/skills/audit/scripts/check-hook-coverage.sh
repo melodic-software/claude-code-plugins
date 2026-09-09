@@ -153,6 +153,10 @@ add_scope() {
   if ! jq empty "$1" 2>/dev/null; then
     UNREADABLE+=("$2 ($1): not valid JSON")
     PARTIAL=1
+    # A scope that exists but does not parse may carry a suppression lever, so
+    # the lever set is unknown rather than empty. An ABSENT scope carries no
+    # lever and leaves the state complete.
+    LEVER_STATE=unknown
     return 0
   fi
   SCOPES+=("$1")
@@ -161,6 +165,7 @@ add_scope() {
 
 PARTIAL=0
 UNREADABLE=()
+LEVER_STATE=complete
 declare -A BAD_CATALOG=()
 
 add_scope "$PROJECT_ROOT/.claude/settings.json" "project"
@@ -533,6 +538,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
   {
     printf '{\n'
     printf '  "inventory": "%s",\n' "$([[ $PARTIAL -eq 0 ]] && echo complete || echo partial)"
+    printf '  "lever_state": "%s",\n' "$LEVER_STATE"
     printf '  "project_root": %s,\n' "$(jq -cn --arg r "$PROJECT_ROOT" '$r')"
     printf '  "hooks": ['
     sep=""
@@ -614,6 +620,10 @@ else
       printf '  %s: loads %s; registry cache at %s\n' "$dk" "$dl" "$dc"
     done
     echo "  Info: the session loads the marketplace directory; the cache is what a tool resolving through the registry would read."
+    echo
+  fi
+  if [[ "$LEVER_STATE" != "complete" ]]; then
+    echo "Hook-suppression lever state: UNKNOWN — a settings scope did not parse, so a lever that switches hooks off may be set and unread."
     echo
   fi
   if [[ ${#LEVERS[@]} -gt 0 ]]; then

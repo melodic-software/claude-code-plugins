@@ -30,6 +30,7 @@ hooks	Seconds before canceling
 hooks	exec form requires
 env-vars	`SLASH_COMMAND_TOOL_CHAR_BUDGET`
 env-vars	`CLAUDE_CODE_DEBUG_LOGS_DIR`
+env-vars	Despite the name, this is a file path, not a directory
 env-vars	`CLAUDE_CODE_DISABLE_AUTO_MEMORY`
 skills	Skill descriptions are cut short
 skills	skillOverrides

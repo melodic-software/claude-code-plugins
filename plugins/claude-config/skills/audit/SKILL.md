@@ -122,7 +122,9 @@ fatal condition (no project settings, `jq` missing). Read the document, not the 
 Pass `--docs-dir` when Phase 3 has already fetched pages this run: the engine then decides the
 environment-variable documentation rows against `env-vars.md` on disk. Pass `--debug-log` when you
 know where this session's debug log is; otherwise the engine looks in the documented locations
-(`CLAUDE_CODE_DEBUG_LOGS_DIR`, then the newest file under `<user dir>/debug/`).
+(`CLAUDE_CODE_DEBUG_LOGS_DIR`, a file path despite its name, then the newest file under
+`<user dir>/debug/`). A log it found rather than was given settles the row only when the log
+names this project.
 
 ### 1.0 Hook inventory
 

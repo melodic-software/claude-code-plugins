@@ -52,6 +52,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   fetch failure instead.
 - **audit:** `check-doc-citations.sh` checks the last manifest row even when the file has no
   trailing newline.
+- **audit:** narrowing 3 corroborates the claim before taking it. A coverage manifest narrows a
+  baseline family only when the hook it names appears in the enumerated inventory on the event and
+  matcher it declares, and an entry that names no such hook is reported instead. When a settings
+  scope does not parse, the inventory reports the suppression-lever state unknown and the engine
+  refuses the narrowing rather than reading unread levers as unset.
+- **audit:** a debug log the engine discovered rather than was given settles the skill-listing row
+  only when the log names the project being audited; otherwise the row is unverified rather than
+  clean. `reference/doc-citations.tsv` pins the upstream sentence that `CLAUDE_CODE_DEBUG_LOGS_DIR`
+  is a file path despite its name, so a change in that contract fails the citation check.
 - **audit:** `check-hook-coverage.sh` encodes a hook's `args` once, so the engine's
   placeholder-quoting check sees an array and fires for a shell-form hook again. A
   directory-source catalog that does not parse is reported as unreadable and leaves the inventory
