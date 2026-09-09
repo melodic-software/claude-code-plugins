@@ -22,19 +22,28 @@ To refresh this file against current official guidance, run the skill's `update`
 
 ### C1: Line Budget [FAIL]
 
-**What**: Count visible lines (excluding HTML comments). Compare to 200-line target per file.
+**What**: Count the visible lines that load for the file, its `@` imports expanded. Compare to the
+200-line target per file.
 
 **How to check**:
 
-1. Read the file
-2. Strip HTML comment blocks (`<!-- ... -->`)
-3. Count remaining non-empty lines
-4. FAIL if > 200 lines without documented justification
-5. WARN if > 150 lines (approaching limit)
-6. PASS if <= 150 lines
+1. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/instruction-load-stats.sh" --lines --file <path>`.
+   It strips block-level HTML comments (kept inside fenced code), expands `@path` imports the way
+   the loader does (relative to the importing file, four hops, code spans and fences skipped), and
+   counts the non-empty lines that remain. `--breakdown` lists every file that contributed, plus
+   any import that is `missing`, `external` (outside the repository, listed but not expanded), or
+   past the `depth` cap
+2. FAIL if > 200 lines without documented justification
+3. WARN if > 150 lines (approaching limit)
+4. PASS if <= 150 lines
+5. Report the expanded figure and, when imports contributed, the per-file breakdown: a one-line
+   `CLAUDE.md` importing a 300-line `AGENTS.md` is a 301-line file for this check
 
 **Why**: Official docs: "Target under 200 lines per CLAUDE.md file. Longer files consume more context
-and reduce adherence." Files over 200 lines cause Claude to ignore instructions.
+and reduce adherence." Files over 200 lines cause Claude to ignore instructions. Imports count
+because "imported files still load and enter the context window at launch" and "splitting into
+`@path` imports helps organization but doesn't reduce context" (code.claude.com/docs/en/memory);
+a raw line count of the root file alone passes a layer the loader treats as one file.
 
 **Diagnostic**: The symptom-first tell for this check: "If Claude keeps doing something you don't
 want despite having a rule against it, the file is probably too long and the rule is getting lost"
@@ -340,16 +349,66 @@ frontmatter, note it as a path-scoping candidate — an always-loaded rule costs
 ### RD1: Orphan always-loaded rule [WARN] — deterministic
 
 **What**: An always-loaded `.claude/rules/*.md` file (no `paths:` frontmatter, so it costs context
-EVERY session) that NO tracked file references. A new always-loaded rule nothing indexes is pure
-per-session token tax until someone trips over it — or a candidate for path-scoping (`paths:`
-frontmatter) / removal. The doc-derived checks (C7/R3/R4/M2) all run memory/rules → codebase; RD1
-runs the reverse direction — codebase → layer.
+EVERY session) that carries no `description:` frontmatter AND that NO tracked file references. A rule
+nothing names and nothing describes has no owner anyone can find: per-session token tax until someone
+trips over it, or a candidate for a `description:` line, path-scoping (`paths:` frontmatter), or
+removal. The doc-derived checks (C7/R3/R4/M2) all run memory/rules → codebase; RD1 runs the reverse
+direction — codebase → layer.
+
+An always-loaded rule is in context every session by construction, and the always-loaded rules
+index the `instruction-placement` plugin renders deliberately omits unscoped rules (indexing what
+already loads would spend budget restating it), so "unreferenced" alone proves nothing. The
+`description:` line is the rule naming its own purpose; a rule that has one is never an orphan.
 
 **How to check**: run
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` (deterministic
-set-difference: enumerate always-loaded rules, `git grep` each basename across tracked files excluding
-the rule's own file; zero hits = orphan). Path-scoped rules are exempt — they load only on
-matching-file Read, so being unreferenced costs nothing per session. WARN per orphan.
+set-difference: enumerate always-loaded rules without `description:`, `git grep` each basename across
+tracked files excluding the rule's own file; zero hits = orphan). Path-scoped rules are exempt — they
+load only on matching-file Read, so being unreferenced costs nothing per session. WARN per orphan.
+Each finding carries the file's provenance (see "Provenance routing" below): a synced rule is still a
+finding, but its fix line names the sync's source rather than a local edit.
+
+**Provenance**: repo-agnostic extension, not doc-derived — the `update` action must not overwrite it.
+
+---
+
+## Checks for nested instruction files
+
+### N1: Nested AGENTS.md reachability [FAIL] — deterministic
+
+**What**: A tracked `AGENTS.md` below the repository root that no sibling `CLAUDE.md` or
+`CLAUDE.local.md` reaches by import or symlink. Such a file never loads at any level of the tree,
+however well written, and every static gate around it reports green.
+
+**How to check**: run
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL line
+into the report. The script enumerates tracked `**/AGENTS.md` below the root (skipping `.claude`,
+`node_modules`, `vendor`, and `.git` trees), and for each asks whether a `CLAUDE.md` or
+`CLAUDE.local.md` in the same directory is the file (symlink) or imports it within four hops, using
+the same import parser C1's expansion uses. The root `AGENTS.md` is the root `CLAUDE.md`'s business
+and is not examined here. Discovery for the C-checks stays depth-1: this check is about the pointer,
+not the nested file's content. FAIL per unwired file; the fix is a one-line `@AGENTS.md` `CLAUDE.md`
+beside it.
+
+**Why**: Official docs: "Claude Code reads `CLAUDE.md`, not `AGENTS.md`. If your repository already
+uses `AGENTS.md` for other coding agents, create a `CLAUDE.md` that imports it", and subdirectory
+files "are included when Claude reads files in those subdirectories" as `CLAUDE.md` /
+`CLAUDE.local.md` (code.claude.com/docs/en/memory, "AGENTS.md" and "How CLAUDE.md files load";
+verified 2026-09-08; recheck trigger: a fetch of that page no longer stating that Claude Code reads
+`CLAUDE.md` rather than `AGENTS.md`).
+
+---
+
+## Provenance routing
+
+Every finding proposes a change to a file. When that file is a synced copy of a source elsewhere,
+the change is overwritten by the next sync, so the finding stands but its fix belongs upstream. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>` for each flagged
+repository file: `synced` (a `SYNC-MANAGED` marker in the file, or a last commit by the standards
+sync) makes the report's fix line name the upstream (`owner/repo` when the marker names one) instead
+of a local edit; `local` keeps the ordinary fix line. RD1 does this itself; the judgment-tier checks
+(C7, R3, R4, and the C-checks on an imported file) do it in the report. The `fix` action never edits a
+`synced` file.
 
 **Provenance**: repo-agnostic extension, not doc-derived — the `update` action must not overwrite it.
 
@@ -437,7 +496,7 @@ Present findings as a deterministic report:
 - FAIL: X findings
 - WARN: X findings
 - INFO: X findings
-- Estimated context cost: X tokens (from /context)
+- Estimated context cost: ~X tokens (bytes / 4 over the always-loaded set, `instruction-load-stats.sh --tokens`; an estimate, never a measurement. When the `context-budget` plugin is installed, `/context-budget:audit` measures it)
 
 ### FAIL findings (must fix)
 | # | Check | File | Finding |
