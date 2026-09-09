@@ -185,9 +185,20 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   if [[ -n "$marketplace_location" ]] &&
     git -C "$marketplace_location" rev-parse --verify HEAD >/dev/null 2>&1 &&
     [[ "$(cd -P -- "$marketplace_location" && pwd)" != "$(cd -P -- "$repo_root" && pwd)" ]]; then
-    "$claude_bin" plugin marketplace update "$marketplace_name" >/dev/null 2>&1 || true
+    # A pull that fails (no network, a clone the CLI refuses to fast-forward)
+    # leaves the clone as it stands, which is still what the installs serve,
+    # so the verdict below stays truthful about serving; what it cannot claim
+    # is currency, and that is said here rather than swallowed.
+    if ! "$claude_bin" plugin marketplace update "$marketplace_name" >/dev/null 2>&1; then
+      echo "cloud-bootstrap: warning: could not bring the $marketplace_name marketplace clone current (\`plugin marketplace update\` failed); verifying against the clone as it stands" >&2
+    fi
     source_repo="$marketplace_location"
-    echo "cloud-bootstrap: warning: marketplace $marketplace_name is registered from $(jq -r '.source // "an unknown source"' <<<"$marketplace_entry" | tr -d '\r') at $marketplace_location, not this checkout; plugins serve that clone at $(git -C "$source_repo" rev-parse --short HEAD 2>/dev/null), not $(git branch --show-current 2>/dev/null || echo detached) at $(git rev-parse --short HEAD 2>/dev/null)" >&2
+    # `plugin marketplace list --json` reports `source` as a plain string
+    # (claude 2.1.263: "github"), while known_marketplaces.json nests it as an
+    # object with a `repo`; `jq -r` pretty-prints an object over several
+    # lines, so the one-line warning below takes either shape.
+    marketplace_source="$(jq -r 'if (.source | type) == "object" then (.source.repo // .source.source // "an unknown source") else (.source // "an unknown source") end' <<<"$marketplace_entry" 2>/dev/null | tr -d '\r')"
+    echo "cloud-bootstrap: warning: marketplace $marketplace_name is registered from ${marketplace_source:-an unknown source} at $marketplace_location, not this checkout; plugins serve that clone at $(git -C "$source_repo" rev-parse --short HEAD 2>/dev/null), not $(git branch --show-current 2>/dev/null || echo detached) at $(git rev-parse --short HEAD 2>/dev/null)" >&2
   fi
 
   # Enabled set: the fleet list the shared environment baked into the snapshot

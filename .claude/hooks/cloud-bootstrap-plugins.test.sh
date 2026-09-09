@@ -248,8 +248,20 @@ run_case() {
       fi
       clone_head="$(git_test_config "$location" rev-parse HEAD)"
     fi
-    printf '[{"name":"melodic-software","source":"github","installLocation":"%s"}]\n' "$location" \
-      >"$fx/marketplace-entry.json"
+    # `plugin marketplace list --json` reports `source` as a plain string
+    # (claude 2.1.263); CASE_SOURCE_SHAPE=object reports the nested object
+    # known_marketplaces.json carries, which `jq -r` would pretty-print over
+    # several lines if the block read it naively.
+    if [[ "${CASE_SOURCE_SHAPE:-}" == object ]]; then
+      printf '[{"name":"melodic-software","source":{"source":"github","repo":"melodic-software/claude-code-plugins"},"installLocation":"%s"}]\n' "$location" \
+        >"$fx/marketplace-entry.json"
+    else
+      printf '[{"name":"melodic-software","source":"github","installLocation":"%s"}]\n' "$location" \
+        >"$fx/marketplace-entry.json"
+    fi
+    # CASE_UPDATE_FAILS makes the stub's `marketplace update` exit 1: the
+    # no-network / refused-fast-forward shape.
+    [[ -z "${CASE_UPDATE_FAILS:-}" ]] || : >"$fx/update-fails"
   fi
 
   local subst="s/@HEAD@/$head/g; s/@FIRST@/$first/g; s/@CLONE@/$clone_head/g"
@@ -277,7 +289,10 @@ case "$*" in
     printf '[{"name":"melodic-software"}]\n'
   fi
   ;;
-*"marketplace update"*) printf '%s\n' "$*" >>"$fx/calls.log" ;;
+*"marketplace update"*)
+  printf '%s\n' "$*" >>"$fx/calls.log"
+  [[ -f "$fx/update-fails" ]] && exit 1
+  ;;
 *"plugin list --json"*)
   if [[ -f "$fx/.listed" ]]; then
     cat "$fx/list-after.json"
@@ -523,6 +538,26 @@ expect "and brings the clone current first" \
   "calls: plugin marketplace update melodic-software"
 refute "and no plugin is called stale" \
   "failed verification"
+refute "and a pull that worked is not reported as failed" \
+  "could not bring the melodic-software marketplace clone current"
+
+# The pull can fail (no network, a clone the CLI refuses to fast-forward).
+# The clone as it stands is still what the installs serve, so the verdict
+# stays truthful about serving; what the block may not do is claim currency
+# or swallow the failure.
+CASE_CLONE=behind CASE_UPDATE_FAILS=1 \
+  run_case github_update_fails "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" NONE
+expect "a failed marketplace pull is surfaced, not swallowed" \
+  "could not bring the melodic-software marketplace clone current (\`plugin marketplace update\` failed); verifying against the clone as it stands"
+expect "and the verdict is still measured against the clone as it stands" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_CLONE=behind CASE_SOURCE_SHAPE=object \
+  run_case github_nested_source "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" NONE
+expect "a nested source object still yields a one-line warning naming the repo" \
+  "is registered from melodic-software/claude-code-plugins at"
+expect "and the verdict is unchanged" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
 
 CASE_CLONE=ahead \
   run_case github_clone_ahead "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" "$REG_ALPHA_CLONE"
