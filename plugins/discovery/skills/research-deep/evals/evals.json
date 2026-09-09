@@ -12,7 +12,7 @@
         "Output dispatches one discovery:researcher agent per topic in parallel rather than running one engine over the combined blob, and does not spawn a bare general-purpose agent carrying a hand-written copy of the research discipline",
         "Each topic agent runs the full research discipline and writes a normal RESEARCH.md plus its sidecars and checklist inside its OWN sub-slice directory, not a sibling research-<topic>.md at the slice root",
         "The sub-slice path for each topic is assigned by the dispatching session rather than chosen by the worker",
-        "Each dispatch carries a resolved envelope — the topic, the reason it is being researched, the assigned memory-slice path, the memory root as its own field, the authorized budget, and the nested-spawning capability flag",
+        "Each dispatch carries a resolved envelope — the topic, the reason it is being researched, the assigned memory-slice path, the memory root as its own field, the authorized budget, the nested-spawning capability flag, and Source breadth from this session's caller effort",
         "The main session dispatches the sibling verifier and applies project fit per topic, writing both results back into that topic's index before synthesizing",
         "The main session synthesizes a combined slice-root RESEARCH.md from the per-topic indexes"
       ]
@@ -34,12 +34,12 @@
       "id": 3,
       "name": "isolated-agent-fallback-no-engine",
       "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
-      "expected_output": "With no workflow-engine path and a heavy task, falls back to dispatching one discovery:researcher — the plugin's purpose-built worker, which arrives with the /research discipline preloaded and its effort and turn budget calibrated to it — rather than a bare general-purpose spawn carrying a hand-written copy of that discipline. The dispatch prompt is the envelope only (topic, reason, memory-slice path, memory root, budget, capability flags). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
+      "expected_output": "With no workflow-engine path and a heavy task, falls back to dispatching one discovery:researcher — the plugin's purpose-built worker, which arrives with the /research discipline preloaded and its effort and turn budget calibrated to it — rather than a bare general-purpose spawn carrying a hand-written copy of that discipline. The dispatch prompt is the envelope only (topic, reason, memory-slice path, memory root, budget, capability flags, Source breadth). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
       "files": [],
       "expectations": [
         "Output falls back to an isolated subagent when no workflow engine is available",
         "The subagent is discovery:researcher rather than a bare general-purpose spawn, and is not a read-only Explore agent",
-        "The dispatch prompt carries the resolved envelope (topic, reason, memory-slice path, memory root, budget, capability flags) rather than restating the research discipline, the citation rule, the outcome gate, or the return-payload shape the agent already carries",
+        "The dispatch prompt carries the resolved envelope (topic, reason, memory-slice path, memory root, budget, capability flags, Source breadth) rather than restating the research discipline, the citation rule, the outcome gate, or the return-payload shape the agent already carries",
         "The main session dispatches the sibling verifier against the returned artifact and applies project fit rather than presenting the worker's summary and artifact path directly",
         "The verifier and project-fit results are written back into the artifact index before the result is surfaced"
       ]

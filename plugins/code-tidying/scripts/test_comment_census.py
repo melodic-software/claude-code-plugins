@@ -37,9 +37,22 @@ x=1  # trailing comment
 y="${v#prefix}"
 """
 
-MOD_PY = '''"""Docstring is a string, not a comment."""
-# a comment
+MOD_PY = """# a comment
 x = 1
+"""
+
+# Hash-comment-free: every prose line is a Python docstring (String.Doc). On a
+# census that only counts pygments Comment tokens this file reports 0.
+DOCSTRING_ONLY_PY = '''"""Module docstring the census must count."""
+
+def _watchdog_fire():
+    """Private function docstring spanning
+    a second line of prose.
+    """
+    x = "ordinary double is not a comment"
+    y = 'ordinary single is not a comment'
+    z = """assigned triple quote is not a comment"""
+    return 1
 '''
 
 
@@ -93,10 +106,20 @@ class PygmentsLayer(unittest.TestCase):
         self.assertEqual(sh["comment_lines"], 2, sh)
         self.assertGreater(sh["comment_bytes"], 0)
 
-    def test_docstring_is_not_a_comment(self):
+    def test_hash_comment_in_python_is_still_counted(self):
         rep = self.report()
         py = next(r for r in rep["files"] if r["path"].endswith("m.py"))
         self.assertEqual(py["comment_lines"], 1, py)
+
+    def test_python_docstring_only_file_is_counted(self):
+        (self.tmp / "docs_only.py").write_text(DOCSTRING_ONLY_PY)
+        py = next(
+            r for r in self.report()["files"] if r["path"].endswith("docs_only.py")
+        )
+        # Module docstring (1) plus the three-line function docstring. Ordinary
+        # String / String.Double / String.Single on later lines are not comments.
+        self.assertEqual(py["comment_lines"], 4, py)
+        self.assertGreater(py["comment_bytes"], 0)
 
     def test_markdown_is_never_counted(self):
         rep = self.report()

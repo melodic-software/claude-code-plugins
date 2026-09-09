@@ -6,6 +6,28 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## 1.0.2 — 2026-09-08
+
+Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the
+root resolved in step 1 before the convention doc is read, so an agent whose cwd is not the repo
+root does not open the wrong file.
+
+## 1.0.1 — 2026-09-08
+
+Clarification patch: no key, allowed value, or default changes.
+
+- **Two C4 dialect surfaces (#3910).** `diagram_dialect.system` (the opt-in container view
+  `/planning:design` emits) and `landscape_dialect` (the system landscape
+  `/architecture:map-landscape` emits) are different artifacts, so their defaults may differ. The
+  README now maps both. Mermaid C4 remaining experimental is why the system key still refuses
+  mermaid; it is not a claim that mermaid is unfit for the landscape surface.
+- **Recheck-trigger consequence extended.** The existing four-part mermaid-C4 record (as-of
+  2026-09-06, not refreshed) now also covers whether `landscape_dialect`'s mermaid default should
+  change, and whether `/architecture:map-landscape`'s mermaid output should use a dedicated
+  landscape type instead of a `C4Context` diagram without a focal system. The trigger fires on
+  either the experimental banner dropping or mermaid documenting a dedicated landscape type.
+  Architecture cites that record rather than carrying a second stamp.
+
 ## 1.0.0 — 2026-09-06
 
 First release. Registers the concern, declares both keys, and states the resolution ladder
