@@ -1136,16 +1136,27 @@ _bbh_default_confirmed() {
 }
 
 # 0 when <lexically-matched target> really lands under the plugin data directory
-# once both are resolved through symlinks. The directory is resolved too, so a
-# config dir that is itself a symlink (a relocated `~/.claude`) still matches,
-# and a symlink under the directory that escapes it does not.
+# once both are resolved through symlinks, and NOT under the project root once
+# that is resolved too. The directory is resolved so a config dir that is itself
+# a symlink (a relocated `~/.claude`) still matches, and a symlink under the
+# directory that escapes it does not. The project root is resolved because the
+# gate above compared it lexically: a CLAUDE_PROJECT_DIR that is a symlink whose
+# physical target sits under the plugin data directory passes that gate, yet
+# hook::read_file_path resolves both sides and treats a file there as project
+# content the Write|Edit gates process. The grant path is where the physical
+# compare is affordable, so the project root is confirmed here rather than in
+# the per-session gate.
 _bbh_plugin_data_confirmed() {
-  local target="$1" phys root
+  local target="$1" phys root project
   _bbh_physical_path "$target" || return 1
   phys="${_BBH_PHYS,,}"
   _bbh_physical_path "$_BBH_PLUGIN_DATA_NORM" || return 1
   root="${_BBH_PHYS,,}"
-  [[ -n "$root" && "$phys" == "$root"/* ]]
+  [[ -n "$root" && "$phys" == "$root"/* ]] || return 1
+  _bbh_physical_path "$_BBH_PROJECT_NORM" || return 1
+  project="${_BBH_PHYS,,}"
+  [[ -n "$project" ]] || return 1
+  [[ "$phys" != "$project" && "$phys" != "$project"/* ]]
 }
 
 _scratch_abs_target() {

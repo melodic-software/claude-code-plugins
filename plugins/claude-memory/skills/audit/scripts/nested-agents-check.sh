@@ -85,14 +85,28 @@ nested_agents() {
   ' | LC_ALL=C sort
 }
 
+# Wired = some instruction entry point reaches the file. The sibling CLAUDE.md
+# or CLAUDE.local.md is the prescribed layout, and it is checked first. A
+# CLAUDE.md or CLAUDE.local.md in any ancestor directory, or the root's
+# .claude/CLAUDE.md, is also an entry point: the root ones load at launch and
+# an ancestor's loads when Claude reads under it, and an import from either
+# brings the nested AGENTS.md in with it. A file reached that way loads, so it
+# is not a finding, whatever layout it uses.
 is_wired() {
-  local agents="$1" dir want sibling
+  local agents="$1" dir want entry
   dir="$(dirname "$agents")"
   want="$(il_realpath "$agents")"
-  for sibling in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
-    [[ -f "$sibling" ]] || continue
-    il_reaches "$sibling" "$want" && return 0
+  while :; do
+    for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+      [[ -f "$entry" ]] || continue
+      il_reaches "$entry" "$want" && return 0
+    done
+    [[ "$dir" == "." ]] && break
+    dir="$(dirname "$dir")"
   done
+  if [[ -f ".claude/CLAUDE.md" ]] && il_reaches ".claude/CLAUDE.md" "$want"; then
+    return 0
+  fi
   return 1
 }
 

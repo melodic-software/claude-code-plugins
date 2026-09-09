@@ -8,6 +8,13 @@ SCRIPT="$SCRIPT_DIR/instruction-load-stats.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# The whole-set modes add the user-scope layer, so the host's real config dir
+# must never leak into these expectations: HOME is pinned to an empty fixture
+# home and CLAUDE_CONFIG_DIR is cleared. The user-scope case below sets its own.
+mkdir -p "$TEST_TMPDIR/home"
+export HOME="$TEST_TMPDIR/home"
+unset CLAUDE_CONFIG_DIR
+
 FAILED=0
 CASE_NUM=0
 
@@ -136,7 +143,7 @@ printf 'shared\n' >"$CYC/shared.md"
 OUT=$(cd "$CYC" && bash "$SCRIPT" --breakdown)
 assert_contains "a back-edge is reported as seen" "$OUT" "seen	0	0	CLAUDE.md"
 assert_contains "a missing import is reported" "$OUT" "missing	0	0	gone.md"
-assert_eq "a diamond loads the shared file once" "1" "$(printf '%s\n' "$OUT" | grep -c '^import.*shared.md')"
+assert_eq "a diamond loads the shared file once" "1" "$(printf '%s\n' "$OUT" | grep -c '	import	.*shared.md')"
 assert_contains "a diamond's second edge is reported as seen" "$OUT" "seen	0	0	shared.md"
 OUT=$(cd "$CYC" && bash "$SCRIPT" --lines)
 assert_eq "--lines: root(2) + x(3) + y(3) + shared(1), shared once" "9" "$OUT"
@@ -174,6 +181,38 @@ assert_contains "TOTAL row carries the estimate label" "$OUT" "tokens (bytes/4, 
 # nested.md whole file (frontmatter counts)=40, shared=11 => 100 bytes => 25 tokens.
 OUT=$(cd "$SET" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens is bytes/4 over the expanded set" "25" "$OUT"
+
+# --- Case: the user-scope layer is part of the always-loaded set ---
+# ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and its unscoped rules load in
+# every session of every project, so the whole-set modes count them; their
+# imports expand within the config dir; a path-scoped user rule stays out.
+
+USR="$TEST_TMPDIR/usr"
+make_repo "$USR"
+printf '# Project\n' >"$USR/CLAUDE.md"
+UCFG="$TEST_TMPDIR/cfg"
+mkdir -p "$UCFG/rules/deep" "$UCFG/notes"
+printf '# User\n@notes/prefs.md\n' >"$UCFG/CLAUDE.md"
+printf 'prefs body\n' >"$UCFG/notes/prefs.md"
+printf 'user rule\n' >"$UCFG/rules/deep/always.md"
+printf -- '---\npaths:\n  - "**/*.go"\n---\nscoped\n' >"$UCFG/rules/scoped.md"
+OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --breakdown)
+assert_contains "user CLAUDE.md is a user-scope root" "$OUT" "user	root	2	23	$UCFG/CLAUDE.md"
+assert_contains "a user-scope import expands within the config dir" "$OUT" "user	import	1	11	$UCFG/notes/prefs.md"
+assert_contains "an unscoped user rule is a user-scope root" "$OUT" "user	root	1	10	$UCFG/rules/deep/always.md"
+assert_not_contains "a path-scoped user rule is not in the set" "$OUT" "scoped.md"
+assert_contains "project rows keep the project scope" "$OUT" "project	root	1	10	CLAUDE.md"
+# Bytes: project 10 + user 23 + 11 + 10 = 54 => 13 tokens.
+OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --tokens)
+assert_eq "--tokens covers both scopes" "13" "$OUT"
+# HOME/.claude is the fallback when CLAUDE_CONFIG_DIR is unset.
+mkdir -p "$TEST_TMPDIR/home2/.claude"
+printf '# Home user\n' >"$TEST_TMPDIR/home2/.claude/CLAUDE.md"
+OUT=$(cd "$USR" && HOME="$TEST_TMPDIR/home2" bash "$SCRIPT" --tokens)
+assert_eq "--tokens falls back to HOME/.claude (10 + 12 bytes)" "5" "$OUT"
+# The single-file modes stay project-only: C1 is a per-file check.
+OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --lines)
+assert_eq "--lines is unaffected by the user layer" "1" "$OUT"
 
 # --- Case: CRLF content counts the same as LF ---
 

@@ -378,25 +378,36 @@ if [[ "$SUBCOMMAND" == "reachable" ]]; then
 fi
 
 # One `WIRED|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested AGENTS.md
-# discovery returns. Wired means a CLAUDE.md or CLAUDE.local.md in the same
-# directory IS the file (a symlink) or reaches it through the import chase the
-# rest of this plugin uses. The sibling is read from the filesystem, so a
-# gitignored CLAUDE.local.md shim counts. Returns 1 when any row is UNWIRED.
+# discovery returns. Wired means some instruction entry point IS the file (a
+# symlink) or reaches it through the import chase the rest of this plugin
+# uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed layout,
+# checked first), one in any ancestor directory, or the root's
+# .claude/CLAUDE.md. An import from any of those brings the file into context,
+# so a file reached that way loads and is not a finding. Entry points are read
+# from the filesystem, so a gitignored CLAUDE.local.md shim counts. Returns 1
+# when any row is UNWIRED.
 nested_agents_wiring() {
-  local nested dir want sibling wired unwired=0
+  local nested dir want entry wired unwired=0
   while IFS= read -r nested; do
     [[ -n "$nested" ]] || continue
     [[ "$(basename "$nested")" == "AGENTS.md" ]] || continue
     dir="$(dirname "$nested")"
     want="$(ip_realpath "$nested")"
     wired=""
-    for sibling in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
-      [[ -f "$sibling" ]] || continue
-      if _ip_reaches "$sibling" "$want" 0; then
-        wired="$sibling"
-        break
-      fi
+    while :; do
+      for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+        [[ -f "$entry" ]] || continue
+        if _ip_reaches "$entry" "$want" 0; then
+          wired="$entry"
+          break 2
+        fi
+      done
+      [[ "$dir" == "." ]] && break
+      dir="$(dirname "$dir")"
     done
+    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]] && _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
+      wired=".claude/CLAUDE.md"
+    fi
     if [[ -n "$wired" ]]; then
       printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
     else

@@ -361,8 +361,11 @@ commit_all "$wiring"
 out="$(run wiring --root "$wiring")"
 assert_contains "wiring reports the bare nested AGENTS.md as UNWIRED" "$out" "UNWIRED	bare/AGENTS.md"
 assert_contains "wiring reports the shimmed one as WIRED" "$out" "WIRED	shimmed/AGENTS.md"
+assert_not_contains "the shimmed one is not UNWIRED" "$out" "UNWIRED	shimmed/AGENTS.md"
 assert_contains "a symlinked CLAUDE.md counts as wired" "$out" "WIRED	linked/AGENTS.md"
+assert_not_contains "the symlinked one is not UNWIRED" "$out" "UNWIRED	linked/AGENTS.md"
 assert_contains "a gitignored CLAUDE.local.md shim counts as wired" "$out" "WIRED	localonly/AGENTS.md"
+assert_not_contains "the local-shim one is not UNWIRED" "$out" "UNWIRED	localonly/AGENTS.md"
 assert_not_contains "the root AGENTS.md is not a wiring row" "$out" "	AGENTS.md	"
 run wiring --root "$wiring" >/dev/null 2>&1
 assert_eq "any UNWIRED row exits 1" "1" "$?"
@@ -389,6 +392,39 @@ out="$(run wiring --root "$nonested")"
 assert_eq "no nested AGENTS.md prints no rows" "" "$out"
 run wiring --root "$nonested" >/dev/null 2>&1
 assert_eq "no nested AGENTS.md exits 0" "0" "$?"
+
+# An import from the root CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor
+# directory's CLAUDE.md brings the nested file into context too, so those are
+# entry points as well; and the loader follows four hops, not five.
+entry="$(mktemp -d)"
+git -C "$entry" init -q .
+mkdir -p "$entry/.claude" "$entry/byroot" "$entry/bydot" "$entry/anc/leaf" "$entry/five"
+printf '@AGENTS.md\n@byroot/AGENTS.md\n' >"$entry/CLAUDE.md"
+printf '# Root\n' >"$entry/AGENTS.md"
+# A relative import resolves against the importing file's own directory, so the
+# root .claude/CLAUDE.md reaches a sibling-of-root tree through `../`.
+printf '@../bydot/AGENTS.md\n' >"$entry/.claude/CLAUDE.md"
+printf '# By root\n' >"$entry/byroot/AGENTS.md"
+printf '# By dot\n' >"$entry/bydot/AGENTS.md"
+printf '@leaf/AGENTS.md\n' >"$entry/anc/CLAUDE.md"
+printf '# Leaf\n' >"$entry/anc/leaf/AGENTS.md"
+printf '@h1.md\n' >"$entry/five/CLAUDE.md"
+printf '@h2.md\n' >"$entry/five/h1.md"
+printf '@h3.md\n' >"$entry/five/h2.md"
+printf '@h4.md\n' >"$entry/five/h3.md"
+printf '@AGENTS.md\n' >"$entry/five/h4.md"
+printf '# Five\n' >"$entry/five/AGENTS.md"
+commit_all "$entry"
+out="$(run wiring --root "$entry")"
+# `UNWIRED` contains `WIRED`, so a wired assertion is the pair: the row is
+# present AND it is not the UNWIRED spelling.
+assert_contains "an import from the root CLAUDE.md wires a nested file" "$out" "WIRED	byroot/AGENTS.md"
+assert_not_contains "the root-imported file is not UNWIRED" "$out" "UNWIRED	byroot/AGENTS.md"
+assert_contains "an import from the root .claude/CLAUDE.md wires a nested file" "$out" "WIRED	bydot/AGENTS.md"
+assert_not_contains "the .claude-imported file is not UNWIRED" "$out" "UNWIRED	bydot/AGENTS.md"
+assert_contains "an import from an ancestor CLAUDE.md wires a nested file" "$out" "WIRED	anc/leaf/AGENTS.md"
+assert_not_contains "the ancestor-imported file is not UNWIRED" "$out" "UNWIRED	anc/leaf/AGENTS.md"
+assert_contains "a fifth-hop import does not wire it" "$out" "UNWIRED	five/AGENTS.md"
 
 # --------------------------------------------------------------------------
 # Size posture — the index must not become the bloat it exists to remove

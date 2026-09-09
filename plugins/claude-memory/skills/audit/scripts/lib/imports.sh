@@ -85,12 +85,15 @@ il_realpath() {
 }
 
 # 0 when <from> is <want> (a symlinked CLAUDE.md counts) or reaches it through at
-# most four import hops.
+# most four import hops. <from> sits at hop <depth>, so its imports are hop
+# depth + 1, and the loader follows hops one through four: a file at hop four may
+# still BE the target, but its imports are hop five and are never loaded, so they
+# are not examined. This is the same bound il_walk reports as `depth`.
 il_reaches() {
   local from="$1" want="$2" depth="${3:-0}" imported real
-  ((depth > 4)) && return 1
   [[ -f "$from" ]] || return 1
   [[ "$(il_realpath "$from")" == "$want" ]] && return 0
+  ((depth >= 4)) && return 1
   while IFS= read -r imported; do
     [[ -z "$imported" ]] && continue
     real="$(il_realpath "$imported")"

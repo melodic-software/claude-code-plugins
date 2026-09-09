@@ -496,7 +496,7 @@ Present findings as a deterministic report:
 - FAIL: X findings
 - WARN: X findings
 - INFO: X findings
-- Estimated context cost: ~X tokens (bytes / 4 over the always-loaded set, `instruction-load-stats.sh --tokens`; an estimate, never a measurement. When the `context-budget` plugin is installed, `/context-budget:audit` measures it)
+- Estimated context cost: ~X tokens (bytes / 4 over the always-loaded set in both scopes, project and user, `instruction-load-stats.sh --tokens`; an estimate, never a measurement. When the `context-budget` plugin is installed, `/context-budget:audit` measures it)
 
 ### FAIL findings (must fix)
 | # | Check | File | Finding |

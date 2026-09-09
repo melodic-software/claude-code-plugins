@@ -1724,6 +1724,24 @@ run_cwd "plugin data: fires on its own when the temp default stands down (allowe
   "echo hello > $PD_REAL_CFG/plugins/data/r/report.md" "$PD_PROJ" 0 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
 run_cwd "plugin data: symlink escape into the repository blocks" \
   "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+# The reverse escape: a CLAUDE_PROJECT_DIR that is a symlink whose physical
+# target sits UNDER the plugin data directory. The lexical gate sees a project
+# root that does not contain the directory and enables the default, but
+# hook::read_file_path resolves both sides and treats a file there as project
+# content the Write|Edit gates process, so the confirm step must resolve the
+# project root too and refuse a target under it.
+PD_INNER="$PD_REAL_CFG/plugins/data/projreal"
+PD_LINK="/tmp/bhb-plugin-data-projlink-$$"
+mkdir -p "$PD_INNER/src"
+rm -f "$PD_LINK"
+ln -s "$PD_INNER" "$PD_LINK"
+run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
+  "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+# A sibling report directory under the same plugin data root is still exempt:
+# the refusal is scoped to the project's own physical subtree, not the root.
+run_cwd "plugin data: a report beside the symlinked project is still allowed" \
+  "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+rm -f "$PD_LINK"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 
 # --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------

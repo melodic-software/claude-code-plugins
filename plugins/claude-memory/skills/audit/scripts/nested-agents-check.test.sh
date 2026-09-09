@@ -123,6 +123,57 @@ printf 'untracked\n' >"$REPO/untracked/AGENTS.md"
 OUT=$(cd "$REPO" && bash "$SCRIPT" --count)
 assert_eq "untracked files are outside discovery" "0" "$OUT"
 
+# --- Case 6a: a root or ancestor CLAUDE.md that imports the file wires it ---
+# The sibling shim is the prescribed layout, but an import from the root
+# CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor directory's CLAUDE.md
+# brings the file into context too. A file that loads is not a finding.
+
+ENTRY="$TEST_TMPDIR/entry"
+make_repo "$ENTRY"
+mkdir -p "$ENTRY/.claude" "$ENTRY/byroot" "$ENTRY/bydotclaude" "$ENTRY/anc/mid/leaf" "$ENTRY/still-bare"
+printf '# Root\n@byroot/AGENTS.md\n' >"$ENTRY/CLAUDE.md"
+# A relative import resolves against the importing file's own directory, so the
+# root .claude/CLAUDE.md reaches a sibling-of-root tree through `../`.
+printf '@../bydotclaude/AGENTS.md\n' >"$ENTRY/.claude/CLAUDE.md"
+printf 'byroot\n' >"$ENTRY/byroot/AGENTS.md"
+printf 'bydotclaude\n' >"$ENTRY/bydotclaude/AGENTS.md"
+printf '# Ancestor\n@mid/leaf/AGENTS.md\n' >"$ENTRY/anc/CLAUDE.md"
+printf 'leaf\n' >"$ENTRY/anc/mid/leaf/AGENTS.md"
+printf 'still bare\n' >"$ENTRY/still-bare/AGENTS.md"
+commit_all "$ENTRY"
+
+OUT=$(cd "$ENTRY" && bash "$SCRIPT")
+assert_not_contains "an import from the root CLAUDE.md wires it" "$OUT" "byroot/AGENTS.md"
+assert_not_contains "an import from the root .claude/CLAUDE.md wires it" "$OUT" "bydotclaude/AGENTS.md"
+assert_not_contains "an import from an ancestor CLAUDE.md wires it" "$OUT" "anc/mid/leaf/AGENTS.md"
+assert_contains "a file no entry point imports is still a finding" "$OUT" "FAIL [N1]: still-bare/AGENTS.md"
+OUT=$(cd "$ENTRY" && bash "$SCRIPT" --count)
+assert_eq "--count == 1 with three entry-point-wired files" "1" "$OUT"
+
+# --- Case 6b: the four-hop import limit is the loader's, not one more ---
+# CLAUDE.md -> h1 -> h2 -> h3 -> AGENTS.md is four hops and loads;
+# CLAUDE.md -> h1 -> h2 -> h3 -> h4 -> AGENTS.md is five and does not.
+
+HOPS="$TEST_TMPDIR/hops"
+make_repo "$HOPS"
+mkdir -p "$HOPS/four" "$HOPS/five"
+printf '@h1.md\n' >"$HOPS/four/CLAUDE.md"
+printf '@h2.md\n' >"$HOPS/four/h1.md"
+printf '@h3.md\n' >"$HOPS/four/h2.md"
+printf '@AGENTS.md\n' >"$HOPS/four/h3.md"
+printf 'four\n' >"$HOPS/four/AGENTS.md"
+printf '@h1.md\n' >"$HOPS/five/CLAUDE.md"
+printf '@h2.md\n' >"$HOPS/five/h1.md"
+printf '@h3.md\n' >"$HOPS/five/h2.md"
+printf '@h4.md\n' >"$HOPS/five/h3.md"
+printf '@AGENTS.md\n' >"$HOPS/five/h4.md"
+printf 'five\n' >"$HOPS/five/AGENTS.md"
+commit_all "$HOPS"
+
+OUT=$(cd "$HOPS" && bash "$SCRIPT")
+assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
+assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
+
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 
 NONE="$TEST_TMPDIR/none"

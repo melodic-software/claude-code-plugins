@@ -18,10 +18,13 @@
 #
 # The always-loaded set for --tokens and --breakdown is every root memory file
 # that exists (CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md) plus every
-# `.claude/rules/**/*.md` without `paths:` frontmatter, each with its imports
-# expanded. A file reached from two roots is counted once. An import that resolves
-# outside the repository is listed as `external` and never expanded: the loader
-# gates those behind an approval dialog whose answer this script cannot see.
+# `.claude/rules/**/*.md` without `paths:` frontmatter, and the same two shapes
+# in the user scope (${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and its
+# rules/), which load in every session of every project. Each root has its
+# imports expanded. A file reached from two roots is counted once. A project
+# import that resolves outside the repository is listed as `external` and never
+# expanded: the loader gates those behind an approval dialog whose answer this
+# script cannot see. A user-scope import is expanded within the config dir.
 #
 # OUTPUT CONTRACT: --lines, --bytes, and --tokens print exactly one integer and
 # always exit 0 (a missing file reports 0), because the pre-compute lines that
@@ -92,7 +95,11 @@ done
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 [[ -n "$repo_root" ]] || repo_root="$PWD"
 cd "$repo_root" || exit 2
-IL_ROOT="$(il_realpath "$repo_root")"
+PROJECT_ROOT="$(il_realpath "$repo_root")"
+# The external-import boundary for the walk in progress: the repository for
+# project-scope roots, the config dir for user-scope ones (a user file's imports
+# load without the approval dialog, so they are expanded).
+IL_ROOT="$PROJECT_ROOT"
 export IL_ROOT
 
 # Loaded content of one file: LF-normalized, block-level HTML comments removed
@@ -129,17 +136,35 @@ loaded_content() {
 count_lines() { loaded_content "$1" | grep -c '[^[:space:]]'; }
 count_bytes() { loaded_content "$1" | wc -c; }
 
-# The always-loaded roots, repo-relative, one per line.
-always_loaded_roots() {
-  local f
-  for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
-    [[ -f "$f" ]] && printf '%s\n' "$f"
-  done
-  [[ -d .claude/rules ]] || return 0
+# The always-loaded roots of one scope: the scope's CLAUDE.md files that exist,
+# then its unscoped rules. One `<scope>\t<path>` per line. The project scope is
+# the repository; the user scope is ${CLAUDE_CONFIG_DIR:-$HOME/.claude}, whose
+# CLAUDE.md and rules load in every session of every project (memory doc, "User
+# instructions" and "User-level rules"), so an estimate of the always-loaded set
+# that omitted them would be systematically low wherever that layer is non-empty.
+# A file both scopes reach (a repository rooted at `~`) is counted once, by
+# physical path, in the walk below.
+scope_roots() {
+  local scope="$1" base="$2" f
+  if [[ "$scope" == "project" ]]; then
+    for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
+      [[ -f "$f" ]] && printf '%s\t%s\n' "$scope" "$f"
+    done
+  else
+    [[ -f "$base/CLAUDE.md" ]] && printf '%s\t%s\n' "$scope" "$base/CLAUDE.md"
+  fi
+  [[ -d "$base/rules" ]] || return 0
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
-    is_unscoped_rule "$f" && printf '%s\n' "$f"
-  done < <(find .claude/rules -name '*.md' -type f 2>/dev/null | LC_ALL=C sort)
+    is_unscoped_rule "$f" && printf '%s\t%s\n' "$scope" "$f"
+  done < <(find "$base/rules" -name '*.md' -type f 2>/dev/null | LC_ALL=C sort)
+}
+
+always_loaded_roots() {
+  scope_roots project .claude
+  local user_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+  [[ -n "${CLAUDE_CONFIG_DIR:-}${HOME:-}" && -d "$user_dir" ]] || return 0
+  scope_roots user "$user_dir"
 }
 
 # A rule loads unconditionally unless its frontmatter declares `paths:`.
@@ -153,7 +178,7 @@ is_unscoped_rule() {
 
 relpath() {
   local p="$1"
-  [[ "$p" == "$IL_ROOT"/* ]] && p="${p#"$IL_ROOT"/}"
+  [[ "$p" == "$PROJECT_ROOT"/* ]] && p="${p#"$PROJECT_ROOT"/}"
   printf '%s' "$p"
 }
 
@@ -191,8 +216,13 @@ declare -A counted=()
 rows=()
 lines_total=0
 bytes_total=0
-while IFS= read -r root; do
+while IFS=$'\t' read -r scope root; do
   [[ -n "$root" ]] || continue
+  if [[ "$scope" == "user" ]]; then
+    IL_ROOT="$(il_realpath "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}")"
+  else
+    IL_ROOT="$PROJECT_ROOT"
+  fi
   while IFS=$'\t' read -r status path; do
     [[ -n "$path" ]] || continue
     case "$status" in
@@ -203,17 +233,18 @@ while IFS= read -r root; do
       b=$(count_bytes "$path")
       lines_total=$((lines_total + l))
       bytes_total=$((bytes_total + b))
-      rows+=("$(printf '%s\t%s\t%s\t%s' "$status" "$l" "$b" "$(relpath "$path")")")
+      rows+=("$(printf '%s\t%s\t%s\t%s\t%s' "$scope" "$status" "$l" "$b" "$(relpath "$path")")")
       ;;
     *)
       key="$status $path"
       [[ -n "${counted[$key]:-}" ]] && continue
       counted[$key]=1
-      rows+=("$(printf '%s\t0\t0\t%s' "$status" "$(relpath "$path")")")
+      rows+=("$(printf '%s\t%s\t0\t0\t%s' "$scope" "$status" "$(relpath "$path")")")
       ;;
     esac
   done < <(il_walk "$root")
 done < <(always_loaded_roots)
+IL_ROOT="$PROJECT_ROOT"
 
 tokens=$((bytes_total / 4))
 if [[ "$mode" == "--tokens" ]]; then
@@ -221,7 +252,7 @@ if [[ "$mode" == "--tokens" ]]; then
   exit 0
 fi
 
-printf 'status\tlines\tbytes\tpath\n'
+printf 'scope\tstatus\tlines\tbytes\tpath\n'
 for row in ${rows[@]+"${rows[@]}"}; do printf '%s\n' "$row"; done
 printf 'TOTAL\t%s\t%s\t~%s tokens (bytes/4, estimate)\n' "$lines_total" "$bytes_total" "$tokens"
 exit 0
