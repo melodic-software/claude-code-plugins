@@ -76,3 +76,14 @@ scripts/context-zone.sh
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
+
+# No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
+# skill's contributor AGENTS.md, carried by every plugin whose audit skill
+# keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what
+# makes the conventions load). The copies are identical by construction, not
+# by sync, so this script's own --check is the gate. Canonical copy:
+# plugins/machine-health/skills/audit/CLAUDE.md; copy it beside another audit
+# skill's AGENTS.md to fix a drift failure. A shim that later gains
+# Claude-specific content below its import is a legitimate divergence: remove
+# this line rather than re-align the copies.
+skills/audit/CLAUDE.md
