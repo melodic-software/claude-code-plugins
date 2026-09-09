@@ -20,7 +20,7 @@
 #   probe-observability-state.sh --otel-store
 #   probe-observability-state.sh --pipeline [--root <rel-dir>] [--enabled <v>]
 #       [--categories <v>] [--keep-sessions <n>] [--keep-days <n>]
-#       [--pre-prune-command <v>]
+#       [--pre-prune-command <v>] [--observed]
 #
 # --root is the hook log root, project-relative: the plugin's
 # session_event_log_dir option. Absent, empty, or still an unexpanded
@@ -88,6 +88,7 @@ usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOU
 unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
 
 MODE=""
+OBSERVED=0
 ROOT_ARG=""
 ENABLED_ARG=""
 CATEGORIES_ARG=""
@@ -102,6 +103,10 @@ while (($#)); do
       exit 3
     fi
     MODE="$1"
+    shift
+    ;;
+  --observed)
+    OBSERVED=1
     shift
     ;;
   --root | --enabled | --categories | --keep-sessions | --keep-days | --pre-prune-command)
@@ -285,6 +290,15 @@ case "$MODE" in
     envelope_rows=$((envelope_rows + $(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')))
   fi
   ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
+
+  # --observed: the caller has no option values (the skill's pre-compute line,
+  # which can carry no ${user_config.*}), so the sixth line stops at what the
+  # filesystem shows and names the call that renders the option tier, rather
+  # than printing manifest defaults a reader could take for the effective state.
+  if ((OBSERVED)); then
+    printf 'envelope: %s; options: rendered by the section 2.6 re-run, not here\n' "$envelope"
+    exit 0
+  fi
 
   # The six options as rendered, defaults applied where unset.
   logging="off"
