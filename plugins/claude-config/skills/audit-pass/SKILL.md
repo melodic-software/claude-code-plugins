@@ -158,7 +158,7 @@ name it in `skipped`. Then `/memory`, `/skills`, `/hooks`, `/mcp`, `/permissions
 
 **`InstructionsLoaded` is normally UNAVAILABLE, and the run says so rather than requiring it.** This
 plugin wires no `InstructionsLoaded` hook, the only producer in this marketplace
-(`claude-ops/hooks/instructions-loaded-audit.sh`) is optional, is a no-op without a telemetry sink,
+(the InstructionsLoaded row of `claude-ops/hooks/audit-event-emitter.sh`) is optional, is a no-op without a telemetry sink,
 and drops `session_start` events by default, and the startup events this skill would need have
 already fired before it is invoked, so there is nothing to subscribe to at dispatch time even where a
 producer exists. Requiring data the plugin never records would make the memory-layer liveness

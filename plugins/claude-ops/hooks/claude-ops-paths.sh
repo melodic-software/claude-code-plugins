@@ -157,7 +157,7 @@ claude_ops::ensure_git_exclude() {
 
 # Append one SkillUse line to the scope-selected skill-usage.jsonl store. The
 # shared body of the two producers (skill-usage-audit.sh on PostToolUse/Skill,
-# skill-usage-expansion-audit.sh on UserPromptExpansion): resolve the configured
+# audit-event-emitter.sh's UserPromptExpansion row): resolve the configured
 # destination, re-verify it after mkdir, keep git status clean in the repo
 # scope, and write the row. Best-effort throughout; every skip is surfaced once
 # per session via hook::notice_once markers keyed "<notice_prefix>-badscope /

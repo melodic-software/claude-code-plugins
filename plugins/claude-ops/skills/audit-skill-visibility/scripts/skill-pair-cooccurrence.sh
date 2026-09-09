@@ -2,7 +2,8 @@
 # skill-pair-cooccurrence.sh — does skill B get invoked where skill A ran?
 #
 # Reads a `skill-usage.jsonl` store (SkillUse events, written by claude-ops'
-# skill-usage-audit.sh / skill-usage-expansion-audit.sh) and reports, for an
+# skill-usage-audit.sh and the UserPromptExpansion row of audit-event-emitter.sh)
+# and reports, for an
 # ordered pair CALLER,CALLEE: across the groups where CALLER fired, in what
 # fraction did CALLEE also fire, and in which order.
 #

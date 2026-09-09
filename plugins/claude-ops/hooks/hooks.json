@@ -1,12 +1,12 @@
 {
-  "description": "Records session observability telemetry: nine audit hooks (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, plus the default-off per-session hook event log on every observable documented event and its SessionEnd retention.",
+  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts, plus the default-off per-session hook event log on every observable documented event and its SessionEnd retention.",
   "hooks": {
     "StopFailure": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/api-error-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording API-error telemetry..."
           }
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/config-change-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording config-change telemetry..."
           }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/instructions-loaded-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording instructions-loaded telemetry..."
           }
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-denied-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording permission-denied telemetry..."
           }
@@ -95,7 +95,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-compact-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording pre-compact telemetry..."
           }
@@ -140,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-expansion-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording skill-usage-expansion telemetry..."
           }
@@ -163,7 +163,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/tool-failure-audit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
             "timeout": 5,
             "statusMessage": "Recording tool-failure telemetry..."
           }
