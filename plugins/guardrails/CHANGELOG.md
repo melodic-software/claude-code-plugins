@@ -9,6 +9,30 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **block-hook-bypass:** the plugin data directory (`<config dir>/plugins/data`, the config dir being `CLAUDE_CONFIG_DIR` or `~/.claude`) is a second shipped scratch-root default beside the host temp trees. A plugin persisting its report there via a shell redirect was blocked as a Write|Edit bypass, yet the Write|Edit content gates decline every file outside the project root, so the redirect bypassed nothing. Gated on `CLAUDE_PROJECT_DIR` naming a project root that does not contain the directory (a `~`-rooted project keeps the block), and confirmed through symlink resolution of the target, the directory, and the project root, so a project root symlinked into the directory keeps the block too; the configured `block_hook_bypass_scratch_roots` list still adds to it.
 
+## [0.32.23]
+
+### Added
+
+- **`hooks/coverage.json` declares what the guards block, so an audit reads it
+  instead of a guard's source.** The `claude-config` plugin's `audit` skill
+  demotes a missing baseline deny pattern to `info` when a live `PreToolUse`
+  hook already blocks that command family, and until now it had to read the
+  guard by hand to learn which families and patterns that covers. The manifest
+  states it: one entry per guard with the event and matcher it runs on, the
+  baseline families and the exact permission patterns it blocks by default,
+  and the levers that narrow or switch it off, so the audit can cite the
+  manifest and name the residual. The first entry is `block-dangerous-git`
+  covering `destructive-bash-deny` (the eight `git push --force` / `-f`,
+  `git reset --hard`, and `git clean -f` / `-fd` patterns) with
+  `block_dangerous_git_enabled` and `block_dangerous_git_allow` as its levers.
+  `secret-pattern-detection` is not listed: it runs on `Write|Edit`, so it
+  does not cover the `Read`-pattern `sensitive-file-deny` family. Nothing
+  covers `ask-rules`. The file is data, never executed, and adds no per-call
+  latency: no `hooks.json` row changes. `coverage-manifest.test.sh` pins it to
+  the guards it describes: every hook path exists and is registered, every
+  event is one `hooks.json` declares, every family and pattern is one the
+  baseline lists, and every lever is a documented option.
+
 ## [0.32.22]
 
 ### Changed
