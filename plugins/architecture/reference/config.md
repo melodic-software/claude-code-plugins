@@ -59,6 +59,37 @@ An unknown key, or a `landscape_dialect` value outside the two above, is reporte
 `/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
 never coerced to the default.
 
+## C4 dialect surfaces
+
+This plugin owns one C4-shaped artifact. The authoring-formats convention owns another. They keep
+separate keys, separate allowed values, and separate defaults because they are different artifacts,
+not because they disagree about mermaid.
+
+| Artifact | Key | Owner | Allowed values | Default | Emitter |
+|---|---|---|---|---|---|
+| C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
+`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
+already emits; it does not add a new deliverable.
+
+`diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
+key would add an artifact a consumer never asked for, which is why the key is unset unless the team
+names a dialect.
+
+Mermaid C4 being experimental is why the authoring-formats system key refuses mermaid as a value. It
+is not a claim that mermaid is unfit for this landscape surface, whose allowed set is
+`structurizr | mermaid`.
+
+The mermaid-C4 experimental fact and its recheck trigger live in the authoring-formats convention
+([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
+This document does not carry a second stamp. That trigger fires when the experimental banner
+drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
+key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
+should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
+and record the outcomes in this plugin's `CHANGELOG.md`.
+
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer

@@ -79,7 +79,7 @@ case "$cmd" in
 rev-parse)
   case "${1:-}" in
   --git-dir)
-    # Gate for melodic.worktreeroot reads (#2606).
+    # Gate for worktree-root git-config reads.
     case "$base" in
     discovered-a | canonical-a | repo-b | old-repo | wt-old | bad-discovered | bad-canonical | \
       wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | visible-repo | \
@@ -467,15 +467,30 @@ log)
   esac
   ;;
 config)
-  if [[ "${1:-}" == "--get-all" && "${2:-}" == "--show-origin" && "${3:-}" == "--type=path" &&
-    "${4:-}" == "melodic.worktreeroot" ]]; then
-    if [[ -n "${MOCK_MELODIC_WORKTREE_ROOT:-}" ]]; then
-      printf 'file:%s/mock-gitconfig\t%s\n' "$TEST_ROOT" "$MOCK_MELODIC_WORKTREE_ROOT"
-      exit 0
-    fi
-    exit 1
+  key=""
+  show_origin=0
+  for a in "$@"; do
+    key="$a"
+    [[ "$a" == "--show-origin" ]] && show_origin=1
+  done
+  mock=""
+  if [[ "$key" == "worktreeroot.path" ]]; then
+    mock="${MOCK_WORKTREEROOT_PATH:-}"
+  elif [[ "$key" == "melodic.worktreeroot" ]]; then
+    mock="${MOCK_MELODIC_WORKTREE_ROOT:-}"
+  else
+    "$REAL_GIT" config "$@"
+    exit $?
   fi
-  "$REAL_GIT" config "$@"
+  if [[ -n "$mock" ]]; then
+    if ((show_origin)); then
+      printf 'file:%s/mock-gitconfig\t%s\n' "$TEST_ROOT" "$mock"
+    else
+      printf '%s\n' "$mock"
+    fi
+    exit 0
+  fi
+  exit 1
   ;;
 *) exit 96 ;;
 esac
@@ -781,7 +796,7 @@ assert_contains "unset worktree root reports placement without asserting a conve
   "Finding: worktree-root-unconfigured"
 assert_contains "fleet unconfigured rollup is present" "Target: fleet"
 assert_contains "header names worktree root unset" \
-  "Worktree root: unset (no melodic.worktreeroot git key and no source-control worktree_root"
+  "Worktree root: unset (no worktreeroot.path git key and no source-control worktree_root"
 assert_contains "a registered path that is not a work-tree root is reported" "Finding: worktree-not-a-root"
 assert_contains "a failed root-ness probe is UNKNOWN, not a silent pass" \
   "Finding: worktree-root-unverifiable"
@@ -1471,7 +1486,7 @@ assert_not_contains_file "no merged-remote claim without GitHub evidence" "Findi
 
 # --- #2606 worktree-root conformance ------------------------------------------
 # Separate fixture so the main fleet run stays on the unset-root path. Configured
-# root comes from melodic.worktreeroot (mocked); linked worktrees cover conforming,
+# root comes from the legacy alias (mocked); linked worktrees cover conforming,
 # outside-root, wrong-layout, rename-after-create (still conforming), and Codex tool-owned.
 mkdir -p "$TMP/conform-root" \
   "$TMP/conform-canon/.git" \
@@ -1486,10 +1501,30 @@ MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
 
-assert_contains_file "header names configured melodic worktree root" \
-  "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
+assert_contains_file "header names configured worktree root from a retired alias" \
+  "Worktree root: $TMP/conform-root (source: worktreeroot.path" "$conform_out"
 assert_contains_file "origin attribution uses --show-origin file: form" \
   "origin: file:$TMP/mock-gitconfig" "$conform_out"
+
+newkey_out="$TMP/newkey-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$newkey_out" 2>&1 || true
+assert_contains_file "header names configured worktreeroot.path" \
+  "Worktree root: $TMP/conform-root (source: worktreeroot.path" "$newkey_out"
+
+bothkey_out="$TMP/bothkey-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/conform-root" MOCK_MELODIC_WORKTREE_ROOT="$TMP/other-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$bothkey_out" 2>&1 || true
+assert_contains_file "worktreeroot.path wins when both keys are mocked" \
+  "source: worktreeroot.path" "$bothkey_out"
+if grep -Fq "source: melodic.worktreeroot" "$bothkey_out"; then
+  printf 'FAIL: legacy source leaked when worktreeroot.path was set\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: legacy source does not win when worktreeroot.path is set\n'
+fi
 assert_contains_file "outside-root finding for flat sibling" \
   "Finding: worktree-outside-configured-root" "$conform_out"
 assert_contains_file "outside-root names expected location" \
@@ -1580,12 +1615,12 @@ unset MOCK_MELODIC_WORKTREE_ROOT
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" \
   HOME="$TMP/settings-home" CLAUDE_CONFIG_DIR="$TMP/settings-home/.claude" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$plugin_out" 2>&1 || true
-assert_contains_file "pluginConfigs worktree_root is used when melodic key unset" \
+assert_contains_file "pluginConfigs worktree_root is used when git key unset" \
   "source: source-control:worktree_root" "$plugin_out"
 assert_contains_file "pluginConfigs origin names settings.json" \
   "settings.json" "$plugin_out"
 
-# Convention-git allowlist: only the fixed melodic.worktreeroot shape is admitted.
+# Convention-git allowlist: only the fixed worktree-root shapes are admitted.
 # shellcheck source=audit-fleet.sh
 source "$SCRIPT"
 conv_ok=true
@@ -1597,7 +1632,7 @@ if [[ "$conv_ok" != "true" || "$conv_rejected" != "true" ]]; then
   printf 'FAIL: convention git allowlist admitted a forbidden probe or rejected the gate\n' >&2
   failures=$((failures + 1))
 else
-  printf 'PASS: convention git allowlist admits gate+melodic read and rejects other config\n'
+  printf 'PASS: convention git allowlist admits gate+worktree-root read and rejects other config\n'
 fi
 if MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   run_convention_git -C "$TMP/conform-canon" config --get-all --show-origin --type=path melodic.worktreeroot |
@@ -1605,6 +1640,14 @@ if MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   printf 'PASS: convention git returns mocked melodic.worktreeroot\n'
 else
   printf 'FAIL: convention git did not return mocked melodic.worktreeroot\n' >&2
+  failures=$((failures + 1))
+fi
+if MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
+  run_convention_git -C "$TMP/conform-canon" config --get-all --type=path worktreeroot.path |
+  grep -Fq "$TMP/conform-root"; then
+  printf 'PASS: convention git returns mocked worktreeroot.path\n'
+else
+  printf 'FAIL: convention git did not return mocked worktreeroot.path\n' >&2
   failures=$((failures + 1))
 fi
 

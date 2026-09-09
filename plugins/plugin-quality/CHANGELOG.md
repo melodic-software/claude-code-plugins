@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.12]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** synced from claude-config. A UTF-8 BOM immediately before
+  the BEGIN marker is stripped when scanning the marker line, so a Windows-authored pointer region
+  still resolves.
+
 ## [0.7.11]
 
 ### Changed

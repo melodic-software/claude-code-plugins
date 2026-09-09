@@ -30,7 +30,7 @@ Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
-Six fields. The agent refuses to guess any of them, which is what makes the envelope safe to
+Six shared fields. The agent refuses to guess any of them, which is what makes the envelope safe to
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
@@ -46,6 +46,20 @@ Memory root: <memory_dir>
 Budget: <the depth this session authorized>
 Capability flags: nested spawning <available|unavailable>
 ```
+
+**Research adds one more labelled line**, because source breadth is the caller's level and
+the researcher lane is pinned `high` for reasoning:
+
+```text
+Source breadth: <low|medium|high|xhigh|max>
+```
+
+The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
+dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+and trace-intent do not write this line. A research worker that does not receive it treats
+the run as `high` and names that default in the artifact, the same fallback as an
+unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"`${CLAUDE_EFFORT}` is the loading context's level".
 
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
@@ -180,16 +194,18 @@ claim, not a fact — say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Six harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Seven harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
-them repeats a basis. Every record below was verified against Claude Code 2.1.263 with the pages
-named, fetched 2026-09-06.
+them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
+named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
+fetched 2026-09-08.
 
-**One shared recheck trigger covers all six:** any of the named pages stops carrying the quoted
-span, a release note names subagent tool filtering, skill preloading, background execution, or
-subagent spawn permissions, or the CLI major version moves. On any of those, re-fetch the page
-before restating the record, and re-date this section rather than editing a claim in place.
+**One shared recheck trigger covers all seven:** any of the named pages stops carrying the quoted
+span, a release note names subagent tool filtering, skill preloading, background execution,
+subagent spawn permissions, or effort substitution, or the CLI major version moves. On any of
+those, re-fetch the page before restating the record, and re-date this section rather than
+editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
 
@@ -244,6 +260,24 @@ tool to call rather than a call that comes back denied, while "A fork at the lim
 its inherited tool list, but the tool returns an error instead of spawning." *One bound worth
 carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
 it, but "any type list inside the parentheses is ignored".
+
+### `${CLAUDE_EFFORT}` is the loading context's level
+
+*Claim.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the skill
+(`low`, `medium`, `high`, `xhigh`, or `max`; Ultracode reports as `xhigh`). A skill or
+subagent frontmatter `effort` pin overrides the session level while that lane is active, so a
+skill preloaded into a pinned worker expands the pin, not the parent's session level. A body
+Read from disk is unsubstituted: the placeholder remains the literal characters. *Basis.*
+[Skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions):
+"`${CLAUDE_EFFORT}` | The current effort level: `low`, `medium`, `high`, `xhigh`, or `max`.
+Ultracode is not a distinct level and reports as `xhigh`." [Skills: frontmatter
+reference](https://code.claude.com/docs/en/skills#frontmatter-reference): `effort` "Overrides
+the session effort level." [Create custom subagents](https://code.claude.com/docs/en/sub-agents):
+the agent-frontmatter `effort` field "Overrides the session effort level. Default: inherits
+from session." *Why the plugin cares.* `/discovery:research` scales source breadth by caller
+effort, and `discovery:researcher` is pinned `high` so reasoning does not degrade inside a
+session tuned down for cost. The worker's substituted value is therefore the pin. The parent
+writes `Source breadth:` from its own load so the table still follows the caller.
 
 ## Running the acceptance gate
 

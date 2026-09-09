@@ -310,7 +310,7 @@ otherwise deletes this plugin's `${CLAUDE_PLUGIN_DATA}` directory (Rule 4 of the
 feedback ledger, which no `userConfig` key relocates. It is also the **last** resolution rung for
 both worktree roots. `babysit_worktree_root` falls back to `${CLAUDE_PLUGIN_DATA}/worktrees`
 whenever it is unset, while `/source-control:worktree create` reaches that same directory only when
-neither the target repository's `melodic.worktreeroot` git config nor `worktree_root` resolves. So
+neither the target repository's `worktreeroot.path` git config nor `worktree_root` resolves. So
 check where the roots actually resolve before assuming the directory is disposable: babysit's own
 worktrees are ephemeral scratch that rebuild from GitHub, but the state directory and any
 `/source-control:worktree` tree still holding uncommitted work do not.
