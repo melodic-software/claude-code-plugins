@@ -7,13 +7,18 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 
 ### Added
 
-- **`scan`:** a sizing rule. Hunters dispatch on the `sonnet` tier and gates on `opus`, through the
-  Agent tool's `model` parameter; the scope class (small, medium, large, from the enumerated file
-  and line counts) picks the lens count and the gate cap per wave, and `${CLAUDE_EFFORT}` stays the
-  ceiling on lenses and refill waves. The gate's stance does not change with any of it.
-- **`scan`:** a main-thread triage step between the hunters and the gate that merges same-cause
+- **`scan`:** a sizing rule. Hunters dispatch on a cheap general-purpose tier and gates on a strong
+  reasoning tier through the Agent tool's per-invocation `model` parameter; the body states the
+  capability each stage needs, names the alias that maps to it today (`sonnet`, `opus`) under a
+  dated verification record, and maps by capability where a harness names its tiers differently.
+  The scope class (small, medium, large, from the enumerated file and line counts) picks the lens
+  count and the gate cap per wave, and `${CLAUDE_EFFORT}` stays the ceiling on lenses and refill
+  waves. The gate's stance does not change with any of it.
+- **`scan`:** a main-thread triage step between the hunters and the gate that seeds from the prior
+  report's "Candidates not gated" rows on a rotation or named-lane run, merges same-cause
   candidates, parks cosmetic-impact ones as side observations, and cuts to the cap, so no gate is
-  spent on a duplicate.
+  spent on a duplicate and a cut candidate is gated on the next pass over its lane instead of
+  re-derived.
 - **`scan`:** a filing ladder in the hand-off step. An interactive run routes a local finding (one
   plugin, no documented contract change, a test file to extend) to the implement lane in the same
   session; a non-local or security-relevant finding, and every finding from an unattended run, is

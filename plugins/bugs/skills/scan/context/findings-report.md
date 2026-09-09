@@ -103,8 +103,8 @@ findings.
 ## Candidates not gated (retained tail)
 
 Always present, after the refuted tail. The candidates triage cut above the gate cap, with no
-verdict: a later run on the same lane starts from them instead of re-deriving them, and a reader can
-tell a cut from a kill.
+verdict: Step 3 of the next run over this lane seeds its triage from these rows instead of
+re-deriving them, and a reader can tell a cut from a kill.
 
 ```markdown
 ## Candidates not gated

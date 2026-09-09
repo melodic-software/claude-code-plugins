@@ -137,14 +137,23 @@ Zero verified findings is a clean, successful outcome. Do **not** invent a findi
 
 Cost follows what is scanned, and precision never pays for it. Three rules, applied in this order:
 
-**Model by stage.** Each stage runs on the tier its job needs, through the Agent tool's `model`
-parameter, never on the session's top model:
+**Model by stage.** Each stage runs on the tier its job needs, passed through the Agent tool's
+per-invocation `model` parameter, never on the session's top model. The requirement is a
+capability; the alias is only how the harness names that capability today:
 
-| Stage | Model | Why |
-|---|---|---|
-| Hunters (Step 2) | `sonnet` | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
-| Gates (Step 4) | `opus` | The precision stage; the reproduction it runs is what makes a finding credible. |
-| Main thread | the session's model | Orchestration and triage only. |
+| Stage | Needs | Alias today | Why |
+|---|---|---|---|
+| Hunters (Step 2) | the cheapest general-purpose tier | `sonnet` | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
+| Gates (Step 4) | a strong reasoning tier | `opus` | The precision stage; the reproduction it runs is what makes a finding credible. |
+| Main thread | the session's model | none passed | Orchestration and triage only. |
+
+When the harness names its tiers differently, map by the "Needs" column and name the alias that
+resolved in the report's run metadata. Verification record: the per-invocation `model` parameter
+accepts the aliases `sonnet`, `opus`, `haiku`, and `fable`, or a full model ID, and takes precedence
+over a subagent's frontmatter and `CLAUDE_CODE_SUBAGENT_MODEL`; basis
+[Subagents, "Choose a model"](https://code.claude.com/docs/en/sub-agents#choose-a-model); as of
+2026-09-09; recheck when a dispatch with either alias is rejected or a Claude Code release note
+touches subagent model selection.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope
 and size the recall stage from it:
@@ -203,8 +212,8 @@ the scope class that sizes the rest of the run.
 
 ### Step 2. Dispatch hunters (recall stage)
 
-Dispatch **one subagent per lens** over the resolved scope, on the `sonnet` tier, each with the
-four-part contract: objective, output format, tool/source guidance, and task boundaries, spelled out
+Dispatch **one subagent per lens** over the resolved scope, on the hunter tier the sizing table
+names, each with the four-part contract: objective, output format, tool/source guidance, and task boundaries, spelled out
 in [`context/lenses.md`](context/lenses.md). The scope class picks the lens count and the
 [Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a verbatim evidence quote
 to every candidate, may follow one hop outside the scope (a direct caller or callee of a scoped file)
@@ -215,16 +224,23 @@ valid and expected outcome**.
 
 ### Step 3. Triage the candidate list (main thread, before any gate)
 
-Merge and cut in the main thread, so no gate is spent on a duplicate or on a candidate whose own
-hunter says nothing observable breaks:
+Seed, merge, and cut in the main thread, so no gate is spent on a duplicate or on a candidate whose
+own hunter says nothing observable breaks:
 
-1. **Merge same-cause candidates.** Two lenses often reach one fault by different routes. Keep one
-   candidate carrying both lens ids and the stronger evidence quote; the gate sees it once.
-2. **Drop cosmetic-impact candidates.** A candidate whose stated impact is a comment, a log string,
+1. **Seed from the prior tail.** On a rotation or named-lane run, read the newest persisted report
+   for this lane (the directory rung 2 reads, resolved by the same precedence) and add its
+   "Candidates not gated" rows to the list ahead of the hunters' output: each already carries a
+   `path:line`, so at equal evidence strength it ranks first. A row whose quoted location no longer
+   exists goes to the side observations. A targeted run has no lane and seeds nothing.
+2. **Merge same-cause candidates.** Two lenses often reach one fault by different routes, and a
+   seeded row often returns as a fresh candidate. Keep one candidate carrying both lens ids and the
+   stronger evidence quote; the gate sees it once.
+3. **Drop cosmetic-impact candidates.** A candidate whose stated impact is a comment, a log string,
    or a report field nothing consumes is a side observation, not a bug. Move it to the report's side
    observations rather than gating it.
-3. **Rank by evidence strength and cut to the gate cap.** The tail above the cap is retained in the
-   report's "Candidates not gated" section so the next run on this lane does not re-derive it.
+4. **Rank by evidence strength and cut to the gate cap.** The tail above the cap is retained in the
+   report's "Candidates not gated" section, which is what item 1 reads back on the next run over
+   this lane.
 
 Triage never confirms anything: it merges, drops, and orders. Every candidate that remains still
 faces the gate.
@@ -234,8 +250,8 @@ for in the report.
 
 ### Step 4. Verification gate (precision stage)
 
-Dispatch a **separate fresh-context subagent per candidate**, on the `opus` tier, using the prompt
-contract in [`context/verification-gate.md`](context/verification-gate.md). The hunter that found a
+Dispatch a **separate fresh-context subagent per candidate**, on the gate tier the sizing table
+names, using the prompt contract in [`context/verification-gate.md`](context/verification-gate.md). The hunter that found a
 candidate never grades it. A model re-checking its own work rubber-stamps it. The gate's default
 stance is **refute**: it must try to construct the concrete input path that triggers the claimed
 fault, and if it cannot, the candidate dies. **If uncertain, it is NOT a finding.**
@@ -340,8 +356,11 @@ verified: say so plainly and name the lane and rung, so the next run rotates on.
 - **The hunter never grades itself.** If you collapse Steps 2 and 4 into one agent, precision collapses
   with them. The gate is a separate fresh-context dispatch, per candidate.
 - **A cheaper hunter is fine; a cheaper gate is not.** The gate's reproduction is the whole precision
-  claim, so it stays on the `opus` tier whatever the hunters ran on, and a scope class never lowers
+  claim, so it stays on the gate tier whatever the hunters ran on, and a scope class never lowers
   the gate's stance.
+- **The ungated tail is a queue, not an archive.** Step 3 reads the prior report's "Candidates not
+  gated" rows back before it merges; a run that skips the seed re-derives what the last run over
+  the lane already paid for.
 - **Triage merges and drops, it never confirms.** A candidate that survives triage still faces the
   gate; a candidate dropped as cosmetic is written to the side observations, not silently gone.
 - **No evidence quote, no finding.** A candidate without a verbatim quote of the offending source is
