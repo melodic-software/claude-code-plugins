@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.41]
+
+### Fixed
+
+- **`lib/state-key.sh` keys a non-repository directory by its physical path.** The `nonrepo`
+  rung hashed `$PWD` as inherited or as `cd` left it, which keeps the logical spelling a symlink
+  was reached through, so `~/projects-link/notes` and `/data/projects/notes` produced two
+  `nonrepo/<hash>/<hash>` trees for one directory and the read-back auditors reported "no prior
+  artifact" under the other spelling. The script now resolves the working directory physically
+  (`cd -P .`, no fork) before hashing, matching what `git rev-parse --show-toplevel` already did
+  for the repository rungs. A symlinked non-repository directory keyed under the old spelling
+  re-keys on the next run. Regression case 5b covers both `--root` and the no-argument form.
+
 ## [0.40.40]
 
 ### Added

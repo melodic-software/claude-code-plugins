@@ -1,8 +1,8 @@
 # The verification gate — the precision stage of `/bugs:scan`
 
-Loaded on demand by `/bugs:scan` Step 3. This is the prompt contract for the gate: **one
-separate fresh-context subagent per candidate**, dispatched by the scan skill, never the hunter that
-produced the candidate.
+Loaded on demand by `/bugs:scan` Step 4. This is the prompt contract for the gate: **one
+separate fresh-context subagent per candidate**, dispatched by the scan skill on the `opus` tier,
+never the hunter that produced the candidate.
 
 Why separate and fresh: a model re-checking its own work rubber-stamps it. The gate must arrive with
 no memory of why the candidate looked convincing — only the candidate, the code, and a mandate to
@@ -103,4 +103,5 @@ refuting argument.
 - Read-only. No edits, no writes, no branches, no filing, no network mutation.
 - One candidate per dispatch. Do not compare candidates or deduplicate — the scan skill owns that.
 - Do not rewrite the candidate into a different, better bug you noticed while reading. Refute this one
-  and mention the observation in one line; the next hunt wave can pick it up.
+  and mention the observation in one line with its `path:line`; the scan records it in the report's
+  side observations, and the next hunt wave can pick it up.

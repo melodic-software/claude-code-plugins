@@ -3,6 +3,36 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`scan`:** a sizing rule. Hunters dispatch on the `sonnet` tier and gates on `opus`, through the
+  Agent tool's `model` parameter; the scope class (small, medium, large, from the enumerated file
+  and line counts) picks the lens count and the gate cap per wave, and `${CLAUDE_EFFORT}` stays the
+  ceiling on lenses and refill waves. The gate's stance does not change with any of it.
+- **`scan`:** a main-thread triage step between the hunters and the gate that merges same-cause
+  candidates, parks cosmetic-impact ones as side observations, and cuts to the cap, so no gate is
+  spent on a duplicate.
+- **`scan`:** a filing ladder in the hand-off step. An interactive run routes a local finding (one
+  plugin, no documented contract change, a test file to extend) to the implement lane in the same
+  session; a non-local or security-relevant finding, and every finding from an unattended run, is
+  filed. `--track` applies the same ladder. The scan itself still edits nothing.
+- **`scan`:** hunters may follow one hop outside the scope and tag the candidate `out-of-lane`; the
+  report and cursor carry the tag.
+- **`scan`:** the report gains a run-metadata paragraph, a "Candidates not gated" tail, and a "Side
+  observations" section; the cursor block gains `scope-class`, `scope-list`, `not-gated`, and
+  `out-of-lane` keys. Existing keys keep their meaning.
+
+### Changed
+
+- **`scan`:** rung 1 of the cursor ladder requires an exact match on the provenance line; a fuzzy or
+  semantic search prints why and falls through to rung 2.
+- **`scan`:** scope enumeration drops test suites, which hunters read for a unit's contract and never
+  hunt; the persistence step writes the report with the Write tool; and the verb contract says a
+  cloud or scheduled run passes `--track`, because the filed item is the only output that outlives
+  the container.
+
 ## [0.9.13]
 
 ### Changed

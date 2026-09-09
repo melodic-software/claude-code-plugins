@@ -100,6 +100,22 @@ mkdir -p "$d"
 k="$(key "$d")"
 assert_contains "case 5: non-repo keys nonrepo" "$k" "nonrepo/"
 
+# --- Case 5b: two spellings of one non-repo directory produce one key ----------
+# `cd` keeps the logical spelling a symlink was reached through, and the
+# read-back consumers derive the key from wherever the operator launched. One
+# directory, two spellings, one key: the property case 2 pins for remotes.
+real="$TEST_TMPDIR/real/notes"
+mkdir -p "$real" "$TEST_TMPDIR/via"
+if ln -s "$TEST_TMPDIR/real" "$TEST_TMPDIR/via/projects-link" 2>/dev/null; then
+  k_real="$(key "$real")"
+  k_link="$(key "$TEST_TMPDIR/via/projects-link/notes")"
+  assert_eq "case 5b: symlinked and real --root spellings agree" "$k_real" "$k_link"
+  k_cwd="$(cd "$TEST_TMPDIR/via/projects-link/notes" && bash "$SCRIPT" 2>/dev/null)"
+  assert_eq "case 5b: the no-arg form from the symlink spelling agrees" "$k_real" "$k_cwd"
+else
+  pass "case 5b: skipped, this host cannot create a symlink"
+fi
+
 # --- Case 6: a traversal remote cannot escape the namespace -------------------
 # The security property. A remote URL becomes directory components in the
 # caller's path, so `../../../etc` must not survive into the key. It is hashed

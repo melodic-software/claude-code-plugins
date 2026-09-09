@@ -63,6 +63,12 @@ Durable cursor state never lives in `.work/`. Anything a wrapping session leaves
 checkout-local cache that a fresh clone or a `git clean` erases; the ladder below must re-derive the
 cursor from rungs 1–3 without it, and never treats a cache note as authority.
 
+**Durability on a cloud or scheduled run.** `${CLAUDE_PLUGIN_DATA}` is ephemeral on a cloud session
+and unreachable from the next scheduled run on another host, so the persisted report and its cursor
+vanish with the container. On such a run pass `--track`: a filed item is the only output that
+survives, and it is also what rung 1 of the cursor ladder reads back. Without `--track` a cloud run
+is a one-off whose findings live only in the transcript.
+
 ## Modes
 
 | Argument | Mode | Behavior |
@@ -70,7 +76,7 @@ cursor from rungs 1–3 without it, and never treats a cache note as authority.
 | `<path>` / `<feature>` / `<diff-ish ref>` | **Targeted** | Hunt exactly that scope. No lane rotation, no cursor advance. |
 | `--lane <name>` | **Named lane** | Hunt the named lane's globs. Advances the cursor to that lane. |
 | *(empty)* | **Rotation** | Self-select the next lane via the cursor ladder, then hunt it. |
-| `--track` | **Filing** | After reporting, file verified findings as raw intake (see below), subject to the team's `filing_posture`. Composable with any mode. |
+| `--track` | **Filing** | After reporting, file verified findings as raw intake (see below), subject to the team's `filing_posture` and the filing ladder in Step 7. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 
 Lane definitions (`lanes`, `filing_posture`) resolve from `.claude/bugs.md` per the cascade
@@ -85,11 +91,14 @@ Which lane comes next is derived **statelessly**, first rung that answers wins:
 
 1. **Tracker history.** When the `work-items` plugin is installed and a tracker binding resolves,
    search items (`--state all`) for the provenance line `Filed by /bugs:scan (lane: <name>)`.
-   The most recently filed lane is the previous lane; take the next one in declaration order. Confirm
-   the search actually ran against a bound tracker before trusting an empty result. An unbound
-   tracker returns nothing, which is not the same answer as "no prior scan filings".
+   The most recently filed lane is the previous lane; take the next one in declaration order. The
+   search must be an **exact match** on that line (the seam's search verb, or the provider's literal
+   body match with the string quoted): a semantic or fuzzy search cannot tell "no match" from
+   "missed", so it is not an answer. When only a fuzzy search is available, or no search ran against
+   a bound tracker, print why and fall through to rung 2. An unbound tracker returns nothing, which
+   is not the same answer as "no prior scan filings".
 2. **Persisted-report cursor.** Otherwise resolve the report directory by the **same precedence
-   persistence uses**. Step 4 below defers to `/bugs:write`'s Step 4, and so does this rung;
+   persistence uses**. Step 5 below defers to `/bugs:write`'s Step 4, and so does this rung;
    reading a directory reports no longer land in is how a configured `output_dir` silently strands the
    cursor. Then search **backward from the newest report** for the newest one carrying a *valid*
    rotation cursor block, one that names the rotation lane (see
@@ -114,14 +123,43 @@ deterministic floor is what makes daily coverage predictable.
 ## Budget
 
 - **Stop condition:** 3 verified findings, or the lane's budget-bounded sample is complete.
-- **Candidate cap:** at most 10 candidates per hunt wave reach the verification gate. Rank by
-  evidence strength and drop the tail rather than widening the wave.
+- **Candidate cap:** at most 10 candidates per hunt wave reach the verification gate (5 on a small
+  scope, per the sizing table). Rank by evidence strength and drop the tail rather than widening the
+  wave; the dropped tail is reported, never discarded.
 - **Refill cap:** if a whole wave is refuted, at most **2** refill waves. Then report the refuted set
   and stop. An unbounded refill loop is a token sink against a ~1:50 signal-to-noise base rate.
 - **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** The scan is
   budget-bounded sampling; never claim exhaustive coverage of a lane in the report.
 
 Zero verified findings is a clean, successful outcome. Do **not** invent a finding to justify the run.
+
+### Sizing. Model by stage, breadth by scope, effort as the ceiling
+
+Cost follows what is scanned, and precision never pays for it. Three rules, applied in this order:
+
+**Model by stage.** Each stage runs on the tier its job needs, through the Agent tool's `model`
+parameter, never on the session's top model:
+
+| Stage | Model | Why |
+|---|---|---|
+| Hunters (Step 2) | `sonnet` | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
+| Gates (Step 4) | `opus` | The precision stage; the reproduction it runs is what makes a finding credible. |
+| Main thread | the session's model | Orchestration and triage only. |
+
+**Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope
+and size the recall stage from it:
+
+| Scope | Definition (files, or lines after hotspot ranking) | Lenses | Gate cap per wave |
+|---|---|---|---|
+| small | 5 files or 1,000 lines or fewer | 1 to 2, the highest-ranked for the surface | 5 |
+| medium | 20 files or 5,000 lines or fewer | 2 to 3 | 10 |
+| large | above | 4 | 10, refill waves allowed |
+
+A targeted run over one file is small; a full lane is usually large. The scope class, the lens
+count, and the models used go in the report's run metadata.
+
+**Effort as the ceiling.** The [Effort](#effort) row bounds lenses and refill waves; scope picks
+within it, never above it. A `low` run over a large lane still dispatches one lens.
 
 ### Effort
 
@@ -137,11 +175,11 @@ relaxes: every candidate still faces a separate fresh-context refuting subagent 
 |---|---|---|---|
 | `low` | 1, the highest-ranked lens for the scope | 0 | first verified finding |
 | `medium` | 2 | 1 | 2 verified findings |
-| `high`, `xhigh`, `max` | up to 4, sized to the surface as step 2 describes | 2 | 3 verified findings |
+| `high`, `xhigh`, `max` | up to 4, sized to the scope per the sizing table | 2 | 3 verified findings |
 
-The candidate cap of 10 per wave holds at every level. Name the effort level and the lens count in
-the report's run metadata, so a `low` run reads as the narrower sample it is rather than as a clean
-lane.
+The gate cap per wave (10, or 5 on a small scope) holds at every level. Name the effort level and
+the lens count in the report's run metadata, so a `low` run reads as the narrower sample it is
+rather than as a clean lane.
 
 ## The scan pipeline
 
@@ -152,56 +190,83 @@ then does the cursor advance.
 ### Step 1. Resolve scope
 
 Resolve the mode, the lane globs, and `filing_posture` from the config cascade. Enumerate the concrete
-file list. If the enumeration exceeds ~40 files, narrow to the highest-signal subset (recently
-changed, highest fan-in, most branch-dense) and say in the report that you sampled. Then compute the
-hotspot reading order described in [`context/lenses.md`](context/lenses.md), one git command per Bash
-call; on a shallow clone, print the skip notice and continue unranked.
+file list and drop test suites from it (`*.test.*`, `test_*`, `*.Tests.ps1`): hunters read a test to
+learn a unit's contract and never hunt the test itself. If the enumeration exceeds ~40 files, narrow
+to the highest-signal subset (recently changed, highest fan-in, most branch-dense) and say in the
+report that you sampled. Then compute the hotspot reading order described in
+[`context/lenses.md`](context/lenses.md), one git command per Bash call; on a shallow clone, print the
+skip notice and continue unranked. Classify the scope as small, medium, or large per the
+[sizing table](#sizing-model-by-stage-breadth-by-scope-effort-as-the-ceiling).
 
-**Done when** you can name the exact file list the hunters will read, and the order they read it in.
+**Done when** you can name the exact file list the hunters will read, the order they read it in, and
+the scope class that sizes the rest of the run.
 
 ### Step 2. Dispatch hunters (recall stage)
 
-Dispatch **one subagent per lens** over the resolved scope, each with the four-part contract:
-objective, output format, tool/source guidance, and task boundaries, spelled out in
-[`context/lenses.md`](context/lenses.md). Size the fan-out to the surface: a single small file may
-warrant one or two lenses; a full lane warrants all four. Whatever the surface suggests, the
-[Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a
-verbatim evidence quote to every candidate, and is explicitly told that **returning no candidate is a
+Dispatch **one subagent per lens** over the resolved scope, on the `sonnet` tier, each with the
+four-part contract: objective, output format, tool/source guidance, and task boundaries, spelled out
+in [`context/lenses.md`](context/lenses.md). The scope class picks the lens count and the
+[Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a verbatim evidence quote
+to every candidate, may follow one hop outside the scope (a direct caller or callee of a scoped file)
+and tags such a candidate `out-of-lane`, and is explicitly told that **returning no candidate is a
 valid and expected outcome**.
 
-**Done when** every dispatched lens has returned, and the merged candidate list is capped at 10.
+**Done when** every dispatched lens has returned.
 
-### Step 3. Verification gate (precision stage)
+### Step 3. Triage the candidate list (main thread, before any gate)
 
-Dispatch a **separate fresh-context subagent per candidate** using the prompt contract in
-[`context/verification-gate.md`](context/verification-gate.md). The hunter that found a candidate
-never grades it. A model re-checking its own work rubber-stamps it. The gate's default stance is
-**refute**: it must try to construct the concrete input path that triggers the claimed fault, and if it
-cannot, the candidate dies. **If uncertain, it is NOT a finding.**
+Merge and cut in the main thread, so no gate is spent on a duplicate or on a candidate whose own
+hunter says nothing observable breaks:
+
+1. **Merge same-cause candidates.** Two lenses often reach one fault by different routes. Keep one
+   candidate carrying both lens ids and the stronger evidence quote; the gate sees it once.
+2. **Drop cosmetic-impact candidates.** A candidate whose stated impact is a comment, a log string,
+   or a report field nothing consumes is a side observation, not a bug. Move it to the report's side
+   observations rather than gating it.
+3. **Rank by evidence strength and cut to the gate cap.** The tail above the cap is retained in the
+   report's "Candidates not gated" section so the next run on this lane does not re-derive it.
+
+Triage never confirms anything: it merges, drops, and orders. Every candidate that remains still
+faces the gate.
+
+**Done when** the list is at or under the gate cap and every merged or dropped candidate is accounted
+for in the report.
+
+### Step 4. Verification gate (precision stage)
+
+Dispatch a **separate fresh-context subagent per candidate**, on the `opus` tier, using the prompt
+contract in [`context/verification-gate.md`](context/verification-gate.md). The hunter that found a
+candidate never grades it. A model re-checking its own work rubber-stamps it. The gate's default
+stance is **refute**: it must try to construct the concrete input path that triggers the claimed
+fault, and if it cannot, the candidate dies. **If uncertain, it is NOT a finding.**
 
 Survivors are labeled `reproduced` (a check was actually run) or `verified-by-reading` (the fault is
 established from the source, with the reproduction argument stated). Refuted candidates are **retained
 with their refuting argument**. A high-kill gate catches some true positives, so they are never
-silently dropped.
+silently dropped. A gate's one-line side observation (a stale comment, a weaker sibling check) goes to
+the report's side observations.
 
 **Done when** every candidate carries a verdict and a label or a refuting argument.
 
-### Step 4. Assemble and dedupe the report
+### Step 5. Assemble and dedupe the report
 
 Format per [`context/findings-report.md`](context/findings-report.md): the five fields per finding
-(from `/bugs:write`'s shape), plus the evidence label and lens id, then the refuted tail and, on a rotation run, the cursor metadata block; a targeted run emits the no-cursor line in its place.
-Before persisting, run the same duplicate scan `/bugs:write` performs
-over the output directory. See Step 2 ("Survey before you write") in
-[`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md), and drop or merge findings that
-restate a prior report.
+(from `/bugs:write`'s shape), plus the evidence label, the lens id, and the scope tag, then the refuted
+tail, the candidates not gated, the side observations, and, on a rotation run, the cursor metadata
+block with the sampled scope list; a targeted run emits the no-cursor line in its place. Before
+persisting, run the same duplicate scan `/bugs:write` performs over the output directory. See Step 2
+("Survey before you write") in [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md),
+and drop or merge findings that restate a prior report.
 
 Persist to the path `/bugs:write --file` resolves (its Step 4 owns that precedence:
 `output_dir`, then `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, then a project-local
-fallback). Do not reinvent either mechanism here. Under `--dry-run`, skip persistence entirely.
+fallback). Do not reinvent either mechanism here. Write the file with the **Write tool**: a shell
+redirect or heredoc is what a repository's write guards block, and the plugin data directory is
+outside any scratch exemption. Under `--dry-run`, skip persistence entirely.
 
 **Done when** the report is emitted, and (outside `--dry-run`) persisted with its path stated.
 
-### Step 5. `--track` filing (explicit only)
+### Step 6. `--track` filing (explicit only)
 
 **Posture gate first.** Resolve `filing_posture` from the config cascade. See
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md), whose bundled default is
@@ -209,8 +274,10 @@ fallback). Do not reinvent either mechanism here. Under `--dry-run`, skip persis
 notice, "filing skipped: filing_posture is manual-only (<layer, or bundled default>); report-only", and stop at the report, the same degrade shape as an absent `work-items`. Only `allowed` reaches the
 beats below.
 
-Then presence-gated on `work-items`. Follow the dogfood-filing beats by invoking
-`/work-items:track add`, never by pathing into another plugin's files:
+Then apply the filing ladder in Step 7: on an interactive run only the findings the ladder routes
+to the tracker are filed; on an unattended run every verified finding is. Then, presence-gated on
+`work-items`, follow the dogfood-filing beats by invoking `/work-items:track add`, never by pathing
+into another plugin's files:
 
 1. **Dedupe.** Search items over `--state all` first; sameness is judged by underlying cause, not
    wording. An open match gets a comment instead of a second item; a closed match is reopened or
@@ -231,17 +298,34 @@ Print one notice, "filing skipped: <reason>; report-only", and stop at the repor
 **Done when** each verified finding is filed, matched to an existing item, or explicitly skipped with a
 printed reason.
 
-### Step 6. Hand off
+### Step 7. Hand off through the filing ladder
 
-Recommend, do not auto-invoke:
+The scan itself edits nothing. Where a verified finding goes next follows one ladder, so a small
+fix does not become a tracker item and an unattended run never leaves work stranded in a transcript:
 
-- A verified finding worth root-causing or fixing → `/debugging:debug`.
-- A finding tagged security-relevant → the `/review:security-review` lane, which owns that surface.
-- Nothing verified → say so plainly and name the lane and rung, so the next run rotates on.
+| Run | Finding | Route |
+|---|---|---|
+| interactive | **local**: its fix stays inside one plugin or module, changes no documented contract, and has an existing test file to extend | fix it now, in this session and branch, through `/implementation:implement` (or the project's own fix lane) |
+| interactive | non-local, or needs a design decision | file it with `--track`, or ask the operator |
+| any | security-relevant | file it, and route to the `/review:security-review` lane, which owns that surface |
+| unattended (a loop, a routine, a lane rule that passes `--track`) | any | file it; nobody is present to fix it, and the tracker is the only durable output |
+
+"Unattended" is declared by the caller, never inferred from the environment. Recommend the route,
+do not auto-invoke it; a finding worth root-causing first goes to `/debugging:debug`. Nothing
+verified: say so plainly and name the lane and rung, so the next run rotates on.
+
+## Next
+
+- Verified local finding, interactive run: `/implementation:implement`.
+- Verified non-local or security-relevant finding: `/work-items:track add`, then
+  `/review:security-review` for the security-relevant ones.
+- A finding that needs root-causing before a fix: `/debugging:debug`.
 
 ## What this skill does NOT do
 
-- **Does not fix anything.** No edits, no patches, no PRs. Even for an obviously trivial defect.
+- **Does not edit code itself.** No patches, no PRs, from this skill. A verified finding leaves
+  through the Step 7 ladder, which in an interactive session routes a local fix to the implement lane
+  in the same session rather than to the tracker.
 - **Does not file on bare invocation.** Filing needs `--track`.
 - **Does not review a diff.** That is `/review:code-review`'s lane; this reads resting code.
 - **Does not verify factual claims** in docs or config against code. All four `codebase-health:audit`
@@ -253,8 +337,13 @@ Recommend, do not auto-invoke:
 
 ## Gotchas
 
-- **The hunter never grades itself.** If you collapse Steps 2 and 3 into one agent, precision collapses
+- **The hunter never grades itself.** If you collapse Steps 2 and 4 into one agent, precision collapses
   with them. The gate is a separate fresh-context dispatch, per candidate.
+- **A cheaper hunter is fine; a cheaper gate is not.** The gate's reproduction is the whole precision
+  claim, so it stays on the `opus` tier whatever the hunters ran on, and a scope class never lowers
+  the gate's stance.
+- **Triage merges and drops, it never confirms.** A candidate that survives triage still faces the
+  gate; a candidate dropped as cosmetic is written to the side observations, not silently gone.
 - **No evidence quote, no finding.** A candidate without a verbatim quote of the offending source is
   retracted at the gate, not "investigated further".
 - **Refuted is reported, not deleted.** The refuted tail is a feature: it lets a human overturn a
@@ -272,8 +361,8 @@ Recommend, do not auto-invoke:
 
 | File | Load when |
 |---|---|
-| [`context/lenses.md`](context/lenses.md) | Step 2, sizing the fan-out and writing each hunter's dispatch prompt; also holds the bundled default lanes. |
-| [`context/verification-gate.md`](context/verification-gate.md) | Step 3, before dispatching the refute gate on a candidate. |
-| [`context/findings-report.md`](context/findings-report.md) | Step 4, emitting the report, and the ladder's middle rung reading a prior cursor back. |
+| [`context/lenses.md`](context/lenses.md) | Step 2, writing each hunter's dispatch prompt; also holds the bundled default lanes. |
+| [`context/verification-gate.md`](context/verification-gate.md) | Step 4, before dispatching the refute gate on a candidate. |
+| [`context/findings-report.md`](context/findings-report.md) | Step 5, emitting the report, and the ladder's middle rung reading a prior cursor back. |
 | [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `.claude/bugs.md` key decides the run (lane, rotation, filing posture) and its layer is unclear. |
 | [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) | Emitting a finding in the five-field shape, running the duplicate scan, or resolving where `--track` persists. |

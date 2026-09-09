@@ -18,10 +18,18 @@
 #   repo-identity          the first configured remote URL normalized to
 #                          host/owner/repo, lowercased, scheme/credentials/.git
 #                          stripped. No remote -> local/<sha256 of repo root,12>.
-#                          Not a repo at all -> nonrepo/<sha256 of cwd,12>.
-#   worktree-discriminator sha256 of the canonicalized worktree root, cut to 8.
-#                          Two worktrees of one repository legitimately hold
+#                          Not a repo at all -> nonrepo/<sha256 of the physical
+#                          cwd,12>.
+#   worktree-discriminator sha256 of the canonicalized worktree root, cut to 8
+#                          (outside a repository, of the physical cwd). Two
+#                          worktrees of one repository legitimately hold
 #                          different content and must not share a report.
+#
+# Every path is taken physical (symlinks resolved) before it is hashed. `cd`
+# keeps the logical spelling a symlink was reached through, and the read-back
+# consumers derive the key from wherever the operator launched, so one
+# directory reached two ways must still produce one key. git canonicalizes
+# the root it reports; the non-repository rung has to do it itself.
 #
 # SECURITY — this is why the identity is validated rather than merely lowercased.
 # A remote URL is arbitrary text that becomes DIRECTORY COMPONENTS in the caller's
@@ -104,6 +112,8 @@ if [[ -n "$ROOT_ARG" ]]; then
   fi
   cd "$ROOT_ARG" || exit 2
 fi
+# Physical cwd, forklessly: `cd -P .` rewrites $PWD with symlinks resolved.
+cd -P . || exit 2
 
 # sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
 # Probe here in the main script, not inside sha256(). hash12/hash8 run that

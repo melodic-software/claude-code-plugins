@@ -3,6 +3,13 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.11]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once.
+
 ## [0.1.10]
 
 ### Changed

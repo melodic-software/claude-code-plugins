@@ -494,6 +494,17 @@ assert_exit "verifier: exact flag present (warm) -> 0" 0 $?
 assert_eq "verifier: the 24 h reference file sits beside the cache" 1 \
   "$(find "$opt_dir/cache/guardrails/cli-flag-cache" -maxdepth 1 -name '.fresh-24h' | wc -l | tr -d ' ')"
 
+# The cache is published by rename, never rewritten in place: a concurrent
+# reader that passes the -s and mtime gates must see a whole --help text, so
+# the write lands in a sibling temp file that `mv` replaces the entry with,
+# and no temp file survives a run.
+assert_eq "verifier: the cache entry is whole after a cold run" 1 \
+  "$(grep -c -- '--save-dev' "$opt_dir/cache/guardrails/cli-flag-cache/fakesave.help")"
+assert_eq "verifier: no temp file left beside the cache" 0 \
+  "$(find "$opt_dir/cache/guardrails/cli-flag-cache" -maxdepth 1 -name '*.tmp' | wc -l | tr -d ' ')"
+assert_eq "verifier: no in-place redirect into the cache file" 0 \
+  "$(grep -c '>"\$CACHE_FILE"' "$REAL_VERIFIER")"
+
 # ============ DEFAULT BIN SET — npm excluded (global-flag FP) ===============
 # `npm ci --prefix ./vendor` was reported UNKNOWN: `--prefix` is one of npm's
 # config keys, every one of which is a valid flag on every subcommand, and none
