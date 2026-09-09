@@ -291,7 +291,7 @@ case "$*" in
   ;;
 *"marketplace update"*)
   printf '%s\n' "$*" >>"$fx/calls.log"
-  [[ -f "$fx/update-fails" ]] && exit 1
+  if [[ -f "$fx/update-fails" ]]; then exit 1; fi
   ;;
 *"plugin list --json"*)
   if [[ -f "$fx/.listed" ]]; then
