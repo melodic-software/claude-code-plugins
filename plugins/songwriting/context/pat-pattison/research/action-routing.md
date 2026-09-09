@@ -27,12 +27,12 @@ content under `context/pat-pattison/`.
 | User asks | Route |
 | --- | --- |
 | "I want to write a new song." | `/songwriting:workflow` → Scenario 1 |
-| "I have nothing — just want to write something." | `/songwriting:workflow brainstorm` (Scenario 8) |
-| "I have an image / phrase / feeling — no title." | `/songwriting:workflow idea` (Scenario 9) |
+| "I have nothing, just want to write something." | `/songwriting:workflow brainstorm` (Scenario 8) |
+| "I have an image / phrase / feeling, no title." | `/songwriting:workflow idea` (Scenario 9) |
 | "This line / verse / fragment is stuck." | `/songwriting:workflow fragment` (Scenario 10) |
-| "This demo is partway done — what's missing?" | `/songwriting:diagnose demo` (Scenario 11) |
+| "This demo is partway done. What's missing?" | `/songwriting:diagnose demo` (Scenario 11) |
 | "Review my full draft." | `/songwriting:diagnose diagnose` (or `/songwriting:workflow` Scenario 2 / 6) |
-| "I have a title — what next?" | `/songwriting:workflow` Scenario 3, then `/songwriting:co-write title` + `/songwriting:rhyme worksheet` |
+| "I have a title. What next?" | `/songwriting:workflow` Scenario 3, then `/songwriting:co-write title` + `/songwriting:rhyme worksheet` |
 | "I have a melody for these lyrics." | `/songwriting:meter-prosody align-melody` (Scenario 4) |
 | "Co-write tonight." | `/songwriting:co-write` + `/songwriting:co-write title-game` (Scenario 5) |
 | "Daily practice plan." | `/songwriting:practice` (Scenario 7) |
@@ -42,7 +42,7 @@ content under `context/pat-pattison/`.
 | "Why does this rhyme feel weak?" | `/songwriting:rhyme` |
 | "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:diagnose rewrite` |
 | "Give me a 90-second writing prompt." | `/songwriting:object-writing` or `/songwriting:practice` |
-| "You do the object writing — I don't want to." | `/songwriting:object-writing generate` (dispatches the `object-writer` agent) |
+| "You do the object writing. I don't want to." | `/songwriting:object-writing generate` (dispatches the `object-writer` agent) |
 | "I need a metaphor for trust." | `/songwriting:metaphor collide` |
 | "Generate eight metaphor options for X." | `/songwriting:metaphor recipe` |
 | "Should this be like or is?" | `/songwriting:metaphor simile` |

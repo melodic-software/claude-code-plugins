@@ -139,7 +139,16 @@ plugins/review/README.md
 plugins/ruff-format/README.md
 plugins/session-flow/README.md
 plugins/skill-quality/README.md
-plugins/songwriting/README.md
+# The songwriting plugin was purged whole. The research and template trees carry
+# verbatim Pattison quotations inside ignore markers, which the gate honours.
+plugins/songwriting/*.md
+plugins/songwriting/agents/*.md
+plugins/songwriting/context/pat-pattison/research/*.md
+plugins/songwriting/context/pat-pattison/templates/*.md
+plugins/songwriting/skills/*/SKILL.md
+plugins/songwriting/skills/suno/context/*.md
+plugins/songwriting/skills/suno/reference/*.md
+plugins/songwriting/skills/suno/templates/*.md
 plugins/source-control/README.md
 plugins/tdd/README.md
 plugins/testing/README.md

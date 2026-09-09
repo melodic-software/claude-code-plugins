@@ -7,15 +7,15 @@
 - [The diagnostic worksheet](#the-diagnostic-worksheet)
 - [Each element in turn](#each-element-in-turn)
 - [Reading the worksheet](#reading-the-worksheet)
-- [Worked example — "Some People's Lives"](#worked-example--some-peoples-lives)
-- [Worked example — row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)](#worked-example--row-4-alone-essential-guide-to-rhyming-2014-chapter-6)
+- [Worked example: "Some People's Lives"](#worked-example-some-peoples-lives)
+- [Worked example: row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)](#worked-example-row-4-alone-essential-guide-to-rhyming-2014-chapter-6)
 - [Coaching prompts](#coaching-prompts)
 - [Anti-patterns](#anti-patterns)
 - [Related actions](#related-actions)
 - [Four-juggling-balls origin (*Essential Guide to Lyric Form and Structure* (1991) introduction)](#four-juggling-balls-origin-essential-guide-to-lyric-form-and-structure-1991-introduction)
 - [Cross-references](#cross-references)
 
-Pat Pattison — Coursera "Songwriting: Writing the Lyrics" specialization
+Pat Pattison, Coursera "Songwriting: Writing the Lyrics" specialization
 framing, synthesized from *Essential Guide to Lyric Form and
 Structure* (1991) Chapters 1-4 (where each element is named separately) and
 *Writing Better Lyrics* (2009) Chapters 20-21 ("Form Follows Function", "Great
@@ -57,6 +57,7 @@ The rows are not independent. Pat states the row 4 × row 3 interaction
 directly when he introduces the remote rhyme types
 (*Essential Guide to Rhyming* (2014), Chapter 6):
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Essential Guide to Rhyming (2014) Chapter 6 -->
 > Now, let's look at even more remote rhyme types. They have many of the
 > qualities that you value, plus they can do things for you that we can't get
 > from most of our friends so far: they can suppress—or at least diminish—the
@@ -66,6 +67,7 @@ directly when he introduces the remote rhyme types
 > position. But they give you something extra: a more subtle control of
 > structure, and new ways to affect the *moving* and *stopping* of structures.
 > These new techniques will be useful tools.
+<!-- ai-slop-ignore-end -->
 
 Row 4 can suppress or diminish what row 3 does. So a row read alone can
 report the wrong answer: an `aabb` scheme is not closing anything if the
@@ -106,7 +108,7 @@ contrasts and the consistencies are the form.
 
 Even counts (2, 4, 6) feel balanced. Odd counts (3, 5) feel unbalanced
 and push forward. A chorus that needs to arrive often uses an even
-number. A verse that needs to move usually does too — but a verse with
+number. A verse that needs to move usually does too, but a verse with
 an extra phrase or fewer phrases than the chorus creates contrast.
 
 See [phrasing](phrasing.md) "number of phrases" for *Essential Guide to Lyric Form and Structure* (1991), Chapter 1.
@@ -126,7 +128,7 @@ See [phrasing](phrasing.md) "length of phrases" for *Essential Guide to Lyric Fo
 
 The letters describing which lines rhyme with which. Adjacent rhymes
 (aabb) close fast; alternating (abab) suspend across the pair;
-enclosed (abba) wrap **without closing** — the frame returns but the
+enclosed (abba) wrap **without closing**, since the frame returns but the
 system stays open; unrhymed (xaxa or xxxa) open. Mixed schemes
 (abcb) close some pairs while leaving others open.
 
@@ -136,8 +138,8 @@ pace, flow, and closure.
 ### 4. Rhyme types
 
 The stability of each rhyme. Pat prints the scale in *Essential Guide to
-Rhyming* (2014), Chapter 6 twice — once to open the chapter (p. 59) and
-again to close it (p. 67, "Look again at our scale") — having introduced
+Rhyming* (2014), Chapter 6 twice, once to open the chapter (p. 59) and
+again to close it (p. 67, "Look again at our scale"), having introduced
 it in Chapter 4:
 
 ```text
@@ -158,15 +160,15 @@ otherwise closed structures."
 A section can have multiple rhyme types across its scheme.
 
 **A caution on `weak-syllable` as a worksheet answer.** Chapter 6 opens by
-announcing four rhyme types — "1. assonance rhyme / 2. consonance rhyme /
-3. partial rhyme / 4. weak-syllable rhyme" — then delivers sections for only
+announcing four rhyme types, "1. assonance rhyme / 2. consonance rhyme /
+3. partial rhyme / 4. weak-syllable rhyme", then delivers sections for only
 the first three. The phrase "weak-syllable rhyme" occurs exactly once in the
 whole of *Essential Guide to Rhyming* (2014), on that list, and the book's own
 index points only back to that page ("weak-syllable rhymes, 59"). It is never
 defined. Treat any weak-syllable answer in row 4 as undefined by the source
 rather than as a recognized type.
 
-Why row 4 is a lever and not just a label — Pat closes the chapter by
+Why row 4 is a lever and not just a label: Pat closes the chapter by
 naming what the remote types are *for*:
 
 > These more esoteric rhyme types are useful for two purposes:
@@ -220,10 +222,10 @@ A verse typically wants:
 - a rhythm that sets up the chorus rhythm by contrast.
 
 These are defaults. The five-row check exposes when the writer
-diverged from default — and lets the writer decide whether the
+diverged from default, and lets the writer decide whether the
 divergence was deliberate prosody or accidental drift.
 
-## Worked example — "Some People's Lives"
+## Worked example: "Some People's Lives"
 
 Pat's own extended demonstration of rows 1 and 3 is Janis Ian and Kye Fleming's
 "Some People's Lives" (*Writing Better Lyrics* (2009), Chapter 21). It is worth
@@ -256,7 +258,7 @@ Rows 1 and 3 disagree on purpose, and Pat says so:
 > lengths and rhythms match, we have the same effect at the end of line three
 > that we saw earlier … the abb rhyme pattern raises no expectations.
 
-Now the counterfactual — Pat rewrites row 3 only, leaving rows 1, 2, and 5
+Now the counterfactual: Pat rewrites row 3 only, leaving rows 1, 2, and 5
 untouched:
 
 ```text
@@ -283,10 +285,12 @@ Didn't anybody love them    x
 Like you love me?           a
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 21 -->
 > So we have two unstable sections (sad lives), moving into a stable section —
 > "our love makes me stable. I wish everyone had this kind of love in their
 > lives." If the rhyme scheme in the verses were stable, the arrival at a stable
 > section in the chorus wouldn't have the same power.
+<!-- ai-slop-ignore-end -->
 
 Pat proves that too, restabilizing both verses to xaxa and reporting the loss:
 
@@ -306,8 +310,8 @@ And they never know why     b
 > The contrast with these balanced sections gives verse four its power. We expect
 > stability. Instead, it totters on the brink for a moment.
 
-Three phrases plus the chorus's four leaves seven — still odd, still unresolved
-— and verse 5 pulls the same trick again. The payoff is a single extra line on
+Three phrases plus the chorus's four leaves seven: still odd, still unresolved.
+Verse 5 pulls the same trick again. The payoff is a single extra line on
 the final chorus:
 
 ```text
@@ -342,9 +346,9 @@ printed in caps as shown.
 > Unbalanced sections make you want to move to find a stable spot. Balanced
 > sections stop motion; they pause for a rest.
 
-## Worked example — row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)
+## Worked example: row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)
 
-The "Some People's Lives" demonstration above edits one row at a time — row 3
+The "Some People's Lives" demonstration above edits one row at a time: row 3
 (rhyme scheme), then row 1 (phrase count). Chapter 6 supplies the matching
 demonstration for **row 4**: the rhyme scheme is left alone and only the rhyme
 *type* in one position changes.
@@ -402,8 +406,8 @@ read as a scheme-level decision.
 
 ## Related actions
 
-- `/songwriting:diagnose diagnose <section>` — runs this worksheet.
-- `/songwriting:meter-prosody stability` — runs the
+- `/songwriting:diagnose diagnose <section>`: runs this worksheet.
+- `/songwriting:meter-prosody stability`: runs the
   [stable / unstable](stable-unstable-meta.md) meta-question on top of
   the five-row check.
 
@@ -422,7 +426,7 @@ verse of Sting's "BE STILL MY BEATING HEART", Pat writes:
 >
 > As a lyricist, you must learn to juggle four balls.
 
-He then prints the four questions twice — first as analysis of Sting's verse,
+He then prints the four questions twice: first as analysis of Sting's verse,
 then as the writer's own choices:
 
 > 1. How many phrases does it have?
@@ -441,19 +445,19 @@ then as the writer's own choices:
 In *Essential Guide to Lyric Form and Structure* (1991), four
 balls (not five) are introduced sequentially:
 
-- Ball 1 (Chapter 1) — phrase count (number of lines)
-- Ball 2 (Chapter 2) — phrase length (length of lines)
-- Ball 3 (Chapter 3) — rhythm
-- Ball 4 (Chapter 4) — rhyme scheme
+- Ball 1 (Chapter 1): phrase count (number of lines)
+- Ball 2 (Chapter 2): phrase length (length of lines)
+- Ball 3 (Chapter 3): rhythm
+- Ball 4 (Chapter 4): rhyme scheme
 
 The **fifth element (rhyme type)** was added in *Essential Guide to Rhyming*
 (2014). *Essential Guide to Lyric Form and Structure* (1991)
 intentionally uses only **perfect rhyme and identity** for all 44
 exercises. Family, additive, and assonance vocabulary is absent from the
 book entirely. **Consonance is the one exception**: Chapter 4 names the
-type once, in passing, analysing Shelley's "Ozymandias" — "'Appear' is
+type once, in passing, analysing Shelley's "Ozymandias": "'Appear' is
 an imperfect rhyme (technically, a Consonance Rhyme) with 'despair' and
-'bare.'" — but never defines it, never lists it among the working types,
+'bare.'" But it never defines it, never lists it among the working types,
 and never asks for it in an exercise.
 
 This pedagogical bounding matters: *Essential Guide to Lyric Form and Structure* (1991) exercises should be coached
@@ -467,12 +471,12 @@ re-do with full type vocabulary once the four-ball foundation is solid.
 
 ## Cross-references
 
-- [phrasing](phrasing.md) — rows 1 and 2
-- [rhyme strategy](rhyme-strategy.md) — row 3
-- [rhyme types](rhyme-types.md) — row 4
-- [rhyme generation](rhyme-generation.md) — internal rhyme-search discipline
-- [meter](meter.md) — row 5
-- [stable / unstable](stable-unstable-meta.md) — the meta-question
+- [phrasing](phrasing.md): rows 1 and 2
+- [rhyme strategy](rhyme-strategy.md): row 3
+- [rhyme types](rhyme-types.md): row 4
+- [rhyme generation](rhyme-generation.md): internal rhyme-search discipline
+- [meter](meter.md): row 5
+- [stable / unstable](stable-unstable-meta.md): the meta-question
   these five answer to
-- [worksheets](worksheets.md) — the broader worksheet methodology
+- [worksheets](worksheets.md): the broader worksheet methodology
   Pat teaches in *Writing Better Lyrics* (2009), Chapter 4

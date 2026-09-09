@@ -4,7 +4,7 @@ Use when writer asks for multiple versions of a line, section, or angle.
 Generate labeled alternates so the writer chooses by trade-off, not by
 gut.
 
-## Step 1 — Confirm scope + axis (writer-facing)
+## Step 1: Confirm scope + axis (writer-facing)
 
 ```
 What are you varying?
@@ -13,20 +13,20 @@ What are you varying?
 - [c] An entire angle (POV / time / setting of the whole song)
 
 And which axis matters here?
-- **POV** — same content, different speaker / address
-- **Image** — same idea, different concrete image
-- **Vowel** — same meaning, different stressed vowel (changes rhyme territory)
-- **Stress count** — same line, different length (4 → 5 → 3 stresses)
-- **Rhyme-type** — same content, different stability tier
-- **Tone-of-voice** — same content, different emotional register
-- **Or** — say "all" if you want one variation per axis (broader sweep)
+- **POV**: same content, different speaker / address
+- **Image**: same idea, different concrete image
+- **Vowel**: same meaning, different stressed vowel (changes rhyme territory)
+- **Stress count**: same line, different length (4 → 5 → 3 stresses)
+- **Rhyme-type**: same content, different stability tier
+- **Tone-of-voice**: same content, different emotional register
+- **Or**: say "all" if you want one variation per axis (broader sweep)
 
 Paste what you're varying.
 ```
 
-## Step 2 — Generate 4-6 labeled variations (model-side)
+## Step 2: Generate 4-6 labeled variations (model-side)
 
-Format for the RECORDED menu — the `variations/<section>-<line>.md` file that
+Format for the RECORDED menu, the `variations/<section>-<line>.md` file that
 Step 5 archives. This is not the chat shape; see Step 2b below.
 
 ```
@@ -37,7 +37,7 @@ Step 5 archives. This is not the chat shape; see Step 2b below.
   rhyme position: <perfect / family / assonance / etc>
   tone: <controlled / raw / etc>
 
-**VARIATION 1** — [axis: <axis>, shift: <from> → <to>]
+**VARIATION 1** [axis: <axis>, shift: <from> → <to>]
   <new content>
   vowel: <same or shifted>
   stress: <count>
@@ -47,45 +47,45 @@ Step 5 archives. This is not the chat shape; see Step 2b below.
   gains: <what improves>
   loses: <what gets sacrificed>
 
-**VARIATION 2** — [axis: <axis>, shift: <from> → <to>]
+**VARIATION 2** [axis: <axis>, shift: <from> → <to>]
   ...
 
 **VARIATION 3** ...
 **VARIATION 4** ...
-[**VARIATION 5** — if useful]
-[**VARIATION 6** — if useful]
+[**VARIATION 5**, if useful]
+[**VARIATION 6**, if useful]
 ```
 
 If the writer chose ONE axis in Step 1, all variations share that axis
 (internal variety within the axis). If they chose "all", spread across
 2-4 axes.
 
-## Step 2b — Chat shape: 3-4 full-context blocks (writer-requested, 2026-08-12)
+## Step 2b: Chat shape of 3-4 full-context blocks (writer-requested, 2026-08-12)
 
 The block above is what the FILE holds. What reaches the writer in chat is a
-menu of 3-4 candidates, each rendered as a full section block — the changed
+menu of 3-4 candidates, each rendered as a full section block, with the changed
 lines marked with a leading `►`, the neighboring lines shown plain, one
 labeled block per variation (A/B/C...). Metadata lines (vowel / stress / POV /
 rhyme position) and scansion maps stay in the file unless the discussion IS
 the meter.
 
-Generate 4-6 per Step 2; show 3-4. The rest are archived, not discarded —
+Generate 4-6 per Step 2; show 3-4. The rest are archived, not discarded.
 Step 5 already does that.
 
 Shape and worked example:
-[variations.md](../research/variations.md) "Presenting the candidates — chat
+[variations.md](../research/variations.md) "Presenting the candidates: chat
 vs file". This is the writer's own convention, not a book claim.
 
-## Step 3 — Highlight trade-offs (model-side)
+## Step 3: Highlight trade-offs (model-side)
 
-Each variation gets a `gains` and `loses` line — what improves and what
+Each variation gets a `gains` and `loses` line: what improves and what
 gets sacrificed. The writer chooses by trade-off:
 
 - "V1 gains intimacy (2nd person); loses universality."
 - "V3 gains family-rhyme options; loses the long-A vowel's openness."
 - "V5 gains forward motion (consonance); loses chorus-landing weight."
 
-## Step 4 — Do NOT pick the winner (model-side)
+## Step 4: Do NOT pick the winner (model-side)
 
 If the writer asks which is best, push back:
 
@@ -96,13 +96,13 @@ The choice depends on:
 - the melody's pitch contour (if known)
 - the rhyme scheme commitments already made
 
-Which constraint is load-bearing for this song?
+Which constraint decides this song?
 ```
 
-Let the writer name the load-bearing constraint, then surface the
+Let the writer name the deciding constraint, then surface the
 variation that best matches it.
 
-## Step 5 — Lock + archive
+## Step 5: Lock + archive
 
 After the writer picks:
 
@@ -114,7 +114,7 @@ After the writer picks:
 Archive format (per `variations.md`):
 
 ```
-# Chorus L3 — variations
+# Chorus L3 variations
 
 ORIGINAL (locked Wed): "..."
 
@@ -136,7 +136,7 @@ DECISION: V2, locked Thu. Reason: matches V1 verse's body-language palette.
 - The model's job is to generate options labeled with their trade-offs,
   not to recommend a winner.
 - If variations all collapse on one axis, broaden. If the writer can't
-  decide, surface the load-bearing constraint and re-narrow.
+  decide, surface the deciding constraint and re-narrow.
 
 ## Common failure modes (recovery prompts)
 
@@ -149,12 +149,12 @@ Variations break section prosody → drop the broken variation; surface the
 prosody constraint as the deciding factor
 
 Writer can't decide → run `audit-checklist.md` per-line on each variation;
-let the audit surface the load-bearing trade-off
+let the audit surface the deciding trade-off
 ```
 
 ## Cross-references
 
-- `variations.md` — full context, six axes definitions
+- `variations.md`: full context, six axes definitions
 - All axis-source context files (point-of-view, object-writing, metaphor,
   meter, rhyme-strategy, prosody)
-- `audit-checklist.md` — Step 5 recovery
+- `audit-checklist.md`: Step 5 recovery
