@@ -1112,6 +1112,15 @@ repo-specific policy of their own:
   common install) still triggers it. The project need not carry its own
   `settings.json`. Missing/uncertain state (no key enabled at any scope, no jq)
   fails quiet. It never advises toward a skill that is not enabled for the session.
+- **Coverage manifest.** `hooks/coverage.json` declares, per guard, which
+  baseline permission families and exact patterns it blocks by default (today
+  `block-dangerous-git` covering `destructive-bash-deny`) and the levers that
+  narrow or switch it off (`block_dangerous_git_enabled`,
+  `block_dangerous_git_allow`). The `claude-config` plugin's `audit` skill reads
+  it to demote a missing baseline deny pattern to `info` when the family is
+  already blocked by a live hook, citing the manifest and naming the levers as
+  the residual. It is data, never executed, and adds no per-call latency;
+  `coverage-manifest.test.sh` pins it to the guards it describes.
 
 ## Telemetry (opt-in)
 

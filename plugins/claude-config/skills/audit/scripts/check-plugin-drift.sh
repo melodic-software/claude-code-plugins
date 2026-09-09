@@ -1,31 +1,50 @@
 #!/usr/bin/env bash
 # Plugin drift audit for the audit skill (Category E).
 #
-# Compares .claude/settings.json `enabledPlugins` against live upstream
-# `marketplace.json` for each registered marketplace. Detects three drift
+# Compares .claude/settings.json `enabledPlugins` against the catalog
+# `marketplace.json` of each registered marketplace. Detects three drift
 # modes that a state-vs-settings bootstrap check misses:
 #
-#   ORPHAN     — plugin in enabledPlugins, NOT in upstream catalog (deleted upstream)
-#   NEW        — plugin in upstream catalog, NOT in enabledPlugins (added upstream)
-#   RENAME     — heuristic: ORPHAN + NEW with similar names within one marketplace
+#   ORPHAN     plugin in enabledPlugins, NOT in upstream catalog (deleted upstream)
+#   NEW        plugin in upstream catalog, NOT in enabledPlugins (added upstream)
+#   RENAME     heuristic: ORPHAN + NEW with similar names within one marketplace
 #
-# Read-only. Network-tolerant: a marketplace whose upstream fetch fails is
-# reported SKIP and does not fail the run. Outputs a structured table to
-# stdout and a machine-readable JSON to $SETTINGS_AUDIT_OUTPUT_JSON when set (consumed by
-# fix-plugin-drift.sh).
+# Catalog resolution per marketplace, by `extraKnownMarketplaces[key].source`:
+#   directory  `source.source == "directory"` with a `path`. The catalog is
+#              read from `<path>/.claude-plugin/marketplace.json` on disk. A
+#              relative path (including `./`) resolves against the project
+#              root, the directory that contains the settings file's
+#              `.claude/`; an absolute path is used as is. Takes precedence
+#              over `source.repo` when both are present, and never consults
+#              SETTINGS_AUDIT_FIXTURE_DIR.
+#   repo       `source.repo` (owner/name). The catalog is fetched from
+#              raw.githubusercontent.com, or read from the fixture directory
+#              when SETTINGS_AUDIT_FIXTURE_DIR is set.
+#   neither    reported SKIP.
+#
+# Read-only. Network-tolerant: a marketplace whose upstream fetch fails, or
+# whose directory catalog is missing or invalid, is reported SKIP and does not
+# fail the run. Outputs a structured table to stdout and a machine-readable
+# JSON to $SETTINGS_AUDIT_OUTPUT_JSON when set (consumed by fix-plugin-drift.sh).
+# Each JSON block carries `source: "directory" | "repo"` naming which
+# resolution produced it.
 #
 # Exit codes:
 #   0  no drift detected
-#   1  drift detected (advisory — invoker decides whether to fix)
-#   2  fatal (settings.json missing/invalid, jq/curl missing)
+#   1  drift detected (advisory, the invoker decides whether to fix)
+#   2  fatal (settings.json missing/invalid, jq missing). A missing curl is
+#      not fatal: directory-sourced catalogs still audit, and each
+#      repo-sourced one is recorded as a fetch failure.
 #
 # Env overrides (for testing):
-#   CLAUDE_SETTINGS_FILE    — path to project settings.json
-#   SETTINGS_AUDIT_FIXTURE_DIR — directory of fixture marketplace.json files
-#                                 named <marketplace-key>.json. When set,
-#                                 the script reads from disk instead of curl.
-#   SETTINGS_AUDIT_OUTPUT_JSON                — write structured findings to this path
-#   NO_COLOR                   — disable ANSI output
+#   CLAUDE_SETTINGS_FILE        path to project settings.json
+#   SETTINGS_AUDIT_FIXTURE_DIR  directory of fixture marketplace.json files
+#                               named <marketplace-key>.json. When set, the
+#                               script reads repo-sourced catalogs from disk
+#                               instead of curl. Directory-sourced catalogs
+#                               ignore it.
+#   SETTINGS_AUDIT_OUTPUT_JSON  write structured findings to this path
+#   NO_COLOR                    disable ANSI output
 
 set -uo pipefail
 
@@ -51,11 +70,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-if [[ -z "${SETTINGS_AUDIT_FIXTURE_DIR:-}" ]] && ! command -v curl >/dev/null 2>&1; then
-  echo "ERROR: curl required when SETTINGS_AUDIT_FIXTURE_DIR is unset" >&2
-  exit 2
-fi
-
 if ! jq empty "$SETTINGS" 2>/dev/null; then
   echo "ERROR: settings file is not valid JSON: $SETTINGS" >&2
   exit 2
@@ -72,8 +86,9 @@ fi
 DRIFT_FOUND=0
 SKIPPED_MARKETS=()
 
-# JSON aggregator — built up across marketplaces, flushed at end if requested.
-# Each marketplace block: { "key": "...", "status": "ok|skipped", "orphans": [...],
+# JSON aggregator, built up across marketplaces and flushed at end if requested.
+# Each marketplace block: { "key": "...", "status": "ok|skipped",
+#                           "source": "directory|repo", "orphans": [...],
 #                           "new_upstream": [...], "renames": [...], "skip_reason": "..." }
 JSON_BUFFER='[]'
 
@@ -109,45 +124,109 @@ fetch_upstream() {
     return 1
   fi
 
+  # curl is needed only here, for a repo-sourced catalog. A machine without
+  # it still audits every directory-sourced marketplace; this one is
+  # recorded as a fetch failure rather than aborting the run.
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "WARN: curl not found; cannot fetch $market_key from $repo" >&2
+    return 1
+  fi
   local url="https://raw.githubusercontent.com/$repo/HEAD/.claude-plugin/marketplace.json"
   curl -fsSL --max-time 15 "$url" 2>/dev/null
+}
+
+# --- Resolve a directory-source path ----------------------------------------
+
+# Stdout: the directory a `source.path` names. A relative path (including
+# `./`) resolves against the project root, the directory that contains the
+# settings file's `.claude/`; an absolute path (POSIX or drive-lettered) is
+# used as is. Backslashes become forward slashes and a trailing slash is
+# stripped so Git Bash on Windows joins the same way as Linux.
+resolve_directory_path() {
+  local raw="$1"
+  raw="${raw//\\//}"
+  raw="${raw#./}"
+  raw="${raw%/}"
+
+  if [[ "$raw" == /* || "$raw" == [A-Za-z]:/* ]]; then
+    printf '%s\n' "$raw"
+    return 0
+  fi
+
+  local project_root
+  project_root=$(dirname "$(dirname "$SETTINGS")")
+  if [[ -z "$raw" || "$raw" == "." ]]; then
+    printf '%s\n' "$project_root"
+  else
+    printf '%s/%s\n' "$project_root" "$raw"
+  fi
 }
 
 # --- Per-marketplace audit --------------------------------------------------
 
 # Record a skipped marketplace: print the SKIP line, append to SKIPPED_MARKETS,
-# and add a skipped block to JSON_BUFFER. Args: key, suffix, message, json_reason.
+# and add a skipped block to JSON_BUFFER. Args: key, suffix, message,
+# json_reason, source ("repo" when omitted).
 record_skip() {
-  local market_key="$1" suffix="$2" message="$3" json_reason="$4"
+  local market_key="$1" suffix="$2" message="$3" json_reason="$4" source="${5:-repo}"
   printf '  %sSKIP%s  %s\n' "$YELLOW" "$RESET" "$message"
   SKIPPED_MARKETS+=("$market_key:$suffix")
-  JSON_BUFFER=$(jq --arg k "$market_key" --arg r "$json_reason" \
-    '. + [{key:$k, status:"skipped", skip_reason:$r, orphans:[], new_upstream:[], renames:[]}]' \
+  JSON_BUFFER=$(jq --arg k "$market_key" --arg r "$json_reason" --arg s "$source" \
+    '. + [{key:$k, status:"skipped", source:$s, skip_reason:$r, orphans:[], new_upstream:[], renames:[]}]' \
     <<<"$JSON_BUFFER")
 }
 
 audit_marketplace() {
   local market_key="$1"
-  local repo
+  local repo source_type source_path
   repo=$(jq -r --arg k "$market_key" '.extraKnownMarketplaces[$k].source.repo // empty' "$SETTINGS" | tr -d '\r')
+  source_type=$(jq -r --arg k "$market_key" '.extraKnownMarketplaces[$k].source.source // empty' "$SETTINGS" | tr -d '\r')
+  source_path=$(jq -r --arg k "$market_key" '.extraKnownMarketplaces[$k].source.path // empty' "$SETTINGS" | tr -d '\r')
 
-  printf '\n%s%s%s (%s)\n' "$CYAN" "$market_key" "$RESET" "${repo:-no-repo}"
+  # A directory source wins over source.repo when both are present: the
+  # catalog is already on disk, so no fetch and no fixture lookup happens.
+  local catalog_source="repo" catalog_dir=""
+  if [[ "$source_type" == "directory" && -n "$source_path" ]]; then
+    catalog_source="directory"
+    catalog_dir=$(resolve_directory_path "$source_path")
+  fi
 
-  if [[ -z "$repo" ]]; then
-    record_skip "$market_key" "no-repo" "no source.repo declared" "no source.repo"
-    return 0
+  if [[ "$catalog_source" == "directory" ]]; then
+    printf '\n%s%s%s (directory:%s)\n' "$CYAN" "$market_key" "$RESET" "$catalog_dir"
+  else
+    printf '\n%s%s%s (%s)\n' "$CYAN" "$market_key" "$RESET" "${repo:-no-repo}"
   fi
 
   local upstream_json
-  if ! upstream_json=$(fetch_upstream "$market_key" "$repo"); then
-    record_skip "$market_key" "fetch-failed" \
-      "upstream fetch failed (network/404/missing fixture)" "fetch failed"
-    return 0
-  fi
+  if [[ "$catalog_source" == "directory" ]]; then
+    local catalog_file="$catalog_dir/.claude-plugin/marketplace.json"
+    if [[ ! -f "$catalog_file" ]]; then
+      record_skip "$market_key" "catalog-missing" \
+        "directory catalog not found at $catalog_file" "directory catalog missing" "directory"
+      return 0
+    fi
+    upstream_json=$(cat "$catalog_file")
+    if ! jq empty <<<"$upstream_json" 2>/dev/null; then
+      record_skip "$market_key" "invalid-catalog" \
+        "directory catalog is not valid JSON: $catalog_file" "invalid directory catalog" "directory"
+      return 0
+    fi
+  else
+    if [[ -z "$repo" ]]; then
+      record_skip "$market_key" "no-repo" "no source.repo declared" "no source.repo"
+      return 0
+    fi
 
-  if ! jq empty <<<"$upstream_json" 2>/dev/null; then
-    record_skip "$market_key" "invalid-json" "upstream returned invalid JSON" "invalid upstream JSON"
-    return 0
+    if ! upstream_json=$(fetch_upstream "$market_key" "$repo"); then
+      record_skip "$market_key" "fetch-failed" \
+        "upstream fetch failed (network/404/missing fixture)" "fetch failed"
+      return 0
+    fi
+
+    if ! jq empty <<<"$upstream_json" 2>/dev/null; then
+      record_skip "$market_key" "invalid-json" "upstream returned invalid JSON" "invalid upstream JSON"
+      return 0
+    fi
   fi
 
   # Upstream plugin name list (sorted, unique). CRLF stripped — GitHub raw
@@ -250,8 +329,9 @@ audit_marketplace() {
   renames_json=$(jq -nR --arg k "$market_key" \
     '[inputs | select(. != "") | split(" -> ") | {from: .[0], to: .[1], marketplace: $k}]' <<<"$renames")
 
-  JSON_BUFFER=$(jq --arg k "$market_key" --argjson o "$orphans_json" --argjson n "$new_json" --argjson r "$renames_json" \
-    '. + [{key:$k, status:"ok", skip_reason:"", orphans:$o, new_upstream:$n, renames:$r}]' \
+  JSON_BUFFER=$(jq --arg k "$market_key" --arg s "$catalog_source" \
+    --argjson o "$orphans_json" --argjson n "$new_json" --argjson r "$renames_json" \
+    '. + [{key:$k, status:"ok", source:$s, skip_reason:"", orphans:$o, new_upstream:$n, renames:$r}]' \
     <<<"$JSON_BUFFER")
 }
 

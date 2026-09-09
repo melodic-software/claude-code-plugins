@@ -139,7 +139,8 @@ saying so ships the false confidence the `sensitive-file-deny` section refuses t
 
 **The concrete hole is prefix anchoring, and it is worth stating in the finding.** Matching is
 prefix-based: *"`Bash(npm run test *)` matches Bash commands starting with `npm run test`"*, and a
-trailing `*` with a space before it *"enforces a word boundary"* (same page). So
+*"The space before a trailing `*` is part of the rule"* (same page), so `Bash(ls *)` does not
+match `lsof`. So
 `Bash(git push --force *)` matches `git push --force origin main` and does **not** match
 `git push origin main --force`, which is the ordinary spelling. Flag-position variants, `--force-with-lease`,
 `-f` bundled into another short-flag cluster, and `git push` aliases all pass the same way. These
@@ -198,6 +199,12 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
   all, the narrowing is **unavailable** rather than assumed clear: an unread lever is not an unset one.
   Note the script reads the scopes it can open; a managed-settings layer it cannot read leaves
   `allowManagedHooksOnly` unknown, which is a partial reading, not a clear one.
+- **The hook the coverage manifest names is one the inventory found.** A `hooks/coverage.json`
+  is a claim by the plugin about its own enforcement, not evidence of it, so the named hook must
+  appear in the enumerated inventory on the event and matcher the entry declares. An entry naming
+  a hook the plugin does not register takes no narrowing and is reported, because the alternative
+  is a manifest talking a missing deny rule down to `info` on the strength of code that does not
+  run.
 - **The hook is on the tool surface the pattern defends.** `destructive-bash-deny` and `ask-rules` are
   Bash-command families, so a `PreToolUse` hook on `Bash`/`PowerShell` can cover them.
   `sensitive-file-deny` is a `Read`-pattern family, and a Read deny covers the built-in file tools as

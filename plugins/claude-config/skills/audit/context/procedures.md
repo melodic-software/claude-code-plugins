@@ -79,3 +79,23 @@ added, and neither is mechanical:
 
 *Moving* an existing deny rule from local to project stays mechanical — it is bug #8961 placement, not
 a policy change — which is why the two rows are graded differently.
+
+## The findings artifact and the suppression record
+
+`audit-engine.sh --out <file>` writes every finding as a row in the identity shape the sibling
+`audit-pass` skill hashes: `identity.check`, `identity.claim`, and `identity.sites` (each a
+`surface` plus a versioned `anchor/v1`), with `finding_id` derived from them, plus `severity`,
+`detail`, `lane` (`claude-config/audit`) and `tier` (`derived` for engine rows). Persist it in the
+topic's memory slice (default `.work/claude-config-audit/findings.json`), never in the tree the
+audit scans. A judgment finding the model adds takes the same shape with `"tier": "judged"`; derive
+its anchor and id with the engine's `anchor` and `finding-id` subcommands rather than by hand, so
+two runs agree on the identity.
+
+The same identity keys the consumer's suppression record, `.claude/audit-pass.md`, layered per the
+config-cascade convention. The engine reads the team layer, the user-global layer, and the local
+overlay; only the team layer suppresses, a personal-only entry is reported as `personal-only, not
+applied`, and an entry whose constituents do not hash to its key, or that lacks a required key, is
+reported `malformed` and never suppresses. The `--table` output prints a `suppress:` line under every
+finding with the id, surface, and anchor, so an operator who decides to keep a finding copies that
+into a stanza with a `reason` and a `date` instead of deriving anything. This is the declared route
+for session posture; nothing about the session's environment is read to decide which rows apply.

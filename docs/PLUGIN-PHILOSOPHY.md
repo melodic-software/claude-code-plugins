@@ -50,6 +50,24 @@ statement does not settle it; `plugins/architecture/reference/topic-docs.md` is 
 this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
 the manifest is for.)
 
+A git config **vendor section that is not a publisher name** is the git-native place for a
+convention any `git config --get` consumer must be able to read. git-config(1) Variables states
+that "Other git-related tools may and do use their own variables. When inventing new variables for
+use in your own tool, make sure their names do not conflict with those that are used by Git itself
+and other popular tools, and describe them in your documentation" (verified 2026-09-08 against
+[git-config(1) Variables](https://git-scm.com/docs/git-config#_variables); recheck trigger: that
+paragraph being rewritten). Git already owns `worktree.*` (`worktree.guessRemote`,
+`worktree.useRelativePaths`; [git-worktree(1) Configuration](https://git-scm.com/docs/git-worktree#_configuration),
+verified 2026-09-08; recheck trigger: git-config(1) adding a new `worktree.*` key), so a placement
+key cannot live there. Popular tools typically name the section after the *tool* (`ghq.root`,
+`git-town.*`, `lfs.*`, `wt.basedir`, `delta.*`, `hub.protocol`); a publisher-named key (`melodic.*`)
+is still an org-agnosticism defect, and a plugin-named key (`source-control.*`) still couples
+consumers to this marketplace's plugin identity. The worktree-placement key is therefore a
+capability section that collides with neither Git nor those tools: `worktreeroot.path`
+([ADR 0031](adr/0031-name-the-worktree-root-git-config-key-as-a-capability-section.md)). This ruling is git
+config vendor sections only; it does not bind publisher-prefixed environment variables
+(`MELODIC_*`), marketplace ids, or organization names in skill content.
+
 Like the setup contract below, **this is a normative target, not a description of the fleet**.
 Enforcement is the token classes in `scripts/org-agnosticism-tokens.txt` — one data file, every
 site either reads it or is a documented narrowing/extension of it:
@@ -633,6 +651,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
 | Config cascade — consumer-config layering, precedence, overlay naming, and expression form | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
+| Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
 | Plugin reconfiguration — native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/conventions/plugin-reconfiguration/`](conventions/plugin-reconfiguration/README.md) |
 | Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/conventions/pr-body-convention/`](conventions/pr-body-convention/README.md) |

@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.3]
+## [0.45.4]
 
 ### Fixed
 
@@ -19,6 +19,25 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
   hashes the physical working directory, so one directory reached through two spellings keys once.
+
+## [0.45.3]
+
+### Fixed
+
+- **`observability` loads when no `session_event_log_*` option is configured.** The two
+  pre-compute lines passed `${user_config.*}` placeholders inside a shell command; a placeholder
+  the harness leaves unrendered is a bash `bad substitution`, one failed pre-compute line aborts
+  the whole invocation, and a rendered value would be re-parsed by the shell, which is why the
+  plugins reference has shell-executing fields reject `${user_config.*}`. The pre-compute lines
+  now pass no option: the options render as plain content, the probe lines report the manifest
+  defaults, and the skill body re-runs the probe with the rendered values from its own Bash call.
+  A regression test asserts that no pre-compute line references `user_config` and runs each
+  probe-invoking line through bash.
+- **The pipeline line names its two tiers.** `envelope:` counts the rows the telemetry sink wrote
+  for the audit hooks, the `source: "envelope"` rows in `sessions/*.jsonl` plus every line of the
+  shared `hook-events.jsonl` (the legacy shape for a payload with no session id), which the
+  event-log switch never governed, beside `event log: on|off`, so `off` next to a populated root
+  no longer reads as a contradiction.
 
 ## [0.45.2]
 

@@ -6,9 +6,9 @@ jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL
 ## Setup — common variables
 
 The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
-`.observability/claude`. Its rendered value is on the skill body's "Hook log root" line: use
-that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess inherits no
-`CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
+`.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
+options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess
+inherits no `CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, the legacy shape for
@@ -208,8 +208,10 @@ per-turn counts; `tool_use_id` joins a `PreToolUse` row to its `PostToolUse` (an
 
 Render the six options, the guard, and the prune state from one probe call, so the report
 shows what the pipeline is doing rather than what the reader assumes. The values are the
-rendered `${user_config.*}` from the skill body, passed as flags; an unrendered placeholder
-reads as the manifest default.
+options the skill body rendered as plain content, passed as flags from this Bash call; an
+unrendered placeholder or an empty value reads as the manifest default. The skill's pre-compute
+probe line passes no option (a `${user_config.*}` value never rides inside shell-executing
+content), so it shows the defaults; this call is the one that reflects a configured option.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline \
@@ -218,8 +220,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-sta
   --keep-days "<session_log_keep_days>" --pre-prune-command "<session_log_pre_prune_command>"
 ```
 
-Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `logging:`. Copy
-them into the report verbatim under "Toggles and retention in effect". A `WARN` on the
+Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `envelope:`. Copy
+them into the report verbatim under "Toggles and retention in effect". The last line names two
+tiers: `envelope:` counts the rows the telemetry sink wrote for the audit hooks, the
+`source: "envelope"` rows in `sessions/*.jsonl` plus every line of the shared `hook-events.jsonl`,
+which follow the per-hook audit toggles and not the event-log switch, and `event log:` is the
+switch. A `WARN` on the
 `prune-pending:` line (a moved-aside set older than 24 h) is a MEDIUM finding: the configured
 pre-prune command is not finishing, and `/claude-ops:observability clean` sweeps the set. A
 `guard: operator-edited` line is a HIGH finding: the hooks are refusing to write. The probe

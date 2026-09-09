@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.23]
+## [0.32.24]
 
 ### Fixed
 
@@ -15,6 +15,30 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   over the entry, the same shape the disk-hygiene interpreter cache uses, so a reader sees the
   previous whole text or the new one. Cost: one `mv` spawn per cold or expired key, at most once
   per key per 24 h, on the cold path the README already prices; the warm path is unchanged.
+
+## [0.32.23]
+
+### Added
+
+- **`hooks/coverage.json` declares what the guards block, so an audit reads it
+  instead of a guard's source.** The `claude-config` plugin's `audit` skill
+  demotes a missing baseline deny pattern to `info` when a live `PreToolUse`
+  hook already blocks that command family, and until now it had to read the
+  guard by hand to learn which families and patterns that covers. The manifest
+  states it: one entry per guard with the event and matcher it runs on, the
+  baseline families and the exact permission patterns it blocks by default,
+  and the levers that narrow or switch it off, so the audit can cite the
+  manifest and name the residual. The first entry is `block-dangerous-git`
+  covering `destructive-bash-deny` (the eight `git push --force` / `-f`,
+  `git reset --hard`, and `git clean -f` / `-fd` patterns) with
+  `block_dangerous_git_enabled` and `block_dangerous_git_allow` as its levers.
+  `secret-pattern-detection` is not listed: it runs on `Write|Edit`, so it
+  does not cover the `Read`-pattern `sensitive-file-deny` family. Nothing
+  covers `ask-rules`. The file is data, never executed, and adds no per-call
+  latency: no `hooks.json` row changes. `coverage-manifest.test.sh` pins it to
+  the guards it describes: every hook path exists and is registered, every
+  event is one `hooks.json` declares, every family and pattern is one the
+  baseline lists, and every lever is a documented option.
 
 ## [0.32.22]
 
