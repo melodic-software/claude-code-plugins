@@ -192,22 +192,22 @@ check_segment() {
     return 0
   fi
 
-  hook::git_resolve_index "${w[@]}" || return 0
-  gi=$HOOK_GIT_RESOLVED_GI
-  # env -S splicing may have rewritten the argv — match on the resolved words.
-  w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
+  # One parsed invocation: git's index, the argv `env -S` splicing may have
+  # rewritten (match on THESE words), the subcommand and its index, and the
+  # config assignments. A segment that is no git invocation, or names no
+  # subcommand, is nothing this guard blocks.
+  hook::git_invocation "${w[@]}" || return 0
+  gi=$HOOK_GITINV_GI
+  w=("${HOOK_GITINV_WORDS[@]}")
   nseg=${#w[@]}
+  sub=$HOOK_GITINV_SUB
+  sub_idx=$HOOK_GITINV_SUB_IDX
+  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
 
   # core.hooksPath is checked only on git config arguments (collected by the
   # subcommand walk from -c/--config/--config-env), never commit messages or
-  # pathspecs. The check applies whether or not a subcommand was found — the
-  # hooksPath block below still needs commit/push, so gate after.
-  hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
-  sub=$HOOK_GIT_SUB
-  sub_idx=$HOOK_GIT_SUB_IDX
-  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
-
-  for cv in ${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"}; do
+  # pathspecs.
+  for cv in ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"}; do
     lc="${cv,,}"
     [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
       "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \

@@ -172,13 +172,13 @@ run "post-2.25 name alias.bugreport: violating subject blocked" "$r" \
 run "post-2.25 name alias.bugreport: conforming subject allowed" "$r" \
   $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
-# --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
+# --- the composed dir is git's own slice, plus the wrapper's replayed chdir ----
 # The alias lookup is the reachable consumer: it has no stdin-form gate and no
 # exemption gate, and it fails OPEN — reading the wrong repository's config
 # misses the expansion, so the guard never learns the subcommand is `commit`.
 #
 # `git commit -C HEAD` is deliberately NOT the control here. `-C` sets exempt=1
-# and the hook returns before effective_dir is ever called, so that invocation
+# and the hook returns before the directory is ever composed, so that invocation
 # answers "allowed" on both the old and the new code and would read as already
 # fixed. The positional case is probed through the alias lookup instead.
 
@@ -214,7 +214,7 @@ run "env -u -C git <alias>: decoy repo at <cwd>/git is not read" "$r" \
 # A `-C` AFTER the subcommand is an argument, not a chdir. The alias ends in `--`
 # so the trailing `-C dec` git appends to the expansion cannot re-trigger the
 # reuse-message exemption in the recursed frame — without that, the case answers
-# "allowed" on both trees for a reason unrelated to effective_dir.
+# "allowed" on both trees for a reason unrelated to the composed directory.
 r="$(newrepo "$TICKET")"
 d="$(subrepo "$r" dec)"
 git -C "$d" config alias.qs 'commit -F - --cleanup=verbatim --'
@@ -222,7 +222,7 @@ run "post-subcommand -C is not a chdir (decoy repo not read)" "$r" \
   $'git qs -C dec <<\'EOF\'\njunk subject\nEOF' 0
 
 # A genuine wrapper chdir IS a relocation, and the slice cannot see it — so it is
-# replayed from HOOK_GIT_RESOLVED_WRAPPER_DIRS, matching what #2100 established
+# replayed from HOOK_GITINV_WRAPPER_DIRS, matching what #2100 established
 # for block-dangerous-git. The alias lives only in the moved-to repository.
 r="$(newrepo "$TICKET")"
 d="$(subrepo "$r" inner)"
@@ -244,7 +244,7 @@ run "env -C <dir> git <alias>: conforming subject still allowed" "$r" \
 run "env --chdir=<dir> git <alias>: attached long form is replayed" "$r" \
   $'env --chdir=inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
 
-# The OTHER effective_dir consumer: sequencer_in_progress. Every pre-existing
+# The OTHER consumer of the composed directory: sequencer_in_progress. Every pre-existing
 # `sequencer:` case probes the payload cwd's own repo with no wrapper at all, so
 # nothing reached this call site through a wrapper chdir. `--chdir=` again, so the
 # case discriminates rather than being caught by the old scan.

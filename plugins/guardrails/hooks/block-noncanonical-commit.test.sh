@@ -584,7 +584,7 @@ fi
 # earlier in this file — are where the cost lives, and a persisted chain is the
 # only shape that gives one fork PER HOP for the linear ceilings below.
 # An inline HOP is free: it sets inline_alias_handled and skips the config
-# lookup, and effective_dir is pure string composition. Measured with the shim
+# lookup, and the directory composition is pure string work. Measured with the shim
 # below, the 20-hop dual-spelling and 60-hop single-spelling inline chains to
 # `commit -F -` cost ZERO spawns. But an inline chain is not uniformly free: its
 # TERMINAL subcommand can still fork, by either of two DISTINCT routes that must
@@ -988,7 +988,7 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   wrapper_cd_case "a chdir before -S survives the splice restart" \
     "env -C other -S 'git a'" 2
   # A directory operand containing a space must survive the array round-trip
-  # into effective_dir's argv.
+  # into hook::git_effective_dir_to's argv.
   wrapper_cd_case "a wrapper chdir into a directory with a space" \
     "env -C 'has space' git a" 2
   # GNU env refuses `-0` alongside a command outright ("cannot specify --null

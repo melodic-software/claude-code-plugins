@@ -1410,7 +1410,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
     "$benign_creations" "$SHARE_CREATIONS"
 
   # A `!` alias reparse composes the relocated base without a fork
-  # (effective_dir_to, not `$(effective_dir …)`). The shared parser's
+  # (hook::git_effective_dir_to assigns; no command substitution). The shared parser's
   # `< <(printf …)` re-entry is gone with #3838, so the reparse adds nothing
   # over the benign share.
   guard_share "git -c alias.y='!git status' y"

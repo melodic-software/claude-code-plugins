@@ -814,7 +814,7 @@ compact_refuses "escaped slash" '{"a":"x\/y"}'
 compact_refuses "raw control byte in a string" "$(printf '{"a":"x\001y"}')"
 compact_refuses "array root" '[1,2]'
 compact_refuses "trailing comma" '{"a":1,}'
-compact_refuses "bad literal" '{"a":tru}' # spellchecker:disable-line
+compact_refuses "bad literal" '{"a":tru}'     # spellchecker:disable-line
 compact_refuses "split literal" '{"a":tr ue}' # spellchecker:disable-line
 compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
@@ -1419,6 +1419,193 @@ if ((rc == 2)); then
 else
   fail "git alias (env .command masked): rc=$rc"
 fi
+
+# --- hook::git_invocation: one parsed invocation ------------------------------
+# The seam every git guard calls. These rows assert the WHOLE result in one
+# string, so a step that silently stops contributing (a dropped wrapper chdir, a
+# config kind that stops being tagged) fails here rather than only inside a
+# guard spawned against a fixture repository.
+#
+# Result shape: rc|gi|words|wrapper dirs|sub|sub idx|config values|config kinds|
+# alias termination|alias expansions, each list joined with '|' by join_a.
+gitinv_result() {
+  hook::git_invocation "$@"
+  local rc=$?
+  printf 'rc=%s gi=%s words=[%s] dirs=[%s] sub=%s sub_idx=%s cfg=[%s] kinds=[%s] alias=%s exps=[%s]' \
+    "$rc" "$HOOK_GITINV_GI" \
+    "$(join_a ${HOOK_GITINV_WORDS[@]+"${HOOK_GITINV_WORDS[@]}"})" \
+    "$(join_a ${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})" \
+    "$HOOK_GITINV_SUB" "$HOOK_GITINV_SUB_IDX" \
+    "$(join_a ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"})" \
+    "$(join_a ${HOOK_GITINV_CONFIG_KINDS[@]+"${HOOK_GITINV_CONFIG_KINDS[@]}"})" \
+    "$HOOK_GITINV_ALIAS_TERM" \
+    "$(join_a ${HOOK_GITINV_ALIAS_EXPS[@]+"${HOOK_GITINV_ALIAS_EXPS[@]}"})"
+}
+
+# gitinv_is <desc> <expected-result> <argv...>
+gitinv_is() {
+  local desc="$1" want="$2"
+  shift 2
+  local got
+  got="$(gitinv_result "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "git_invocation: $desc"
+  else
+    fail "git_invocation ($desc):
+  want: $want
+  got:  $got"
+  fi
+}
+
+# A wrapper's chdir is reported, and the subcommand is resolved past it.
+gitinv_is "sudo -D <dir> git push --force" \
+  "rc=0 gi=3 words=[sudo|-D|d|git|push|--force] dirs=[d] sub=push sub_idx=4 cfg=[] kinds=[] alias=none exps=[]" \
+  sudo -D d git push --force
+# `env -S` REWRITES the argv, so the words a guard matches on are the spliced
+# ones and the index counts positions in them, not in what the caller passed.
+gitinv_is "env -S splices the operand and reports env's own chdir" \
+  "rc=0 gi=2 words=[-C|d|git|push|--force] dirs=[d] sub=push sub_idx=3 cfg=[] kinds=[] alias=none exps=[]" \
+  env -S '-C d git push --force'
+# The mirror image: `-u` consumes the following `-C` as the variable name, so
+# git never moves and no chdir is reported.
+gitinv_is "env -u swallows -C, so no chdir is reported" \
+  "rc=0 gi=3 words=[env|-u|-C|git|status] dirs=[] sub=status sub_idx=4 cfg=[] kinds=[] alias=none exps=[]" \
+  env -u -C git status
+# Config assignments are collected with their kinds, and a key that is not the
+# invoked subcommand's alias leaves the alias termination at "none".
+gitinv_is "git -c core.hooksPath=x commit tags the value inline" \
+  "rc=0 gi=0 words=[git|-c|core.hooksPath=x|commit] dirs=[] sub=commit sub_idx=3 cfg=[core.hooksPath=x] kinds=[inline] alias=none exps=[]" \
+  git -c core.hooksPath=x commit
+gitinv_is "git --config-env=core.hooksPath=VAR commit tags the value env" \
+  "rc=0 gi=0 words=[git|--config-env=core.hooksPath=VAR|commit] dirs=[] sub=commit sub_idx=2 cfg=[core.hooksPath=VAR] kinds=[env] alias=none exps=[]" \
+  git --config-env=core.hooksPath=VAR commit
+# An inline alias for the INVOKED subcommand terminates the chain with its
+# expansion in hand; a `!` body is the caller's to re-parse as a shell command.
+gitinv_is "an inline alias whose expansion is a ! shell alias" \
+  "rc=0 gi=0 words=[git|-c|alias.p=!git push --force|p] dirs=[] sub=p sub_idx=3 cfg=[alias.p=!git push --force] kinds=[inline] alias=inline exps=[!git push --force]" \
+  git -c 'alias.p=!git push --force' p
+# The same alias defined via --config-env terminates the chain unverifiable: the
+# expansion is an environment variable's value this parser never reads.
+gitinv_is "a --config-env alias for the invoked subcommand terminates unverifiable" \
+  "rc=0 gi=0 words=[git|--config-env=alias.p=AVAR|p] dirs=[] sub=p sub_idx=2 cfg=[alias.p=AVAR] kinds=[env] alias=config-env exps=[]" \
+  git --config-env=alias.p=AVAR p
+# The two skip returns a guard collapses into one `|| return 0`, kept distinct
+# so a caller that ever needs them apart can tell them apart. Every result
+# variable is reset first, so the previous row's answer cannot stand.
+gitinv_is "no git at the command position returns 1" \
+  "rc=1 gi=-1 words=[] dirs=[] sub= sub_idx=-1 cfg=[] kinds=[] alias=none exps=[]" \
+  ls -la
+gitinv_is "git with globals but no subcommand returns 2" \
+  "rc=2 gi=0 words=[git|--version] dirs=[] sub= sub_idx=-1 cfg=[] kinds=[] alias=none exps=[]" \
+  git --version
+
+# A `sh -c` wrapper is the CALLER's to unwrap: the operand is a whole shell
+# command, so the caller re-parses it with the same tokenizer and its own
+# callback, which calls back into hook::git_invocation. This is that path.
+gitinv_shell_c_sub=""
+gitinv_shell_c_cb() {
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" gitinv_shell_c_cb
+    return 0
+  fi
+  hook::git_invocation "$@" || return 0
+  gitinv_shell_c_sub="$HOOK_GITINV_SUB @$HOOK_GITINV_SUB_IDX of [$(join_a ${HOOK_GITINV_WORDS[@]+"${HOOK_GITINV_WORDS[@]}"})]"
+}
+hook::bash_parse_segments "bash -lc 'git commit --no-verify'" gitinv_shell_c_cb
+if [[ "$gitinv_shell_c_sub" == "commit @1 of [git|commit|--no-verify]" ]]; then
+  ok "git_invocation: bash -lc operand re-parses into a resolved invocation"
+else
+  fail "git_invocation (bash -lc operand): got [$gitinv_shell_c_sub]"
+fi
+
+# --- The pieces a git guard composes around that invocation -------------------
+# Each is reachable here on its own, so a rule stated in one place is asserted in
+# one place rather than only through whichever guard spawn happens to reach it.
+
+# hook::git_effective_dir_to <var> <locating-option...>
+edir_is() {
+  local desc="$1" want="$2"
+  shift 2
+  local got
+  hook::git_effective_dir_to got "$@"
+  if [[ "$got" == "$want" ]]; then
+    ok "git_effective_dir_to: $desc"
+  else
+    fail "git_effective_dir_to ($desc): want [$want] got [$got]"
+  fi
+}
+gitinv_saved_base="${HOOK_EFFECTIVE_BASE-}"
+HOOK_EFFECTIVE_BASE=/base
+edir_is "an option set with no -C leaves the base" /base --git-dir /elsewhere
+edir_is "a relative -C joins the base" /base/sub -C sub
+edir_is "an absolute -C replaces it" /abs -C sub -C /abs
+edir_is "several -C compose left to right" /base/a/b -C a -C b
+edir_is "a drive-letter path replaces" 'C:/x' -C 'C:/x'
+edir_is "a trailing -C with no operand composes nothing" /base -C
+
+# hook::git_alias_reparse_to: the reparse string must tokenize back into exactly
+# the words git appends, so a trailing argument carrying a space, a quote or a
+# `$` cannot split, close a quote or read as an expansion on the way through.
+gitinv_reparse_words=()
+gitinv_reparse_cb() { gitinv_reparse_words=("$@"); }
+# shellcheck disable=SC2016  # the literal `$notvar` is the row: it must stay text
+gitinv_reparse_args=('two words' '$notvar' 'a"b')
+gitinv_reparse=""
+hook::git_alias_reparse_to gitinv_reparse '!git push' "${gitinv_reparse_args[@]}"
+hook::bash_parse_segments "$gitinv_reparse" gitinv_reparse_cb
+# shellcheck disable=SC2016  # same literal on the expected side
+if [[ "$(join_a ${gitinv_reparse_words[@]+"${gitinv_reparse_words[@]}"})" == 'git|push|two words|$notvar|a"b' ]]; then
+  ok "git_alias_reparse_to: trailing arguments round-trip through the tokenizer"
+else
+  fail "git_alias_reparse_to: got [$(join_a ${gitinv_reparse_words[@]+"${gitinv_reparse_words[@]}"})]"
+fi
+
+# hook::git_subcommand_ignores_alias: a current non-deprecated builtin is never
+# aliasable (0, skip the probe); everything else is probed (1).
+ignores_is() {
+  local sub="$1" want="$2" rc=0
+  hook::git_subcommand_ignores_alias "$sub" || rc=$?
+  if ((rc == want)); then
+    ok "git_subcommand_ignores_alias: $sub → $want"
+  else
+    fail "git_subcommand_ignores_alias ($sub): want $want got $rc"
+  fi
+}
+ignores_is commit 0
+ignores_is status 0
+ignores_is whatchanged 1 # deprecated, so git still honors an alias for it
+ignores_is maintenance 1 # added after 2.25, so an older git may honor one
+ignores_is qc 1          # no builtin by that name at all
+
+# hook::git_alias_admit: 0 to analyze, 1 when this exact state was analyzed
+# already, 2 when the invocation's budget is spent. Every key component is
+# asserted to actually separate states, because a component that stopped
+# contributing would silently collapse two analyses into one skipped verdict.
+admit_is() {
+  local desc="$1" want="$2" rc=0
+  shift 2
+  hook::git_alias_admit "$@" || rc=$?
+  if ((rc == want)); then
+    ok "git_alias_admit: $desc"
+  else
+    fail "git_alias_admit ($desc): want $want got $rc"
+  fi
+}
+HOOK_ALIAS_WORK_MAX=4
+HOOK_ALIAS_SEEN=()
+HOOK_EFFECTIVE_BASE=/one
+admit_is "a fresh state is analyzed" 0 git a
+admit_is "the same state again is skipped" 1 git a
+HOOK_ALIAS_SEEN=(x)
+admit_is "the seen-set is part of the state" 0 git a
+HOOK_ALIAS_SEEN=()
+HOOK_EFFECTIVE_BASE=/two
+admit_is "the effective base is part of the state" 0 git a
+HOOK_EFFECTIVE_BASE=/one
+admit_is "the kind tag separates a reparse string from an argv" 0 shell a
+admit_is "past the ceiling the budget is reported spent" 2 git b
+unset HOOK_ALIAS_WORK_MAX HOOK_ALIAS_ADMIT_ARMED HOOK_ALIAS_MEMO HOOK_ALIAS_WORK HOOK_ALIAS_SEEN
+HOOK_EFFECTIVE_BASE="$gitinv_saved_base"
 
 # --- The release handshake, used by every held-open-pipe case below -----------
 # A case that needs a stall declared BEFORE EOF is bounded by the producer's

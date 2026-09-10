@@ -108,38 +108,10 @@ HOOK_SELF_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_SELF_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_SELF_DIR="."
 RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
 
-# git-config (https://git-scm.com/docs/git-config, fetched 2026-09-06):
-# "aliases that hide existing Git commands are ignored except for deprecated
-# commands." A current non-deprecated builtin therefore cannot expand to
-# commit, so asking git for alias.<builtin> cannot change this gate's verdict
-# and can false-block when a leftover ignored alias happens to name commit.
-# Asking the installed git for its builtin list would put a spawn back on
-# every `git status`. This is a static subset of names that were already
-# builtins in git 2.25, minus names git marks DEPRECATED
-# (`git --list-cmds=deprecated`; git.c `DEPRECATED` bit, master fetched
-# 2026-09-06: `whatchanged` and `pack-redundant`). Names added later
-# (`bugreport` 2.27, `maintenance` 2.31, `diagnose` 2.38) stay probed, so an
-# older git that still honors `alias.bugreport = commit` cannot slip through.
-# git 2.51+ honors `alias.whatchanged = commit` (t/t0014-alias.sh). A name
-# not listed here is still probed. Skipping a non-builtin would miss a
-# commit alias.
-git_subcommand_ignores_alias() {
-  case "$1" in
-  add | am | annotate | apply | archive | bisect | blame | branch | bundle | \
-    cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
-    checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
-    commit-tree | config | describe | diff | diff-files | diff-index | diff-tree | \
-    difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
-    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | merge | \
-    merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
-    replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
-    show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \
-    update-ref | version | worktree)
-    return 0
-    ;;
-  *) return 1 ;;
-  esac
-}
+# Which subcommands git refuses to alias, and why the persisted-alias probe
+# below skips them, is hook::git_subcommand_ignores_alias in hook-utils.sh.
+# Skipping one costs this gate a `git config` fork per Bash tool call and can
+# false-block on a leftover ignored alias that happens to name commit.
 
 # --- resolved pattern cache ---------------------------------------------------
 # Resolving costs two resolver forks plus `git rev-parse --show-toplevel`.
@@ -398,61 +370,12 @@ block_title() {
   exit 2
 }
 
-# Same repo-dir/sequencer helpers as block-noncanonical-commit — an in-progress
-# sequencer commit carries a prepared message and is never content-gated.
+# The directory a segment's git runs in comes from hook::git_effective_dir_to,
+# which owns the composition rule and the caller contract (git's own globals
+# only, wrapper chdirs replayed ahead of them as leading `-C` words). An
+# in-progress sequencer commit carries a prepared message and is never
+# content-gated, so this probe is measured from that directory.
 #
-# CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice from the resolved git token
-# (`gi`) up to the subcommand, preceded by any wrapper chdir replayed as leading
-# `-C` words. The full reasoning for that contract, and for why the wrapper replay
-# is a separate input rather than something this walk could find for itself, is in
-# `block-noncanonical-commit.sh`'s docblock on its own `effective_dir`; the sibling
-# mechanic guard `block-dangerous-git.sh` binds `collect_git_locating_opts` to the
-# same boundary. In short: a 0-based scan reads `-C` words that are not git's, and
-# a slice that starts at `gi` cannot see a relocation a wrapper really performed,
-# so the caller must supply both halves.
-#
-# This guard was the last caller still scanning the WHOLE argv, which invented
-# chdirs that were not there — the opposite failure from the sibling's. `env -u -C
-# git <alias> …` moves nothing (GNU env's `-u` consumes `-C` as the variable name),
-# yet the every-word scan composed `<cwd>/git` and read that directory's aliases;
-# the guard then never learned the real subcommand and the convention went
-# unenforced. A post-subcommand `-C` is `--reuse-message`, not a directory, and the
-# distinction is purely positional.
-#
-# The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
-# shell alias's body re-parses as a NEW top-level command whose argv no longer
-# carries the wrapper that moved git. Without the fallback, `env -C <dir> git
-# <alias>` resolved the alias in <dir> and then evaluated the alias body's
-# sequencer probe against the payload cwd — so a prepared merge subject in <dir>
-# was BLOCKED where the docblock below promises an exemption. The caller
-# save/sets/restores it around each reparse.
-#
-# What this composes is the caller's directory, where the sibling
-# `block-noncanonical-commit.sh` asks git for the alias's real LAUNCH directory
-# (its `alias_launch_dir`, since git starts a `!` body at the work tree's top
-# level). For this guard's two consumers the two agree: both `config --get` and
-# `rev-parse --absolute-git-dir` answer identically from any directory inside one
-# repository. They diverge only when a SEPARATE repository is nested below the
-# composed path, which is the narrower case the sibling's extra probe exists for
-# and which is deliberately not modelled here.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-effective_dir() {
-  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
-  local -a a=("$@")
-  for ((i = 0; i < n; i++)); do
-    arg="${a[i]}"
-    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
-      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
-        base="${a[i + 1]}"
-      else
-        base="$base/${a[i + 1]}"
-      fi
-      ((i++))
-    fi
-  done
-  printf '%s' "$base"
-}
-
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
   local dir repo="$1" f
@@ -524,57 +447,69 @@ check_segment() {
     return 0
   fi
 
-  hook::git_resolve_index "$@" || return 0
-  gi=$HOOK_GIT_RESOLVED_GI
-  w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
+  # One parsed invocation: git's index, the argv `env -S` splicing may have
+  # rewritten, the subcommand and its index, and how the alias chain terminates
+  # at this hop.
+  hook::git_invocation "$@" || return 0
+  gi=$HOOK_GITINV_GI
+  w=("${HOOK_GITINV_WORDS[@]}")
   nseg=${#w[@]}
+  sub=$HOOK_GITINV_SUB
+  sub_idx=$HOOK_GITINV_SUB_IDX
 
   # A wrapper's chdir happens before git starts, so it composes ahead of git's
   # own globals — spelled as leading `-C` words so the one path-composition rule
-  # in effective_dir covers both. hook::git_resolve_index is the only parser that
-  # can tell a real `env -C <dir>` from the `-C` in `env -u -C git`, which moves
-  # nothing; the slice below deliberately cannot see either, so this replays what
-  # the resolver found.
+  # in hook::git_effective_dir_to covers both. The [git, subcommand) slice below
+  # deliberately cannot see a wrapper's `-C`, so this replays what the resolver
+  # found.
   local -a wrapper_cd=()
   local wdir
-  for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
+  for wdir in ${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"}; do
     wrapper_cd+=(-C "$wdir")
   done
 
-  hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
-  sub=$HOOK_GIT_SUB
-  sub_idx=$HOOK_GIT_SUB_IDX
-
-  # The directory this segment's git actually runs in. Computed ONCE, and only
-  # when an alias probe or a commit needs it — a `git status` that cannot hide
-  # behind an alias must not pay effective_dir's subshell.
+  # The directory this segment's git actually runs in. Composed ONCE, and only
+  # when an alias probe or a commit needs it.
+  #
+  # The base is HOOK_EFFECTIVE_BASE (hook::git_effective_dir_to's default), not
+  # the payload cwd directly, because a `!` shell alias's body re-parses as a
+  # NEW top-level command whose argv no longer carries the wrapper that moved
+  # git. Without that fallback, `env -C <dir> git <alias>` resolved the alias in
+  # <dir> and then measured the body's sequencer probe against the payload cwd,
+  # so a prepared merge subject in <dir> was BLOCKED where the docblock below
+  # promises an exemption. Each reparse below save/sets/restores it.
+  #
+  # What this composes is the caller's directory, where the sibling
+  # `block-noncanonical-commit.sh` asks git for the alias's real LAUNCH directory
+  # (its `alias_launch_dir`, since git starts a `!` body at the work tree's top
+  # level). For this guard's two consumers the two agree: both `config --get` and
+  # `rev-parse --absolute-git-dir` answer identically from any directory inside
+  # one repository. They diverge only when a SEPARATE repository is nested below
+  # the composed path, the narrower case the sibling's extra probe exists for and
+  # which is deliberately not modelled here.
   local seg_dir=""
 
   # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
   # -F - <<EOF` and persisted `git qc` aliases create commits) — mirror the
   # sibling mechanic guard's expansion: re-check every inline spelling, then
   # the gitconfig-resolved alias, one level (HOOK_NO_ALIAS bounds recursion).
-  # rc 2 (--config-env-shaped alias) is the MECHANIC guard's fail-closed
-  # concern — it blocks the call outright, so this content gate just skips.
-  local exp reparse a alias_rc inline_alias_handled=0
+  # A --config-env-shaped alias is the MECHANIC guard's fail-closed concern —
+  # it blocks the call outright, so this content gate just skips.
+  local exp reparse inline_alias_handled=0
   local -a expw=()
-  hook::git_alias_expansion "$sub"
-  alias_rc=$?
-  ((alias_rc == 2)) && return 0
+  [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && return 0
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    if ((alias_rc == 0)); then
-      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
-      for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+    if [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]]; then
+      for exp in ${HOOK_GITINV_ALIAS_EXPS[@]+"${HOOK_GITINV_ALIAS_EXPS[@]}"}; do
         [[ -n "$exp" ]] || continue
         inline_alias_handled=1
         if [[ "$exp" == '!'* ]]; then
-          reparse="${exp#!}"
-          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          hook::git_alias_reparse_to reparse "$exp" "${w[@]:sub_idx+1}"
           # The body is a fresh top-level parse, so it carries no wrapper and no
           # git globals. Hand it the directory this invocation resolved to, or
           # the reparse silently restarts from the payload cwd.
           [[ -n "$seg_dir" ]] ||
-            seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+            hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
           local saved_base="${HOOK_EFFECTIVE_BASE:-}"
           HOOK_EFFECTIVE_BASE="$seg_dir"
           hook::bash_parse_segments "$reparse" check_segment
@@ -589,10 +524,10 @@ check_segment() {
       done
     fi
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
-      ! git_subcommand_ignores_alias "$sub"; then
+      ! hook::git_subcommand_ignores_alias "$sub"; then
       local pexp
       [[ -n "$seg_dir" ]] ||
-        seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+        hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
       # Redirect on a single-command group, not inside the substitution — see
       # the note in ensure_convention_patterns. This is the one of the three
       # that sits on the per-tool-call path: every non-builtin git subcommand
@@ -601,9 +536,8 @@ check_segment() {
       { pexp=$(git -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
-          local preparse pa
-          preparse="${pexp#!}"
-          for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+          local preparse
+          hook::git_alias_reparse_to preparse "$pexp" "${w[@]:sub_idx+1}"
           # Same reason as the inline `!` branch above.
           local psaved_base="${HOOK_EFFECTIVE_BASE:-}"
           HOOK_EFFECTIVE_BASE="$seg_dir"
@@ -625,7 +559,7 @@ check_segment() {
   ensure_convention_patterns
   [[ -n "$SUBJECT_ERE" ]] || return 0
   [[ -n "$seg_dir" ]] ||
-    seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+    hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
 
   for ((k = sub_idx + 1; k < nseg; k++)); do
     word="${w[k]}"

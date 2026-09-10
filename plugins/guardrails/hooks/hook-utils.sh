@@ -1188,7 +1188,7 @@ hook::read_file_path() {
     hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
   fi
   case "$mode" in
-  0) ;; # proven: `file` holds jq's answer
+  0) ;;          # proven: `file` holds jq's answer
   1) return 1 ;; # proven absent
   *)
     file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
@@ -2883,6 +2883,274 @@ hook::git_alias_expansion() {
   [[ -n "$cmd_kind" ]] && HOOK_GIT_ALIAS_EXPS+=("$cmd_exp")
   ((${#HOOK_GIT_ALIAS_EXPS[@]})) && return 0
   return 1
+}
+
+# THE parsed git invocation for one segment. The three functions above are the
+# steps; this is the seam a guard calls. Every git guard needs the same answers
+# about a segment — where git is, what the argv looks like after `env -S`
+# splicing, where the wrappers moved it, which subcommand runs, which config
+# assignments ride along, and whether the subcommand is an inline alias — so
+# they are answered once, in one shape, rather than reassembled per guard.
+#
+# Call as: hook::git_invocation <argv words...> — one segment's argv, as
+# hook::bash_parse_segments hands it to a callback. A `sh -c` wrapper is
+# deliberately NOT unwrapped here: its operand is a whole shell command
+# (operators, quoting, everything), so the caller detects it with
+# hook::shell_c_operand and re-parses the operand through its OWN segment
+# callback, which is the only faithful treatment.
+#
+# Returns 0 with the result below, 1 when no git executable sits at the
+# segment's command position, and 2 when git resolves but names no subcommand
+# (`git --version`, globals only). Every result variable is reset on entry, so a
+# non-zero return can never leave a previous segment's answer standing.
+#
+#   HOOK_GITINV_GI            — index of the git word in HOOK_GITINV_WORDS
+#   HOOK_GITINV_WORDS         — the segment argv AFTER `env -S` splicing; match
+#                               on these, never on the words passed in
+#   HOOK_GITINV_WRAPPER_DIRS  — directories the wrappers chdir into before git
+#                               runs, in execution order (empty when none).
+#                               A caller scoping its git-global parsing to
+#                               [gi, sub_idx) cannot see these and must replay
+#                               them ahead of git's own globals
+#   HOOK_GITINV_SUB           — the subcommand word
+#   HOOK_GITINV_SUB_IDX       — its index in HOOK_GITINV_WORDS
+#   HOOK_GITINV_CONFIG_VALUES — -c/--config/--config-env values, in order
+#   HOOK_GITINV_CONFIG_KINDS  — 1:1 with the values: "inline" (the literal
+#                               assignment) or "env" (a `<key>=<envvar>` operand
+#                               naming a variable whose value is never read)
+#   HOOK_GITINV_ALIAS_EXPS    — the invoked subcommand's inline alias
+#                               expansions, one per present spelling
+#                               (`alias.<sub>` then `alias.<sub>.command`)
+#   HOOK_GITINV_ALIAS_TERM    — why the alias chain stops at this hop:
+#                               "none"       — the subcommand is no inline alias
+#                               "inline"     — HOOK_GITINV_ALIAS_EXPS holds every
+#                                              present spelling's expansion, and
+#                                              a guard must re-check each one so
+#                                              a benign spelling cannot suppress
+#                                              a dangerous sibling
+#                               "config-env" — the alias is defined via
+#                                              --config-env, so its expansion is
+#                                              an environment variable's value
+#                                              this parser deliberately never
+#                                              reads; guards refuse by shape
+#
+# The chain BEYOND this hop stays with the caller: git re-expands an expansion
+# whose first word is another alias, and each guard runs its own predicate at
+# every hop, resolves persisted aliases (or does not) on its own terms, and
+# bounds its own recursion. So a guard splices the expansion and re-enters its
+# segment callback, which calls back into this function for the next hop.
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
+hook::git_invocation() {
+  HOOK_GITINV_GI=-1
+  HOOK_GITINV_WORDS=()
+  HOOK_GITINV_WRAPPER_DIRS=()
+  HOOK_GITINV_SUB=""
+  HOOK_GITINV_SUB_IDX=-1
+  HOOK_GITINV_CONFIG_VALUES=()
+  HOOK_GITINV_CONFIG_KINDS=()
+  HOOK_GITINV_ALIAS_EXPS=()
+  HOOK_GITINV_ALIAS_TERM="none"
+
+  hook::git_resolve_index "$@" || return 1
+  HOOK_GITINV_GI=$HOOK_GIT_RESOLVED_GI
+  HOOK_GITINV_WORDS=(${HOOK_GIT_RESOLVED_WORDS[@]+"${HOOK_GIT_RESOLVED_WORDS[@]}"})
+  HOOK_GITINV_WRAPPER_DIRS=(${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"})
+
+  hook::git_resolve_subcommand "$HOOK_GITINV_GI" "${HOOK_GITINV_WORDS[@]}" || return 2
+  HOOK_GITINV_SUB="$HOOK_GIT_SUB"
+  HOOK_GITINV_SUB_IDX=$HOOK_GIT_SUB_IDX
+  HOOK_GITINV_CONFIG_VALUES=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+  HOOK_GITINV_CONFIG_KINDS=(${HOOK_GIT_CONFIG_VALUE_KINDS[@]+"${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"})
+
+  hook::git_alias_expansion "$HOOK_GITINV_SUB"
+  case $? in
+  0)
+    HOOK_GITINV_ALIAS_TERM="inline"
+    HOOK_GITINV_ALIAS_EXPS=(${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"})
+    ;;
+  2) HOOK_GITINV_ALIAS_TERM="config-env" ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# Would git IGNORE a config alias named for this subcommand? git-config
+# (https://git-scm.com/docs/git-config, fetched 2026-09-06): "aliases that hide
+# existing Git commands are ignored except for deprecated commands." A current
+# non-deprecated builtin therefore cannot expand to anything, so a guard that
+# probes `alias.<builtin>` spends a fork per call and can false-block on a
+# leftover ignored alias. Asking the installed git for its builtin list would
+# put that spawn right back on every `git status`.
+#
+# This is a static subset of names that were already builtins in git 2.25, minus
+# the names git marks DEPRECATED (`git --list-cmds=deprecated`; git.c
+# `DEPRECATED` bit, master fetched 2026-09-06: `whatchanged` and
+# `pack-redundant`). Names added later (`bugreport` 2.27, `maintenance` 2.31,
+# `diagnose` 2.38) stay probed, so an older git that still honors
+# `alias.bugreport = commit` cannot slip through. git 2.51+ honors
+# `alias.whatchanged = commit` (t/t0014-alias.sh). A name not listed here is
+# still probed: skipping a non-builtin would miss a real alias.
+hook::git_subcommand_ignores_alias() {
+  case "$1" in
+  add | am | annotate | apply | archive | bisect | blame | branch | bundle | \
+    cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
+    checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
+    commit-tree | config | describe | diff | diff-files | diff-index | diff-tree | \
+    difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
+    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | merge | \
+    merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
+    replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
+    show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \
+    update-ref | version | worktree)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# The directory a segment's git actually runs in: the base with every `-C` in an
+# already-collected option set composed onto it, left to right — an absolute
+# value replaces, a relative one joins. git applies several `-C` values
+# cumulatively, and a wrapper's chdir happens before git starts, so a caller
+# spells the wrapper dirs (HOOK_GITINV_WRAPPER_DIRS) as LEADING `-C` words and
+# this one composition rule covers both.
+#
+# CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice from the resolved git
+# token (`gi`) up to the subcommand, never from index 0, and never the whole
+# argv:
+#   * Anything before `gi` belongs to a wrapper, and this composition cannot
+#     know which wrapper options take a value. In `env -u -C git …`, GNU env's
+#     `-u NAME` consumes `-C` as the variable to unset and `git` as the command,
+#     so git never moves — while a 0-based slice reads the bare tokens `-C git`
+#     and resolves into `./git`. The hook then reads one repository while git
+#     runs in another, which is a bypass, not a cosmetic mismatch.
+#   * Words after the subcommand are that subcommand's own arguments — or, for
+#     an alias, text git APPENDS to the expansion. Reading a trailing `-C` as a
+#     repository global sent `git -c alias.a='!git b #' a -C <other>` to
+#     <other> while git ran the body in the current repository, and would read
+#     `git commit -C HEAD` (--reuse-message) as a directory named HEAD.
+# The slice is always non-empty: hook::git_resolve_subcommand starts its scan at
+# `gi + 1`, so `sub_idx > gi` holds for every argv that reaches a call site.
+#
+# The composed value is a LITERAL path, never `realpath`/`cd -P`: resolving
+# symlinks is a bypass in both directions (lexical `x/..` is wrong under a POSIX
+# symlink; physical resolution is wrong on Win32, where git itself is lexical).
+# Handing the composed spelling to `git -C` lets git apply its own path
+# semantics. It is a DIRECTORY, not a repository identity — a caller that needs
+# an identity (a cycle key) must canonicalize it itself.
+#
+# hook::git_effective_dir_to <var> <locating-option...> assigns into the variable
+# named by $1 rather than printing. The body is builtins only, so capturing a
+# print form in `$( )` would spend a fork on nothing but carrying a string out of
+# a subshell, and this path runs on every blocked commit. The default base is
+# read into a local before the nameref is written, so a caller may name
+# HOOK_EFFECTIVE_BASE itself as the destination.
+hook::git_effective_dir_to() {
+  # shellcheck disable=SC2178  # nameref to the caller's string variable
+  local -n _ed_out="$1"
+  shift
+  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
+      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
+        base="${a[i + 1]}"
+      else
+        base="$base/${a[i + 1]}"
+      fi
+      ((i++))
+    fi
+  done
+  _ed_out="$base"
+}
+
+# The command string a `!` shell alias runs: git executes the body as a shell
+# command with the invocation's trailing arguments appended positionally, so
+# strip the leading `!` and append each trailing argument shell-quoted — the
+# reparse then tokenizes them back into the same words.
+#
+# Call as: hook::git_alias_reparse_to <var> <expansion> <trailing arg...>.
+# `printf -v`, never `$(printf '%q' …)`: the substitution form is a fork per
+# trailing argument (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution) on every `!` alias hop.
+hook::git_alias_reparse_to() {
+  # shellcheck disable=SC2178  # nameref to the caller's string variable
+  local -n _gar_out="$1"
+  local body="${2#!}" a q
+  shift 2
+  for a in "$@"; do
+    printf -v q '%q' "$a"
+    body+=" $q"
+  done
+  _gar_out="$body"
+}
+
+# Admit one alias re-expansion, or report that it is already decided or over
+# budget. Alias re-expansion BRANCHES: every hop re-checks both alias spellings
+# independently, so a chain where each hop defines both walks 2^depth analysis
+# paths, and a guard that stalls stops guarding.
+#
+# MEMO — a verdict is a pure function of (analysis state, effective base, argv);
+# every other input is invocation-constant. A block is a process-wide `exit 2`,
+# so a state reached a SECOND time while the process still runs provably did not
+# block the first time and cannot decide differently now. Skipping the repeat is
+# exact rather than a coverage trade, and it collapses the common blowup — both
+# spellings of a hop expanding to the same thing — to one path per hop.
+#
+# The key carries, and needs, each of these:
+#   * <kind> — a `!` reparse STRING must never key the same as a one-word argv.
+#   * the effective base — one reparse string reached in two repositories is TWO
+#     analyses (they can disagree on hash width, so collapsing them lets a
+#     movable ref name through the second).
+#   * both seen-sets, each length-prefixed ahead of its own words — they ARE the
+#     analysis state: HOOK_ALIAS_SEEN models git's in-process alias-loop guard,
+#     HOOK_SHELL_ALIAS_SEEN bounds persisted `!` alias hops. A guard that keeps
+#     only one leaves the other empty, which contributes a constant to the key;
+#     keying both here keeps the key shape uniform across guards.
+#   * `%q` on every word, so a word containing a newline cannot merge into its
+#     neighbour and no boundary in the key can shift.
+# `printf -v` keeps the whole key build fork-free — a `$(printf …)` per word
+# would cost more than the walk it bounds.
+#
+# BUDGET — memoization alone cannot bound a chain whose two spellings DIFFER:
+# the splice carries each path's own trailing text forward, so every argv is
+# distinct and the 2^depth walk survives. HOOK_ALIAS_WORK_MAX caps total
+# analyses for the invocation; the caller decides what exhausting it means, and
+# every caller today fails CLOSED (it could not finish deciding, so it must not
+# allow). The ceiling counts ANALYSES rather than seconds because a wall clock
+# is host- and command-length-dependent; a caller sets its own by assigning
+# HOOK_ALIAS_WORK_MAX before the first call.
+#
+# Call as: hook::git_alias_admit <kind> <state-word>... — returns 0 to analyze,
+# 1 when this exact state was already analyzed, 2 when the budget is exhausted.
+# shellcheck disable=SC2154  # HOOK_ALIAS_SEEN / HOOK_SHELL_ALIAS_SEEN are the caller's analysis state, read unset-safely below
+hook::git_alias_admit() {
+  local kind="$1" key q w
+  shift
+  # First call in this process arms the memo and the counter. `declare -gA` is
+  # what makes the string key a hash lookup instead of arithmetic on an indexed
+  # array, so it must happen before any write.
+  if [[ -z "${HOOK_ALIAS_ADMIT_ARMED:-}" ]]; then
+    declare -gA HOOK_ALIAS_MEMO=()
+    HOOK_ALIAS_WORK=0
+    HOOK_ALIAS_ADMIT_ARMED=1
+  fi
+  # Copied through the unset-safe idiom rather than read in place: a guard that
+  # keeps only one of the two seen-sets never declares the other, and `set -u`
+  # would abort on its length.
+  local -a _gaa_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+  local -a _gaa_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
+  printf -v q '%q' "${HOOK_EFFECTIVE_BASE-}"
+  key="$kind"$'\n'"$q"$'\n'"${#_gaa_seen[@]}"$'\n'"${#_gaa_shell_seen[@]}"$'\n'
+  for w in ${_gaa_seen[@]+"${_gaa_seen[@]}"} ${_gaa_shell_seen[@]+"${_gaa_shell_seen[@]}"} "$@"; do
+    printf -v q '%q' "$w"
+    key+="$q"$'\n'
+  done
+  [[ -n "${HOOK_ALIAS_MEMO[$key]+x}" ]] && return 1
+  HOOK_ALIAS_MEMO["$key"]=1
+  ((++HOOK_ALIAS_WORK <= ${HOOK_ALIAS_WORK_MAX:-128})) && return 0
+  return 2
 }
 
 # Single linear pass: read the command into a char array once (O(n)), then walk
