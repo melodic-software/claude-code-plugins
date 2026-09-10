@@ -1,4 +1,4 @@
-# audit-pass — retired-conventions fleet sweep
+# audit-pass: retired-conventions fleet sweep
 
 This file owns the one Phase 3 lane that runs a script rather than a skill: the sweep of every
 installed plugin's `retirements.yaml` against the target repository, using this plugin's own
@@ -13,7 +13,7 @@ A plugin's own setup `check` detects its retired conventions, but only when the 
 that setup. A consumer who updates a plugin and never re-runs setup carries the leftover
 indefinitely, and nothing re-checks it. The sweep closes that gap at the fleet level without a
 generator or a committed aggregate: it reads the manifests that are installed at the moment it
-runs. The cross-plugin contract — schema, helper exit codes, severity map — is the marketplace's
+runs. The cross-plugin contract, meaning the schema, helper exit codes, and severity map, is the marketplace's
 retired-conventions convention; this file states what the pass itself needs to run it.
 
 ## Discovering manifests
@@ -26,7 +26,7 @@ derive from the target repository. Two sources, in order, and both are **probed,
    *enabled* version, so the manifest read is the one whose setup the consumer would run.
 2. **A bounded `find` over the plugin cache** when the CLI output names no paths: the cache lives
    under the config directory (`~/.claude/plugins/cache` by default), and the search is
-   `-maxdepth 4 -name retirements.yaml` — `<marketplace>/<plugin>/<version>/retirements.yaml` is
+   `-maxdepth 4 -name retirements.yaml`. `<marketplace>/<plugin>/<version>/retirements.yaml` is
    depth 4, and a deeper hit is not a plugin root. **The cache layout is internal and
    undocumented.** Say so in the lane's coverage note whenever this source is the one used; a
    layout change makes the fallback find nothing, which is the next case, not a crash. Where the
@@ -34,8 +34,8 @@ derive from the target repository. Two sources, in order, and both are **probed,
    choice in the coverage note.
 
 When **neither** source yields a root, the lane does not report clean. It records itself as
-**unchecked with its reason** — "no installed plugin roots discoverable: `claude plugin list`
-named no paths and the cache fallback found nothing" — exactly as an absent delegated plugin would
+**unchecked with its reason**, "no installed plugin roots discoverable: `claude plugin list`
+named no paths and the cache fallback found nothing", exactly as an absent delegated plugin would
 be recorded. An empty manifest set is a real state and reports as one lane with zero findings; an
 undiscoverable one is a coverage gap and reports as one.
 
@@ -52,7 +52,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "<root>/retirem
 ```
 
 The owning plugin's synced copy is byte-identical by CI contract, but the pass never reaches into
-another plugin's `lib/`; the manifest is the published seam and the helper is ours. `--root` is the
+another plugin's `lib/`; the manifest is the published interface and the helper is ours. `--root` is the
 resolved target, the same value Phase 0 keyed and locked on.
 
 Per manifest, the helper's exit code decides the shape of what is recorded:
@@ -73,7 +73,7 @@ as follows, so the finding is stable across runs and suppressible per the usual 
   `leftover(<record-id>)` for a row, and `manifest-invalid(<plugin>)` for an exit-2 manifest. The
   record id is the bound parameter; it is what makes two rows from one plugin two findings, and one
   row across two runs one finding.
-- **`sites`**: one site. `surface` is the row's `path` — already a repo-relative POSIX path under
+- **`sites`**: one site. `surface` is the row's `path`, already a repo-relative POSIX path under
   the target, so it takes the project-scope form with no prefix; for `kind: dir` it is the
   directory path as declared. `anchor` is **whole-surface (`s:`)** for every kind: a leftover is a
   finding about the artifact's existence, and §1 is explicit that such a finding must not be
@@ -87,14 +87,14 @@ as follows, so the finding is stable across runs and suppressible per the usual 
 **Severity** follows the convention's single map, so a consumer sees one severity for one record
 wherever it is reported: `migrate` → FAIL, `delete` / `remove-line` → WARN, `status: report-only`
 → INFO regardless of action, `manifest-invalid` → FAIL. Presentation carries the row's `note`, the
-`action`, and the remediation — always "run `/<plugin>:setup apply`", never a `--clean` performed
+`action`, and the remediation, always "run `/<plugin>:setup apply`", never a `--clean` performed
 here.
 
 ## Tier and determinism
 
 The lane is **derived-tier**: the helper is deterministic, the manifest set is enumerated, and no
 model is in the path between the TSV and the finding. Its identity set must be exactly equal across
-two runs over an unchanged tree **and an unchanged installed manifest set** — the manifest set is
+two runs over an unchanged tree **and an unchanged installed manifest set**. The manifest set is
 part of the lane's input digest for that reason, and a plugin installed or updated between two runs
 makes the runs non-comparable on this lane, reported as such rather than as instability.
 

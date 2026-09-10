@@ -137,7 +137,7 @@ the target's HEAD commit and the run's state digest, is taken at that boundary, 
 **audit endpoint** capture is taken when the last lane completes, before any Phase 5 mutation.
 
 Baseline to endpoint is therefore exactly the window in which lanes read, which is what the
-determinism gate is a claim about: a run that never measures it cannot claim it held. The digest
+determinism gate is a claim about. A run that never measures it cannot claim it held. The digest
 pairs each path with a hash of its current content, because a *count* holds still while a dirty
 file's contents change underneath the run.
 
@@ -174,7 +174,7 @@ So the source is **probed, not assumed**, and its absence is a reported state ra
   every memory-layer liveness claim in the report is marked **single-sourced**, because the whole
   reason for two sources is that neither covers the set alone.
 
-Marking is what keeps this honest: a single-sourced inventory is usable, and silently presenting it
+Marking is what keeps this honest. A single-sourced inventory is usable, and silently presenting it
 as the two-source result would be the same under-coverage-reads-as-clean failure the two-source rule
 exists to prevent. The liveness basis records which sources were live, so a run with the hook and a
 run without are **not comparable** and cannot fail P1 against each other.
@@ -272,7 +272,7 @@ presence-gated with its fallback stated:
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
-- **Retired-conventions fleet sweep**: the one script lane — **exactly one lane** running this
+- **Retired-conventions fleet sweep**: the one script lane, **exactly one lane** running this
   plugin's canonical `lib/check-retirements.sh` over every installed plugin's `retirements.yaml`. One finding per active TSV row keyed by record id; `report-only` = `info`; helper exit 2 = FAIL finding, never a skip.
   Derived-tier, **read-only** (never `--clean`); rest: [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md).
 
@@ -308,7 +308,7 @@ overrun costs the lanes still running rather than the whole pass.
 ## Phase 4: The `/doctor` handoff
 
 `/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass deliberately builds no
-replacement. **It is interactive, so it is never dispatched**: it proposes fixes only after the
+replacement. **It is interactive, so it is never dispatched.** It proposes fixes only after the
 operator confirms. Its version floor, what its presence check verifies versus what it must probe
 rather than assume, and its optional-capability absence classification are in
 [reference/doctor-handoff.md](reference/doctor-handoff.md). When absent, name it as the missing
@@ -454,8 +454,8 @@ splitting into imports does not defer or reduce context).
 
 - Never defines a check. Adding criteria here rather than to the owning plugin's catalog is the
   defect this skill's whole shape exists to avoid.
-- Never reads another plugin's files — invocation-only cooperation, with one declared exception:
-  `retirements.yaml` is a published data seam, read by the sweep lane via this plugin's own helper.
+- Never reads another plugin's files. Invocation-only cooperation, with one declared exception:
+  `retirements.yaml` is a published data file, read by the sweep lane via this plugin's own helper.
 - Never edits managed policy or a user-scope file, in any mode.
 - Never scans what it wrote. Where its resolved report path is contained in the target, by
   `--report-to` or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a target at or above it, the

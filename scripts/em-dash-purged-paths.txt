@@ -122,7 +122,14 @@ plugins/overengineering/skills/*/SKILL.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
 plugins/planning/README.md
-plugins/playbooks/README.md
+# The playbooks plugin was purged whole; the Boris and model-adaptation chapters
+# keep their quoted upstream text inside the quotation exemption or a marker.
+plugins/playbooks/*.md
+plugins/playbooks/reference/model-adaptation/*.md
+plugins/playbooks/skills/*/SKILL.md
+plugins/playbooks/skills/boris/reference/*.md
+plugins/playbooks/skills/fable-5/context/*.md
+plugins/playbooks/skills/skill-authoring/reference/*.md
 plugins/playgrounds/README.md
 plugins/playgrounds/skills/*/SKILL.md
 plugins/playwright/README.md

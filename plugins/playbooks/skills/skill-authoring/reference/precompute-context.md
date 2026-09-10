@@ -1,7 +1,7 @@
-# Precomputed context — `!` dynamic-context injection
+# Precomputed context: `!` dynamic-context injection
 
 Locally-owned Melodic Software guidance (not part of the upstream playbook). It states
-*when* to precompute and the conventions we pin; it does **not** restate the syntax — the
+*when* to precompute and the conventions we pin; it does **not** restate the syntax. The
 authoritative reference is
 [Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
 in the skills docs. Read that for the exact `` !`command` `` inline and ` ```! ` fenced forms,
@@ -10,7 +10,7 @@ substitution variables, and the `shell:` / `disableSkillShellExecution` settings
 ## What it is
 
 `` !`command` `` and ` ```! ` blocks run at load time and their **output replaces the
-placeholder before Claude sees the skill** — preprocessing, not a tool call Claude makes. One
+placeholder before Claude sees the skill**. This is preprocessing, not a tool call Claude makes. One
 deterministic command's result arrives already inlined, saving a per-invocation tool round-trip.
 
 ## When to precompute
@@ -18,12 +18,12 @@ deterministic command's result arrives already inlined, saving a per-invocation 
 Convert a context-gathering step to `!` injection when **all** hold:
 
 - **Deterministic and read-only.** The command only observes state (e.g. `git status`,
-  `git diff`, `ls`, a version probe). It must not mutate anything — every injection runs on
+  `git diff`, `ls`, a version probe). It must not mutate anything. Every injection runs on
   every invocation, including auto-invocation the author never sees.
 - **Needed up front, every time.** The skill always wants this context before it reasons.
   One-off or branch-dependent lookups belong in the body as instructions, not injection.
 - **Independent of Claude's judgement.** The command doesn't depend on a decision Claude makes
-  first. Injection is a single pass — output is not re-scanned, so one placeholder cannot feed
+  first. Injection is a single pass. Output is not re-scanned, so one placeholder cannot feed
   another (see the docs); anything requiring a computed argument stays a normal tool call.
 - **Cheap and bounded.** It returns fast and small. Every injected command runs under the Bash
   tool's default two-minute timeout, and output past the inline ceiling arrives as a file path plus
@@ -118,7 +118,7 @@ must never assert a bare `empty = none`.
 
 `shell:` defaults to `bash`; on Windows without Git Bash the PowerShell tool runs injected
 commands instead (see the docs). Write injection commands portably, or declare `shell:`
-explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host — and pick a
+explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host, and pick a
 `|| echo` fallback that is valid in the shell that will actually run it.
 
 ## Mechanics not to get wrong (pointers, not copies)
@@ -131,7 +131,7 @@ explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host 
   keep injected output stable and small.
 - **Kill switch.** `disableSkillShellExecution` replaces each command with
   `[shell command execution disabled by policy]`. The skill must still make sense when that
-  string appears in place of the output — never make correctness depend on injection succeeding.
+  string appears in place of the output. Never make correctness depend on injection succeeding.
 - **Plugin paths.** Reference bundled scripts with `${CLAUDE_SKILL_DIR}` (or
   `${CLAUDE_PLUGIN_ROOT}` for a plugin's own tree) and project files with `${CLAUDE_PROJECT_DIR}`
   so injection is path-independent; see the substitution table in the docs.

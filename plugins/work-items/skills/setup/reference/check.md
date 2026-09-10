@@ -4,7 +4,7 @@ The probe set behind the `check` action of [`../SKILL.md`](../SKILL.md), in the 
 `apply` runs the same probes before it writes anything, and consumes these results rather than
 re-deriving them.
 
-Probe the binding, the schedule config, and the seam's entry gates, and report a PASS/FAIL/INFO table
+Probe the binding, the schedule config, and the tracker entry gates, and report a PASS/FAIL/INFO table
 with one remediation line per FAIL. Modify nothing, and do NOT bind, file items, or run a recurring
 check.
 
@@ -12,8 +12,8 @@ check.
    [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
    "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
-2. **Tracker provider binding**, resolve `BINDING` (above). Absent → INFO: the tracker seam is not
-   bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
+2. **Tracker provider binding**, resolve `BINDING` (above). Absent → INFO: no tracker provider is
+   bound, so every tracker verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`, `jira`, `gitea`, `linear`) or a consumer-local one at
@@ -37,7 +37,7 @@ check.
    check is the wrong gate), so an unrelated stale credential cannot skip the probe and let the
    very binding this exists to catch go unreported. Verdict on *why* the call failed
    rather than on failure alone:
-   - Resolves → INFO naming the `owner/repo` the seam will address.
+   - Resolves → INFO naming the `owner/repo` the tracker verbs will address.
    - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,
      so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
      override fails at call time. Remediation is `/work-items:setup apply` with a user present,
@@ -63,7 +63,7 @@ check.
    `work` have nothing to act on; `apply --seed-schedule` seeds it. (Report this only once the root
    shape validates, probe 3 establishes file presence alone and cannot tell empty from malformed.)
 5. **Tracked, not ignored**, a present schedule (and a present binding) must be committed to be
-   team-shared: probe the pair per path — `git check-ignore -v` (match = FAIL with the pattern)
+   team-shared. Probe the pair per path: `git check-ignore -v` (match = FAIL with the pattern)
    AND `git ls-files --error-unmatch` (non-zero = FAIL: un-ignored but untracked; "commit it").
 6. **Recurring-maintenance role label**. Role-label resolution is an action-entry invariant per the
    tracker-seam reference; probe it. With no binding (probe 2 INFO) the role remap has nothing to
