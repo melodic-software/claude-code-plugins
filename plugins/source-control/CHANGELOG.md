@@ -7,6 +7,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
   own prose (the README, this changelog, the plugin-scope references, every skill body, the
   babysit-prs and babysit-loop references, the commit, pull-request, setup, worktree, and

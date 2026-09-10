@@ -7,6 +7,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
   own prose (the README, this changelog, the references, every skill body and its actions,
   contexts, and references, the templates, the tracker contract, and the adapter READMEs) are
