@@ -14,6 +14,23 @@ source "$HOOK_DIR/claude-ops-test-helpers.sh"
 
 ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED=true
 
+# The hook event record schema session-log-lib.sh documents, as one jq -e over
+# every line of a session file. `source: "event-log"` rows describe one event
+# the session saw, never a hook run, so they carry `category` and no `hook`;
+# the retired `event` key must be absent, which is what lets a reader query
+# `.hook_event_name` with no normalization prelude.
+RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
+  and (.hook_event_name|type)=="string" and (.status|type)=="string"
+  and ((.duration_ms|type)=="number" or .duration_ms==null)
+  and .source=="event-log" and (.category|type)=="string"
+  and (has("event")|not) and (has("hook")|not)'
+
+# assert_record <label> <file> [<extra jq clause>]
+assert_record() {
+  jq -e -s "all(.[]; $RECORD_SCHEMA${3:+ and ($3)})" "$2" >/dev/null 2>&1
+  assert_exit "$1" 0 "$?"
+}
+
 # payload <session_id> <event> [<extra-json-members>]
 payload() {
   local extra="${3:-}"
@@ -63,6 +80,7 @@ if [[ -s "$LOG" ]]; then
   assert_eq "tool_name carried" "Write" "$(jq -r .tool_name "$LOG")"
   assert_eq "file_path recorded repo-relative" "docs/a.md" "$(jq -r .file_path "$LOG")"
   assert_eq "duration_ms is a number" "number" "$(jq -r '.duration_ms | type' "$LOG")"
+  assert_record "event-log route: the line satisfies the record schema" "$LOG"
 else
   bad "enabled: no line written at $LOG"
 fi
@@ -171,6 +189,13 @@ BS="\\\\"
 WIN_PATH="Q:${BS}scratch${BS}private${BS}notes.md"
 run "$P" "$(payload s9w PostToolUse "\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${WIN_PATH}\"}")" "$ON" >/dev/null
 assert_eq "Windows outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9w.jsonl")"
+
+# A payload body carrying JSON escapes is re-emitted verbatim, never re-escaped:
+# the record formatter takes these three keys as bodies for exactly this reason.
+run "$P" "$(payload s9e PostToolUse '"tool_name":"Edit","reason":"said \"go\" then \\ stopped\tabruptly"')" "$ON" >/dev/null
+assert_record "an escaped payload body still satisfies the record schema" "$P/.observability/claude/sessions/s9e.jsonl"
+assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
+  "$(jq -r .reason "$P/.observability/claude/sessions/s9e.jsonl")"
 
 # --- a pause after a NESTED `}` does not end the read early ----------------------
 # The writer stops for longer than one slice right after tool_input closes,

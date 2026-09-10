@@ -173,8 +173,57 @@ if [[ -s "$STORE" ]]; then
   assert_eq "second store hook (unified)" "skill-usage-audit" "$(jq -r '.hook' "$STORE")"
   assert_eq "second store source" "expansion" "$(jq -r '.source' "$STORE")"
   assert_eq "second store expansion_type" "slash_command" "$(jq -r '.expansion_type' "$STORE")"
+  jq -e -s 'all(.[]; (.ts|type)=="string" and .event=="SkillUse"
+    and (.skill|type)=="string" and (.branch|type)=="string"
+    and (.project|type)=="string" and (.project_id|type)=="string"
+    and .hook=="skill-usage-audit" and (.source|type)=="string")' "$STORE" >/dev/null 2>&1
+  assert_exit "second store: the row satisfies the store schema" 0 "$?"
 else
   bad "second store not written (unconditional, no sink)"
+fi
+
+# --- The emitter's envelope, through the sink, is a conforming record --------
+# The emitter produces envelopes, not records; the record shape is the sink's.
+# Run the pair end to end so a row this plugin's own producer causes is
+# asserted against the schema session-log-lib.sh documents, on both routes.
+PROJE="$TEST_TMPDIR/emitter-record"
+mkdir -p "$PROJE"
+env HOOK_TELEMETRY_SINK="$HOOK_DIR/hook-telemetry-sink.sh" CLAUDE_PROJECT_DIR="$PROJE" \
+  bash "$HOOK" <<<'{"session_id":"sess-e","hook_event_name":"PermissionDenied","tool_name":"Bash","tool_input":{"command":"git push --force"}}' >/dev/null 2>&1
+REC_SCHEMA='(.ts|type)=="string" and (.hook_event_name|type)=="string"
+  and (.status|type)=="string" and .source=="envelope"
+  and ((.duration_ms|type)=="number" or .duration_ms==null)
+  and (has("event")|not)
+  and (.hook|type)=="string" and (.exit_code|type)=="number"
+  and (.subject|type)=="string" and (.tool|type)=="string"'
+SESSION_REC="$PROJE/.observability/claude/sessions/sess-e.jsonl"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  [[ -s "$SESSION_REC" ]] && break
+  sleep 0.2
+done
+if [[ -s "$SESSION_REC" ]]; then
+  jq -e -s "all(.[]; $REC_SCHEMA and (.session_id|type)==\"string\")" "$SESSION_REC" >/dev/null 2>&1
+  assert_exit "emitter envelope → per-session record satisfies the schema" 0 "$?"
+  assert_eq "emitter envelope → hook_event_name carried" "PermissionDenied" \
+    "$(jq -r '.hook_event_name' "$SESSION_REC")"
+else
+  bad "emitter envelope → sink wrote no per-session record at $SESSION_REC"
+fi
+
+PROJEL="$TEST_TMPDIR/emitter-record-legacy"
+mkdir -p "$PROJEL"
+env HOOK_TELEMETRY_SINK="$HOOK_DIR/hook-telemetry-sink.sh" CLAUDE_PROJECT_DIR="$PROJEL" \
+  bash "$HOOK" <<<'{"hook_event_name":"ConfigChange","source":"project_settings"}' >/dev/null 2>&1
+LEGACY_REC="$PROJEL/.observability/claude/hook-events.jsonl"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  [[ -s "$LEGACY_REC" ]] && break
+  sleep 0.2
+done
+if [[ -s "$LEGACY_REC" ]]; then
+  jq -e -s "all(.[]; $REC_SCHEMA and (has(\"session_id\")|not))" "$LEGACY_REC" >/dev/null 2>&1
+  assert_exit "emitter envelope with no session → shared-file record satisfies the schema" 0 "$?"
+else
+  bad "emitter envelope → sink wrote no shared-file record at $LEGACY_REC"
 fi
 
 # expansion_type is optional: recorded when present, never gated on.

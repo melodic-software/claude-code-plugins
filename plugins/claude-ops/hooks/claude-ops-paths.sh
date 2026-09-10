@@ -1,6 +1,16 @@
 # shellcheck shell=bash
 # Plugin-local path policy for user-configured repository destinations, plus
 # the shared skill-usage store writer both skill-usage producers call.
+#
+# The store writer emits through session-log-lib.sh's record formatter, so the
+# escaping is the plugin's one escaping path and the row costs no jq process.
+# The skill-usage store keeps its OWN key set (`event: "SkillUse"`, skill,
+# branch, project, project_id, hook, source): it is a separate store with its
+# own readers under skills/audit-skill-visibility, not a hook event record.
+if ! declare -F slog_record_to >/dev/null 2>&1; then
+  # shellcheck source=session-log-lib.sh
+  source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
+fi
 
 # Resolve a project-relative directory without allowing an absolute path,
 # Windows drive/UNC path, `..` traversal, or an existing symlink ancestor to
@@ -165,7 +175,8 @@ claude_ops::ensure_git_exclude() {
 # recorded only when non-empty (the tool-path producer passes "").
 claude_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
-  local project_dir rel_dir scope log_dir verified_log_dir ts branch line
+  local project_dir rel_dir scope log_dir verified_log_dir ts branch line=""
+  local -a exp_keys=()
   project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
   rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
   scope="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE:-repo}"
@@ -190,19 +201,19 @@ claude_ops::record_skill_use() {
     [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
     branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    line=$(
-      jq -nc \
-        --arg ts "$ts" \
-        --arg skill "$skill" \
-        --arg branch "$branch" \
-        --arg project "$(basename -- "$project_dir")" \
-        --arg project_id "$(claude_ops::repo_slug "$project_dir")" \
-        --arg hook "skill-usage-audit" \
-        --arg src "$src" \
-        --arg exp "$exp_type" \
-        '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, project: $project, project_id: $project_id, hook: $hook, source: $src}
-         + (if $exp != "" then {expansion_type: $exp} else {} end)'
-    ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
+    exp_keys=()
+    [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")
+    slog_record_to line \
+      ts s "$ts" \
+      event s "SkillUse" \
+      skill s "$skill" \
+      branch s "$branch" \
+      project s "$(basename -- "$project_dir")" \
+      project_id s "$(claude_ops::repo_slug "$project_dir")" \
+      hook s "skill-usage-audit" \
+      source s "$src" \
+      ${exp_keys[@]+"${exp_keys[@]}"}
+    hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
   else
     if hook::notice_once "${notice_prefix}-nodest" "$input"; then
       hook::emit_skip_notice "$hook_event" \
