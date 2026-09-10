@@ -1,5 +1,16 @@
 # Changelog — evals
 
+## [0.2.3]
+
+### Added
+
+- **`methodology`**: an "Effort as an eval axis" section in `reference/eval-design.md`
+  (sweep effort and model together on a non-saturated suite; a flat cost-performance curve
+  means the task is not thinking-bound; the bundled `claude-api` `hillclimb` subcommand
+  automates the search, bundled-only as of 2026-09-09), plus the routing-table keywords for
+  it. Adopted from the vetted ClaudeDevs cost-performance article
+  (`docs/upstream/claudedevs-cost-performance.md` in the marketplace repository).
+
 ## [0.2.2]
 
 ### Added

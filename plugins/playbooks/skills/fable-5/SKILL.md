@@ -132,7 +132,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 ## Chapter routing
 
-Read a chapter the first time its trigger fires in the session; once read, it stays active. Every chapter lives under `context/` except the model-adaptation chapters, whose row carries its own path.
+Read a chapter the first time its trigger fires in the session; once read, it stays active. Every chapter lives under `context/` except the model-adaptation and API prompt-caching chapters, whose rows carry their own paths.
 
 | Trigger, the first time you... | Read |
 | --- | --- |
@@ -150,6 +150,7 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
 | Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
+| Author or review code that calls the Claude API directly: request assembly, caching, batching, or spend profiling | `${CLAUDE_PLUGIN_ROOT}/reference/prompt-caching.md` |
 | Arm this playbook on any model other than Claude Fable 5 | `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/<model-version>.md`, mandatory, at arm time (meta-rule 3 owns the routing) |
 
 ## What this skill is NOT

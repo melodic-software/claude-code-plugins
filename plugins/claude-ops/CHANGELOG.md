@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.3]
+
+### Added
+
+- **`observability`**: a read-routing boundary row pointing API-application cache health at
+  the platform's cache diagnostics API (beta, per-request miss reasons), keeping the skill
+  scoped to local Claude Code telemetry while routing the other case.
+
 ## [0.45.2]
 
 ### Fixed

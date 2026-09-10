@@ -44,6 +44,23 @@ one. Size `max_tokens` for the model under evaluation: where thinking is always 
 against the same limit, so a value tight enough to fence a bare integer can cut the response off
 before the answer is written. Constrain the format in the prompt and leave the limit headroom.
 
+## Effort as an eval axis
+
+For applications on models with an effort parameter, effort is an eval dimension, not a fixed
+setting: sweep the suite across effort levels and read cost against score. On a non-saturated
+suite, a flat cost-performance curve across levels means the task is not bound by thinking
+compute, and higher effort buys cost without score; a steep curve locates the cheapest level
+that holds the target. Sweep model and effort together, since a stronger model at low effort can
+beat a weaker one at high effort on both axes (basis:
+`platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`,
+verified 2026-09-09; recheck on that section changing).
+
+The bundled `claude-api` skill's `hillclimb` subcommand automates this search over a suite: it
+splits cases into train and test sets, proposes one configuration change per round from failing
+train transcripts, and scores the winner on the held-out test set. As of 2026-09-09 it ships
+inside Claude Code's bundled skill only; the public anthropics/skills repository and the skill's
+docs page do not carry it yet (recheck: either surface gains the subcommand).
+
 ## Scaling authoring
 
 Writing hundreds of test cases by hand is hard — have Claude generate more cases from a baseline

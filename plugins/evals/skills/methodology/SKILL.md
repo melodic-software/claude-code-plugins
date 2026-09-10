@@ -21,7 +21,7 @@ specific must be current.
 | Query about... | Load |
 |---|---|
 | Success criteria: specific/measurable/achievable/relevant, quantifying hazy qualities (safety, empathy), metric menu (F1, BLEU, accuracy, latency, price), criteria dimensions, multidimensional targets | [success-criteria.md](reference/success-criteria.md) |
-| Eval anatomy (input/output/golden answer/score), golden-answer-as-rubric, design principles, edge-case taxonomy, real-distribution mirroring, volume over polish, authoring vs grading cost asymmetry, generating cases with Claude | [eval-design.md](reference/eval-design.md) |
+| Eval anatomy (input/output/golden answer/score), golden-answer-as-rubric, design principles, edge-case taxonomy, real-distribution mirroring, volume over polish, authoring vs grading cost asymmetry, generating cases with Claude, effort/model sweeps as an eval axis | [eval-design.md](reference/eval-design.md) |
 | Grading ladder (code > LLM > human), LLM-grader rubrics, constrained verdicts, reasoning-then-discard, grader-output validation, different-model grading, testing the grader first | [grading.md](reference/grading.md) |
 | Concrete recipes: exact match, cosine similarity/consistency, ROUGE-L/summarization, Likert/tone, binary/privacy-leak, ordinal/context utilization | [recipes.md](reference/recipes.md) |
 

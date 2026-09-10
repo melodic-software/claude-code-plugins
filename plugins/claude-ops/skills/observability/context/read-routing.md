@@ -40,6 +40,7 @@ The root is the plugin's `session_event_log_dir` option (project-relative, self-
 | Tool latency, API errors (historical) | DuckDB `cc_logs` | [otel-queries.md](otel-queries.md) |
 | Token/cost metrics (historical) | DuckDB `cc_metrics` | [otel-queries.md](otel-queries.md) |
 | Cache health — is prompt caching working | DuckDB `cc_metrics`, `cacheRead` vs `cacheCreation` per model | [otel-queries.md](otel-queries.md) |
+| Cache health for an API APPLICATION's own traffic (not a Claude Code session) | Out of scope here: the platform's cache diagnostics API (beta) reports per-request miss reasons (`messages_changed`, `system_changed`, `tools_changed`, `model_changed`); resolve it from `platform.claude.com/docs/en/build-with-claude/cache-diagnostics` (verified 2026-09-09; recheck on that page changing) | This skill reads local Claude Code telemetry only |
 | Trace span tree | DuckDB `cc_spans` | [otel-queries.md](otel-queries.md) |
 | Trace summary (duration, span count) | DuckDB `cc_traces` | [otel-queries.md](otel-queries.md) |
 | Prompt/API bodies (recent hot window) | DuckDB `cc_logs` | Bodies age at `CC_OTEL_BODY_RETENTION_DAYS` (default 2) |

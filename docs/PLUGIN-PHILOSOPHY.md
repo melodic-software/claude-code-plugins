@@ -1085,9 +1085,21 @@ name is not the same underlying value across models):
   preference, not a task-by-task decision
   ([choosing a model and effort level](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)).
 - **No lane pins `max` without eval evidence** — upstream warns it adds significant cost for
-  relatively small quality gains and can lead to overthinking. A pin above `high` (e.g. `xhigh`)
+  relatively small quality gains and can lead to overthinking. Deliberation helps only while
+  there is still evidence to find; past that point extra effort buys cost and latency and can
+  degrade the answer ([cut spend without losing quality](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#cut-spend-without-losing-quality),
+  verified 2026-09-09). A pin above `high` (e.g. `xhigh`)
   is a deliberate per-lane choice grounded in the target model's own recommended-levels guidance,
-  never a reflex.
+  never a reflex. The miscalibration cuts the other way too: a lane set too low stops before it
+  has enough evidence, makes fewer tool calls, and skips the checks it would run unprompted, so
+  the answer looks finished while resting on partial information (same page, same verification).
+- **Sweep model and effort together before raising either.** A stronger model at low effort can
+  beat a weaker or older model at high effort on both cost and quality, so a lane outgrowing its
+  level tests the newer model at lower effort before pinning the old one higher, on its own
+  evals. Cross-model economics and the flat-curve reading live in the fable-5 pack's
+  model-adaptation chapter for the newer model
+  (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort economics");
+  current prices resolve through the `claude-api` skill at decision time.
 - **Effort is the first lever in either direction; steering prose is the second.** Upstream states
   the order plainly — set the effort level matching the lane's workload, then "add prompt guidance
   only if Claude's triggering still doesn't match your needs at that level" — and gives the
