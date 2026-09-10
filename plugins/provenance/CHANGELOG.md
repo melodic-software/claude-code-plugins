@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.9]
+
+### Fixed
+
+- `skills/audit/CLAUDE.md` shim added beside the skill's contributor `AGENTS.md`, so the conventions load when Claude reads the skill (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
 ## [0.5.8]
 
 ### Changed
