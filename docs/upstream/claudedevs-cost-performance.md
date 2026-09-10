@@ -21,11 +21,13 @@ through the normal pipeline.
 
 ## Status
 
-Discovery complete (explore + research, both dispatched, gated, and independently verified);
-**all lane verdicts PENDING adoption interviews** with the owner. Each candidate row carries a
-recommended default so an interview can confirm or override rather than start cold. Rows gain
-their final verdict (ADOPT with filed item / REJECT with reason / TRACK on event / COVERED with
-evidence) as each lane's interview closes.
+Discovery complete (explore + research, both dispatched, gated, and independently verified).
+**All five lanes interviewed and decided 2026-09-10**; every row below carries its verdict
+(ADOPT / REJECT with reason / TRACK on event / COVERED with evidence), and the accepted
+adoptions are implemented on this record's branch (see the interview queue section for the
+work list). Open TRACK triggers: the anthropics/skills repo or the claude-api docs page
+gaining hillclimb/build-eval; a Console-side check confirming the cache-diagnostics UI; a
+second real need for API-cost tooling in this marketplace.
 
 ## Source and verification
 
@@ -184,8 +186,9 @@ Decided at interview, 2026-09-10:
 
 All five lanes interviewed and decided 2026-09-10, in order M, T2, T3, T1, T4; verdicts are
 in each lane's section above. Execution decision: implement the accepted adoptions on this
-branch in this effort (one branch, one draft PR), with the ADOPT rows above serving as the
-work list:
+branch in this effort (one branch, one draft PR). All five items below are implemented on this
+branch (playbooks 0.10.0, evals 0.2.3, claude-ops 0.45.3; git history of this file's branch
+records the commits):
 
 1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/
    cost-optimize-mention/output-bounding rows), beta qualifiers carried.
