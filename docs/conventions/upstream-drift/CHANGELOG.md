@@ -110,7 +110,7 @@ guidance; no required part, canonical name, or enforceability verdict changed.
 
 ## [1.3.0] - 2026-08-11
 
-Closes two holes in [§Reading the basis: the fetch route](README.md#reading-the-basis--the-fetch-route)
+Closes two holes in [§Reading the basis: the fetch route](README.md#reading-the-basis-the-fetch-route)
 that 1.2.0 left open, both found by the fleet using it. Additive guidance; no required part,
 canonical name, or enforceability verdict changed.
 
@@ -151,7 +151,7 @@ it shipped.
 
 ## [1.2.0] - 2026-08-10
 
-Adds [§Reading the basis: the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
+Adds [§Reading the basis: the fetch route](README.md#reading-the-basis-the-fetch-route): a rung
 ladder for reading an upstream page the firing procedure already tells you to re-fetch. No required
 part, canonical name, or enforceability verdict changed. The four parts and the observability bar
 are untouched; this says how the basis is read, which every firing already depended on and no

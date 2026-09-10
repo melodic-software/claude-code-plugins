@@ -45,6 +45,50 @@
 # Root README, purged in #3265.
 README.md
 
+# Convention documents. Every directory under docs/conventions/ is declared by
+# name rather than by one `*/` glob, because docs/conventions/standards/README.md
+# is deliberately NOT purged: it carries a `standards-contract` semver, and
+# changing a single character of it forces a version bump that makes every
+# consuming repository's index mismatch, degrading skills to best-effort routing
+# until each one re-runs setup. That price is not worth a punctuation pass, so the
+# contract keeps its em dashes and stays off this list. Its worked example, which
+# carries no contract version, is purged and declared.
+docs/conventions/authoring-formats/*.md
+docs/conventions/commit-convention/*.md
+docs/conventions/config-cascade/*.md
+docs/conventions/consumer-config-layering/*.md
+docs/conventions/detector-findings/*.md
+docs/conventions/ecosystem-commands/*.md
+docs/conventions/finding-suppression/*.md
+docs/conventions/hook-budget/*.md
+docs/conventions/hook-config-delivery/*.md
+docs/conventions/hook-input-rewriting/*.md
+docs/conventions/hook-observability/*.md
+docs/conventions/hook-precision/*.md
+docs/conventions/hook-telemetry/*.md
+docs/conventions/instruction-exception-register/*.md
+docs/conventions/invocation-mode/*.md
+docs/conventions/liveness-assertion/*.md
+docs/conventions/loop-lane/*.md
+docs/conventions/native-references/*.md
+docs/conventions/permission-rule-hygiene/*.md
+docs/conventions/plugin-data-report-keying/*.md
+docs/conventions/plugin-reconfiguration/*.md
+docs/conventions/pr-body-convention/*.md
+docs/conventions/pre-pr-ordering/*.md
+docs/conventions/rendered-views/*.md
+docs/conventions/retired-conventions/*.md
+docs/conventions/seam-phrasing/*.md
+docs/conventions/shell-test-helpers/*.md
+docs/conventions/standards/CHANGELOG.md
+docs/conventions/standards/examples/*.md
+docs/conventions/topic-docs/*.md
+docs/conventions/topic-docs/examples/*.md
+docs/conventions/tracker-reference-form/*.md
+docs/conventions/untrusted-content/*.md
+docs/conventions/upstream-drift/*.md
+docs/conventions/windows-path-emit/*.md
+
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
 # is covered from the moment it lands, which is the cheapest possible time to

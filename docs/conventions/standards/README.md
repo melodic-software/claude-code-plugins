@@ -5,7 +5,7 @@ standards-contract: 1.0.0
 # Standards Convention
 
 A versioned, marketplace-wide contract for how skills discover and load a
-consuming repository's **standards**: its adopted code conventions,
+consuming repository's **standards** — its adopted code conventions,
 engineering philosophy, and review criteria. One thin index routes tasks
 to SRP-organized standards files; planning-stage and review-stage skills
 resolve through the same index, so work is built to the criteria it will
@@ -20,7 +20,7 @@ the `standards-contract` frontmatter key above names the contract version a
 copy or a consumer index conforms to.
 
 This file is synced verbatim into plugin binding copies, so it contains no
-relative markdown links. Neighboring files are named in backticks instead.
+relative markdown links — neighboring files are named in backticks instead.
 
 ## Layers and precedence
 
@@ -38,7 +38,7 @@ conflict, the team-tracked layer wins. When a personal-layer rule
 materially shapes a skill's output, the skill names the contributing layer
 (provenance), so reviewers can tell a team standard from a personal one.
 
-The team layer deliberately lives outside `.claude/`, because writes under
+The team layer deliberately lives outside `.claude/` — writes under
 `.claude/` are permission-guarded, while reads and writes of ordinary
 repo docs are not.
 
@@ -69,18 +69,18 @@ standards-contract: 1.0.0
 **Presence test (normative):** an index exists if and only if the file
 carries the `standards-contract` frontmatter key. A
 `<standards_dir>/README.md` without that key is pre-existing, hand-authored
-content. Skills treat it as an inference source only, and setup requires
+content — skills treat it as an inference source only, and setup requires
 explicit confirmation before any conversion (see Setup and migration).
 
 ### Columns
 
 | Column | Form | Notes |
 |---|---|---|
-| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces (`csharp`, `python`, `markdown`, …); cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …). No stage axis: one SSOT serves plan-time and review-time |
+| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces (`csharp`, `python`, `markdown`, …); cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …). No stage axis — one SSOT serves plan-time and review-time |
 | Applies when | free-form context clues | File globs and/or task keywords; the model matches task context against them |
-| File | forward-slash path | In-root rows: path relative to `<standards_dir>` (bare filename, or a subdirectory path). External rows: repo-relative path from the resolution root, allowed (adoption without reorg), subject to the validation duty below. Always forward slashes, on every platform |
+| File | forward-slash path | In-root rows: path relative to `<standards_dir>` (bare filename, or a subdirectory path). External rows: repo-relative path from the resolution root — allowed (adoption without reorg), subject to the validation duty below. Always forward slashes, on every platform |
 
-### External rows: validation duty
+### External rows — validation duty
 
 - **Deterministic lookup (normative):** a `File` value resolves relative
   to `<standards_dir>` first; when nothing exists there, it resolves from
@@ -90,20 +90,20 @@ explicit confirmation before any conversion (see Setup and migration).
 - Setup validates every listed path exists on each run (under the lookup
   order above).
 - A skill that hits a broken row surfaces it and offers the fix (Boy
-  Scout), never silent, never skipped quietly.
+  Scout) — never silent, never skipped quietly.
 - Consumers are recommended to include the index in their link-check lane.
 
 ## Standards files
 
-- `<surface>.md`, kebab-case, pure prose: no frontmatter, no metadata
+- `<surface>.md`, kebab-case, pure prose — no frontmatter, no metadata
   (context clues live in the index; single home). Subdirectories allowed;
   the index row carries the relative path.
-- SRP: one concern per file (progressive disclosure, since skills pull only
-  the files whose rows match the task).
+- SRP: one concern per file (progressive disclosure — skills pull only the
+  files whose rows match the task).
 - **Size guidance:** soft budget of roughly 200 lines per file. When a file
   outgrows it, split by concern and add rows. Grounding reads matched files
-  selectively, taking the sections relevant to the task at hand rather than
-  necessarily the whole file, so tight, well-headed files route best.
+  selectively — the sections relevant to the task at hand, not necessarily
+  the whole file — so tight, well-headed files route best.
 
 ## Personal overlays (in-root only)
 
@@ -115,7 +115,7 @@ explicit confirmation before any conversion (see Setup and migration).
   `*.local.md`. That file is setup-owned; no plugin ever edits the
   consumer's root `.gitignore` or any ignore file it did not create.
 - **Pre-existing `<standards_dir>/.gitignore`:** a file setup did not
-  create is consumer-owned, and setup never writes it. Setup verifies it
+  create is consumer-owned — setup never writes it. Setup verifies it
   covers `*.local.md`; when it does not, setup surfaces the missing line
   and asks the consumer to add it themselves, reporting overlay
   protection as unconfigured until then. Idempotency is unaffected: the
@@ -126,18 +126,18 @@ explicit confirmation before any conversion (see Setup and migration).
 
 ## User-global layer
 
-- `~/.claude/standards/`, with an optional own `README.md` index (same
-  schema, same frontmatter key); when absent, degrade to glob discovery of
+- `~/.claude/standards/` — optional own `README.md` index (same schema,
+  same frontmatter key); when absent, degrade to glob discovery of
   `*.md` files there.
 - Location fixed in v1; relocation is deferred until a real need appears.
 - **Accepted cost:** this location sits outside the working directory, so
   the first read may raise a permission prompt (working-directory reads
   are prompt-free; outside reads are not). Consumers who want it silent
   may allowlist reads of `~/.claude/standards/` in their permission
-  settings; skills never treat the prompt (or a denial) as an error.
-  A denied user-global read just means that layer contributes nothing.
+  settings; skills never treat the prompt (or a denial) as an error —
+  a denied user-global read just means that layer contributes nothing.
 
-## Concern file: `.claude/standards.yaml`
+## Concern file — `.claude/standards.yaml`
 
 ```yaml
 # committed, team-shared; absent = all defaults
@@ -155,7 +155,7 @@ standards_dir: docs/standards
 ## Resolution ladder
 
 The single procedure every consuming skill uses to resolve the team
-standards root and its index. Consuming SKILL.md files point here and
+standards root and its index. Consuming SKILL.md files point here — they
 never restate the ladder. **Resolution root:** the git top-level directory
 (fall back to the working directory outside a git repo); the concern file
 and all repo-relative paths resolve against it.
@@ -168,8 +168,8 @@ and all repo-relative paths resolve against it.
    matched files.
 4. Index absent → infer from repository context that is NOT auto-loaded:
    docs directories, ecosystem configs, a standards location declared in
-   the consumer's `CLAUDE.md` (its ambient content is an inference source,
-   since auto-loaded surfaces are never re-fetched). On a successful
+   the consumer's `CLAUDE.md` (its ambient content is an inference source
+   — auto-loaded surfaces are never re-fetched). On a successful
    inference, OFFER to persist the finding (index bootstrap via setup, or
    the concern file); never write unprompted.
 5. Cannot infer, interactive session → ask once, then offer to persist
@@ -178,29 +178,29 @@ and all repo-relative paths resolve against it.
    contexts skip the ask-and-persist rungs, take this rung, and surface
    the assumption in their output.
 
-No silent writes, ever. Every rung that could persist state does so only
+No silent writes, ever — every rung that could persist state does so only
 by explicit offer and acceptance.
 
 **Personal layers (every rung):** whatever the team rungs above yield,
-resolution ALSO discovers the personal layers and applies them per Layers
-and precedence: glob-discover `<standards_dir>/*.local.md` overlays, and
-read `~/.claude/standards/` (its own index when present, else glob).
-Matching a team index row never substitutes for this step; a denied or
-absent personal layer simply contributes nothing.
+resolution ALSO discovers the personal layers — glob-discover
+`<standards_dir>/*.local.md` overlays, and read `~/.claude/standards/`
+(its own index when present, else glob) — and applies them per Layers and
+precedence. Matching a team index row never substitutes for this step; a
+denied or absent personal layer simply contributes nothing.
 
 **Ambient-content rule:** content already in context (fired `.claude/rules`
 directives, auto-loaded `CLAUDE.md`) is never re-pulled by a grounding
 step. After compaction or in a fresh task, previously loaded standards do
-NOT count as ambient. Re-resolve for the task at hand.
+NOT count as ambient — re-resolve for the task at hand.
 
 **Tolerant reader:** a skill reading an index at an OLDER contract version
 than its binding degrades to best-effort routing and surfaces "index at
-vX, contract at vY. Re-run setup to migrate". A skill reading a NEWER
+vX, contract at vY — re-run setup to migrate". A skill reading a NEWER
 index also degrades to best-effort routing but says "update the
-`<plugin>` plugin", and it never offers migration (no downgrades). No
+`<plugin>` plugin" — it never offers migration (no downgrades). No
 auto-rewrite in either direction.
 
-## `.claude/rules` division of content
+## `.claude/rules` seam (division of content)
 
 - **Rules = push** (fire on matching file reads): short imperative
   directives, consumer-owned.
@@ -208,10 +208,10 @@ auto-rewrite in either direction.
   criteria and prose.
 - **Pointer pattern:** a path-scoped rule may carry an imperative pointer
   directive to a standards file ("Before editing C#, read
-  `docs/standards/csharp.md`"), a lazy load on rule fire. Never `@import`
+  `docs/standards/csharp.md`") — lazy load on rule fire. Never `@import`
   (imports expand at launch, defeating lazy load), never restated content.
 - Setup MAY offer generating pointer rules for indexed ecosystem surfaces
-  (interactive only, since the `.claude/` write-guard prompt is acceptable
+  (interactive only — the `.claude/` write-guard prompt is acceptable
   there).
 
 ## Setup and migration (normative)
@@ -234,13 +234,13 @@ skills implement this section by reference; they do not restate it.
    `.claude/standards.yaml` only on relocation), propose surfaces
    inferred from the repository. Before writing the concern file, apply
    the same `git check-ignore -v` guard to `.claude/standards.yaml`
-   itself. An ignored concern file would leave future clones silently
+   itself — an ignored concern file would leave future clones silently
    falling back to the default root; on a match, STOP and surface the
    rule.
 5. Committed-root guard, then write the skeleton: before creating
    anything, run `git check-ignore -v` on a representative path inside
    the root (e.g. `<standards_dir>/README.md`); if a consumer ignore rule
-   matches, STOP and surface the exact rule and source line. An ignored
+   matches, STOP and surface the exact rule and source line — an ignored
    "team" layer can never be the committed, shared surface this contract
    depends on, and resolving the rule is the consumer's edit to make.
    Then write `<standards_dir>/README.md` (index with the
@@ -252,17 +252,17 @@ skills implement this section by reference; they do not restate it.
    shape.
 
 **Idempotency:** setup is re-runnable anytime. A re-run against a
-conforming, current-version index proposes no changes: run twice, no
+conforming, current-version index proposes no changes — run twice, no
 diff.
 
-**Migration (inside re-runnable setup, with no separate action):** setup
+**Migration (inside re-runnable setup — no separate action):** setup
 compares the index's `standards-contract` frontmatter to the bundled
 contract version. Detection is DIRECTIONAL:
 
 - Index OLDER than the bundled contract → explain the delta and offer
   guided migration. Idempotent: re-run after migration → no diff.
 - Index NEWER than the bundled contract → best-effort read, report
-  "update the `<plugin>` plugin", and NEVER offer migration. Setup
+  "update the `<plugin>` plugin", and NEVER offer migration — setup
   never downgrades an index, and two plugins at different bundled
   versions must not nag in a loop.
 

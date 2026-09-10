@@ -25,7 +25,7 @@ Implementers table. Nothing here decides a retirement; it only makes one detecta
 
 Two neighbouring contracts are cited, not restated. The expression doctrine that decides whether a
 surface is a file or a convention doc, and the pointer line that binds the convention home, belong
-to [config cascade](../config-cascade/README.md#expression-doctrine--which-surfaces-are-files-and-which-are-convention-docs).
+to [config cascade](../config-cascade/README.md#expression-doctrine-which-surfaces-are-files-and-which-are-convention-docs).
 Repeated operator declines of a cleanup route to [finding suppression](../finding-suppression/README.md).
 
 ## The manifest: `plugins/<plugin>/retirements.yaml`

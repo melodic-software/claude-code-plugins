@@ -44,7 +44,7 @@ from what it does not.
    users shouldn't run setup diagnostics from a session. Doesn't affect the `claude doctor` terminal
    command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen command"
    ([environment variables](https://code.claude.com/docs/en/env-vars); fetched live 2026-08-10
-   through the [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+   through the [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
    which reads the page verbatim, and upstream publishes no per-page content date).
    **Documented status unstable.** Three verbatim fetches disagree: absent 2026-07-24, present
    2026-08-10, absent 2026-08-26 (two fetch routes). Treat the variable as *unconfirmed*: name it only

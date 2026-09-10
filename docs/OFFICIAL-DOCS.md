@@ -16,7 +16,7 @@ training-data recall.
 > matches a row is that row's recheck trigger: update the row, refreshing its date with the
 > outcome. The [upstream-drift convention](conventions/upstream-drift/README.md) owns this
 > stamp-and-trigger discipline, and its
-> [fetch route](conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route) owns how to
+> [fetch route](conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route) owns how to
 > read the page you re-fetch: several of these pages are long enough that a summarizing fetch
 > truncates them and then reports what it never reached as absent. Read the `.md` channel verbatim
 > before recording any verdict, and record none at all from a truncated read.
