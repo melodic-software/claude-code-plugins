@@ -84,20 +84,20 @@ EOF
 chmod +x "$STUBS"/*
 
 # EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names, so the
-# coreutils, git and the interpreter stay reachable while a real lizard, radon,
-# eslint or gocyclo on this machine cannot shadow the stubs or the assertions.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics eslint type-coverage mypy pmd "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# symlinks to each executable on PATH except the tools the ladder names (and
+# the binaries those adapters look up), so the coreutils, git and the
+# interpreter stay reachable while a real lizard, radon, eslint or gocyclo on
+# this machine cannot shadow the stubs or the assertions.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
 # 1. Every stub resolves: the document, its references, and its run table.

@@ -31,6 +31,36 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   error detection covers both the `errors[]` and the `message` body shapes. Exit code
   5 means every section was unreadable; a partial brief still exits 0.
 
+## [0.45.4]
+
+### Fixed
+
+- **`observability`'s pre-compute pipeline line prints no option tier.** The line could carry no
+  option value (a `${user_config.*}` never rides inside shell-executing content), so its sixth
+  line printed manifest defaults a reader could take for the effective state. The pre-compute
+  line now runs the probe with `--observed`: the sixth line carries the envelope count and names
+  the section 2.6 re-run, which is fed the options the skill body renders as plain content and
+  is the one place the options render.
+
+## [0.45.3]
+
+### Fixed
+
+- **`observability` loads when no `session_event_log_*` option is configured.** The two
+  pre-compute lines passed `${user_config.*}` placeholders inside a shell command; a placeholder
+  the harness leaves unrendered is a bash `bad substitution`, one failed pre-compute line aborts
+  the whole invocation, and a rendered value would be re-parsed by the shell, which is why the
+  plugins reference has shell-executing fields reject `${user_config.*}`. The pre-compute lines
+  now pass no option: the options render as plain content, the probe lines report the manifest
+  defaults, and the skill body re-runs the probe with the rendered values from its own Bash call.
+  A regression test asserts that no pre-compute line references `user_config` and runs each
+  probe-invoking line through bash.
+- **The pipeline line names its two tiers.** `envelope:` counts the rows the telemetry sink wrote
+  for the audit hooks, the `source: "envelope"` rows in `sessions/*.jsonl` plus every line of the
+  shared `hook-events.jsonl` (the legacy shape for a payload with no session id), which the
+  event-log switch never governed, beside `event log: on|off`, so `off` next to a populated root
+  no longer reads as a contradiction.
+
 ## [0.45.2]
 
 ### Fixed

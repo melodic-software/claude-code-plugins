@@ -65,11 +65,12 @@ Agent({
            Memory slice: <memory_dir>/<slug>/ — on the N-topic path, the <topic-slug>/ sub-slice assigned to THIS topic
            Memory root: <memory_dir>
            Budget: <the depth this session authorized>
-           Capability flags: nested spawning <available|unavailable>"
+           Capability flags: nested spawning <available|unavailable>
+           Source breadth: <low|medium|high|xhigh|max, resolved from this session's caller effort; write high if the substitution is a literal placeholder>"
 })
 ```
 
-**Envelope fields only.** The agent arrives with `/discovery:research` preloaded and with its effort and turn budget already calibrated to that discipline, so the mandatory disciplines, the citation rule, the outcome gate, including the split that hands its verifier-owned rows to a fresh-context verifier rather than letting the producer grade them, and the shape of its return payload are all its own standing contract. Restating them in the prompt copies a contract that lives in the parent skill and drifts from it the moment that skill changes. One bound to know when filling `Budget`: the researcher's `maxTurns: 40` is fixed in its definition, so the budget field can narrow depth within that ceiling but never widen past it, a task that genuinely needs more belongs to Tier 1's workflow engine. The labels above are the plugin's one envelope template ([`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)); field-by-field rationale for all six, `Memory root` included, is [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
+**Envelope fields only.** The agent arrives with `/discovery:research` preloaded and with its effort and turn budget already calibrated to that discipline, so the mandatory disciplines, the citation rule, the outcome gate, including the split that hands its verifier-owned rows to a fresh-context verifier rather than letting the producer grade them, and the shape of its return payload are all its own standing contract. Restating them in the prompt copies a contract that lives in the parent skill and drifts from it the moment that skill changes. One bound to know when filling `Budget`: the researcher's `maxTurns: 40` is fixed in its definition, so the budget field can narrow depth within that ceiling but never widen past it, a task that genuinely needs more belongs to Tier 1's workflow engine. The labels above are the plugin's one envelope template ([`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)); field-by-field rationale for the six shared fields plus `Source breadth`, `Memory root` included, is [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
 
 ### Tier 1. Workflow engine (preferred)
 

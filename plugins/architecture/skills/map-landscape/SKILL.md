@@ -164,11 +164,11 @@ to 10 with a trailing `(+N)`.
 ## Gotchas
 
 - **The two dialects are not symmetric, and mermaid is the loose one.** Structurizr has a dedicated
-  `systemLandscape` view type. Mermaid has no landscape diagram type at all, so the mermaid output
-  is a `C4Context` diagram used without a focal system. Upstream also marks its C4 support
-  experimental and warns the syntax may change (source: <https://mermaid.js.org/syntax/c4.html>,
-  verified 2026-09-06). Recheck this entry when a mermaid release adds a landscape type or drops the
-  experimental notice.
+  `systemLandscape` view type. Mermaid has no landscape diagram type, so the mermaid output
+  is a `C4Context` diagram used without a focal system. The mermaid-C4 experimental fact and
+  the recheck trigger (experimental banner drops, or mermaid documents a dedicated landscape
+  type) live in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` under C4 dialect surfaces. This
+  skill does not carry a second stamp.
 - **`owner` is a ladder, and commit authors are not on it.** `CODEOWNERS` (root, `.github/`, or
   `docs/`) default `*` rule's first owner, then the owner segment of the `origin` remote URL, then
   `unknown`. Who edits a repository most is not who owns it, so the script never looks at git
