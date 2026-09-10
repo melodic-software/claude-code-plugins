@@ -95,7 +95,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    directory it deletes) and never `--allow-downgrade`, which it ignores and says so.
 
    `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
-   below — `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
+   below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
    token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
    `install_new_invalid` so the report can flag it.
@@ -416,7 +416,7 @@ Cache content: <N> install(s) whose cache files disagree with their recorded git
 ```
 
 `N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
-`id`, `version`, and `files_differ`, which sums every direction of disagreement — bytes that
+`id`, `version`, and `files_differ`, which sums every direction of disagreement: bytes that
 changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
 `files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
 ids and no per-file detail; report the ids alone then.
@@ -425,7 +425,7 @@ ids and no per-file detail; report the ids alone then.
 does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
 `sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
 would also silently erase the condition the verdict exists to report. Every verdict other than
-`match` and `stale-content` is counted as `unverifiable` — the audit looked and could not decide,
+`match` and `stale-content` is counted as `unverifiable`, meaning the audit looked and could not decide,
 which is its own number and never folded into either side.
 
 **Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a

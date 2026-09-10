@@ -87,7 +87,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 - **The two sibling routes name the Skill tool (#3002).** `methodology`'s "to *run* a workshop"
   route to `/event-storming:simulation` and `simulation`'s "for facilitation knowledge" route to
   `/event-storming:methodology`. The recommendation blockquote `methodology` prints for the user
-  is left as-is — it is sample output, not an instruction to the model. The glossary-graduation
+  is left as-is. It is sample output, not an instruction to the model. The glossary-graduation
   delegations to `/domain-driven-design:curate-language` carry the phrasing too, in both places
   that state it: `methodology`'s `reference/glossary-and-tools.md` and `simulation`'s
   `reference/agentic-simulation.md`. Wording only.
@@ -115,7 +115,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command that
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -157,7 +157,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 - Simulation session teardown is phrased shell-agnostically at both sites
   (`rm -rf` on POSIX/Git Bash, `Remove-Item -Recurse -Force` on PowerShell)
-  instead of an unconditional `rm -rf` with no Windows path — cross-platform
+  instead of an unconditional `rm -rf` with no Windows path. Cross-platform
   declaration wave.
 
 ## [0.5.2]
