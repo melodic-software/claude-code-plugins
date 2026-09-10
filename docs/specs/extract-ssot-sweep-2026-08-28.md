@@ -457,7 +457,7 @@ expression, and per this file's own recall-limits discipline none of these numbe
 
 ### A stale record found in passing, not an ADR matter
 
-`docs/MIGRATION-PLAYBOOK.md`'s "Review record — `dometrain` (ACCEPT, 2026-07-22)" carries the
+`docs/MIGRATION-PLAYBOOK.md`'s "Review record: `dometrain` (ACCEPT, 2026-07-22)" carries the
 clause "Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review."
 **The plugin's manifest reads `0.2.7`** (`plugins/dometrain/.claude-plugin/plugin.json`, read from
 the working tree, not from the roster). Eleven releases landed in between and the review was never

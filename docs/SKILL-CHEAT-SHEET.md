@@ -2,9 +2,9 @@
 
 A scan-and-go "doing X → run this skill" map of every listed skill in this marketplace,
 generated from each skill's SKILL.md frontmatter by `scripts/generate-cheatsheet.mjs`.
-Do not hand-edit the generated block below — edit the source frontmatter and regenerate.
+Do not hand-edit the generated block below. Edit the source frontmatter and regenerate.
 
-Grouping axis: this page groups skills by **sequence of use** — the session-flow workflow
+Grouping axis: this page groups skills by **sequence of use**, the session-flow workflow
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
 owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 

@@ -3,7 +3,7 @@
 The project's ubiquitous language: terms this marketplace has deliberately resolved, so the same
 words carry the same meaning in conversation, skill bodies, docs, and commit messages.
 
-This file records **vocabulary only** — what a term is, and which names were considered and
+This file records **vocabulary only**: what a term is, and which names were considered and
 rejected for it. The reasoning behind a decision lives in the artifact that made it; entries cite
 that artifact rather than restating it. New terms are curated through
 `/domain-driven-design:curate-language` rather than hand-written, so the entry discipline stays
@@ -16,7 +16,7 @@ applies repository-wide.
 
 **AFK criterion**
 
-The test of whether remaining work is scoped to run without a human at the keyboard — no decision
+The test of whether remaining work is scoped to run without a human at the keyboard: no decision
 still owed to it, no mid-flight approval it must stop for. A yes routes the delegation decision to
 `session-flow:orchestrate`; the criterion names the test, not the delegation.
 
@@ -42,15 +42,15 @@ Avoid: mental overhead
 
 **navigation pointer**
 
-A curated entry in an instruction file that routes a reader to a genuinely non-obvious, load-bearing
-document — stating where to look and when to look there. Distinct from a file-by-file inventory,
+A curated entry in an instruction file that routes a reader to a genuinely non-obvious document the
+work depends on, stating where to look and when to look there. Distinct from a file-by-file inventory,
 which an agent can rebuild from the tree and which the memory audit flags.
 
 Avoid: highway, stale highway
 
 **phase boundary**
 
-The moment a stage has produced its artifact and the next has not begun — where the continuation
+The moment a stage has produced its artifact and the next has not begun, where the continuation
 router runs and where a compaction, if taken at all, is least destructive.
 
 **primary source**
@@ -69,13 +69,13 @@ claim resting on one is verified against the primary before it ships.
 **smart zone**
 
 The healthiest of `context-guard`'s three context zones (`smart` / `acceptable` / `dumb`), naming
-the band rather than any token figure — the band numbers are declared judgment defaults and tunable
+the band rather than any token figure. The band numbers are declared judgment defaults and tunable
 per consumer.
 
 **unknowns quadrants**
 
-The four-way pre-prompt breakdown — known knowns, known unknowns, unknown knowns, unknown
-unknowns — used to decide which unknown-finding pass a task needs. Owned by
+The four-way pre-prompt breakdown used to decide which unknown-finding pass a task needs: known
+knowns, known unknowns, unknown knowns, unknown unknowns. Owned by
 [`FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md); entries cite it rather than restating the
 quadrants.
 
@@ -94,13 +94,13 @@ Each maps to the term or doctrine that owns the concept.
 
 | Rejected | Owned by |
 |---|---|
-| design concept | **shared understanding** — the existing house term |
+| design concept | **shared understanding**, the existing house term |
 | grill-execute-clear | the house workflow taxonomy, which already names the loop |
 | push vs point | **point, don't copy** (`discipline:point-dont-copy`) |
 | highway / stale highway | **navigation pointer** above; survives only as a quoted mnemonic |
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
-| sycophancy | nothing — a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
+| sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
 | map / territory | the source author's metaphor, cited where it appears in [`FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
 
 ## Provenance

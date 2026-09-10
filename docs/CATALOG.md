@@ -1,7 +1,7 @@
 # Plugin catalog
 
 The generated per-category plugin catalog: the block between the markers below is generated from the
-plugin manifests and kept in sync by CI — never hand-edit it; the category vocabulary is owned by
+plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabulary is owned by
 [`docs/CATALOG-TAXONOMY.md`](CATALOG-TAXONOMY.md).
 
 <!-- catalog:start -->
