@@ -3,6 +3,39 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0]
+
+### Changed
+
+- **`changelog` `status` reads a read marker, never commit bodies.** The applied version comes
+  from the marker line of the repository's Claude Code ledger (`docs/upstream/claude-code.md`,
+  override `CLAUDE_OPS_CHANGELOG_LEDGER`), falling back to the highest version a Conventional
+  Commits SUBJECT of the form `address Claude Code v<A>..<B> changelog` names. The previous
+  `git log --grep` over message bodies matched every doc whose recency stamp cited a Claude Code
+  version: on this marketplace it reported 13 applies where the true count was zero.
+- **`diff` and `apply` take a range.** `vA..vB` is inclusive at both ends, `vX` is one release,
+  and no argument means every release newer than the read marker up to the newest published.
+- **`fetch` cites the upstream-drift fetch route** (`curl` the raw `.md`, slice the release
+  blocks locally, check the first heading) instead of carrying its own dated WebFetch caveats.
+  The spoke keeps only the page-specific shape: the `<Update label>` block, `[VSCode]`-tagged
+  items, and the no-change placeholder line.
+
+### Added
+
+- **`scripts/changelog-status.sh`**, the first step of every `changelog` action: marker
+  resolution, installed vs newest release, the range with its release list and core-item count,
+  and the replay cap. It fetches the changelog itself by the raw-markdown route, takes
+  `--changelog <file>` to reuse a copy, and `--no-fetch` to read the marker alone. The skill's
+  pre-computed context line runs it with `--no-fetch`, so the marker is in context on every
+  invocation. `changelog-status.test.sh` covers it.
+- **A replay cap** of ten releases or 300 core items (`--cap-releases`, `--cap-items`, or the
+  `CLAUDE_OPS_CHANGELOG_CAP_*` variables). Past it, `diff` and `apply` stop and recommend a
+  docs-conformance recheck of the components followed by a marker reset, because the current docs
+  already carry the cumulative state and replaying items past the cap costs more than it returns.
+- **Three evals with fixtures**: the marker line is read, commit-body mentions are ignored, and a
+  range past the cap stops with the recommendation. They replace the eval that asserted
+  git-history-derived status.
+
 ## [0.45.3]
 
 ### Fixed

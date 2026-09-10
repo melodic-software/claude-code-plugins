@@ -1,6 +1,6 @@
 ---
-description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis, no edits), status (applied versions), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
-argument-hint: "<action> [version|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)"
+description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
+argument-hint: "<action> [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,10 @@ metadata:
   workflow-stage: anytime
   summary: Ingest a Claude Code release changelog and integrate its changes into the repo
 ---
+
+## Pre-computed context
+
+- Read marker (no fetch): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/changelog/scripts/changelog-status.sh" --no-fetch 2>/dev/null | head -4 || echo "(status script unavailable)"`
 
 ## Variables
 
@@ -22,27 +26,39 @@ Distinct from:
 - `/claude-ops:known-issues`. Tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
 - Any release-triage automation the consumer runs (issue filing per release). This skill IMPLEMENTS changes, holistically across a release
 
-## Input modes
+## Input modes and range
 
 Three ways to provide changelog content (priority order):
 
 1. **User pastes text**. Skill parses inline changelog from conversation context
-2. **Specific version**. `/claude-ops:changelog apply v2.1.152` fetches that version from `code.claude.com/docs/en/changelog.md`
-3. **Auto-detect latest**. `/claude-ops:changelog apply` (no version) automatically fetches changelog, identifies latest version, and proceeds
+2. **Explicit range or version**. `/claude-ops:changelog diff v2.1.257..v2.1.263` covers both ends inclusive; `apply v2.1.263` covers that one release
+3. **Default range**. `/claude-ops:changelog diff` (no range) runs from the read marker to the newest published release
+
+The read marker, the default range, and the replay cap are defined in
+[context/read-actions.md](context/read-actions.md) and computed by
+`scripts/changelog-status.sh`; every action starts by running it.
 
 ## Version awareness
 
-On every `apply` or `diff` invocation, compare the target version against the active terminal's CC version, captured at load:
+On every `apply` or `diff` invocation, compare the newest release in the range against the active terminal's CC version. The status script reports both as `latest` and `installed` and emits a `warn` line when the installed version is older:
 
-- Installed CC version: !`claude --version || echo "(CC version unavailable)"`
+- If the newest release in the range > installed version: **warn user**. "You're applying v2.1.263 changes but running v2.1.260. Update CC first (`claude update`) or changes may reference features not yet available in your session."
+- If the newest release in the range = installed version: proceed normally
+- If the newest release in the range < installed version: fine. Catching up on older releases
 
-- If target version > installed version: **warn user**. "You're applying v2.1.152 changes but running v2.1.150. Update CC first (`claude update`) or changes may reference features not yet available in your session."
-- If target version = installed version: proceed normally
-- If target version < installed version: fine. Catching up on older release
+## Read marker and replay cap
 
-## Applied-version tracking
+One line in the repository's upstream ledger for Claude Code releases (default
+`docs/upstream/claude-code.md`, override `CLAUDE_OPS_CHANGELOG_LEDGER`) records the newest release
+the repository has been read against. `status` reads that line; with no ledger it falls back to the
+highest version named in a Conventional Commits SUBJECT of the form
+`chore(<scope>): address Claude Code v<A>..<B> changelog`, and it never reads commit bodies, because
+a body's "verified against Claude Code v<X>" is a doc's recency stamp, not an apply.
 
-No persistent tracking file. Git history IS the tracker. Commit messages cite CC versions per Conventional Commits (`chore: address Claude Code v2.1.152 changelog`). The `status` action derives applied versions via `git log --grep`. Avoids drift between tracker file and git state.
+A range wider than ten releases or 300 core items exceeds the replay cap. `diff` and `apply` then
+stop and recommend a docs-conformance recheck of the components against the current docs, followed
+by a marker set at the newest published release: the docs carry the cumulative state, and replaying
+items past the cap costs more than it returns.
 
 ## Action Router
 
@@ -51,15 +67,15 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | Action | Description | Detail |
 |--------|-------------|--------|
 | `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
-| `fetch` | Fetch + display changelog for version(s). Read-only | See "Action: fetch" below |
-| `diff` | Fetch + orient on repo impact. Read-only analysis table | See "Action: diff" below |
-| `status` | Show applied versions, open issues, pending work | See "Action: status" below |
+| `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
+| `diff` | Resolve the range, apply the cap, orient on repo impact. Read-only analysis table | See "Action: diff" below |
+| `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
 | `help` | Show action table | *(inline)* |
 
 **Routing (model-invocable):**
 
 - Empty args or passive CC version mention → **`fetch`** or **`diff`** (read-only). Never **`apply`**.
-- Version-only token (`v2.1.152`) without explicit apply intent → **`fetch`** for that version.
+- Version-only token (`v2.1.152`) or range-only token (`v2.1.150..v2.1.152`) without explicit apply intent → **`fetch`** for that version or range.
 - **`apply`** only when user explicitly requests integration (`apply`, `apply changelog`, `/claude-ops:changelog apply`, or unambiguous implement-this-release intent).
 
 If action is unknown, show action table.
@@ -74,13 +90,12 @@ The full pipeline runs explore → research → interview → plan → implement
 
 ### Phase 0. Ingest
 
-Resolve changelog content and check version alignment:
+Resolve the range, check the cap, and check version alignment:
 
-1. **Check installed CC version:** use the value precomputed at load in "Version awareness" above; compare against the target version
+1. **Run the status script** with `--range` when the user gave one. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
 2. **Resolve content** (first match wins):
    - Changelog text already in conversation → parse it
-   - Version arg provided (e.g., `apply v2.1.152`) → run `fetch` for that version
-   - No text, no version → auto-fetch latest version from changelog URL
+   - A range or version was given, or the default range applies → slice those releases out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md), using the `releases` line the script printed
 3. **Parse** into structured items. Each item gets: summary, category (feature / fix / UI / internal), affected surface (if identifiable)
 
 ### Phase 1. Explore
@@ -155,15 +170,19 @@ If user approves:
    that repo's own convention (label, title marker, or milestone) via `gh issue list --state open --search '...'`
 2. For each issue whose title matches an implemented changelog item: close with comment citing this session's work
 
+The last commit of an `apply` moves the read marker to the top of the applied range, in a subject of
+the form `chore(<scope>): address Claude Code v<A>..<B> changelog`, so `status` reports the new
+marker from the ledger and, until the ledger exists, from that subject.
+
 ---
 
 ## Actions: fetch, diff, status (read-only)
 
 The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
 
-- **`fetch`**. WebFetch + display a version (or latest, or a `v.X..v.Y` range) of `code.claude.com/docs/en/changelog.md` (raw markdown, the smaller, chrome-free channel; WebFetch truncates it and the rendered page alike, so a deep version needs a range-scoped fetch or `curl`, dated record in [context/read-actions.md](context/read-actions.md)). No edits
-- **`diff`**. Dry run of `apply`: Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research), stops before interview. Emits the triage table only. Answers "is this release worth an `apply`?"
-- **`status`**. Applied versions (`git log --grep`), open routine-pipeline issues (`gh issue list`), current `claude --version`, and the gap if installed > last-applied
+- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
+- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits the triage table only. Answers "is this range worth an `apply`?"
+- **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
 ---
 
@@ -171,6 +190,7 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 
 | File | Load when |
 |---|---|
+| `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
+| `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
 | `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
-| `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the section above summarizes them, this file has the steps. |
