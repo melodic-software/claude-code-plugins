@@ -280,6 +280,19 @@ printf '{"event":"PostToolUse","hook":"d"}\n{"event":"Stop","hook":"e"}\n' >"$EN
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: the shared file's legacy envelopes join the count" \
   "envelope: 5 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
+# --observed is the pre-compute form: no caller there holds an option value, so
+# the sixth line stops at the observed count and names the call that renders
+# the option tier instead of printing manifest defaults. Option flags passed
+# alongside are ignored, so a stray flag cannot smuggle a default back in.
+P_OUT="$(bash "$SCRIPT" --pipeline --observed --enabled true 2>/dev/null)"
+assert_eq "pipeline --observed: still six lines" "6" "$(printf '%s\n' "$P_OUT" | wc -l | tr -d ' ')"
+assert_contains "pipeline --observed: the sixth line carries the envelope count and points at the re-run" \
+  "envelope: 5 row(s) from the audit hooks, outside the switch; options: rendered by the section 2.6 re-run, not here" "$P_OUT"
+if [[ "$P_OUT" != *"event log:"* ]]; then
+  pass "pipeline --observed: no option tier is printed"
+else
+  fail "pipeline --observed: no option tier is printed" "no event log: text" "$P_OUT"
+fi
 unset STUB_GIT_TOPLEVEL
 
 # --- The skill's own pre-compute lines -----------------------------------------

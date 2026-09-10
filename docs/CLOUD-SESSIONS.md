@@ -214,7 +214,14 @@ catalog on, and the cloud bootstrap installs from the two together (see
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
-  published `main`. Local collaborators are prompted once they trust the folder.
+  published `main`. Local collaborators are prompted once they trust the folder. A cloud
+  snapshot can already carry a marketplace of the same name registered from GitHub and tracking
+  `main`; the bootstrap then never registers the checkout, every install resolves against that
+  clone, and the session runs `main`'s plugin code. The bootstrap detects this from
+  `plugin marketplace list --json`, brings the clone current, measures the refresh decision and
+  the health verdict against the clone's HEAD rather than the checkout's, and prints one
+  warning naming both commits, so a branch that changed a plugin knows its copy is not the one
+  being served.
 - **`skillListingBudgetFraction` is set to `0.05`, and what that buys depends entirely on the
   live model's context window.** Claude Code loads every enabled skill's name and description
   each turn and caps the total at

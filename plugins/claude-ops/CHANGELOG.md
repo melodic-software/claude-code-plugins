@@ -36,6 +36,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   range past the cap stops with the recommendation. They replace the eval that asserted
   git-history-derived status.
 
+## [0.45.4]
+
+### Fixed
+
+- **`observability`'s pre-compute pipeline line prints no option tier.** The line could carry no
+  option value (a `${user_config.*}` never rides inside shell-executing content), so its sixth
+  line printed manifest defaults a reader could take for the effective state. The pre-compute
+  line now runs the probe with `--observed`: the sixth line carries the envelope count and names
+  the section 2.6 re-run, which is fed the options the skill body renders as plain content and
+  is the one place the options render.
+
 ## [0.45.3]
 
 ### Fixed
