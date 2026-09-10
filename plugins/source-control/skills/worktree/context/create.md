@@ -105,7 +105,7 @@ Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` en
    exit "$status"
    ```
 
-   Three details in those blocks matter:
+   Three details in those blocks are essential:
 
    - **`mktemp -d`, not `mktemp`.** `Write` refuses to overwrite a file it has not read, so the directory must exist and the file inside it must not.
    - **The `cygpath -m -l` conversion on Windows.** The printed path crosses the Git Bash → native boundary: it becomes a `Write` tool `file_path`, and node's Win32 side resolves an MSYS literal like `/tmp/tmp.XXX` against the **current drive**, silently creating a phantom `<drive>:\tmp\...` while the real directory sits in `%TEMP%` ([the windows-path-emit convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/windows-path-emit/README.md), Rules 3–4). Mixed form (`-m`) is correct for **both** consumers, the `Write` tool and the later Bash block, so one converted value round-trips everywhere; `-l` expands an 8.3 short name (`KYLESE~1`) whose `~` misbehaves downstream. The `|| exit 2` is the fail-loud posture: never fall back to the unconverted literal, because the unconverted literal is exactly what writes to the wrong place. On non-Windows the `case` passes the path through unchanged. Do **not** replace this with `mktemp -d -p "$TEMP"`: `mktemp -p` is a flagged GNU/BSD-divergence token in the portability gate, and it yields mixed separators anyway.

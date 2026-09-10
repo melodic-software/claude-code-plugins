@@ -64,7 +64,7 @@ classes adversarially:
   no scope lists, no prices") loses assertions when collapsed; restate without the cadence
   ("no endpoint tables, scope lists, or prices") rather than dropping items.
 - **Quoted operative phrases**: a hedge, discriminator, or trigger phrase inside quotation
-  marks is load-bearing verbatim text ("what could possibly happen" as one arm of a
+  marks carries its meaning word for word ("what could possibly happen" as one arm of a
   read-vs-run discriminator). Never edit inside the quotes; the quotation exemption keeps
   wording rules out of them.
 

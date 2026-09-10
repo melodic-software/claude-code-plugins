@@ -10,7 +10,7 @@ List work items with optional filtering.
 
 ## Flags
 
-- `--category <name>` -- Filter by category label (adds `category:<name>`; the consuming repo's `category:` values are listed in [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
+- `--category <name>` -- Filter by category label (adds `category:<name>`; for the consuming repo's `category:` values, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
 - `--label <name>` -- Filter by any label (repeatable, AND logic)
 - `--state <s>` -- `open` (default), `closed`, `all`
 - `--assignee <login>` -- Filter by assignee (`@me` for self)

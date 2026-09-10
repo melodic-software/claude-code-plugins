@@ -10,7 +10,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 - `$schema` present and points to `https://json.schemastore.org/claude-code-settings.json`
 - No unknown top-level keys (cross-reference against official docs schema)
-- `settings.local.json` does NOT contain `mcpServers` (wrong file; use `.mcp.json`)
+- `settings.local.json` does NOT contain `mcpServers` (wrong file, use `.mcp.json`)
 
 ## Category B: Permissions
 

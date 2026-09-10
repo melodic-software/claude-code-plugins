@@ -12,7 +12,7 @@ role-label passes above it ask their own:
 - **A decision whose RECOMMENDED answer is safe resolves to it silently.** Do not present it. Say in
   the summary which defaults were taken so the operator can revisit them.
 - **A decision with no safe default is never guessed.** Stop and report it as a named blocker, with
-  the one command that resolves it. Writing an invented binding is worse than not binding: every tracker
+  the one command that resolves it. Writing an invented binding is worse than not binding: every seam
   verb then resolves a provider the repo did not choose.
 
 Applied to the three passes:

@@ -31,7 +31,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `[0.46.2]`, `[0.46.0]`, `[0.45.1]`, `[0.45.0]`, `[0.44.1]`, `[0.44.0]`, `[0.43.0]`,
   `[0.42.3]`, `[0.42.2]`, `[0.42.1]`, `[0.42.0]`, `[0.41.0]`, `[0.40.2]`, `[0.40.1]`,
   `[0.40.0]`, `[0.39.0]`, `[0.38.0]`, `[0.37.0]`, `[0.36.0]`, `[0.35.1]`, `[0.35.0]`,
-  `[0.34.0]`, `[0.33.3]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.1]`, `[0.32.0]`,
+  `[0.34.1]`, `[0.34.0]`, `[0.33.3]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.1]`, `[0.32.0]`,
   `[0.31.8]`, `[0.31.7]`, `[0.31.6]`, `[0.31.5]`, `[0.31.4]`, `[0.31.3]`, `[0.31.2]`,
   `[0.31.1]`, `[0.31.0]`, `[0.30.0]`, `[0.29.1]`, `[0.29.0]`, `[0.28.0]`, `[0.26.12]`,
   `[0.26.11]`, `[0.26.10]`, `[0.26.9]`, `[0.26.8]`, `[0.26.7]`, `[0.26.6]`, `[0.26.4]`,
@@ -960,7 +960,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   converts at the boundary with `cygpath -m -l` (mixed form works for both the `Write` tool and
   the later Bash consumers; `-l` expands an 8.3 short name), fails loud rather than falling back
   to the unconverted literal, and passes through unchanged on non-Windows hosts. The
-  create.md details list documents the conversion, including why `mktemp -d -p "$TEMP"` is
+  create.md essential-details list documents the conversion, including why `mktemp -d -p "$TEMP"` is
   rejected, so it is not reverted as noise.
 
 ## [0.55.33]
@@ -1426,9 +1426,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   would otherwise have opened the pull request against the fork's own default branch silently.
 - **The REST path's missing hook backstop is recorded.** `pr-body-linkage-gate.sh` matches
   `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately
-  does not see. Within the skill this costs nothing, because §2.4.2's gates run against the body
-  first, but §2.4.3 now says so plainly, because a REST PR opened outside the skill has no second
-  check before CI.
+  does not see. Within the skill this costs nothing, since §2.4.2's gates run against the body
+  first. §2.4.3 now says so plainly anyway, because a REST PR opened outside the skill has no
+  second check before CI.
 
 ## [0.55.6]
 
@@ -1621,7 +1621,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   orphaned-directory candidate, the only candidate class with no stranded-work
   row to read, since the engine enumerates from `git worktree list`, is held to
   a stricter bar still: *not a symlink*, *not a work tree*, *no `.git` entry*,
-  and *empty*, all four. The `.git` test is the one that decides and the
+  and *empty*, all four. The `.git` test is the one that matters most and the
   work-tree test does not imply it,
   because a live worktree whose main clone was moved, deleted, or unmounted keeps
   its `.git` file while `rev-parse` fails. Both surfaces also stop scanning a
@@ -1874,10 +1874,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop`: promotion-evidence gate on the rung partition (#1695).** Before C2/C3 PRs enter
   the merge-eligible set, the partition resolves each promotable cell's effective state through a
-  trusted promotion-evidence source, never from repo-local or agent-writable surfaces, never from
+  trusted promotion-evidence gate, never from repo-local or agent-writable surfaces, never from
   bound `promotion_state` alone. Unavailable, untrusted, partial, or forgeable evidence fail-closes
   to effective-unpromoted; a contrary demotion event in qualified telemetry excludes the affected
-  class on the next cycle without config change. Until that source qualifies, C2/C3 classes stay off
+  class on the next cycle without config change. Until that gate qualifies, C2/C3 classes stay off
   the eligible set regardless of tracked rung; operators keep `--merge human-only` on launch lines.
   New reference `skills/babysit-loop/reference/promotion-evidence-resolution.md`; `config-resolution.md`
   notes the gate. Evals 2, 6–8 updated; eval 10. Contract test in `test_skill_contract.py`.
@@ -2102,10 +2102,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   stamp now adds **2.1.244 or 2026-11-07, whichever comes first**, composed with
   `docs/conventions/upstream-drift/` rather than inventing a parallel mechanism.
 - **The `SKILL.md` ownership claim is no longer a false absolute, and it gained a back-channel**
+  (`skills/worktree/SKILL.md`; #2213). The retired claim read:
   <!-- ai-slop-ignore-start: quoted retired SKILL.md ownership-claim wording -->
-  (`skills/worktree/SKILL.md`; #2213). "This skill is the canonical owner … — no external prose doc"
+  "This skill is the canonical owner … — no external prose doc".
   <!-- ai-slop-ignore-end -->
-  was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
+  It was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
   current than it. Ownership is now scoped to this plugin fleet, and states how a consumer who
   measures something contradicting the owner gets that correction back into the owner. Canonical
   ownership with no inbound channel makes the owner the last to know.
@@ -3213,8 +3214,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
-  itself lives under temp, a `mktemp -d` fixture checkout being how this repository's own hook
-  suites run, its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  itself lives under temp, its files are still accepted. That case is a `mktemp -d` fixture
+  checkout, which is how this repository's own hook suites run. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
 
@@ -3844,8 +3845,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
     comment's classification-table rows (not its whole body) before scanning, mirroring
     `babysit_classify.count_findings`'s identical rule for the finding-count gate; the underlying
     `_strip_classification_rows` helper is promoted to public (`strip_classification_rows`) and
-    shared between the two modules rather than reimplemented. Non-table self content -- a
-    maintainer using a self-login to raise a genuine new finding -- still flags.
+    shared between the two modules rather than reimplemented. Non-table self content, such as a
+    maintainer using a self-login to raise a genuine new finding, still flags.
   - `SKILL.md`'s thread-resolution bullet and flag-delivery table, `reference/safety.md`'s
     documented resolve-thread command forms (both the read-only listing form and both
     pinned-command-degradation forms), and `reference/orchestration.md`'s Worker Contract and

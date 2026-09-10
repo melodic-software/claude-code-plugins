@@ -1083,7 +1083,8 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   later always use adaptive reasoning. The fixed thinking budget mode and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` do not apply to them", while "On Opus 4.6 and Sonnet 4.6,
   you can set `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` to revert", which is the fence above,
-  stated upstream. The API arm is the migration guide: `thinking: {type: "enabled", budget_tokens: N}`
+  stated upstream. The API arm comes from the migration guide:
+  `thinking: {type: "enabled", budget_tokens: N}`
   "is no longer supported on Claude Opus 4.7 or later models and returns a 400 error", with the same
   stated for Fable 5 and Mythos 5; corroborated for this model generation by the Sonnet 5 guide,
   "Calibrating effort and thinking depth", where manual extended thinking "is not supported on Claude

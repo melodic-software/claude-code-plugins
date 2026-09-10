@@ -65,7 +65,13 @@ plugins/autonomy/README.md
 plugins/bash-format/README.md
 plugins/biome-format/README.md
 plugins/bugs/README.md
-plugins/claude-config/README.md
+# The claude-config plugin was purged whole. The glob stops short of the
+# audit-instructions eval fixtures, which carry the tells those evals test.
+plugins/claude-config/*.md
+plugins/claude-config/skills/*/SKILL.md
+plugins/claude-config/skills/*/context/*.md
+plugins/claude-config/skills/*/reference/*.md
+plugins/claude-config/skills/*/templates/*.md
 plugins/claude-memory/README.md
 plugins/claude-ops/README.md
 plugins/code-metrics/CHANGELOG.md

@@ -36,8 +36,8 @@ gate the choice.
 ## `local-markdown`
 
 The offline reference provider: one markdown file per item. **Never a coordination surface.** The
-store is working-tree files, so items, leases, and ids are branch- and worktree-confined, so
-multi-session work needs a tracker-published spec on a coordination provider instead.
+store is working-tree files, so items, leases, and ids are branch- and worktree-confined.
+Multi-session work needs a tracker-published spec on a coordination provider instead.
 
 Requires `config.storage_dir` (no baked default; e.g. `.work-items`). See CONTRACT.md
 "local-markdown adapter" and `adapters/local-markdown/README.md`.

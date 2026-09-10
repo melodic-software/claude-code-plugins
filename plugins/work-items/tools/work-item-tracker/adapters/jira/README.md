@@ -1,4 +1,4 @@
-# Jira adapter: operations reference
+# Jira adapter operations reference
 
 Read/resolve-only surface for the `/work-items` skill against a Jira Cloud provider. The seam
 contract (verbs, JSON shapes, exit codes, binding config, auth, normalization) is

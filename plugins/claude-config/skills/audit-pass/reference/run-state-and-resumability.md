@@ -104,7 +104,7 @@ environment (§2), so a shell cannot expand it.
 
 **`acquire` requires `--plugin-data` because it is the only command that creates a directory**, and
 that is where the write tree is pinned: a run directory not under `<plugin-data>/runs/` is refused
-rather than created. Without the check, a wrong or invented `--run-dir`, the target root say,
+rather than created. Without the check, a wrong or invented `--run-dir`, say the target root,
 would get created and a lease written into it, and this skill keeps Bash specifically for state
 writes while promising that a bare audit writes nothing into the target. Every later command operates
 on a run directory `acquire` already validated.

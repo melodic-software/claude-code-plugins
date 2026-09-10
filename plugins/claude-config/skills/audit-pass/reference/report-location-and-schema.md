@@ -24,7 +24,7 @@ gating on the flag would leave the default path unprotected wherever the same co
   **`{id}` is derived, and deriving it wrong loses the report.** Same page, verbatim: `{id}` is *"the
   plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced by `-`"*, with
   the worked example that a plugin installed as `formatter@my-marketplace` lands in
-  `~/.claude/plugins/data/formatter-my-marketplace/`, so the `@` becomes `-`. A wrong derivation writes
+  `~/.claude/plugins/data/formatter-my-marketplace/`, because the `@` becomes `-`. A wrong derivation writes
   the report where the next run will not look for it, which is also how `--resume` loses a partial.
 
   **`${CLAUDE_PLUGIN_DATA}` is not in the Bash tool's environment. Do not try to expand it from a

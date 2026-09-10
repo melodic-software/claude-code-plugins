@@ -57,8 +57,8 @@ lookup (a mirror of the crosswalk, and the crosswalk row is authoritative), rank
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
 the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
-the consuming project defines its own, editing the written file's `Tier` cells per the contract's
-consumer-precedence rule).
+the consuming project defines its own). For that mapping, edit the written file's `Tier` cells per
+the contract's consumer-precedence rule.
 
 ## Which findings enter the file
 
@@ -66,7 +66,7 @@ consumer-precedence rule).
 `restatement-scan.py` marks two more; the other eight families (I6, I8-a/b/c, I10, I23, I25, I27)
 have no severity-crosswalk row, and the contract admits no row whose tier cannot be looked up
 from one. They stay in the human report and are counted in `## Surfaces` as
-`reason=no-severity-crosswalk-row`: declined, never silently dropped.
+`reason=no-severity-crosswalk-row`. They are declined, never silently dropped.
 
 | Scanner family | Rule id | Tier |
 |---|---|---|
