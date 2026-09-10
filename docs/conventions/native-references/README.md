@@ -1,9 +1,9 @@
-# Native references — presence-gated phrasing for Claude Code's own surfaces
+# Native references: presence-gated phrasing for Claude Code's own surfaces
 
-Owner doc for **how a component in this marketplace refers to a native Claude Code surface** — a
-built-in CLI command, a bundled skill, a plugin-backed built-in, or a session-provided skill — when
-that surface materially overlaps what the component does. One shape: a read-time presence gate that
-routes, never an assertion that the native thing is there.
+Owner doc for **how a component in this marketplace refers to a native Claude Code surface**,
+whether a built-in CLI command, a bundled skill, a plugin-backed built-in, or a session-provided
+skill, when that surface materially overlaps what the component does. One shape: a read-time
+presence gate that routes, never an assertion that the native thing is there.
 
 The problem this closes is specific. A marketplace skill and a native surface can do overlapping
 work, and the model picks between them from descriptions alone. Silence produces duplication; a
@@ -45,7 +45,7 @@ the four axes are documented on `https://code.claude.com/docs/en/settings-refere
 (`disableBundledSkills`, `skillOverrides`), `https://code.claude.com/docs/en/env-vars.md`,
 `https://code.claude.com/docs/en/commands.md` ("Not every command appears for every user.
 Availability depends on your platform, plan, and environment."), and
-`https://code.claude.com/docs/en/cloud-environments.md`; verified 2026-08-23; **recheck trigger** —
+`https://code.claude.com/docs/en/cloud-environments.md`; verified 2026-08-23; **recheck trigger**:
 a Claude Code release note or docs change adds, removes, or renames a gating axis, or a
 `skillOverrides` state leaves the four-value set.
 
@@ -66,18 +66,18 @@ this skill for <ours>.
 
 Four required parts:
 
-1. **The gate** — `resolves in your session` (or `resolves in this session`). This is the
+1. **The gate**: `resolves in your session` (or `resolves in this session`). This is the
    canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
    about the machine. `if installed`, `always available`, `Claude Code ships`, and `is built in`
    are all wrong here: the first is the cross-plugin gate, the rest are assertions.
-2. **The provenance class** — `bundled`, `built-in`, `plugin-backed built-in`, or
+2. **The provenance class**: `bundled`, `built-in`, `plugin-backed built-in`, or
    `session-provided`, named in the sentence. The classes behave differently (different disable
    switches, different rosters per host), and a reader who cannot tell which one they are looking
    at cannot check the gate.
-3. **The routing split** — what the native surface is preferred *for*, and what this component is
+3. **The routing split**: what the native surface is preferred *for*, and what this component is
    preferred *for*. A gate with no split tells the model a thing exists without telling it when to
    pick which, which is the duplication the reference exists to stop.
-4. **Self-containment** — the phrase carries its own meaning with no external lookup.
+4. **Self-containment**: the phrase carries its own meaning with no external lookup.
 
 Worked example, in the shipped shape:
 
@@ -88,7 +88,7 @@ health-and-fix pass; this skill for the deep read-only install-tree inventory.
 
 **Absent is not a fallback state.** Unlike a cross-plugin seam, there is nothing to degrade to: the
 component's own job is the fallback, and the split sentence already says what that job is. Do not
-write "otherwise this skill" — it is noise the shared budget pays for.
+write "otherwise this skill", which is noise the shared budget pays for.
 
 ### Budget caveat
 
@@ -103,7 +103,7 @@ not a guaranteed one:
 
 Basis: `https://code.claude.com/docs/en/skills.md` (Frontmatter reference; Troubleshooting →
 "Skill descriptions are cut short") and `https://code.claude.com/docs/en/settings-reference.md`;
-verified 2026-08-23. **Recheck trigger** — a release or docs change moves the 1,536 default, the
+verified 2026-08-23. **Recheck trigger**: a release or docs change moves the 1,536 default, the
 1% default, or the drop-order rule.
 
 Two obligations follow. Keep the phrase to one clause, since it spends shared budget every session
@@ -111,12 +111,12 @@ for every consumer. And where a fleet's listing plausibly overflows, the overlap
 per-row *phrase may be budget-dropped* caveat, so nobody later reads a baked phrase as a guarantee
 that the model saw it.
 
-### Open consideration — the bundled keep-set
+### Open consideration: the bundled keep-set
 
 A single-source, unconfirmed read of a shipped build suggests bundled entries may be exempt from
 budget dropping, which would make native/marketplace routing asymmetric under pressure. It is
 recorded here as an open consideration and **nothing in this convention builds on it**: no phrase,
-no verdict, and no registry row may cite it until a live probe confirms it. **Recheck trigger** —
+no verdict, and no registry row may cite it until a live probe confirms it. **Recheck trigger**:
 a live in-session probe confirms or refutes the exemption, or upstream documents the drop order at
 the source level.
 
@@ -127,12 +127,12 @@ fuller section, modeled on the `review` plugin's organic pattern
 (`/review:quality-gate` and `/review:fanout` each carry one):
 
 ```markdown
-## Boundary — <the native surfaces this skill overlaps>
+## Boundary: <the native surfaces this skill overlaps>
 
 <One sentence naming the surfaces and why they are conflated.>
 
-- **<name> (<provenance class>)** — what it does, what it mutates, how it is invoked.
-- **<name> (<provenance class>)** — same.
+- **<name> (<provenance class>)**: what it does, what it mutates, how it is invoked.
+- **<name> (<provenance class>)**: same.
 
 **Routing:** <when to prefer each>.
 
@@ -147,19 +147,19 @@ Five properties the section keeps:
 3. **One owning description, pointers elsewhere.** Where two components in the *same plugin* both
    overlap the surface, one carries the description and the other points at it with a same-plugin
    relative link and adds only what is specific to itself. Cross-plugin pointers are forbidden.
-4. **Presence-gated language throughout** — the body inherits the description's gate; it never
+4. **Presence-gated language throughout**: the body inherits the description's gate; it never
    promotes a surface to available because the body is longer.
 5. **Upstream specifics carry their basis and date**, per
    [`upstream-drift`](../upstream-drift/README.md).
 
-## Self-containment — shipped plugins never cite the registry
+## Self-containment: shipped plugins never cite the registry
 
 The overlap store and [`docs/NATIVE-SURFACES.md`](../../NATIVE-SURFACES.md) live in this
 repository. A plugin installed from the marketplace does **not** have them: a citation would be a
 broken reference at install time, and the reader would be routed to a file that does not exist.
 
 So: baked text repeats what it needs and cites nothing outside its own plugin. The registry is a
-maintainer surface — it records the verdict, the evidence, and the trigger that would change them;
+maintainer surface: it records the verdict, the evidence, and the trigger that would change them;
 the component carries the conclusion. This is the same direction the parity check enforces
 mechanically: every baked line traces back to a store row, while a store row without a baked line
 is legal pending-sweep state.
@@ -170,10 +170,10 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Judgment | Tier |
 |---|---|
-| A baked native reference traces to a store row | **Deterministic** — built, as the overlap self-check's store↔baked-line parity pass |
-| Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic** — built, in the same self-check |
-| The phrase uses the presence gate rather than an availability assertion | **Detect-then-judge** — the `resolves in your session` token is greppable, but deciding whether a *different* sentence asserts availability is a judgment about meaning. Candidate check named, not built: flag a component description naming a bundled or built-in surface with no gate token. Build trigger: a second assertion-shaped native reference reaches `main` after this doc |
-| The routing split is the right one | **Reasoning-only** — it is the verdict, and verdicts are human-gated by design |
+| A baked native reference traces to a store row | **Deterministic**: built, as the overlap self-check's store↔baked-line parity pass |
+| Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic**: built, in the same self-check |
+| The phrase uses the presence gate rather than an availability assertion | **Detect-then-judge**: the `resolves in your session` token is greppable, but deciding whether a *different* sentence asserts availability is a judgment about meaning. Candidate check named, not built: flag a component description naming a bundled or built-in surface with no gate token. Build trigger: a second assertion-shaped native reference reaches `main` after this doc |
+| The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design |
 
 ## Adopters
 
@@ -182,8 +182,8 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
 | `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
 
-Fleet-wide application is a reserved, separately gated sweep: one plugin per unit — apply, verify,
-PR, close — never a single fleet-wide edit.
+Fleet-wide application is a reserved, separately gated sweep: one plugin per unit, each unit running
+apply, verify, PR, close, never a single fleet-wide edit.
 
 ## Versioning
 
@@ -194,13 +194,13 @@ change; the doc's README-only original state reads as 1.0.
 
 ## External authority
 
-- `https://code.claude.com/docs/en/skills.md` — description loading, the per-entry cap, and the
+- `https://code.claude.com/docs/en/skills.md`: description loading, the per-entry cap, and the
   listing budget's drop behavior.
 - `https://code.claude.com/docs/en/settings-reference.md`,
-  `https://code.claude.com/docs/en/env-vars.md` — `disableBundledSkills`, `skillOverrides`,
+  `https://code.claude.com/docs/en/env-vars.md`: `disableBundledSkills`, `skillOverrides`,
   `skillListingMaxDescChars`, `skillListingBudgetFraction`, and the env twins.
 - `https://code.claude.com/docs/en/commands.md`,
-  `https://code.claude.com/docs/en/cloud-environments.md` — plan/platform gating and per-host
+  `https://code.claude.com/docs/en/cloud-environments.md`: plan/platform gating and per-host
   roster differences.
 
 Upstream publishes no convention for deferring to its own surfaces (absence checked 2026-08-23
