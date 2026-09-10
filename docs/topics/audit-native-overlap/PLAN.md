@@ -54,6 +54,8 @@ A run of `/claude-ops:audit-native-overlap` on the current Claude Code build tel
 
 Scope note, 2026-09-10, added at planning after the fresh-context review: three statements about `defer` rows disagreed (the assumption above says `route` is withheld for `morning`, the acceptance criterion says every row carries `integration`, and the plan's verdict pass proposes `route`). The acceptance criterion is the stronger, approved statement, so every row carries `integration`, `morning` included, with `route` as the only value a `defer` row may take. The assumption's "withheld" is superseded by this note.
 
+Scope note, 2026-09-10, added at planning after the devil's-advocate pass: the wrap-candidate assumption above rests on model-invocability that the 2.1.263 binary contradicts. Each bundled-skill registration carries an invocation-control field, and `doctor`, `design`, `design-sync`, `batch`, `debug`, and `run-skill-generator` are registered with model invocation disabled, which the official skills reference defines as "Claude cannot invoke" and this repository's invocation-mode convention restates as "cannot be invoked by any other skill". `simplify` and `run` are registered model-invocable. So the three `doctor` rows and the two `design` rows cannot take `wrap` on any host; their available integrations are `route` and `suggest`. This changes which rows the sweep can compose and is the user's decision, recorded under `## Open questions` as USER-RESERVED, not resolved here.
+
 ### Out-of-scope
 
 - Re-implementing any native job inside a marketplace skill as a fallback.
@@ -74,90 +76,91 @@ Scope note, 2026-09-10, added at planning after the fresh-context review: three 
 
 ### Standards grounding
 
-No standards index resolves (`.claude/standards.yaml` absent, `docs/standards/` absent). Inferred from repository context, rung 4 of the ladder: this repository's standards live under `docs/conventions/`. Loaded for the surfaces this plan touches: `native-references` (phrase grammar, Boundary section, self-containment, one owning description per plugin, enforceability tiers), `seam-phrasing` (gate plus fallback plus ownership framing, the install-recipe carve-out, and the owner of any wrap of a marketplace plugin), `upstream-drift` (four-part verification records for every upstream fact a body restates), `rendered-views` (markdown is the record; the generated view stays markdown), `invocation-mode` (every touched skill keeps its explicit `disable-model-invocation` key), `topic-docs` (contract slice pruned before merge), the path rule `.claude/rules/skill-bodies-state-current-rules.md` (bodies state the current rule, never the incident; `## Next` placement), and `.claude/rules/vendor-docs-are-not-style.md` (no em dashes in instruction surfaces). The `standards` convention itself and the two personal layers contributed nothing. Persisting an index at `docs/standards/README.md` is an offer for the user, not a write this plan makes.
+No standards index resolves (`.claude/standards.yaml` absent, `docs/standards/` absent). Inferred from repository context, rung 4 of the ladder: this repository's standards live under `docs/conventions/`. Loaded for the surfaces this plan touches: `native-references` (phrase grammar, Boundary section, self-containment, one owning description per plugin, enforceability tiers, versioning rule), `seam-phrasing` (gate plus fallback plus ownership framing, the install-recipe carve-out, and the owner of any wrap of a marketplace plugin), `upstream-drift` (four-part verification records for every upstream fact a body restates), `rendered-views` (markdown is the record; the generated view stays markdown), `invocation-mode` (every touched skill keeps its explicit `disable-model-invocation` key; a model-disabled skill cannot be invoked by another skill), `topic-docs` (contract slice pruned before merge), the path rule `.claude/rules/skill-bodies-state-current-rules.md` (bodies state the current rule, never the incident; `## Next` placement), and `.claude/rules/vendor-docs-are-not-style.md` (no em dashes in instruction surfaces). The `standards` convention itself and the two personal layers contributed nothing. Persisting an index at `docs/standards/README.md` is an offer for the user, not a write this plan makes.
 
 ### Approach
 
-Nine closed units, executed strictly in sequence per the sweep contract (one plugin is one unit, closed only when its PR merges green, never two in flight). Phases 1 to 3 form the tooling-fix unit. Phase 4 is the policy unit. Phases 5 to 11 are the sweep, one plugin each. Phase 0 files the tracker container that carries the rest.
+Nine closed units, executed strictly in sequence per the sweep contract (one plugin is one unit, closed only when its PR merges green, never two in flight). Phases 1 to 3 form the tooling-fix unit. Phase 4 is the policy unit and settles every verdict, with its pre-flights, before any sweep unit starts. Phases 5 to 11 are the sweep, one plugin each. Phase 0 files the tracker container that carries the rest.
 
-Build technique: the one viability unknown (recovering bundled-skill registrations from the 2.1.263 layout) was resolved upstream by a throwaway spike during planning. Its findings are stated as facts in Phase 1, so no phase carries a might-abandon risk. The kept slice is Phase 1 itself: a walking skeleton whose sanity check is the real binary reporting a non-empty lane.
+Build technique: the one viability unknown (recovering bundled-skill registrations from the 2.1.263 layout) was resolved by two throwaway probes during planning, the second of which corrected the first. The kept slice is Phase 1: a walking skeleton whose sanity check is the real binary reporting the named surfaces the store depends on.
 
-Spike findings (2026-09-10, `node_modules/.bin/claude` 2.1.263, Linux ELF): the bundle is a `// @bun @bytecode` layout fragmented into hundreds of printable runs; the readable export map the extractor keys on (`registerBundledSkill:()=>xu`) no longer exists in source text, its name surviving only in a symbol table; bundled-skill registrations are calls to a minified local function (`eo({name:"doctor",aliases:["checkup"],…})`) that sit in runs smaller than the extractor's single-longest-run selection; the built-in command table still sits in the largest run, which is why the builtin lane extracted. Joining every printable run and deriving the registrar identifier from the `doctor` canary registration recovers 36 registrations, 18 with literal names and 18 with hoisted-constant names that the existing constant map resolves once the joined source includes the runs the constants live in. The `doctor` registration carries `isEnabled`, `survivesBundledKillSwitch`, `terminalOriented`, `requires`, `menuDescription`, and `description`, and no invocation-control field, so model-invocability cannot be read from the extraction and must be probed live.
+Probe findings (2026-09-10, `node_modules/.bin/claude` 2.1.263, Linux ELF): the bundle is a `// @bun @bytecode` layout fragmented into thousands of printable runs; the CJS getter shape the extractor keys on (`registerBundledSkill:()=>xu`) is gone, replaced by an ESM export list (`eo as registerBundledSkill`) that names the registrar directly; bundled-skill registrations are calls to that minified function (`eo({name:"doctor",aliases:["checkup"],…})`) scattered across runs as small as 1.3 KB, so a size floor of 64 KiB recovers 13 names while a 256-byte floor recovers 33; a global constant map over the joined source produced one phantom name (`ehrpd`, a telecom string bound to a same-named identifier in an unrelated chunk), so constants resolve within their own chunk only; the built-in command table sits in the largest run, which is why the builtin lane extracted. Every registration carries `userInvocable` and `disableModelInvocation` fields; `doctor`, `design`, `design-sync`, `batch`, `debug`, and `run-skill-generator` are model-disabled, `simplify` and `run` are model-invocable, and `doctor` also carries `terminalOriented`, the documented-by-code reason it is absent on web and cloud hosts. A 256-byte regex floor runs in about 3 seconds on the 215 MB file; a 64 KiB floor takes minutes because the regex backtracks on every shorter run.
 
 Literals every unit's sanity check greps for, fixed here so the grammar and the checks agree:
 
-- Wrap heading: `## Native step: <name> (<class>)`, for example `## Native step: doctor (bundled skill)`.
-- Suggest token: `available in your session`. The grammar states that "session" stands for all four gating axes (settings or environment, plan, platform or provider, host surface), which is why it is not "build".
+- Wrap heading: `## Native step: <name> (<class>)`, for example `## Native step: simplify (bundled skill)`.
+- Suggest sentence shape: `If /<name> is available in your session (<basis>), run it for <job>.` The reverse-parity scan keys on the shape `If /` … `is available in your session (`, never on the bare phrase, because that phrase already occurs in unrelated prose in the fleet.
 - Axis line, verbatim in every skip report: `settings or environment, plan, platform or provider, host surface`.
 - Skip report opener: `did not resolve in this session`.
+- Unattended declaration: the bare argument `unattended`, following the `overengineering:audit` precedent.
+- Version bumps: "next minor at PR time" for every touched plugin; no literal numbers, because claude-ops receives unrelated PRs weekly.
 
-### Phase 0: File the parent issue and its first sub-issue [TODO]
+### Phase 0: File the parent issue and its sub-issues [TODO]
 
 Executed by `/work-items:decompose` after this plan is approved; the plan fixes the shape so decompose does not re-derive it.
 
 1. **Search before create.** Query open issues for `native-overlap`, `audit-native-overlap`, `native-surfaces`, and `inventory.py 2.1.263`. A match with the same scope is the pivot path: attach this Brief to it as a comment and use it as the parent instead of creating one. Record the search outcome in the sanity check.
-2. Create the parent issue: body is the Brief verbatim, followed by a `## Affected store rows` section quoting every row of `docs/native-surfaces/records.json` by native name, component, verdict, and current `integration` (or `pending` before Phase 4), and a `## Follow-up scope` section listing the improvement items from `### Out-of-scope`. Sub-issue PRs cite their sub-issue with the closing keyword the PR-body contract expects; the issue body itself carries no closing keyword.
-3. Create sub-issue 1 (tooling fix, Phases 1 to 3) only. Later sub-issues are created one at a time when their predecessor unit closes, because each wrap unit's precondition is a store row with a human verdict and an `integration` value, and those are written in Phase 4.
+2. Create the parent issue: body is the Brief verbatim, followed by a `## Affected store rows` section quoting every row of `docs/native-surfaces/records.json` by native name, component, verdict, and current `integration` (or `pending` before Phase 4), and a `## Follow-up scope` section listing the improvement items from `### Out-of-scope` plus the two tooling findings the devil's-advocate pass surfaced that the tooling unit does not absorb (the registrar-export advisory's blindness to the ESM form, and phantom constant names). Sub-issue PRs cite their sub-issue with the closing keyword the PR-body contract expects; the issue body itself carries no closing keyword.
+3. Publish all nine sub-issues at once with native dependency edges, blockers-first, each blocked on its predecessor, so the sweep contract's one-unit-in-flight rule is carried by the edges rather than by withholding issues. Sub-issues 3 to 9 name their unit as "integration values written in Phase 4 decide the unit's content".
 
 **Sanity Check:**
 
 - The search ran and its result (no match, or the matched issue number) is written into the parent issue body.
-- `gh issue view <parent> --json body -q .body | grep -c "## Affected store rows"` prints 1 and `… | grep -c '`doctor`'` prints at least 3; exactly one open sub-issue is linked.
+- `gh issue view <parent> --json body -q .body | grep -c "## Affected store rows"` prints 1 and `… | grep -c '`doctor`'` prints at least 3; nine linked sub-issues exist and eight of them are blocked.
 
 ### Phase 1: Extractor bundled-skill lane on 2.1.263 [TODO]
 
 Files: `plugins/claude-ops/skills/inventory/scripts/inventory.py` (MODIFY), `plugins/claude-ops/skills/inventory/scripts/test_inventory.py` (MODIFY).
 
-1. **Red, region selection.** `read_bundle` gets its first unit tests, driven with bytes fixtures: (a) a marker followed by a run above 1 MB carrying only command registrations, then non-printable bytes, then a shorter run carrying `eo({name:"doctor",aliases:["checkup"]…})`, then a third run carrying the hoisted constant for a second registration; assert the returned source contains all three. (b) The same layout wrapped in a PE-shaped container (an `MZ` header) to keep the Windows `claude.exe` path covered. (c) The legacy single-run layout still returns the same source as today.
-2. **Red, registrar discovery.** With the export map absent, `extract_bundled_skills` resolves the canary and the constant-named registration; `discover_registrar` returning `None` no longer empties the lane; `bundled_skill_notes.registrar_route` reads `canary`.
-3. **Green, region selection.** Region rule, stated exactly: from the first bundle marker to end of file, every printable run of at least 64 KiB, found with one `re.finditer(rb"[\t\n\r\x20-\x7e]{65536,}")` pass rather than a byte-by-byte loop, joined with newlines; `sources.binary` records `runs`, `joined_bytes`, and `region_rule`. The longest-run path stays as the fallback when no marker is found.
-4. **Green, registrar discovery.** Export-map discovery first; when it returns `None`, the callee identifier immediately preceding `({name:"doctor",aliases:["checkup"]` is the registrar; when neither resolves, the lane is broken with the existing error text.
-5. **Refactor.** The constant map builds over the joined source. Each registration additionally records `terminal_oriented` and `survives_kill_switch` when the fields are present, because `terminalOriented` is the documented-by-code reason a bundled skill is absent on a web or cloud host. Unresolved dynamic names stay an advisory floor.
+1. **Red, region selection.** `read_bundle` gets its first unit tests, driven with bytes fixtures: (a) a marker followed by a run above 1 MB carrying only command registrations, then non-printable bytes, then a 2 KB run carrying `eo({name:"doctor",aliases:["checkup"]…})`, then a third run carrying the hoisted constant for a second registration; assert the returned source contains all three. (b) The same layout wrapped in a PE-shaped container (an `MZ` header). (c) The legacy single-run layout still returns the same source as today. (d) A registration in a run smaller than the floor is either recovered or counted in `sources.binary.runs_below_floor`, never silently lost.
+2. **Red, registrar discovery.** Three fixtures, one per route: the CJS getter (`registerBundledSkill:()=>xu`), the ESM export list (`eo as registerBundledSkill`), and neither of those but the canary present. `bundled_skill_notes.registrar_route` reads `export-map`, `esm-export`, or `canary`; with none, the lane is broken with the existing error text.
+3. **Red, constant resolution.** A constant bound in one chunk and reused as a registration name in another chunk resolves only when the binding sits in the same chunk (between consecutive bundle markers); the `ehrpd` shape (same identifier bound to a different string in an unrelated chunk) is a negative fixture; identifiers of length 1 are always unresolved; a loop registration (`for(… of …)eo({name:e,…})`) is recorded as a `dynamic_roster` note, not one unresolved identifier.
+4. **Red, invocation fields.** Each registration records `user_invocable`, `disable_model_invocation`, `terminal_oriented`, and `survives_kill_switch` when present.
+5. **Green.** Region rule, stated exactly: from the first bundle marker to end of file, every printable run of at least 256 bytes, found with one `re.finditer(rb"[\t\n\r\x20-\x7e]{256,}")` pass, joined with newlines; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`, and `elapsed_seconds`. The longest-run path stays as the fallback when no marker is found. Registrar discovery order: CJS getter, ESM export list, canary. The registrar-shaped-export advisory scan gains the ESM form (`\w+ as (register[A-Za-z]*(?:Skill|Command|Agent))`) and `KNOWN_REGISTRAR_EXPORTS` gains `registerDesignCanvasSkill` and `registerWorkflowAuthoringSkill`.
 6. `VALIDATED_AGAINST` moves to `2.1.263` in Phase 3, not here.
 
 **Sanity Check:**
 
-- `python3 plugins/claude-ops/skills/inventory/scripts/test_inventory.py` exits 0 and `grep -c "def test_read_bundle" plugins/claude-ops/skills/inventory/scripts/test_inventory.py` prints at least 3.
-- `python3 plugins/claude-ops/skills/inventory/scripts/inventory.py --binary-only --out /tmp/inv.json` exits 0 and `jq -e '(.bundled_skills | length) >= 18 and (.bundled_skills.doctor != null) and (.bundled_skills.simplify != null) and (.bundled_skills.doctor.terminal_oriented == true)' /tmp/inv.json` prints `true`.
-- `jq -r .integrity.status /tmp/inv.json` prints `ok` or `degraded`, never `broken`, and `jq -r .bundled_skill_notes.registrar_route /tmp/inv.json` prints `canary`.
+- `python3 plugins/claude-ops/skills/inventory/scripts/test_inventory.py` exits 0 and `grep -c "def test_read_bundle" plugins/claude-ops/skills/inventory/scripts/test_inventory.py` prints at least 4.
+- `time python3 plugins/claude-ops/skills/inventory/scripts/inventory.py --binary-only --out /tmp/inv.json` exits 0 in under 15 seconds of wall clock, and `jq -e '[.bundled_skills.doctor, .bundled_skills.simplify, .bundled_skills.run, .bundled_skills.design, .bundled_skills["code-review"]] | all(. != null)' /tmp/inv.json` prints `true`, and `jq -e '.plugin_backed["security-review"] != null' /tmp/inv.json` prints `true`.
+- `jq -e '.bundled_skills.doctor.disable_model_invocation == true and .bundled_skills.simplify.disable_model_invocation == false and .bundled_skills.doctor.terminal_oriented == true' /tmp/inv.json` prints `true`; `jq -r .bundled_skill_notes.registrar_route /tmp/inv.json` prints `esm-export`; `jq -r .integrity.status /tmp/inv.json` prints `ok` or `degraded`, never `broken`; `jq '.bundled_skills | keys' /tmp/inv.json` does not contain `ehrpd`.
 
 ### Phase 2: Per-lane integrity and honest exits in both tools [TODO]
 
 Files: `inventory.py` (MODIFY), `test_inventory.py` (MODIFY), `plugins/claude-ops/skills/inventory/reference/extraction.md` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/scripts/test_overlap.py` (MODIFY), `plugins/claude-ops/skills/inventory/SKILL.md` (MODIFY, the integrity paragraph), `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` (MODIFY, "The two substrates" and "Detection posture").
 
-Pre-flight consumer check, first work item: `Grep` for readers of the integrity block. Known today: `overlap.py cmd_detect` (reads `integrity.status`, `cli_version`, `validated_against`), `inventory.py --self-check` (maps top-level `status == broken` to exit 1), `inventory/reference/extraction.md` (documents the block), `inventory/evals/evals.json` (expectations name the status), and `scripts/validate-plugins.sh` (reads overlap's exit code only). Record any further reader the grep finds before editing.
+Pre-flight consumer check, first work item: `Grep` for readers of the integrity block. Known today: `overlap.py cmd_detect` (reads `integrity.status`, `cli_version`, `validated_against`), `inventory.py --self-check` (maps status to exit through `{"ok": 0, "broken": 1, "degraded": 3}`), `inventory/reference/extraction.md` (documents the block), `inventory/evals/evals.json` (expectations name the status), and `scripts/validate-plugins.sh` (reads overlap's exit code only). Record any further reader the grep finds before editing.
 
-One rule for one state, stated exactly: top-level `integrity.status` becomes the worst lane; `broken` at the top level means every lane is broken or the binary is unreadable; a run with at least one healthy lane is at most `degraded`. Both `inventory.py --self-check` and `overlap.py detect` exit 3 for that state and 1 only for top-level `broken`.
+One rule for one state, stated exactly: top-level `integrity.status` becomes the worst lane; `broken` at the top level means every lane is broken or the binary is unreadable; a run with at least one healthy lane is at most `degraded`. The existing exit mappings in both tools already send `degraded` to 3 and `broken` to 1, so the exit code contract does not change; what changes is which state a single broken lane produces.
 
-1. **Red.** `check_integrity` returns `lanes` with `{status, problems, advisories}` for `builtin_commands`, `bundled_skills`, and `plugin_backed`. Tests: a broken bundled lane with a healthy builtin lane yields lane statuses `ok`/`broken`/`ok` and top-level `degraded` carrying the bundled lane's problem as an advisory prefixed with the lane name; all lanes broken yields top-level `broken`.
-2. **Red.** `cmd_detect` on an inventory with one broken lane exits 3, writes candidates, states per-lane floors in `integrity`, and marks every candidate whose pair's `seeded_class` maps to the broken lane with `re_derivable: false`, keyed on the seeded class rather than the observed class so the recorded `design` collision (a bundled-skill pair that the builtin lane also resolves) is marked. A collision fixture asserts this. An inventory without `lanes` keeps today's behaviour.
-3. **Red.** `inventory.py --self-check` exits 3 for top-level `degraded` and 1 for `broken`.
-4. **Green** all three; update `extraction.md` and the evals expectations to the per-lane wording.
-5. Re-word the audit-native-overlap SKILL.md rule from "if it reports broken, the report carries no native-side counts at all" to per-lane: counts are omitted only for a broken lane; the report names the lane and its cause.
+1. **Red.** `check_integrity` returns `lanes` with `{status, problems, advisories}` for `builtin_commands`, `bundled_skills`, and `plugin_backed`. Tests: a broken bundled lane with a healthy builtin lane yields lane statuses `ok`/`broken`/`ok` and top-level `degraded` carrying the bundled lane's problem as an advisory prefixed with the lane name; all lanes broken yields top-level `broken`; an unreadable binary yields `broken`.
+2. **Red.** `cmd_detect` on an inventory with one broken lane states per-lane floors in `integrity` and marks every candidate whose lane is broken with `re_derivable: false`. The lane is decided by the seeded class when the native name is absent from the extraction, and by the observed class when it is present; a candidate is marked in both directions when either class maps to the broken lane. A fixture with a synthetic collision (one name seeded bundled, observed builtin) asserts the both-directions rule; the plan makes no claim that the fixed extractor reproduces the 2026-09-08 collision, because `build_report` drops a builtin whose name a bundled skill also carries. An inventory without `lanes` keeps today's behaviour.
+3. **Green** both; update `extraction.md` and the evals expectations to the per-lane wording.
+4. Re-word the audit-native-overlap SKILL.md rule from "if it reports broken, the report carries no native-side counts at all" to per-lane: counts are omitted only for a broken lane; the report names the lane and its cause.
 
 **Sanity Check:**
 
 - `python3 plugins/claude-ops/skills/audit-native-overlap/scripts/test_overlap.py` and `python3 plugins/claude-ops/skills/inventory/scripts/test_inventory.py` exit 0.
-- A fixture inventory with `lanes.bundled_skills.status == "broken"` and healthy other lanes makes `overlap.py detect … --out /tmp/c.json` exit 3 and `jq '[.candidates[] | select(.re_derivable == false)] | length' /tmp/c.json` prints a number greater than 0 that includes the `design` bundled-skill candidate (`jq '.candidates[] | select(.native.name=="design" and .native.seeded_class=="bundled-skill") | .re_derivable' /tmp/c.json` prints `false`).
+- A fixture inventory with `lanes.bundled_skills.status == "broken"` and healthy other lanes makes `overlap.py detect … --out /tmp/c.json` exit 3 and `jq '[.candidates[] | select(.re_derivable == false)] | length' /tmp/c.json` prints a number greater than 0.
 - `grep -c "no native-side counts at all" plugins/claude-ops/skills/audit-native-overlap/SKILL.md` prints 0.
 
 ### Phase 3: Reverse-parity blind spot, seeded pairs, evals, claude-ops release [TODO]
 
-Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json` (MODIFY), `plugins/claude-ops/skills/inventory/evals/evals.json` (MODIFY only where an expectation names the old build or the old integrity wording), `plugins/claude-ops/.claude-plugin/plugin.json` (MODIFY), `plugins/claude-ops/CHANGELOG.md` (MODIFY), `docs/conventions/native-references/README.md` (MODIFY, the Enforceability row moves from "candidate check named, not built" to built), `docs/conventions/native-references/CHANGELOG.md` (MODIFY).
+Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json` (MODIFY), `plugins/claude-ops/skills/inventory/evals/evals.json` (MODIFY only where an expectation names the old build or the old integrity wording), `plugins/claude-ops/.claude-plugin/plugin.json` (MODIFY), `plugins/claude-ops/CHANGELOG.md` (MODIFY). The native-references Enforceability row ("candidate check named, not built" becomes built) is edited in Phase 4's convention bump, not here, so the convention takes one versioned change.
 
 1. **Red.** Self-check flags a frontmatter description that names a native surface by class and name behind a presence condition (`bundled|built-in|plugin-backed built-in|session-provided` followed within a few words by `skill|command`, inside a clause starting `when|where|if`) without the gate token. Fixture: the `visualize` wording "where the bundled design skill is available". Negative fixtures: a description carrying the token; a seam-phrasing "if that plugin is installed" clause; a Not-for clause that names a surface with no presence condition.
 2. **Green.** The flag is an advisory (exit 3), not a break, because the two live cases are legitimate pending rows; the message names the row to add or the token to use.
 3. Seed the two `audit-skill-visibility` pairs (`doctor` bundled-skill, `skill-doctor` builtin-command) into `canonical-pairs.json` with a `why`; `test_shipped_canonical_pairs_file_validates` covers the shape.
 4. Eval re-validation, stated exactly: the repo's evals are `evals.json` in the skill-quality format, and `claude plugin eval` consumes `case.yaml` or `prompt.md` plus graders, so the CLI runner does not apply. "Evals pass" means `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/claude-ops/skills/inventory/evals/evals.json` exits 0 and `check-jsonschema` validates the file, after any expectation that names 2.1.228 or the old integrity wording is updated. Then set `VALIDATED_AGAINST = "2.1.263"`.
 5. Windows basis: where a Windows host with the 2.1.263 `claude.exe` is reachable (the fleet's desktop over `/fleet:reach`), run `inventory.py --binary-only --self-check` there and record the result; where it is not, the CHANGELOG entry states that 2.1.263 was validated on the Linux ELF container only and the PE path is covered by the Phase 1 fixture.
-6. Bump `claude-ops` to `0.46.0` (additive `integrity.lanes`, the registrar fallback, new advisories), write the CHANGELOG entry stating the rules, not the incident.
+6. Bump `claude-ops` to the next minor at PR time (additive `integrity.lanes`, the two new registrar routes, new advisories, new registration fields), write the CHANGELOG entry stating the rules, not the incident.
 7. Open the unit's PR as a draft, body per the PR-body contract, quoting the two seeded pairs; flip to ready when green.
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check` exits 3 with exactly two reverse-parity advisories naming `visualization:visualize` and `prototype:explore-directions` (`python3 overlap.py self-check 2>&1 | grep -c "presence condition without a gate token"` prints 2).
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 3 with no problems, and its advisories are exactly the version-drift advisory (until Phase 4 refreshes observations) plus two reverse-parity advisories naming `visualization:visualize` and `prototype:explore-directions` (`… 2>&1 | grep -c "presence condition without a gate token"` prints 2).
 - `jq '.pairs | length' canonical-pairs.json` prints 16 and `jq '.pairs[] | select(.native.name=="skill-doctor")' canonical-pairs.json` is non-empty.
-- `grep -n 'VALIDATED_AGAINST = "2.1.263"' inventory.py` matches; `jq -r .version plugins/claude-ops/.claude-plugin/plugin.json` prints `0.46.0`; `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/claude-ops/skills/inventory/evals/evals.json` exits 0; `scripts/affected-tests.sh --run` passes.
+- `grep -n 'VALIDATED_AGAINST = "2.1.263"' inventory.py` matches; `jq -r .version plugins/claude-ops/.claude-plugin/plugin.json` is greater than `0.45.2`; `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/claude-ops/skills/inventory/evals/evals.json` exits 0; `scripts/affected-tests.sh --run` passes.
 
 ### Phase 4: Policy unit, the `integration` axis and the two new grammars [TODO]
 
@@ -165,111 +168,110 @@ Files: `docs/native-surfaces/records.json` (MODIFY, every row, plus two new rows
 
 Pre-flight consumer check, first work item: `Grep` for readers of `records.json` and of the `baked` object; today they are `overlap.py` and the generated view only. The change is additive.
 
-1. **Red, schema.** `validate_row` requires `integration` in `route|wrap|suggest` with the class rules from `design/design-resolution.md`: `builtin-command` takes `route` or `suggest`; `bundled-skill`, `plugin-backed-builtin`, and `marketplace-plugin` take `route` or `wrap`; `session-skill` takes `route`; a `defer` verdict takes `route`. `baked` gains booleans `native_step` (true only with `wrap`) and `suggest_sentence` (true only with `suggest`). One test per rule.
-2. **Red, parity.** Forward parity for `native_step` looks for the literal `## Native step: <name> (<class>)` heading in the component body; forward parity for `suggest_sentence` looks for the suggest token in the body. Reverse parity gains a body scan for the suggest token only (the heading scan stays off, because organic Boundary sections predate the registry), so a body carrying `available in your session` with no store row is an orphan.
+0. **Pre-flights, all answerable from this session, quoted in the PR body before any verdict is written.** (a) Model-invocability per row from the Phase 1 extraction's `disable_model_invocation` field: `doctor` and `design` disabled, `simplify` and `run` enabled. (b) `simplify` path-scope: read the registration's prompt text in the extraction to establish whether it takes a file or path argument; if not, `batch-simplify` runs it once over the changed set. (c) CI lane: `plugins/review/skills/security-review/SKILL.md` declares `allowed-tools` without `Skill`, and the lane runs a pinned reusable workflow in `melodic-software/ci-workflows` whose tool allowlist and plugin roster this repository does not control, so the `security-review` row takes `route` unless a later unit changes both.
+1. **Red, schema.** `validate_row` requires `integration` in `route|wrap|suggest` with the class rules from `design/design-resolution.md`: `builtin-command` takes `route` or `suggest`; `bundled-skill`, `plugin-backed-builtin`, and `marketplace-plugin` take `route` or `wrap`; a `bundled-skill` row carrying the new marker `model-invocation-disabled` takes `route` or `suggest`; `session-skill` takes `route`; a `defer` verdict takes `route`. `NATIVE_MARKERS` gains `model-invocation-disabled`, set from the extraction. `baked` gains booleans `native_step` (true only with `wrap`) and `suggest_sentence` (true only with `suggest`). One test per rule.
+2. **Red, parity.** Forward parity for `native_step` looks for the literal `## Native step: <name> (<class>)` heading in the component body; forward parity for `suggest_sentence` looks for the suggest sentence shape in the body. Reverse parity gains a body scan for the suggest sentence shape only (`If /` … `is available in your session (`), with the `claude-ops:changelog` prose line as a negative fixture, so a body carrying the shape with no store row is an orphan.
 3. **Green.** Render the view with an `Integration` column in the summary table and an `Integration:` line per row.
-4. **Convention.** Add the `wrap` grammar: the body section `## Native step: <name> (<class>)` carrying, in order, the gate token; the identity check by class (bundled: name in the listing, invoke by alias where the Skill tool resolves one, advisory description check; a description that reads as a different surface is a likely user or project shadow, so skip with a warning; a name with no description, which `name-only` and budget overflow both produce, is invoked with a stated "identity confirmed by name alone" warning, matching the playgrounds precedent; plugin: namespaced form plus marketplace provenance when the CLI resolves); the mutation clause (invoke with a report-only instruction, decline every fix offer the native surface makes, list declined offers in the report as suggestions, and never wrap a mutating surface in an unattended run); the invocation form; what our part adds before or after; the skip-and-report contract for three states (`did not resolve in this session`, invocation refused by the tool or permissions, identity mismatch), each naming the axis line `settings or environment, plan, platform or provider, host surface` and the enable path; and the `unattended` argument, declared by the caller, under which the skill records instead of asks. Add the `suggest` grammar: the body sentence `If /<command> is available in your session (<basis>), run it for <job>.` where `<basis>` is a same-file four-part verification record (claim, source, as-of date, recheck trigger) per upstream-drift, placed at the start of the run when coverage is total and at the end when partial; unattended runs record it in output. Add the class table with the `marketplace-plugin` row naming seam-phrasing as the owner of that class's wrap grammar. Amend the one-owner rule: one owning description phrase per plugin per surface stays; a second skill in the same plugin carries a Native step section with a same-plugin pointer to the owner's Boundary, never a second phrase. Bump the convention's minor version and write its CHANGELOG entry.
-5. **Re-derive observations.** Run `detect` on the Phase 1 extraction and refresh `observation.detail` and `recheck.verified` to 2.1.263 for every extraction-class row whose evidence still holds, so the version advisory clears; rows whose evidence moved keep their old record and gain an evidence line saying what moved.
-6. **Human verdict pass.** Propose an `integration` value per row in the PR body and write it only as the user confirms. Proposal: `wrap` for the `doctor` rows on audit-install-state and audit-skill-visibility, `run`, `security-review`, and `batch-simplify`; `route` for `code-review`, `morning`, the two `playground` rows, and the `audit-performance` doctor row (a pointer-only row under the amended one-owner rule); `suggest` for `export` and `skill-doctor`; `route` for the two `design` rows and the `tidy` row unless the user chooses `wrap`. Two tensions are flagged for the user rather than decided: `tidy` ships a structure-only PR and running `simplify` inside it changes the PR's content class; `batch-simplify` per file group assumes `simplify` accepts a path scope, which is verified in Phase 6 before the wrap is written. Two new rows: `export` against `session-flow:handoff` and `export` against `session-flow:retro`, both `suggest`, because each body carries a suggest sentence and every baked line must trace to a row. Each row's evidence gains the substrate observations from the 2026-09-08 report where they apply (`skill-doctor` gate basis; `design` name collision).
-7. **Apply step.** Update the skill body: preconditions add "the row's `integration` is not `route` when a Native step or suggest sentence is to be written"; the emitted artefacts add the Native step section and the suggest sentence; the per-entry cap precheck is a hard precondition (`description` plus `when_to_use` after baking at most 1,536 characters, measured by `bash plugins/skill-quality/scripts/check-skill.sh <skill>`); every wrapped or suggesting skill declares the `unattended` argument in its `argument-hint`.
-8. Bump `claude-ops` to `0.47.0`; draft PR; ready when green.
+4. **Convention, one major bump.** Add the `wrap` grammar: the body section `## Native step: <name> (<class>)` carrying, in order, the gate token; the identity check by class (bundled: name in the listing, invoke by alias where the Skill tool resolves one, advisory description check; a description that reads as a different surface is a likely user or project shadow, so skip with a warning; a name with no description, which `name-only` and budget overflow both produce, is invoked with a stated "identity confirmed by name alone" warning, matching the playgrounds precedent; plugin: namespaced form plus marketplace provenance when the CLI resolves); the mutation clause (a mutating surface may be wrapped only where the wrapping skill's own contract mutates the same thing, the invocation passes an explicit scope or report-only argument, the skill fingerprints what the surface may write before the step and diffs after, and an unexpected diff is reported as a fourth state, "mutation detected after a scoped invocation", with the run exiting degraded); the invocation form; what our part adds before or after; the skip-and-report contract for the states `did not resolve in this session`, invocation refused by the tool or permissions, and identity mismatch, each naming the axis line and the enable path; and the `unattended` argument, declared by the caller, under which the skill records instead of asks and never invokes a mutating surface. Add the `suggest` grammar: the sentence shape above, addressed to the person, where `<basis>` is a same-file four-part verification record per upstream-drift, placed at the start of the run when coverage is total and at the end when partial, and where a model-disabled bundled skill is suggested as `/<name>` typed by the person exactly as a built-in command is; unattended runs record it in output. Add the class table with the `marketplace-plugin` row naming seam-phrasing as the owner of that class's wrap grammar and the model-disabled bundled-skill row. Amend the one-owner rule: one owning description phrase per plugin per surface stays; a second skill in the same plugin carries a Native step or suggest section with a same-plugin pointer to the owner's Boundary, never a second phrase. Flip the Enforceability row for the gate-token check to built (Phase 3 built it). This is a major version of the convention, because it changes a required part of the Boundary section and an enforceability verdict; the CHANGELOG entry says so.
+5. **Re-derive observations.** Run `detect` on the Phase 1 extraction and refresh `observation.detail` and `recheck.verified` to 2.1.263 for every extraction-class row whose native surface the extraction resolves and whose evidence still holds, so the version advisory clears; rows whose evidence moved keep their old record and gain an evidence line saying what moved; every bundled-skill row gains or drops the `model-invocation-disabled` marker from the extraction.
+6. **Human verdict pass.** Propose an `integration` value per row in the PR body and write it only as the user confirms. Proposal on today's evidence: `wrap` for `run` (run-e2e) and `simplify` (batch-simplify); `suggest` for the `doctor` rows on audit-install-state and audit-skill-visibility, for `skill-doctor`, and for the three `export` rows; `route` for the `doctor` row on audit-performance (pointer-only under the amended one-owner rule), `code-review`, `security-review`, `morning`, the two `playground` rows, and the two `design` rows; `route` for `tidy` unless the user chooses `wrap`, since a Native step changes its structure-only PR class. Two new rows: `export` against `session-flow:handoff` and `export` against `session-flow:retro`, both `suggest`, because each body carries a suggest sentence and every baked line must trace to a row. Each row's evidence gains the substrate observations from the 2026-09-08 report where they apply (`skill-doctor` gate basis; `design` name collision) and the `budget_caveat` note that `audit-performance` and `audit-skill-visibility` have under 60 characters of description headroom.
+7. **Apply step.** Update the skill body: preconditions add "the row's `integration` is not `route` when a Native step or suggest sentence is to be written" and "the row does not carry `model-invocation-disabled` when a Native step is to be written"; the emitted artefacts add the Native step section and the suggest sentence; the per-entry cap precheck is a hard precondition (`description` plus `when_to_use` after baking at most 1,536 characters, measured by `bash plugins/skill-quality/scripts/check-skill.sh <skill>`); every wrapped or suggesting skill declares the `unattended` argument in its `argument-hint`.
+8. Bump `claude-ops` to the next minor at PR time; draft PR; ready when green.
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check` exits 0 with no problems and no version advisory; `jq '[.rows[] | select(.integration == null)] | length' docs/native-surfaces/records.json` prints 0; `jq '.rows | length' docs/native-surfaces/records.json` prints 18; `python3 overlap.py generate --check` exits 0.
-- `grep -c "## Native step: <name> (<class>)" docs/conventions/native-references/README.md` prints at least 1; `grep -c "available in your session" docs/conventions/native-references/README.md` prints at least 1; `grep -c "marketplace-plugin" docs/conventions/native-references/README.md` prints at least 1.
-- `jq '[.rows[] | select(.native.class=="builtin-command" and .integration=="wrap")] | length' records.json` prints 0 and `jq '[.rows[] | select(.verdict=="defer" and .integration!="route")] | length' records.json` prints 0.
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0 with no problems and no advisories; `jq '[.rows[] | select(.integration == null)] | length' docs/native-surfaces/records.json` prints 0; `jq '.rows | length' docs/native-surfaces/records.json` prints 18; `python3 overlap.py generate --check` exits 0.
+- `grep -c "## Native step: <name> (<class>)" docs/conventions/native-references/README.md` prints at least 1; `grep -c "is available in your session (" docs/conventions/native-references/README.md` prints at least 1; `grep -c "marketplace-plugin" docs/conventions/native-references/README.md` prints at least 1; `grep -c "model-invocation-disabled" docs/conventions/native-references/README.md` prints at least 1.
+- `jq '[.rows[] | select(.native.class=="builtin-command" and .integration=="wrap")] | length' records.json` prints 0; `jq '[.rows[] | select((.native.markers | index("model-invocation-disabled")) and .integration=="wrap")] | length' records.json` prints 0; `jq '[.rows[] | select(.verdict=="defer" and .integration!="route")] | length' records.json` prints 0.
 
 ### Phase 5: Sweep unit, claude-ops [TODO]
 
 Files: `plugins/claude-ops/skills/audit-install-state/SKILL.md`, `audit-skill-visibility/SKILL.md`, `audit-performance/SKILL.md` (MODIFY), `records.json` and the view (baked flags), `plugins/claude-ops/.claude-plugin/plugin.json` and `CHANGELOG.md` (MODIFY). `morning-brief` is KEEP (defer row).
 
-Pre-flight, first work item, on a host where `doctor` resolves (a local CLI session, since `terminalOriented` keeps it off cloud hosts): invoke `doctor` through the Skill tool from inside a skill body with a report-only instruction and confirm (a) the Skill tool resolves it by name, and by the `checkup` alias or not, (b) it applies no fix when told to report only, and (c) the transcript shows its offers as questions the wrapping skill can decline. Record the three answers in the PR body. If (b) fails, the `doctor` rows cannot be `wrap` and revert to `route` at the human gate before any body is edited.
+On today's evidence this is a suggest unit: `doctor` is model-disabled, so no skill in this plugin can compose it. If the user chooses otherwise at the Phase 4 gate, this phase is rewritten before it starts.
 
-1. `audit-install-state`: replace the route-only Boundary with `## Native step: doctor (bundled skill)` per the grammar (identity, mutation clause, three-state skip report, enable path via `skillOverrides` and `DISABLE_DOCTOR_COMMAND`, `unattended` argument), running its own inventory after and reporting the native result beside its own. The description phrase stays.
-2. `audit-skill-visibility`: the same wrap for `doctor`; a suggest sentence for `/skill-doctor` at the start of the run (its coverage of "unused versus cost" is the whole ask when the user wants only that list), with the basis pointing at the skill's existing verification record; `unattended` declared.
-3. `audit-performance`: no description change and no trim. A `## Native step: doctor (bundled skill)` section for the health-and-fix pass that opens with a same-plugin pointer to audit-install-state's section for the shared surface facts and adds only the timing-specific part; `unattended` declared.
-4. Set `baked` flags on the four rows; regenerate the view; run the skill-quality check per touched skill; bump to `0.48.0`; draft PR quoting the four store rows and the pre-flight answers; ready when green.
+1. `audit-install-state`: keep the description phrase; replace the Boundary section's routing paragraph with the suggest sentence for `/doctor` at the end of the run (coverage is partial: doctor fixes, this skill inventories), its basis pointing at the section's existing verification record; declare `unattended` and record the suggestion under it.
+2. `audit-skill-visibility`: a suggest sentence for `/skill-doctor` at the start of the run (its coverage of "unused versus cost" is the whole ask when the user wants only that list) and one for `/doctor` at the end, both with bases pointing at the skill's existing verification record; declare `unattended`.
+3. `audit-performance`: no description change. A suggest sentence for `/doctor` at the end of the run that opens with a same-plugin pointer to audit-install-state's section for the shared surface facts; declare `unattended`.
+4. Set `baked.suggest_sentence` on the four rows; regenerate the view; run the skill-quality check per touched skill; bump to the next minor; draft PR quoting the four store rows; ready when green.
 
 **Sanity Check:**
 
 - `bash plugins/skill-quality/scripts/check-skill.sh <skill>` passes for each of the three skills (its per-entry cap check covers the description length).
-- `python3 overlap.py self-check` exits 0 with no problems; `grep -c "## Native step: doctor (bundled skill)" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints 1; `grep -c "unattended" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints at least 2 (argument-hint and body).
-- Negative path, in this cloud session where `doctor` does not resolve: invoking `/claude-ops:audit-install-state` yields a report containing `did not resolve in this session` and the axis line; positive path, on the local host from the pre-flight: the report contains a `Native step` result block; both transcript excerpts are quoted in the PR body.
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0; `grep -c "If /doctor is available in your session (" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints 1; `grep -c "unattended" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints at least 2 (argument-hint and body).
+- In this cloud session, invoking `/claude-ops:audit-install-state unattended` yields a report whose final section records the `/doctor` suggestion without asking; the transcript excerpt is quoted in the PR body.
 
 ### Phase 6: Sweep unit, code-tidying [TODO]
 
 Files: `plugins/code-tidying/skills/tidy/SKILL.md`, `batch-simplify/SKILL.md` (MODIFY), `records.json` and the view, `plugins/code-tidying/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
-Pre-flight, first work item: confirm on a host where `simplify` resolves whether it accepts a path or file-group scope; record the answer. If it does not, `batch-simplify` runs it once over the changed set and the "per file group" wording is dropped.
+The first wrap unit. `simplify` is model-invocable and mutates the working tree, which is batch-simplify's own contract, so the mutation clause is satisfied by scope: the invocation names the file set, the pre-step fingerprint is the set of tracked files outside that scope, and any change outside it is the fourth state.
 
-1. `batch-simplify`: `## Native step: simplify (bundled skill)` invoking `simplify` over the scope the pre-flight established when it resolves, our batching and ordering around it; three-state skip report; `unattended` declared.
+1. `batch-simplify`: `## Native step: simplify (bundled skill)` invoking `simplify` over the scope the Phase 4 pre-flight established when it resolves, our batching and ordering around it; the three-state skip report; `unattended` declared, under which the step still runs because the skill's own contract already edits files unattended.
 2. `tidy`: phrase only unless the human gate chose `wrap`; if `wrap`, the Native step runs `simplify` on the lane's changed files after the structural tidyings and states that the resulting PR is no longer structure-only.
-3. Baked flags, view, skill-quality check, minor bump, draft PR, ready when green.
+3. Baked flags, view, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- skill-quality check passes for both skills; self-check exits 0; `grep -c "## Native step: simplify (bundled skill)" plugins/code-tidying/skills/batch-simplify/SKILL.md` prints 1; the positive-path transcript excerpt from a local host is quoted in the PR body.
+- skill-quality check passes for both skills; `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0; `grep -c "## Native step: simplify (bundled skill)" plugins/code-tidying/skills/batch-simplify/SKILL.md` prints 1.
+- Positive path in this cloud session, where `simplify` resolves: invoking `/code-tidying:batch-simplify` over a small changed set yields a report with a `Native step` result block and no change outside the named scope; negative path on a host with `disableBundledSkills` set: the report carries `did not resolve in this session` and the axis line; both transcript excerpts are quoted in the PR body.
 
 ### Phase 7: Sweep unit, testing [TODO]
 
 Files: `plugins/testing/skills/run-e2e/SKILL.md` (MODIFY), `records.json` and the view, `plugins/testing/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
-1. `run-e2e`: phrase plus `## Native step: run (bundled skill)` that launches the app through `run` when it resolves and layers evidence capture (screenshots, responses, logs) on top; three-state skip report falling back to the skill's own launch playbook; `unattended` declared.
-2. Baked flags, view, skill-quality check, minor bump, draft PR, ready when green.
+1. `run-e2e`: phrase plus `## Native step: run (bundled skill)` that launches the app through `run` when it resolves and layers evidence capture (screenshots, responses, logs) on top; the three-state skip report falling back to the skill's own launch playbook; `unattended` declared. `run` starts processes rather than editing files, so the mutation clause's fingerprint is the tracked tree, which must be unchanged after the step.
+2. Baked flags, view, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- skill-quality check passes; self-check exits 0; `grep -c "settings or environment, plan, platform or provider, host surface" plugins/testing/skills/run-e2e/SKILL.md` prints at least 1; positive and negative transcript excerpts quoted in the PR body.
+- skill-quality check passes; self-check with the pinned SHA exits 0; `grep -c "settings or environment, plan, platform or provider, host surface" plugins/testing/skills/run-e2e/SKILL.md` prints at least 1; positive and negative transcript excerpts quoted in the PR body.
 
 ### Phase 8: Sweep unit, review [TODO]
 
-Files: `plugins/review/skills/security-review/SKILL.md` (MODIFY if the human verdict is `wrap`; else KEEP), `plugins/review/skills/code-review/SKILL.md` (phrase only, `route`), `records.json` and the view, `plugins/review/.claude-plugin/plugin.json` and `CHANGELOG.md`.
+Files: `plugins/review/skills/code-review/SKILL.md`, `plugins/review/skills/security-review/SKILL.md` (MODIFY, phrase only), `records.json` and the view, `plugins/review/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
-Pre-flight, first work item: read the CI lane's workflow permissions and confirm whether a skill invocation is possible from the lane's headless run; the answer settles the `security-review` row at the Phase 4 gate and is quoted here.
-
-1. `security-review`: where the row is `wrap`, a Native step that runs the plugin-backed `security-review` on the PR head as its first pass and layers the lane's logic and Actions findings; where `route`, the phrase alone is baked.
-2. `code-review`: phrase only.
-3. Baked flags, view, skill-quality check, minor bump, draft PR, ready when green.
+1. Both skills: the route phrase only, per the Phase 4 pre-flight (c). No `allowed-tools` change.
+2. Baked flags, view, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- skill-quality check passes for both; self-check exits 0; `jq -r '.rows[] | select(.component.skill=="code-review") | .integration' records.json` prints `route`.
+- skill-quality check passes for both; self-check with the pinned SHA exits 0; `jq -r '.rows[] | select(.component.plugin=="review") | .integration' records.json` prints `route` twice.
 
 ### Phase 9: Sweep unit, visualization [TODO]
 
 Files: `plugins/visualization/skills/visualize/SKILL.md` (MODIFY), `records.json` and the view, `plugins/visualization/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
 1. Bring the description's "where the bundled design skill is available" under the gate token so the reverse-parity advisory from Phase 3 closes; set `baked.description_phrase`.
-2. Where the `design` row is `wrap`, add `## Native step: design (bundled skill)` that invokes the canvas when it resolves and reports the preview gate on absence; where `route`, the existing Boundary is kept and the `design-sync` row stays `defer`.
-3. Baked flags, view, skill-quality check, minor bump, draft PR, ready when green.
+2. `design` is model-disabled, so the row is `route` or `suggest`: where `suggest`, a sentence for `/design` at the point the decision matrix picks the canvas; where `route`, the existing Boundary is kept. The `design-sync` row stays `defer`.
+3. Baked flags, view, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check 2>&1 | grep -c "visualization:visualize"` prints 0; skill-quality check passes.
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 2>&1 | grep -c "visualization:visualize"` prints 0; skill-quality check passes.
 
 ### Phase 10: Sweep unit, prototype [TODO]
 
 Files: `plugins/prototype/skills/explore-directions/SKILL.md` (MODIFY), `records.json` and the view, `plugins/prototype/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
 1. Same treatment as Phase 9 for the `design` row; the existing `playground` phrase (`installed from its marketplace`) is untouched.
-2. Baked flags, view, skill-quality check, minor bump, draft PR, ready when green.
+2. Baked flags, view, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check 2>&1 | grep -c "prototype:explore-directions"` prints 0; skill-quality check passes.
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 2>&1 | grep -c "prototype:explore-directions"` prints 0; skill-quality check passes.
 
 ### Phase 11: Sweep unit, session-flow [TODO]
 
 Files: `plugins/session-flow/skills/clean-stop/SKILL.md`, `handoff/SKILL.md`, `retro/SKILL.md` (MODIFY), `records.json` and the view, `plugins/session-flow/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
-1. Re-phrase the three existing `/export` suggestion sites to the `suggest` grammar (the token, the basis pointing at a same-file verification record, end-of-run placement, which is where they already sit); each of the three skills declares `unattended` and records the suggestion in output under it.
+1. Re-phrase the three existing `/export` suggestion sites to the `suggest` sentence shape (the basis pointing at a same-file verification record, end-of-run placement, which is where they already sit); each of the three skills declares `unattended` and records the suggestion in output under it.
 2. Set `baked.suggest_sentence` on the three `export` rows (clean-stop, handoff, retro); `integration: suggest` was written in Phase 4.
-3. View, skill-quality check, minor bump, draft PR, ready when green.
+3. View, skill-quality check, next minor, draft PR, ready when green.
 
 **Sanity Check:**
 
-- `grep -c "available in your session" plugins/session-flow/skills/clean-stop/SKILL.md plugins/session-flow/skills/handoff/SKILL.md plugins/session-flow/skills/retro/SKILL.md` prints 1 or more for each file; skill-quality check passes for the three skills; self-check exits 0 with no orphan advisory.
+- `grep -c "If /export is available in your session (" plugins/session-flow/skills/clean-stop/SKILL.md plugins/session-flow/skills/handoff/SKILL.md plugins/session-flow/skills/retro/SKILL.md` prints 1 or more for each file; skill-quality check passes for the three skills; self-check with the pinned SHA exits 0 with no orphan advisory.
 
 ### Files affected (whole plan)
 
@@ -286,13 +288,13 @@ Files: `plugins/session-flow/skills/clean-stop/SKILL.md`, `handoff/SKILL.md`, `r
 | `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` | MODIFY | 2, 4 |
 | `docs/native-surfaces/records.json` | MODIFY | 4, 5 to 11 |
 | `docs/NATIVE-SURFACES.md` | REGENERATE | 4, 5 to 11 |
-| `docs/conventions/native-references/README.md`, `CHANGELOG.md` | MODIFY | 3, 4 |
+| `docs/conventions/native-references/README.md`, `CHANGELOG.md` | MODIFY (one major bump) | 4 |
 | `plugins/claude-ops/.claude-plugin/plugin.json`, `CHANGELOG.md` | MODIFY | 3, 4, 5 |
 | `plugins/claude-ops/skills/{audit-install-state,audit-skill-visibility,audit-performance}/SKILL.md` | MODIFY | 5 |
 | `plugins/claude-ops/skills/morning-brief/SKILL.md` | KEEP | 5 |
 | `plugins/code-tidying/skills/{tidy,batch-simplify}/SKILL.md` plus manifest and CHANGELOG | MODIFY | 6 |
 | `plugins/testing/skills/run-e2e/SKILL.md` plus manifest and CHANGELOG | MODIFY | 7 |
-| `plugins/review/skills/{code-review,security-review}/SKILL.md` plus manifest and CHANGELOG | MODIFY | 8 |
+| `plugins/review/skills/{code-review,security-review}/SKILL.md` plus manifest and CHANGELOG | MODIFY (phrase only) | 8 |
 | `plugins/visualization/skills/visualize/SKILL.md` plus manifest and CHANGELOG | MODIFY | 9 |
 | `plugins/prototype/skills/explore-directions/SKILL.md` plus manifest and CHANGELOG | MODIFY | 10 |
 | `plugins/session-flow/skills/{clean-stop,handoff,retro}/SKILL.md` plus manifest and CHANGELOG | MODIFY | 11 |
@@ -300,58 +302,59 @@ Files: `plugins/session-flow/skills/clean-stop/SKILL.md`, `handoff/SKILL.md`, `r
 
 ### Test strategy
 
-TDD throughout, Red-Green-Refactor per work item. Test boundaries, all existing public interfaces:
+TDD throughout, Red-Green-Refactor per work item, with Red items restricted to behaviour that does not exist yet (the Phase 2 exit mappings already exist and are not claimed as Red). Test boundaries, all existing public interfaces:
 
-- `inventory.py` functions `read_bundle` (first tests, the regression boundary for the actual bug), `extract_bundled_skills`, `discover_registrar`, and `check_integrity`, driven by `test_inventory.py` with synthetic bundles (existing pattern) plus the fragmented-run, PE-container, and legacy fixtures; the real binary is the Phase 1 sanity check, not a unit test.
-- `overlap.py` functions `validate_row`, `check_baked_parity`, `cmd_detect`, `cmd_self_check`, `render_view`, driven by `test_overlap.py`'s `TempRepo` fixture (existing pattern), with the collision fixture added.
+- `inventory.py` functions `read_bundle` (first tests, the regression boundary for the actual bug), `extract_bundled_skills`, `discover_registrar`, `build_const_map`, and `check_integrity`, driven by `test_inventory.py` with synthetic bundles (existing pattern) plus the fragmented-run, PE-container, legacy, below-floor, three-registrar-route, cross-chunk-constant, and phantom-name fixtures; the real binary is the Phase 1 sanity check, not a unit test.
+- `overlap.py` functions `validate_row`, `check_baked_parity`, `cmd_detect`, `cmd_self_check`, `render_view`, driven by `test_overlap.py`'s `TempRepo` fixture (existing pattern), with the synthetic collision, marker, and suggest-shape fixtures added.
 - Skill bodies are verified by `plugins/skill-quality/scripts/check-skill.sh` per touched skill and by `overlap.py self-check` parity, both deterministic.
-- Behavioural criteria are verified twice per wrap unit: the negative path (surface absent) in this cloud session, the positive path (surface resolves, native result reported, no fix applied) on a local CLI host, with both transcript excerpts quoted in the PR body. Alias resolution and model-invocability are established by the Phase 5 pre-flight before any wrap is written.
+- Behavioural criteria are verified twice per wrap unit: the positive path (surface resolves, native result reported, no change outside scope) in this cloud session for `simplify` and `run`, which resolve here, and the negative path on a host with `disableBundledSkills` set, with both transcript excerpts quoted in the PR body. Suggest units verify the unattended recording path in this session.
 - `scripts/affected-tests.sh --run` closes every unit before its PR.
 
 Test type per change: unit for the Python engines, contract for the store and view, static for skill bodies, one manual runtime probe per path per unit for the composition and degradation behaviour. No test is skipped, disabled, or quarantined to reach green.
 
 ### Alternatives considered
 
-- **Fix the extractor by keying on the symbol-table entry for `registerBundledSkill`.** Rejected: the symbol table names the function but does not locate the calls. Switch condition: a build where the canary registration disappears but the export map returns.
+- **Canary-derived registrar as the primary route.** Rejected after the second probe: the ESM export list names the registrar directly and survives a reordering of the `doctor` object; the canary stays as the third route. Switch condition: a build with neither the CJS getter nor an ESM export list.
+- **A 64 KiB run floor.** Rejected: measured on the real binary it recovers 13 of 33 names and the regex takes minutes. Switch condition: a build that stops fragmenting the bundle.
 - **Fold the policy unit into the tooling-fix PR.** Rejected: mixes a repair with a routing-policy change and hides the human verdict pass inside a bug fix. Switch condition: the user prefers one review over two.
-- **Reuse the `resolves in your session` token for `suggest`.** Rejected: a built-in command never appears in the model's listing, so the token's read-time meaning does not hold; `available in your session` is addressed to the person who can check. Switch condition: Claude Code starts listing built-in commands to the model.
+- **Reuse the `resolves in your session` token for `suggest`.** Rejected: a built-in command or a model-disabled skill never appears in the model's listing, so the token's read-time meaning does not hold; the suggest sentence is addressed to the person who can check. Switch condition: Claude Code starts listing those surfaces to the model.
 - **Treat a name-only listing as "not resolving".** Rejected: the model cannot tell `skillOverrides: name-only` from a budget-dropped description, and the playgrounds precedent already rules that a present name is not evidence of absence. Switch condition: the listing starts marking overridden entries.
+- **Wrap `doctor` anyway through a report-only argument.** Rejected: the registration disables model invocation, so no skill can reach it regardless of arguments. Switch condition: a release flips the flag, which the Phase 1 field and the row's recheck trigger will show.
 - **Wrap every bundled row uniformly, no human pass.** Rejected by the Brief.
 - **Run the sweep as parallel per-plugin agents.** Rejected: the sweep contract forbids two units in flight because description edits are routing-affecting. Switch condition: the contract is amended.
 
 ### Risks and mitigations
 
-- **A later CLI release changes the registration shape again.** The two-route discovery (export map, then canary) plus per-lane integrity makes the failure a named broken lane, not a silent short list. Mitigation is the existing eval re-validation trigger.
-- **`doctor` applies a fix when wrapped.** The mutation clause invokes it report-only, declines offers, and never wraps a mutating surface unattended; the Phase 5 pre-flight proves the report-only instruction is honoured before any `wrap` verdict on a `doctor` row is written. `[FALLBACK, confirm or override]`: if it is not honoured, the `doctor` rows revert to `route`.
-- **The Skill tool may not resolve a bundled skill by alias, or may refuse the invocation headless.** The pre-flight settles alias resolution; the three-state skip report makes a refusal a reported state, not a silent one. `[FALLBACK, confirm or override]`: fall back to name plus advisory description.
-- **The reverse-parity heuristic produces false positives on prose.** It is an advisory, keyed on a class word plus `skill|command` inside a presence clause, with negative fixtures for seam-phrasing and Not-for clauses.
+- **A later CLI release changes the registration shape again.** Three discovery routes plus per-lane integrity make the failure a named broken lane, not a silent short list; the registrar-export advisory now sees the ESM form. Mitigation is the existing eval re-validation trigger.
+- **A wrapped mutating surface writes outside its scope.** The mutation clause's fingerprint-and-diff makes that a reported fourth state; `unattended` never invokes a mutating surface. `[FALLBACK, confirm or override]`: on a detected out-of-scope change the run exits degraded and the unit's PR body records it.
+- **The Skill tool refuses the invocation headless or in a subagent.** The three-state skip report makes a refusal a reported state, not a silent one; `AskUserQuestion` is absent in subagents and under `--permission-prompts none`, so a wrapped skill never depends on the native surface asking a question.
+- **The reverse-parity heuristic produces false positives on prose.** It is an advisory, keyed on a class word plus `skill|command` inside a presence clause, with negative fixtures for seam-phrasing and Not-for clauses; the suggest scan keys on the full sentence shape.
 - **Nine sequential PRs take weeks.** Accepted by the Brief; the parent issue tracks progress and each unit is independently valuable.
 
 ## Blast radius
 
-MEDIUM. Files: over 30 across eight plugins and two conventions. Other sessions: the store, the generated view, `inventory.py --self-check`, and `validate-plugins.sh` are shared CI surfaces; every change is additive and the exit-code contracts are stated in Phase 2. Reversible by git revert per unit. Two stress-test triggers match: a new convention grammar (constrains future skill authoring) and a multi-step implementation touching undocumented binary layout.
+MEDIUM. Files: over 30 across eight plugins and one convention at a major bump. Other sessions: the store, the generated view, `inventory.py --self-check`, and `validate-plugins.sh` are shared CI surfaces; every change is additive and the exit-code contracts are unchanged. Reversible by git revert per unit. Two stress-test triggers matched: a new convention grammar (constrains future skill authoring) and a multi-step implementation touching undocumented binary layout.
 
 ## Stress-test summary
 
-Fresh-context plan review (Step 3): 1 critical, 14 important, 8 suggestions; every finding verified against the code or docs and folded into the phases above. The critical finding, wrapping a mutating surface inside report-only skills with no mutation gate, produced the mutation clause in the wrap grammar and the Phase 5 pre-flight. `/planning:devils-advocate` (Step 4): pending; recorded here when it returns.
+Fresh-context plan review (Step 3): 1 critical, 14 important, 8 suggestions; every finding verified against the code or docs and folded in. Devil's-advocate pass (Step 4): 2 critical, 6 high, 5 medium, 4 low; every finding re-verified on the binary and the repository before it was applied. The two critical findings changed the plan's substance: the 64 KiB region rule was replaced by a 256-byte rule with chunk-scoped constant resolution and the ESM export list as the primary registrar route, and the discovery that `doctor` and `design` are registered model-disabled moved their rows from `wrap` to `suggest` or `route`, which is now a USER-RESERVED question because it changes the Brief's wrap-candidate assumption. One research-iterate loop ran (a second binary probe); no third was needed.
 
 ## Execution shape
 
-Fully sequential. Phase 0 gates everything; Phases 1 to 3 share `inventory.py` and `overlap.py`; Phase 4 gates every sweep unit because it writes the `integration` values the apply step requires; Phases 5 to 11 are serialized by the sweep contract. No parallel wave is recommended. `[EXEC-SHAPE]`
+Fully sequential. Phase 0 gates everything; Phases 1 to 3 share `inventory.py` and `overlap.py`; Phase 4 gates every sweep unit because it writes the `integration` values and runs every pre-flight; Phases 5 to 11 are serialized by the sweep contract. No parallel wave is recommended. `[EXEC-SHAPE]`
 
 | Phase | Surface | Basis |
 |---|---|---|
 | 0 | main session via `/work-items:decompose` | tracker write with a search-before-create pivot |
 | 1 to 3 | main session | judgment-heavy: binary layout, integrity semantics, evals |
-| 4 | main session | human verdict pass row by row |
-| 5 to 11 | main session, or one sub-agent worker per unit with the unit's SKILL.md files as its ALLOWED list and `records.json`, `PLAN.md`, other plugins FORBIDDEN | mechanical per unit once the grammar exists; still one unit at a time; the pre-flight probes need a local CLI host and stay main-session |
+| 4 | main session | pre-flights and the human verdict pass row by row |
+| 5 to 11 | main session, or one sub-agent worker per unit with the unit's SKILL.md files as its ALLOWED list and `records.json`, `PLAN.md`, other plugins FORBIDDEN | mechanical per unit once the grammar exists; still one unit at a time; the runtime probes stay main-session because subagents lack the question tool |
 
 Sequential fallback: not applicable, the shape is already sequential.
 
 ## Open questions
 
-- Phase 8: whether the CI `security-review` lane can invoke the plugin-backed skill at all, decided at the Phase 4 verdict pass with the Phase 8 pre-flight's reading of the lane's workflow permissions. **arbiter: USER-RESERVED**
-- Phases 9 and 10: `wrap` versus `route` for the gated `design` canvas rows. **arbiter: USER-RESERVED**
+- Phases 4, 5, 9, 10: the `doctor` and `design` rows cannot be `wrap` because those skills are registered model-disabled. The plan proposes `suggest` for the two owning `doctor` rows and `route` for the rest; the user decides whether that is the posture they want for these surfaces, and whether to keep the Brief's coverage case for `name-only` as downgraded (name present, description absent, invoke with a warning). **arbiter: USER-RESERVED**
 - Phase 4 and 6: `wrap` versus `route` for `tidy`, given that a Native step changes its structure-only PR class. **arbiter: USER-RESERVED**
 
 ## Handoff to implementation
@@ -359,24 +362,25 @@ Sequential fallback: not applicable, the shape is already sequential.
 ### User-approval gates
 
 - Every `integration` value written in Phase 4 (the human verdict pass; the plan proposes, the user confirms row by row).
-- The Phase 5 pre-flight outcome on `doctor` report-only behaviour before any `doctor` row takes `wrap`.
-- The alias-invocation fallback in Phase 5 if alias resolution fails.
-- Creating each sweep sub-issue after its predecessor closes.
+- The mutation-clause fourth state when it fires in a wrap unit.
+- Creating each sweep sub-issue's PR only after its predecessor unit closes.
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
 - Policy schema as its own unit (Phase 4) rather than inside the tooling fix.
-- `available in your session` as the `suggest` token, with "session" defined as all four gating axes.
-- `baked.native_step` and `baked.suggest_sentence` as the third and fourth baked flags.
+- The suggest sentence shape and its parity keyed on the shape, not the bare phrase.
+- `baked.native_step` and `baked.suggest_sentence` as the third and fourth baked flags; `model-invocation-disabled` as a third native marker set from the extraction.
 - Two new store rows for the `export` suggestion sites in `handoff` and `retro`, so parity is enforceable.
-- The amended one-owner rule: pointer-carrying Native step sections in sibling skills, never a second phrase.
-- Unit order after claude-ops: code-tidying, testing, review, visualization, prototype, session-flow (row count, then value of the wrap, then least-gated surface first).
-- Minor version bump per unit for every touched plugin (additive changes), three successive claude-ops bumps across three PRs, matching the plugin's one-version-per-PR CHANGELOG practice.
-- The Phase 1 region rule (first marker to end of file, runs of at least 64 KiB, one regex pass) and the canary-derived registrar.
+- The amended one-owner rule: pointer-carrying Native step or suggest sections in sibling skills, never a second phrase.
+- One major bump of the native-references convention in Phase 4, carrying the Phase 3 enforceability flip.
+- Unit order after claude-ops: code-tidying, testing, review, visualization, prototype, session-flow.
+- "Next minor at PR time" for every touched plugin, matching claude-ops's one-version-per-PR CHANGELOG practice.
+- The Phase 1 region rule (first marker to end of file, runs of at least 256 bytes, one regex pass), registrar route order (CJS getter, ESM export, canary), and chunk-scoped constant resolution.
+- Sub-issues published all at once with dependency edges, blocked, rather than created one at a time.
 
 ### Mechanical work
 
 - One draft PR per unit, body per the PR-body contract, closing keyword pointing at the unit's sub-issue, affected store rows quoted.
-- Before each push: `scripts/affected-tests.sh --run`, `python3 overlap.py self-check`, `python3 overlap.py generate --check`, `check-skill.sh` per touched skill, markdownlint on touched markdown.
+- Before each push: `scripts/affected-tests.sh --run`, `python3 overlap.py self-check --upstream-sha <pinned>`, `python3 overlap.py generate --check`, `check-skill.sh` per touched skill, markdownlint on touched markdown.
 - The contract slice `docs/topics/audit-native-overlap/` is pruned in the final commit of the last unit's PR per the topic-docs convention.
 - Phase tags advance `[TODO]` to `[DOING]` to `[DONE]` in this file, edited only from the main session.
