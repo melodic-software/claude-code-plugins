@@ -164,8 +164,8 @@ parity claim.
 - **Run ledger.** A `run` appends a JSONL row under
   `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` for each lane whose
   decision is an **incident** (`restarted`, `failed`, `error`, `api-error`).
-  That file is the detail layer, and the circuit breaker's memory (default: max 3 relaunch
-  ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
+  That file is the detail layer, and the circuit breaker's memory (default:
+  max 3 relaunch ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
   telemetry). The breaker counts attempts, not successes: `restarted` and
   `failed` both spend budget, so a launcher that keeps failing, or that returns
   success while the background lane never appears (the Windows hazard above),
