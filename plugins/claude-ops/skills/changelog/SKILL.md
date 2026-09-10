@@ -30,7 +30,7 @@ Distinct from:
 
 Three ways to provide changelog content (priority order):
 
-1. **User pastes text**. Skill parses inline changelog from conversation context
+1. **User pastes text**. Skill parses inline changelog from conversation context; the releases the pasted text names are the range, so the cap and the version check apply to them and not to the repository's default feed
 2. **Explicit range or version**. `/claude-ops:changelog diff v2.1.257..v2.1.263` covers both ends inclusive; `apply v2.1.263` covers that one release
 3. **Default range**. `/claude-ops:changelog diff` (no range) runs from the read marker to the newest published release
 
@@ -92,11 +92,13 @@ The full pipeline runs explore → research → interview → plan → implement
 
 Resolve the range, check the cap, and check version alignment:
 
-1. **Run the status script** with `--range` when the user gave one. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
-2. **Resolve content** (first match wins):
-   - Changelog text already in conversation → parse it
-   - A range or version was given, or the default range applies → slice those releases out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md), using the `releases` line the script printed
-3. **Parse** into structured items. Each item gets: summary, category (feature / fix / UI / internal), affected surface (if identifiable)
+1. **Resolve the range** (first match wins):
+   - Changelog text already in conversation → the releases its `<Update label>` blocks or version headings name ARE the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
+   - A range or version was given → `--range` as given
+   - Otherwise → no `--range`; the default range from the read marker applies
+2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
+3. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
+4. **Parse** into structured items. Each item gets: summary, category (feature / fix / UI / internal), affected surface (if identifiable)
 
 ### Phase 1. Explore
 

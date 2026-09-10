@@ -13,7 +13,9 @@
 #   - --range A..B is inclusive at both ends and ignores the marker; --range X is
 #     one release; a malformed range exits 3
 #   - --no-fetch without --changelog reports the marker and "not computed", exit 0
-#   - a body whose first heading is not the changelog page is refused
+#   - a body whose first heading is not the changelog page is refused, and a body
+#     with the heading but no release blocks is a parse failure, not "up to date"
+#   - the installed-version warn compares against the newest release IN THE RANGE
 #   - CLAUDE_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
 #   - a PATH-stub `claude` older than the newest release produces the warn line
 #   - an unknown argument exits 3
@@ -115,11 +117,12 @@ assert_not_contains "current: no cap line" "$OUT" "cap:"
 REPO_SUBJ="$TMP/repo-subject"
 make_repo "$REPO_SUBJ" \
   "chore(claude-config): address Claude Code v2.1.257..2.1.259 changelog" "" \
-  "chore(lanes): address Claude Code v2.1.260 changelog" "" \
+  "chore(lanes): release plugin 99.0.0 and address Claude Code v2.1.260 changelog" "" \
   "docs: unrelated" ""
 run_in "$REPO_SUBJ" --changelog "$CHANGELOG"
 assert_eq "subject: exit 0" 0 "$RC"
 assert_contains "subject: highest subject version" "$OUT" "last-applied: 2.1.260"
+assert_not_contains "subject: a dotted version outside the phrase is ignored" "$OUT" "99.0.0"
 assert_contains "subject: source git-subject" "$OUT" "source: git-subject"
 assert_contains "subject: ledger absent at the default path" "$OUT" "ledger: $REPO_SUBJ/docs/upstream/claude-code.md (absent)"
 assert_contains "subject: range from the subject marker" "$OUT" "range: 2.1.261..2.1.263 (2 releases, 6 core items)"
@@ -183,6 +186,12 @@ run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/other-page.md"
 assert_eq "identity: exit 0" 0 "$RC"
 assert_contains "identity: refused with the heading" "$OUT" "range: not computed (body is not the changelog page (first heading: # Extend Claude with skills))"
 assert_not_contains "identity: no count from the wrong page" "$OUT" "9.9.9"
+printf '# Claude Code changelog\n\nRelease notes now live elsewhere.\n' >"$TMP/no-blocks.md"
+run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/no-blocks.md"
+assert_eq "no-blocks: exit 0" 0 "$RC"
+assert_contains "no-blocks: latest unknown" "$OUT" "latest: unknown"
+assert_contains "no-blocks: a parse failure is not an empty range" "$OUT" "range: not computed (no <Update label=...> release blocks parsed"
+assert_not_contains "no-blocks: never reports up to date" "$OUT" "up to date"
 
 # --- Case 10: env override and --ledger precedence ------------------------------------
 REPO_ENV="$TMP/repo-env"
@@ -205,9 +214,13 @@ assert_contains "default: found from a subdirectory via the repo root" "$OUT" "s
 # --- Case 12: installed older than latest -> warn --------------------------------------
 OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.259 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_contains "warn: installed read from claude --version" "$OUT" "installed: 2.1.259"
-assert_contains "warn: older installed warns" "$OUT" "warn: installed 2.1.259 is older than the newest published release 2.1.263"
+assert_contains "warn: older installed warns against the newest in range" "$OUT" "warn: installed 2.1.259 is older than the newest release in the range 2.1.263"
 OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.270 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" 2>/dev/null)"
 assert_not_contains "warn: newer installed does not warn" "$OUT" "warn:"
+OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.260 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" --range 2.1.259 2>/dev/null)"
+assert_not_contains "warn: an explicit historical range within the installed version does not warn" "$OUT" "warn:"
+OUT="$(cd "$EMPTY" && CLAUDE_STUB_VERSION=2.1.260 bash "$SCRIPT" --ledger "$LEDGER" --changelog "$CHANGELOG" --range 2.1.259..2.1.261 2>/dev/null)"
+assert_contains "warn: an explicit range past the installed version warns against its top" "$OUT" "warn: installed 2.1.260 is older than the newest release in the range 2.1.261"
 
 # --- Case 13: argument errors ------------------------------------------------------------
 run_in "$EMPTY" --bogus

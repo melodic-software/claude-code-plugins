@@ -19,7 +19,8 @@
 #      <git toplevel, or the working directory outside a repo>/docs/upstream/claude-code.md.
 #   2. A Conventional Commits SUBJECT on the current branch naming an applied release:
 #        <type>(<scope>): address Claude Code v<A>[..<B>] changelog
-#      The highest version any such subject names wins. Commit BODIES are never read:
+#      The highest version inside that phrase across such subjects wins; any other
+#      dotted version in the subject is ignored. Commit BODIES are never read:
 #      a body that says "verified against Claude Code v2.1.252" is a recency stamp,
 #      not an apply, and reading bodies reported applies that never happened.
 #   3. none.
@@ -29,8 +30,9 @@
 # the upstream-drift fetch route) into a temp file; --no-fetch skips the fetch.
 # Whichever source is used, the body's first heading must read
 # "# Claude Code changelog": a retired slug can serve another page's bytes under a
-# 200, so identity is checked before any count is trusted. Otherwise the range is
-# reported as not computed, with the reason.
+# 200, so identity is checked before any count is trusted. A body with the heading
+# but no release blocks is a parse failure, not an empty range. In both cases the
+# range is reported as not computed, with the reason.
 #
 # Range: the default is every release newer than the marker, oldest first, up to
 # the newest published release. --range A..B (v prefix optional) is inclusive at
@@ -53,7 +55,7 @@
 #             the list is omitted when the release count alone exceeds the cap)
 #   cap: within budget (<r> releases / <i> items) | exceeded (<r> releases / <i> items)
 #   recommend: <next step>      when the cap is exceeded or no marker exists
-#   warn: <text>                installed older than latest
+#   warn: <text>                installed older than the newest release in the range
 #
 # Exit codes:
 #   0  status emitted, in every state above including a failed fetch
@@ -187,8 +189,11 @@ fi
 if [[ -z "$last" && -n "$(git rev-parse --show-toplevel 2>/dev/null)" ]]; then
   # SUBJECT only (%s). The version regex below deliberately reaches only the
   # `address Claude Code v<A>[..<B>] changelog` subject form.
+  # Only the versions inside the `address Claude Code v<A>[..<B>] changelog` phrase count;
+  # a subject can carry another dotted version (a plugin release) that is not an apply.
   subject_versions="$(git log --format='%s' 2>/dev/null | tr -d '\r' |
     grep -E '^[a-z]+(\([^)]*\))?!?: .*address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
+    grep -oE 'address Claude Code v'"$VERSION_RE"'(\.\.v?'"$VERSION_RE"')? changelog' |
     grep -oE "$VERSION_RE" || true)"
   if [[ -n "$subject_versions" ]]; then
     # shellcheck disable=SC2086
@@ -287,6 +292,13 @@ mapfile -t in_range < <(awk -v mode="$mode" -v last="$last" -v lo="$range_first"
 latest="$(grep -oE '<Update label="'"$VERSION_RE"'"' "$changelog" | grep -oE "$VERSION_RE" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
 printf 'latest: %s\n' "${latest:-unknown}"
 
+# A body with the right heading but no release blocks is a parse failure (the page
+# markup moved), never proof that nothing is pending.
+if [[ -z "$latest" ]]; then
+  printf 'range: not computed (no <Update label=...> release blocks parsed from the changelog body; the page markup may have changed)\n'
+  exit 0
+fi
+
 rel_count="${#in_range[@]}"
 if ((rel_count == 0)); then
   if [[ -n "$range_first" ]]; then
@@ -321,7 +333,10 @@ else
   fi
 fi
 
-if [[ "$installed" != "unknown" && -n "$latest" && "$(vmax "$installed" "$latest")" != "$installed" ]]; then
-  printf 'warn: installed %s is older than the newest published release %s; update Claude Code before applying changes that reference it\n' "$installed" "$latest"
+# The comparison is against the newest release IN THE RANGE, not the newest published:
+# an explicit historical range is fully supported by an installed version that is
+# older than the feed's newest release.
+if [[ "$installed" != "unknown" && "$(vmax "$installed" "$last_in_range")" != "$installed" ]]; then
+  printf 'warn: installed %s is older than the newest release in the range %s; update Claude Code before applying changes that reference it\n' "$installed" "$last_in_range"
 fi
 exit 0

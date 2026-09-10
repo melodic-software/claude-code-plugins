@@ -100,8 +100,9 @@ Read-only. Display changelog content.
 
 Read-only dry run of `apply`. It answers "is this range worth an `apply`?"
 
-1. Run the status script, with `--range` when the user gave one. Show the `range`, `cap`, and any
-   `warn` line.
+1. Run the status script, with `--range` when the user gave one, or with the range the pasted
+   text's release blocks name when the input is pasted text (pasted text with no version skips
+   the script's cap). Show the `range`, `cap`, and any `warn` line.
 2. If `cap` reads `exceeded`, stop here and relay the `recommend` line. Do not fan out over items;
    the recommendation is the output.
 3. Otherwise run Phase 0 (ingest) over the releases the `releases` line names, then Phase 1
