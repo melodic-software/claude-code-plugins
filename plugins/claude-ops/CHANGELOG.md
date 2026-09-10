@@ -1933,7 +1933,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **Step 2 no longer skips silently.** It now branches on `project_root` and the report carries a
-  fixed `In-repo:` row in all three states, including `skipped — no project context resolved`.
+  fixed `In-repo:` row in all three states, including `skipped: no project context resolved`.
 - **`sync all` no longer sweeps one marketplace while reporting as though it covered every one.**
   Steps 2–5 are the per-marketplace loop body and every `--ids` call carries `--marketplace`.
 - **Divergences are no longer routed to a `converge` command that cannot run.** Records whose

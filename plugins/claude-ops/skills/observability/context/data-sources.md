@@ -36,7 +36,7 @@ case "$SCOPE" in
   since:*) SINCE_ISO="${SCOPE#since:}T00:00:00Z" ;;
   all) SINCE_ISO="1970-01-01T00:00:00Z" ;;
 esac
-[[ -f "${HOOK_FILES[0]:-}" ]] || echo "hook log empty — see the empty-store line under §2"
+[[ -f "${HOOK_FILES[0]:-}" ]] || echo "hook log empty: see the empty-store line under §2"
 ```
 
 Never call `jq -s` with an empty file set: it would read stdin. Guard with the test above.
@@ -94,7 +94,7 @@ mcp__ccusage__blocks  # call MCP tool
 npx -y ccusage blocks --json | jq '.blocks[] | select(.isActive==true) | {start: .startTime, tokens: .totalTokens, projectedTokens: .projection.totalTokens}'
 ```
 
-Empty / missing: emit `"ccusage not installed — npm install -g ccusage or wire MCP"` warning; skip section.
+Empty / missing: emit `"ccusage not installed: npm install -g ccusage or wire MCP"` warning; skip section.
 
 ## 2. Hook event log: latency outliers
 
@@ -138,7 +138,7 @@ jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hoo
 ' "${HOOK_FILES[@]}"
 ```
 
-Empty: `"hook log empty — wire HOOK_TELEMETRY_SINK to your sink script, or turn on session_event_log_enabled, and re-run after hooks fire"`.
+Empty: `"hook log empty: wire HOOK_TELEMETRY_SINK to your sink script, or turn on session_event_log_enabled, and re-run after hooks fire"`.
 
 ## 2.5 Per-session report (`session` and `session:<id>` scopes)
 
@@ -174,7 +174,7 @@ producer's `data.changed`; the eight rewriting formatters (bash, biome, eol-norm
 markdown, powershell, ruff, typos) send it on every run that reached the formatter, so a row with
 `changed == true` is a file the hook rewrote. A session whose envelope rows all predate those
 producer versions, or whose formatters all stopped before the formatter ran, has no such rows;
-render that as `_no data — no producer in this session reported a rewrite verdict_` when no row
+render that as `_no data: no producer in this session reported a rewrite verdict_` when no row
 carries the key at all, and as `_nothing rewritten_` when rows carry it and every value is false.
 
 ```bash
@@ -325,7 +325,7 @@ jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
 - MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive, a candidate for the guardrails `cli_flag_verify_skip_bins` option)
 - INFO: total count, unique-pair count, per-binary distribution
 
-Empty: `"no cli-flag-verify violations — verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
+Empty: `"no cli-flag-verify violations: verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
 
 ## 5. Drift candidates (rules-vs-code mismatches)
 
